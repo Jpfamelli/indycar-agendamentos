@@ -1,0 +1,15 @@
+{
+  "name": "indycar-agendamentos",
+  "version": "1.0.0",
+  "description": "Sistema web de gestão de agendamentos automotivos — IndyCar Centro Automotivo. Dashboard, CRM, clientes, consultores, follow-up e integração WhatsApp com persistência em banco de dados.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

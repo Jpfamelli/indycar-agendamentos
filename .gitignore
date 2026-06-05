@@ -1,0 +1,17 @@
+# Banco de dados (contém a chave do CodeWords e dados — NUNCA versionar)
+*.sqlite
+*.sqlite-*
+indycar.sqlite*
+
+# Dependências (não há, mas por segurança)
+node_modules/
+
+# Ferramentas locais / específicas da máquina
+.claude/
+iniciar-servidor.vbs
+
+# Logs e lixo de SO
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

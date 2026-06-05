@@ -1,0 +1,19 @@
+# Deploy no Render (https://render.com) — conecte este repositório e o Render lê este arquivo.
+services:
+  - type: web
+    name: indycar-agendamentos
+    runtime: node
+    plan: starter            # disco persistente exige plano pago; no "free" o banco é efêmero
+    buildCommand: npm install # não há dependências; roda rápido
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DB_PATH
+        value: /var/data/indycar.sqlite
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false           # defina no painel (segredo)
+    disk:
+      name: indycar-data
+      mountPath: /var/data    # mantém o banco entre deploys
+      sizeGB: 1
