@@ -204,6 +204,24 @@ if (db.prepare('SELECT COUNT(*) AS n FROM ia_config').get().n === 0) {
   db.prepare(`INSERT INTO ia_config (id, ativo, modelo) VALUES (1, 0, 'claude-opus-4-8')`).run();
 }
 
+// Em deploy/nuvem: permite configurar a integração por variáveis de ambiente.
+// Só preenche campos ainda vazios (não sobrescreve o que foi salvo pela interface).
+{
+  const envMap = {
+    api_key: 'ANTHROPIC_API_KEY',
+    cw_api_key: 'CW_API_KEY',
+    cw_service_id: 'CW_SERVICE_ID',
+    cw_db_service_id: 'CW_DB_SERVICE_ID',
+    cw_noshow_service_id: 'CW_NOSHOW_SERVICE_ID',
+    cw_connect_service_id: 'CW_CONNECT_SERVICE_ID',
+    cw_device_id: 'CW_DEVICE_ID',
+  };
+  const row = db.prepare('SELECT * FROM ia_config WHERE id=1').get() || {};
+  for (const [col, env] of Object.entries(envMap)) {
+    if (process.env[env] && !row[col]) db.prepare(`UPDATE ia_config SET ${col}=? WHERE id=1`).run(process.env[env]);
+  }
+}
+
 if (db.prepare('SELECT COUNT(*) AS n FROM servicos').get().n === 0) {
   const ins = db.prepare('INSERT INTO servicos (nome, descricao, preco, duracao_min, categoria) VALUES (?,?,?,?,?)');
   ins.run('Troca de óleo', 'Troca de óleo do motor + filtro', 180, 40, 'Manutenção');

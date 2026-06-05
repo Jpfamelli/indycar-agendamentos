@@ -13,6 +13,20 @@ services:
         value: /var/data/indycar.sqlite
       - key: WHATSAPP_VERIFY_TOKEN
         sync: false           # defina no painel (segredo)
+      # ---- Integração CodeWords (workflows do IndyCar) ----
+      - key: CW_API_KEY
+        sync: false           # cole a chave cwk-... no painel (segredo)
+      - key: CW_SERVICE_ID
+        value: indycar_carlos_whatsapp_e3cd01d3      # atendente Carlos
+      - key: CW_DB_SERVICE_ID
+        value: indycar_agendamentos_db_6657a75c      # banco de agendamentos
+      - key: CW_NOSHOW_SERVICE_ID
+        value: indycar_noshow_notifier_09b5cd69      # notificação de ausência
+      - key: CW_CONNECT_SERVICE_ID
+        value: whatsapp_device_manager               # conexão por QR
+      # CW_DEVICE_ID é opcional — o app cria um device válido sozinho se faltar
+      - key: ANTHROPIC_API_KEY
+        sync: false           # opcional, só se usar o motor Claude
     disk:
       name: indycar-data
       mountPath: /var/data    # mantém o banco entre deploys
