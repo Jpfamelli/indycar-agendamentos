@@ -737,8 +737,9 @@ async function api(req, res, url) {
       const dev = devs.find(d => (d.device_id || d.id) === deviceId);
       state = dev?.gowa_status?.results?.state || dev?.state || dev?.status || '';
     }
-    // match EXATO do estado (evita "disconnected" casar com "connected")
-    const conectado = /^(logged_?in|connected|conectad[oa]?|open|online|ready)$/i.test(String(state).trim());
+    // Pareado SÓ quando "logged_in". No gowa, "connected" = instância no ar SEM número
+    // pareado (ainda precisa escanear); "disconnected"/"connecting" também não são pareados.
+    const conectado = /^(logged_?in|authenticated|paired)$/i.test(String(state).trim());
 
     // QR só quando não está conectado (e não é uma checagem só-status)
     let qr = '', dur = 0, devId = deviceId;
