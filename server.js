@@ -8,6 +8,7 @@ import db from './db.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
 const PORT = process.env.PORT || 3000;
+let _ultimaImportacao = 0; // controle p/ importar ao abrir o painel (no máx 1x/min)
 
 // Token de verificação do webhook do WhatsApp Cloud API (configurável por env)
 const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'indycar';
@@ -272,6 +273,42 @@ async function notificarAusencia(ag) {
               servico: ag.servico, hora: ag.hora, placa: ag.placa || '' } });
 }
 
+// Envia uma mensagem pelo WhatsApp CONECTADO (proxy GOWA, form-data) — confiável, sob meu controle
+async function enviarViaGowa(telefone, mensagem) {
+  const cfg = getIaConfig();
+  if (!cfg.cw_api_key) return { ok: false, erro: 'CodeWords não configurado' };
+  const sid = cfg.cw_connect_service_id || 'whatsapp_device_manager';
+  const carlosPath = (cfg.cw_service_id || 'indycar_carlos_whatsapp_e3cd01d3').replace(/\/?$/, '/');
+  const lst = await chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key, service_id: sid, path: 'devices/list', method: 'POST', inputs: {} });
+  const devs = (lst.ok && lst.data && lst.data.devices) || [];
+  const logado = devs.find(d => (d.service_path || '') === carlosPath && /^(logged_?in|authenticated|paired)$/i.test(d.gowa_status?.results?.state || ''));
+  const deviceId = logado?.device_id || cfg.cw_device_id;
+  if (!deviceId) return { ok: false, erro: 'Nenhum número conectado' };
+  const base = (cfg.cw_base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  const url = `${base}/run/${sid}/proxy/send/message?device_id=${encodeURIComponent(deviceId)}`;
+  const body = new URLSearchParams({ phone: telefoneInternacional(telefone), message: mensagem }).toString();
+  try {
+    const r = await fetch(url, { method: 'POST', headers: { Authorization: cfg.cw_api_key, 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && /success/i.test(JSON.stringify(data))) return { ok: true, data };
+    return { ok: false, erro: data?.message || data?.detail || `HTTP ${r.status}` };
+  } catch (e) { return { ok: false, erro: String(e?.message || e) }; }
+}
+
+// "Não veio" → manda o follow-up pelo WhatsApp conectado e registra no histórico
+async function enviarFollowupAusencia(ag) {
+  if (!ag?.telefone) return { ok: false };
+  const tpl = db.prepare("SELECT * FROM whatsapp_templates WHERE gatilho='followup' AND ativo=1").get();
+  const ctx = { nome: ag.cliente_nome, servico: ag.servico, data: formatarDataBR(ag.data), hora: ag.hora, veiculo: ag.veiculo || '', placa: ag.placa || '' };
+  const corpo = tpl ? renderTemplate(tpl.corpo, ctx)
+    : `Olá ${ag.cliente_nome}, sentimos sua falta hoje! 🙁 Quer remarcar seu ${ag.servico}? É só responder por aqui. 🏁`;
+  const r = await enviarViaGowa(ag.telefone, corpo);
+  db.prepare(`INSERT INTO whatsapp_mensagens (agendamento_id, telefone, nome, corpo, direcao, status, erro)
+              VALUES (?,?,?,?,?,?,?)`).run(ag.id, soDigitos(ag.telefone), ag.cliente_nome, corpo, 'saida',
+              r.ok ? 'enviado' : 'falhou', r.ok ? null : r.erro);
+  return r;
+}
+
 // Registra mensagem de entrada do cliente
 function registrarEntrada(telefone, nome, texto) {
   db.prepare(`INSERT INTO whatsapp_mensagens (telefone, nome, corpo, direcao, status)
@@ -363,7 +400,15 @@ async function api(req, res, url) {
   }
 
   // ---- dashboard
-  if (pathname === '/api/dashboard' && m === 'GET') return ok(res, dashboard());
+  if (pathname === '/api/dashboard' && m === 'GET') {
+    // Ao abrir o painel, puxa os agendamentos do CodeWords (no máx 1x/min).
+    // Essencial no Render free, que "dorme" e não roda o timer de importação.
+    if (Date.now() - _ultimaImportacao > 60000) {
+      _ultimaImportacao = Date.now();
+      try { await Promise.race([importarAgendamentosCW(), new Promise((r) => setTimeout(r, 8000))]); } catch {}
+    }
+    return ok(res, dashboard());
+  }
 
   // ---- agendamentos
   if (pathname === '/api/agendamentos' && m === 'GET') {
@@ -447,8 +492,8 @@ async function api(req, res, url) {
       ch.confirmado !== undefined ? ch.confirmado : a.confirmado,
       ch.compareceu !== undefined ? ch.compareceu : a.compareceu, id);
     const atualizado = db.prepare('SELECT * FROM agendamentos WHERE id=?').get(id);
-    // "Não veio" → dispara o workflow de notificação de ausência (CodeWords), se configurado
-    if (body.status === 'nao_veio') notificarAusencia(atualizado).catch((e) => console.error('No-show:', e));
+    // "Não veio" → envia o follow-up direto pelo WhatsApp conectado (proxy GOWA) — confiável
+    if (body.status === 'nao_veio') enviarFollowupAusencia(atualizado).catch((e) => console.error('Follow-up:', e));
     return ok(res, atualizado);
   }
 
