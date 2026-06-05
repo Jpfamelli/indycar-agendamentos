@@ -229,6 +229,9 @@ function extrairListaCW(data) {
 
 // Importa agendamentos pendentes do workflow "Banco de Agendamentos" para o banco local
 async function importarAgendamentosCW() {
+  // Permite desligar a importação numa instância (ex.: servidor local) p/ evitar
+  // disputa com o cloud — só UM importador deve puxar do CodeWords.
+  if (process.env.IMPORT_DISABLED === '1') return { ok: false, erro: 'importação desativada nesta instância' };
   const cfg = getIaConfig();
   if (!cfg.cw_api_key || !cfg.cw_db_service_id)
     return { ok: false, erro: 'Configure a chave e o Service ID do banco de agendamentos.' };
