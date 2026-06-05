@@ -263,7 +263,10 @@ async function importarAgendamentosCW() {
       a.servico || a['serviço'] || 'Serviço', data, hora, a.origem || 'WhatsApp', 'confirmado');
     importados++;
   }
-  if (itens.length) {
+  // NÃO marca como importado por padrão: assim o /listar segue devolvendo tudo e o app
+  // re-importa (com dedupe por telefone+data+hora) a cada abertura — resiliente ao
+  // Render free apagar o banco a cada deploy. (Defina MARK_IMPORTED=1 p/ voltar a marcar.)
+  if (itens.length && process.env.MARK_IMPORTED === '1') {
     await chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key,
       service_id: cfg.cw_db_service_id, path: 'marcar_importados', method: 'POST', inputs: {} }).catch(() => {});
   }
