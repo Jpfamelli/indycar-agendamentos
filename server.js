@@ -734,31 +734,32 @@ async function api(req, res, url) {
 
     if (devId && url.searchParams.get('acao') === 'reconnect') await call(`devices/${devId}/reconnect`, {});
 
-    // status: devices/list -> devices[].gowa_status.results.state (só se já houver device)
-    let state = '';
-    if (devId) {
-      const lst = await call('devices/list', {});
-      if (lst.ok) {
-        const devs = (lst.data && lst.data.devices) || [];
-        const dev = devs.find(d => (d.device_id || d.id) === devId);
-        state = dev?.gowa_status?.results?.state || dev?.state || dev?.status || '';
-      }
-    }
-    // Pareado SÓ quando "logged_in". No gowa, "connected" = instância no ar SEM número
-    // pareado (ainda precisa escanear); "disconnected"/"connecting" também não são pareados.
-    const conectado = /^(logged_?in|authenticated|paired)$/i.test(String(state).trim());
+    const carlosPath = (cfg.cw_service_id || 'indycar_carlos_whatsapp_e3cd01d3').replace(/\/?$/, '/');
+    const ehConectado = (s) => /^(logged_?in|authenticated|paired)$/i.test(String(s || '').trim());
 
-    // QR só quando não está conectado (e não é uma checagem só-status)
-    let qr = '', dur = 0;
-    if (!conectado && url.searchParams.get('only') !== 'status') {
-      if (!devId) await criarDevice();                       // sem device ainda → cria um
-      let login = devId ? await call(`devices/${devId}/login`, {}) : { ok: false };
-      if (!login.ok) { if (await criarDevice()) login = await call(`devices/${devId}/login`, {}); } // órfão → recria
-      if (login.ok) { qr = login.data?.qr_link || login.data?.qr || ''; dur = login.data?.qr_duration || 0; }
-      else return ok(res, { configurado: true, ok: false, erro: login.erro || 'Falha ao gerar QR', device_id: devId });
+    // Lista os devices e PRIORIZA um já conectado (logged_in) do nosso atendente.
+    const lst = await call('devices/list', {});
+    const devices = (lst.ok && lst.data && lst.data.devices) || [];
+    const meus = devices.filter(d => (d.service_path || '') === carlosPath);
+    const logado = meus.find(d => ehConectado(d.gowa_status?.results?.state));
+    if (logado) {
+      if (devId !== logado.device_id) db.prepare('UPDATE ia_config SET cw_device_id=? WHERE id=1').run(logado.device_id);
+      return ok(res, { configurado: true, ok: true, conectado: true, status: 'logged_in',
+        device_id: logado.device_id, numero: (logado.gowa_status?.results?.jid || '').split('@')[0] || null });
     }
-    return ok(res, { configurado: true, ok: true, qr, qr_duration: dur, conectado,
-      status: state || (qr ? 'aguardando_leitura' : 'desconhecido'), device_id: devId });
+
+    // Não conectado: reaproveita um device existente do serviço (evita criar duplicados).
+    if (!meus.find(d => d.device_id === devId)) devId = meus[0]?.device_id || '';
+    if (url.searchParams.get('only') === 'status')
+      return ok(res, { configurado: true, ok: true, conectado: false, status: 'disconnected', device_id: devId });
+
+    // Gera/atualiza o QR (cria device só se realmente não houver nenhum).
+    if (!devId) await criarDevice();
+    let login = devId ? await call(`devices/${devId}/login`, {}) : { ok: false };
+    if (!login.ok) { if (await criarDevice()) login = await call(`devices/${devId}/login`, {}); }
+    if (!login.ok) return ok(res, { configurado: true, ok: false, erro: login.erro || 'Falha ao gerar QR', device_id: devId });
+    return ok(res, { configurado: true, ok: true, conectado: false, status: 'aguardando_leitura',
+      qr: login.data?.qr_link || login.data?.qr || '', qr_duration: login.data?.qr_duration || 0, device_id: devId });
   }
   // Cria um dispositivo no whatsapp_device_manager (uma vez) e salva o device_id
   if (pathname === '/api/whatsapp/conexao/criar' && m === 'POST') {
