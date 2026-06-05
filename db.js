@@ -186,13 +186,13 @@ if (db.prepare('SELECT COUNT(*) AS n FROM consultores').get().n === 0) {
 if (db.prepare('SELECT COUNT(*) AS n FROM whatsapp_templates').get().n === 0) {
   const ins = db.prepare('INSERT INTO whatsapp_templates (nome, gatilho, corpo) VALUES (?,?,?)');
   ins.run('Confirmação de agendamento', 'confirmacao',
-    'Olá {nome}! 👋 Aqui é da *IndyCar Centro Automotivo*. Confirmando seu horário para *{servico}* no dia *{data}* às *{hora}*. Podemos confirmar? 🏁');
+    'Olá {nome}! 🏁 Aqui é da *IndyCar Centro Automotivo*. Seu horário está reservado:\n\n🔧 *{servico}*\n🚗 {veiculo} ({placa})\n📅 {data} às *{hora}*\n\nPosso confirmar sua presença? Responda *SIM* que já deixo tudo pronto pra você. Precisa remarcar? É só me dizer por aqui. 😉');
   ins.run('Lembrete (1 dia antes)', 'lembrete',
-    'Oi {nome}! Passando para lembrar do seu agendamento amanhã ({data}) às {hora} para {servico}. Te esperamos! 🚗');
+    'Oi {nome}! 👋 Passando pra lembrar do seu horário *amanhã* na IndyCar:\n\n🔧 {servico}\n🚗 {veiculo} ({placa})\n📅 {data} às *{hora}*\n📍 Av. Bandeirantes, 875 — Taubaté/SP\n\nChega uns 5 minutinhos antes pra começarmos no horário. 🏁 Está de pé? Se não puder, me avisa que remarco rapidinho.');
   ins.run('Follow-up (não veio)', 'followup',
-    'Olá {nome}, sentimos sua falta hoje! 😟 Quer remarcar seu {servico}? É só responder por aqui que reagendamos pra você.');
+    'Olá {nome}, senti sua falta hoje! 🙁 Sei que a correria aperta. Seu {veiculo} ainda precisa do *{servico}* — quer que eu remarque pra um horário que caiba melhor na sua semana? Tenho vagas e garanto atendimento rápido. 🚗🏁 Me diz o melhor dia que já reservo pra você.');
   ins.run('Pós-serviço', 'pos_servico',
-    'Olá {nome}! Seu {veiculo} está pronto e ficou show! 🏁 Obrigado pela confiança. Lembrando: quem conhece, indica! 😉');
+    'Prontinho, {nome}! ✅ Seu {veiculo} saiu com *{servico}* concluído e rodando redondo. 🏁\n\nObrigado pela confiança na *IndyCar*! Qualquer detalhe nos primeiros dias, fala comigo que resolvo na hora. E se puder indicar a gente pra um amigo, ajuda demais — afinal, *quem conhece, indica!* 😉⭐');
 }
 
 if (db.prepare('SELECT COUNT(*) AS n FROM whatsapp_config').get().n === 0) {

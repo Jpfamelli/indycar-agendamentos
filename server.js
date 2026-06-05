@@ -721,43 +721,41 @@ async function api(req, res, url) {
     const cfg = getIaConfig();
     if (!cfg.cw_api_key) return ok(res, { configurado: false, erro: 'Configure a chave do CodeWords (aba IA).' });
     const sid = cfg.cw_connect_service_id || 'whatsapp_device_manager';
-    const deviceId = cfg.cw_device_id;
-    if (!deviceId) return ok(res, { configurado: false, erro: 'Sem device_id — crie um dispositivo na aba Conexão.' });
+    let devId = cfg.cw_device_id || '';
     const call = (path, inputs = {}) => chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key,
       service_id: sid, path, method: 'POST', inputs });
+    const criarDevice = async () => {
+      const sp = (cfg.cw_service_id || 'indycar_carlos_whatsapp_e3cd01d3').replace(/\/?$/, '/');
+      const novo = await call('devices', { service_path: sp });
+      const nid = novo.ok && (novo.data?.device_id || novo.data?.id);
+      if (nid) { devId = nid; db.prepare('UPDATE ia_config SET cw_device_id=? WHERE id=1').run(nid); }
+      return !!nid;
+    };
 
-    if (url.searchParams.get('acao') === 'reconnect') await call(`devices/${deviceId}/reconnect`, {});
+    if (devId && url.searchParams.get('acao') === 'reconnect') await call(`devices/${devId}/reconnect`, {});
 
-    // status: devices/list → devices[].gowa_status.results.state
-    const lst = await call('devices/list', {});
+    // status: devices/list -> devices[].gowa_status.results.state (só se já houver device)
     let state = '';
-    if (lst.ok) {
-      const devs = (lst.data && lst.data.devices) || [];
-      // match EXATO pelo nosso device (sem fallback p/ devs[0], que poderia ser de outro serviço)
-      const dev = devs.find(d => (d.device_id || d.id) === deviceId);
-      state = dev?.gowa_status?.results?.state || dev?.state || dev?.status || '';
+    if (devId) {
+      const lst = await call('devices/list', {});
+      if (lst.ok) {
+        const devs = (lst.data && lst.data.devices) || [];
+        const dev = devs.find(d => (d.device_id || d.id) === devId);
+        state = dev?.gowa_status?.results?.state || dev?.state || dev?.status || '';
+      }
     }
     // Pareado SÓ quando "logged_in". No gowa, "connected" = instância no ar SEM número
     // pareado (ainda precisa escanear); "disconnected"/"connecting" também não são pareados.
     const conectado = /^(logged_?in|authenticated|paired)$/i.test(String(state).trim());
 
     // QR só quando não está conectado (e não é uma checagem só-status)
-    let qr = '', dur = 0, devId = deviceId;
+    let qr = '', dur = 0;
     if (!conectado && url.searchParams.get('only') !== 'status') {
-      let login = await call(`devices/${devId}/login`, {});
-      if (!login.ok) {
-        // device órfão/expirado → cria um novo vinculado ao atendente e tenta de novo
-        const sp = (cfg.cw_service_id || 'indycar_carlos_whatsapp_e3cd01d3').replace(/\/?$/, '/');
-        const novo = await call('devices', { service_path: sp });
-        const nid = novo.ok && (novo.data?.device_id || novo.data?.id);
-        if (nid) {
-          devId = nid;
-          db.prepare('UPDATE ia_config SET cw_device_id=? WHERE id=1').run(nid);
-          login = await call(`devices/${devId}/login`, {});
-        }
-      }
+      if (!devId) await criarDevice();                       // sem device ainda → cria um
+      let login = devId ? await call(`devices/${devId}/login`, {}) : { ok: false };
+      if (!login.ok) { if (await criarDevice()) login = await call(`devices/${devId}/login`, {}); } // órfão → recria
       if (login.ok) { qr = login.data?.qr_link || login.data?.qr || ''; dur = login.data?.qr_duration || 0; }
-      else return ok(res, { configurado: true, ok: false, erro: login.erro, device_id: devId });
+      else return ok(res, { configurado: true, ok: false, erro: login.erro || 'Falha ao gerar QR', device_id: devId });
     }
     return ok(res, { configurado: true, ok: true, qr, qr_duration: dur, conectado,
       status: state || (qr ? 'aguardando_leitura' : 'desconhecido'), device_id: devId });
@@ -828,7 +826,10 @@ async function serveStatic(req, res, pathname) {
   if (!filePath.startsWith(PUBLIC)) return notFound(res); // anti path-traversal
   try {
     const data = await readFile(filePath);
-    res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' });
+    res.writeHead(200, {
+      'Content-Type': MIME[extname(filePath)] || 'application/octet-stream',
+      'Cache-Control': 'no-cache, must-revalidate',  // evita servir front-end desatualizado
+    });
     res.end(data);
   } catch {
     // SPA fallback
