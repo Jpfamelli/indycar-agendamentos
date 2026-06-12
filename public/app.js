@@ -415,7 +415,7 @@ async function renderWhatsapp() {
     <div class="tabs">
       <button class="tab ${tab==='config'?'active':''}" data-tab="config">${svg(I.gear)} Configuração</button>
       <button class="tab ${tab==='conexao'?'active':''}" data-tab="conexao">${svg(I.phone)} Conexão</button>
-      <button class="tab ${tab==='ia'?'active':''}" data-tab="ia">${svg(I.bot)} IA Atendimento</button>
+      <button class="tab ${tab==='ia'?'active':''}" data-tab="ia">${svg(I.bot)} Integração</button>
       <button class="tab ${tab==='modelos'?'active':''}" data-tab="modelos">${svg(I.edit)} Modelos</button>
       <button class="tab ${tab==='mensagens'?'active':''}" data-tab="mensagens">${svg(I.wa)} Mensagens</button>
     </div>
@@ -622,398 +622,51 @@ async function waMensagens(box) {
       </div></div>`;
 }
 function statusMsg(s){ return {enviado:'enviado ✅',entregue:'entregue ✅✅',lido:'lido 👁️',recebido:'recebido',falhou:'falhou ❌',pendente:'pendente'}[s]||s; }
-
 async function waIA(box) {
   const cfg = await api('GET','/whatsapp/ia/config');
-  const motor = cfg.motor || 'anthropic';
-  const modelos = [
-    ['claude-opus-4-8','Claude Opus 4.8 — mais inteligente'],
-    ['claude-sonnet-4-6','Claude Sonnet 4.6 — equilíbrio'],
-    ['claude-haiku-4-5','Claude Haiku 4.5 — rápido e econômico'],
-  ];
   box.innerHTML = `
     <div class="wa-grid">
-      <div class="panel"><div class="panel-head"><h2>${svg(I.bot)} IA de atendimento</h2>
-        <span class="badge-pill ${cfg.ativo?'bp-green':'bp-gray'}">${cfg.ativo?'Ativa':'Desativada'}</span></div>
+      <div class="panel"><div class="panel-head"><h2>${svg(I.bot)} Integração WhatsApp (CodeWords)</h2>
+        <span class="badge-pill ${cfg.tem_cw_chave?'bp-green':'bp-orange'}">${cfg.tem_cw_chave?'Configurada':'Falta a chave'}</span></div>
         <div class="panel-body">
-          <div class="field"><label class="switch"><input type="checkbox" id="ia_ativo" ${cfg.ativo?'checked':''}> <span>Responder clientes automaticamente</span></label>
-            <small class="muted">Com a Cloud API ligada, novas mensagens recebidas no WhatsApp são respondidas sozinhas.</small></div>
-          <div class="field"><label>Motor da IA</label><select id="ia_motor">
-            <option value="anthropic" ${motor==='anthropic'?'selected':''}>Claude (API Anthropic)</option>
-            <option value="codewords" ${motor==='codewords'?'selected':''}>CodeWords (workflow)</option>
-          </select></div>
-          <div id="grp_anthropic">
-            <div class="field"><label>Chave da API Anthropic ${cfg.tem_chave?`<span class="chip">salva: ${esc(cfg.chave_mask)}</span>`:''}</label>
-              <input id="ia_key" type="password" autocomplete="off" placeholder="${cfg.tem_chave?'•••• deixe em branco para manter':'sk-ant-...'}"></div>
-            <div class="field"><label>Modelo</label><select id="ia_modelo">
-              ${modelos.map(([v,t])=>`<option value="${v}" ${v===cfg.modelo?'selected':''}>${t}</option>`).join('')}</select></div>
-          </div>
-          <div id="grp_codewords">
-            <div class="tpl" style="border-color:rgba(37,211,102,.35);margin-bottom:10px"><div class="tpl-body">🟢 <b>Carlos atende direto no WhatsApp.</b> No painel da Meta, aponte o webhook para o workflow do Carlos:
-              <br><code style="word-break:break-all">${esc((cfg.cw_base_url||'https://runtime.codewords.ai').replace(/\/+$/,''))}/run/${esc(cfg.cw_service_id||'<workflow-do-carlos>')}/</code>
-              <br>O app <b>importa</b> os agendamentos que o Carlos salva e <b>dispara a notificação de ausência</b> no "Não veio" — não precisa ligar a resposta automática abaixo.</div></div>
-            <div class="field"><label>Chave do CodeWords ${cfg.tem_cw_chave?`<span class="chip">salva: ${esc(cfg.cw_chave_mask)}</span>`:''}</label>
-              <input id="cw_key" type="password" autocomplete="off" placeholder="${cfg.tem_cw_chave?'•••• deixe em branco para manter':'cwk-...'}"></div>
-            <div class="field"><label>Workflow do atendente (Carlos)</label><input id="cw_sid" value="${esc(cfg.cw_service_id||'')}" placeholder="indycar_carlos_whatsapp_..."></div>
-            <div class="field"><label>Workflow do banco de agendamentos</label><input id="cw_db" value="${esc(cfg.cw_db_service_id||'')}" placeholder="indycar_agendamentos_db_..."></div>
-            <div class="field"><label>Workflow de notificação de ausência</label><input id="cw_noshow" value="${esc(cfg.cw_noshow_service_id||'')}" placeholder="indycar_noshow_notifier_..."></div>
-            <div class="field"><label>Base URL</label><input id="cw_base" value="${esc(cfg.cw_base_url||'https://runtime.codewords.ai')}"></div>
-            <button class="btn" id="cw_sync" style="margin-top:2px">${svg(I.calendar)} Sincronizar agendamentos agora</button>
-            <div id="cw_sync_result"></div>
-            <small class="muted" style="display:block;margin-top:8px">Carlos recebe <code>{message, history, business, customer_name, customer_phone}</code>. Os agendamentos do banco são importados automaticamente (a cada 3 min) e o botão <b>Não veio</b> dispara a notificação de ausência.</small>
-          </div>
-          <div class="field" style="margin-top:6px"><label>Personalidade / instruções extras</label>
-            <textarea id="ia_persona" style="min-height:80px" placeholder="Ex.: Seja simpático e direto. Ofereça 10% de desconto na primeira visita.">${esc(cfg.persona||'')}</textarea></div>
-          <div style="display:flex;gap:10px;margin-top:4px">
-            <button class="btn primary" id="ia_save">${svg(I.check)} Salvar</button>
-            <button class="btn" id="ia_test">${svg(I.bot)} Testar conexão</button>
-          </div>
-          <div id="ia_result"></div>
-          <small class="muted" style="display:block;margin-top:10px">A IA conhece sua empresa e os serviços do <b>Arsenal</b> automaticamente.</small>
+          <div class="tpl" style="border-color:rgba(37,211,102,.35)"><div class="tpl-body">🟢 <b>Como funciona:</b> a IA já cadastrada no seu WhatsApp atende os clientes. O app só faz 3 coisas:
+1. <b>Puxa os agendamentos</b> que a IA fecha e coloca na agenda (sozinho).
+2. No <b>"Não veio"</b>, aciona a IA para ela fazer o <b>follow-up</b> com o cliente.
+3. Mantém a <b>conexão do número</b> (aba Conexão).
+O app <b>não envia nenhuma mensagem automática</b> por conta própria.</div></div>
+          <div class="field"><label>Chave do CodeWords ${cfg.tem_cw_chave?`<span class="chip">salva: ${esc(cfg.cw_chave_mask)}</span>`:''}</label>
+            <input id="cw_key" type="password" autocomplete="off" placeholder="${cfg.tem_cw_chave?'•••• deixe em branco para manter':'cwk-...'}"></div>
+          <div class="field"><label>Workflow do atendente (vincula o número)</label><input id="cw_sid" value="${esc(cfg.cw_service_id||'')}" placeholder="indycar_carlos_whatsapp_..."></div>
+          <div class="field"><label>Workflow do banco de agendamentos (importação)</label><input id="cw_db" value="${esc(cfg.cw_db_service_id||'')}" placeholder="indycar_agendamentos_db_..."></div>
+          <div class="field"><label>Workflow de follow-up de ausência (IA)</label><input id="cw_noshow" value="${esc(cfg.cw_noshow_service_id||'')}" placeholder="indycar_noshow_notifier_..."></div>
+          <div class="field"><label>Base URL</label><input id="cw_base" value="${esc(cfg.cw_base_url||'https://runtime.codewords.ai')}"></div>
+          <button class="btn primary" id="ia_save">${svg(I.check)} Salvar</button>
         </div></div>
-      <div class="panel"><div class="panel-head"><h2>${svg(I.wa)} Simulador de atendimento</h2></div>
+      <div class="panel"><div class="panel-head"><h2>${svg(I.calendar)} Agendamentos da IA</h2></div>
         <div class="panel-body">
-          <small class="muted">Converse como se fosse um cliente. As mensagens entram no histórico real.</small>
-          <div id="ia_chat" class="chat-box"></div>
-          <div class="field"><label>Telefone do cliente (simulado)</label><input id="ia_tel" value="5512999990000"></div>
-          <div style="display:flex;gap:8px">
-            <input id="ia_msg" class="inp" style="flex:1" placeholder="Digite como cliente e tecle Enter...">
-            <button class="btn green" id="ia_send">${svg(I.send)}</button>
-          </div>
-          <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
-            <strong style="font-size:13px;display:flex;align-items:center;gap:6px">${svg(I.bot)} Disparar workflow CodeWords (avulso)</strong>
-            <div class="field" style="margin-top:8px"><label>Service ID <span class="muted">(vazio = o da config)</span></label><input id="cw_run_id" class="inp" placeholder="id-do-workflow"></div>
-            <div class="field"><label>Inputs (JSON)</label><textarea id="cw_run_inputs" style="min-height:60px">{}</textarea></div>
-            <button class="btn" id="cw_run_btn">${svg(I.send)} Rodar workflow</button>
-            <div id="cw_run_result"></div>
-          </div>
+          <div class="tpl"><div class="tpl-body">Os agendamentos que a IA fecha no WhatsApp entram <b>sozinhos</b> na agenda (a cada poucos minutos e sempre que o painel abre). Se quiser forçar agora:</div></div>
+          <button class="btn green" id="cw_sync">${svg(I.calendar)} Sincronizar agendamentos agora</button>
+          <div id="cw_sync_result"></div>
+          <small class="muted" style="display:block;margin-top:10px">O follow-up de ausência aparece na aba <b>Mensagens</b> como "delegado à IA" sempre que você marcar <b>Não veio</b>.</small>
         </div></div>
     </div>`;
 
-  function aplicarMotor() {
-    const mot = $('#ia_motor').value;
-    $('#grp_anthropic').style.display = mot === 'anthropic' ? '' : 'none';
-    $('#grp_codewords').style.display = mot === 'codewords' ? '' : 'none';
-  }
-  $('#ia_motor').addEventListener('change', aplicarMotor); aplicarMotor();
-
   $('#ia_save').addEventListener('click', async () => {
-    const mot = $('#ia_motor').value;
-    const p = { ativo:$('#ia_ativo').checked, motor:mot, persona:$('#ia_persona').value.trim(),
-      api_key:$('#ia_key').value.trim(), modelo:$('#ia_modelo').value,
+    const p = { motor:'codewords', ativo:false,
       cw_api_key:$('#cw_key').value.trim(), cw_service_id:$('#cw_sid').value.trim(),
       cw_db_service_id:$('#cw_db').value.trim(), cw_noshow_service_id:$('#cw_noshow').value.trim(),
-      cw_base_url:$('#cw_base').value.trim() };
-    if (p.ativo && mot==='anthropic' && !p.api_key && !cfg.tem_chave) return toast('Informe a chave da Anthropic para ativar','err');
-    if (p.ativo && mot==='codewords' && ((!p.cw_api_key && !cfg.tem_cw_chave) || !p.cw_service_id)) return toast('Informe a chave e o Service ID do CodeWords','err');
-    try { await api('PUT','/whatsapp/ia/config',p); toast('IA configurada ✅'); renderWhatsapp(); }
+      cw_base_url:$('#cw_base').value.trim()||'https://runtime.codewords.ai' };
+    try { await api('PUT','/whatsapp/ia/config',p); toast('Integração salva ✅'); renderWhatsapp(); }
     catch(e){ toast(e.message,'err'); }
   });
-  $('#ia_test').addEventListener('click', async () => {
-    const r = $('#ia_result'); r.innerHTML = '<div class="muted" style="margin-top:10px">Testando…</div>';
-    try {
-      const res = await api('POST','/whatsapp/ia/testar',{ motor:$('#ia_motor').value,
-        api_key:$('#ia_key').value.trim(), modelo:$('#ia_modelo').value,
-        cw_api_key:$('#cw_key').value.trim(), cw_service_id:$('#cw_sid').value.trim(), cw_base_url:$('#cw_base').value.trim() });
-      r.innerHTML = res.ok
-        ? `<div class="tpl" style="margin-top:10px;border-color:rgba(34,197,94,.45)"><div class="tpl-body">✅ ${esc(res.texto)}</div></div>`
-        : `<div class="tpl" style="margin-top:10px;border-color:rgba(230,25,46,.45)"><div class="tpl-body">❌ ${esc(res.erro)}</div></div>`;
-    } catch(e){ r.innerHTML = `<div class="tpl" style="margin-top:10px;border-color:rgba(230,25,46,.45)"><div class="tpl-body">❌ ${esc(e.message)}</div></div>`; }
-  });
-  $('#cw_run_btn').addEventListener('click', async () => {
-    let inputs = {};
-    try { inputs = JSON.parse($('#cw_run_inputs').value || '{}'); } catch { return toast('Inputs não é um JSON válido','err'); }
-    const r = $('#cw_run_result'); r.innerHTML = '<div class="muted" style="margin-top:8px">Rodando…</div>';
-    try {
-      const res = await api('POST','/codewords/run',{ service_id:$('#cw_run_id').value.trim()||undefined, inputs });
-      const out = typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2);
-      r.innerHTML = res.ok
-        ? `<div class="tpl" style="margin-top:8px;border-color:rgba(34,197,94,.4)"><div class="tpl-body" style="max-height:200px;overflow:auto;white-space:pre-wrap">✅ ${esc(out).slice(0,2000)}</div></div>`
-        : `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(res.erro)}</div></div>`;
-    } catch(e){ r.innerHTML = `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(e.message)}</div></div>`; }
-  });
-
-  $('#cw_sync')?.addEventListener('click', async () => {
+  $('#cw_sync').addEventListener('click', async () => {
     const r = $('#cw_sync_result'); r.innerHTML = '<div class="muted" style="margin-top:8px">Sincronizando…</div>';
     try {
       const res = await api('POST','/codewords/importar', {});
       r.innerHTML = res.ok
-        ? `<div class="tpl" style="margin-top:8px;border-color:rgba(34,197,94,.4)"><div class="tpl-body">✅ ${res.importados} novo(s) importado(s) de ${res.encontrados} pendente(s).</div></div>`
+        ? `<div class="tpl" style="margin-top:8px;border-color:rgba(34,197,94,.4)"><div class="tpl-body">✅ ${res.importados} novo(s) de ${res.encontrados} encontrado(s).</div></div>`
         : `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(res.erro)}</div></div>`;
       if (res.ok && res.importados) toast(`${res.importados} agendamento(s) importado(s)`);
     } catch(e){ r.innerHTML = `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(e.message)}</div></div>`; }
   });
-
-  const chat = $('#ia_chat');
-  const bolha = (role, texto) => {
-    const d = document.createElement('div');
-    d.className = 'bubble ' + (role === 'user' ? 'me' : 'bot');
-    d.textContent = texto; chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
-    return d;
-  };
-  async function enviarSim() {
-    const texto = $('#ia_msg').value.trim(); if (!texto) return;
-    bolha('user', texto); $('#ia_msg').value = '';
-    const pend = bolha('bot', 'IA digitando…'); pend.style.opacity = '.6';
-    try {
-      const r = await api('POST','/whatsapp/ia/responder',{ telefone:$('#ia_tel').value.trim(), texto });
-      pend.remove();
-      bolha('bot', r.ok ? r.texto : '⚠️ ' + (r.erro || 'erro'));
-    } catch(e){ pend.remove(); bolha('bot', '⚠️ ' + e.message); }
-  }
-  $('#ia_send').addEventListener('click', enviarSim);
-  $('#ia_msg').addEventListener('keydown', e => { if (e.key === 'Enter') enviarSim(); });
 }
-
-// ============================================================================
-// MODAIS
-// ============================================================================
-const overlay = $('#modalOverlay'), modal = $('#modal');
-function openModal(html){ modal.innerHTML = html; overlay.classList.add('open'); }
-function closeModal(){ overlay.classList.remove('open'); }
-overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
-
-function fieldsConsultorOptions(sel){
-  return state.consultores.map(c => `<option value="${c.id}" ${c.id==sel?'selected':''}>${esc(c.nome)}</option>`).join('');
-}
-
-window.openAgendamentoModal = async function(id){
-  const servicos = await api('GET','/servicos').catch(()=>[]);
-  let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:new Date().toISOString().slice(0,10),
-            hora:'09:00',consultor_id:'',origem:'Google',observacoes:'',status:'aguardando',confirmado:0 };
-  if (id) a = await api('GET',`/agendamentos/${id}`).catch(()=>null) || a;
-  openModal(`
-    <div class="modal-head"><h3>${svg(I.calendar)} ${id?'Editar':'Novo'} agendamento</h3>
-      <button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="modal-body">
-      <div class="grid2">
-        <div class="field"><label>Cliente *</label><input id="f_nome" value="${esc(a.cliente_nome)}"></div>
-        <div class="field"><label>Telefone (WhatsApp)</label><input id="f_tel" value="${esc(a.telefone)}" placeholder="12 99999-9999"></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Veículo</label><input id="f_veic" value="${esc(a.veiculo)}" placeholder="Ônix"></div>
-        <div class="field"><label>Placa</label><input id="f_placa" value="${esc(a.placa)}" placeholder="AURA6742"></div>
-      </div>
-      <div class="field"><label>Serviço *</label>
-        <input id="f_serv" list="servListAg" value="${esc(a.servico)}" placeholder="Selecione ou digite o serviço">
-        <datalist id="servListAg">${servicos.map(s=>`<option value="${esc(s.nome)}"></option>`).join('')}</datalist></div>
-      <div class="grid3">
-        <div class="field"><label>Data *</label><input id="f_data" type="date" value="${a.data}"></div>
-        <div class="field"><label>Hora *</label><input id="f_hora" type="time" value="${a.hora}"></div>
-        <div class="field"><label>Consultor</label><select id="f_cons"><option value="">—</option>${fieldsConsultorOptions(a.consultor_id)}</select></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Origem</label><select id="f_ori">
-          ${['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem'].map(o=>`<option ${o==a.origem?'selected':''}>${o}</option>`).join('')}
-        </select></div>
-        <div class="field"><label>Status</label><select id="f_status">
-          ${Object.entries(STATUS_LABEL).map(([k,v])=>`<option value="${k}" ${k==a.status?'selected':''}>${v}</option>`).join('')}
-        </select></div>
-      </div>
-      <div class="field"><label>Observações</label><textarea id="f_obs">${esc(a.observacoes)}</textarea></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn primary" id="f_save">${svg(I.check)} Salvar</button>
-    </div>`);
-  $('#f_save').addEventListener('click', async () => {
-    const payload = {
-      cliente_nome:$('#f_nome').value.trim(), telefone:$('#f_tel').value.trim(),
-      veiculo:$('#f_veic').value.trim(), placa:$('#f_placa').value.trim().toUpperCase(),
-      servico:$('#f_serv').value.trim(), data:$('#f_data').value, hora:$('#f_hora').value,
-      consultor_id:$('#f_cons').value || null, origem:$('#f_ori').value,
-      status:$('#f_status').value, confirmado:$('#f_status').value==='confirmado'?1:(a.confirmado||0),
-      observacoes:$('#f_obs').value.trim(),
-    };
-    if(!payload.cliente_nome||!payload.servico||!payload.data||!payload.hora) return toast('Preencha os campos obrigatórios','err');
-    try {
-      if (id) await api('PUT', `/agendamentos/${id}`, payload);
-      else await api('POST', '/agendamentos', payload);
-      toast('Agendamento salvo'); closeModal(); route();
-    } catch(e){ toast(e.message,'err'); }
-  });
-};
-
-window.openClienteModal = async function(id){
-  let c = {nome:'',telefone:'',veiculo:'',placa:'',modelo:'',origem:'Google',observacoes:''};
-  if (id) c = await api('GET','/clientes').then(l=>l.find(x=>x.id===id)) || c;
-  openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} cliente</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="modal-body">
-      <div class="grid2">
-        <div class="field"><label>Nome *</label><input id="c_nome" value="${esc(c.nome)}"></div>
-        <div class="field"><label>Telefone</label><input id="c_tel" value="${esc(c.telefone)}"></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Veículo</label><input id="c_veic" value="${esc(c.veiculo)}"></div>
-        <div class="field"><label>Placa</label><input id="c_placa" value="${esc(c.placa)}"></div>
-      </div>
-      <div class="grid2">
-        <div class="field"><label>Modelo</label><input id="c_mod" value="${esc(c.modelo)}"></div>
-        <div class="field"><label>Origem</label><select id="c_ori">${['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem'].map(o=>`<option ${o==c.origem?'selected':''}>${o}</option>`).join('')}</select></div>
-      </div>
-      <div class="field"><label>Observações</label><textarea id="c_obs">${esc(c.observacoes)}</textarea></div>
-    </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn primary" id="c_save">${svg(I.check)} Salvar</button></div>`);
-  $('#c_save').addEventListener('click', async () => {
-    const p = {nome:$('#c_nome').value.trim(),telefone:$('#c_tel').value.trim(),veiculo:$('#c_veic').value.trim(),
-      placa:$('#c_placa').value.trim().toUpperCase(),modelo:$('#c_mod').value.trim(),origem:$('#c_ori').value,observacoes:$('#c_obs').value.trim()};
-    if(!p.nome) return toast('Informe o nome','err');
-    try{ if(id) await api('PUT',`/clientes/${id}`,p); else await api('POST','/clientes',p);
-      toast('Cliente salvo'); closeModal(); renderClientes(); }catch(e){toast(e.message,'err');}
-  });
-};
-
-window.openConsultorModal = async function(id){
-  let c = {nome:'',telefone:'',cor:'#e6192e',ativo:1};
-  if (id) c = state.consultores.find(x=>x.id===id) || await api('GET','/consultores').then(l=>l.find(x=>x.id===id)) || c;
-  openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} consultor</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="modal-body">
-      <div class="field"><label>Nome *</label><input id="k_nome" value="${esc(c.nome)}"></div>
-      <div class="grid2">
-        <div class="field"><label>Telefone</label><input id="k_tel" value="${esc(c.telefone)}"></div>
-        <div class="field"><label>Cor</label><input id="k_cor" type="color" value="${c.cor||'#e6192e'}" style="height:44px;padding:4px"></div>
-      </div>
-      <div class="field"><label><input id="k_ativo" type="checkbox" ${c.ativo?'checked':''}> Ativo</label></div>
-    </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn primary" id="k_save">${svg(I.check)} Salvar</button></div>`);
-  $('#k_save').addEventListener('click', async () => {
-    const p={nome:$('#k_nome').value.trim(),telefone:$('#k_tel').value.trim(),cor:$('#k_cor').value,ativo:$('#k_ativo').checked?1:0};
-    if(!p.nome) return toast('Informe o nome','err');
-    try{ if(id) await api('PUT',`/consultores/${id}`,p); else await api('POST','/consultores',p);
-      await loadConsultores(); toast('Consultor salvo'); closeModal(); renderEquipe(); }catch(e){toast(e.message,'err');}
-  });
-};
-
-window.openTemplateModal = async function(id){
-  let t = {nome:'',gatilho:'manual',corpo:''};
-  if (id) t = await api('GET','/whatsapp/templates').then(l=>l.find(x=>x.id===id)) || t;
-  openModal(`
-    <div class="modal-head"><h3>${svg(I.wa)} ${id?'Editar':'Novo'} modelo</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="modal-body">
-      <div class="grid2">
-        <div class="field"><label>Nome *</label><input id="t_nome" value="${esc(t.nome)}"></div>
-        <div class="field"><label>Gatilho</label><select id="t_gat">${['manual','confirmacao','lembrete','followup','pos_servico'].map(g=>`<option ${g==t.gatilho?'selected':''}>${g}</option>`).join('')}</select></div>
-      </div>
-      <div class="field"><label>Mensagem *</label><textarea id="t_corpo" style="min-height:120px">${esc(t.corpo)}</textarea>
-        <small class="muted">Variáveis: {nome} {servico} {data} {hora} {veiculo} {placa}</small></div>
-    </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn primary" id="t_save">${svg(I.check)} Salvar</button></div>`);
-  $('#t_save').addEventListener('click', async () => {
-    const p={nome:$('#t_nome').value.trim(),gatilho:$('#t_gat').value,corpo:$('#t_corpo').value.trim()};
-    if(!p.nome||!p.corpo) return toast('Preencha nome e mensagem','err');
-    try{ if(id) await api('PUT',`/whatsapp/templates/${id}`,p); else await api('POST','/whatsapp/templates',p);
-      toast('Modelo salvo'); closeModal(); renderWhatsapp(); }catch(e){toast(e.message,'err');}
-  });
-};
-
-// Modal de envio de WhatsApp (a partir de agendamento, cliente ou template)
-window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
-  const [templates, cfg] = await Promise.all([ api('GET','/whatsapp/templates'), api('GET','/whatsapp/config') ]);
-  const enviaCloud = !!(cfg.ativo && cfg.phone_number_id && cfg.tem_token);
-  let nome='', telefone='', agId=agendamentoId||'';
-  if (agendamentoId){ const a=await api('GET','/agendamentos').then(l=>l.find(x=>x.id===agendamentoId)); if(a){nome=a.cliente_nome;telefone=a.telefone;} }
-  else if (clienteId){ const c=await api('GET','/clientes').then(l=>l.find(x=>x.id===clienteId)); if(c){nome=c.nome;telefone=c.telefone;} }
-  openModal(`
-    <div class="modal-head"><h3 style="color:#25d366">${svg(I.wa)} Enviar WhatsApp</h3><button class="modal-close" onclick="closeModal()">×</button></div>
-    <div class="modal-body">
-      <div class="grid2">
-        <div class="field"><label>Nome</label><input id="w_nome" value="${esc(nome)}"></div>
-        <div class="field"><label>Telefone *</label><input id="w_tel" value="${esc(telefone)}" placeholder="12 99999-9999"></div>
-      </div>
-      <div class="field"><label>Usar modelo</label><select id="w_tpl"><option value="">— Mensagem livre —</option>
-        ${templates.map(t=>`<option value="${t.id}" ${t.id==templateId?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></div>
-      <div class="field"><label>Mensagem *</label><textarea id="w_corpo" style="min-height:120px"></textarea></div>
-      <input type="hidden" id="w_ag" value="${agId}">
-      <small class="muted">${enviaCloud
-        ? '⚡ A Cloud API está ativa: a mensagem será <b>enviada automaticamente</b>.'
-        : '🔗 Modo link: a mensagem será registrada e o <b>WhatsApp abrirá</b> com o texto pronto.'}</small>
-    </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn green" id="w_send">${svg(I.send)} ${enviaCloud?'Enviar pela Cloud API':'Registrar e abrir WhatsApp'}</button></div>`);
-
-  async function carregaTemplate(){
-    const tid = $('#w_tpl').value;
-    if (!tid){ return; }
-    const r = await api('POST','/whatsapp/preparar',{ template_id:+tid, agendamento_id:agId||null, nome:$('#w_nome').value, telefone:$('#w_tel').value });
-    $('#w_corpo').value = r.corpo;
-  }
-  if (templateId) carregaTemplate();
-  $('#w_tpl').addEventListener('change', carregaTemplate);
-  $('#w_send').addEventListener('click', async () => {
-    const tel=$('#w_tel').value.trim(), corpo=$('#w_corpo').value.trim();
-    if(!tel||!corpo) return toast('Informe telefone e mensagem','err');
-    try{
-      const r = await api('POST','/whatsapp/enviar',{ telefone:tel, nome:$('#w_nome').value.trim(),
-        corpo, agendamento_id:agId||null, template_id:$('#w_tpl').value||null });
-      if (r.modo === 'cloud') {
-        if (r.status === 'enviado') toast('Mensagem enviada pela Cloud API ✅');
-        else toast('Falha no envio: ' + (r.erro||'erro'), 'err');
-      } else {
-        toast('Mensagem registrada — abrindo WhatsApp');
-        window.open(r.link, '_blank');
-      }
-      closeModal(); if (state.route==='whatsapp') { state.waTab='mensagens'; renderWhatsapp(); }
-    }catch(e){toast(e.message,'err');}
-  });
-};
-
-// ============================================================================
-// ROTEAMENTO
-// ============================================================================
-const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, clientes:renderClientes,
-  whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe, historico:renderHistorico,
-  conectores:renderConectores };
-const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
-  whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE', historico:'HISTÓRICO', conectores:'CONECTORES' };
-
-async function route(r){
-  if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
-  if (r) state.route = r;
-  $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.route === state.route));
-  $('#pageTag').textContent = TAGS[state.route] || 'DASHBOARD';
-  view.innerHTML = '<div class="empty">Carregando…</div>';
-  try { await (ROUTES[state.route] || renderInicio)(); }
-  catch(e){ view.innerHTML = `<div class="empty">Erro ao carregar: ${esc(e.message)}</div>`; }
-  refreshBadge();
-}
-
-async function refreshBadge(){
-  try{ const f = await api('GET','/followup'); $('#badgeFollowup').textContent = f.length;
-    $('#badgeFollowup').style.display = f.length ? 'flex':'none'; }catch{}
-}
-
-function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
-
-async function loadConsultores(){ state.consultores = await api('GET','/consultores'); }
-async function loadEmpresa(){
-  state.empresa = await api('GET','/empresa');
-  $('#empresaNome').textContent = state.empresa.nome;
-  $('#empresaEndereco').textContent = state.empresa.endereco;
-  $('#empresaSlogan').textContent = state.empresa.slogan;
-}
-
-// ---- init -------------------------------------------------------------------
-$('#nav').addEventListener('click', e => {
-  const item = e.target.closest('.nav-item'); if (!item) return;
-  route(item.dataset.route);
-});
-$('#btnNovo').addEventListener('click', () => openAgendamentoModal());
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
-// PWA: service worker + prompt de instalação
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.installPrompt = e; });
-
-(async function init(){
-  await Promise.all([ loadEmpresa(), loadConsultores() ]);
-  // atalhos do app instalado (?r=agenda, ?novo=1)
-  const qs = new URLSearchParams(location.search);
-  const r0 = qs.get('r');
-  await route(r0 && ROUTES[r0] ? r0 : 'inicio');
-  if (qs.get('novo') === '1') openAgendamentoModal();
-})();

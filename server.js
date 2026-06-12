@@ -112,60 +112,10 @@ function iaConfigMascarada() {
     tem_cw_chave: !!ck, cw_chave_mask: ck ? '••••••••' + ck.slice(-4) : '' };
 }
 
-// Monta o contexto do negócio (vira o system prompt — estável, com prompt caching)
-function construirContextoNegocio(persona) {
-  const emp = db.prepare('SELECT * FROM empresa WHERE id=1').get() || {};
-  const servicos = db.prepare('SELECT nome FROM servicos WHERE ativo=1 ORDER BY nome').all();
-  const lista = servicos.map(s => `- ${s.nome}`).join('\n');
-  return `Você é o atendente virtual da ${emp.nome || 'oficina'}, um centro automotivo.
-Endereço: ${emp.endereco || '—'}. Lema: "${emp.slogan || ''}".
+// (IA do app removida a pedido: quem atende e faz follow-up é a IA já cadastrada
+//  no WhatsApp via CodeWords. O app só importa agendamentos e aciona workflows.)
 
-SERVIÇOS OFERECIDOS:
-${lista || '(sem serviços cadastrados)'}
-
-COMO ATENDER:
-- Responda em português do Brasil, com tom cordial e profissional, estilo WhatsApp (curto, no máximo ~4 linhas, pode usar 1 emoji).
-- Tire dúvidas sobre os serviços usando APENAS a lista acima. Não invente serviços que não estão na lista.
-- NÃO informe preços nem tempo/prazo de execução. Se perguntarem valor ou quanto tempo demora, diga gentilmente que um atendente confirma esses detalhes na sequência.
-- Ajude o cliente a agendar: peça nome, veículo (modelo e placa), serviço desejado e o melhor dia/horário.
-- Se for uma reclamação séria, um pedido fora do seu alcance, ou algo que você não sabe responder, diga educadamente que vai chamar um atendente humano.
-- Responda SOMENTE com a mensagem final para o cliente. Não inclua raciocínio, observações internas nem rótulos como "Resposta:".
-${persona ? '\nINSTRUÇÕES ADICIONAIS DO DONO:\n' + persona : ''}`;
-}
-
-// Chama a API da Anthropic (fetch puro, sem dependências) e devolve a resposta de texto.
-async function responderComIA(cfg, system, messages) {
-  const modelo = cfg.modelo || 'claude-opus-4-8';
-  const corpo = {
-    model: modelo,
-    max_tokens: 1024,
-    // system estável primeiro → prompt caching reaproveita o contexto do negócio
-    system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-    messages,
-  };
-  // effort acelera/barateia em Opus/Sonnet 4.6; Haiku 4.5 não aceita o parâmetro
-  if (modelo.startsWith('claude-opus') || modelo === 'claude-sonnet-4-6')
-    corpo.output_config = { effort: 'low' };
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': cfg.api_key,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(corpo),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) return { ok: false, erro: data.error?.message || `HTTP ${r.status}` };
-    const texto = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
-    return { ok: !!texto, texto, erro: texto ? null : 'Resposta vazia da IA' };
-  } catch (e) {
-    return { ok: false, erro: String(e?.message || e) };
-  }
-}
-
-// --------- CodeWords (runtime.codewords.ai) — motor alternativo / workflows ---------
+// --------- CodeWords (runtime.codewords.ai) — workflows ---------
 // Contrato REST (do codewords-client): POST {base}/run/{service_id}/ com Authorization: <chave>
 // e os inputs como JSON; a resposta é a própria saída do workflow.
 async function chamarCodeWords({ base_url, api_key, service_id, path = '', method = 'POST', inputs, background = false }) {
@@ -182,37 +132,6 @@ async function chamarCodeWords({ base_url, api_key, service_id, path = '', metho
       erro: (data && data.error) || (typeof data === 'string' && data) || `HTTP ${r.status}` };
     return { ok: true, data };
   } catch (e) { return { ok: false, erro: String(e?.message || e) }; }
-}
-
-// Extrai um texto de resposta do retorno (livre) de um workflow
-function extrairTextoCW(data) {
-  if (data == null) return '';
-  if (typeof data === 'string') return data.trim();
-  for (const k of ['reply', 'response', 'text', 'message', 'output', 'result', 'answer', 'resposta', 'content']) {
-    if (typeof data[k] === 'string' && data[k].trim()) return data[k].trim();
-  }
-  if (data.result && typeof data.result === 'object') { const inner = extrairTextoCW(data.result); if (inner) return inner; }
-  return '';
-}
-
-// Usa um workflow CodeWords como cérebro do atendimento
-async function responderComCodeWords(cfg, messages, contexto, tel, nome) {
-  const ultima = [...messages].reverse().find(m => m.role === 'user')?.content || '';
-  // Envia o mesmo conteúdo sob vários nomes de campo comuns, para casar com o
-  // contrato do workflow (ex.: Carlos pode esperar `from`/`text`/`mensagem`).
-  const inputs = {
-    message: ultima, mensagem: ultima, text: ultima, body: ultima, texto: ultima,
-    from: tel || '', phone: tel || '', telefone: tel || '', customer_phone: tel || '', sender: tel || '',
-    name: nome || '', nome: nome || '', customer_name: nome || '',
-    direction: 'inbound', is_own: false,
-    history: messages, business: contexto,
-  };
-  const r = await chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key,
-                                    service_id: cfg.cw_service_id, inputs });
-  if (!r.ok) return { ok: false, erro: r.erro };
-  const texto = extrairTextoCW(r.data);
-  return texto ? { ok: true, texto }
-               : { ok: false, erro: 'O workflow não retornou texto reconhecível (use reply/text/response/output).' };
 }
 
 // Extrai uma lista (array) de um retorno livre de workflow
@@ -358,46 +277,10 @@ function gerarCSV(colunas, rows) {
 }
 
 // "Não veio" → manda o follow-up pelo WhatsApp conectado e registra no histórico
-async function enviarFollowupAusencia(ag) {
-  if (!ag?.telefone) return { ok: false };
-  const tpl = db.prepare("SELECT * FROM whatsapp_templates WHERE gatilho='followup' AND ativo=1").get();
-  const ctx = { nome: ag.cliente_nome, servico: ag.servico, data: formatarDataBR(ag.data), hora: ag.hora, veiculo: ag.veiculo || '', placa: ag.placa || '' };
-  const corpo = tpl ? renderTemplate(tpl.corpo, ctx)
-    : `Olá ${ag.cliente_nome}, sentimos sua falta hoje! 🙁 Quer remarcar seu ${ag.servico}? É só responder por aqui. 🏁`;
-  const r = await enviarViaGowa(ag.telefone, corpo);
-  db.prepare(`INSERT INTO whatsapp_mensagens (agendamento_id, telefone, nome, corpo, direcao, status, erro)
-              VALUES (?,?,?,?,?,?,?)`).run(ag.id, soDigitos(ag.telefone), ag.cliente_nome, corpo, 'saida',
-              r.ok ? 'enviado' : 'falhou', r.ok ? null : r.erro);
-  return r;
-}
-
 // Registra mensagem de entrada do cliente
 function registrarEntrada(telefone, nome, texto) {
   db.prepare(`INSERT INTO whatsapp_mensagens (telefone, nome, corpo, direcao, status)
               VALUES (?,?,?,?,?)`).run(soDigitos(telefone), nome ?? null, texto, 'entrada', 'recebido');
-}
-
-// Gera a resposta da IA para a conversa de um telefone e a envia/registra.
-async function gerarRespostaIA(telefone, nome) {
-  const cfg = getIaConfig();
-  const motor = cfg.motor || 'anthropic';
-  if (!cfg.ativo) return { ok: false, erro: 'IA desativada.' };
-  if (motor === 'anthropic' && !cfg.api_key) return { ok: false, erro: 'Sem chave da Anthropic.' };
-  if (motor === 'codewords' && (!cfg.cw_api_key || !cfg.cw_service_id))
-    return { ok: false, erro: 'Configure a chave e o Service ID do CodeWords.' };
-  const tel = soDigitos(telefone);
-  const hist = db.prepare('SELECT direcao, corpo FROM whatsapp_mensagens WHERE telefone=? ORDER BY id DESC LIMIT 12')
-    .all(tel).reverse();
-  const messages = hist.map(h => ({ role: h.direcao === 'entrada' ? 'user' : 'assistant', content: h.corpo }));
-  while (messages.length && messages[0].role !== 'user') messages.shift(); // 1ª msg deve ser do usuário
-  if (!messages.length) return { ok: false, erro: 'Sem mensagem do cliente.' };
-  const contexto = construirContextoNegocio(cfg.persona);
-  const r = motor === 'codewords'
-    ? await responderComCodeWords(cfg, messages, contexto, tel, nome)
-    : await responderComIA(cfg, contexto, messages);
-  if (!r.ok) return r;
-  const env = await despacharMensagem({ telefone: tel, nome, corpo: r.texto });
-  return { ok: true, texto: r.texto, modo: env.modo, status: env.status, motor };
 }
 
 // Substitui {nome} {servico} {data} {hora} {veiculo} {placa} no template
@@ -561,8 +444,17 @@ async function api(req, res, url) {
       ch.confirmado !== undefined ? ch.confirmado : a.confirmado,
       ch.compareceu !== undefined ? ch.compareceu : a.compareceu, id);
     const atualizado = db.prepare('SELECT * FROM agendamentos WHERE id=?').get(id);
-    // "Não veio" → envia o follow-up direto pelo WhatsApp conectado (proxy GOWA) — confiável
-    if (body.status === 'nao_veio') enviarFollowupAusencia(atualizado).catch((e) => console.error('Follow-up:', e));
+    // "Não veio" → aciona a IA do WhatsApp (workflow de ausência) p/ ELA fazer o follow-up.
+    // O app não envia mensagem nenhuma por conta própria.
+    if (body.status === 'nao_veio') {
+      notificarAusencia(atualizado).then((r) => {
+        if (atualizado?.telefone) db.prepare(`INSERT INTO whatsapp_mensagens
+          (agendamento_id, telefone, nome, corpo, direcao, status, erro) VALUES (?,?,?,?,?,?,?)`)
+          .run(atualizado.id, soDigitos(atualizado.telefone), atualizado.cliente_nome,
+            `🤖 Follow-up de ausência delegado à IA do WhatsApp (${atualizado.cliente_nome} — ${atualizado.servico})`,
+            'saida', r?.ok ? 'delegado_ia' : 'falhou', r?.ok ? null : (r?.erro || 'workflow indisponível'));
+      }).catch((e) => console.error('Follow-up IA:', e));
+    }
     dispararWebhook('status_alterado', { agendamento: atualizado, novo_status: body.status });
     return ok(res, atualizado);
   }
@@ -833,35 +725,8 @@ async function api(req, res, url) {
       pick('cw_connect_service_id', null), pick('cw_device_id', null), pick('cw_base_url', 'https://runtime.codewords.ai'));
     return ok(res, iaConfigMascarada());
   }
-  // IA: testar conexão do motor selecionado (Anthropic ou CodeWords)
-  if (pathname === '/api/whatsapp/ia/testar' && m === 'POST') {
-    const c = getIaConfig();
-    const motor = body.motor || c.motor || 'anthropic';
-    if (motor === 'codewords') {
-      const api_key = (body.cw_api_key && body.cw_api_key.trim()) ? body.cw_api_key.trim() : c.cw_api_key;
-      const service_id = body.cw_service_id || c.cw_service_id;
-      if (!api_key || !service_id) return bad(res, 'Informe a chave e o Service ID do CodeWords.');
-      const r = await chamarCodeWords({ base_url: body.cw_base_url || c.cw_base_url, api_key, service_id,
-        inputs: { message: 'Ping de teste do IndyCar', history: [], business: 'teste de conexão' } });
-      if (!r.ok) return ok(res, { ok: false, erro: r.erro });
-      const texto = extrairTextoCW(r.data);
-      return ok(res, { ok: true, texto: texto || ('Workflow OK — retorno: ' + JSON.stringify(r.data).slice(0, 280)) });
-    }
-    const cfg = { ...c, modelo: body.modelo || c.modelo,
-      api_key: (body.api_key && body.api_key.trim()) ? body.api_key.trim() : c.api_key };
-    if (!cfg.api_key) return bad(res, 'Informe a chave da API Anthropic.');
-    const r = await responderComIA(cfg, 'Você é um assistente de teste. Responda em português.',
-      [{ role: 'user', content: 'Responda apenas: "Conexão OK 🏁"' }]);
-    return ok(res, r.ok ? { ok: true, texto: r.texto } : { ok: false, erro: r.erro });
-  }
-  // IA: simulador / atendimento manual — registra entrada do cliente e gera resposta
-  if (pathname === '/api/whatsapp/ia/responder' && m === 'POST') {
-    if (!body.telefone || !body.texto) return bad(res, 'Informe telefone e mensagem do cliente.');
-    registrarEntrada(body.telefone, body.nome, body.texto);
-    const r = await gerarRespostaIA(body.telefone, body.nome);
-    return ok(res, r);
-  }
-  // CodeWords: disparar um workflow qualquer (option 1). Usa a chave salva ou a do corpo.
+  // (endpoints de IA do app removidos — quem atende é a IA já cadastrada no WhatsApp)
+  // CodeWords: disparar um workflow qualquer. Usa a chave salva ou a do corpo.
   if (pathname === '/api/codewords/run' && m === 'POST') {
     const c = getIaConfig();
     const api_key = (body.api_key && body.api_key.trim()) ? body.api_key.trim() : c.cw_api_key;
@@ -958,10 +823,7 @@ async function api(req, res, url) {
         const texto = msg.text?.body || `[${msg.type}]`;
         const nome = entry?.contacts?.[0]?.profile?.name || null;
         registrarEntrada(msg.from, nome, texto);
-        // resposta automática da IA (em segundo plano, sem travar o webhook)
-        if (msg.text?.body && getIaConfig().ativo) {
-          gerarRespostaIA(msg.from, nome).catch((e) => console.error('IA:', e));
-        }
+        // (sem auto-resposta: quem atende é a IA já cadastrada no WhatsApp)
       }
       // recibos de entrega/leitura atualizam a mensagem de saída pelo wamid
       const st = entry?.statuses?.[0];
