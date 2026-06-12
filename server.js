@@ -491,6 +491,11 @@ async function api(req, res, url) {
   if (pathname === '/api/agendamentos' && m === 'POST') {
     if (!body.cliente_nome || !body.servico || !body.data || !body.hora)
       return bad(res, 'Informe cliente, serviço, data e hora.');
+    // dedupe: mesmo horário + mesmo telefone (ou mesmo nome) = mesmo agendamento
+    const dup = db.prepare(`SELECT * FROM agendamentos WHERE data=? AND hora=?
+      AND ((telefone<>'' AND telefone=?) OR cliente_nome=?)`)
+      .get(body.data, body.hora, soDigitos(body.telefone || ''), body.cliente_nome);
+    if (dup) return ok(res, dup);
     // vincula/cria cliente pelo telefone
     let clienteId = body.cliente_id ?? null;
     if (!clienteId && body.telefone) {
@@ -1059,6 +1064,29 @@ setTimeout(() => verificarLembretes().catch(() => {}), 10 * 1000);      // 10s a
 // Sincroniza (importa) agendamentos do CodeWords periodicamente — só age se configurado
 setInterval(() => importarAgendamentosCW().catch(() => {}), 3 * 60 * 1000);
 setTimeout(() => importarAgendamentosCW().catch(() => {}), 12 * 1000);
+
+// Espelho local → cloud: o servidor local (banco durável) reenvia seus agendamentos
+// pro site online, repovoando-o após os resets do plano free (dedupe no destino).
+const MIRROR_URL = process.env.MIRROR_URL || 'https://indycar-agendamentos.onrender.com';
+async function espelharParaCloud() {
+  if (process.env.RENDER || process.env.MIRROR_DISABLED === '1') return; // só o local espelha
+  try {
+    const ags = db.prepare('SELECT * FROM agendamentos').all();
+    let enviados = 0;
+    for (const a of ags) {
+      const r = await fetch(MIRROR_URL + '/api/agendamentos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_nome: a.cliente_nome, telefone: a.telefone, veiculo: a.veiculo,
+          placa: a.placa, servico: a.servico, data: a.data, hora: a.hora, origem: a.origem,
+          status: a.status, confirmado: a.confirmado, observacoes: a.observacoes }),
+      }).catch(() => null);
+      if (r && r.ok) enviados++;
+    }
+    if (enviados) console.log(`Espelho → cloud: ${enviados} agendamento(s) verificados/enviados`);
+  } catch (e) { console.error('Espelho:', e.message); }
+}
+setInterval(() => espelharParaCloud().catch(() => {}), 10 * 60 * 1000);
+setTimeout(() => espelharParaCloud().catch(() => {}), 20 * 1000);
 
 server.listen(PORT, () => {
   console.log(`\n  🏁 IndyCar Agendamentos rodando em http://localhost:${PORT}\n`);
