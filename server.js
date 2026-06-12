@@ -304,6 +304,59 @@ async function enviarViaGowa(telefone, mensagem) {
   } catch (e) { return { ok: false, erro: String(e?.message || e) }; }
 }
 
+// ============================= INTEGRAÇÕES =============================
+const getIntegracoes = () => db.prepare('SELECT * FROM integracoes WHERE id=1').get() || {};
+
+// Dispara o webhook de saída (Zapier/Make/n8n) em segundo plano
+function dispararWebhook(evento, payload) {
+  const cfg = getIntegracoes();
+  if (!cfg.webhook_ativo || !cfg.webhook_url) return;
+  fetch(cfg.webhook_url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ evento, em: new Date().toISOString(), ...payload }),
+  }).catch((e) => console.error('Webhook saída:', e.message));
+}
+
+// Gera o calendário ICS (Google Agenda assina essa URL)
+function gerarICS() {
+  const emp = db.prepare('SELECT * FROM empresa WHERE id=1').get() || {};
+  const ags = db.prepare(`SELECT a.*, c.nome AS consultor_nome FROM agendamentos a
+    LEFT JOIN consultores c ON c.id=a.consultor_id
+    WHERE a.status NOT IN ('nao_fechou') ORDER BY a.data, a.hora LIMIT 500`).all();
+  const durTab = Object.fromEntries(db.prepare('SELECT nome, duracao_min FROM servicos').all().map(s => [s.nome, s.duracao_min]));
+  const escTxt = (t) => String(t || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  const fmt = (d, hm) => d.replace(/-/g, '') + 'T' + hm.replace(':', '') + '00';
+  const linhas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//IndyCar Agendamentos//PT-BR',
+    'CALSCALE:GREGORIAN', `X-WR-CALNAME:${escTxt(emp.nome || 'IndyCar')} — Agendamentos`, 'X-WR-TIMEZONE:America/Sao_Paulo'];
+  for (const a of ags) {
+    if (!a.data || !a.hora) continue;
+    const dur = durTab[a.servico] || 60;
+    const ini = new Date(`${a.data}T${a.hora}:00`);
+    const fim = new Date(ini.getTime() + dur * 60000);
+    const p = (n) => String(n).padStart(2, '0');
+    const fimStr = `${fim.getFullYear()}${p(fim.getMonth() + 1)}${p(fim.getDate())}T${p(fim.getHours())}${p(fim.getMinutes())}00`;
+    const desc = [`Serviço: ${a.servico}`, a.veiculo ? `Veículo: ${a.veiculo}${a.placa ? ' (' + a.placa + ')' : ''}` : '',
+      a.telefone ? `WhatsApp: ${a.telefone}` : '', a.consultor_nome ? `Consultor: ${a.consultor_nome}` : '',
+      `Status: ${a.status}`].filter(Boolean).join('\n');
+    linhas.push('BEGIN:VEVENT', `UID:indycar-${a.id}@agendamentos`,
+      `DTSTART;TZID=America/Sao_Paulo:${fmt(a.data, a.hora)}`,
+      `DTEND;TZID=America/Sao_Paulo:${fimStr}`,
+      `SUMMARY:${escTxt('🔧 ' + a.cliente_nome + ' — ' + a.servico)}`,
+      `DESCRIPTION:${escTxt(desc)}`,
+      `LOCATION:${escTxt(emp.endereco || '')}`,
+      `STATUS:${a.status === 'nao_veio' ? 'CANCELLED' : 'CONFIRMED'}`, 'END:VEVENT');
+  }
+  linhas.push('END:VCALENDAR');
+  return linhas.join('\r\n');
+}
+
+// Gera CSV (separador ; — abre direto no Excel BR)
+function gerarCSV(colunas, rows) {
+  const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  return '﻿' + [colunas.map(q).join(';'), ...rows.map(r => colunas.map(c => q(r[c])).join(';'))].join('\r\n');
+}
+
 // "Não veio" → manda o follow-up pelo WhatsApp conectado e registra no histórico
 async function enviarFollowupAusencia(ag) {
   if (!ag?.telefone) return { ok: false };
@@ -453,7 +506,9 @@ async function api(req, res, url) {
       clienteId, body.cliente_nome, soDigitos(body.telefone), body.veiculo ?? null, body.placa ?? null,
       body.servico, body.data, body.hora, body.consultor_id ?? null, body.origem ?? 'Google',
       body.status ?? 'aguardando', body.confirmado ? 1 : 0, body.valor ?? 0, body.observacoes ?? null);
-    return ok(res, db.prepare('SELECT * FROM agendamentos WHERE id=?').get(info.lastInsertRowid));
+    const criado = db.prepare('SELECT * FROM agendamentos WHERE id=?').get(info.lastInsertRowid);
+    dispararWebhook('agendamento_criado', { agendamento: criado });
+    return ok(res, criado);
   }
 
   let mm;
@@ -503,6 +558,7 @@ async function api(req, res, url) {
     const atualizado = db.prepare('SELECT * FROM agendamentos WHERE id=?').get(id);
     // "Não veio" → envia o follow-up direto pelo WhatsApp conectado (proxy GOWA) — confiável
     if (body.status === 'nao_veio') enviarFollowupAusencia(atualizado).catch((e) => console.error('Follow-up:', e));
+    dispararWebhook('status_alterado', { agendamento: atualizado, novo_status: body.status });
     return ok(res, atualizado);
   }
 
@@ -597,6 +653,50 @@ async function api(req, res, url) {
       LEFT JOIN consultores c ON c.id=a.consultor_id
       WHERE a.status IN ('nao_veio','nao_fechou') OR a.compareceu=0
       ORDER BY a.data DESC`).all());
+  }
+
+  // ---- integrações (Google Agenda + webhook de saída)
+  if (pathname === '/api/integracoes' && m === 'GET') {
+    const c = getIntegracoes();
+    return ok(res, { ics_token: c.ics_token, webhook_url: c.webhook_url || '', webhook_ativo: !!c.webhook_ativo });
+  }
+  if (pathname === '/api/integracoes' && m === 'PUT') {
+    const c = getIntegracoes();
+    db.prepare(`UPDATE integracoes SET webhook_url=?, webhook_ativo=?, atualizado_em=datetime('now','localtime') WHERE id=1`)
+      .run(body.webhook_url !== undefined ? body.webhook_url : c.webhook_url,
+           body.webhook_ativo !== undefined ? (body.webhook_ativo ? 1 : 0) : c.webhook_ativo);
+    return ok(res, { ok: true });
+  }
+  if (pathname === '/api/integracoes/testar-webhook' && m === 'POST') {
+    const urlW = (body.webhook_url || getIntegracoes().webhook_url || '').trim();
+    if (!urlW) return bad(res, 'Informe a URL do webhook.');
+    try {
+      const r = await fetch(urlW, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evento: 'teste', em: new Date().toISOString(), mensagem: 'Teste do IndyCar Agendamentos 🏁' }) });
+      return ok(res, { ok: r.ok, status: r.status });
+    } catch (e) { return ok(res, { ok: false, erro: String(e?.message || e) }); }
+  }
+
+  // ---- feed do Google Agenda (ICS) — protegido pelo token
+  if (pathname === '/api/agenda.ics' && m === 'GET') {
+    const t = searchParams.get('t');
+    if (!t || t !== getIntegracoes().ics_token) return send(res, 403, 'forbidden', { 'Content-Type': 'text/plain' });
+    return send(res, 200, gerarICS(), { 'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'inline; filename="indycar-agendamentos.ics"' });
+  }
+
+  // ---- exportações CSV (abre no Excel)
+  if (pathname === '/api/export/agendamentos.csv' && m === 'GET') {
+    const rows = db.prepare(`SELECT a.id, a.cliente_nome AS cliente, a.telefone, a.veiculo, a.placa,
+        a.servico, a.data, a.hora, a.status, a.origem, c.nome AS consultor, a.created_at AS criado_em
+      FROM agendamentos a LEFT JOIN consultores c ON c.id=a.consultor_id ORDER BY a.data DESC, a.hora`).all();
+    return send(res, 200, gerarCSV(['id','cliente','telefone','veiculo','placa','servico','data','hora','status','origem','consultor','criado_em'], rows),
+      { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="agendamentos.csv"' });
+  }
+  if (pathname === '/api/export/clientes.csv' && m === 'GET') {
+    const rows = db.prepare('SELECT id, nome, telefone, veiculo, placa, modelo, origem, created_at AS criado_em FROM clientes ORDER BY nome').all();
+    return send(res, 200, gerarCSV(['id','nome','telefone','veiculo','placa','modelo','origem','criado_em'], rows),
+      { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="clientes.csv"' });
   }
 
   // ---- histórico (todos, ordenado)
@@ -918,8 +1018,8 @@ function fmtLocal(d) {
 async function verificarLembretes() {
   const cfg = getWaConfig();
   if (!cfg.lembrete_ativo) return;
-  // só envia automaticamente pela Cloud API (wa.me exige clique humano)
-  if (!(cfg.ativo && cfg.phone_number_id && cfg.access_token)) return;
+  // envia pelo número conectado (GOWA); se não houver, tenta a Cloud API da Meta
+  const temCloud = !!(cfg.ativo && cfg.phone_number_id && cfg.access_token);
 
   const horas = Number(cfg.lembrete_horas) || 24;
   const limite = fmtLocal(new Date(Date.now() + horas * 3600 * 1000));
@@ -937,7 +1037,16 @@ async function verificarLembretes() {
     const corpo = tpl ? renderTemplate(tpl.corpo, ctx)
       : `Oi ${a.cliente_nome}! Lembrete do seu agendamento em ${formatarDataBR(a.data)} às ${a.hora} para ${a.servico} na ${emp.nome}. Te esperamos! 🏁`;
     try {
-      await despacharMensagem({ agendamento_id: a.id, telefone: a.telefone, nome: a.cliente_nome, corpo, template_id: tpl?.id ?? null });
+      // 1º tenta o número conectado (GOWA); se falhar e houver Cloud API, usa a Meta
+      let r = await enviarViaGowa(a.telefone, corpo);
+      if (r.ok) {
+        db.prepare(`INSERT INTO whatsapp_mensagens (agendamento_id, telefone, nome, corpo, direcao, status, template_id)
+                    VALUES (?,?,?,?,?,?,?)`).run(a.id, soDigitos(a.telefone), a.cliente_nome, corpo, 'saida', 'enviado', tpl?.id ?? null);
+      } else if (temCloud) {
+        await despacharMensagem({ agendamento_id: a.id, telefone: a.telefone, nome: a.cliente_nome, corpo, template_id: tpl?.id ?? null });
+        r = { ok: true };
+      }
+      if (!r.ok) continue; // sem canal disponível agora — tenta no próximo ciclo
       db.prepare('UPDATE agendamentos SET lembrete_enviado=1 WHERE id=?').run(a.id);
       console.log(`Lembrete enviado: agendamento #${a.id} (${a.cliente_nome})`);
     } catch (e) { console.error('Lembrete:', e); }

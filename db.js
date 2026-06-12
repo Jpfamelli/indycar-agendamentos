@@ -2,6 +2,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // DB_PATH permite apontar o banco para um disco persistente em produção (deploy)
@@ -121,6 +122,15 @@ CREATE TABLE IF NOT EXISTS servicos (
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+-- Integrações externas (Google Agenda via ICS, webhook de saída). Linha única.
+CREATE TABLE IF NOT EXISTS integracoes (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  ics_token TEXT,                            -- segredo do feed do Google Agenda
+  webhook_url TEXT,                          -- URL que recebe eventos (Zapier/Make/n8n)
+  webhook_ativo INTEGER NOT NULL DEFAULT 0,
+  atualizado_em TEXT
+);
+
 -- Configuração da IA de atendimento (Anthropic). Linha única.
 CREATE TABLE IF NOT EXISTS ia_config (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -202,6 +212,11 @@ if (db.prepare('SELECT COUNT(*) AS n FROM whatsapp_config').get().n === 0) {
 
 if (db.prepare('SELECT COUNT(*) AS n FROM ia_config').get().n === 0) {
   db.prepare(`INSERT INTO ia_config (id, ativo, modelo) VALUES (1, 0, 'claude-opus-4-8')`).run();
+}
+
+if (db.prepare('SELECT COUNT(*) AS n FROM integracoes').get().n === 0) {
+  const token = (process.env.ICS_TOKEN || '') || randomBytes(16).toString('hex');
+  db.prepare('INSERT INTO integracoes (id, ics_token) VALUES (1, ?)').run(token);
 }
 
 // Em deploy/nuvem: permite configurar a integração por variáveis de ambiente.

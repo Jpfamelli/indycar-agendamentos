@@ -90,6 +90,7 @@ function appointmentCard(a) {
       <button class="act blue" data-act="em_atendimento">${svg(I.play)} Em atendimento</button>
       <button class="act purple" data-act="concluido">${svg(I.flag)} Concluído</button>
       <button class="act wa" data-act="whatsapp">${svg(I.wa)} WhatsApp</button>
+      <button class="act blue" data-act="gcal" title="Adicionar ao Google Agenda">${svg(I.calendar)} Google</button>
       <button class="act" data-act="editar">${svg(I.edit)} Editar</button>
       <button class="act red" data-act="excluir">${svg(I.trash)}</button>
     </div>
@@ -105,6 +106,20 @@ function bindApptActions(root) {
       try {
         if (act === 'editar')  return openAgendamentoModal(id);
         if (act === 'whatsapp')return openWhatsappModal(id);
+        if (act === 'gcal') {
+          const a = await api('GET', `/agendamentos/${id}`);
+          const ini = a.data.replace(/-/g,'') + 'T' + a.hora.replace(':','') + '00';
+          const fimD = new Date(`${a.data}T${a.hora}:00`); fimD.setMinutes(fimD.getMinutes()+60);
+          const p = (n)=>String(n).padStart(2,'0');
+          const fim = `${fimD.getFullYear()}${p(fimD.getMonth()+1)}${p(fimD.getDate())}T${p(fimD.getHours())}${p(fimD.getMinutes())}00`;
+          const det = [`Serviço: ${a.servico}`, a.veiculo?`Veículo: ${a.veiculo}${a.placa?' ('+a.placa+')':''}`:'', a.telefone?`WhatsApp: ${a.telefone}`:''].filter(Boolean).join('\n');
+          const u = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+            + '&text=' + encodeURIComponent('🔧 ' + a.cliente_nome + ' — ' + a.servico)
+            + '&dates=' + ini + '/' + fim
+            + '&details=' + encodeURIComponent(det)
+            + '&location=' + encodeURIComponent(state.empresa.endereco || '');
+          window.open(u, '_blank'); return;
+        }
         if (act === 'excluir') {
           if (!confirm('Excluir este agendamento?')) return;
           await api('DELETE', `/agendamentos/${id}`); toast('Agendamento excluído'); return route();
@@ -306,6 +321,81 @@ function statusClass(s){return {concluido:'bp-purple',compareceu:'bp-green',conf
 
 // (Aba Arsenal removida a pedido — os serviços seguem alimentando o autocomplete
 //  de agendamento e o contexto da IA, sem preços nem duração.)
+
+// ============================================================================
+// CONECTORES (instalar app, Google Agenda, webhook, exportações)
+// ============================================================================
+async function renderConectores() {
+  const it = await api('GET', '/integracoes');
+  const icsUrl = location.origin + '/api/agenda.ics?t=' + encodeURIComponent(it.ics_token || '');
+  view.innerHTML = `
+    <div class="cols">
+      <div class="panel"><div class="panel-head"><h2>📱 Instalar como aplicativo</h2></div>
+        <div class="panel-body">
+          <div class="tpl"><div class="tpl-body">Use o IndyCar como <b>app de verdade</b> no celular e no computador: ícone próprio, tela cheia e abertura rápida.</div></div>
+          <button class="btn primary" id="cn_install">📲 Instalar aplicativo</button>
+          <small class="muted">Se o botão não fizer nada: no <b>Chrome (PC)</b> use o ícone de instalação na barra de endereço; no <b>Android</b>: menu ⋮ → "Adicionar à tela inicial"; no <b>iPhone</b>: Compartilhar → "Adicionar à Tela de Início".</small>
+        </div></div>
+      <div class="panel"><div class="panel-head"><h2>📅 Google Agenda</h2></div>
+        <div class="panel-body">
+          <div class="field"><label>URL do calendário (assine no Google Agenda)</label>
+            <input id="cn_ics" value="${esc(icsUrl)}" readonly onclick="this.select()"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn primary" id="cn_copy">📋 Copiar URL</button>
+            <a class="btn" href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl" target="_blank" rel="noopener">Abrir Google Agenda</a>
+          </div>
+          <div class="tpl"><div class="tpl-body"><b>Como conectar (1 vez):</b>
+1. Copie a URL acima.
+2. No Google Agenda → ⚙️ Configurações → <b>Adicionar agenda → Do URL</b>.
+3. Cole e clique em <b>Adicionar agenda</b>. ✅
+Todos os agendamentos aparecem na sua agenda Google e <b>se atualizam sozinhos</b> (o Google sincroniza periodicamente). Cada agendamento também tem o botão 📅 para adicionar na hora.</div></div>
+        </div></div>
+    </div>
+    <div class="cols">
+      <div class="panel"><div class="panel-head"><h2>🔗 Webhook de saída (Zapier · Make · n8n)</h2></div>
+        <div class="panel-body">
+          <div class="field"><label class="switch"><input type="checkbox" id="cn_whk_on" ${it.webhook_ativo?'checked':''}> <span>Enviar eventos para outro sistema</span></label>
+            <small class="muted">Dispara um POST JSON quando um agendamento é <b>criado</b> ou muda de <b>status</b>. Ligue em Zapier/Make/n8n e conecte a milhares de apps (planilhas, e-mail, CRM…).</small></div>
+          <div class="field"><label>URL do webhook</label><input id="cn_whk" value="${esc(it.webhook_url||'')}" placeholder="https://hooks.zapier.com/..."></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn primary" id="cn_whk_save">${svg(I.check)} Salvar</button>
+            <button class="btn" id="cn_whk_test">${svg(I.send)} Testar</button>
+          </div>
+          <div id="cn_whk_result"></div>
+        </div></div>
+      <div class="panel"><div class="panel-head"><h2>📤 Exportar dados</h2></div>
+        <div class="panel-body">
+          <div class="tpl"><div class="tpl-body">Baixe seus dados em <b>CSV</b> (abre direto no Excel/Planilhas Google).</div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn primary" href="/api/export/agendamentos.csv" download>📥 Agendamentos (CSV)</a>
+            <a class="btn" href="/api/export/clientes.csv" download>📥 Clientes (CSV)</a>
+          </div>
+          <small class="muted">Outros conectores já ativos: <b>WhatsApp + IA Carlos</b> (CodeWords) na aba WHATSAPP, e importação automática de agendamentos.</small>
+        </div></div>
+    </div>`;
+
+  $('#cn_copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(icsUrl); toast('URL copiada ✅'); }
+    catch { $('#cn_ics').select(); document.execCommand('copy'); toast('URL copiada ✅'); }
+  });
+  $('#cn_install').addEventListener('click', async () => {
+    if (state.installPrompt) { state.installPrompt.prompt(); const r = await state.installPrompt.userChoice;
+      if (r.outcome === 'accepted') { toast('Aplicativo instalado! 🏁'); state.installPrompt = null; } }
+    else toast('Use o menu do navegador para instalar (veja a dica abaixo do botão)', 'err');
+  });
+  $('#cn_whk_save').addEventListener('click', async () => {
+    try { await api('PUT','/integracoes',{ webhook_url: $('#cn_whk').value.trim(), webhook_ativo: $('#cn_whk_on').checked });
+      toast('Webhook salvo ✅'); } catch(e){ toast(e.message,'err'); }
+  });
+  $('#cn_whk_test').addEventListener('click', async () => {
+    const r = $('#cn_whk_result'); r.innerHTML = '<div class="muted" style="margin-top:8px">Testando…</div>';
+    try { const res = await api('POST','/integracoes/testar-webhook',{ webhook_url: $('#cn_whk').value.trim() });
+      r.innerHTML = res.ok
+        ? `<div class="tpl" style="margin-top:8px;border-color:rgba(34,197,94,.4)"><div class="tpl-body">✅ Webhook respondeu (HTTP ${res.status}).</div></div>`
+        : `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(res.erro || ('HTTP ' + res.status))}</div></div>`;
+    } catch(e){ r.innerHTML = `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(e.message)}</div></div>`; }
+  });
+}
 
 // ============================================================================
 // WHATSAPP
@@ -876,9 +966,10 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
 // ROTEAMENTO
 // ============================================================================
 const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, clientes:renderClientes,
-  whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe, historico:renderHistorico };
+  whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe, historico:renderHistorico,
+  conectores:renderConectores };
 const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
-  whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE', historico:'HISTÓRICO' };
+  whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE', historico:'HISTÓRICO', conectores:'CONECTORES' };
 
 async function route(r){
   if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
@@ -914,7 +1005,15 @@ $('#nav').addEventListener('click', e => {
 $('#btnNovo').addEventListener('click', () => openAgendamentoModal());
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
+// PWA: service worker + prompt de instalação
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.installPrompt = e; });
+
 (async function init(){
   await Promise.all([ loadEmpresa(), loadConsultores() ]);
-  route('inicio');
+  // atalhos do app instalado (?r=agenda, ?novo=1)
+  const qs = new URLSearchParams(location.search);
+  const r0 = qs.get('r');
+  await route(r0 && ROUTES[r0] ? r0 : 'inicio');
+  if (qs.get('novo') === '1') openAgendamentoModal();
 })();

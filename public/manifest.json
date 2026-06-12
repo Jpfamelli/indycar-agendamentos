@@ -1,0 +1,22 @@
+{
+  "name": "IndyCar Agendamentos",
+  "short_name": "IndyCar",
+  "description": "Gestão de agendamentos do IndyCar Centro Automotivo: agenda, CRM, WhatsApp com IA e follow-up.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070a14",
+  "theme_color": "#e6192e",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Novo agendamento", "url": "/?novo=1", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Agenda", "url": "/?r=agenda", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "WhatsApp", "url": "/?r=whatsapp", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
