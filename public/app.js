@@ -670,3 +670,256 @@ O app <b>não envia nenhuma mensagem automática</b> por conta própria.</div></
     } catch(e){ r.innerHTML = `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(e.message)}</div></div>`; }
   });
 }
+
+// ============================================================================
+// MODAIS
+// ============================================================================
+const overlay = $('#modalOverlay'), modal = $('#modal');
+function openModal(html){ modal.innerHTML = html; overlay.classList.add('open'); }
+function closeModal(){ overlay.classList.remove('open'); }
+overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+function fieldsConsultorOptions(sel){
+  return state.consultores.map(c => `<option value="${c.id}" ${c.id==sel?'selected':''}>${esc(c.nome)}</option>`).join('');
+}
+
+window.openAgendamentoModal = async function(id){
+  const servicos = await api('GET','/servicos').catch(()=>[]);
+  let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:new Date().toISOString().slice(0,10),
+            hora:'09:00',consultor_id:'',origem:'Google',observacoes:'',status:'aguardando',confirmado:0 };
+  if (id) a = await api('GET',`/agendamentos/${id}`).catch(()=>null) || a;
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.calendar)} ${id?'Editar':'Novo'} agendamento</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Cliente *</label><input id="f_nome" value="${esc(a.cliente_nome)}"></div>
+        <div class="field"><label>Telefone (WhatsApp)</label><input id="f_tel" value="${esc(a.telefone)}" placeholder="12 99999-9999"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Veículo</label><input id="f_veic" value="${esc(a.veiculo)}" placeholder="Ônix"></div>
+        <div class="field"><label>Placa</label><input id="f_placa" value="${esc(a.placa)}" placeholder="AURA6742"></div>
+      </div>
+      <div class="field"><label>Serviço *</label>
+        <input id="f_serv" list="servListAg" value="${esc(a.servico)}" placeholder="Selecione ou digite o serviço">
+        <datalist id="servListAg">${servicos.map(s=>`<option value="${esc(s.nome)}"></option>`).join('')}</datalist></div>
+      <div class="grid3">
+        <div class="field"><label>Data *</label><input id="f_data" type="date" value="${a.data}"></div>
+        <div class="field"><label>Hora *</label><input id="f_hora" type="time" value="${a.hora}"></div>
+        <div class="field"><label>Consultor</label><select id="f_cons"><option value="">—</option>${fieldsConsultorOptions(a.consultor_id)}</select></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Origem</label><select id="f_ori">
+          ${['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem'].map(o=>`<option ${o==a.origem?'selected':''}>${o}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Status</label><select id="f_status">
+          ${Object.entries(STATUS_LABEL).map(([k,v])=>`<option value="${k}" ${k==a.status?'selected':''}>${v}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="field"><label>Observações</label><textarea id="f_obs">${esc(a.observacoes)}</textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" id="f_save">${svg(I.check)} Salvar</button>
+    </div>`);
+  $('#f_save').addEventListener('click', async () => {
+    const payload = {
+      cliente_nome:$('#f_nome').value.trim(), telefone:$('#f_tel').value.trim(),
+      veiculo:$('#f_veic').value.trim(), placa:$('#f_placa').value.trim().toUpperCase(),
+      servico:$('#f_serv').value.trim(), data:$('#f_data').value, hora:$('#f_hora').value,
+      consultor_id:$('#f_cons').value || null, origem:$('#f_ori').value,
+      status:$('#f_status').value, confirmado:$('#f_status').value==='confirmado'?1:(a.confirmado||0),
+      observacoes:$('#f_obs').value.trim(),
+    };
+    if(!payload.cliente_nome||!payload.servico||!payload.data||!payload.hora) return toast('Preencha os campos obrigatórios','err');
+    try {
+      if (id) await api('PUT', `/agendamentos/${id}`, payload);
+      else await api('POST', '/agendamentos', payload);
+      toast('Agendamento salvo'); closeModal(); route();
+    } catch(e){ toast(e.message,'err'); }
+  });
+};
+
+window.openClienteModal = async function(id){
+  let c = {nome:'',telefone:'',veiculo:'',placa:'',modelo:'',origem:'Google',observacoes:''};
+  if (id) c = await api('GET','/clientes').then(l=>l.find(x=>x.id===id)) || c;
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} cliente</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Nome *</label><input id="c_nome" value="${esc(c.nome)}"></div>
+        <div class="field"><label>Telefone</label><input id="c_tel" value="${esc(c.telefone)}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Veículo</label><input id="c_veic" value="${esc(c.veiculo)}"></div>
+        <div class="field"><label>Placa</label><input id="c_placa" value="${esc(c.placa)}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Modelo</label><input id="c_mod" value="${esc(c.modelo)}"></div>
+        <div class="field"><label>Origem</label><select id="c_ori">${['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem'].map(o=>`<option ${o==c.origem?'selected':''}>${o}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>Observações</label><textarea id="c_obs">${esc(c.observacoes)}</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" id="c_save">${svg(I.check)} Salvar</button></div>`);
+  $('#c_save').addEventListener('click', async () => {
+    const p = {nome:$('#c_nome').value.trim(),telefone:$('#c_tel').value.trim(),veiculo:$('#c_veic').value.trim(),
+      placa:$('#c_placa').value.trim().toUpperCase(),modelo:$('#c_mod').value.trim(),origem:$('#c_ori').value,observacoes:$('#c_obs').value.trim()};
+    if(!p.nome) return toast('Informe o nome','err');
+    try{ if(id) await api('PUT',`/clientes/${id}`,p); else await api('POST','/clientes',p);
+      toast('Cliente salvo'); closeModal(); renderClientes(); }catch(e){toast(e.message,'err');}
+  });
+};
+
+window.openConsultorModal = async function(id){
+  let c = {nome:'',telefone:'',cor:'#e6192e',ativo:1};
+  if (id) c = state.consultores.find(x=>x.id===id) || await api('GET','/consultores').then(l=>l.find(x=>x.id===id)) || c;
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} consultor</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nome *</label><input id="k_nome" value="${esc(c.nome)}"></div>
+      <div class="grid2">
+        <div class="field"><label>Telefone</label><input id="k_tel" value="${esc(c.telefone)}"></div>
+        <div class="field"><label>Cor</label><input id="k_cor" type="color" value="${c.cor||'#e6192e'}" style="height:44px;padding:4px"></div>
+      </div>
+      <div class="field"><label><input id="k_ativo" type="checkbox" ${c.ativo?'checked':''}> Ativo</label></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" id="k_save">${svg(I.check)} Salvar</button></div>`);
+  $('#k_save').addEventListener('click', async () => {
+    const p={nome:$('#k_nome').value.trim(),telefone:$('#k_tel').value.trim(),cor:$('#k_cor').value,ativo:$('#k_ativo').checked?1:0};
+    if(!p.nome) return toast('Informe o nome','err');
+    try{ if(id) await api('PUT',`/consultores/${id}`,p); else await api('POST','/consultores',p);
+      await loadConsultores(); toast('Consultor salvo'); closeModal(); renderEquipe(); }catch(e){toast(e.message,'err');}
+  });
+};
+
+window.openTemplateModal = async function(id){
+  let t = {nome:'',gatilho:'manual',corpo:''};
+  if (id) t = await api('GET','/whatsapp/templates').then(l=>l.find(x=>x.id===id)) || t;
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.wa)} ${id?'Editar':'Novo'} modelo</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Nome *</label><input id="t_nome" value="${esc(t.nome)}"></div>
+        <div class="field"><label>Gatilho</label><select id="t_gat">${['manual','confirmacao','lembrete','followup','pos_servico'].map(g=>`<option ${g==t.gatilho?'selected':''}>${g}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>Mensagem *</label><textarea id="t_corpo" style="min-height:120px">${esc(t.corpo)}</textarea>
+        <small class="muted">Variáveis: {nome} {servico} {data} {hora} {veiculo} {placa}</small></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" id="t_save">${svg(I.check)} Salvar</button></div>`);
+  $('#t_save').addEventListener('click', async () => {
+    const p={nome:$('#t_nome').value.trim(),gatilho:$('#t_gat').value,corpo:$('#t_corpo').value.trim()};
+    if(!p.nome||!p.corpo) return toast('Preencha nome e mensagem','err');
+    try{ if(id) await api('PUT',`/whatsapp/templates/${id}`,p); else await api('POST','/whatsapp/templates',p);
+      toast('Modelo salvo'); closeModal(); renderWhatsapp(); }catch(e){toast(e.message,'err');}
+  });
+};
+
+// Modal de envio de WhatsApp (a partir de agendamento, cliente ou template)
+window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
+  const [templates, cfg] = await Promise.all([ api('GET','/whatsapp/templates'), api('GET','/whatsapp/config') ]);
+  const enviaCloud = !!(cfg.ativo && cfg.phone_number_id && cfg.tem_token);
+  let nome='', telefone='', agId=agendamentoId||'';
+  if (agendamentoId){ const a=await api('GET','/agendamentos').then(l=>l.find(x=>x.id===agendamentoId)); if(a){nome=a.cliente_nome;telefone=a.telefone;} }
+  else if (clienteId){ const c=await api('GET','/clientes').then(l=>l.find(x=>x.id===clienteId)); if(c){nome=c.nome;telefone=c.telefone;} }
+  openModal(`
+    <div class="modal-head"><h3 style="color:#25d366">${svg(I.wa)} Enviar WhatsApp</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Nome</label><input id="w_nome" value="${esc(nome)}"></div>
+        <div class="field"><label>Telefone *</label><input id="w_tel" value="${esc(telefone)}" placeholder="12 99999-9999"></div>
+      </div>
+      <div class="field"><label>Usar modelo</label><select id="w_tpl"><option value="">— Mensagem livre —</option>
+        ${templates.map(t=>`<option value="${t.id}" ${t.id==templateId?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></div>
+      <div class="field"><label>Mensagem *</label><textarea id="w_corpo" style="min-height:120px"></textarea></div>
+      <input type="hidden" id="w_ag" value="${agId}">
+      <small class="muted">${enviaCloud
+        ? '⚡ A Cloud API está ativa: a mensagem será <b>enviada automaticamente</b>.'
+        : '🔗 Modo link: a mensagem será registrada e o <b>WhatsApp abrirá</b> com o texto pronto.'}</small>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn green" id="w_send">${svg(I.send)} ${enviaCloud?'Enviar pela Cloud API':'Registrar e abrir WhatsApp'}</button></div>`);
+
+  async function carregaTemplate(){
+    const tid = $('#w_tpl').value;
+    if (!tid){ return; }
+    const r = await api('POST','/whatsapp/preparar',{ template_id:+tid, agendamento_id:agId||null, nome:$('#w_nome').value, telefone:$('#w_tel').value });
+    $('#w_corpo').value = r.corpo;
+  }
+  if (templateId) carregaTemplate();
+  $('#w_tpl').addEventListener('change', carregaTemplate);
+  $('#w_send').addEventListener('click', async () => {
+    const tel=$('#w_tel').value.trim(), corpo=$('#w_corpo').value.trim();
+    if(!tel||!corpo) return toast('Informe telefone e mensagem','err');
+    try{
+      const r = await api('POST','/whatsapp/enviar',{ telefone:tel, nome:$('#w_nome').value.trim(),
+        corpo, agendamento_id:agId||null, template_id:$('#w_tpl').value||null });
+      if (r.modo === 'cloud') {
+        if (r.status === 'enviado') toast('Mensagem enviada pela Cloud API ✅');
+        else toast('Falha no envio: ' + (r.erro||'erro'), 'err');
+      } else {
+        toast('Mensagem registrada — abrindo WhatsApp');
+        window.open(r.link, '_blank');
+      }
+      closeModal(); if (state.route==='whatsapp') { state.waTab='mensagens'; renderWhatsapp(); }
+    }catch(e){toast(e.message,'err');}
+  });
+};
+
+// ============================================================================
+// ROTEAMENTO
+// ============================================================================
+const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, clientes:renderClientes,
+  whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe, historico:renderHistorico,
+  conectores:renderConectores };
+const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
+  whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE', historico:'HISTÓRICO', conectores:'CONECTORES' };
+
+async function route(r){
+  if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
+  if (r) state.route = r;
+  $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.route === state.route));
+  $('#pageTag').textContent = TAGS[state.route] || 'DASHBOARD';
+  view.innerHTML = '<div class="empty">Carregando…</div>';
+  try { await (ROUTES[state.route] || renderInicio)(); }
+  catch(e){ view.innerHTML = `<div class="empty">Erro ao carregar: ${esc(e.message)}</div>`; }
+  refreshBadge();
+}
+
+async function refreshBadge(){
+  try{ const f = await api('GET','/followup'); $('#badgeFollowup').textContent = f.length;
+    $('#badgeFollowup').style.display = f.length ? 'flex':'none'; }catch{}
+}
+
+function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
+
+async function loadConsultores(){ state.consultores = await api('GET','/consultores'); }
+async function loadEmpresa(){
+  state.empresa = await api('GET','/empresa');
+  $('#empresaNome').textContent = state.empresa.nome;
+  $('#empresaEndereco').textContent = state.empresa.endereco;
+  $('#empresaSlogan').textContent = state.empresa.slogan;
+}
+
+// ---- init -------------------------------------------------------------------
+$('#nav').addEventListener('click', e => {
+  const item = e.target.closest('.nav-item'); if (!item) return;
+  route(item.dataset.route);
+});
+$('#btnNovo').addEventListener('click', () => openAgendamentoModal());
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// PWA: service worker + prompt de instalação
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.installPrompt = e; });
+
+(async function init(){
+  await Promise.all([ loadEmpresa(), loadConsultores() ]);
+  // atalhos do app instalado (?r=agenda, ?novo=1)
+  const qs = new URLSearchParams(location.search);
+  const r0 = qs.get('r');
+  await route(r0 && ROUTES[r0] ? r0 : 'inicio');
+  if (qs.get('novo') === '1') openAgendamentoModal();
+})();
