@@ -51,8 +51,17 @@ function dataExtenso(iso) {
          d.getDate() + ' De ' + cap(d.toLocaleDateString('pt-BR',{month:'long'})) + ' De ' + d.getFullYear();
 }
 const dataBR = (iso) => { if(!iso) return ''; const [a,m,d]=iso.split('-'); return `${d}/${m}/${a}`; };
+// O Postgres devolve timestamptz em UTC ('...T12:34:56+00:00'). Sem converter,
+// a tela mostraria 3 horas adiantado e em formato ilegível.
+const dataHoraBR = (ts) => { if(!ts) return '';
+  const d = new Date(ts); if (isNaN(d)) return String(ts);
+  return d.toLocaleString('pt-BR', { timeZone:'America/Sao_Paulo', dateStyle:'short', timeStyle:'short' }); };
 const STATUS_LABEL = { aguardando:'Aguardando', confirmado:'Confirmado', em_atendimento:'Em atendimento',
-  compareceu:'Compareceu', nao_veio:'Não veio', concluido:'Concluído', nao_fechou:'Não fechou' };
+  compareceu:'Compareceu', nao_veio:'Não veio', concluido:'Concluído', nao_fechou:'Não fechou',
+  cancelado:'Cancelado' };
+// Origens aceitas pelo banco compartilhado. Faltar uma aqui fazia o formulário
+// reescrever a origem do cliente em silêncio ao salvar.
+const ORIGENS = ['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem','Telefone','Orgânico'];
 
 // ============================================================================
 // CARD DE AGENDAMENTO
@@ -100,7 +109,8 @@ function appointmentCard(a) {
 // delegação de cliques nos cards
 function bindApptActions(root) {
   $$('.appt', root).forEach(card => {
-    const id = +card.dataset.id;
+    // id é uuid (string) desde a migração para o Supabase — não converter com +
+    const id = card.dataset.id;
     $$('.act', card).forEach(btn => btn.addEventListener('click', async () => {
       const act = btn.dataset.act;
       try {
@@ -231,12 +241,14 @@ function clienteRows(list) {
 }
 function bindCliRows() {
   $$('#cliBody tr[data-id]').forEach(tr => {
-    const id = +tr.dataset.id;
+    const id = tr.dataset.id; // uuid (string)
     tr.querySelector('[data-act="edit"]')?.addEventListener('click', () => openClienteModal(id));
     tr.querySelector('[data-act="wa"]')?.addEventListener('click', () => openWhatsappModal(null, id));
     tr.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
       if (!confirm('Excluir cliente?')) return;
-      await api('DELETE', `/clientes/${id}`); toast('Cliente excluído'); renderClientes();
+      // clientes agora é compartilhada: o banco pode recusar se houver agendamento ligado
+      try { await api('DELETE', `/clientes/${id}`); toast('Cliente excluído'); renderClientes(); }
+      catch (e) { toast(e.message, 'err'); }
     });
   });
 }
@@ -260,11 +272,12 @@ async function renderEquipe() {
         </div></td></tr>`).join('')}
       </tbody></table></div>`;
   $$('tr[data-id]', view).forEach(tr => {
-    const id = +tr.dataset.id;
+    const id = tr.dataset.id; // uuid (string)
     tr.querySelector('[data-act="edit"]')?.addEventListener('click', () => openConsultorModal(id));
     tr.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
       if (!confirm('Excluir consultor?')) return;
-      await api('DELETE', `/consultores/${id}`); toast('Consultor excluído'); renderEquipe();
+      try { await api('DELETE', `/consultores/${id}`); toast('Consultor excluído'); renderEquipe(); }
+      catch (e) { toast(e.message, 'err'); }
     });
   });
 }
@@ -597,12 +610,13 @@ async function waModelos(box) {
           </div></div>`).join('')}
       </div></div>`;
   $$('.tpl[data-id]', box).forEach(el => {
-    const id = +el.dataset.id;
+    const id = el.dataset.id; // uuid (string)
     el.querySelector('[data-act="usar"]')?.addEventListener('click', () => openWhatsappModal(null, null, id));
     el.querySelector('[data-act="edit"]')?.addEventListener('click', () => openTemplateModal(id));
     el.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
       if (!confirm('Excluir modelo?')) return;
-      await api('DELETE', `/whatsapp/templates/${id}`); toast('Modelo excluído'); waModelos(box);
+      try { await api('DELETE', `/whatsapp/templates/${id}`); toast('Modelo excluído'); waModelos(box); }
+      catch (e) { toast(e.message, 'err'); }
     });
   });
 }
@@ -617,7 +631,7 @@ async function waMensagens(box) {
             <div class="dir">${m.direcao==='saida'?'↗':'↙'}</div>
             <div class="c"><div class="who">${esc(m.nome||m.telefone)} <span class="muted">· ${m.direcao==='saida'?'saída':'entrada'}</span></div>
               <div class="txt">${esc(m.corpo)}</div>
-              <div class="meta">${esc(m.created_at)} · ${statusMsg(m.status)}${m.erro?` · ${esc(m.erro)}`:''}</div></div>
+              <div class="meta">${esc(dataHoraBR(m.created_at))} · ${statusMsg(m.status)}${m.erro?` · ${esc(m.erro)}`:''}</div></div>
           </div>`).join('') : '<div class="empty">Nenhuma mensagem ainda.</div>'}
       </div></div>`;
 }
@@ -710,7 +724,7 @@ window.openAgendamentoModal = async function(id){
       </div>
       <div class="grid2">
         <div class="field"><label>Origem</label><select id="f_ori">
-          ${['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem'].map(o=>`<option ${o==a.origem?'selected':''}>${o}</option>`).join('')}
+          ${ORIGENS.map(o=>`<option ${o==a.origem?'selected':''}>${o}</option>`).join('')}
         </select></div>
         <div class="field"><label>Status</label><select id="f_status">
           ${Object.entries(STATUS_LABEL).map(([k,v])=>`<option value="${k}" ${k==a.status?'selected':''}>${v}</option>`).join('')}
@@ -755,8 +769,8 @@ window.openClienteModal = async function(id){
         <div class="field"><label>Placa</label><input id="c_placa" value="${esc(c.placa)}"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Modelo</label><input id="c_mod" value="${esc(c.modelo)}"></div>
-        <div class="field"><label>Origem</label><select id="c_ori">${['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem'].map(o=>`<option ${o==c.origem?'selected':''}>${o}</option>`).join('')}</select></div>
+        <div class="field"><label>Ano do veículo</label><input id="c_mod" inputmode="numeric" maxlength="4" placeholder="2020" value="${esc(c.modelo)}"></div>
+        <div class="field"><label>Origem</label><select id="c_ori">${ORIGENS.map(o=>`<option ${o==c.origem?'selected':''}>${o}</option>`).join('')}</select></div>
       </div>
       <div class="field"><label>Observações</label><textarea id="c_obs">${esc(c.observacoes)}</textarea></div>
     </div>
@@ -845,11 +859,13 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
   async function carregaTemplate(){
     const tid = $('#w_tpl').value;
     if (!tid){ return; }
-    const r = await api('POST','/whatsapp/preparar',{ template_id:+tid, agendamento_id:agId||null, nome:$('#w_nome').value, telefone:$('#w_tel').value });
+    // template_id é uuid: nada de +tid (viraria NaN e depois null no JSON)
+    const r = await api('POST','/whatsapp/preparar',{ template_id:tid, agendamento_id:agId||null, nome:$('#w_nome').value, telefone:$('#w_tel').value });
     $('#w_corpo').value = r.corpo;
   }
-  if (templateId) carregaTemplate();
-  $('#w_tpl').addEventListener('change', carregaTemplate);
+  const carregaTemplateSeguro = () => carregaTemplate().catch(e => toast(e.message,'err'));
+  if (templateId) carregaTemplateSeguro();
+  $('#w_tpl').addEventListener('change', carregaTemplateSeguro);
   $('#w_send').addEventListener('click', async () => {
     const tel=$('#w_tel').value.trim(), corpo=$('#w_corpo').value.trim();
     if(!tel||!corpo) return toast('Informe telefone e mensagem','err');

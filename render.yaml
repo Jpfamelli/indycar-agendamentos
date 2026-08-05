@@ -3,14 +3,21 @@ services:
   - type: web
     name: indycar-agendamentos
     runtime: node
-    plan: starter            # disco persistente exige plano pago; no "free" o banco é efêmero
+    # Os dados agora ficam no Supabase: não é mais preciso disco persistente.
+    plan: starter
     buildCommand: npm install # não há dependências; roda rápido
     startCommand: node server.js
     envVars:
       - key: NODE_VERSION
         value: "22"
-      - key: DB_PATH
-        value: /var/data/indycar.sqlite
+      # ---- Banco: Supabase (PostgREST) ----
+      - key: SUPABASE_URL
+        value: https://nppfqhavqahapmugnyng.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false           # cole a chave service_role no painel (SEGREDO)
+      # O espelho local->cloud perde o sentido com os dois lados no mesmo banco
+      - key: MIRROR_DISABLED
+        value: "1"
       - key: WHATSAPP_VERIFY_TOKEN
         sync: false           # defina no painel (segredo)
       # ---- Integração CodeWords (workflows do IndyCar) ----
@@ -27,7 +34,4 @@ services:
       # CW_DEVICE_ID é opcional — o app cria um device válido sozinho se faltar
       - key: ANTHROPIC_API_KEY
         sync: false           # opcional, só se usar o motor Claude
-    disk:
-      name: indycar-data
-      mountPath: /var/data    # mantém o banco entre deploys
-      sizeGB: 1
+    # (bloco "disk" removido: o banco saiu do arquivo SQLite e foi para o Supabase)

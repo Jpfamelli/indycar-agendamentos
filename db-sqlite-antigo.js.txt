@@ -1,3 +1,24 @@
+// =============================================================================
+// ARQUIVO DESATIVADO — GUARDADO APENAS COMO REFERÊNCIA HISTÓRICA
+//
+// O app NÃO usa mais SQLite: a Agenda IndyCar foi migrada para o SUPABASE
+// (projeto nppfqhavqahapmugnyng, schema public), acessado via PostgREST.
+//
+// Quem faz o papel deste arquivo agora:
+//   • supabase.js — cliente REST mínimo (fetch nativo, sem dependências)
+//   • dados.js    — camada de dados com as conversões (boolean, enum de origem,
+//                   hora HH:MM, achatamento de consultor_nome, uuid)
+//
+// A extensão .txt é proposital: impede que este arquivo seja importado por engano.
+//
+// ATENÇÃO ao reaproveitar qualquer coisa daqui: o bloco de SEED abaixo (empresa,
+// 3 consultores, 8 serviços, 4 templates, cliente e agendamento de exemplo) NÃO
+// pode ser executado contra o Supabase — as tabelas clientes/consultores/servicos
+// são COMPARTILHADAS com o CRM e o app de Atendimento, e rodar o seed poluiria o
+// banco de produção com dados fictícios. Além disso, regerar o ics_token
+// invalidaria o feed do Google Agenda já assinado pelo dono.
+// =============================================================================
+
 // Banco de dados SQLite (nativo do Node 22+, sem dependências externas)
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';

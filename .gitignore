@@ -1,4 +1,10 @@
-# Banco de dados (contém a chave do CodeWords e dados — NUNCA versionar)
+# Segredos — NUNCA versionar (contém a chave service_role do Supabase)
+.env
+.env.local
+.env.*.local
+
+# Banco SQLite antigo (o app migrou para o Supabase) — contém dados de clientes
+indycar.sqlite
 *.sqlite
 *.sqlite-*
 indycar.sqlite*
