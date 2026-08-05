@@ -39,10 +39,14 @@ function credenciais() {
   const url = (process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const chave = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
   if (!url || !chave) {
-    throw new ErroSupabase(
-      'Supabase não configurado: preencha SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no arquivo .env.',
-      0,
-    );
+    // Diz QUAL falta e ONDE preencher — na nuvem não existe .env, e a mensagem
+    // genérica mandava procurar um arquivo que não está lá.
+    const faltando = [!url && 'SUPABASE_URL', !chave && 'SUPABASE_SERVICE_ROLE_KEY']
+      .filter(Boolean).join(' e ');
+    const onde = process.env.RENDER
+      ? 'nas variáveis de ambiente do Render (Environment)'
+      : 'no arquivo .env desta pasta';
+    throw new ErroSupabase(`Supabase não configurado: falta ${faltando} ${onde}.`, 0);
   }
   _credenciais = { url, chave };
   return _credenciais;
