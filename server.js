@@ -872,28 +872,22 @@ const aviso = (onde) => (e) => console.error(`${onde}:`, e?.message || e);
 setInterval(() => verificarLembretes().catch(aviso('Lembretes')), 5 * 60 * 1000); // a cada 5 min
 setTimeout(() => verificarLembretes().catch(aviso('Lembretes')), 10 * 1000);      // 10s após iniciar
 
-// Importa agendamentos do CodeWords.
+// Importa agendamentos do CodeWords — roda 24/7.
+//
 // ATENÇÃO À COTA: cada execução consome 1 run do plano do CodeWords.
-// A cada 3 min dava 480 chamadas/dia = 14.400/mês, contra uma cota de 2.500 —
-// era isso que esgotava o plano em ~5 dias, sem ninguém perceber.
-// Agora: de 30 em 30 min e só no horário comercial (~26/dia = ~780/mês).
-const IMPORT_MIN = Math.max(10, Number(process.env.IMPORT_INTERVALO_MIN) || 30);
+// Consumo por mês = (60 / IMPORT_INTERVALO_MIN) × 24 × 30:
+//    3 min → 14.400/mês   (era isto que esgotava a cota de 2.500 em ~5 dias)
+//   10 min →  4.320/mês
+//   15 min →  2.880/mês   ← padrão
+//   30 min →  1.440/mês
+// Ajuste por IMPORT_INTERVALO_MIN conforme o plano contratado.
+//
+// Isto NÃO é o Carlos. Ele conversa no WhatsApp pelo CodeWords, sem passar
+// por aqui, e não para. Isto é só a busca por agendamentos que ele registrou.
+const IMPORT_MIN = Math.max(1, Number(process.env.IMPORT_INTERVALO_MIN) || 15);
 
-function dentroDoExpediente() {
-  // Seg–Sex 8h–18h, Sáb 8h–13h, no horário de Taubaté
-  const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-  const dia = agora.getDay(), h = agora.getHours();
-  if (dia === 0) return false;
-  if (dia === 6) return h >= 8 && h < 13;
-  return h >= 8 && h < 18;
-}
-
-async function importarSeForHora() {
-  if (!dentroDoExpediente()) return;      // fora do expediente ninguém agenda
-  await importarAgendamentosCW();
-}
-setInterval(() => importarSeForHora().catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000);
-setTimeout(() => importarSeForHora().catch(aviso('Importação CodeWords')), 12 * 1000);
+setInterval(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000);
+setTimeout(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), 12 * 1000);
 
 // Espelho local → cloud: o servidor local reenvia seus agendamentos pro site online.
 // ATENÇÃO: com local e cloud apontando para o MESMO Supabase o espelho é redundante.
