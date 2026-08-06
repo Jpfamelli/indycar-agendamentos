@@ -292,3 +292,42 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
   .grid2,.grid3,.kpi-row{grid-template-columns:1fr}
   .topbar{flex-direction:column;align-items:flex-start}
 }
+
+/* ================= LOGIN =================
+   Cobre a tela até o atendente entrar — nada de dado de cliente antes disso. */
+.login-capa{
+  position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:24px;
+  background:var(--bg);
+  background-image:
+    radial-gradient(900px 500px at 85% -10%, rgba(230,25,46,.16), transparent 60%),
+    radial-gradient(700px 400px at -10% 110%, rgba(255,255,255,.05), transparent 55%);
+}
+.login-capa[hidden]{display:none!important}
+.login-caixa{
+  width:min(420px,100%);display:flex;flex-direction:column;gap:16px;
+  background:var(--panel);border:1px solid var(--border-2);border-radius:16px;
+  padding:36px 32px;box-shadow:0 30px 80px rgba(0,0,0,.6);
+}
+.login-logo{width:170px;height:auto;align-self:flex-start;border-radius:8px}
+.login-caixa h1{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1;margin:0}
+.login-sub{color:var(--muted);font-size:14px;margin:-8px 0 0}
+.login-caixa label{display:flex;flex-direction:column;gap:7px;font-size:13px;color:var(--muted)}
+.login-caixa input{
+  background:var(--panel-2);border:1px solid var(--border-2);border-radius:10px;
+  padding:13px 14px;font-size:15px;color:var(--text);transition:border-color .18s;
+}
+.login-caixa input:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.btn-entrar{
+  background:linear-gradient(var(--red-2),var(--red));border:none;border-radius:10px;color:#fff;
+  padding:14px;font-weight:800;font-size:16px;letter-spacing:1.2px;cursor:pointer;
+  transition:filter .18s,transform .18s;
+}
+.btn-entrar:hover:not(:disabled){filter:brightness(1.12);transform:translateY(-1px)}
+.btn-entrar:disabled{opacity:.6;cursor:progress}
+.login-erro{
+  background:var(--red-soft);border:1px solid rgba(230,25,46,.4);border-radius:9px;
+  padding:11px 13px;font-size:13.5px;color:#ffb4b8;margin:0;
+}
+.login-erro[hidden]{display:none}
+/* Enquanto não entrar, o app fica escondido atrás da capa */
+body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidden}

@@ -330,9 +330,90 @@ function formatarDataBR(iso) {
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+   Porteiro — a Agenda ficou publicada na internet e guarda nome, telefone,
+   placa e histórico dos clientes. Mesmo login do CRM e do Atendimento
+   (Supabase Auth): o navegador manda o token, aqui a gente confere se ele
+   vale E se o perfil continua ativo.
+   --------------------------------------------------------------------------- */
+const SUPA_URL  = process.env.SUPABASE_URL || '';
+const SUPA_ANON = process.env.SUPABASE_ANON_KEY || '';
+const SUPA_SRV  = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+const CACHE_LOGIN = new Map();   // token -> { usuario, expira } | { negado, expira }
+
+function validadeDoToken(token) {
+  try {
+    const [, carga] = token.split('.');
+    const { exp } = JSON.parse(Buffer.from(carga, 'base64url').toString('utf8'));
+    return Number.isFinite(exp) ? exp * 1000 : 0;
+  } catch { return 0; }
+}
+
+async function usuarioLogado(req) {
+  const auth = req.headers['authorization'] || '';
+  const achado = /^\s*bearer\s+(\S+)\s*$/i.exec(auth);      // "Bearer" é case-insensitive
+  const token = achado ? achado[1] : null;
+  if (!token || !SUPA_URL || !SUPA_ANON || !SUPA_SRV) return null;
+
+  const lembrado = CACHE_LOGIN.get(token);
+  if (lembrado && lembrado.expira > Date.now()) return lembrado.negado ? null : lembrado.usuario;
+
+  const vence = validadeDoToken(token);
+  if (vence && vence <= Date.now()) return null;            // já venceu: nem pergunta
+
+  const negar = () => {
+    if (CACHE_LOGIN.size > 500) CACHE_LOGIN.clear();
+    CACHE_LOGIN.set(token, { negado: true, expira: Date.now() + 30_000 });
+    return null;
+  };
+
+  try {
+    const r = await fetch(`${SUPA_URL}/auth/v1/user`, {
+      headers: { apikey: SUPA_ANON, Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return negar();
+    const usuario = await r.json();
+    if (!usuario?.id) return negar();
+
+    const p = await fetch(
+      `${SUPA_URL}/rest/v1/perfis?select=ativo,papel&id=eq.${encodeURIComponent(usuario.id)}`,
+      { headers: { apikey: SUPA_SRV, Authorization: `Bearer ${SUPA_SRV}` },
+        signal: AbortSignal.timeout(8000) });
+    if (!p.ok) return negar();
+    const [perfil] = await p.json();
+    if (!perfil?.ativo) return negar();
+    usuario.papel = perfil.papel;
+
+    if (CACHE_LOGIN.size > 500) CACHE_LOGIN.clear();
+    CACHE_LOGIN.set(token, { usuario, expira: Math.min(Date.now() + 60_000, vence || Infinity) });
+    return usuario;
+  } catch { return null; }
+}
+
+/* Rotas que o CodeWords/Google chamam de fora e não falam Supabase Auth.
+   Cada uma tem o próprio segredo (token do ICS, verify_token do webhook). */
+const ROTAS_SEM_LOGIN = new Set(['/api/config', '/api/agenda.ics', '/api/whatsapp/webhook']);
+
 async function api(req, res, url) {
   const { pathname, searchParams } = url;
   const m = req.method;
+
+  // A tela precisa saber onde fica o Supabase para montar o login.
+  // A chave publicável é pública por design.
+  if (pathname === '/api/config' && m === 'GET') {
+    return send(res, 200, {
+      supabaseUrl: SUPA_URL,
+      supabaseAnonKey: SUPA_ANON,
+      configurado: !!(SUPA_URL && SUPA_ANON && SUPA_SRV),
+    });
+  }
+
+  if (!ROTAS_SEM_LOGIN.has(pathname) && !await usuarioLogado(req)) {
+    return send(res, 401, { erro: 'Faça login para usar a Agenda.' });
+  }
+
   const body = (m === 'POST' || m === 'PUT' || m === 'PATCH') ? await readBody(req) : {};
 
   // ---- empresa

@@ -29,11 +29,27 @@ const svg = (p, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24">${p}</svg>
 const state = { route:'inicio', empresa:{}, consultores:[] };
 
 // ---- API --------------------------------------------------------------------
+/* Sessão do Supabase Auth — a mesma conta do CRM e do Atendimento. */
+let sb = null, CONFIG = null;
+
+/* Cabeçalhos com o token do login. Falha aqui, com aviso claro, em vez de
+   mandar sem credencial e levar 401 do servidor. */
+async function authCabecalhos() {
+  const cab = { 'Content-Type':'application/json' };
+  if (!sb) return cab;
+  const { data } = await sb.auth.getSession();
+  const t = data?.session?.access_token;
+  if (!t) throw new Error('Sua sessão expirou. Entre de novo para continuar.');
+  cab.Authorization = `Bearer ${t}`;
+  return cab;
+}
+
 async function api(method, path, body) {
-  const opt = { method, headers:{ 'Content-Type':'application/json' } };
+  const opt = { method, headers: await authCabecalhos() };
   if (body) opt.body = JSON.stringify(body);
   const r = await fetch('/api' + path, opt);
   const data = await r.json().catch(() => ({}));
+  if (r.status === 401) { mostrarLogin('Sua sessão expirou. Entre de novo.'); throw new Error('Sessão expirada'); }
   if (!r.ok) throw new Error(data.erro || 'Erro na requisição');
   return data;
 }
@@ -931,11 +947,64 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.installPrompt = e; });
 
-(async function init(){
+/* ============================================================
+   LOGIN — nada da Agenda aparece antes de entrar
+   ============================================================ */
+function mostrarLogin(mensagem){
+  document.body.classList.add('deslogado');
+  $('#telaLogin').hidden = false;
+  const erro = $('#erroLogin');
+  if (mensagem) { erro.textContent = mensagem; erro.hidden = false; } else { erro.hidden = true; }
+}
+function esconderLogin(){
+  document.body.classList.remove('deslogado');
+  $('#telaLogin').hidden = true;
+  $('#erroLogin').hidden = true;
+}
+
+async function abrirApp(){
   await Promise.all([ loadEmpresa(), loadConsultores() ]);
-  // atalhos do app instalado (?r=agenda, ?novo=1)
   const qs = new URLSearchParams(location.search);
   const r0 = qs.get('r');
   await route(r0 && ROUTES[r0] ? r0 : 'inicio');
   if (qs.get('novo') === '1') openAgendamentoModal();
+}
+
+$('#formLogin').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, btn = $('#btnEntrar');
+  btn.disabled = true; btn.textContent = 'ENTRANDO…';
+  try {
+    if (!sb) throw new Error('Conexão com o Supabase não configurada.');
+    const { error } = await sb.auth.signInWithPassword({
+      email: f.loginEmail.value.trim(), password: f.loginSenha.value,
+    });
+    if (error) throw new Error(/invalid login/i.test(error.message)
+      ? 'E-mail ou senha incorretos.' : error.message);
+    f.loginSenha.value = '';
+    esconderLogin();
+    await abrirApp();
+  } catch (err) { mostrarLogin(err.message); }
+  finally { btn.disabled = false; btn.textContent = 'ENTRAR'; }
+});
+
+(async function init(){
+  mostrarLogin();                        // capa primeiro: nada vaza antes da senha
+  try { CONFIG = await (await fetch('/api/config')).json(); }
+  catch { return mostrarLogin('Não consegui falar com o servidor. Ele está rodando?'); }
+
+  if (!CONFIG.configurado) {
+    return mostrarLogin('Falta configurar o Supabase no servidor (SUPABASE_URL, '
+      + 'SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY).');
+  }
+  if (!window.supabase?.createClient) {
+    return mostrarLogin('A biblioteca do Supabase não carregou. Verifique sua conexão.');
+  }
+  sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+
+  const { data } = await sb.auth.getSession();
+  if (data?.session) {
+    esconderLogin();
+    try { await abrirApp(); } catch (err) { mostrarLogin(err.message); }
+  }
 })();

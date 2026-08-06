@@ -100,6 +100,28 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
+  <!-- ============ LOGIN ============
+       A Agenda guarda nome, telefone, placa e histórico dos clientes.
+       Publicada na internet, tudo passa por aqui primeiro. -->
+  <div id="telaLogin" class="login-capa">
+    <form id="formLogin" class="login-caixa" autocomplete="on">
+      <img src="/logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <h1>Agenda</h1>
+      <p class="login-sub">Entre com o mesmo e-mail e senha do atendimento.</p>
+      <label>E-mail
+        <input name="loginEmail" type="email" required autocomplete="username"
+               placeholder="voce@indycartaubate.com" />
+      </label>
+      <label>Senha
+        <input name="loginSenha" type="password" required autocomplete="current-password"
+               placeholder="••••••••" />
+      </label>
+      <button type="submit" class="btn-entrar" id="btnEntrar">ENTRAR</button>
+      <p class="login-erro" id="erroLogin" hidden></p>
+    </form>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="/vendor/qrcode.min.js"></script>
   <script src="/app.js"></script>
 </body>
