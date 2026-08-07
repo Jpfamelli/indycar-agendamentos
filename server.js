@@ -177,7 +177,11 @@ async function importarAgendamentosCW() {
     try {
       const nome = a.nome || a.cliente_nome || a.cliente;
       if (!nome) { ignorados++; continue; }
-      const telefone = soDigitos(a.telefone || a.phone || '');
+      // O fluxo do CodeWords manda o número em "tel" — sem ele aqui, o
+      // agendamento entrava com telefone vazio e NÃO se ligava ao cadastro
+      // do cliente nem ao lead do CRM.
+      const telefone = soDigitos(a.tel || a.telefone || a.phone
+                              || a.celular || a.whatsapp || a.numero || '');
       // O SQLite aceitava qualquer texto em data/hora; o Postgres rejeita (22007).
       const data = dados.dataBanco(a.data || a.date);
       const hora = dados.horaBanco(a.hora || a.time);
@@ -198,10 +202,25 @@ async function importarAgendamentosCW() {
           origem: a.origem || 'WhatsApp',
         });
       }
+      /* Data no passado é quase sempre erro de interpretação lá na origem
+         (o cliente diz "amanhã" e volta uma data de anos atrás). Não dá para
+         adivinhar a correta — mas deixar passar calado é pior: o horário some
+         da agenda e a oficina perde a pessoa. Então importa e AVISA. */
+      const hoje = new Date().toISOString().slice(0, 10);
+      const suspeita = data < hoje;
+      if (suspeita) {
+        console.warn(`⚠️  Importação: "${nome}" veio com data ${data}, que já passou. `
+                   + 'Provável erro de data no fluxo do CodeWords — confira na agenda.');
+      }
+
       await dados.criarAgendamento({
         cliente_id, cliente_nome: nome, telefone, veiculo: veic || null, placa: a.placa || null,
         servico: a.servico || a['serviço'] || 'Serviço', data, hora,
         origem: a.origem || 'WhatsApp', status: 'confirmado', confirmado: true,
+        observacoes: suspeita
+          ? `⚠️ Data ${data.split('-').reverse().join('/')} veio do CodeWords e já passou — `
+          + 'confirme o dia com o cliente antes de contar com este horário.'
+          : null,
       });
       importados++;
     } catch (e) {
