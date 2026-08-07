@@ -239,12 +239,32 @@ async function importarAgendamentosCW() {
 }
 
 // Dispara o workflow de notificação de ausência (cliente que não compareceu)
+/* Avisa a IA do WhatsApp que o cliente não apareceu, para ELA fazer o
+   follow-up e tentar remarcar.
+
+   RODA A QUALQUER HORA. O fluxo tem um campo `respeitar_horario_comercial`
+   que vem ligado por padrão — era ele que segurava o aviso fora do
+   expediente. Quem furou às 22h precisa ser chamado de volta igual, então
+   mandamos false. Para voltar a respeitar o expediente, é só definir
+   NOSHOW_SO_NO_EXPEDIENTE=1 no .env. */
 async function notificarAusencia(ag) {
   const cfg = await getIaConfig();
-  if (!cfg.cw_api_key || !cfg.cw_noshow_service_id || !ag?.telefone) return { ok: false };
-  return chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key, service_id: cfg.cw_noshow_service_id,
-    inputs: { nome: ag.cliente_nome, telefone: ag.telefone, veiculo: ag.veiculo || '',
-              servico: ag.servico, hora: ag.hora, placa: ag.placa || '' } });
+  if (!cfg.cw_api_key || !cfg.cw_noshow_service_id || !ag?.telefone) {
+    return { ok: false, erro: 'CodeWords não configurado ou agendamento sem telefone' };
+  }
+  return chamarCodeWords({
+    base_url: cfg.cw_base_url, api_key: cfg.cw_api_key,
+    service_id: cfg.cw_noshow_service_id,
+    inputs: {
+      nome:     ag.cliente_nome || '',
+      telefone: String(ag.telefone).replace(/\D/g, ''),
+      veiculo:  ag.veiculo || '',
+      servico:  ag.servico || '',
+      hora:     String(ag.hora || '').slice(0, 5),
+      placa:    ag.placa || '',
+      respeitar_horario_comercial: process.env.NOSHOW_SO_NO_EXPEDIENTE === '1',
+    },
+  });
 }
 
 // Envia uma mensagem pelo WhatsApp CONECTADO (proxy GOWA, form-data)
