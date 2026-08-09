@@ -30,6 +30,11 @@ const T = {
   iaConfig: 'agenda_ia_config',
   integracoes: 'agenda_integracoes',
   templates: 'agenda_templates',
+  // Tabelas compartilhadas com o CRM e o Atendimento — a Agenda só LÊ (exceto
+  // o próprio nome em perfis, que cada pessoa altera na aba Configurações).
+  perfis: 'perfis',
+  janelas: 'janelas_agendamento',
+  catalogo: 'catalogo_servicos',
 };
 
 // A linha única das tabelas de configuração tem id BOOLEAN true (não mais o inteiro 1).
@@ -616,6 +621,53 @@ export async function salvarEmpresa(dados) {
     slogan: dados.slogan, telefone: dados.telefone,
   });
   return obterEmpresa();
+}
+
+// ============================================================================
+// PERFIL DE QUEM ESTÁ LOGADO (tabela compartilhada `perfis`)
+// O id vem SEMPRE do token conferido no servidor, nunca do corpo da requisição:
+// assim ninguém consegue ler nem renomear o perfil de outra pessoa.
+// ============================================================================
+
+export async function obterPerfil(id, emailDoLogin = '') {
+  const p = await selecionarUm(
+    T.perfis, `select=id,nome,email,papel,ativo&id=eq.${encodeURIComponent(id)}`);
+  return {
+    id,
+    nome: p?.nome ?? '',
+    // o e-mail do Auth é a fonte da verdade quando o perfil ainda não tem um
+    email: p?.email || emailDoLogin || '',
+    papel: p?.papel ?? '',
+    ativo: bit(p?.ativo ?? true),
+  };
+}
+
+/** Troca só o nome — papel, e-mail e situação continuam com o administrador. */
+export async function atualizarPerfilNome(id, nome, emailDoLogin = '') {
+  await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`, {
+    nome, updated_at: new Date().toISOString(),
+  });
+  return obterPerfil(id, emailDoLogin);
+}
+
+// ============================================================================
+// JANELAS DE AGENDAMENTO (o que a IA do WhatsApp usa para oferecer horário)
+// e CATÁLOGO DE SERVIÇOS — somente leitura aqui; quem edita é o CRM.
+// ============================================================================
+
+export async function listarJanelas() {
+  const linhas = await selecionar(T.janelas,
+    'select=id,tipo_servico,dias,inicio,fim,observacao&order=tipo_servico.asc,dias.asc,inicio.asc');
+  // 'time' volta como '08:00:00'; a tela mostra HH:MM, igual ao resto do app.
+  return linhas.map((j) => ({ ...j, inicio: horaCurta(j.inicio), fim: horaCurta(j.fim) }));
+}
+
+export async function listarCatalogo() {
+  // selecionarTudo: são 138 linhas hoje, mas o PostgREST corta a resposta em
+  // silêncio se um dia passar do limite — paginar evita catálogo pela metade.
+  const linhas = await selecionarTudo(T.catalogo,
+    'select=id,categoria,servico,escopo,fazemos,tipo_veiculo,observacao&order=categoria.asc,servico.asc');
+  return linhas.map((s) => ({ ...s, fazemos: bit(s.fazemos) }));
 }
 
 export async function obterWaConfig() {

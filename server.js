@@ -449,8 +449,12 @@ async function api(req, res, url) {
     });
   }
 
-  if (!ROTAS_SEM_LOGIN.has(pathname) && !await usuarioLogado(req)) {
-    return send(res, 401, { erro: 'Faça login para usar a Agenda.' });
+  // Guardamos QUEM está logado: a aba Configurações precisa do id do perfil,
+  // e ele tem de vir do token conferido aqui — nunca do corpo da requisição.
+  let usuario = null;
+  if (!ROTAS_SEM_LOGIN.has(pathname)) {
+    usuario = await usuarioLogado(req);
+    if (!usuario) return send(res, 401, { erro: 'Faça login para usar a Agenda.' });
   }
 
   const body = (m === 'POST' || m === 'PUT' || m === 'PATCH') ? await readBody(req) : {};
@@ -458,8 +462,28 @@ async function api(req, res, url) {
   // ---- empresa
   if (pathname === '/api/empresa' && m === 'GET')
     return ok(res, await dados.obterEmpresa());
-  if (pathname === '/api/empresa' && m === 'PUT')
+  if (pathname === '/api/empresa' && m === 'PUT') {
+    if (!String(body.nome ?? '').trim()) return bad(res, 'Informe o nome da oficina.');
     return ok(res, await dados.salvarEmpresa(body));
+  }
+
+  // ---- perfil de quem está logado (aba Configurações → Minha conta)
+  if (pathname === '/api/perfil' && m === 'GET')
+    return ok(res, await dados.obterPerfil(usuario.id, usuario.email));
+  if (pathname === '/api/perfil' && m === 'PUT') {
+    const nome = String(body.nome ?? '').trim();
+    if (!nome) return bad(res, 'Informe o seu nome.');
+    // sempre usuario.id: ninguém renomeia o perfil de outra pessoa por aqui
+    return ok(res, await dados.atualizarPerfilNome(usuario.id, nome, usuario.email));
+  }
+
+  // ---- janelas de agendamento (leitura) — é o que a IA usa p/ oferecer horário
+  if (pathname === '/api/janelas' && m === 'GET')
+    return ok(res, await dados.listarJanelas());
+
+  // ---- catálogo de serviços (leitura) — quem edita é o CRM
+  if (pathname === '/api/catalogo' && m === 'GET')
+    return ok(res, await dados.listarCatalogo());
 
   // ---- dashboard
   if (pathname === '/api/dashboard' && m === 'GET') {

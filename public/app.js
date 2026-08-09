@@ -22,6 +22,10 @@ const I = {
   money:'<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
   bot:'<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M9 17h6"/>',
+  chave:'<path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 1 5.4-5.4l-2.6 2.6"/>',
+  cadeado:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  loja:'<path d="M3 9l1.6-5h14.8L21 9M3 9h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/>',
+  relogio:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
 };
 const svg = (p, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24">${p}</svg>`;
 
@@ -78,6 +82,11 @@ const STATUS_LABEL = { aguardando:'Aguardando', confirmado:'Confirmado', em_aten
 // Origens aceitas pelo banco compartilhado. Faltar uma aqui fazia o formulário
 // reescrever a origem do cliente em silêncio ao salvar.
 const ORIGENS = ['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem','Telefone','Orgânico'];
+// Papéis da tabela `perfis` (compartilhada com o CRM e o Atendimento).
+const PAPEL_LABEL = { admin:'Administrador', gestor:'Gestor', atendente:'Atendente' };
+// Como a janela de agendamento grava os dias — a tela mostra por extenso.
+const DIAS_LABEL = { 'seg-sex':'Segunda a sexta', 'sabado':'Sábado', 'domingo':'Domingo',
+  'seg-sab':'Segunda a sábado', 'todos':'Todos os dias' };
 
 // ============================================================================
 // CARD DE AGENDAMENTO
@@ -350,6 +359,243 @@ function statusClass(s){return {concluido:'bp-purple',compareceu:'bp-green',conf
 
 // (Aba Arsenal removida a pedido — os serviços seguem alimentando o autocomplete
 //  de agendamento e o contexto da IA, sem preços nem duração.)
+
+// ============================================================================
+// SERVIÇOS — catálogo compartilhado (catalogo_servicos), SOMENTE LEITURA.
+// Quem cadastra e corrige é o CRM; aqui é consulta de balcão.
+// ============================================================================
+async function renderServicos() {
+  const lista = await api('GET', '/catalogo');
+  const fazemos = lista.filter(s => s.fazemos === 1).length;
+  view.innerHTML = `
+    <div class="toolbar">
+      <div class="left">
+        <h2>Catálogo de serviços</h2>
+        <span class="badge-pill bp-gray">${lista.length} no total</span>
+        <span class="badge-pill bp-green">${fazemos} a oficina faz</span>
+      </div>
+      <div class="search">${svg(I.search)}
+        <input id="qServ" placeholder="Buscar serviço, categoria ou escopo…" autocomplete="off"></div>
+    </div>
+    <div class="aviso-leitura">${svg(I.cadeado)}
+      <div><b>Só leitura nesta tela.</b> Este é o catálogo que a IA do WhatsApp consulta para
+      dizer o que a oficina faz e o que não faz. Para <b>incluir, alterar ou remover</b> um
+      serviço, use o <b>CRM</b> — os três sistemas leem a mesma lista.</div></div>
+    <div class="cat-lista" id="servLista"></div>`;
+
+  const pintar = (termo) => {
+    const t = String(termo || '').trim().toLowerCase();
+    const filtrada = !t ? lista : lista.filter(s =>
+      [s.servico, s.categoria, s.escopo, s.tipo_veiculo, s.observacao]
+        .some(c => String(c || '').toLowerCase().includes(t)));
+    const box = $('#servLista');
+    box.innerHTML = filtrada.length
+      ? catalogoHtml(filtrada)
+      : '<div class="panel"><div class="empty">Nenhum serviço encontrado com esse termo.</div></div>';
+  };
+  pintar('');
+  $('#qServ').addEventListener('input', debounce(e => pintar(e.target.value), 160));
+}
+
+function catalogoHtml(lista) {
+  const grupos = new Map();
+  for (const s of lista) {
+    if (!grupos.has(s.categoria)) grupos.set(s.categoria, []);
+    grupos.get(s.categoria).push(s);
+  }
+  return [...grupos.entries()].map(([categoria, itens]) => `
+    <div class="panel">
+      <div class="panel-head cat-head">
+        <h3>${esc(categoria)}</h3>
+        <span class="badge-pill bp-gray">${itens.length} ${itens.length === 1 ? 'serviço' : 'serviços'}</span>
+      </div>
+      <div class="panel-body">
+        <div class="serv-grid">${itens.map(servicoCard).join('')}</div>
+      </div>
+    </div>`).join('');
+}
+
+function servicoCard(s) {
+  const faz = s.fazemos === 1;
+  const meta = [];
+  if (s.tipo_veiculo) meta.push(`Veículo: ${esc(s.tipo_veiculo)}`);
+  if (s.observacao)   meta.push(esc(s.observacao));
+  return `<div class="serv${faz ? '' : ' nao'}">
+    <div class="serv-topo">
+      <div class="serv-nome">${esc(s.servico)}</div>
+      <span class="badge-pill ${faz ? 'bp-green' : 'bp-gray'}">${faz ? 'Fazemos' : 'Não fazemos'}</span>
+    </div>
+    ${s.escopo ? `<div class="serv-escopo">${esc(s.escopo)}</div>` : ''}
+    ${meta.length ? `<div class="serv-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>` : ''}
+  </div>`;
+}
+
+// ============================================================================
+// CONFIGURAÇÕES — "Minha conta" e "Oficina"
+// A aba EQUIPE (consultores do atendimento) continua onde sempre esteve.
+// ============================================================================
+async function renderConfiguracoes() {
+  const secao = state.cfgSecao === 'oficina' ? 'oficina' : 'conta';
+  view.innerHTML = `
+    <div class="toolbar"><div class="left"><h2>Configurações</h2></div></div>
+    <div class="pilulas" id="cfgPilulas">
+      <button type="button" class="pilula ${secao === 'conta' ? 'ativa' : ''}" data-secao="conta">Minha conta</button>
+      <button type="button" class="pilula ${secao === 'oficina' ? 'ativa' : ''}" data-secao="oficina">Oficina</button>
+    </div>
+    <div id="cfgConteudo"><div class="empty">Carregando…</div></div>`;
+  $$('#cfgPilulas .pilula', view).forEach(b => b.addEventListener('click', () => {
+    state.cfgSecao = b.dataset.secao;
+    renderConfiguracoes().catch(e => toast(e.message, 'err'));
+  }));
+  const box = $('#cfgConteudo');
+  if (secao === 'oficina') await cfgOficina(box);
+  else await cfgConta(box);
+}
+
+/** Recado embaixo do formulário: verde quando deu certo, vermelho quando não. */
+function recado(seletor, texto, ok) {
+  const el = $(seletor);
+  if (!el) return;
+  el.textContent = texto;                       // textContent: nada de HTML aqui
+  el.className = 'form-msg ' + (ok ? 'ok' : 'erro');
+  el.hidden = false;
+}
+
+async function cfgConta(box) {
+  const p = await api('GET', '/perfil');
+  state.perfil = p;
+  box.innerHTML = `
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-head"><h2>${svg(I.user)} Meu perfil</h2></div>
+        <div class="panel-body">
+          <small class="muted">Seu nome aparece para a equipe. O e-mail e a função são do
+            administrador — se estiverem errados, peça a ele.</small>
+          <div class="field"><label>Nome</label>
+            <input id="cf_nome" value="${esc(p.nome)}" placeholder="Seu nome" autocomplete="name"></div>
+          <div class="field"><label>E-mail (só leitura)</label>
+            <input id="cf_email" value="${esc(p.email)}" disabled></div>
+          <div class="field"><label>Função (só leitura)</label>
+            <input id="cf_papel" value="${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}" disabled></div>
+          <div><button class="btn primary" id="cf_salvar">${svg(I.check)} Salvar nome</button></div>
+          <p class="form-msg" id="cf_msg" hidden></p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>${svg(I.cadeado)} Trocar minha senha</h2></div>
+        <div class="panel-body">
+          <small class="muted">É o mesmo login da Agenda, do CRM e do Atendimento: a senha nova
+            vale nos três. Mínimo de 8 caracteres.</small>
+          <div class="field"><label>Nova senha</label>
+            <input id="cf_s1" type="password" minlength="8" autocomplete="new-password"
+                   placeholder="pelo menos 8 caracteres"></div>
+          <div class="field"><label>Repetir a nova senha</label>
+            <input id="cf_s2" type="password" minlength="8" autocomplete="new-password"
+                   placeholder="digite a mesma senha"></div>
+          <div><button class="btn primary" id="cf_trocar">${svg(I.check)} Trocar senha</button></div>
+          <p class="form-msg" id="cf_msg2" hidden></p>
+        </div>
+      </div>
+    </div>`;
+
+  $('#cf_salvar').addEventListener('click', async () => {
+    const nome = $('#cf_nome').value.trim();
+    if (!nome) return recado('#cf_msg', 'Escreva o seu nome antes de salvar.', false);
+    const btn = $('#cf_salvar'); btn.disabled = true;
+    try {
+      state.perfil = await api('PUT', '/perfil', { nome });
+      aplicarPerfilNaTela();
+      recado('#cf_msg', 'Nome salvo.', true);
+      toast('Nome atualizado');
+    } catch (e) { recado('#cf_msg', 'Não consegui salvar: ' + e.message, false); }
+    finally { btn.disabled = false; }
+  });
+
+  // A troca de senha fala direto com o Supabase Auth, igual ao Atendimento.
+  $('#cf_trocar').addEventListener('click', async () => {
+    const s1 = $('#cf_s1').value, s2 = $('#cf_s2').value;
+    if (s1.length < 8) return recado('#cf_msg2', 'A senha precisa ter pelo menos 8 caracteres.', false);
+    if (s1 !== s2)     return recado('#cf_msg2', 'As duas senhas não são iguais. Confira e tente de novo.', false);
+    if (!sb)           return recado('#cf_msg2', 'Conexão com o Supabase não configurada.', false);
+    const btn = $('#cf_trocar'); btn.disabled = true;
+    try {
+      const { error } = await sb.auth.updateUser({ password: s1 });
+      if (error) throw new Error(error.message);
+      $('#cf_s1').value = ''; $('#cf_s2').value = '';
+      recado('#cf_msg2', 'Senha trocada. Use a nova da próxima vez que entrar.', true);
+      toast('Senha alterada');
+    } catch (e) { recado('#cf_msg2', 'Não consegui trocar: ' + e.message, false); }
+    finally { btn.disabled = false; }
+  });
+}
+
+async function cfgOficina(box) {
+  const [empresa, janelas] = await Promise.all([
+    api('GET', '/empresa'), api('GET', '/janelas'),
+  ]);
+  box.innerHTML = `
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-head"><h2>${svg(I.loja)} Dados da oficina</h2></div>
+        <div class="panel-body">
+          <small class="muted">É o que aparece no topo desta tela e no convite do Google Agenda.</small>
+          <div class="field"><label>Nome *</label>
+            <input id="of_nome" value="${esc(empresa.nome)}" placeholder="IndyCar Centro Automotivo"></div>
+          <div class="field"><label>Endereço</label>
+            <input id="of_end" value="${esc(empresa.endereco)}" placeholder="Av. Bandeirantes, 875 — Taubaté/SP"></div>
+          <div class="field"><label>Slogan</label>
+            <input id="of_slogan" value="${esc(empresa.slogan)}" placeholder="Quem conhece, indica!"></div>
+          <div class="field"><label>Telefone</label>
+            <input id="of_tel" value="${esc(empresa.telefone)}" placeholder="12 99999-9999"></div>
+          <div><button class="btn primary" id="of_salvar">${svg(I.check)} Salvar dados</button></div>
+          <p class="form-msg" id="of_msg" hidden></p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>${svg(I.relogio)} Janelas de agendamento</h2>
+          <span class="badge-pill bp-gray">${janelas.length} janelas</span></div>
+        <div class="panel-body">
+          <div class="aviso-leitura">${svg(I.bot)}
+            <div><b>É daqui que a IA tira o horário que oferece no WhatsApp.</b> Para cada tipo de
+            serviço ela só propõe dia e hora dentro destas faixas. Fora delas, ela não agenda.
+            Esta tabela é <b>só leitura</b> — a lista é a mesma para os três sistemas.</div></div>
+          <div class="tabela-rolagem">
+            <table class="table">
+              <thead><tr><th>Tipo de serviço</th><th>Dias</th><th>Faixa de horário</th><th>Observação</th></tr></thead>
+              <tbody>${janelas.length ? janelas.map(j => `<tr>
+                <td><b>${esc(j.tipo_servico)}</b></td>
+                <td><span class="badge-pill bp-gray">${esc(DIAS_LABEL[j.dias] || j.dias)}</span></td>
+                <td>${esc(j.inicio)} — ${esc(j.fim)}</td>
+                <td class="muted">${esc(j.observacao || '—')}</td>
+              </tr>`).join('')
+                : '<tr><td colspan="4" class="empty">Nenhuma janela cadastrada — a IA não tem horário para oferecer.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  $('#of_salvar').addEventListener('click', async () => {
+    const nome = $('#of_nome').value.trim();
+    if (!nome) return recado('#of_msg', 'A oficina precisa de um nome.', false);
+    const btn = $('#of_salvar'); btn.disabled = true;
+    try {
+      await api('PUT', '/empresa', {
+        nome,
+        endereco: $('#of_end').value.trim(),
+        slogan:   $('#of_slogan').value.trim(),
+        telefone: $('#of_tel').value.trim(),
+      });
+      await loadEmpresa();                 // atualiza o cabeçalho na hora
+      recado('#of_msg', 'Dados da oficina salvos.', true);
+      toast('Dados da oficina salvos');
+    } catch (e) { recado('#of_msg', 'Não consegui salvar: ' + e.message, false); }
+    finally { btn.disabled = false; }
+  });
+}
 
 // ============================================================================
 // CONECTORES (instalar app, Google Agenda, webhook, exportações)
@@ -904,10 +1150,11 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
 // ROTEAMENTO
 // ============================================================================
 const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, clientes:renderClientes,
-  whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe, historico:renderHistorico,
-  conectores:renderConectores };
+  servicos:renderServicos, whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe,
+  historico:renderHistorico, conectores:renderConectores, configuracoes:renderConfiguracoes };
 const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
-  whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE', historico:'HISTÓRICO', conectores:'CONECTORES' };
+  servicos:'SERVIÇOS', whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE',
+  historico:'HISTÓRICO', conectores:'CONECTORES', configuracoes:'CONFIGURAÇÕES' };
 
 async function route(r){
   if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
@@ -934,10 +1181,32 @@ async function loadEmpresa(){
   $('#empresaEndereco').textContent = state.empresa.endereco;
   $('#empresaSlogan').textContent = state.empresa.slogan;
 }
+/* Perfil de quem entrou — só para as iniciais do rodapé e a aba Configurações.
+   Falhar aqui não pode impedir o app de abrir: por isso o catch silencioso. */
+async function loadPerfil(){
+  try { state.perfil = await api('GET','/perfil'); aplicarPerfilNaTela(); }
+  catch { /* segue com as iniciais padrão */ }
+}
+function aplicarPerfilNaTela(){
+  const el = $('#avatarPerfil'), p = state.perfil;
+  if (!el || !p) return;
+  const iniciais = String(p.nome || '').trim().split(/\s+/).filter(Boolean)
+    .slice(0, 2).map(x => x[0].toUpperCase()).join('');
+  el.textContent = iniciais || 'IC';                       // textContent: sem HTML
+  el.title = p.nome ? `${p.nome} · ${PAPEL_LABEL[p.papel] || p.papel || ''}`.replace(/ · $/, '')
+                    : 'Sua conta';
+}
 
 // ---- init -------------------------------------------------------------------
 $('#nav').addEventListener('click', e => {
   const item = e.target.closest('.nav-item'); if (!item) return;
+  route(item.dataset.route);
+});
+// Os itens do menu são <a> sem href: pelo teclado, Enter e espaço fazem o papel do clique.
+$('#nav').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const item = e.target.closest('.nav-item'); if (!item) return;
+  e.preventDefault();
   route(item.dataset.route);
 });
 $('#btnNovo').addEventListener('click', () => openAgendamentoModal());
@@ -963,7 +1232,7 @@ function esconderLogin(){
 }
 
 async function abrirApp(){
-  await Promise.all([ loadEmpresa(), loadConsultores() ]);
+  await Promise.all([ loadEmpresa(), loadConsultores(), loadPerfil() ]);
   const qs = new URLSearchParams(location.search);
   const r0 = qs.get('r');
   await route(r0 && ROUTES[r0] ? r0 : 'inicio');
@@ -987,6 +1256,52 @@ $('#formLogin').addEventListener('submit', async e => {
   } catch (err) { mostrarLogin(err.message); }
   finally { btn.disabled = false; btn.textContent = 'ENTRAR'; }
 });
+
+/* ============================================================
+   TEMA CLARO / ESCURO
+   O <html data-tema> já foi definido pelo script inline do <head>
+   (para não piscar na abertura). Aqui só mantemos o botão, a cor da
+   barra do navegador e o localStorage em dia.
+   Atenção: o fundo do body NÃO tem transição — ver o comentário em
+   styles.css. Com transição, o Chrome congela a cor antiga quando quem
+   muda é uma variável CSS, e a página fica escura com a lateral clara.
+   ============================================================ */
+const TEMA_KEY = 'indycar_tema';
+const temaAtual = () =>
+  document.documentElement.getAttribute('data-tema') === 'claro' ? 'claro' : 'escuro';
+
+function aplicarTema(tema){
+  const claro = tema === 'claro';
+  const raiz = document.documentElement;
+
+  /* Desliga TODA transição enquanto as variáveis mudam. Sem isto, o Chrome
+     congela a cor antiga em quem tem transição na propriedade afetada — foi
+     medido: a barra lateral continuava com o cinza do tema escuro 2s depois
+     de trocar para o claro. Ver o comentário em styles.css. */
+  raiz.setAttribute('data-trocando-tema', '');
+  raiz.setAttribute('data-tema', claro ? 'claro' : 'escuro');
+  void (document.body || raiz).offsetHeight;       // força o recálculo agora
+  // setTimeout, não requestAnimationFrame: em aba oculta o rAF não roda e a
+  // marca ficaria grudada, deixando o app inteiro sem transição nenhuma.
+  clearTimeout(state._temaTimer);
+  state._temaTimer = setTimeout(() => raiz.removeAttribute('data-trocando-tema'), 60);
+
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', claro ? '#eef0f4' : '#070a14');
+
+  const ico = $('#temaIco'), txt = $('#temaTxt'), btn = $('#btnTema');
+  if (ico) ico.textContent = claro ? '☀️' : '🌙';
+  if (txt) txt.textContent = claro ? 'Claro' : 'Escuro';
+  if (btn) btn.title = claro ? 'Mudar para o tema escuro' : 'Mudar para o tema claro';
+
+  try { localStorage.setItem(TEMA_KEY, claro ? 'claro' : 'escuro'); } catch { /* ignora */ }
+}
+
+$('#btnTema')?.addEventListener('click', () =>
+  aplicarTema(temaAtual() === 'claro' ? 'escuro' : 'claro'));
+
+// Deixa o botão e o meta coerentes com o que o script do <head> já aplicou.
+aplicarTema(temaAtual());
 
 (async function init(){
   mostrarLogin();                        // capa primeiro: nada vaza antes da senha
