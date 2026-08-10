@@ -137,7 +137,12 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
   display:flex;flex-direction:column;align-items:center;
   padding:16px 0 12px;position:sticky;top:0;height:100vh;
   transition:background .18s ease,border-color .18s ease;
+  /* ROLA: sem isto, em tela baixa o rodape (tema e usuario) some fora da vista */
+  overflow-y:auto;overscroll-behavior:contain;
 }
+.sidebar::-webkit-scrollbar{width:5px}
+.sidebar::-webkit-scrollbar-thumb{background:transparent;border-radius:5px}
+.sidebar:hover::-webkit-scrollbar-thumb{background:var(--border)}
 .logo{
   width:54px;height:54px;border-radius:50%;
   background:radial-gradient(circle at 50% 30%, #ff3145, var(--red));
@@ -183,6 +188,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .rodape-lateral{
   width:100%;display:flex;flex-direction:column;align-items:center;gap:10px;
   padding-top:10px;border-top:1px solid var(--border);flex-shrink:0;
+  /* grudado no fim: o botao de tema fica sempre a vista */
+  margin-top:auto;position:sticky;bottom:-12px;
+  background:var(--sidebar-2);padding-bottom:12px;margin-bottom:-12px;z-index:2;
 }
 .tema-toggle{
   display:flex;flex-direction:column;align-items:center;gap:3px;width:78px;
