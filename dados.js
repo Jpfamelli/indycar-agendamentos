@@ -14,7 +14,7 @@
 
 import {
   selecionar, selecionarUm, selecionarTudo,
-  inserirUm, atualizar, atualizarUm, remover, contar,
+  inserirUm, atualizar, atualizarUm, remover, contar, criarUsuarioAuth,
 } from './supabase.js';
 import { randomBytes } from 'node:crypto';
 
@@ -30,8 +30,10 @@ const T = {
   iaConfig: 'agenda_ia_config',
   integracoes: 'agenda_integracoes',
   templates: 'agenda_templates',
-  // Tabelas compartilhadas com o CRM e o Atendimento — a Agenda só LÊ (exceto
-  // o próprio nome em perfis, que cada pessoa altera na aba Configurações).
+  // Tabelas compartilhadas com o CRM e o Atendimento. A Agenda só LÊ janelas e
+  // catálogo; em `perfis` ela também escreve — cada pessoa muda o próprio nome
+  // e o administrador cuida da equipe (Configurações › Equipe). O que se faz
+  // aqui vale nos três sistemas: é o mesmo login.
   perfis: 'perfis',
   janelas: 'janelas_agendamento',
   catalogo: 'catalogo_servicos',
@@ -648,6 +650,69 @@ export async function atualizarPerfilNome(id, nome, emailDoLogin = '') {
     nome, updated_at: new Date().toISOString(),
   });
   return obterPerfil(id, emailDoLogin);
+}
+
+// ============================================================================
+// EQUIPE — quem tem acesso ao sistema (mesma tabela `perfis`)
+// Cadastrar alguém aqui dá acesso à Agenda, ao CRM e ao Atendimento de uma vez.
+// Estas funções não perguntam QUEM está chamando: as travas (só admin, e nunca
+// derrubar o último administrador) ficam no server.js, junto do token conferido.
+// ============================================================================
+
+/** Lista a equipe. Com um id, devolve só aquela pessoa (é o que o não-admin vê). */
+export async function listarEquipe(soEsteId = null) {
+  const filtro = soEsteId ? `&id=eq.${encodeURIComponent(soEsteId)}` : '';
+  const linhas = await selecionar(T.perfis,
+    `select=id,nome,email,papel,ativo,created_at&order=created_at.asc${filtro}`);
+  return linhas.map((p) => ({ ...p, ativo: bit(p.ativo) }));
+}
+
+/** Quantas pessoas já têm acesso — é isto que decide se o primeiro acesso está aberto. */
+export const contarPerfis = () => contar(T.perfis);
+
+/** Administradores que ainda conseguem entrar. Chegar a zero tranca todo mundo. */
+export const contarAdminsAtivos = () => contar(T.perfis, 'papel=eq.admin&ativo=is.true');
+
+/** Função e situação de alguém, para conferir ANTES de mexer. null se não existir. */
+export async function resumoDoPerfil(id) {
+  const p = await selecionarUm(T.perfis, `select=papel,ativo&id=eq.${encodeURIComponent(id)}`);
+  return p ? { papel: p.papel ?? '', ativo: !!p.ativo } : null;
+}
+
+/** Cria o acesso e acerta nome e função no perfil que o gatilho do banco criou. */
+export async function criarMembro({ nome, email, senha, papel = 'atendente' }) {
+  const usuario = await criarUsuarioAuth({ email, senha, nome });
+
+  /* O gatilho criar_perfil_novo_usuario já inseriu a linha em `perfis`; aqui só
+     acertamos nome e função. Se ESTE passo falhar, o acesso já existe — repetir
+     o cadastro esbarraria em "e-mail já cadastrado" e a pessoa ficaria sem
+     entender. Por isso devolvemos um aviso em vez de estourar o erro. */
+  try {
+    const gravado = await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(usuario.id)}`,
+      { nome, papel, ativo: true, updated_at: new Date().toISOString() });
+    /* Sem gatilho no banco, o UPDATE não acha linha nenhuma e a pessoa ficaria
+       com login mas sem perfil — e o porteiro do servidor recusa quem não tem
+       perfil. Criar aqui evita um acesso que não entra em lugar nenhum. */
+    if (!gravado) {
+      await inserirUm(T.perfis, { id: usuario.id, nome, email, papel, ativo: true });
+    }
+  } catch (e) {
+    return { id: usuario.id, nome, email, papel,
+      aviso: 'Criei o acesso, mas não consegui gravar nome e função: ' + (e?.message || e)
+           + ' Ajuste direto na lista da equipe.' };
+  }
+  return { id: usuario.id, nome, email, papel, aviso: null };
+}
+
+export async function definirPapel(id, papel) {
+  await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`,
+    { papel, updated_at: new Date().toISOString() });
+}
+
+/** Liga/desliga o acesso. Desligado, o porteiro do servidor recusa o token. */
+export async function definirAtivo(id, ativo) {
+  await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`,
+    { ativo: !!ativo, updated_at: new Date().toISOString() });
 }
 
 // ============================================================================

@@ -163,6 +163,36 @@
       </label>
       <button type="submit" class="btn-entrar" id="btnEntrar">ENTRAR</button>
       <p class="login-erro" id="erroLogin" hidden></p>
+      <!-- só aparece enquanto o sistema não tiver ninguém cadastrado -->
+      <button type="button" class="login-link" id="btnCriarConta" hidden>Primeiro acesso? Criar minha conta</button>
+    </form>
+
+    <!-- Primeiro acesso — só aparece enquanto NÃO existir ninguém cadastrado.
+         Quem criar esta conta vira o administrador e passa a cadastrar os
+         outros em Configurações › Equipe e acessos. -->
+    <form id="formPrimeiro" class="login-caixa" autocomplete="on" novalidate hidden>
+      <img src="/logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <h1>Vamos começar!</h1>
+      <p class="login-sub">Ninguém foi cadastrado ainda. Crie a sua conta de administrador —
+        ela vale também no CRM e no Atendimento.</p>
+      <label>Seu nome
+        <input id="pa_nome" maxlength="80" required autocomplete="name" placeholder="Ex.: João Pedro" />
+      </label>
+      <label>Seu e-mail
+        <input id="pa_email" type="email" required autocomplete="username"
+               placeholder="voce@indycartaubate.com" />
+      </label>
+      <label>Crie uma senha
+        <input id="pa_s1" type="password" minlength="8" required autocomplete="new-password"
+               placeholder="pelo menos 8 caracteres" />
+      </label>
+      <label>Repita a senha
+        <input id="pa_s2" type="password" minlength="8" required autocomplete="new-password"
+               placeholder="digite a mesma senha" />
+      </label>
+      <button type="submit" class="btn-entrar" id="btnPrimeiro">CRIAR MINHA CONTA</button>
+      <p class="login-erro" id="erroPrimeiro" hidden></p>
+      <button type="button" class="login-link" id="btnVoltarLogin">Já tenho conta — entrar</button>
     </form>
   </div>
 

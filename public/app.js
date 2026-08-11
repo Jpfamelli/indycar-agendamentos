@@ -65,6 +65,9 @@ function toast(msg, type = 'ok') {
 }
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Duas letras para o círculo do avatar (rodapé da lateral e lista da equipe). */
+const iniciais = (nome) => String(nome || '').trim().split(/\s+/).filter(Boolean)
+  .slice(0, 2).map(x => x[0].toUpperCase()).join('');
 function dataExtenso(iso) {
   const d = new Date(iso + 'T12:00:00');
   return cap(d.toLocaleDateString('pt-BR',{weekday:'long'})) + ', ' +
@@ -431,25 +434,29 @@ function servicoCard(s) {
 }
 
 // ============================================================================
-// CONFIGURAÇÕES — "Minha conta" e "Oficina"
-// A aba EQUIPE (consultores do atendimento) continua onde sempre esteve.
+// CONFIGURAÇÕES — "Minha conta", "Oficina" e "Equipe e acessos"
+// Cuidado com o nome: o item EQUIPE do menu lateral é outra coisa (consultores
+// que atendem o cliente). Aqui é quem tem LOGIN — o mesmo dos três sistemas.
 // ============================================================================
+const CFG_SECOES = { conta: cfgConta, oficina: cfgOficina, equipe: cfgEquipe };
+
 async function renderConfiguracoes() {
-  const secao = state.cfgSecao === 'oficina' ? 'oficina' : 'conta';
+  const secao = CFG_SECOES[state.cfgSecao] ? state.cfgSecao : 'conta';
+  const pilula = (chave, rotulo) =>
+    `<button type="button" class="pilula ${secao === chave ? 'ativa' : ''}" data-secao="${chave}">${rotulo}</button>`;
   view.innerHTML = `
     <div class="toolbar"><div class="left"><h2>Configurações</h2></div></div>
     <div class="pilulas" id="cfgPilulas">
-      <button type="button" class="pilula ${secao === 'conta' ? 'ativa' : ''}" data-secao="conta">Minha conta</button>
-      <button type="button" class="pilula ${secao === 'oficina' ? 'ativa' : ''}" data-secao="oficina">Oficina</button>
+      ${pilula('conta', 'Minha conta')}
+      ${pilula('oficina', 'Oficina')}
+      ${pilula('equipe', 'Equipe e acessos')}
     </div>
     <div id="cfgConteudo"><div class="empty">Carregando…</div></div>`;
   $$('#cfgPilulas .pilula', view).forEach(b => b.addEventListener('click', () => {
     state.cfgSecao = b.dataset.secao;
     renderConfiguracoes().catch(e => toast(e.message, 'err'));
   }));
-  const box = $('#cfgConteudo');
-  if (secao === 'oficina') await cfgOficina(box);
-  else await cfgConta(box);
+  await CFG_SECOES[secao]($('#cfgConteudo'));
 }
 
 /** Recado embaixo do formulário: verde quando deu certo, vermelho quando não. */
@@ -594,6 +601,151 @@ async function cfgOficina(box) {
       toast('Dados da oficina salvos');
     } catch (e) { recado('#of_msg', 'Não consegui salvar: ' + e.message, false); }
     finally { btn.disabled = false; }
+  });
+}
+
+/* ---------------------------------------------------------------------------
+   EQUIPE E ACESSOS — quem consegue entrar
+   Um cadastro só: a mesma conta abre a Agenda, o CRM e o Atendimento. Tirar o
+   acesso não apaga nada, só fecha a porta.
+   Todas as travas de verdade estão no servidor (só admin mexe; ninguém rebaixa
+   nem desliga o último administrador). A tela apenas evita mostrar botão que
+   não iria funcionar.
+   --------------------------------------------------------------------------- */
+
+/* O seletor oferece só Atendente e Administrador, que é o que o servidor
+   aceita. Se alguém tiver outra função herdada (ex.: gestor), ela aparece como
+   opção própria — assim a lista não mostra a pessoa como se fosse atendente. */
+function opcoesDePapel(papel) {
+  const conhecido = papel === 'admin' || papel === 'atendente';
+  const outra = conhecido ? ''
+    : `<option value="${esc(papel)}" selected>${esc(PAPEL_LABEL[papel] || papel || '—')}</option>`;
+  return `${outra}
+    <option value="atendente"${papel === 'atendente' ? ' selected' : ''}>Atendente</option>
+    <option value="admin"${papel === 'admin' ? ' selected' : ''}>Administrador</option>`;
+}
+
+function linhaEquipe(p, souAdmin, meuId) {
+  const souEu = p.id === meuId;
+  const funcao = souAdmin
+    ? `<select class="equipe-papel" data-papel="${esc(p.id)}"
+               title="O que esta pessoa pode fazer">${opcoesDePapel(p.papel)}</select>`
+    : `<span class="equipe-papel-txt">${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}</span>`;
+  // Ninguém tira o próprio acesso — o servidor recusa, então nem oferecemos.
+  const botao = souAdmin && !souEu
+    ? `<button class="btn" data-membro="${esc(p.id)}" data-ativar="${p.ativo ? '0' : '1'}">
+         ${p.ativo ? 'Tirar acesso' : 'Devolver acesso'}</button>`
+    : '';
+  return `
+    <div class="equipe-item${p.ativo ? '' : ' inativo'}">
+      <span class="equipe-avatar">${esc(iniciais(p.nome) || '?')}</span>
+      <div class="equipe-txt">
+        <strong>${esc(p.nome || 'Sem nome')}</strong>${souEu ? ' <em class="voce">(você)</em>' : ''}
+        <small>${esc(p.email || '—')}${p.ativo ? '' : ' · sem acesso'}</small>
+      </div>
+      ${funcao}${botao}
+    </div>`;
+}
+
+async function cfgEquipe(box) {
+  const { equipe, souAdmin, meuId } = await api('GET', '/equipe');
+  box.innerHTML = `
+    <div class="cols">
+      <div class="panel">
+        <div class="panel-head"><h2>${svg(I.user)} Quem tem acesso</h2>
+          <span class="badge-pill bp-gray">${equipe.length} ${equipe.length === 1 ? 'pessoa' : 'pessoas'}</span>
+        </div>
+        <div class="panel-body">
+          <small class="muted">${souAdmin
+            ? 'Administrador mexe em tudo, inclusive nesta lista; atendente usa o dia a dia e não '
+              + 'cadastra ninguém. Tirar o acesso não apaga nada — a pessoa só deixa de entrar, e '
+              + 'você pode devolver depois.'
+            : 'Só o administrador vê a equipe inteira e mexe nos acessos. Abaixo está o seu cadastro.'}
+          </small>
+          <div class="equipe">${equipe.length
+            ? equipe.map(p => linhaEquipe(p, souAdmin, meuId)).join('')
+            : '<div class="empty">Ninguém cadastrado ainda.</div>'}</div>
+          <p class="form-msg" id="eq_msg" hidden></p>
+        </div>
+      </div>
+
+      ${souAdmin ? `
+      <div class="panel">
+        <div class="panel-head"><h2>${svg(I.chave)} Dar acesso a alguém</h2></div>
+        <div class="panel-body">
+          <small class="muted">Você escolhe a senha e entrega para a pessoa — ela entra na hora e
+            troca depois em Minha conta. O e-mail não precisa existir de verdade, mas não pode
+            repetir o de outra pessoa.</small>
+          <div class="field"><label>Nome</label>
+            <input id="eq_nome" maxlength="80" placeholder="Ex.: Maria Souza" autocomplete="off"></div>
+          <div class="field"><label>E-mail</label>
+            <input id="eq_email" type="email" placeholder="maria@indycartaubate.com" autocomplete="off"></div>
+          <div class="field"><label>Senha provisória</label>
+            <input id="eq_senha" type="password" minlength="8" autocomplete="new-password"
+                   placeholder="pelo menos 8 caracteres"></div>
+          <div class="field"><label>Função</label>
+            <select id="eq_papel">
+              <option value="atendente" selected>Atendente</option>
+              <option value="admin">Administrador</option>
+            </select></div>
+          <div><button class="btn primary" id="eq_criar">${svg(I.plus)} Criar acesso</button></div>
+          <p class="form-msg" id="eq_msg2" hidden></p>
+        </div>
+      </div>` : ''}
+    </div>`;
+
+  /* Troca de função. O servidor recusa (409) rebaixar o último administrador:
+     sem essa trava dá para se trancar para fora do próprio sistema, porque a
+     tela de primeiro acesso não reabre enquanto existirem cadastros. */
+  $$('select[data-papel]', box).forEach(sel => {
+    sel.dataset.antes = sel.value;                  // para desfazer se o servidor recusar
+    sel.addEventListener('change', async () => {
+      sel.disabled = true;
+      try {
+        await api('POST', '/equipe/papel', { id: sel.dataset.papel, papel: sel.value });
+        toast(sel.value === 'admin' ? 'Agora é administrador' : 'Agora é atendente');
+        // mudar a PRÓPRIA função muda o que você enxerga: recarrega tudo
+        if (sel.dataset.papel === meuId) { location.reload(); return; }
+        await cfgEquipe(box);
+      } catch (e) {
+        sel.value = sel.dataset.antes;
+        sel.disabled = false;
+        recado('#eq_msg', e.message, false);
+      }
+    });
+  });
+
+  // Tirar / devolver o acesso de alguém
+  $$('button[data-membro]', box).forEach(btn => btn.addEventListener('click', async () => {
+    const devolver = btn.dataset.ativar === '1';
+    if (!devolver && !confirm('Tirar o acesso desta pessoa? Ela não vai mais entrar na Agenda, '
+        + 'no CRM nem no Atendimento. Nada é apagado e você pode devolver depois.')) return;
+    btn.disabled = true;
+    try {
+      await api('POST', '/equipe/ativo', { id: btn.dataset.membro, ativo: devolver });
+      toast(devolver ? 'Acesso devolvido' : 'Acesso removido');
+      await cfgEquipe(box);
+    } catch (e) { btn.disabled = false; recado('#eq_msg', e.message, false); }
+  }));
+
+  $('#eq_criar', box)?.addEventListener('click', async () => {
+    const nome  = $('#eq_nome', box).value.trim();
+    const email = $('#eq_email', box).value.trim().toLowerCase();
+    const senha = $('#eq_senha', box).value;
+    if (!nome)  return recado('#eq_msg2', 'Escreva o nome da pessoa.', false);
+    if (!email) return recado('#eq_msg2', 'Escreva o e-mail que ela vai usar para entrar.', false);
+    if (senha.length < 8) return recado('#eq_msg2', 'A senha precisa ter pelo menos 8 caracteres.', false);
+    const btn = $('#eq_criar', box); btn.disabled = true;
+    try {
+      const r = await api('POST', '/equipe', { nome, email, senha, papel: $('#eq_papel', box).value });
+      toast('Acesso criado');
+      // Redesenha ANTES do recado: o redesenho limpa o formulário e levaria a
+      // mensagem junto. E é ela que diz o que o administrador tem de entregar.
+      await cfgEquipe(box);
+      recado('#eq_msg2', r.aviso
+        || `Pronto. Entregue a ${nome} o e-mail ${email} e a senha que você acabou de escolher.`,
+        !r.aviso);
+    } catch (e) { recado('#eq_msg2', e.message, false); btn.disabled = false; }
   });
 }
 
@@ -1197,9 +1349,7 @@ async function loadPerfil(){
 function aplicarPerfilNaTela(){
   const el = $('#avatarPerfil'), p = state.perfil;
   if (!el || !p) return;
-  const iniciais = String(p.nome || '').trim().split(/\s+/).filter(Boolean)
-    .slice(0, 2).map(x => x[0].toUpperCase()).join('');
-  el.textContent = iniciais || 'IC';                       // textContent: sem HTML
+  el.textContent = iniciais(p.nome) || 'IC';               // textContent: sem HTML
   el.title = p.nome ? `${p.nome} · ${PAPEL_LABEL[p.papel] || p.papel || ''}`.replace(/ · $/, '')
                     : 'Sua conta';
 }
@@ -1229,6 +1379,9 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); stat
 function mostrarLogin(mensagem){
   document.body.classList.add('deslogado');
   $('#telaLogin').hidden = false;
+  // Um recado (sessão expirada, servidor fora do ar) é sobre o LOGIN. Se a tela
+  // de primeiro acesso estivesse aberta, o aviso ficaria escondido atrás dela.
+  if (mensagem) mostrarFormPrimeiro(false);
   const erro = $('#erroLogin');
   if (mensagem) { erro.textContent = mensagem; erro.hidden = false; } else { erro.hidden = true; }
 }
@@ -1237,6 +1390,78 @@ function esconderLogin(){
   $('#telaLogin').hidden = true;
   $('#erroLogin').hidden = true;
 }
+
+/* ---------------------------------------------------------------------------
+   PRIMEIRO ACESSO
+   Enquanto o sistema não tiver NINGUÉM, a capa de login vira "Vamos começar!" e
+   deixa criar a conta do dono, que nasce administrador. Depois disso a rota se
+   fecha sozinha e quem cadastra os outros é ele, em Configurações › Equipe.
+
+   Quem cria a conta é o servidor, não o navegador: o cadastro público do
+   Supabase exige confirmação por e-mail e recusa domínio que não seja de e-mail
+   de verdade — o @indycartaubate.com voltava como "Email address is invalid".
+   --------------------------------------------------------------------------- */
+let primeiroAberto = false;      // o sistema ainda não tem NINGUÉM cadastrado
+
+function mostrarFormPrimeiro(mostrar){
+  $('#formLogin').hidden    = mostrar;
+  $('#formPrimeiro').hidden = !mostrar;
+  // o convite para criar conta some assim que existir alguém — não é um
+  // cadastro aberto, é só o arranque do sistema
+  $('#btnCriarConta').hidden = mostrar || !primeiroAberto;
+  $('#erroLogin').hidden    = true;
+  $('#erroPrimeiro').hidden = true;
+}
+
+async function verPrimeiroAcesso(){
+  try {
+    const r = await fetch('/api/primeiro-acesso');
+    const j = await r.json();
+    primeiroAberto = j.aberto === true;
+    if (primeiroAberto) mostrarFormPrimeiro(true);
+  } catch { /* servidor fora do ar: a tela de login normal já avisa */ }
+}
+
+$('#btnCriarConta').addEventListener('click', () => mostrarFormPrimeiro(true));
+$('#btnVoltarLogin').addEventListener('click', () => mostrarFormPrimeiro(false));
+
+$('#formPrimeiro').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('#btnPrimeiro'), erro = $('#erroPrimeiro');
+  const falha = (m) => { erro.textContent = m; erro.hidden = false; };
+  erro.hidden = true;
+
+  const nome  = $('#pa_nome').value.trim();
+  const email = $('#pa_email').value.trim().toLowerCase();
+  const senha = $('#pa_s1').value;
+  if (!nome)  return falha('Escreva o seu nome.');
+  if (!email) return falha('Escreva o e-mail que você vai usar para entrar.');
+  if (senha.length < 8) return falha('A senha precisa ter pelo menos 8 caracteres.');
+  if (senha !== $('#pa_s2').value) return falha('As duas senhas não são iguais. Confira e tente de novo.');
+
+  btn.disabled = true; btn.textContent = 'CRIANDO…';
+  try {
+    const r = await fetch('/api/primeiro-acesso', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, email, senha }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.erro || 'Não consegui criar a conta. Tente de novo.');
+    primeiroAberto = false;          // agora existe gente: a porta se fecha
+
+    // Já entra, sem obrigar a pessoa a digitar tudo outra vez.
+    const { error } = sb ? await sb.auth.signInWithPassword({ email, password: senha })
+                         : { error: new Error('sem conexão com o Supabase') };
+    if (error) return mostrarLogin('Conta criada! Agora entre com o seu e-mail e a senha que você escolheu.');
+
+    $('#pa_s1').value = ''; $('#pa_s2').value = '';
+    mostrarFormPrimeiro(false);
+    esconderLogin();
+    await abrirApp();
+    if (j.aviso) toast(j.aviso, 'err');
+  } catch (err) { falha(err.message); }
+  finally { btn.disabled = false; btn.textContent = 'CRIAR MINHA CONTA'; }
+});
 
 async function abrirApp(){
   await Promise.all([ loadEmpresa(), loadConsultores(), loadPerfil() ]);
@@ -1328,5 +1553,8 @@ aplicarTema(temaAtual());
   if (data?.session) {
     esconderLogin();
     try { await abrirApp(); } catch (err) { mostrarLogin(err.message); }
+  } else {
+    // Sem sessão: pode ser que ninguém tenha sido cadastrado ainda neste sistema.
+    await verPrimeiroAcesso();
   }
 })();

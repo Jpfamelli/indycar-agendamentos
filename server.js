@@ -458,8 +458,53 @@ async function usuarioLogado(req) {
 }
 
 /* Rotas que o CodeWords/Google chamam de fora e não falam Supabase Auth.
-   Cada uma tem o próprio segredo (token do ICS, verify_token do webhook). */
-const ROTAS_SEM_LOGIN = new Set(['/api/config', '/api/agenda.ics', '/api/whatsapp/webhook']);
+   Cada uma tem o próprio segredo (token do ICS, verify_token do webhook).
+   /api/primeiro-acesso entra aqui porque, por definição, ainda não existe
+   ninguém para fazer login — ela mesma se fecha assim que houver um perfil. */
+const ROTAS_SEM_LOGIN = new Set([
+  '/api/config', '/api/agenda.ics', '/api/whatsapp/webhook', '/api/primeiro-acesso',
+]);
+
+/* Freio por chave (IP ou usuário): um token válido — ou um script distraído —
+   não pode criar conta em rajada nem martelar a tela de primeiro acesso. */
+const USO = new Map();   // chave -> { qtd, zeraEm }
+
+function dentroDoLimite(chave, teto, janelaMs) {
+  const agora = Date.now();
+  const atual = USO.get(chave);
+  if (!atual || atual.zeraEm <= agora) {
+    if (USO.size > 500) USO.clear();
+    USO.set(chave, { qtd: 1, zeraEm: agora + janelaMs });
+    return true;
+  }
+  if (atual.qtd >= teto) return false;
+  atual.qtd++;
+  return true;
+}
+
+/** Texto vindo de fora: só string ou número, cortado no limite.
+    Objeto e array viram vazio — sem isto um `{}` no lugar do e-mail viraria
+    a string "[object Object]" e seria gravada como se fosse um nome. */
+function texto1(v, max) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') return '';
+  return String(v).slice(0, max);
+}
+
+const EMAIL_PARECE_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/* O Supabase recusa em inglês ("A user with this email address has already
+   been registered"). Aqui isso vira um recado que diz o que fazer a seguir —
+   e e-mail repetido vira 409, que a tela trata diferente de erro genérico. */
+function recusaDeCadastro(e) {
+  const msg = String(e?.message || e);
+  if (/already been registered|already exists|email_exists/i.test(msg)) {
+    return { status: 409,
+      erro: 'Já existe alguém cadastrado com esse e-mail. Se a pessoa perdeu o acesso, '
+          + 'devolva pela lista da equipe em vez de cadastrar de novo.' };
+  }
+  return { status: 400, erro: msg };
+}
 
 async function api(req, res, url) {
   const { pathname, searchParams } = url;
@@ -475,6 +520,50 @@ async function api(req, res, url) {
     });
   }
 
+  /* ---- primeiro acesso ----
+     Enquanto NÃO existir ninguém cadastrado, esta rota deixa criar a conta do
+     dono, já como administrador. Assim que houver um perfil ela se fecha e
+     passa a responder 403 — daí em diante quem cadastra é o administrador, em
+     Configurações › Equipe.
+
+     Não usa o cadastro público do Supabase de propósito: ele exige confirmação
+     por e-mail e recusa domínio que não seja de e-mail de verdade — o
+     @indycartaubate.com voltava com "Email address is invalid". */
+  if (pathname === '/api/primeiro-acesso' && m === 'GET') {
+    return ok(res, { aberto: (await dados.contarPerfis()) === 0 });
+  }
+
+  if (pathname === '/api/primeiro-acesso' && m === 'POST') {
+    // Ninguém está logado para chegar aqui, então o freio possível é o IP.
+    const ip = req.socket?.remoteAddress || 'desconhecido';
+    if (!dentroDoLimite(`primeiro:${ip}`, 5, 600_000)) {
+      return send(res, 429, { erro: 'Muitas tentativas seguidas. Espere alguns minutos e tente de novo.' });
+    }
+    if ((await dados.contarPerfis()) > 0) {
+      return send(res, 403, {
+        erro: 'O sistema já tem gente cadastrada. Peça ao administrador para criar o seu acesso.' });
+    }
+
+    const bruto = await readBody(req);
+    const nome  = texto1(bruto.nome, 80).trim();
+    const email = texto1(bruto.email, 160).trim().toLowerCase();
+    const senha = texto1(bruto.senha, 200);
+    if (!nome) return bad(res, 'Informe o seu nome.');
+    if (!EMAIL_PARECE_VALIDO.test(email)) return bad(res, 'Esse e-mail não parece válido. Confira e tente de novo.');
+    if (senha.length < 8) return bad(res, 'A senha precisa ter pelo menos 8 caracteres.');
+
+    /* papel 'admin' explícito: o gatilho do banco já marca o primeiro assim,
+       mas dois cadastros ao mesmo tempo poderiam deixar o dono como atendente
+       dentro do próprio sistema. */
+    try {
+      const criado = await dados.criarMembro({ nome, email, senha, papel: 'admin' });
+      return send(res, 201, { ok: true, email, aviso: criado.aviso });
+    } catch (e) {
+      const r = recusaDeCadastro(e);
+      return send(res, r.status, { erro: r.erro });
+    }
+  }
+
   // Guardamos QUEM está logado: a aba Configurações precisa do id do perfil,
   // e ele tem de vir do token conferido aqui — nunca do corpo da requisição.
   let usuario = null;
@@ -482,6 +571,8 @@ async function api(req, res, url) {
     usuario = await usuarioLogado(req);
     if (!usuario) return send(res, 401, { erro: 'Faça login para usar a Agenda.' });
   }
+  // Quem manda na equipe. Conferido AQUI: esconder o botão na tela não protege nada.
+  const ehAdmin = usuario?.papel === 'admin';
 
   const body = (m === 'POST' || m === 'PUT' || m === 'PATCH') ? await readBody(req) : {};
 
@@ -501,6 +592,84 @@ async function api(req, res, url) {
     if (!nome) return bad(res, 'Informe o seu nome.');
     // sempre usuario.id: ninguém renomeia o perfil de outra pessoa por aqui
     return ok(res, await dados.atualizarPerfilNome(usuario.id, nome, usuario.email));
+  }
+
+  /* ---- equipe: quem tem acesso ao sistema (Configurações › Equipe) ----
+     É o mesmo login da Agenda, do CRM e do Atendimento: cadastrar, rebaixar ou
+     cortar alguém aqui vale nos três. Por isso tudo abaixo exige papel admin
+     conferido no servidor, e nada aceita o id de quem chama vindo do corpo. */
+  if (pathname === '/api/equipe' && m === 'GET') {
+    // quem não é administrador enxerga apenas o próprio cadastro
+    const equipe = await dados.listarEquipe(ehAdmin ? null : usuario.id);
+    return ok(res, { equipe, souAdmin: ehAdmin, meuId: usuario.id });
+  }
+
+  if (pathname === '/api/equipe' && m === 'POST') {
+    if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador cadastra a equipe.' });
+    if (!dentroDoLimite(`equipe:${usuario.id}`, 10, 60_000)) {
+      return send(res, 429, { erro: 'Muitos cadastros seguidos. Espere um minuto e continue.' });
+    }
+    const nome  = texto1(body.nome, 80).trim();
+    const email = texto1(body.email, 160).trim().toLowerCase();
+    const senha = texto1(body.senha, 200);
+    const papel = body.papel === 'admin' ? 'admin' : 'atendente';
+    if (!nome) return bad(res, 'Informe o nome da pessoa.');
+    if (!EMAIL_PARECE_VALIDO.test(email)) return bad(res, 'Esse e-mail não parece válido. Confira e tente de novo.');
+    if (senha.length < 8) return bad(res, 'A senha precisa ter pelo menos 8 caracteres.');
+
+    try {
+      return send(res, 201, { ok: true, ...(await dados.criarMembro({ nome, email, senha, papel })) });
+    } catch (e) {
+      const r = recusaDeCadastro(e);
+      return send(res, r.status, { erro: r.erro });
+    }
+  }
+
+  if (pathname === '/api/equipe/papel' && m === 'POST') {
+    if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador muda a função da equipe.' });
+    const id = texto1(body.id, 60);
+    const papel = body.papel === 'admin' ? 'admin' : 'atendente';
+    if (!dados.ehUuid(id)) return bad(res, 'Informe de quem você quer mudar a função.');
+
+    const alvo = await dados.resumoDoPerfil(id);
+    if (!alvo) return send(res, 404, { erro: 'Não encontrei essa pessoa na equipe. Atualize a página.' });
+
+    /* Rebaixar o último administrador tranca todo mundo para fora: ninguém
+       mais cadastra ninguém, e a tela de primeiro acesso não reabre porque ela
+       só aparece quando NÃO existe nenhum perfil. */
+    if (papel !== 'admin' && alvo.papel === 'admin' && alvo.ativo
+        && (await dados.contarAdminsAtivos()) <= 1) {
+      return send(res, 409, {
+        erro: 'Este é o único administrador. Promova outra pessoa antes de rebaixar esta.' });
+    }
+
+    await dados.definirPapel(id, papel);
+    return ok(res, { ok: true, papel });
+  }
+
+  if (pathname === '/api/equipe/ativo' && m === 'POST') {
+    if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador tira ou devolve acesso.' });
+    const id = texto1(body.id, 60);
+    const ativo = body.ativo === true;
+    if (!dados.ehUuid(id)) return bad(res, 'Informe de quem você quer mudar o acesso.');
+    if (!ativo && id === usuario.id) {
+      return bad(res, 'Você não pode desligar o próprio acesso. Peça a outro administrador.');
+    }
+
+    if (!ativo) {
+      const alvo = await dados.resumoDoPerfil(id);
+      if (!alvo) return send(res, 404, { erro: 'Não encontrei essa pessoa na equipe. Atualize a página.' });
+      /* Mesma armadilha da troca de função, e a regra de "não desligar a si
+         mesmo" acima não cobre: dois administradores podem se desligar um ao
+         outro em sequência e sobrar ninguém. */
+      if (alvo.papel === 'admin' && alvo.ativo && (await dados.contarAdminsAtivos()) <= 1) {
+        return send(res, 409, {
+          erro: 'Este é o único administrador com acesso. Promova outra pessoa antes de tirar o desta.' });
+      }
+    }
+
+    await dados.definirAtivo(id, ativo);
+    return ok(res, { ok: true, ativo });
   }
 
   // ---- janelas de agendamento (leitura) — é o que a IA usa p/ oferecer horário

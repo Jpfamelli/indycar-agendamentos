@@ -253,8 +253,68 @@ export async function rpc(nome, argumentos = {}) {
   return dados;
 }
 
+// ----------------------------------------------------------------------------
+// Auth Admin — criar o login de uma pessoa
+//
+// Não passa por requisitar(): a Auth Admin API mora em /auth/v1, não em
+// /rest/v1, e não fala PostgREST. Mora neste arquivo porque aqui é o único
+// lugar que conhece a service_role — ela nunca pode sair do servidor.
+// ----------------------------------------------------------------------------
+
+/**
+ * Cria a conta de acesso (e-mail + senha) já valendo e devolve o usuário.
+ *
+ * email_confirm: true de propósito. Sem isso o Supabase exige confirmação por
+ * e-mail e recusa domínio que não seja de e-mail de verdade — o
+ * @indycartaubate.com voltava com "Email address is invalid". Assim a pessoa
+ * entra na hora, com a senha que o administrador entregou a ela.
+ *
+ * Quem chama é que ajusta nome e função na tabela `perfis`: o gatilho do banco
+ * cria a linha, mas com os valores padrão.
+ */
+export async function criarUsuarioAuth({ email, senha, nome }) {
+  const { url, chave } = credenciais();
+
+  let resposta, corpo;
+  try {
+    resposta = await fetch(`${url}/auth/v1/admin/users`, {
+      method: 'POST',
+      headers: {
+        apikey: chave,
+        Authorization: `Bearer ${chave}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email, password: senha, email_confirm: true, user_metadata: { nome },
+      }),
+      signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
+    });
+    corpo = await resposta.json().catch(() => null);
+  } catch (e) {
+    const tipo = e?.name || '';
+    if (tipo === 'TimeoutError' || tipo === 'AbortError') {
+      throw new ErroSupabase(
+        `O Supabase não respondeu em ${TEMPO_LIMITE_MS / 1000}s ao criar o acesso. Tente de novo.`, 0);
+    }
+    throw new ErroSupabase(
+      `Não foi possível falar com o Supabase para criar o acesso: ${e?.message || e}`, 0);
+  }
+
+  if (!resposta.ok) {
+    // O GoTrue devolve a explicação em 'msg'; 'message'/'error_description'
+    // aparecem em versões e erros diferentes. Sem isso sobraria só "HTTP 422".
+    const detalhe = corpo?.msg || corpo?.message || corpo?.error_description
+      || `O Supabase recusou a criação do acesso (HTTP ${resposta.status}).`;
+    throw new ErroSupabase(detalhe, resposta.status, detalhe);
+  }
+  if (!corpo?.id) {
+    throw new ErroSupabase('O Supabase criou o acesso mas não devolveu o identificador.', 0);
+  }
+  return corpo;
+}
+
 export default {
   selecionar, selecionarUm, selecionarTudo,
   inserir, inserirUm, atualizar, atualizarUm, remover, contar, rpc,
-  conferirConfiguracao, ErroSupabase,
+  criarUsuarioAuth, conferirConfiguracao, ErroSupabase,
 };

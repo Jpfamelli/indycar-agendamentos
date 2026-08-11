@@ -481,7 +481,15 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 /* ================= LOGIN =================
    Cobre a tela até o atendente entrar — nada de dado de cliente antes disso. */
 .login-capa{
-  position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:24px;
+  position:fixed;inset:0;z-index:9999;display:grid;justify-items:center;padding:24px;
+  /* A capa ROLA. O formulário de primeiro acesso tem quatro campos e não cabe
+     numa janela baixa; sem rolagem o botão de concluir ficava abaixo da dobra,
+     inalcançável, e não havia como terminar o cadastro. */
+  overflow-y:auto;overscroll-behavior:contain;
+  /* `safe center` centraliza quando cabe e volta a alinhar pelo topo quando não
+     cabe. Com `center` puro num contêiner que rola, o excedente sai por CIMA —
+     e nem rolando se alcança o começo do formulário. */
+  align-items:center;align-items:safe center;
   background:var(--bg);
   background-image:
     radial-gradient(900px 500px at 85% -10%, var(--login-brilho), transparent 60%),
@@ -514,5 +522,41 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
   padding:11px 13px;font-size:13.5px;color:var(--erro-txt);margin:0;
 }
 .login-erro[hidden]{display:none}
+/* Alterna entre "entrar" e "criar minha conta" — é link, não ação principal. */
+.login-link{
+  background:none;border:none;color:var(--muted);font-family:inherit;font-size:13px;
+  font-weight:600;cursor:pointer;text-decoration:underline;padding:2px;margin-top:-4px;
+}
+.login-link:hover{color:var(--text)}
 /* Enquanto não entrar, o app fica escondido atrás da capa */
 body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidden}
+
+/* ================= EQUIPE E ACESSOS (Configurações) =================
+   Lista de quem entra no sistema. Numa janela estreita a linha quebra em duas
+   para o seletor de função e o botão de acesso não espremerem o nome. */
+.equipe{display:flex;flex-direction:column;gap:9px}
+.equipe-item{
+  display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+  padding:10px 12px;border-radius:12px;
+  background:var(--panel-3);border:1px solid var(--border);
+}
+.equipe-avatar{
+  width:34px;height:34px;border-radius:50%;flex-shrink:0;
+  background:var(--surface-2);border:1px solid var(--border-2);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:12px;color:var(--muted);
+}
+.equipe-txt{flex:1;min-width:140px}
+.equipe-txt strong{font-size:14px;font-weight:700}
+.equipe-txt small{display:block;font-size:12px;color:var(--muted);margin-top:2px;word-break:break-word}
+.equipe-txt .voce{font-style:normal;font-size:12px;font-weight:600;color:var(--muted)}
+/* Sem acesso: cinza e nome riscado — dá para ver de longe quem não entra mais. */
+.equipe-item.inativo{opacity:.6}
+.equipe-item.inativo .equipe-txt strong{text-decoration:line-through}
+.equipe-papel{
+  flex:none;padding:6px 9px;border-radius:9px;font-family:inherit;font-size:12.5px;
+  background:var(--panel-2);border:1px solid var(--border-2);color:var(--text);cursor:pointer;
+}
+.equipe-papel:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.equipe-papel:disabled{opacity:.5;cursor:wait}
+.equipe-papel-txt{flex:none;font-size:12.5px;color:var(--muted)}
