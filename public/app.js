@@ -704,32 +704,43 @@ async function renderWhatsapp() {
   else await waMensagens(box);
 }
 
+/* Tela de conexão — SÓ MOSTRA, não conecta.
+   Antes daqui saía um QR e dava para cadastrar um Device ID próprio. Com o
+   painel de atendimento fazendo o mesmo, dava para acabar com dois aparelhos
+   diferentes e ninguém sabia qual valia. E o CodeWords aposentou o QR: agora
+   é código de pareamento. Quem conecta é o atendimento; aqui é vitrine. */
 async function waConexao(box) {
-  const cfg = await api('GET','/whatsapp/ia/config');
   box.innerHTML = `
     <div class="wa-grid">
-      <div class="panel"><div class="panel-head"><h2>${svg(I.phone)} Conectar número por QR Code</h2>
+      <div class="panel"><div class="panel-head"><h2>${svg(I.phone)} WhatsApp da empresa</h2>
         <span class="badge-pill bp-gray" id="cx_status">—</span></div>
         <div class="panel-body" style="align-items:center;text-align:center">
-          <div id="cx_qr" style="background:#fff;padding:14px;border-radius:14px;width:248px;height:248px;margin:6px auto;display:flex;align-items:center;justify-content:center"><span style="color:#888">Carregando QR…</span></div>
-          <div id="cx_info" class="muted" style="font-size:12.5px;margin-top:8px;max-width:320px">No celular: WhatsApp → <b>Aparelhos conectados</b> → <b>Conectar aparelho</b> → aponte para o QR. (Renova sozinho a cada ~25s.)</div>
+          <div id="cx_qr" style="padding:22px 14px;width:100%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">
+            <span style="color:#888">Verificando…</span>
+          </div>
+          <div id="cx_info" class="muted" style="font-size:12.5px;margin-top:4px;max-width:340px">
+            É por este número que o lembrete e o aviso de falta saem.
+          </div>
           <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="btn primary" id="cx_refresh">${svg(I.wa)} Atualizar QR</button>
-            <button class="btn" id="cx_reconnect">Reconectar</button>
+            <button class="btn" id="cx_refresh">Verificar agora</button>
           </div>
         </div></div>
-      <div class="panel"><div class="panel-head"><h2>${svg(I.gear)} Dispositivo (CodeWords)</h2></div>
+      <div class="panel"><div class="panel-head"><h2>${svg(I.gear)} Onde se reconecta</h2></div>
         <div class="panel-body">
-          <div class="field"><label>Gerenciador de dispositivos</label>
-            <input id="cx_sid" value="${esc(cfg.cw_connect_service_id||'whatsapp_device_manager')}" placeholder="whatsapp_device_manager"></div>
-          <div class="field"><label>Device ID</label>
-            <input id="cx_dev" value="${esc(cfg.cw_device_id||'')}" placeholder="uuid do dispositivo"></div>
-          <div style="display:flex;gap:8px">
-            <button class="btn primary" id="cx_save">${svg(I.check)} Salvar</button>
-            <button class="btn" id="cx_criar">${svg(I.plus)} Criar dispositivo</button>
-          </div>
-          <div class="tpl" style="margin-top:12px"><div class="tpl-body"><b>Status:</b> <span id="cx_status2">—</span></div></div>
-          <small class="muted" style="display:block;margin-top:10px">O dispositivo fica vinculado ao atendente <b>Carlos</b>. Conectado o número, ele responde no WhatsApp e os agendamentos entram aqui sozinhos (importação a cada 3 min).</small>
+          <p style="margin:0 0 10px;font-size:13.5px;line-height:1.6">
+            A conexão do WhatsApp é feita num lugar só: o <b>painel de atendimento</b>.
+            Se ela fosse feita aqui também, daria para acabar com dois aparelhos
+            conectados e mensagens saindo por linhas diferentes.
+          </p>
+          <p style="margin:0 0 14px;font-size:13.5px;line-height:1.6">
+            Lá em <b>Configurações › Equipe e sistema › Conexão do WhatsApp</b>,
+            o botão <b>Reconectar WhatsApp</b> gera um código de 8 letras para
+            digitar no celular da oficina.
+          </p>
+          <a class="btn primary" href="https://indycar-atendimento.onrender.com" target="_blank" rel="noopener">
+            ${svg(I.wa)} Abrir o painel de atendimento
+          </a>
+          <div class="tpl" style="margin-top:14px"><div class="tpl-body"><b>Status:</b> <span id="cx_status2">—</span></div></div>
         </div></div>
     </div>`;
 
@@ -737,55 +748,51 @@ async function waConexao(box) {
     const a = $('#cx_status'); a.textContent = txt; a.className = 'badge-pill ' + cls;
     const b = $('#cx_status2'); if (b) b.textContent = txt;
   };
-  function renderQR(qr) {
-    const el = $('#cx_qr'); el.innerHTML = '';
-    if (!qr) { el.innerHTML = '<span style="color:#888">Sem QR no momento</span>'; return; }
-    if (/^data:image\//.test(qr) || /^https?:\/\//.test(qr)) {
-      const img = document.createElement('img'); img.src = qr; img.style.cssText = 'width:220px;height:220px;object-fit:contain'; el.appendChild(img); return;
-    }
-    if (/^[A-Za-z0-9+/=]+$/.test(qr) && qr.length > 400) { // base64 sem prefixo → PNG
-      const img = document.createElement('img'); img.src = 'data:image/png;base64,' + qr; img.style.cssText = 'width:220px;height:220px;object-fit:contain'; el.appendChild(img); return;
-    }
-    try { new QRCode(el, { text: qr, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.L }); }
-    catch(e) { el.innerHTML = '<span style="color:#888;font-size:11px;word-break:break-all">' + esc(qr.slice(0,60)) + '…</span>'; }
-  }
-  let ultimoQr = 0;
-  async function atualizarQR() {
-    try { const r = await api('GET','/whatsapp/conexao'); if (r.qr) { renderQR(r.qr); ultimoQr = Date.now(); } return r; }
-    catch(e){ return {}; }
-  }
+  const painel = (html) => { $('#cx_qr').innerHTML = html; };
+
   async function tick() {
     try {
-      const s = await api('GET','/whatsapp/conexao?only=status');
-      if (!s.configurado) { setStatus('não configurado','bp-orange'); $('#cx_info').textContent = s.erro || 'Informe/crie o dispositivo ao lado e salve.'; $('#cx_qr').innerHTML = '<span style="color:#888">—</span>'; return; }
-      if (!s.ok) { setStatus('erro','bp-red'); $('#cx_info').textContent = s.erro || 'Erro ao consultar.'; return; }
-      if (s.conectado) {
-        setStatus('conectado ✅','bp-green');
-        $('#cx_qr').innerHTML = '<div style="color:#16a34a;font-weight:800;font-size:15px">✅ Número conectado!</div>';
-        if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
+      const s = await api('GET','/whatsapp/conexao');
+      if (!s.configurado) {
+        setStatus('não configurado','bp-orange');
+        $('#cx_info').textContent = s.erro || 'Falta a chave do CodeWords (aba IA).';
+        painel('<span style="color:#888">—</span>');
         return;
       }
-      setStatus('aguardando leitura','bp-orange');
-      if (Date.now() - ultimoQr > 22000) await atualizarQR();
+      if (!s.ok) {
+        setStatus('erro','bp-red');
+        $('#cx_info').textContent = s.erro || 'Erro ao consultar.';
+        painel('<span style="color:#888">—</span>');
+        return;
+      }
+      if (s.conectado && s.recebendo) {
+        setStatus('conectado ✅','bp-green');
+        painel(`<span style="color:#16a34a">✅ ${esc(s.numero||'')} conectado</span>`);
+        $('#cx_info').textContent = 'Lembretes e avisos de falta saem por este número.';
+        return;
+      }
+      /* Pareado sem inscrição é o pior caso: parece ligado e não recebe nada.
+         Merece cor de alerta, não de sucesso. */
+      if (s.conectado) {
+        setStatus('sem receber','bp-orange');
+        painel('<span style="color:#d97706">⚠ Conectado, mas não está recebendo</span>');
+        $('#cx_info').textContent = s.aviso || 'Religue no painel de atendimento.';
+        return;
+      }
+      setStatus('desconectado','bp-red');
+      painel('<span style="color:#dc2626">✖ WhatsApp desconectado</span>');
+      $('#cx_info').textContent = s.onde_reconectar
+        ? `Reconecte em: ${s.onde_reconectar}`
+        : 'Reconecte pelo painel de atendimento.';
     } catch(e) { setStatus('erro','bp-red'); }
   }
-  $('#cx_save').addEventListener('click', async () => {
-    try { await api('PUT','/whatsapp/ia/config',{ cw_connect_service_id: $('#cx_sid').value.trim() || 'whatsapp_device_manager', cw_device_id: $('#cx_dev').value.trim() }); toast('Dispositivo salvo ✅'); renderWhatsapp(); }
-    catch(e){ toast(e.message,'err'); }
-  });
-  $('#cx_criar').addEventListener('click', async () => {
-    if (!confirm('Criar um novo dispositivo no CodeWords (vinculado ao Carlos)?')) return;
-    try { const r = await api('POST','/whatsapp/conexao/criar',{}); if (r.ok) { toast('Dispositivo criado ✅'); renderWhatsapp(); } else toast(r.erro || 'Falhou','err'); }
-    catch(e){ toast(e.message,'err'); }
-  });
-  $('#cx_refresh').addEventListener('click', () => atualizarQR());
-  $('#cx_reconnect').addEventListener('click', async () => {
-    try { await api('GET','/whatsapp/conexao?acao=reconnect'); toast('Reconexão solicitada'); setTimeout(tick, 800); }
-    catch(e){ toast(e.message,'err'); }
-  });
 
-  await atualizarQR(); tick();
-  state._cxTimer = setInterval(tick, 4000);
+  $('#cx_refresh').addEventListener('click', () => tick());
+
+  tick();
+  /* De 30 em 30s. Antes era de 4 em 4 porque estava esperando um QR ser lido;
+     agora é só acompanhamento e não vale bater no CodeWords o tempo todo. */
+  state._cxTimer = setInterval(tick, 30000);
 }
 
 async function waConfig(box, cfg) {

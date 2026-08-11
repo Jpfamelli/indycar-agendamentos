@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep } from 'node:path';
 import * as dados from './dados.js';
+import { selecionarUm } from './supabase.js';
 import { conferirConfiguracao } from './supabase.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,12 @@ let _ultimaImportacao = 0; // controle p/ importar ao abrir o painel (no máx 1x
 
 // Token de verificação do webhook do WhatsApp Cloud API (configurável por env)
 const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'indycar';
+
+/* O WhatsApp DA EMPRESA — (12) 99683-0272, o número do site e do cartão.
+   É por ele que sai aviso de falta e lembrete. Tem que ser o mesmo que o
+   painel de atendimento usa; se divergir, o cliente recebe o lembrete de um
+   número e responde para outro. */
+const NUMERO_DA_EMPRESA = process.env.WHATSAPP_NUMERO || '5512996830272';
 
 // Os ids agora são uuid: as rotas de item não podem mais casar apenas dígitos.
 const UUID = '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})';
@@ -267,19 +274,38 @@ async function notificarAusencia(ag) {
   });
 }
 
+/* Qual aparelho de WhatsApp é o da empresa.
+   Fonte única: a tabela `codewords_config`, a mesma que o painel de
+   atendimento usa e mantém atualizada quando alguém repareia. A agenda já
+   teve cópia própria disso em `agenda_ia_config` e o resultado foi ficar com
+   um aparelho velho — aviso de falta saindo por uma linha e a conversa por
+   outra, ou não saindo. A cópia local virou só reserva. */
+async function aparelhoDaEmpresa(cfg) {
+  try {
+    const central = await selecionarUm('codewords_config', 'select=device_id&limit=1');
+    if (central?.device_id) return central.device_id;
+  } catch { /* sem acesso à tabela: cai para a config local */ }
+  return cfg.cw_device_id || null;
+}
+
 // Envia uma mensagem pelo WhatsApp CONECTADO (proxy GOWA, form-data)
 async function enviarViaGowa(telefone, mensagem) {
   const cfg = await getIaConfig();
   if (!cfg.cw_api_key) return { ok: false, erro: 'CodeWords não configurado' };
   const sid = cfg.cw_connect_service_id || 'whatsapp_device_manager';
-  const carlosPath = (cfg.cw_service_id || 'indycar_carlos_whatsapp_e3cd01d3').replace(/\/?$/, '/');
-  const lst = await chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key, service_id: sid, path: 'devices/list', method: 'POST', inputs: {} });
-  const devs = (lst.ok && lst.data && lst.data.devices) || [];
-  const logado = devs.find(d => (d.service_path || '') === carlosPath && /^(logged_?in|authenticated|paired)$/i.test(d.gowa_status?.results?.state || ''));
-  const deviceId = logado?.device_id || cfg.cw_device_id;
-  if (!deviceId) return { ok: false, erro: 'Nenhum número conectado' };
+  /* Antes isto listava /devices para descobrir o aparelho. O CodeWords
+     aposentou esse endpoint (410) e a listagem passou a voltar vazia — o
+     aviso de falta parou de sair sem ninguém perceber. */
+  const deviceId = await aparelhoDaEmpresa(cfg);
+  if (!deviceId) {
+    return { ok: false,
+      erro: 'Nenhum WhatsApp conectado. Reconecte em Atendimento › Configurações › Conexão do WhatsApp.' };
+  }
   const base = (cfg.cw_base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
-  const url = `${base}/run/${sid}/proxy/send/message?device_id=${encodeURIComponent(deviceId)}`;
+  /* `phone_id`, não `device_id`: o CodeWords renomeou o parâmetro quando
+     trocou /devices por /connections. Com o nome antigo dá 404
+     "No connection found" mesmo com o número conectado. */
+  const url = `${base}/run/${sid}/proxy/send/message?phone_id=${encodeURIComponent(deviceId)}`;
   const body = new URLSearchParams({ phone: telefoneInternacional(telefone), message: mensagem }).toString();
   try {
     const r = await fetch(url, { method: 'POST', headers: { Authorization: cfg.cw_api_key, 'Content-Type': 'application/x-www-form-urlencoded' }, body });
@@ -827,63 +853,44 @@ async function api(req, res, url) {
   if (pathname === '/api/codewords/importar' && m === 'POST')
     return ok(res, await importarAgendamentosCW());
 
-  // WhatsApp via QR Code (CodeWords whatsapp_device_manager)
+  /* Situação do WhatsApp da empresa — SÓ LEITURA.
+     Esta tela já pareou aparelho por conta própria, com QR e device próprio.
+     Duas telas parear cada uma o seu deu no que deu: a agenda ficou com um
+     aparelho e o atendimento com outro, e ninguém sabia qual estava valendo.
+     Agora quem conecta é o painel de atendimento, e aqui só se mostra o
+     estado. O CodeWords também aposentou /devices — virou /connections, com
+     código de pareamento no lugar do QR. */
   if (pathname === '/api/whatsapp/conexao' && m === 'GET') {
     const cfg = await getIaConfig();
     if (!cfg.cw_api_key) return ok(res, { configurado: false, erro: 'Configure a chave do CodeWords (aba IA).' });
-    const sid = cfg.cw_connect_service_id || 'whatsapp_device_manager';
-    let devId = cfg.cw_device_id || '';
-    const call = (path, inputs = {}) => chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key,
-      service_id: sid, path, method: 'POST', inputs });
-    const criarDevice = async () => {
-      const sp = (cfg.cw_service_id || 'indycar_carlos_whatsapp_e3cd01d3').replace(/\/?$/, '/');
-      const novo = await call('devices', { service_path: sp });
-      const nid = novo.ok && (novo.data?.device_id || novo.data?.id);
-      if (nid) { devId = nid; await dados.salvarCampoIa('cw_device_id', nid); }
-      return !!nid;
-    };
 
-    if (devId && searchParams.get('acao') === 'reconnect') await call(`devices/${devId}/reconnect`, {});
+    const base = (cfg.cw_base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+    const sid  = cfg.cw_connect_service_id || 'whatsapp_device_manager';
+    const numeroEmpresa = '+' + String(NUMERO_DA_EMPRESA).replace(/\D/g, '');
 
-    const carlosPath = (cfg.cw_service_id || 'indycar_carlos_whatsapp_e3cd01d3').replace(/\/?$/, '/');
-    const ehConectado = (s) => /^(logged_?in|authenticated|paired)$/i.test(String(s || '').trim());
+    try {
+      const r = await fetch(`${base}/run/${sid}/connections`, {
+        headers: { Authorization: cfg.cw_api_key }, signal: AbortSignal.timeout(15000),
+      });
+      if (!r.ok) return ok(res, { configurado: true, ok: false, erro: `O CodeWords respondeu ${r.status}.` });
 
-    // Lista os devices e PRIORIZA um já conectado (logged_in) do nosso atendente.
-    const lst = await call('devices/list', {});
-    const devices = (lst.ok && lst.data && lst.data.devices) || [];
-    const meus = devices.filter(d => (d.service_path || '') === carlosPath);
-    const logado = meus.find(d => ehConectado(d.gowa_status?.results?.state));
-    if (logado) {
-      if (devId !== logado.device_id) await dados.salvarCampoIa('cw_device_id', logado.device_id);
-      return ok(res, { configurado: true, ok: true, conectado: true, status: 'logged_in',
-        device_id: logado.device_id, numero: (logado.gowa_status?.results?.jid || '').split('@')[0] || null });
+      const lista = await r.json();
+      const nossas = (Array.isArray(lista) ? lista : []).filter((c) => c.phone_number === numeroEmpresa);
+      const viva = nossas.find((c) => /logged_in|connected/i.test(String(c.status || '')));
+
+      if (viva) {
+        return ok(res, { configurado: true, ok: true, conectado: true, status: 'logged_in',
+          device_id: viva.phone_id, numero: numeroEmpresa,
+          recebendo: !!viva.service_path,
+          aviso: viva.service_path ? null
+            : 'Conectado, mas sem receber: falta religar no painel de atendimento.' });
+      }
+      return ok(res, { configurado: true, ok: true, conectado: false, status: 'disconnected',
+        numero: numeroEmpresa,
+        onde_reconectar: 'Atendimento › Configurações › Equipe e sistema › Conexão do WhatsApp' });
+    } catch (e) {
+      return ok(res, { configurado: true, ok: false, erro: `Não deu para falar com o CodeWords: ${e.message}` });
     }
-
-    // Não conectado: reaproveita um device existente do serviço (evita criar duplicados).
-    if (!meus.find(d => d.device_id === devId)) devId = meus[0]?.device_id || '';
-    if (searchParams.get('only') === 'status')
-      return ok(res, { configurado: true, ok: true, conectado: false, status: 'disconnected', device_id: devId });
-
-    // Gera/atualiza o QR (cria device só se realmente não houver nenhum).
-    if (!devId) await criarDevice();
-    let login = devId ? await call(`devices/${devId}/login`, {}) : { ok: false };
-    if (!login.ok) { if (await criarDevice()) login = await call(`devices/${devId}/login`, {}); }
-    if (!login.ok) return ok(res, { configurado: true, ok: false, erro: login.erro || 'Falha ao gerar QR', device_id: devId });
-    return ok(res, { configurado: true, ok: true, conectado: false, status: 'aguardando_leitura',
-      qr: login.data?.qr_link || login.data?.qr || '', qr_duration: login.data?.qr_duration || 0, device_id: devId });
-  }
-  // Cria um dispositivo no whatsapp_device_manager (uma vez) e salva o device_id
-  if (pathname === '/api/whatsapp/conexao/criar' && m === 'POST') {
-    const cfg = await getIaConfig();
-    if (!cfg.cw_api_key) return bad(res, 'Configure a chave do CodeWords.');
-    const sid = cfg.cw_connect_service_id || 'whatsapp_device_manager';
-    const service_path = body.service_path || (cfg.cw_service_id ? cfg.cw_service_id.replace(/\/?$/, '/') : 'indycar_carlos_whatsapp_e3cd01d3/');
-    const r = await chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key,
-      service_id: sid, path: 'devices', method: 'POST', inputs: { service_path } });
-    if (!r.ok) return ok(res, { ok: false, erro: r.erro });
-    const deviceId = r.data?.device_id || r.data?.id;
-    if (deviceId) await dados.salvarCampoIa('cw_device_id', deviceId);
-    return ok(res, { ok: true, device_id: deviceId, raw: r.data });
   }
 
   // marca status de uma mensagem (entregue/lido)
