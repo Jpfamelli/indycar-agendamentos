@@ -401,7 +401,11 @@ export async function agendamentosParaICS(limite = 500) {
   // Só do mês passado para frente: a tabela agora é compartilhada com o CRM e,
   // ordenando por data.asc com teto de 500, o histórico antigo empurraria os
   // horários FUTUROS para fora do calendário — justo os que interessam.
-  const desde = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  // O corte parte de hoje() no fuso da oficina (meio-dia evita virada de dia);
+  // com toISOString direto, das 21h em diante o corte avançava um dia.
+  const base = new Date(hoje() + 'T12:00:00');
+  base.setDate(base.getDate() - 30);
+  const desde = base.toISOString().slice(0, 10);
   p.set('data', `gte.${desde}`);
   p.set('order', 'data.asc,hora.asc');
   p.set('limit', String(limite));
@@ -967,14 +971,21 @@ export async function estatisticas() {
     contar(T.consultores, 'ativo=is.true'),
   ]);
 
-  const emAberto = new Set(['aguardando', 'confirmado', 'em_atendimento']);
+  /* MESMA regra das abas do painel (grupoDoDia em public/app.js): status vivo
+     primeiro, depois o bit compareceu. Se os dois divergirem, o card diz um
+     número e a aba mostra outro — foi bug real. Mudou lá? Muda aqui. */
+  const veio = (a) => a.compareceu === 1
+    || ['compareceu', 'em_atendimento', 'concluido', 'nao_fechou'].includes(a.status);
+  const esperando = (a) => ['aguardando', 'confirmado'].includes(a.status) && a.compareceu !== 1;
+  const faltou = (a) => !esperando(a) && !veio(a)
+    && (a.compareceu === 0 || ['nao_veio', 'cancelado'].includes(a.status));
   const cards = {
     totalHoje: agendaHoje.length,
     concluidosHoje: agendaHoje.filter((a) => a.status === 'concluido').length,
-    compareceram: agendaHoje.filter((a) => a.compareceu === 1).length,
-    naoVieram: agendaHoje.filter((a) => a.compareceu === 0).length,
+    compareceram: agendaHoje.filter((a) => !esperando(a) && veio(a)).length,
+    naoVieram: agendaHoje.filter(faltou).length,
     naoFechou: agendaHoje.filter((a) => a.status === 'nao_fechou').length,
-    aguardando: agendaHoje.filter((a) => a.compareceu === null && emAberto.has(a.status)).length,
+    aguardando: agendaHoje.filter(esperando).length,
     totalClientes,
     totalConsult,
   };

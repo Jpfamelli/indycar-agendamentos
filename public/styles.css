@@ -286,7 +286,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .appt.s-nao_veio{--accent:var(--red-2)} .appt.s-concluido{--accent:var(--purple)}
 .appt.s-nao_fechou{--accent:var(--orange)}
 .appt-top{display:flex;align-items:flex-start;gap:12px}
-.appt-time{font-size:18px;font-weight:800;color:var(--red-2);min-width:54px}
+.appt-time{font-size:18px;font-weight:800;color:var(--red-2);min-width:54px;
+  display:flex;flex-direction:column;gap:2px}
+/* a data mora embaixo da hora: dá para ver o dia sem abrir o "Editar" */
+.appt-date{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.2px;white-space:nowrap}
 .appt-main{flex:1;min-width:0}
 .appt-title{font-weight:700;font-size:15px}
 .appt-title b{font-weight:800}
@@ -359,6 +362,12 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .tab:hover{color:var(--text);background:var(--surface-3)}
 .tab.active{color:var(--text-forte)}
 .tab.active::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:3px;border-radius:3px;background:var(--red-2)}
+/* abas do painel "Agenda de hoje" (Agendados · Já vieram · Não vieram) */
+.tabs-hoje{padding:0 10px}
+.tab-num{font-style:normal;font-size:11px;font-weight:800;min-width:20px;height:20px;
+  padding:0 6px;border-radius:10px;background:var(--surface-2);color:var(--muted);
+  display:inline-flex;align-items:center;justify-content:center}
+.tab.active .tab-num{background:var(--red-soft);color:var(--red-txt)}
 .switch{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--text)!important;cursor:pointer}
 .switch input{width:18px;height:18px;accent-color:var(--red);flex-shrink:0}
 .field small{margin-top:2px}

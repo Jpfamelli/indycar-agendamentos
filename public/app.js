@@ -74,6 +74,10 @@ function dataExtenso(iso) {
          d.getDate() + ' De ' + cap(d.toLocaleDateString('pt-BR',{month:'long'})) + ' De ' + d.getFullYear();
 }
 const dataBR = (iso) => { if(!iso) return ''; const [a,m,d]=iso.split('-'); return `${d}/${m}/${a}`; };
+/* Data de hoje no fuso da OFICINA. toISOString é UTC: das 21h em diante ele já
+   devolve amanhã, e o modal de novo agendamento nascia com o dia errado. */
+const hojeSP = () => new Intl.DateTimeFormat('en-CA',
+  { timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
 // O Postgres devolve timestamptz em UTC ('...T12:34:56+00:00'). Sem converter,
 // a tela mostraria 3 horas adiantado e em formato ilegível.
 const dataHoraBR = (ts) => { if(!ts) return '';
@@ -108,7 +112,7 @@ function appointmentCard(a) {
   return `
   <div class="appt s-${a.status}" data-id="${a.id}">
     <div class="appt-top">
-      <div class="appt-time">${esc(a.hora)}</div>
+      <div class="appt-time">${esc(a.hora)}<span class="appt-date">${dataBR(a.data)}</span></div>
       <div class="appt-main">
         <div class="appt-title"><b>${esc(a.cliente_nome)}</b>${veic ? ` · ${veic}` : ''}</div>
         <div class="appt-service">${esc(a.servico)}${a.consultor_nome ? ` · ${esc(a.consultor_nome)}` : ''}</div>
@@ -163,7 +167,15 @@ function bindApptActions(root) {
           await api('DELETE', `/agendamentos/${id}`); toast('Agendamento excluído'); return route();
         }
         await api('PATCH', `/agendamentos/${id}/status`, { status: act });
-        toast(`Marcado como "${STATUS_LABEL[act]}"`); route();
+        // O gatilho do banco também move o lead no CRM (compareceu/em_atendimento
+        // → "Em serviço"; concluído → "Concluído") — o recado conta isso. A aba
+        // "Já vieram" só existe no Início; nas outras telas o recado não a cita.
+        if (act === 'compareceu') toast(state.route === 'inicio'
+          ? 'Cliente chegou ✅ — foi para "Já vieram" e o CRM registrou'
+          : 'Cliente chegou ✅ — registrado no CRM');
+        else if (act === 'concluido') toast('Concluído 🏁 — registrado no CRM');
+        else toast(`Marcado como "${STATUS_LABEL[act]}"`);
+        route();
       } catch (e) { toast(e.message, 'err'); }
     }));
   });
@@ -174,9 +186,34 @@ function bindApptActions(root) {
 // ============================================================================
 const view = $('#view');
 
+/* Em qual das três abas do dia o agendamento entra. "Não fechou" fica com quem
+   veio: a pessoa ESTEVE na oficina, só não fechou o serviço.
+   O status vivo (aguardando/confirmado) manda primeiro: um "Não veio" marcado
+   por engano e depois editado de volta para Confirmado tem de voltar para a
+   aba Agendados, mesmo com o bit compareceu antigo ainda gravado. */
+function grupoDoDia(a) {
+  if (['aguardando', 'confirmado'].includes(a.status) && a.compareceu !== 1) return 'agendados';
+  if (a.compareceu === 1 || ['compareceu', 'em_atendimento', 'concluido', 'nao_fechou'].includes(a.status)) return 'vieram';
+  if (a.compareceu === 0 || ['nao_veio', 'cancelado'].includes(a.status)) return 'faltaram';
+  return 'agendados';
+}
+const VAZIO_HOJE = {
+  agendados: 'Ninguém esperando. Quando o cliente chegar, toque em "Compareceu" no card dele.',
+  vieram: 'Ninguém chegou ainda. Ao tocar em "Compareceu", o cliente vem para cá — e o CRM registra sozinho.',
+  faltaram: 'Ninguém faltou hoje. 👏',
+};
+
 async function renderInicio() {
   const d = await api('GET', '/dashboard');
   const c = d.cards;
+  const grupos = { agendados: [], vieram: [], faltaram: [] };
+  for (const a of d.agendaHoje) grupos[grupoDoDia(a)].push(a);
+  if (!['agendados', 'vieram', 'faltaram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
+
+  const tabHoje = (chave, rotulo) =>
+    `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
+       ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`;
+
   view.innerHTML = `
     <div class="stat-grid">
       ${statCard('red',    c.totalHoje,      'Agendamentos hoje', I.calendar)}
@@ -197,18 +234,36 @@ async function renderInicio() {
           <h2>${svg(I.calendar)} Agenda de hoje</h2>
           <span class="date">${dataExtenso(d.data)}</span>
         </div>
-        <div class="panel-body" id="agendaHoje">
-          ${d.agendaHoje.length ? d.agendaHoje.map(appointmentCard).join('') : '<div class="empty">Nenhum agendamento para hoje.</div>'}
+        <div class="tabs tabs-hoje" id="tabsHoje">
+          ${tabHoje('agendados', '🕒 Agendados')}
+          ${tabHoje('vieram', '✅ Já vieram')}
+          ${tabHoje('faltaram', '❌ Não vieram')}
         </div>
+        <div class="panel-body" id="agendaHoje"></div>
       </div>
       <div class="panel">
         <div class="panel-head"><h2>${svg(I.calendar)} Últimos agendamentos</h2></div>
         <div class="panel-body" id="ultimos">
-          ${d.ultimos.length ? d.ultimos.map(a => appointmentCard({...a, _ultimo:true})).join('') : '<div class="empty">Nenhum agendamento ainda.</div>'}
+          ${d.ultimos.length ? d.ultimos.map(appointmentCard).join('') : '<div class="empty">Nenhum agendamento ainda.</div>'}
         </div>
       </div>
     </div>`;
-  bindApptActions(view);
+
+  // Pinta só o corpo do painel ao trocar de aba — sem voltar ao servidor.
+  const pintarHoje = () => {
+    $$('#tabsHoje .tab').forEach(b => b.classList.toggle('active', b.dataset.hojeTab === state.hojeTab));
+    const lista = grupos[state.hojeTab];
+    const box = $('#agendaHoje');
+    box.innerHTML = lista.length ? lista.map(appointmentCard).join('')
+      : `<div class="empty">${VAZIO_HOJE[state.hojeTab]}</div>`;
+    bindApptActions(box);
+  };
+  $$('#tabsHoje .tab').forEach(b => b.addEventListener('click', () => {
+    state.hojeTab = b.dataset.hojeTab;
+    pintarHoje();
+  }));
+  pintarHoje();
+  bindApptActions($('#ultimos'));
 }
 function statCard(cls, num, lbl, ico, mini = false) {
   return `<div class="stat ${cls}${mini?' mini':''}">
@@ -1120,7 +1175,7 @@ function fieldsConsultorOptions(sel){
 
 window.openAgendamentoModal = async function(id){
   const servicos = await api('GET','/servicos').catch(()=>[]);
-  let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:new Date().toISOString().slice(0,10),
+  let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:hojeSP(),
             hora:'09:00',consultor_id:'',origem:'Google',observacoes:'',status:'aguardando',confirmado:0 };
   if (id) a = await api('GET',`/agendamentos/${id}`).catch(()=>null) || a;
   openModal(`

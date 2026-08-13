@@ -1,6 +1,6 @@
 // Service Worker do IndyCar Agendamentos — torna o site instalável (PWA)
 // e mantém a casca do app em cache para abrir rápido.
-const CACHE = 'indycar-v4';
+const CACHE = 'indycar-v5';
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala — o app deixa de ser instalável sem dizer por quê. Foi o que
    quase aconteceu quando o qrcode.min.js saiu junto com a tela de QR e

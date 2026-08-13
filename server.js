@@ -212,9 +212,10 @@ async function importarAgendamentosCW() {
       /* Data no passado é quase sempre erro de interpretação lá na origem
          (o cliente diz "amanhã" e volta uma data de anos atrás). Não dá para
          adivinhar a correta — mas deixar passar calado é pior: o horário some
-         da agenda e a oficina perde a pessoa. Então importa e AVISA. */
-      const hoje = new Date().toISOString().slice(0, 10);
-      const suspeita = data < hoje;
+         da agenda e a oficina perde a pessoa. Então importa e AVISA.
+         hoje() é no fuso da oficina: com toISOString (UTC), das 21h em diante
+         um agendamento DE HOJE era acusado de "já passou" sem ter passado. */
+      const suspeita = data < hoje();
       if (suspeita) {
         console.warn(`⚠️  Importação: "${nome}" veio com data ${data}, que já passou. `
                    + 'Provável erro de data no fluxo do CodeWords — confira na agenda.');
@@ -732,7 +733,16 @@ async function api(req, res, url) {
       const a = await dados.obterAgendamento(id);
       if (!a) return notFound(res);
       // merge: o que não veio no corpo mantém o valor atual
-      const atualizado = await dados.atualizarAgendamento(id, { ...a, ...body });
+      const novo = { ...a, ...body };
+      /* Voltar para Aguardando/Confirmado zera o comparecimento: esses status
+         significam "ainda não chegou". Sem isto, um "Não veio" marcado por
+         engano e corrigido pela edição ficava preso na aba "Não vieram" —
+         o bit compareceu=0 antigo continuava gravado. */
+      if (body.status !== undefined && body.compareceu === undefined
+          && ['aguardando', 'confirmado'].includes(body.status)) {
+        novo.compareceu = null;
+      }
+      const atualizado = await dados.atualizarAgendamento(id, novo);
       return atualizado ? ok(res, atualizado) : notFound(res);
     }
     if (m === 'DELETE') {
@@ -745,13 +755,15 @@ async function api(req, res, url) {
   if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/status$`))) && m === 'PATCH') {
     const id = mm[1];
     const map = {
-      confirmado:      { status: 'confirmado', confirmado: true },
+      // aguardando/confirmado = "ainda não chegou": zeram o comparecimento,
+      // senão desfazer um "Não veio" deixava o bit antigo preso.
+      confirmado:      { status: 'confirmado', confirmado: true, compareceu: null },
       compareceu:      { status: 'compareceu', compareceu: true },
       nao_veio:        { status: 'nao_veio', compareceu: false },
       em_atendimento:  { status: 'em_atendimento' },
       concluido:       { status: 'concluido', compareceu: true },
       nao_fechou:      { status: 'nao_fechou' },
-      aguardando:      { status: 'aguardando' },
+      aguardando:      { status: 'aguardando', compareceu: null },
       cancelado:       { status: 'cancelado' },
     };
     const ch = map[body.status];
@@ -1209,30 +1221,9 @@ const IMPORT_MIN = Math.max(1, Number(process.env.IMPORT_INTERVALO_MIN) || 15);
 setInterval(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000);
 setTimeout(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), 12 * 1000);
 
-// Espelho local → cloud: o servidor local reenvia seus agendamentos pro site online.
-// ATENÇÃO: com local e cloud apontando para o MESMO Supabase o espelho é redundante.
-// Defina MIRROR_DISABLED=1 na virada para não gerar tráfego/duplicação inútil.
-const MIRROR_URL = process.env.MIRROR_URL || 'https://indycar-agendamentos.onrender.com';
-async function espelharParaCloud() {
-  if (process.env.RENDER || process.env.MIRROR_DISABLED === '1') return; // só o local espelha
-  try {
-    const ags = await dados.listarTodosAgendamentos('select=*');
-    let enviados = 0;
-    for (const a of ags) {
-      const r = await fetch(MIRROR_URL + '/api/agendamentos', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        // hora/origem/confirmado já vão no formato que a outra ponta espera (HH:MM, rótulo, 0/1)
-        body: JSON.stringify({ cliente_nome: a.cliente_nome, telefone: a.telefone, veiculo: a.veiculo,
-          placa: a.placa, servico: a.servico, data: a.data, hora: a.hora, origem: a.origem,
-          status: a.status, confirmado: a.confirmado, observacoes: a.observacoes }),
-      }).catch(() => null);
-      if (r && r.ok) enviados++;
-    }
-    if (enviados) console.log(`Espelho → cloud: ${enviados} agendamento(s) verificados/enviados`);
-  } catch (e) { console.error('Espelho:', e?.message || e); }
-}
-setInterval(() => espelharParaCloud().catch(aviso('Espelho')), 10 * 60 * 1000);
-setTimeout(() => espelharParaCloud().catch(aviso('Espelho')), 20 * 1000);
+/* O espelho local → cloud foi REMOVIDO. Os dois lados usam o MESMO Supabase
+   (nada a espelhar) e, desde que o login entrou, o POST sem token levava 401
+   em silêncio — só martelava o cloud a cada 10 minutos sem efeito nenhum. */
 
 // ---------------------------------------------------------------------------
 // Subida
