@@ -90,7 +90,9 @@ const STATUS_LABEL = { aguardando:'Aguardando', confirmado:'Confirmado', em_aten
 // reescrever a origem do cliente em silêncio ao salvar.
 const ORIGENS = ['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem','Telefone','Orgânico'];
 // Papéis da tabela `perfis` (compartilhada com o CRM e o Atendimento).
-const PAPEL_LABEL = { admin:'Administrador', gestor:'Gestor', atendente:'Atendente' };
+// 'agenda' = só marca presença aqui na Agenda; não entra nos outros sistemas.
+const PAPEL_LABEL = { admin:'Administrador', gestor:'Gestor', atendente:'Atendente',
+  agenda:'Só presença (agenda)' };
 // Como a janela de agendamento grava os dias — a tela mostra por extenso.
 const DIAS_LABEL = { 'seg-sex':'Segunda a sexta', 'sabado':'Sábado', 'domingo':'Domingo',
   'seg-sab':'Segunda a sábado', 'todos':'Todos os dias' };
@@ -672,11 +674,12 @@ async function cfgOficina(box) {
    aceita. Se alguém tiver outra função herdada (ex.: gestor), ela aparece como
    opção própria — assim a lista não mostra a pessoa como se fosse atendente. */
 function opcoesDePapel(papel) {
-  const conhecido = papel === 'admin' || papel === 'atendente';
+  const conhecido = papel === 'admin' || papel === 'atendente' || papel === 'agenda';
   const outra = conhecido ? ''
     : `<option value="${esc(papel)}" selected>${esc(PAPEL_LABEL[papel] || papel || '—')}</option>`;
   return `${outra}
     <option value="atendente"${papel === 'atendente' ? ' selected' : ''}>Atendente</option>
+    <option value="agenda"${papel === 'agenda' ? ' selected' : ''}>Só presença (agenda)</option>
     <option value="admin"${papel === 'admin' ? ' selected' : ''}>Administrador</option>`;
 }
 
@@ -741,6 +744,7 @@ async function cfgEquipe(box) {
           <div class="field"><label>Função</label>
             <select id="eq_papel">
               <option value="atendente" selected>Atendente</option>
+              <option value="agenda">Só presença (agenda)</option>
               <option value="admin">Administrador</option>
             </select></div>
           <div><button class="btn primary" id="eq_criar">${svg(I.plus)} Criar acesso</button></div>
@@ -1361,18 +1365,103 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
 };
 
 // ============================================================================
+// MODO PRESENÇA — o que o papel 'agenda' (ex.: Franklin) enxerga: a agenda de
+// HOJE e dois botões. O servidor já recusa todo o resto; aqui a tela só não
+// oferece o que não funcionaria.
+// ============================================================================
+const emPresenca = () => state.perfil?.papel === 'agenda';
+
+function cartaoPresenca(a) {
+  const badges = [];
+  if (a.compareceu === 0 || a.status === 'nao_veio') badges.push('<span class="badge-pill bp-red">Não veio</span>');
+  else if (a.compareceu === 1 || a.status === 'compareceu') badges.push('<span class="badge-pill bp-green">Compareceu</span>');
+  else badges.push(`<span class="badge-pill ${a.confirmado ? 'bp-green' : 'bp-orange'}">${a.confirmado ? 'Confirmado' : 'Aguardando'}</span>`);
+  const veic = a.veiculo ? `${esc(a.veiculo)}${a.placa ? ` (${esc(a.placa)})` : ''}` : (a.placa ? `(${esc(a.placa)})` : '');
+  return `
+  <div class="appt s-${a.status}" data-id="${a.id}">
+    <div class="appt-top">
+      <div class="appt-time">${esc(a.hora)}<span class="appt-date">${dataBR(a.data)}</span></div>
+      <div class="appt-main">
+        <div class="appt-title"><b>${esc(a.cliente_nome)}</b>${veic ? ` · ${veic}` : ''}</div>
+        <div class="appt-service">${esc(a.servico)}</div>
+      </div>
+      <div class="appt-badges">${badges.join('')}</div>
+    </div>
+    <div class="appt-actions">
+      <button class="act green" data-marca="compareceu">${svg(I.check)} Compareceu</button>
+      <button class="act red" data-marca="nao_veio">${svg(I.x)} Não veio</button>
+    </div>
+  </div>`;
+}
+
+async function renderDia() {
+  const list = await api('GET', '/agendamentos');   // o servidor já limita a hoje
+  const grupos = { agendados: [], vieram: [], faltaram: [] };
+  for (const a of list) grupos[grupoDoDia(a)].push(a);
+  if (!['agendados', 'vieram', 'faltaram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
+  const tabDia = (chave, rotulo) =>
+    `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
+       ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`;
+
+  view.innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>${svg(I.calendar)} Agenda de hoje</h2>
+        <span class="date">${dataExtenso(dataDeHoje())}</span>
+      </div>
+      <div class="tabs tabs-hoje" id="tabsHoje">
+        ${tabDia('agendados', '🕒 Agendados')}
+        ${tabDia('vieram', '✅ Já vieram')}
+        ${tabDia('faltaram', '❌ Não vieram')}
+      </div>
+      <div class="panel-body" id="agendaHoje"></div>
+    </div>`;
+
+  const pintar = () => {
+    $$('#tabsHoje .tab').forEach(b => b.classList.toggle('active', b.dataset.hojeTab === state.hojeTab));
+    const lista = grupos[state.hojeTab];
+    const box = $('#agendaHoje');
+    box.innerHTML = lista.length ? lista.map(cartaoPresenca).join('')
+      : `<div class="empty">${VAZIO_HOJE[state.hojeTab]}</div>`;
+    $$('[data-marca]', box).forEach(btn => btn.addEventListener('click', async () => {
+      const id = btn.closest('.appt').dataset.id;
+      btn.disabled = true;
+      try {
+        await api('PATCH', `/agendamentos/${id}/status`, { status: btn.dataset.marca });
+        toast(btn.dataset.marca === 'compareceu' ? 'Cliente chegou ✅' : 'Marcado como "Não veio"');
+        renderDia();
+      } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+    }));
+  };
+  $$('#tabsHoje .tab').forEach(b => b.addEventListener('click', () => {
+    state.hojeTab = b.dataset.hojeTab;
+    pintar();
+  }));
+  pintar();
+}
+
+/* Data de hoje no fuso da oficina — para o título do modo presença. */
+function dataDeHoje() {
+  return new Intl.DateTimeFormat('en-CA',
+    { timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+}
+
+// ============================================================================
 // ROTEAMENTO
 // ============================================================================
 const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, clientes:renderClientes,
   servicos:renderServicos, whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe,
-  historico:renderHistorico, conectores:renderConectores, configuracoes:renderConfiguracoes };
+  historico:renderHistorico, conectores:renderConectores, configuracoes:renderConfiguracoes,
+  dia:renderDia };
 const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
   servicos:'SERVIÇOS', whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE',
-  historico:'HISTÓRICO', conectores:'CONECTORES', configuracoes:'CONFIGURAÇÕES' };
+  historico:'HISTÓRICO', conectores:'CONECTORES', configuracoes:'CONFIGURAÇÕES',
+  dia:'AGENDA DO DIA' };
 
 async function route(r){
   if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
   if (r) state.route = r;
+  if (emPresenca()) state.route = 'dia';     // papel 'agenda' só tem uma tela
   $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.route === state.route));
   $('#pageTag').textContent = TAGS[state.route] || 'DASHBOARD';
   view.innerHTML = '<div class="empty">Carregando…</div>';
@@ -1382,6 +1471,7 @@ async function route(r){
 }
 
 async function refreshBadge(){
+  if (emPresenca()) return;                  // follow-up não existe para esse papel
   try{ const f = await api('GET','/followup'); $('#badgeFollowup').textContent = f.length;
     $('#badgeFollowup').style.display = f.length ? 'flex':'none'; }catch{}
 }
@@ -1519,7 +1609,17 @@ $('#formPrimeiro').addEventListener('submit', async e => {
 });
 
 async function abrirApp(){
-  await Promise.all([ loadEmpresa(), loadConsultores(), loadPerfil() ]);
+  // o perfil vem PRIMEIRO: é ele que diz o que esta pessoa pode ver
+  await loadPerfil();
+  if (emPresenca()) {
+    // papel 'agenda' (só presença): menu e botão de novo agendamento somem;
+    // o servidor recusaria tudo isso de qualquer jeito.
+    document.body.classList.add('portaria');
+    await loadEmpresa().catch(() => { /* segue com o nome padrão */ });
+    await route('dia');
+    return;
+  }
+  await Promise.all([ loadEmpresa(), loadConsultores() ]);
   const qs = new URLSearchParams(location.search);
   const r0 = qs.get('r');
   await route(r0 && ROUTES[r0] ? r0 : 'inicio');

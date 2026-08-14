@@ -368,6 +368,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
   padding:0 6px;border-radius:10px;background:var(--surface-2);color:var(--muted);
   display:inline-flex;align-items:center;justify-content:center}
 .tab.active .tab-num{background:var(--red-soft);color:var(--red-txt)}
+/* modo presença (papel 'agenda', ex.: Franklin): só a agenda do dia */
+body.portaria .nav-item{display:none!important}
+body.portaria .nav-rotulo{display:none!important}
+body.portaria .btn-novo{display:none!important}
 .switch{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--text)!important;cursor:pointer}
 .switch input{width:18px;height:18px;accent-color:var(--red);flex-shrink:0}
 .field small{margin-top:2px}

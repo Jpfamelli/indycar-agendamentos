@@ -178,7 +178,7 @@ async function importarAgendamentosCW() {
     service_id: cfg.cw_db_service_id, path: 'listar', method: 'GET' });
   if (!resp.ok) return { ok: false, erro: resp.erro };
   const itens = extrairListaCW(resp.data);
-  let importados = 0, ignorados = 0;
+  let importados = 0, ignorados = 0, falhados = 0;
   for (const a of itens) {
     // Um item inválido não pode abortar a importação inteira.
     try {
@@ -199,7 +199,8 @@ async function importarAgendamentosCW() {
       // passa o nome também: item sem telefone (comum) ficaria sem dedupe nenhum
       // e reentraria a cada importação
       const jaExiste = await dados.agendamentoDuplicado(data, hora, telefone, nome);
-      if (jaExiste) continue;
+      // repetido = tratado: conta como ignorado para o ciclo fechar e marcar
+      if (jaExiste) { ignorados++; continue; }
 
       const veic = [a.veiculo || a['veículo'] || '', a.ano || ''].filter(Boolean).join(' ').trim();
       let cliente_id = null;
@@ -232,16 +233,23 @@ async function importarAgendamentosCW() {
       });
       importados++;
     } catch (e) {
-      ignorados++;
-      console.error('Importação CodeWords (item ignorado):', e?.message || e);
+      /* erro (banco fora do ar, etc.) NÃO é "ignorado de vez": conta à parte,
+         para o ciclo não ser dado como completo e o item não ser marcado */
+      falhados++;
+      console.error('Importação CodeWords (item falhou):', e?.message || e);
     }
   }
-  // NÃO marca como importado por padrão: assim o /listar segue devolvendo tudo e o app
-  // re-importa (com dedupe por telefone+data+hora) a cada abertura.
-  // (Defina MARK_IMPORTED=1 p/ voltar a marcar.)
-  if (itens.length && process.env.MARK_IMPORTED === '1') {
+  /* Marca como importado DEPOIS de um ciclo completo. Sem marcar, o /listar
+     devolvia os mesmos itens para sempre e agendamento APAGADO na agenda
+     ressuscitava a cada importação — foi medido: o dono apagava um teste e ele
+     voltava sozinho. Só marca quando todo item foi tratado (importado ou
+     ignorado de vez), para não perder item em ciclo que estourou no meio.
+     (Defina MARK_IMPORTED=0 p/ voltar ao comportamento antigo.) */
+  if (itens.length && importados + ignorados === itens.length
+      && process.env.MARK_IMPORTED !== '0') {
     await chamarCodeWords({ base_url: cfg.cw_base_url, api_key: cfg.cw_api_key,
-      service_id: cfg.cw_db_service_id, path: 'marcar_importados', method: 'POST', inputs: {} }).catch(() => {});
+      service_id: cfg.cw_db_service_id, path: 'marcar_importados', method: 'POST', inputs: {} })
+      .catch((e) => console.error('marcar_importados:', e?.message || e));
   }
   return { ok: true, importados, ignorados, encontrados: itens.length };
 }
@@ -575,6 +583,21 @@ async function api(req, res, url) {
   // Quem manda na equipe. Conferido AQUI: esconder o botão na tela não protege nada.
   const ehAdmin = usuario?.papel === 'admin';
 
+  /* Papel 'agenda' (ex.: Franklin): entra SÓ para marcar presença. Vê a agenda
+     de hoje e aperta Compareceu / Não veio — e mais nada. Sem métricas, sem
+     clientes, sem WhatsApp, sem histórico. A lista do que ele PODE é esta: */
+  const soPresenca = usuario?.papel === 'agenda';
+  if (soPresenca) {
+    const liberado =
+         (pathname === '/api/perfil' && m === 'GET')
+      || (pathname === '/api/empresa' && m === 'GET')
+      || (pathname === '/api/agendamentos' && m === 'GET')
+      || (m === 'PATCH' && new RegExp(`^/api/agendamentos/${UUID}/status$`).test(pathname));
+    if (!liberado) {
+      return send(res, 403, { erro: 'Seu acesso é só para marcar presença na agenda de hoje.' });
+    }
+  }
+
   const body = (m === 'POST' || m === 'PUT' || m === 'PATCH') ? await readBody(req) : {};
 
   // ---- empresa
@@ -613,7 +636,8 @@ async function api(req, res, url) {
     const nome  = texto1(body.nome, 80).trim();
     const email = texto1(body.email, 160).trim().toLowerCase();
     const senha = texto1(body.senha, 200);
-    const papel = body.papel === 'admin' ? 'admin' : 'atendente';
+    // 'agenda' = só marca presença na Agenda (não entra nos outros sistemas)
+    const papel = ['admin', 'agenda'].includes(body.papel) ? body.papel : 'atendente';
     if (!nome) return bad(res, 'Informe o nome da pessoa.');
     if (!EMAIL_PARECE_VALIDO.test(email)) return bad(res, 'Esse e-mail não parece válido. Confira e tente de novo.');
     if (senha.length < 8) return bad(res, 'A senha precisa ter pelo menos 8 caracteres.');
@@ -629,7 +653,7 @@ async function api(req, res, url) {
   if (pathname === '/api/equipe/papel' && m === 'POST') {
     if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador muda a função da equipe.' });
     const id = texto1(body.id, 60);
-    const papel = body.papel === 'admin' ? 'admin' : 'atendente';
+    const papel = ['admin', 'agenda'].includes(body.papel) ? body.papel : 'atendente';
     if (!dados.ehUuid(id)) return bad(res, 'Informe de quem você quer mudar a função.');
 
     const alvo = await dados.resumoDoPerfil(id);
@@ -694,6 +718,12 @@ async function api(req, res, url) {
 
   // ---- agendamentos
   if (pathname === '/api/agendamentos' && m === 'GET') {
+    // Quem só marca presença enxerga apenas o DIA DE HOJE, sem telefone —
+    // o filtro é imposto aqui, não na tela.
+    if (soPresenca) {
+      const lista = await dados.listarAgendamentos({ data: hoje() });
+      return ok(res, lista.map(({ telefone, ...resto }) => resto));
+    }
     return ok(res, await dados.listarAgendamentos({
       data: searchParams.get('data') || undefined,
       status: searchParams.get('status') || undefined,
@@ -768,6 +798,10 @@ async function api(req, res, url) {
     };
     const ch = map[body.status];
     if (!ch) return bad(res, 'Status inválido.');
+    // Quem só marca presença aperta Compareceu ou Não veio — nada além disso.
+    if (soPresenca && !['compareceu', 'nao_veio'].includes(body.status)) {
+      return send(res, 403, { erro: 'Seu acesso só permite marcar se o cliente veio ou não.' });
+    }
     const a = await dados.obterAgendamento(id);
     if (!a) return notFound(res);
     const atualizado = await dados.atualizarAgendamento(id, {
