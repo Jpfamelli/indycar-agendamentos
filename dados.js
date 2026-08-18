@@ -359,6 +359,8 @@ export async function atualizarAgendamento(id, dados) {
   // valor é NOT NULL no Postgres: null viraria erro 23502
   if (dados.valor !== undefined) campos.valor = Number(dados.valor ?? 0) || 0;
   if (dados.observacoes !== undefined) campos.observacoes = dados.observacoes || null;
+  // carimbo do aviso de ausência (dedupe do "Não veio" — ver server.js)
+  if (dados.no_show_notificado_em !== undefined) campos.no_show_notificado_em = dados.no_show_notificado_em;
 
   const r = await atualizarUm(T.agendamentos, `id=eq.${id}&${SEL_AGENDAMENTO}`, limparParaGravar(campos));
   return lerAgendamento(r);

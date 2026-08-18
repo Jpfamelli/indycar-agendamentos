@@ -86,6 +86,16 @@ const dataHoraBR = (ts) => { if(!ts) return '';
 const STATUS_LABEL = { aguardando:'Aguardando', confirmado:'Confirmado', em_atendimento:'Em atendimento',
   compareceu:'Compareceu', nao_veio:'Não veio', concluido:'Concluído', nao_fechou:'Não fechou',
   cancelado:'Cancelado' };
+
+/* O que dizer depois de marcar "Não veio" — a VERDADE sobre o aviso automático.
+   Antes o painel dizia "delegado à IA" com a mensagem falhando por trás. */
+function recadoDeAusencia(r) {
+  const av = r?.aviso_ausencia;
+  if (!av) return 'Marcado como "Não veio" (sem telefone — nenhum aviso enviado)';
+  if (av.repetido) return 'Já estava marcado — o aviso automático foi enviado antes, não reenviei';
+  if (av.ok) return 'Não veio — aviso automático enviado no WhatsApp do cliente ✅';
+  return 'Marquei "Não veio", mas o aviso NÃO saiu: ' + (av.erro || 'falha no envio') + '. Toque de novo para tentar outra vez.';
+}
 // Origens aceitas pelo banco compartilhado. Faltar uma aqui fazia o formulário
 // reescrever a origem do cliente em silêncio ao salvar.
 const ORIGENS = ['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem','Telefone','Orgânico'];
@@ -168,7 +178,7 @@ function bindApptActions(root) {
           if (!confirm('Excluir este agendamento?')) return;
           await api('DELETE', `/agendamentos/${id}`); toast('Agendamento excluído'); return route();
         }
-        await api('PATCH', `/agendamentos/${id}/status`, { status: act });
+        const r = await api('PATCH', `/agendamentos/${id}/status`, { status: act });
         // O gatilho do banco também move o lead no CRM (compareceu/em_atendimento
         // → "Em serviço"; concluído → "Concluído") — o recado conta isso. A aba
         // "Já vieram" só existe no Início; nas outras telas o recado não a cita.
@@ -176,6 +186,7 @@ function bindApptActions(root) {
           ? 'Cliente chegou ✅ — foi para "Já vieram" e o CRM registrou'
           : 'Cliente chegou ✅ — registrado no CRM');
         else if (act === 'concluido') toast('Concluído 🏁 — registrado no CRM');
+        else if (act === 'nao_veio') toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
         else toast(`Marcado como "${STATUS_LABEL[act]}"`);
         route();
       } catch (e) { toast(e.message, 'err'); }
@@ -1427,8 +1438,9 @@ async function renderDia() {
       const id = btn.closest('.appt').dataset.id;
       btn.disabled = true;
       try {
-        await api('PATCH', `/agendamentos/${id}/status`, { status: btn.dataset.marca });
-        toast(btn.dataset.marca === 'compareceu' ? 'Cliente chegou ✅' : 'Marcado como "Não veio"');
+        const r = await api('PATCH', `/agendamentos/${id}/status`, { status: btn.dataset.marca });
+        toast(btn.dataset.marca === 'compareceu' ? 'Cliente chegou ✅'
+          : recadoDeAusencia(r), btn.dataset.marca === 'nao_veio' && r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
         renderDia();
       } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
     }));

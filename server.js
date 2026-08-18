@@ -254,33 +254,36 @@ async function importarAgendamentosCW() {
   return { ok: true, importados, ignorados, encontrados: itens.length };
 }
 
-// Dispara o workflow de notificação de ausência (cliente que não compareceu)
-/* Avisa a IA do WhatsApp que o cliente não apareceu, para ELA fazer o
-   follow-up e tentar remarcar.
+/* Aviso de ausência ("sentimos sua falta") — enviado DIRETO pelo WhatsApp da
+   empresa, na hora do clique.
 
-   RODA A QUALQUER HORA. O fluxo tem um campo `respeitar_horario_comercial`
-   que vem ligado por padrão — era ele que segurava o aviso fora do
-   expediente. Quem furou às 22h precisa ser chamado de volta igual, então
-   mandamos false. Para voltar a respeitar o expediente, é só definir
-   NOSHOW_SO_NO_EXPEDIENTE=1 no .env. */
-async function notificarAusencia(ag) {
-  const cfg = await getIaConfig();
-  if (!cfg.cw_api_key || !cfg.cw_noshow_service_id || !ag?.telefone) {
-    return { ok: false, erro: 'CodeWords não configurado ou agendamento sem telefone' };
-  }
-  return chamarCodeWords({
-    base_url: cfg.cw_base_url, api_key: cfg.cw_api_key,
-    service_id: cfg.cw_noshow_service_id,
-    inputs: {
-      nome:     ag.cliente_nome || '',
-      telefone: String(ag.telefone).replace(/\D/g, ''),
-      veiculo:  ag.veiculo || '',
-      servico:  ag.servico || '',
-      hora:     String(ag.hora || '').slice(0, 5),
-      placa:    ag.placa || '',
-      respeitar_horario_comercial: process.env.NOSHOW_SO_NO_EXPEDIENTE === '1',
-    },
-  });
+   Já foi delegado a um workflow do CodeWords, e depois a um fluxo /no-show do
+   Carlos. Os dois morreram na migração /devices → /connections: TODA tentativa
+   desde 11/08 falhou com 404 e nenhum cliente recebeu nada — o painel dizia
+   "delegado à IA" e a mensagem não existia. Mandar direto pelo proxy do número
+   conectado (o mesmo caminho do Pós-venda, testado de verdade) não depende de
+   fluxo de terceiro. O cliente responde e cai no Carlos normalmente. */
+async function enviarAvisoDeAusencia(ag) {
+  if (!dados.soDigitos(ag?.telefone)) return { ok: false, erro: 'agendamento sem telefone' };
+  const tpl = await dados.templatePorGatilho('followup').catch(() => null);
+  const corpo = tpl
+    ? renderTemplate(tpl.corpo, {
+        nome: ag.cliente_nome, servico: ag.servico, data: formatarDataBR(ag.data),
+        hora: String(ag.hora || '').slice(0, 5), veiculo: ag.veiculo ?? '', placa: ag.placa ?? '',
+      })
+    : `Olá ${ag.cliente_nome}, sentimos sua falta hoje na IndyCar! 🙁 Seu horário de `
+    + `${ag.servico} era às ${String(ag.hora || '').slice(0, 5)}. Quer remarcar? `
+    + 'É só responder por aqui. 🏁';
+  // sem veículo/placa o modelo deixa espaço duplo ("Seu  ainda…") — comprime
+  const corpoLimpo = corpo.replace(/ {2,}/g, ' ').replace(/ \(\)/g, '');
+  const r = await enviarViaGowa(ag.telefone, corpoLimpo);
+  // registra a MENSAGEM DE VERDADE (não um recado técnico): é o que o painel mostra
+  await dados.registrarMensagem({
+    agendamento_id: ag.id, telefone: ag.telefone, nome: ag.cliente_nome,
+    corpo: corpoLimpo, direcao: 'saida', status: r.ok ? 'enviado' : 'falhou',
+    erro: r.ok ? null : (r.erro || 'envio falhou'),
+  }).catch((e) => console.error('Registro do aviso de ausência:', e?.message || e));
+  return { ok: r.ok, erro: r.ok ? null : (r.erro || 'envio falhou') };
 }
 
 /* Qual aparelho de WhatsApp é o da empresa.
@@ -804,27 +807,34 @@ async function api(req, res, url) {
     }
     const a = await dados.obterAgendamento(id);
     if (!a) return notFound(res);
+    /* "Não veio" manda o aviso de ausência NA HORA — uma vez só. O carimbo
+       no_show_notificado_em vai JUNTO com a troca de status: assim o gatilho
+       do banco (edge function) vê o campo preenchido e não dispara também,
+       senão o cliente receberia duas mensagens. Clique repetido não reenvia. */
+    const avisar = body.status === 'nao_veio'
+      && !a.no_show_notificado_em
+      && !!dados.soDigitos(a.telefone);
     const atualizado = await dados.atualizarAgendamento(id, {
       status: ch.status,
       confirmado: ch.confirmado !== undefined ? ch.confirmado : a.confirmado,
       compareceu: ch.compareceu !== undefined ? ch.compareceu : a.compareceu,
+      ...(avisar ? { no_show_notificado_em: new Date().toISOString() } : {}),
     });
-    // "Não veio" → aciona a IA do WhatsApp (workflow de ausência) p/ ELA fazer o follow-up.
-    // O app não envia mensagem nenhuma por conta própria.
-    if (body.status === 'nao_veio' && atualizado?.telefone) {
+    let avisoAusencia = null;
+    if (avisar && atualizado) {
       try {
-        const r = await notificarAusencia(atualizado);
-        await dados.registrarMensagem({
-          agendamento_id: atualizado.id, telefone: atualizado.telefone, nome: atualizado.cliente_nome,
-          corpo: `🤖 Follow-up de ausência delegado à IA do WhatsApp (${atualizado.cliente_nome} — ${atualizado.servico})`,
-          direcao: 'saida',
-          status: r?.ok ? 'delegado_ia' : 'falhou',
-          erro: r?.ok ? null : (r?.erro || 'workflow indisponível'),
-        });
-      } catch (e) { console.error('Follow-up IA:', e?.message || e); }
+        avisoAusencia = await enviarAvisoDeAusencia(atualizado);
+      } catch (e) { avisoAusencia = { ok: false, erro: String(e?.message || e) }; }
+      if (!avisoAusencia.ok) {
+        // solta o carimbo: o próximo clique em "Não veio" tenta enviar de novo
+        await dados.atualizarAgendamento(id, { no_show_notificado_em: null })
+          .catch((e) => console.error('Liberar reenvio do aviso:', e?.message || e));
+      }
+    } else if (body.status === 'nao_veio' && a.no_show_notificado_em) {
+      avisoAusencia = { ok: true, repetido: true };
     }
     await dispararWebhook('status_alterado', { agendamento: atualizado, novo_status: body.status });
-    return ok(res, atualizado);
+    return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia });
   }
 
   // ---- clientes
