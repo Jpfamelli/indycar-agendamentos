@@ -179,13 +179,12 @@ function bindApptActions(root) {
           await api('DELETE', `/agendamentos/${id}`); toast('Agendamento excluído'); return route();
         }
         const r = await api('PATCH', `/agendamentos/${id}/status`, { status: act });
-        // O gatilho do banco também move o lead no CRM (compareceu/em_atendimento
-        // → "Em serviço"; concluído → "Concluído") — o recado conta isso. A aba
-        // "Já vieram" só existe no Início; nas outras telas o recado não a cita.
-        if (act === 'compareceu') toast(state.route === 'inicio'
-          ? 'Cliente chegou ✅ — foi para "Já vieram" e o CRM registrou'
-          : 'Cliente chegou ✅ — registrado no CRM');
-        else if (act === 'concluido') toast('Concluído 🏁 — registrado no CRM');
+        // O gatilho do banco move o lead no CRM (compareceu/em_atendimento →
+        // "Em serviço"; concluído → "Concluído"). Ao CHEGAR ou CONCLUIR, o
+        // cliente SAI da agenda e passa a viver só no CRM — a agenda do dia
+        // fica só com quem ainda vai chegar, sem acumular.
+        if (act === 'compareceu') toast('Cliente chegou ✅ — saiu da agenda, agora está no CRM');
+        else if (act === 'concluido') toast('Concluído 🏁 — saiu da agenda, registrado no CRM');
         else if (act === 'nao_veio') toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
         else toast(`Marcado como "${STATUS_LABEL[act]}"`);
         route();
@@ -199,11 +198,14 @@ function bindApptActions(root) {
 // ============================================================================
 const view = $('#view');
 
-/* Em qual das três abas do dia o agendamento entra. "Não fechou" fica com quem
-   veio: a pessoa ESTEVE na oficina, só não fechou o serviço.
+/* Em qual balde do dia o agendamento entra.
+   IMPORTANTE (pedido do dono): quem CHEGOU ou foi CONCLUÍDO SAI da agenda —
+   o balde 'vieram' existe mas NÃO tem aba nem é exibido de propósito, para a
+   agenda não acumular. Esses clientes passam a viver só no CRM (os gatilhos do
+   banco já movem o lead). Não recrie a aba "Já vieram" achando que é bug.
+   "Não fechou" também esteve na oficina, então também some da agenda.
    O status vivo (aguardando/confirmado) manda primeiro: um "Não veio" marcado
-   por engano e depois editado de volta para Confirmado tem de voltar para a
-   aba Agendados, mesmo com o bit compareceu antigo ainda gravado. */
+   por engano e reeditado para Confirmado volta para Agendados. */
 function grupoDoDia(a) {
   if (['aguardando', 'confirmado'].includes(a.status) && a.compareceu !== 1) return 'agendados';
   if (a.compareceu === 1 || ['compareceu', 'em_atendimento', 'concluido', 'nao_fechou'].includes(a.status)) return 'vieram';
@@ -221,7 +223,7 @@ async function renderInicio() {
   const c = d.cards;
   const grupos = { agendados: [], vieram: [], faltaram: [] };
   for (const a of d.agendaHoje) grupos[grupoDoDia(a)].push(a);
-  if (!['agendados', 'vieram', 'faltaram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
+  if (!['agendados', 'faltaram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
 
   const tabHoje = (chave, rotulo) =>
     `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
@@ -249,7 +251,6 @@ async function renderInicio() {
         </div>
         <div class="tabs tabs-hoje" id="tabsHoje">
           ${tabHoje('agendados', '🕒 Agendados')}
-          ${tabHoje('vieram', '✅ Já vieram')}
           ${tabHoje('faltaram', '❌ Não vieram')}
         </div>
         <div class="panel-body" id="agendaHoje"></div>
@@ -287,7 +288,10 @@ function statCard(cls, num, lbl, ico, mini = false) {
 }
 
 async function renderAgenda() {
-  const list = await api('GET', '/agendamentos');
+  // A agenda não acumula quem já CHEGOU ou foi CONCLUÍDO — esses saíram para o
+  // CRM. A lista mostra só quem ainda vai chegar (e os que faltaram). A BUSCA
+  // abaixo continua achando qualquer um, inclusive concluídos, para reagendar.
+  const list = (await api('GET', '/agendamentos')).filter(a => grupoDoDia(a) !== 'vieram');
   view.innerHTML = `
     <div class="toolbar">
       <div class="left">
@@ -1409,7 +1413,7 @@ async function renderDia() {
   const list = await api('GET', '/agendamentos');   // o servidor já limita a hoje
   const grupos = { agendados: [], vieram: [], faltaram: [] };
   for (const a of list) grupos[grupoDoDia(a)].push(a);
-  if (!['agendados', 'vieram', 'faltaram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
+  if (!['agendados', 'faltaram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
   const tabDia = (chave, rotulo) =>
     `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
        ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`;
@@ -1422,7 +1426,6 @@ async function renderDia() {
       </div>
       <div class="tabs tabs-hoje" id="tabsHoje">
         ${tabDia('agendados', '🕒 Agendados')}
-        ${tabDia('vieram', '✅ Já vieram')}
         ${tabDia('faltaram', '❌ Não vieram')}
       </div>
       <div class="panel-body" id="agendaHoje"></div>
