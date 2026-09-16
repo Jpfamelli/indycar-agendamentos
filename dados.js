@@ -992,7 +992,13 @@ export async function estatisticas() {
     totalConsult,
   };
 
-  return { cards, agendaHoje, ultimos: ultimosBrutos.map(lerAgendamento), data: d };
+  /* "Últimos agendamentos" = os 8 marcados mais recentemente, mas EXIBIDOS em
+     ordem cronológica pela data e hora agendadas (pedido do dono 2026-09-16):
+     09:00 antes de 14:30. data é ISO (YYYY-MM-DD) e hora é HH:MM, então a
+     comparação de texto já ordena certo. */
+  const ultimos = ultimosBrutos.map(lerAgendamento).sort((a, b) =>
+    String(a.data).localeCompare(String(b.data)) || String(a.hora).localeCompare(String(b.hora)));
+  return { cards, agendaHoje, ultimos, data: d };
 }
 
 /**

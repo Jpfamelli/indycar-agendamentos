@@ -587,7 +587,7 @@ async function api(req, res, url) {
   const ehAdmin = usuario?.papel === 'admin';
 
   /* Papel 'agenda' (ex.: Franklin): entra SÓ para marcar presença. Vê a agenda
-     de hoje e aperta Compareceu / Não veio — e mais nada. Sem métricas, sem
+     de hoje e aperta Compareceu / Não veio / Veio e não fechou — e mais nada. Sem métricas, sem
      clientes, sem WhatsApp, sem histórico. A lista do que ele PODE é esta: */
   const soPresenca = usuario?.papel === 'agenda';
   if (soPresenca) {
@@ -795,14 +795,16 @@ async function api(req, res, url) {
       nao_veio:        { status: 'nao_veio', compareceu: false },
       em_atendimento:  { status: 'em_atendimento' },
       concluido:       { status: 'concluido', compareceu: true },
-      nao_fechou:      { status: 'nao_fechou' },
+      // "Veio e não fechou": a pessoa ESTEVE na oficina, então compareceu=true —
+      // senão um "Não veio" corrigido para isto ficava com o selo "Não veio" preso.
+      nao_fechou:      { status: 'nao_fechou', compareceu: true },
       aguardando:      { status: 'aguardando', compareceu: null },
       cancelado:       { status: 'cancelado' },
     };
     const ch = map[body.status];
     if (!ch) return bad(res, 'Status inválido.');
-    // Quem só marca presença aperta Compareceu ou Não veio — nada além disso.
-    if (soPresenca && !['compareceu', 'nao_veio'].includes(body.status)) {
+    // Quem só marca presença aperta Compareceu, Não veio ou Veio e não fechou — nada além disso.
+    if (soPresenca && !['compareceu', 'nao_veio', 'nao_fechou'].includes(body.status)) {
       return send(res, 403, { erro: 'Seu acesso só permite marcar se o cliente veio ou não.' });
     }
     const a = await dados.obterAgendamento(id);

@@ -110,12 +110,18 @@ const DIAS_LABEL = { 'seg-sex':'Segunda a sexta', 'sabado':'Sábado', 'domingo':
 // ============================================================================
 // CARD DE AGENDAMENTO
 // ============================================================================
-function appointmentCard(a) {
+/* opts.comWhatsapp: só o Follow-up passa true — aquela tela existe para mandar
+   mensagem, então lá o botão WhatsApp fica. (O 2º argumento de .map é o índice,
+   um número — por isso o teste é explícito e não quebra os .map(appointmentCard).) */
+function appointmentCard(a, opts) {
+  const comWhatsapp = !!(opts && opts.comWhatsapp === true);
   const badges = [];
   if (a.confirmado) badges.push('<span class="badge-pill bp-green">Confirmado</span>');
   else badges.push('<span class="badge-pill bp-orange">Aguardando</span>');
   if (a.compareceu === 0) badges.push('<span class="badge-pill bp-red">Não veio</span>');
-  if (a.compareceu === 1 && a.status !== 'concluido') badges.push('<span class="badge-pill bp-green">Compareceu</span>');
+  // nao_fechou também grava compareceu=true; sem a exceção o cartão exibiria
+  // "Compareceu" E "Não fechou" ao mesmo tempo.
+  if (a.compareceu === 1 && !['concluido', 'nao_fechou'].includes(a.status)) badges.push('<span class="badge-pill bp-green">Compareceu</span>');
   if (a.status === 'em_atendimento') badges.push('<span class="badge-pill bp-blue">Em atendimento</span>');
   if (a.status === 'concluido') badges.push('<span class="badge-pill bp-purple">Concluído</span>');
   if (a.status === 'nao_fechou') badges.push('<span class="badge-pill bp-orange">Não fechou</span>');
@@ -137,13 +143,15 @@ function appointmentCard(a) {
       ${a.placa ? `<span>${svg(I.car)} ${esc(a.placa)}</span>` : ''}
       <span>${svg(I.pin)} ${esc(a.origem || 'Google')}</span>
     </div>
+    <!-- Pedido do dono (2026-09-16): só 3 desfechos + editar/excluir. Saíram
+         "Em atendimento", "Concluído" e "Google" — muito botão. "WhatsApp" só
+         aparece no Follow-up (opts.comWhatsapp), que é a tela de mandar mensagem.
+         Compareceu = veio e está resolvido; Veio e não fechou = nao_fechou. -->
     <div class="appt-actions">
       <button class="act green" data-act="compareceu">${svg(I.check)} Compareceu</button>
       <button class="act red" data-act="nao_veio">${svg(I.x)} Não veio</button>
-      <button class="act blue" data-act="em_atendimento">${svg(I.play)} Em atendimento</button>
-      <button class="act purple" data-act="concluido">${svg(I.flag)} Concluído</button>
-      <button class="act wa" data-act="whatsapp">${svg(I.wa)} WhatsApp</button>
-      <button class="act blue" data-act="gcal" title="Adicionar ao Google Agenda">${svg(I.calendar)} Google</button>
+      <button class="act purple" data-act="nao_fechou">${svg(I.flag)} Veio e não fechou</button>
+      ${comWhatsapp ? `<button class="act wa" data-act="whatsapp">${svg(I.wa)} WhatsApp</button>` : ''}
       <button class="act" data-act="editar">${svg(I.edit)} Editar</button>
       <button class="act red" data-act="excluir">${svg(I.trash)}</button>
     </div>
@@ -179,12 +187,16 @@ function bindApptActions(root) {
           await api('DELETE', `/agendamentos/${id}`); toast('Agendamento excluído'); return route();
         }
         const r = await api('PATCH', `/agendamentos/${id}/status`, { status: act });
-        // O gatilho do banco move o lead no CRM (compareceu/em_atendimento →
-        // "Em serviço"; concluído → "Concluído"). Ao CHEGAR ou CONCLUIR, o
-        // cliente SAI da agenda e passa a viver só no CRM — a agenda do dia
-        // fica só com quem ainda vai chegar, sem acumular.
-        if (act === 'compareceu') toast('Cliente chegou ✅ — saiu da agenda, agora está no CRM');
-        else if (act === 'concluido') toast('Concluído 🏁 — saiu da agenda, registrado no CRM');
+        // O gatilho do banco move o lead no CRM (compareceu → "Em serviço";
+        // nao_fechou → "Não fechou"). Quem chegou sai de "Agendados" e vai
+        // para a aba "Concluídos" — a fila do dia fica só com quem ainda vem.
+        // "foi para Concluídos" só é verdade na agenda de HOJE do Início — nas
+        // outras telas (Agenda, Follow-up) e em "Últimos" (outros dias) essa aba
+        // não existe, então o recado fica genérico.
+        const naAgendaDeHoje = !!btn.closest('#agendaHoje');
+        const destino = naAgendaDeHoje ? ' — foi para "Concluídos" e o CRM registrou' : ' — registrado no CRM';
+        if (act === 'compareceu') toast('Cliente chegou ✅' + destino);
+        else if (act === 'nao_fechou') toast('Veio e não fechou' + destino);
         else if (act === 'nao_veio') toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
         else toast(`Marcado como "${STATUS_LABEL[act]}"`);
         route();
@@ -198,12 +210,11 @@ function bindApptActions(root) {
 // ============================================================================
 const view = $('#view');
 
-/* Em qual balde do dia o agendamento entra.
-   IMPORTANTE (pedido do dono): quem CHEGOU ou foi CONCLUÍDO SAI da agenda —
-   o balde 'vieram' existe mas NÃO tem aba nem é exibido de propósito, para a
-   agenda não acumular. Esses clientes passam a viver só no CRM (os gatilhos do
-   banco já movem o lead). Não recrie a aba "Já vieram" achando que é bug.
-   "Não fechou" também esteve na oficina, então também some da agenda.
+/* Em qual das três abas do dia o agendamento entra (pedido do dono 2026-09-16):
+   'agendados' = quem ainda vai chegar; 'faltaram' = Não vieram;
+   'vieram' = aba "Concluídos" (Compareceu OU Veio e não fechou — a pessoa
+   ESTEVE na oficina). Quem chega sai de Agendados e vai para Concluídos, então
+   a fila do dia não acumula; o CRM registra sozinho pelos gatilhos do banco.
    O status vivo (aguardando/confirmado) manda primeiro: um "Não veio" marcado
    por engano e reeditado para Confirmado volta para Agendados. */
 function grupoDoDia(a) {
@@ -214,7 +225,7 @@ function grupoDoDia(a) {
 }
 const VAZIO_HOJE = {
   agendados: 'Ninguém esperando. Quando o cliente chegar, toque em "Compareceu" no card dele.',
-  vieram: 'Ninguém chegou ainda. Ao tocar em "Compareceu", o cliente vem para cá — e o CRM registra sozinho.',
+  vieram: 'Nenhum concluído ainda. Ao tocar em "Compareceu" ou "Veio e não fechou", o cliente vem para cá — e o CRM registra sozinho.',
   faltaram: 'Ninguém faltou hoje. 👏',
 };
 
@@ -223,25 +234,20 @@ async function renderInicio() {
   const c = d.cards;
   const grupos = { agendados: [], vieram: [], faltaram: [] };
   for (const a of d.agendaHoje) grupos[grupoDoDia(a)].push(a);
-  if (!['agendados', 'faltaram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
+  if (!['agendados', 'faltaram', 'vieram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
 
   const tabHoje = (chave, rotulo) =>
     `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
        ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`;
 
   view.innerHTML = `
-    <div class="stat-grid">
-      ${statCard('red',    c.totalHoje,      'Agendamentos hoje', I.calendar)}
-      ${statCard('green',  c.concluidosHoje, 'Concluídos hoje',   I.flag)}
-      ${statCard('orange', c.compareceram,   'Compareceram',      I.check)}
-      ${statCard('blue',   c.totalClientes,  'Clientes',          I.user)}
-      ${statCard('purple', c.totalConsult,   'Consultores',       I.user)}
-    </div>
+    <!-- Pedido do dono (2026-09-16): só 4 números do DIA, numa linha. A classe
+         row2 já é a grade de 4 colunas (com os mesmos pontos de quebra). -->
     <div class="stat-grid row2">
-      ${statCard('green',  c.compareceram, 'Compareceram', I.check, true)}
-      ${statCard('red',    c.naoVieram,    'Não vieram',   I.x, true)}
-      ${statCard('orange', c.naoFechou,    'Não fechou',   I.x, true)}
-      ${statCard('cyan',   c.aguardando,   'Aguardando hoje', I.calendar, true)}
+      ${statCard('red',    c.totalHoje,    'Agendamentos hoje',       I.calendar)}
+      ${statCard('green',  c.compareceram, 'Compareceram hoje',       I.check)}
+      ${statCard('orange', c.naoVieram,    'Não vieram hoje',         I.x)}
+      ${statCard('purple', c.naoFechou,    'Compareceu e não fechou', I.flag)}
     </div>
     <div class="cols">
       <div class="panel">
@@ -252,6 +258,7 @@ async function renderInicio() {
         <div class="tabs tabs-hoje" id="tabsHoje">
           ${tabHoje('agendados', '🕒 Agendados')}
           ${tabHoje('faltaram', '❌ Não vieram')}
+          ${tabHoje('vieram', '🏁 Concluídos')}
         </div>
         <div class="panel-body" id="agendaHoje"></div>
       </div>
@@ -411,7 +418,7 @@ async function renderFollowup() {
   view.innerHTML = `
     <div class="toolbar"><div class="left"><h2 style="font-size:18px">Follow-up — retornos pendentes</h2></div></div>
     <div class="panel"><div class="panel-body">
-      ${list.length ? list.map(appointmentCard).join('') : '<div class="empty">Tudo em dia! Nenhum retorno pendente. 🏁</div>'}
+      ${list.length ? list.map(a => appointmentCard(a, { comWhatsapp: true })).join('') : '<div class="empty">Tudo em dia! Nenhum retorno pendente. 🏁</div>'}
     </div></div>`;
   bindApptActions(view);
 }
@@ -1388,7 +1395,10 @@ const emPresenca = () => state.perfil?.papel === 'agenda';
 
 function cartaoPresenca(a) {
   const badges = [];
-  if (a.compareceu === 0 || a.status === 'nao_veio') badges.push('<span class="badge-pill bp-red">Não veio</span>');
+  // nao_fechou vem ANTES: ele também grava compareceu=true, e sem esta ordem o
+  // cartão da aba Concluídos mostraria "Compareceu" (ou "Aguardando") no lugar.
+  if (a.status === 'nao_fechou') badges.push('<span class="badge-pill bp-orange">Não fechou</span>');
+  else if (a.compareceu === 0 || a.status === 'nao_veio') badges.push('<span class="badge-pill bp-red">Não veio</span>');
   else if (a.compareceu === 1 || a.status === 'compareceu') badges.push('<span class="badge-pill bp-green">Compareceu</span>');
   else badges.push(`<span class="badge-pill ${a.confirmado ? 'bp-green' : 'bp-orange'}">${a.confirmado ? 'Confirmado' : 'Aguardando'}</span>`);
   const veic = a.veiculo ? `${esc(a.veiculo)}${a.placa ? ` (${esc(a.placa)})` : ''}` : (a.placa ? `(${esc(a.placa)})` : '');
@@ -1405,6 +1415,7 @@ function cartaoPresenca(a) {
     <div class="appt-actions">
       <button class="act green" data-marca="compareceu">${svg(I.check)} Compareceu</button>
       <button class="act red" data-marca="nao_veio">${svg(I.x)} Não veio</button>
+      <button class="act purple" data-marca="nao_fechou">${svg(I.flag)} Veio e não fechou</button>
     </div>
   </div>`;
 }
@@ -1413,7 +1424,7 @@ async function renderDia() {
   const list = await api('GET', '/agendamentos');   // o servidor já limita a hoje
   const grupos = { agendados: [], vieram: [], faltaram: [] };
   for (const a of list) grupos[grupoDoDia(a)].push(a);
-  if (!['agendados', 'faltaram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
+  if (!['agendados', 'faltaram', 'vieram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
   const tabDia = (chave, rotulo) =>
     `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
        ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`;
@@ -1427,6 +1438,7 @@ async function renderDia() {
       <div class="tabs tabs-hoje" id="tabsHoje">
         ${tabDia('agendados', '🕒 Agendados')}
         ${tabDia('faltaram', '❌ Não vieram')}
+        ${tabDia('vieram', '🏁 Concluídos')}
       </div>
       <div class="panel-body" id="agendaHoje"></div>
     </div>`;
@@ -1442,8 +1454,10 @@ async function renderDia() {
       btn.disabled = true;
       try {
         const r = await api('PATCH', `/agendamentos/${id}/status`, { status: btn.dataset.marca });
-        toast(btn.dataset.marca === 'compareceu' ? 'Cliente chegou ✅'
-          : recadoDeAusencia(r), btn.dataset.marca === 'nao_veio' && r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
+        const marca = btn.dataset.marca;
+        toast(marca === 'compareceu' ? 'Cliente chegou ✅ — foi para "Concluídos"'
+          : marca === 'nao_fechou' ? 'Veio e não fechou — foi para "Concluídos"'
+          : recadoDeAusencia(r), marca === 'nao_veio' && r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
         renderDia();
       } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
     }));
