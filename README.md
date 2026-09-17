@@ -16,6 +16,17 @@ automaticamente na primeira execução, já com dados de exemplo.
 
 Para parar: `Ctrl+C` (encerra com gravação segura do banco).
 
+### 🧪 Mexer na tela sem login e sem dado de cliente
+
+```bash
+npm run mock        # http://localhost:3011  ·  modo presença: http://localhost:3011/?papel=agenda
+```
+
+Sobe o `scripts/mock-server.mjs`: serve a pasta `public/` DE VERDADE (o mesmo HTML, CSS e JS que
+vão para produção) e responde `/api/*` com clientes inventados, guardados na memória. Serve para
+testar layout, tema claro/escuro, celular e o fluxo dos botões sem encostar no Supabase. Nunca roda
+em produção — o Render sobe o `server.js`.
+
 ### 🟢 Servidor permanente (Windows) — roda sozinho
 Há uma **Tarefa Agendada** chamada `IndyCarAgendamentos` que sobe o servidor
 **automaticamente no logon**, reinicia se cair e roda **oculto** (sem janela),

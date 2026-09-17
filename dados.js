@@ -963,12 +963,81 @@ export async function atualizarStatusPorWamid(wamid, status) {
  * hoje (1 requisição em vez de 6 COUNT), o que também garante que os números e a
  * timeline nunca fiquem inconsistentes entre si.
  */
+/** Hora de agora (HH:MM) no fuso da oficina — par do hoje(). */
+export function agoraHHMM() {
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date());
+  return p === '24:00' ? '00:00' : p;   // alguns motores devolvem 24:00 à meia-noite
+}
+
+/** `dias` atrás de uma data ISO (YYYY-MM-DD), sem depender do fuso do servidor. */
+function diasAntes(iso, dias) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Ordem do painel "Últimos agendamentos" (pedido do dono 2026-09-17):
+ * o que está MAIS PERTO DE ACONTECER vem primeiro; depois, o que já passou,
+ * do mais novo para o mais velho. Função pura, para poder testar.
+ *   proximos : data/hora >= agora, em ordem crescente (o próximo no topo)
+ *   passados : data/hora <  agora, em ordem decrescente (o mais recente antes)
+ * data é ISO e hora é HH:MM — comparar texto já ordena certo.
+ */
+export function ordenarPorProximidade(lista, hojeIso, agora) {
+  const chave = (a) => `${a.data} ${String(a.hora || '').slice(0, 5)}`;
+  const corte = `${hojeIso} ${agora}`;
+  const proximos = [], passados = [];
+  for (const a of lista) (chave(a) >= corte ? proximos : passados).push(a);
+  proximos.sort((x, y) => chave(x).localeCompare(chave(y)));
+  passados.sort((x, y) => chave(y).localeCompare(chave(x)));
+  return [
+    ...proximos.map((a) => ({ ...a, secao: 'proximos' })),
+    ...passados.map((a) => ({ ...a, secao: 'passados' })),
+  ];
+}
+
+/* Quem aparece em "Últimos agendamentos": só quem ainda NÃO tem desfecho de
+   visita — aguardando, confirmado — e quem faltou (para remarcar). Quem VEIO
+   (compareceu, em atendimento, concluído, não fechou) sai daqui: o lugar dele
+   é o CRM. Cancelado também não entra: é ruído. */
+const STATUS_EM_ULTIMOS = 'status=in.(aguardando,confirmado,nao_veio)';
+const ULTIMOS_LIMITE = 10;
+const ULTIMOS_DIAS_PASSADOS = 7;   // pendência mais velha que isso já é Follow-up/Histórico
+const ULTIMOS_RESERVA_PASSADOS = 4; // vagas garantidas para "Já passaram", mesmo com a agenda cheia
+
+/**
+ * Corta a lista de "Últimos agendamentos" sem deixar uma seção engolir a outra:
+ * com 10+ horários futuros, os que JÁ PASSARAM sem desfecho (os que mais pedem
+ * atenção) sumiriam. Reserva até 4 vagas para eles; o que sobrar vai para o outro lado.
+ */
+export function montarUltimos(lista, hojeIso, agora, limite = ULTIMOS_LIMITE) {
+  const ord = ordenarPorProximidade(lista, hojeIso, agora);
+  const prox = ord.filter((a) => a.secao === 'proximos');
+  const pass = ord.filter((a) => a.secao === 'passados');
+  const nPass = Math.min(pass.length, Math.max(ULTIMOS_RESERVA_PASSADOS, limite - prox.length));
+  const nProx = Math.min(prox.length, limite - nPass);
+  return [...prox.slice(0, nProx), ...pass.slice(0, nPass)];
+}
+
 export async function estatisticas() {
   const d = hoje();
 
-  const [agendaHoje, ultimosBrutos, totalClientes, totalConsult] = await Promise.all([
+  const [agendaHoje, deHojeEmDiante, passadosRecentes, naOficinaDeAntes, totalClientes, totalConsult] = await Promise.all([
     listarAgendamentos({ data: d }).then((l) => l.slice().sort((a, b) => String(a.hora).localeCompare(String(b.hora)))),
-    selecionar(T.agendamentos, `${SEL_AGENDAMENTO}&order=created_at.desc&limit=8`),
+    selecionar(T.agendamentos,
+      `${SEL_AGENDAMENTO}&${STATUS_EM_ULTIMOS}&data=gte.${d}&order=data.asc,hora.asc&limit=${ULTIMOS_LIMITE * 2}`),
+    selecionar(T.agendamentos,
+      `${SEL_AGENDAMENTO}&${STATUS_EM_ULTIMOS}&data=lt.${d}&data=gte.${diasAntes(d, ULTIMOS_DIAS_PASSADOS)}`
+      + `&order=data.desc,hora.desc&limit=${ULTIMOS_LIMITE}`),
+    /* Chegou em outro dia e AINDA não tem desfecho: o carro pode ficar dias na
+       oficina. Vai para a aba "Na oficina" do Início — sem isto sumiria de tudo e
+       o lead ficaria preso em "Em serviço" no CRM. (Os de hoje vêm em agendaHoje.) */
+    selecionar(T.agendamentos,
+      `${SEL_AGENDAMENTO}&status=in.(compareceu,em_atendimento)&data=lt.${d}&data=gte.${diasAntes(d, ULTIMOS_DIAS_PASSADOS)}`
+      + '&order=data.desc,hora.desc&limit=20'),
     contar(T.clientes),
     contar(T.consultores, 'ativo=is.true'),
   ]);
@@ -976,11 +1045,12 @@ export async function estatisticas() {
   /* MESMA regra das abas do painel (grupoDoDia em public/app.js): status vivo
      primeiro, depois o bit compareceu. Se os dois divergirem, o card diz um
      número e a aba mostra outro — foi bug real. Mudou lá? Muda aqui. */
-  const veio = (a) => a.compareceu === 1
-    || ['compareceu', 'em_atendimento', 'concluido', 'nao_fechou'].includes(a.status);
+  // o STATUS explícito manda antes do bit compareceu (que pode ter ficado velho)
   const esperando = (a) => ['aguardando', 'confirmado'].includes(a.status) && a.compareceu !== 1;
-  const faltou = (a) => !esperando(a) && !veio(a)
-    && (a.compareceu === 0 || ['nao_veio', 'cancelado'].includes(a.status));
+  const faltouPeloStatus = (a) => ['nao_veio', 'cancelado'].includes(a.status);
+  const veio = (a) => ['concluido', 'nao_fechou'].includes(a.status)
+    || (!faltouPeloStatus(a) && (a.compareceu === 1 || ['compareceu', 'em_atendimento'].includes(a.status)));
+  const faltou = (a) => !esperando(a) && !veio(a) && (faltouPeloStatus(a) || a.compareceu === 0);
   const cards = {
     totalHoje: agendaHoje.length,
     concluidosHoje: agendaHoje.filter((a) => a.status === 'concluido').length,
@@ -992,13 +1062,8 @@ export async function estatisticas() {
     totalConsult,
   };
 
-  /* "Últimos agendamentos" = os 8 marcados mais recentemente, mas EXIBIDOS em
-     ordem cronológica pela data e hora agendadas (pedido do dono 2026-09-16):
-     09:00 antes de 14:30. data é ISO (YYYY-MM-DD) e hora é HH:MM, então a
-     comparação de texto já ordena certo. */
-  const ultimos = ultimosBrutos.map(lerAgendamento).sort((a, b) =>
-    String(a.data).localeCompare(String(b.data)) || String(a.hora).localeCompare(String(b.hora)));
-  return { cards, agendaHoje, ultimos, data: d };
+  const ultimos = montarUltimos([...deHojeEmDiante, ...passadosRecentes].map(lerAgendamento), d, agoraHHMM());
+  return { cards, agendaHoje, ultimos, naOficina: naOficinaDeAntes.map(lerAgendamento), data: d, agora: agoraHHMM() };
 }
 
 /**

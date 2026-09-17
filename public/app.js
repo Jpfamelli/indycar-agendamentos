@@ -59,9 +59,44 @@ async function api(method, path, body) {
 }
 
 // ---- utilidades -------------------------------------------------------------
-function toast(msg, type = 'ok') {
-  const t = $('#toast'); t.textContent = msg; t.className = `toast show ${type}`;
-  setTimeout(() => (t.className = 'toast'), 2600);
+/* Recado no pé da tela. opts.acao = { rotulo, fn } vira um botão (ex.: Desfazer):
+   com ação o recado dura mais e aceita clique. Um recado novo SUBSTITUI o
+   anterior — antes o timer do antigo apagava o novo no meio da leitura. */
+let _toastTimer = null;
+function toast(msg, type = 'ok', opts = {}) {
+  const t = $('#toast');
+  /* Fechado, o botão de ação é DESLIGADO. O recado some só no visual (opacidade):
+     sem isto, um Tab + Enter desfazia um desfecho antigo sem ninguém ver. */
+  const fechar = () => {
+    clearTimeout(_toastTimer); t.classList.remove('show');
+    const b = $('.toast-acao', t); if (b) b.disabled = true;
+  };
+  clearTimeout(_toastTimer);
+  t.className = 'toast';
+  t.textContent = '';
+  const ico = document.createElement('span');
+  ico.className = 'toast-ico'; ico.textContent = type === 'err' ? '✕' : '✓';
+  const txt = document.createElement('span');
+  txt.className = 'toast-msg'; txt.textContent = msg;        // textContent: nome de cliente nunca vira HTML
+  t.append(ico, txt);
+  if (opts.acao) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'toast-acao'; b.textContent = opts.acao.rotulo;
+    let usada = false;
+    b.addEventListener('click', async () => {
+      if (usada) return;                                       // clique duplo não desfaz duas vezes
+      usada = true; fechar();
+      try { await opts.acao.fn(); } catch (e) { toast(e.message, 'err'); }
+    });
+    t.append(b);
+  }
+  const dur = opts.duracao || (opts.acao ? 8000 : type === 'err' ? 4500 : 2800);
+  const barra = document.createElement('i');
+  barra.className = 'toast-barra'; barra.style.animationDuration = dur + 'ms';
+  t.append(barra);
+  void t.offsetWidth;                                         // reinicia a animação da barra
+  t.className = `toast show ${type}${opts.acao ? ' com-acao' : ''}`;
+  _toastTimer = setTimeout(fechar, dur);
 }
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -107,55 +142,208 @@ const PAPEL_LABEL = { admin:'Administrador', gestor:'Gestor', atendente:'Atenden
 const DIAS_LABEL = { 'seg-sex':'Segunda a sexta', 'sabado':'Sábado', 'domingo':'Domingo',
   'seg-sab':'Segunda a sábado', 'todos':'Todos os dias' };
 
+/* ---------------------------------------------------------------------------
+   TEMPO — sempre no fuso da OFICINA (America/Sao_Paulo), nunca no do aparelho.
+   --------------------------------------------------------------------------- */
+let _agoraMemo = null, _agoraMemoEm = 0;
+/** { data:'YYYY-MM-DD', hm:'HH:MM', min: minutos desde a meia-noite }. Guarda por 5s:
+    uma lista de 40 cartões não precisa montar 40 formatadores de data. */
+function agoraSP() {
+  const t = Date.now();
+  if (_agoraMemo && t - _agoraMemoEm < 5000) return _agoraMemo;
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hour12:false,
+  }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  const hh = p.hour === '24' ? '00' : p.hour;             // alguns motores dão 24 à meia-noite
+  _agoraMemoEm = t;
+  return (_agoraMemo = { data:`${p.year}-${p.month}-${p.day}`, hm:`${hh}:${p.minute}`,
+                         min:(+hh) * 60 + (+p.minute) });
+}
+/** Dias corridos entre duas datas ISO (ao meio-dia UTC: horário de verão não atrapalha). */
+const diasEntre = (deIso, ateIso) =>
+  Math.round((Date.parse(ateIso + 'T12:00:00Z') - Date.parse(deIso + 'T12:00:00Z')) / 86400000);
+const DIA_CURTO = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+/** Hoje · Amanhã · Ontem · "sex 19/09" (com o ano só quando não for o atual). */
+function rotuloDia(iso, hojeIso) {
+  if (!iso) return '';
+  const n = diasEntre(hojeIso, iso);
+  if (n === 0) return 'Hoje';
+  if (n === 1) return 'Amanhã';
+  if (n === -1) return 'Ontem';
+  const [a, m, d] = iso.split('-');
+  const sem = DIA_CURTO[new Date(iso + 'T12:00:00Z').getUTCDay()];
+  return `${sem} ${d}/${m}` + (a !== hojeIso.slice(0, 4) ? `/${a.slice(2)}` : '');
+}
+/** "em 2 h", "agora", "atrasado 40 min"… Só para quem ainda NÃO tem desfecho. */
+function quandoRel(a, agora) {
+  if (!['aguardando', 'confirmado'].includes(a.status) || a.compareceu === 1) return null;
+  const n = diasEntre(agora.data, a.data);
+  if (n > 1)  return { txt:`em ${n} dias`, tom:'' };
+  if (n === 1) return { txt:'amanhã', tom:'breve' };
+  if (n < 0)  return { txt: n === -1 ? 'era ontem' : `há ${-n} dias`, tom:'atrasado' };
+  const [h, m] = String(a.hora || '').split(':').map(Number);
+  if (Number.isNaN(h)) return null;
+  const dif = h * 60 + (m || 0) - agora.min;
+  if (dif > 90)   return { txt:`em ${Math.round(dif / 60)} h`, tom:'breve' };
+  if (dif > 10)   return { txt:`em ${dif} min`, tom:'agora' };
+  if (dif >= -10) return { txt:'agora', tom:'agora' };
+  if (dif > -90)  return { txt:`atrasado ${-dif} min`, tom:'atrasado' };
+  return { txt:`atrasado ${Math.round(-dif / 60)} h`, tom:'atrasado' };
+}
+/** Mesma ordem do servidor (dados.js › ordenarPorProximidade): o que está mais
+    perto de acontecer primeiro; depois o que já passou, do mais novo ao mais velho. */
+function porProximidade(lista, agora) {
+  const chave = (a) => `${a.data} ${String(a.hora || '').slice(0, 5)}`;
+  const corte = `${agora.data} ${agora.hm}`;
+  const proximos = [], passados = [];
+  for (const a of lista) (chave(a) >= corte ? proximos : passados).push(a);
+  proximos.sort((x, y) => chave(x).localeCompare(chave(y)));
+  passados.sort((x, y) => chave(y).localeCompare(chave(x)));
+  return [...proximos.map(a => ({ ...a, secao:'proximos' })), ...passados.map(a => ({ ...a, secao:'passados' }))];
+}
+
 // ============================================================================
 // CARD DE AGENDAMENTO
 // ============================================================================
-/* opts.comWhatsapp: só o Follow-up passa true — aquela tela existe para mandar
-   mensagem, então lá o botão WhatsApp fica. (O 2º argumento de .map é o índice,
-   um número — por isso o teste é explícito e não quebra os .map(appointmentCard).) */
-function appointmentCard(a, opts) {
-  const comWhatsapp = !!(opts && opts.comWhatsapp === true);
-  const badges = [];
-  if (a.confirmado) badges.push('<span class="badge-pill bp-green">Confirmado</span>');
-  else badges.push('<span class="badge-pill bp-orange">Aguardando</span>');
-  if (a.compareceu === 0) badges.push('<span class="badge-pill bp-red">Não veio</span>');
-  // nao_fechou também grava compareceu=true; sem a exceção o cartão exibiria
-  // "Compareceu" E "Não fechou" ao mesmo tempo.
-  if (a.compareceu === 1 && !['concluido', 'nao_fechou'].includes(a.status)) badges.push('<span class="badge-pill bp-green">Compareceu</span>');
-  if (a.status === 'em_atendimento') badges.push('<span class="badge-pill bp-blue">Em atendimento</span>');
-  if (a.status === 'concluido') badges.push('<span class="badge-pill bp-purple">Concluído</span>');
-  if (a.status === 'nao_fechou') badges.push('<span class="badge-pill bp-orange">Não fechou</span>');
+/* UM selo por cartão (antes eram dois empilhados: "Confirmado" + "Compareceu").
+   Mesma precedência do grupoDoDia: o status vivo manda antes do bit compareceu. */
+function seloDoCartao(a) {
+  const vivo = ['aguardando', 'confirmado'].includes(a.status) && a.compareceu !== 1;
+  if (vivo) return (a.confirmado || a.status === 'confirmado')
+    ? ['bp-green', 'Confirmado'] : ['bp-orange', 'Aguardando'];
+  if (a.status === 'concluido')      return ['bp-purple', 'Concluído'];
+  if (a.status === 'nao_fechou')     return ['bp-orange', 'Não fechou'];
+  if (a.status === 'em_atendimento') return ['bp-blue', 'Em atendimento'];
+  // status explícito ANTES do bit compareceu, que pode ter ficado velho
+  if (a.status === 'cancelado')      return ['bp-gray', 'Cancelado'];
+  if (a.status === 'nao_veio')       return ['bp-red', 'Não veio'];
+  if (a.status === 'compareceu' || a.compareceu === 1) return ['bp-blue', 'Compareceu'];
+  if (a.compareceu === 0)            return ['bp-red', 'Não veio'];
+  return ['bp-gray', STATUS_LABEL[a.status] || 'Sem situação'];
+}
 
+/* Miolo comum aos dois cartões (o do painel e o do modo presença): canhoto com a
+   hora, quem é, o selo e os dados. Só os botões mudam de um para o outro. */
+function corpoDoCartao(a, agora, botoes) {
   const veic = a.veiculo ? `${esc(a.veiculo)}${a.placa ? ` (${esc(a.placa)})` : ''}` : (a.placa ? `(${esc(a.placa)})` : '');
+  const rel = quandoRel(a, agora);
+  const [seloCls, seloTxt] = seloDoCartao(a);
   return `
-  <div class="appt s-${a.status}" data-id="${a.id}">
-    <div class="appt-top">
-      <div class="appt-time">${esc(a.hora)}<span class="appt-date">${dataBR(a.data)}</span></div>
-      <div class="appt-main">
-        <div class="appt-title"><b>${esc(a.cliente_nome)}</b>${veic ? ` · ${veic}` : ''}</div>
-        <div class="appt-service">${esc(a.servico)}${a.consultor_nome ? ` · ${esc(a.consultor_nome)}` : ''}</div>
+  <article class="appt s-${esc(a.status)}${rel && rel.tom === 'atrasado' ? ' is-atrasado' : ''}"
+           data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}">
+    <div class="appt-when">
+      <span class="appt-hora">${esc(a.hora)}</span>
+      <span class="appt-dia${a.data === agora.data ? ' hoje' : ''}">${esc(rotuloDia(a.data, agora.data))}</span>
+    </div>
+    <div class="appt-body">
+      <div class="appt-head">
+        <div class="appt-quem">
+          <h3 class="appt-nome">${esc(a.cliente_nome)}</h3>
+          <p class="appt-servico">${esc(a.servico)}</p>
+        </div>
+        <div class="appt-badges">
+          ${rel ? `<span class="quando ${rel.tom}">${esc(rel.txt)}</span>` : ''}
+          <span class="badge-pill ${seloCls}">${esc(seloTxt)}</span>
+        </div>
       </div>
-      <div class="appt-badges">${badges.join('')}</div>
+      <div class="appt-meta">
+        ${veic ? `<span>${svg(I.car)} ${veic}</span>` : ''}
+        ${a.telefone ? `<span>${svg(I.phone)} ${esc(a.telefone)}</span>` : ''}
+        ${a.origem ? `<span>${svg(I.pin)} ${esc(a.origem)}</span>` : ''}
+        ${a.consultor_nome ? `<span>${svg(I.user)} ${esc(a.consultor_nome)}</span>` : ''}
+      </div>
     </div>
-    <div class="appt-meta">
-      <span>${svg(I.user)} ${esc(a.cliente_nome)}</span>
-      ${a.telefone ? `<span>${svg(I.phone)} ${esc(a.telefone)}</span>` : ''}
-      ${a.placa ? `<span>${svg(I.car)} ${esc(a.placa)}</span>` : ''}
-      <span>${svg(I.pin)} ${esc(a.origem || 'Google')}</span>
-    </div>
-    <!-- Pedido do dono (2026-09-16): só 3 desfechos + editar/excluir. Saíram
-         "Em atendimento", "Concluído" e "Google" — muito botão. "WhatsApp" só
-         aparece no Follow-up (opts.comWhatsapp), que é a tela de mandar mensagem.
-         Compareceu = veio e está resolvido; Veio e não fechou = nao_fechou. -->
-    <div class="appt-actions">
-      <button class="act green" data-act="compareceu">${svg(I.check)} Compareceu</button>
-      <button class="act red" data-act="nao_veio">${svg(I.x)} Não veio</button>
-      <button class="act purple" data-act="nao_fechou">${svg(I.flag)} Veio e não fechou</button>
-      ${comWhatsapp ? `<button class="act wa" data-act="whatsapp">${svg(I.wa)} WhatsApp</button>` : ''}
-      <button class="act" data-act="editar">${svg(I.edit)} Editar</button>
-      <button class="act red" data-act="excluir">${svg(I.trash)}</button>
-    </div>
-  </div>`;
+    <div class="appt-actions">${botoes}</div>
+  </article>`;
+}
+
+/* Os três desfechos de uma visita (pedido do dono), sempre na mesma ordem:
+     Veio e fechou     → status 'concluido'  → CRM: lead Concluído (com o valor) e funil "Serviço concluído"
+     Não veio          → status 'nao_veio'   → CRM: volta para Contato + aviso de ausência no WhatsApp
+     Veio e não fechou → status 'nao_fechou' → CRM: Não fechou
+   Quem recebe um desfecho de VISITA sai do Início — o lugar dele passa a ser o CRM.
+   opts.comWhatsapp: só o Follow-up passa true — aquela tela existe para mandar
+   mensagem. (O 2º argumento de .map é o índice, um número: por isso o teste de
+   tipo abaixo, que deixa os .map(appointmentCard) funcionando.) */
+function appointmentCard(a, opts) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  return corpoDoCartao(a, o.agora || agoraSP(), `
+        <button class="act green solido" data-act="concluido"
+                title="Veio e fez o serviço: sai do Início e vai para o CRM como Concluído">${svg(I.check)} Veio e fechou</button>
+        <button class="act red" data-act="nao_veio">${svg(I.x)} Não veio</button>
+        <button class="act orange" data-act="nao_fechou"
+                title="Veio, mas não fechou o serviço: vai para o CRM como Não fechou">${svg(I.flag)} Veio e não fechou</button>
+        <span class="act-fim">
+        ${o.comWhatsapp === true ? `<button class="act wa" data-act="whatsapp">${svg(I.wa)} WhatsApp</button>` : ''}
+        <button class="act ico" data-act="editar" title="Editar" aria-label="Editar agendamento">${svg(I.edit)}</button>
+        <button class="act red ico" data-act="excluir" title="Excluir" aria-label="Excluir agendamento">${svg(I.trash)}</button>
+        </span>`);
+}
+
+/* O cartão some desta lista depois do desfecho? Depende de ONDE ele está:
+   data-saida="tudo"      → agenda de hoje: qualquer desfecho tira o cartão da aba
+   data-saida="desfecho"  → Últimos / lista da Agenda: sai quem veio; "Não veio" fica
+   sem data-saida         → busca e Follow-up: nada sai, a tela só se atualiza. */
+function cartaoVaiSair(card, act) {
+  const box = card.closest('[data-saida]');
+  if (!box) return false;
+  if (act === 'nao_veio') return box.dataset.saida === 'tudo' && state.hojeTab !== 'faltaram';
+  return true;
+}
+/** Desliza o cartão para fora e fecha o espaço. Resolve mesmo se a animação não
+    rodar (aba oculta, movimento reduzido) — por isso o timer de segurança. */
+function sairDoCartao(card) {
+  return new Promise((ok) => {
+    if (!card.isConnected) return ok();
+    card.style.setProperty('--h', card.offsetHeight + 'px');
+    card.classList.add('saindo');
+    let feito = false;
+    const fim = () => { if (feito) return; feito = true; card.remove(); ok(); };
+    card.addEventListener('animationend', (e) => { if (e.target === card) fim(); });
+    setTimeout(fim, 650);
+  });
+}
+
+const RECADO_DESFECHO = {
+  concluido:  (n) => `${n}: veio e fechou — foi para o CRM como Concluído`,
+  nao_fechou: (n) => `${n}: veio e não fechou — registrado no CRM`,
+};
+async function marcarDesfecho(card, id, act) {
+  const anterior = card.dataset.status;
+  const nome = card.dataset.nome || 'Cliente';
+  const botoes = $$('.act', card);
+  botoes.forEach(b => { b.disabled = true; });
+  card.classList.add('ocupado');
+  let r;
+  try { r = await api('PATCH', `/agendamentos/${id}/status`, { status: act }); }
+  catch (e) {
+    botoes.forEach(b => { b.disabled = false; });
+    card.classList.remove('ocupado');
+    return toast(e.message, 'err');
+  }
+  // só sai DEPOIS de o servidor confirmar: nada de cartão que some e volta
+  if (cartaoVaiSair(card, act)) await sairDoCartao(card);
+
+  if (act === 'nao_veio') {
+    toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
+  } else {
+    /* Desfazer devolve o horário ao status de antes; o gatilho do banco reabre o
+       lead no CRM (só quando foi a própria Agenda que o fechou). */
+    /* Sem Desfazer de volta para "Não veio": esse PATCH é o que dispara o aviso de
+       ausência no WhatsApp, e um registro antigo sem carimbo mandaria mensagem ao
+       cliente. Para voltar a "Não veio", o botão do cartão continua lá (na busca). */
+    const podeDesfazer = anterior && anterior !== act && anterior !== 'nao_veio' && STATUS_LABEL[anterior];
+    // sem lead_id (agendamento sem telefone → sem cliente → sem lead) nada foi para o CRM
+    const recado = r.lead_id ? RECADO_DESFECHO[act](nome)
+      : `${nome}: ${act === 'concluido' ? 'veio e fechou' : 'veio e não fechou'} — marcado aqui (sem ficha no CRM: agendamento sem telefone)`;
+    toast(recado, 'ok', podeDesfazer ? { acao: { rotulo:'Desfazer', fn: async () => {
+      await api('PATCH', `/agendamentos/${id}/status`, { status: anterior });
+      toast(`Desfeito — ${nome} voltou para "${STATUS_LABEL[anterior]}"`);
+      route();
+    } } } : {});
+  }
+  route();                 // sem argumento = atualiza a mesma tela em silêncio
 }
 
 // delegação de cliques nos cards
@@ -166,40 +354,16 @@ function bindApptActions(root) {
     $$('.act', card).forEach(btn => btn.addEventListener('click', async () => {
       const act = btn.dataset.act;
       try {
-        if (act === 'editar')  return openAgendamentoModal(id);
-        if (act === 'whatsapp')return openWhatsappModal(id);
-        if (act === 'gcal') {
-          const a = await api('GET', `/agendamentos/${id}`);
-          const ini = a.data.replace(/-/g,'') + 'T' + a.hora.replace(':','') + '00';
-          const fimD = new Date(`${a.data}T${a.hora}:00`); fimD.setMinutes(fimD.getMinutes()+60);
-          const p = (n)=>String(n).padStart(2,'0');
-          const fim = `${fimD.getFullYear()}${p(fimD.getMonth()+1)}${p(fimD.getDate())}T${p(fimD.getHours())}${p(fimD.getMinutes())}00`;
-          const det = [`Serviço: ${a.servico}`, a.veiculo?`Veículo: ${a.veiculo}${a.placa?' ('+a.placa+')':''}`:'', a.telefone?`WhatsApp: ${a.telefone}`:''].filter(Boolean).join('\n');
-          const u = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
-            + '&text=' + encodeURIComponent('🔧 ' + a.cliente_nome + ' — ' + a.servico)
-            + '&dates=' + ini + '/' + fim
-            + '&details=' + encodeURIComponent(det)
-            + '&location=' + encodeURIComponent(state.empresa.endereco || '');
-          window.open(u, '_blank'); return;
-        }
+        if (act === 'editar')   return openAgendamentoModal(id);
+        if (act === 'whatsapp') return openWhatsappModal(id);
         if (act === 'excluir') {
           if (!confirm('Excluir este agendamento?')) return;
-          await api('DELETE', `/agendamentos/${id}`); toast('Agendamento excluído'); return route();
+          await api('DELETE', `/agendamentos/${id}`);
+          await sairDoCartao(card);
+          toast('Agendamento excluído');
+          return route();
         }
-        const r = await api('PATCH', `/agendamentos/${id}/status`, { status: act });
-        // O gatilho do banco move o lead no CRM (compareceu → "Em serviço";
-        // nao_fechou → "Não fechou"). Quem chegou sai de "Agendados" e vai
-        // para a aba "Concluídos" — a fila do dia fica só com quem ainda vem.
-        // "foi para Concluídos" só é verdade na agenda de HOJE do Início — nas
-        // outras telas (Agenda, Follow-up) e em "Últimos" (outros dias) essa aba
-        // não existe, então o recado fica genérico.
-        const naAgendaDeHoje = !!btn.closest('#agendaHoje');
-        const destino = naAgendaDeHoje ? ' — foi para "Concluídos" e o CRM registrou' : ' — registrado no CRM';
-        if (act === 'compareceu') toast('Cliente chegou ✅' + destino);
-        else if (act === 'nao_fechou') toast('Veio e não fechou' + destino);
-        else if (act === 'nao_veio') toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
-        else toast(`Marcado como "${STATUS_LABEL[act]}"`);
-        route();
+        if (RECADO_DESFECHO[act] || act === 'nao_veio') return marcarDesfecho(card, id, act);
       } catch (e) { toast(e.message, 'err'); }
     }));
   });
@@ -210,37 +374,171 @@ function bindApptActions(root) {
 // ============================================================================
 const view = $('#view');
 
-/* Em qual das três abas do dia o agendamento entra (pedido do dono 2026-09-16):
-   'agendados' = quem ainda vai chegar; 'faltaram' = Não vieram;
-   'vieram' = aba "Concluídos" (Compareceu OU Veio e não fechou — a pessoa
-   ESTEVE na oficina). Quem chega sai de Agendados e vai para Concluídos, então
-   a fila do dia não acumula; o CRM registra sozinho pelos gatilhos do banco.
-   O status vivo (aguardando/confirmado) manda primeiro: um "Não veio" marcado
-   por engano e reeditado para Confirmado volta para Agendados. */
+/* Em qual balde do dia o agendamento entra (pedido do dono, 2026-09-17):
+     'agendados'  = quem ainda vai chegar
+     'oficina'    = chegou mas AINDA não tem desfecho (o modo presença marca
+                    "Compareceu" na chegada; a venda quem fecha é o Início)
+     'resolvidos' = veio e fechou / veio e não fechou → NÃO aparece no Início:
+                    o cliente foi para o CRM. Não recrie aba para ele achando
+                    que é bug — o dono pediu três vezes que ele saísse daqui.
+     'faltaram'   = não vieram (e cancelados)
+   PRECEDÊNCIA: o STATUS explícito manda antes do bit `compareceu`, que pode ter
+   ficado velho — um "Não veio" reeditado para Confirmado volta para Agendados, e
+   um Cancelado que um dia teve compareceu=true não pode cair em "Na oficina".
+   ESPELHO NO SERVIDOR: os contadores de dados.js › estatisticas() usam a mesma
+   regra (veio = oficina + resolvidos). Mudou aqui? Muda lá. */
 function grupoDoDia(a) {
   if (['aguardando', 'confirmado'].includes(a.status) && a.compareceu !== 1) return 'agendados';
-  if (a.compareceu === 1 || ['compareceu', 'em_atendimento', 'concluido', 'nao_fechou'].includes(a.status)) return 'vieram';
-  if (a.compareceu === 0 || ['nao_veio', 'cancelado'].includes(a.status)) return 'faltaram';
+  if (['concluido', 'nao_fechou'].includes(a.status)) return 'resolvidos';
+  if (['nao_veio', 'cancelado'].includes(a.status)) return 'faltaram';
+  if (a.compareceu === 1 || ['compareceu', 'em_atendimento'].includes(a.status)) return 'oficina';
+  if (a.compareceu === 0) return 'faltaram';
   return 'agendados';
 }
-const VAZIO_HOJE = {
-  agendados: 'Ninguém esperando. Quando o cliente chegar, toque em "Compareceu" no card dele.',
-  vieram: 'Nenhum concluído ainda. Ao tocar em "Compareceu" ou "Veio e não fechou", o cliente vem para cá — e o CRM registra sozinho.',
-  faltaram: 'Ninguém faltou hoje. 👏',
+const vazio = (ico, titulo, texto) =>
+  `<div class="vazio"><div class="vazio-ico">${svg(ico)}</div><b>${titulo}</b><p>${texto}</p></div>`;
+const VAZIO_HOJE = {                       // Início (quem fecha a venda)
+  agendados: [I.relogio, 'Ninguém esperando', 'Nenhum horário de hoje aguardando. Quem já teve desfecho está no CRM.'],
+  oficina:   [I.chave, 'Ninguém na oficina', 'Quem chega e ainda não tem desfecho aparece aqui.'],
+  faltaram:  [I.check, 'Nenhuma falta marcada hoje', 'Quem for marcado como "Não veio" fica aqui, para remarcar.'],
+};
+const VAZIO_DIA = {                        // modo presença (quem só marca a chegada)
+  agendados: [I.relogio, 'Ninguém esperando', 'Quando o cliente chegar, toque em "Compareceu" no cartão dele.'],
+  chegaram:  [I.check, 'Ninguém chegou ainda', 'Ao tocar em "Compareceu", o cliente vem para cá.'],
+  faltaram:  [I.check, 'Nenhuma falta marcada hoje', 'Quem for marcado como "Não veio" fica aqui.'],
 };
 
-async function renderInicio() {
-  const d = await api('GET', '/dashboard');
-  const c = d.cards;
-  const grupos = { agendados: [], vieram: [], faltaram: [] };
-  for (const a of d.agendaHoje) grupos[grupoDoDia(a)].push(a);
-  if (!['agendados', 'faltaram', 'vieram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
+/* O traço vermelho das abas do dia desliza de uma para a outra. No celular as
+   abas rolam de lado: a ativa é trazida para a vista (sem rolar a PÁGINA). */
+function moverTinta(tabs, semAnimar = false) {
+  if (!tabs) return;
+  let ink = $('.tab-ink', tabs);
+  if (!ink) {
+    ink = document.createElement('i'); ink.className = 'tab-ink';
+    tabs.append(ink); tabs.classList.add('com-tinta'); semAnimar = true;
+  }
+  const at = $('.tab.active', tabs);
+  if (!at) return;
+  if (semAnimar) ink.style.transition = 'none';
+  ink.style.setProperty('--ink-x', (at.offsetLeft + 12) + 'px');
+  ink.style.setProperty('--ink-y', (at.offsetTop + at.offsetHeight - 3) + 'px');
+  ink.style.setProperty('--ink-w', Math.max(0, at.offsetWidth - 24) + 'px');
+  if (semAnimar) { void ink.offsetWidth; ink.style.transition = ''; }
+  if (tabs.scrollWidth > tabs.clientWidth + 1) {
+    const fora = at.offsetLeft < tabs.scrollLeft
+              || at.offsetLeft + at.offsetWidth > tabs.scrollLeft + tabs.clientWidth;
+    if (fora) tabs.scrollTo({ left: Math.max(0, at.offsetLeft - 16), behavior: semAnimar ? 'auto' : 'smooth' });
+  }
+}
+window.addEventListener('resize', debounce(() => moverTinta($('#tabsHoje'), true), 120));
 
-  const tabHoje = (chave, rotulo) =>
-    `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
-       ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`;
+/** Pinta uma lista com a entrada em cascata (só quando `animar`; numa
+    atualização silenciosa os cartões simplesmente já estão lá). */
+function pintarLista(box, html, animar) {
+  box.innerHTML = html;
+  if (!animar) return;
+  box.classList.add('lista-anim');
+  clearTimeout(box._animTimer);
+  box._animTimer = setTimeout(() => box.classList.remove('lista-anim'), 900);
+}
+
+/** Conta de 0 até o número. Se o rAF não rodar (aba oculta), o timer garante o valor final. */
+function animarNumeros(root) {
+  if (document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  $$('.num[data-num]', root).forEach(el => {
+    const fim = +el.dataset.num;
+    if (!(fim > 0)) return;
+    const t0 = performance.now(), dur = 700;
+    el.textContent = '0';
+    const passo = (t) => {
+      const p = Math.min(1, (t - t0) / dur);
+      el.textContent = Math.round(fim * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+    setTimeout(() => { el.textContent = fim; }, dur + 400);
+  });
+}
+
+/* RELÓGIO DA TELA — de minuto em minuto os avisos de tempo ("em 40 min"), o
+   "Próximo cliente" e a divisão A seguir / Já passaram são recalculados com os
+   dados que JÁ estão na tela (state._repintar, que cada tela registra).
+   De propósito NÃO busca no servidor: cada /dashboard pode disparar a importação
+   do CodeWords, e consultar de minuto em minuto com o painel aberto o dia todo
+   estoura a cota — já aconteceu neste projeto. Agendamento novo continua
+   aparecendo ao trocar de tela ou recarregar, como sempre foi. */
+function repintarSePuder() {
+  if (document.hidden || !state._pintou || typeof state._repintar !== 'function') return;
+  if ($('#modalOverlay.open')) return;
+  // não troca o cartão debaixo do dedo/mouse de ninguém
+  if ($('.appt.ocupado, .appt.saindo, .appt:hover, .appt:focus-within')) return;
+  _agoraMemo = null;
+  try { state._repintar(); } catch { /* a próxima volta tenta de novo */ }
+}
+setInterval(repintarSePuder, 60000);
+document.addEventListener('visibilitychange', repintarSePuder);
+
+const CHAVES_CARDS = ['totalHoje', 'compareceram', 'naoVieram', 'naoFechou'];
+
+async function renderInicio(opts = {}) {
+  const d = await api('GET', '/dashboard');
+  if (opts.vez && opts.vez !== state._vez) return;        // o usuário já foi para outra tela
+  state._inicio = d;
+  pintarInicio(d, opts);
+  state._repintar = () => { if (state.route === 'inicio' && state._inicio) pintarInicio(state._inicio, { quieto: true }); };
+}
+
+function pintarInicio(d, opts = {}) {
+  const c = d.cards, agora = agoraSP();
+  const grupos = { agendados: [], oficina: [], faltaram: [] };
+  for (const a of d.agendaHoje) { const g = grupoDoDia(a); if (grupos[g]) grupos[g].push(a); }
+  /* "Na oficina" atravessa os dias: carro que chegou ontem e ainda não teve
+     desfecho continua lá (o servidor manda os dos últimos 7 dias). Sem isto, quem
+     o modo presença marcava e ninguém fechava no mesmo dia sumia de todas as
+     listas e o lead ficava preso em "Em serviço" no CRM para sempre. */
+  for (const a of (d.naOficina || [])) if (grupoDoDia(a) === 'oficina') grupos.oficina.push(a);
+  grupos.oficina.sort((x, y) => `${y.data} ${y.hora}`.localeCompare(`${x.data} ${x.hora}`));
+
+  // "Na oficina" só vira aba quando tem alguém lá — no dia a dia são duas abas.
+  const abas = [['agendados', 'Agendados', I.relogio]];
+  if (grupos.oficina.length) abas.push(['oficina', 'Na oficina', I.chave]);
+  abas.push(['faltaram', 'Não vieram', I.x]);
+  if (!abas.some(([k]) => k === state.hojeTab)) state.hojeTab = 'agendados';
+
+  // abertura: quem é o próximo?
+  const prox = grupos.agendados.find(a => String(a.hora) >= agora.hm);
+  const semDesfecho = grupos.agendados.filter(a => String(a.hora) < agora.hm).length;
+  const saud = agora.min < 12 * 60 ? 'Bom dia' : agora.min < 18 * 60 ? 'Boa tarde' : 'Boa noite';
+  const primeiroNome = String(state.perfil?.nome || '').trim().split(/\s+/)[0];
+  const frase = prox ? `Próximo cliente às ${esc(prox.hora)}.`
+    : semDesfecho ? `${semDesfecho} ${semDesfecho === 1 ? 'cliente de hoje ainda sem desfecho' : 'clientes de hoje ainda sem desfecho'} — marque quem veio.`
+    : !d.agendaHoje.length ? 'Nenhum agendamento para hoje.'
+    : 'Agenda de hoje em dia. 🏁';
+  const relProx = prox ? quandoRel(prox, agora) : null;
+
+  // a divisão A seguir / Já passaram é recalculada AQUI: ela muda com o relógio
+  const ultimos = porProximidade(d.ultimos, agora);
+  const proximos = ultimos.filter(a => a.secao === 'proximos');
+  const passados = ultimos.filter(a => a.secao !== 'proximos');
+  const htmlUltimos = !ultimos.length
+    ? vazio(I.calendar, 'Nada pendente', 'Quem já veio está no CRM. Os próximos horários marcados aparecem aqui.')
+    : (proximos.length ? `<div class="lista-sep">A seguir <em>${proximos.length}</em></div>`
+        + proximos.map(a => appointmentCard(a, { agora })).join('') : '')
+    + (passados.length ? `<div class="lista-sep">Já passaram <em>${passados.length}</em></div>`
+        + passados.map(a => appointmentCard(a, { agora })).join('') : '');
 
   view.innerHTML = `
+    <div class="hero-dia">
+      <div>
+        <div class="hero-data">${esc(dataExtenso(d.data))}</div>
+        <h2 class="hero-titulo">${saud}${primeiroNome ? ', ' + esc(primeiroNome) : ''}. <span>${frase}</span></h2>
+      </div>
+      ${prox ? `<div class="hero-prox">
+        <span class="h">${esc(prox.hora)}</span>
+        <div><small>Próximo${relProx ? ' · ' + esc(relProx.txt) : ''}</small>
+          <b>${esc(prox.cliente_nome)} — ${esc(prox.servico)}</b></div>
+      </div>` : ''}
+    </div>
     <!-- Pedido do dono (2026-09-16): só 4 números do DIA, numa linha. A classe
          row2 já é a grade de 4 colunas (com os mesmos pontos de quebra). -->
     <div class="stat-grid row2">
@@ -253,68 +551,115 @@ async function renderInicio() {
       <div class="panel">
         <div class="panel-head">
           <h2>${svg(I.calendar)} Agenda de hoje</h2>
-          <span class="date">${dataExtenso(d.data)}</span>
+          <span class="panel-sub">quem veio vai para o CRM</span>
         </div>
         <div class="tabs tabs-hoje" id="tabsHoje">
-          ${tabHoje('agendados', '🕒 Agendados')}
-          ${tabHoje('faltaram', '❌ Não vieram')}
-          ${tabHoje('vieram', '🏁 Concluídos')}
+          ${abas.map(([chave, rotulo, ico]) =>
+            `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
+               ${svg(ico)} ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`).join('')}
         </div>
-        <div class="panel-body" id="agendaHoje"></div>
+        <div class="panel-body lista" id="agendaHoje" data-saida="tudo"></div>
       </div>
       <div class="panel">
-        <div class="panel-head"><h2>${svg(I.calendar)} Últimos agendamentos</h2></div>
-        <div class="panel-body" id="ultimos">
-          ${d.ultimos.length ? d.ultimos.map(appointmentCard).join('') : '<div class="empty">Nenhum agendamento ainda.</div>'}
+        <div class="panel-head">
+          <h2>${svg(I.calendar)} Últimos agendamentos</h2>
+          <span class="panel-sub">o mais próximo primeiro</span>
         </div>
+        <div class="panel-body lista" id="ultimos" data-saida="desfecho"></div>
       </div>
     </div>`;
 
   // Pinta só o corpo do painel ao trocar de aba — sem voltar ao servidor.
-  const pintarHoje = () => {
+  const pintarHoje = (animar) => {
     $$('#tabsHoje .tab').forEach(b => b.classList.toggle('active', b.dataset.hojeTab === state.hojeTab));
-    const lista = grupos[state.hojeTab];
+    const lista = grupos[state.hojeTab] || [];
     const box = $('#agendaHoje');
-    box.innerHTML = lista.length ? lista.map(appointmentCard).join('')
-      : `<div class="empty">${VAZIO_HOJE[state.hojeTab]}</div>`;
+    pintarLista(box, lista.length ? lista.map(a => appointmentCard(a, { agora })).join('')
+      : vazio(...VAZIO_HOJE[state.hojeTab]), animar);
     bindApptActions(box);
   };
   $$('#tabsHoje .tab').forEach(b => b.addEventListener('click', () => {
+    if (state.hojeTab === b.dataset.hojeTab) return;
     state.hojeTab = b.dataset.hojeTab;
-    pintarHoje();
+    pintarHoje(true);
+    moverTinta($('#tabsHoje'));
   }));
-  pintarHoje();
+  pintarHoje(!opts.quieto);
+  moverTinta($('#tabsHoje'), true);
+  pintarLista($('#ultimos'), htmlUltimos, !opts.quieto);
   bindApptActions($('#ultimos'));
+
+  // números: contam na abertura; numa atualização silenciosa, só o que mudou "pulsa"
+  if (opts.quieto && state._cards) {
+    $$('.stat .num', view).forEach((el, i) => {
+      if (state._cards[CHAVES_CARDS[i]] !== c[CHAVES_CARDS[i]]) el.classList.add('pulsa');
+    });
+  } else if (!opts.quieto) animarNumeros(view);
+  state._cards = c;
 }
 function statCard(cls, num, lbl, ico, mini = false) {
-  return `<div class="stat ${cls}${mini?' mini':''}">
-    <div class="ico">${svg(ico)}</div>
-    <div class="num">${num}</div>
-    <div class="lbl">${lbl}</div>
+  return `<div class="stat ${cls}${mini ? ' mini' : ''}">
+    <div class="stat-top"><span class="lbl">${lbl}</span><span class="ico">${svg(ico)}</span></div>
+    <div class="num"${Number.isInteger(num) ? ` data-num="${num}"` : ''}>${num}</div>
   </div>`;
 }
 
-async function renderAgenda() {
-  // A agenda não acumula quem já CHEGOU ou foi CONCLUÍDO — esses saíram para o
-  // CRM. A lista mostra só quem ainda vai chegar (e os que faltaram). A BUSCA
-  // abaixo continua achando qualquer um, inclusive concluídos, para reagendar.
-  const list = (await api('GET', '/agendamentos')).filter(a => grupoDoDia(a) !== 'vieram');
+/* Tela Agenda: a fila inteira, na mesma ordem do Início — o que está mais perto
+   de acontecer primeiro, agrupado por dia. Quem já VEIO não aparece aqui (está
+   no CRM, ou na aba "Na oficina" do Início); a BUSCA acha qualquer um, inclusive
+   concluídos, para reabrir ou reagendar. */
+function htmlDaAgenda(lista, agora, buscando) {
+  if (!lista.length) return buscando
+    ? vazio(I.search, 'Nada encontrado', 'Tente pelo nome, pela placa ou pelo telefone.')
+    : vazio(I.calendar, 'Agenda limpa', 'Nenhum horário pendente. Quem já veio está no CRM.');
+  let html = '', secao = null, dia = null;
+  for (const a of porProximidade(lista, agora)) {
+    if (a.secao !== secao) {
+      secao = a.secao; dia = null;
+      html += `<div class="lista-sep forte">${secao === 'proximos' ? 'A seguir' : 'Já passaram'}</div>`;
+    }
+    if (a.data !== dia) { dia = a.data; html += `<div class="lista-sep">${esc(rotuloDia(a.data, agora.data))}</div>`; }
+    html += appointmentCard(a, { agora });
+  }
+  return html;
+}
+async function renderAgenda(opts = {}) {
+  const buscar = async (q) => {
+    const todos = await api('GET', '/agendamentos' + (q ? '?q=' + encodeURIComponent(q) : ''));
+    return q ? todos : todos.filter(a => !['oficina', 'resolvidos'].includes(grupoDoDia(a)));
+  };
+  const pintar = (itens, q, animar) => {
+    const box = $('#agendaList');
+    if (!box) return;
+    // na busca nada "sai": ela mostra todo mundo, inclusive quem já foi para o CRM
+    if (q) box.removeAttribute('data-saida'); else box.dataset.saida = 'desfecho';
+    pintarLista(box, htmlDaAgenda(itens, agoraSP(), !!q), animar);
+    bindApptActions(box);
+    state._repintar = () => { if (state.route === 'agenda') pintar(itens, q, false); };
+  };
+
+  const q0 = state.agendaQ || '';
+  const lista = await buscar(q0);
+  if (opts.vez && opts.vez !== state._vez) return;
+
+  /* Atualização silenciosa (depois de marcar, editar, excluir): só a LISTA é
+     repintada. Recriar a barra de busca apagaria o que a pessoa está digitando
+     e tiraria o cursor do campo. */
+  if (opts.quieto && $('#agendaList') && $('#qAgenda')) return pintar(lista, q0, false);
+
   view.innerHTML = `
     <div class="toolbar">
-      <div class="left">
-        <div class="search">${svg(I.search)}<input id="qAgenda" placeholder="Buscar por cliente, placa, telefone..."></div>
-      </div>
-      <button class="btn primary" onclick="openAgendamentoModal()">${svg(I.plus)} Novo agendamento</button>
+      <!-- sem botão "Novo agendamento" aqui: o do topo da página já faz isso -->
+      <div class="search larga">${svg(I.search)}<input id="qAgenda" placeholder="Buscar por cliente, placa ou telefone — a busca acha também quem já foi para o CRM" value="${esc(q0)}"></div>
     </div>
-    <div class="panel"><div class="panel-body" id="agendaList">
-      ${list.length ? list.map(appointmentCard).join('') : '<div class="empty">Nenhum agendamento cadastrado.</div>'}
-    </div></div>`;
-  bindApptActions(view);
+    <div class="panel"><div class="panel-body lista" id="agendaList"></div></div>`;
+  pintar(lista, q0, !opts.quieto);
   $('#qAgenda').addEventListener('input', debounce(async e => {
-    const r = await api('GET', '/agendamentos?q=' + encodeURIComponent(e.target.value));
-    const box = $('#agendaList');
-    box.innerHTML = r.length ? r.map(appointmentCard).join('') : '<div class="empty">Nada encontrado.</div>';
-    bindApptActions(box);
+    const q = e.target.value.trim();
+    state.agendaQ = q;
+    const r = await buscar(q);
+    // resposta de uma busca antiga não pinta por cima da mais nova
+    if (state.route === 'agenda' && (state.agendaQ || '') === q) pintar(r, q, false);
   }, 250));
 }
 
@@ -856,7 +1201,7 @@ async function renderConectores() {
 1. Copie a URL acima.
 2. No Google Agenda → ⚙️ Configurações → <b>Adicionar agenda → Do URL</b>.
 3. Cole e clique em <b>Adicionar agenda</b>. ✅
-Todos os agendamentos aparecem na sua agenda Google e <b>se atualizam sozinhos</b> (o Google sincroniza periodicamente). Cada agendamento também tem o botão 📅 para adicionar na hora.</div></div>
+Todos os agendamentos aparecem na sua agenda Google e <b>se atualizam sozinhos</b> (o Google sincroniza periodicamente).</div></div>
         </div></div>
     </div>
     <div class="cols">
@@ -1393,86 +1738,83 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
 // ============================================================================
 const emPresenca = () => state.perfil?.papel === 'agenda';
 
-function cartaoPresenca(a) {
-  const badges = [];
-  // nao_fechou vem ANTES: ele também grava compareceu=true, e sem esta ordem o
-  // cartão da aba Concluídos mostraria "Compareceu" (ou "Aguardando") no lugar.
-  if (a.status === 'nao_fechou') badges.push('<span class="badge-pill bp-orange">Não fechou</span>');
-  else if (a.compareceu === 0 || a.status === 'nao_veio') badges.push('<span class="badge-pill bp-red">Não veio</span>');
-  else if (a.compareceu === 1 || a.status === 'compareceu') badges.push('<span class="badge-pill bp-green">Compareceu</span>');
-  else badges.push(`<span class="badge-pill ${a.confirmado ? 'bp-green' : 'bp-orange'}">${a.confirmado ? 'Confirmado' : 'Aguardando'}</span>`);
-  const veic = a.veiculo ? `${esc(a.veiculo)}${a.placa ? ` (${esc(a.placa)})` : ''}` : (a.placa ? `(${esc(a.placa)})` : '');
-  return `
-  <div class="appt s-${a.status}" data-id="${a.id}">
-    <div class="appt-top">
-      <div class="appt-time">${esc(a.hora)}<span class="appt-date">${dataBR(a.data)}</span></div>
-      <div class="appt-main">
-        <div class="appt-title"><b>${esc(a.cliente_nome)}</b>${veic ? ` · ${veic}` : ''}</div>
-        <div class="appt-service">${esc(a.servico)}</div>
-      </div>
-      <div class="appt-badges">${badges.join('')}</div>
-    </div>
-    <div class="appt-actions">
-      <button class="act green" data-marca="compareceu">${svg(I.check)} Compareceu</button>
-      <button class="act red" data-marca="nao_veio">${svg(I.x)} Não veio</button>
-      <button class="act purple" data-marca="nao_fechou">${svg(I.flag)} Veio e não fechou</button>
-    </div>
-  </div>`;
+/* Cartão do modo presença: o mesmo desenho do painel, só com presença. Fechar
+   ou não a venda é desfecho comercial — fica com quem usa o Início.
+   Só aparece o botão que MUDA alguma coisa, e quem já tem desfecho não tem botão
+   nenhum: o papel 'agenda' não pode desfazer um "Veio e fechou" do atendimento
+   (o servidor recusa também — aqui a tela só não oferece o que não funcionaria). */
+function cartaoPresenca(a, agora) {
+  const g = grupoDoDia(a);
+  const bt = (marca, cls, ico, txt) => `<button class="act ${cls}" data-marca="${marca}">${svg(ico)} ${txt}</button>`;
+  const botoes = g === 'resolvidos'
+    ? `<span class="act-nota">${svg(I.cadeado)} Desfecho já registrado pelo atendimento</span>`
+    : (g !== 'oficina' ? bt('compareceu', 'green solido', I.check, 'Compareceu') : '')
+    + (g !== 'faltaram' ? bt('nao_veio', 'red', I.x, 'Não veio') : '');
+  return corpoDoCartao(a, agora || agoraSP(), botoes);
 }
 
-async function renderDia() {
+async function renderDia(opts = {}) {
   const list = await api('GET', '/agendamentos');   // o servidor já limita a hoje
-  const grupos = { agendados: [], vieram: [], faltaram: [] };
-  for (const a of list) grupos[grupoDoDia(a)].push(a);
-  if (!['agendados', 'faltaram', 'vieram'].includes(state.hojeTab)) state.hojeTab = 'agendados';
-  const tabDia = (chave, rotulo) =>
-    `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
-       ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`;
+  if (opts.vez && opts.vez !== state._vez) return;
+  // para quem marca presença, "chegou" é chegou — tenha a venda fechado ou não
+  const grupos = { agendados: [], chegaram: [], faltaram: [] };
+  for (const a of list) {
+    const g = grupoDoDia(a);
+    grupos[g === 'oficina' || g === 'resolvidos' ? 'chegaram' : g].push(a);
+  }
+  for (const k of Object.keys(grupos)) grupos[k].sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
+  const abas = [['agendados', 'Agendados', I.relogio], ['chegaram', 'Já chegaram', I.check], ['faltaram', 'Não vieram', I.x]];
+  if (!abas.some(([k]) => k === state.hojeTab)) state.hojeTab = 'agendados';
 
   view.innerHTML = `
     <div class="panel">
       <div class="panel-head">
         <h2>${svg(I.calendar)} Agenda de hoje</h2>
-        <span class="date">${dataExtenso(dataDeHoje())}</span>
+        <span class="date">${dataExtenso(agoraSP().data)}</span>
       </div>
       <div class="tabs tabs-hoje" id="tabsHoje">
-        ${tabDia('agendados', '🕒 Agendados')}
-        ${tabDia('faltaram', '❌ Não vieram')}
-        ${tabDia('vieram', '🏁 Concluídos')}
+        ${abas.map(([chave, rotulo, ico]) =>
+          `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
+             ${svg(ico)} ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`).join('')}
       </div>
-      <div class="panel-body" id="agendaHoje"></div>
+      <div class="panel-body lista" id="agendaHoje"></div>
     </div>`;
 
-  const pintar = () => {
+  const pintar = (animar) => {
+    const agora = agoraSP();                         // dentro: o relógio da tela repinta com a hora certa
     $$('#tabsHoje .tab').forEach(b => b.classList.toggle('active', b.dataset.hojeTab === state.hojeTab));
     const lista = grupos[state.hojeTab];
     const box = $('#agendaHoje');
-    box.innerHTML = lista.length ? lista.map(cartaoPresenca).join('')
-      : `<div class="empty">${VAZIO_HOJE[state.hojeTab]}</div>`;
+    if (!box) return;
+    pintarLista(box, lista.length ? lista.map(a => cartaoPresenca(a, agora)).join('')
+      : vazio(...VAZIO_DIA[state.hojeTab]), animar);
     $$('[data-marca]', box).forEach(btn => btn.addEventListener('click', async () => {
-      const id = btn.closest('.appt').dataset.id;
-      btn.disabled = true;
+      const card = btn.closest('.appt'), id = card.dataset.id, marca = btn.dataset.marca;
+      const botoes = $$('.act', card);
+      botoes.forEach(b => { b.disabled = true; });
+      card.classList.add('ocupado');
       try {
-        const r = await api('PATCH', `/agendamentos/${id}/status`, { status: btn.dataset.marca });
-        const marca = btn.dataset.marca;
-        toast(marca === 'compareceu' ? 'Cliente chegou ✅ — foi para "Concluídos"'
-          : marca === 'nao_fechou' ? 'Veio e não fechou — foi para "Concluídos"'
+        const r = await api('PATCH', `/agendamentos/${id}/status`, { status: marca });
+        await sairDoCartao(card);                    // o botão só existe quando o cartão muda de aba
+        toast(marca === 'compareceu' ? 'Cliente chegou ✅ — foi para "Já chegaram"'
           : recadoDeAusencia(r), marca === 'nao_veio' && r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
-        renderDia();
-      } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+        route();
+      } catch (e) {
+        botoes.forEach(b => { b.disabled = false; });
+        card.classList.remove('ocupado');
+        toast(e.message, 'err');
+      }
     }));
   };
   $$('#tabsHoje .tab').forEach(b => b.addEventListener('click', () => {
+    if (state.hojeTab === b.dataset.hojeTab) return;
     state.hojeTab = b.dataset.hojeTab;
-    pintar();
+    pintar(true);
+    moverTinta($('#tabsHoje'));
   }));
-  pintar();
-}
-
-/* Data de hoje no fuso da oficina — para o título do modo presença. */
-function dataDeHoje() {
-  return new Intl.DateTimeFormat('en-CA',
-    { timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+  pintar(!opts.quieto);
+  moverTinta($('#tabsHoje'), true);
+  state._repintar = () => { if (state.route === 'dia') pintar(false); };
 }
 
 // ============================================================================
@@ -1487,15 +1829,64 @@ const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTE
   historico:'HISTÓRICO', conectores:'CONECTORES', configuracoes:'CONFIGURAÇÕES',
   dia:'AGENDA DO DIA' };
 
-async function route(r){
+/* Enquanto os dados não chegam, a tela mostra o próprio FORMATO (esqueleto) em
+   vez de um "Carregando…" solto: nada pula de lugar quando o conteúdo entra.
+   Fica dentro de .esqueleto para NÃO herdar a animação de entrada — senão a
+   tela faria dois fades seguidos (o do esqueleto e o do conteúdo). */
+function esqueleto(rota) {
+  const cartao = `<div class="skel-cartao"><div class="skel" style="width:66px;height:44px"></div>
+    <div class="skel-linhas"><div class="skel" style="height:15px;width:52%"></div>
+    <div class="skel" style="height:11px;width:78%"></div><div class="skel" style="height:32px"></div></div></div>`;
+  const painel = (n) => `<div class="panel"><div class="panel-head"><div class="skel" style="height:18px;width:180px"></div></div>
+    <div class="panel-body lista">${cartao.repeat(n)}</div></div>`;
+  const miolo = rota === 'inicio' ? `
+    <div class="hero-dia"><div><div class="skel" style="height:12px;width:210px"></div>
+      <div class="skel" style="height:32px;width:min(460px,80vw);margin-top:10px"></div></div></div>
+    <div class="stat-grid row2">${'<div class="skel skel-stat"></div>'.repeat(4)}</div>
+    <div class="cols">${painel(2)}${painel(3)}</div>`
+    : (rota === 'agenda' || rota === 'dia' || rota === 'followup') ? painel(4)
+    : `<div class="panel"><div class="panel-body">
+    <div class="skel" style="height:16px;width:38%"></div><div class="skel" style="height:12px;width:72%"></div>
+    <div class="skel" style="height:12px;width:64%"></div><div class="skel" style="height:12px;width:48%"></div></div></div>`;
+  return `<div class="esqueleto" aria-busy="true" aria-label="Carregando">${miolo}</div>`;
+}
+
+/* route('tela')  → troca de tela: esqueleto + entrada animada.
+   route()        → ATUALIZA a tela atual em silêncio (depois de salvar, marcar,
+                    excluir…): sem esqueleto e sem reanimar — nada pisca.
+   `vez` protege contra resposta atrasada: se o usuário já foi para outra tela,
+   a resposta velha não pinta por cima da nova.
+   A classe 'entrando' entra ANTES de a tela pintar: várias telas (Configurações,
+   WhatsApp) pintam em mais de uma etapa, e pôr a classe só no fim fazia o que já
+   estava visível sumir e reaparecer. */
+async function route(r, opts = {}){
   if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
+  const quieto = !r && opts.quieto !== false && state._pintou === true;
   if (r) state.route = r;
   if (emPresenca()) state.route = 'dia';     // papel 'agenda' só tem uma tela
+  const vez = state._vez = (state._vez || 0) + 1;
   $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.route === state.route));
   $('#pageTag').textContent = TAGS[state.route] || 'DASHBOARD';
-  view.innerHTML = '<div class="empty">Carregando…</div>';
-  try { await (ROUTES[state.route] || renderInicio)(); }
-  catch(e){ view.innerHTML = `<div class="empty">Erro ao carregar: ${esc(e.message)}</div>`; }
+  if (!quieto) {
+    state._repintar = null;                  // o relógio da tela não repinta uma tela que está saindo
+    view.classList.add('entrando');
+    view.innerHTML = esqueleto(state.route);
+  }
+  try {
+    await (ROUTES[state.route] || renderInicio)({ quieto, vez });
+    if (vez === state._vez) {
+      state._pintou = true;
+      if (!quieto) {
+        clearTimeout(state._entraTimer);
+        state._entraTimer = setTimeout(() => view.classList.remove('entrando'), 1200);
+      }
+    }
+  } catch(e){
+    if (vez === state._vez) {
+      state._pintou = false; state._repintar = null;
+      view.innerHTML = `<div class="empty">Erro ao carregar: ${esc(e.message)}</div>`;
+    }
+  }
   refreshBadge();
 }
 

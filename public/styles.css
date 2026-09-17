@@ -41,6 +41,12 @@
   --radius:16px;
   --shadow:0 10px 30px rgba(0,0,0,.45);
   --sombra-cartao:none;
+  --sombra-hover:0 16px 36px -18px rgba(0,0,0,.75);
+
+  /* ---- numerais e movimento ---- */
+  --font-num:'Barlow Condensed','Inter',system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
 
   color-scheme:var(--scheme);
 }
@@ -65,7 +71,7 @@
   --cyan:#0891b2; --cyan-soft:rgba(8,145,178,.12);
   --wa:#0f9d4f; --wa-soft:rgba(15,157,79,.12);
 
-  --red-txt:#c30f22; --green-txt:#0f8b43; --orange-txt:#a45a05;
+  --red-txt:#c30f22; --green-txt:#0f8b43; --orange-txt:#965204; --green-forte:#0a6b33;
   --blue-txt:#1d4ed8; --purple-txt:#7526cc; --wa-txt:#0f8b43;
 
   --surface:rgba(17,19,25,.045); --surface-2:rgba(17,19,25,.075);
@@ -81,7 +87,8 @@
   --scheme:light;
 
   --shadow:0 10px 30px rgba(20,22,30,.13);
-  --sombra-cartao:0 1px 2px rgba(20,22,30,.07);
+  --sombra-cartao:0 1px 2px rgba(20,22,30,.06),0 12px 28px -20px rgba(20,22,30,.22);
+  --sombra-hover:0 18px 40px -22px rgba(20,22,30,.34);
 }
 
 *{box-sizing:border-box;margin:0;padding:0}
@@ -239,62 +246,119 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 
 .view{padding:22px 26px 40px;display:flex;flex-direction:column;gap:18px}
 
-/* ============================== STAT CARDS ============================== */
+/* ============================== STAT CARDS ==============================
+   Número grande em fonte condensada (a mesma família do site da oficina): lê-se
+   de longe, que é como se olha um painel de oficina. A cor só diz O QUE é o
+   número; a superfície fica neutra. */
 .stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
 .stat-grid.row2{grid-template-columns:repeat(4,1fr)}
 .stat{
-  position:relative;background:linear-gradient(160deg,var(--panel-2),var(--panel));
-  border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;overflow:hidden;
-  box-shadow:var(--sombra-cartao,none);
+  position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:16px;
+  min-height:122px;padding:16px 18px 16px 21px;overflow:hidden;
+  background:linear-gradient(160deg,var(--panel-2),var(--panel));
+  border:1px solid var(--border);border-radius:18px;box-shadow:var(--sombra-cartao,none);
+  transition:transform .25s var(--ease),box-shadow .25s var(--ease),border-color .25s var(--ease);
 }
-.stat::after{content:"";position:absolute;inset:0;border-radius:inherit;opacity:.5;
-  background:radial-gradient(120px 80px at 90% -20%, var(--c-soft), transparent 70%);pointer-events:none}
-.stat .num{font-size:30px;font-weight:800;line-height:1;color:var(--c);position:relative}
-.stat .lbl{margin-top:8px;font-size:12.5px;color:var(--muted);font-weight:500;display:flex;align-items:center;gap:6px}
-.stat .ico{position:absolute;top:14px;right:14px;color:var(--c);opacity:.8}
-.stat .ico svg{width:18px;height:18px}
+.stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c);opacity:.9}
+.stat::after{content:"";position:absolute;inset:0;border-radius:inherit;opacity:.55;pointer-events:none;
+  background:radial-gradient(170px 120px at 100% 0%, var(--c-soft), transparent 70%)}
+.stat:hover{transform:translateY(-2px);box-shadow:var(--sombra-hover);border-color:var(--border-2)}
+.stat-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;position:relative;z-index:1;min-width:0}
+.stat .lbl{min-width:0}
+.stat .lbl{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);line-height:1.4}
+.stat .ico{flex-shrink:0;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+  background:var(--c-soft);color:var(--c)}
+.stat .ico svg{width:16px;height:16px}
+.stat .num{position:relative;z-index:1;align-self:flex-start;display:inline-block;transform-origin:left bottom;
+  font-family:var(--font-num);font-size:54px;font-weight:700;line-height:.86;letter-spacing:-.5px;
+  color:var(--c);font-variant-numeric:tabular-nums}
+.stat .num.pulsa{animation:statPulsa .55s var(--ease)}
+@keyframes statPulsa{0%{transform:scale(1)}35%{transform:scale(1.16)}100%{transform:scale(1)}}
 .stat.red{--c:var(--red-2);--c-soft:var(--red-soft)}
 .stat.green{--c:var(--green);--c-soft:var(--green-soft)}
 .stat.orange{--c:var(--orange);--c-soft:var(--orange-soft)}
 .stat.blue{--c:var(--blue);--c-soft:var(--blue-soft)}
 .stat.purple{--c:var(--purple);--c-soft:var(--purple-soft)}
 .stat.cyan{--c:var(--cyan);--c-soft:var(--cyan-soft)}
-.stat.mini .num{font-size:26px}
-.stat.mini .lbl{font-size:12px}
+.stat.mini{min-height:100px}
+.stat.mini .num{font-size:42px}
+
+/* ============================== ABERTURA DO INÍCIO ==============================
+   Uma frase grande em vez de mais um cartão: quem abre o painel quer saber
+   "quem é o próximo?" antes de qualquer número. */
+.hero-dia{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:2px 2px 0}
+.hero-data{font-size:11.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--red-txt)}
+.hero-titulo{margin-top:7px;font-size:clamp(24px,2.5vw,34px);font-weight:800;letter-spacing:-.9px;line-height:1.1;
+  color:var(--text-forte);max-width:26ch}
+.hero-titulo span{color:var(--muted);font-weight:700}
+.hero-prox{display:flex;align-items:center;gap:14px;padding:11px 16px 11px 14px;border-radius:16px;
+  border:1px solid var(--border-2);background:var(--panel-3);box-shadow:var(--sombra-cartao,none);min-width:0}
+.hero-prox .h{font-family:var(--font-num);font-size:38px;font-weight:700;line-height:.86;color:var(--red-2);
+  font-variant-numeric:tabular-nums}
+.hero-prox > div{min-width:0;flex:1 1 auto}
+.hero-prox small{display:block;font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted-2)}
+.hero-prox b{display:block;margin-top:2px;font-size:14px;font-weight:700;color:var(--text);
+  max-width:min(30ch,100%);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ============================== PANELS / COLUMNS ============================== */
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 .panel{background:linear-gradient(160deg,var(--panel-2),var(--panel));
-  border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
+  border:1px solid var(--border);border-radius:18px;overflow:hidden;
   box-shadow:var(--sombra-cartao);transition:background .18s ease,border-color .18s ease}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding:16px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
-.panel-head h2{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+.panel-head h2{font-size:16px;font-weight:800;letter-spacing:-.2px;display:flex;align-items:center;gap:8px}
 .panel-head h2 svg{width:18px;height:18px;color:var(--red-2)}
 .panel-head .date{font-size:12px;color:var(--muted);font-weight:500}
-.panel-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.panel-sub{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted-2)}
+.panel-body{--gap:14px;padding:16px 18px;display:flex;flex-direction:column;gap:var(--gap)}
+/* listas de cartões: mais justas que um painel de formulário/tabela */
+.panel-body.lista{--gap:10px;padding:14px}
 .empty{padding:34px 16px;text-align:center;color:var(--muted-2);font-size:13px}
+/* estado vazio "com cara": ícone, título e uma linha de orientação */
+.vazio{display:flex;flex-direction:column;align-items:center;gap:6px;padding:34px 18px 38px;text-align:center}
+.vazio-ico{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;margin-bottom:6px;
+  background:var(--surface-2);color:var(--muted)}
+.vazio-ico svg{width:21px;height:21px}
+.vazio b{font-size:14.5px;font-weight:800;color:var(--text)}
+.vazio p{font-size:13px;color:var(--muted);max-width:40ch;line-height:1.55}
+/* divisor de seção dentro de uma lista ("A seguir", "Já passou", dia da semana…) */
+.lista-sep{display:flex;align-items:center;gap:10px;margin:6px 4px 0;
+  font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.lista-sep:first-child{margin-top:0}
+.lista-sep::after{content:"";flex:1;height:1px;background:var(--border)}
+.lista-sep em{font-style:normal;color:var(--muted-2)}
 
-/* ============================== APPOINTMENT CARD ============================== */
+/* ============================== APPOINTMENT CARD ==============================
+   Cartão em formato de "senha": o canhoto com a hora à esquerda, o cliente à
+   direita. Um só selo de situação (antes eram dois empilhados) e os três
+   desfechos sempre na mesma ordem. */
 .appt{
-  position:relative;background:var(--panel-3);border:1px solid var(--border);
-  border-radius:13px;padding:14px 16px 14px 18px;
+  position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 16px;
+  background:var(--panel-3);border:1px solid var(--border);border-radius:16px;
+  padding:14px 16px 14px 20px;overflow:hidden;
+  transition:transform .22s var(--ease),border-color .22s var(--ease),box-shadow .22s var(--ease);
 }
-.appt::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:4px;border-radius:4px;background:var(--accent,var(--red-2))}
+.appt::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent,var(--red-2))}
+.appt:hover{transform:translateY(-1px);border-color:var(--border-2);box-shadow:var(--sombra-hover)}
 .appt.s-confirmado{--accent:var(--green)} .appt.s-aguardando{--accent:var(--orange)}
-.appt.s-em_atendimento{--accent:var(--blue)} .appt.s-compareceu{--accent:var(--green)}
+.appt.s-em_atendimento{--accent:var(--blue)} .appt.s-compareceu{--accent:var(--blue)}
 .appt.s-nao_veio{--accent:var(--red-2)} .appt.s-concluido{--accent:var(--purple)}
-.appt.s-nao_fechou{--accent:var(--orange)}
-.appt-top{display:flex;align-items:flex-start;gap:12px}
-.appt-time{font-size:18px;font-weight:800;color:var(--red-2);min-width:54px;
-  display:flex;flex-direction:column;gap:2px}
-/* a data mora embaixo da hora: dá para ver o dia sem abrir o "Editar" */
-.appt-date{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.2px;white-space:nowrap}
-.appt-main{flex:1;min-width:0}
-.appt-title{font-weight:700;font-size:15px}
-.appt-title b{font-weight:800}
-.appt-service{color:var(--muted);font-size:13px;margin-top:2px}
-.appt-badges{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.appt.s-nao_fechou{--accent:var(--orange)} .appt.s-cancelado{--accent:var(--muted-2)}
+.appt.is-atrasado{--accent:var(--orange)}
+.appt.ocupado{opacity:.7}
+.appt-when{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:66px;
+  padding-right:16px;border-right:1px dashed var(--border-2)}
+.appt-hora{font-family:var(--font-num);font-size:36px;font-weight:700;line-height:.86;letter-spacing:-.3px;
+  color:var(--text-forte);font-variant-numeric:tabular-nums}
+.appt-dia{font-size:10.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.appt-dia.hoje{color:var(--red-txt)}
+.appt-body{min-width:0;display:flex;flex-direction:column;gap:10px}
+.appt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.appt-quem{min-width:0}
+.appt-nome{font-size:15.5px;font-weight:800;letter-spacing:-.2px;line-height:1.25;overflow-wrap:anywhere}
+.appt-servico{color:var(--muted);font-size:13px;margin-top:2px;line-height:1.4;overflow-wrap:anywhere}
+.appt-badges{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;flex-shrink:0;max-width:48%}
 .badge-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
 .bp-green{background:var(--green-soft);color:var(--green-txt);border:1px solid rgba(34,197,94,.3)}
 .bp-red{background:var(--red-soft);color:var(--red-txt);border:1px solid rgba(230,25,46,.3)}
@@ -302,22 +366,53 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .bp-blue{background:var(--blue-soft);color:var(--blue-txt);border:1px solid rgba(59,130,246,.3)}
 .bp-purple{background:var(--purple-soft);color:var(--purple-txt);border:1px solid rgba(168,85,247,.3)}
 .bp-gray{background:var(--surface-2);color:var(--muted);border:1px solid var(--border-2)}
-.appt-meta{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
-.appt-meta span{display:flex;align-items:center;gap:5px}
-.appt-meta svg{width:14px;height:14px;color:var(--muted-2)}
-.appt-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+/* "em 2 h", "agora", "atrasado 40 min" — só para quem ainda não tem desfecho */
+.quando{font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px;white-space:nowrap;letter-spacing:.2px;
+  border:1px solid var(--border-2);background:var(--surface-2);color:var(--muted)}
+.quando.breve{background:var(--blue-soft);color:var(--blue-txt);border-color:rgba(59,130,246,.3)}
+.quando.agora{background:var(--red-soft);color:var(--red-txt);border-color:rgba(230,25,46,.35)}
+.quando.atrasado{background:var(--orange-soft);color:var(--orange-txt);border-color:rgba(245,158,11,.4)}
+.appt-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted)}
+.appt-meta span{display:flex;align-items:center;gap:5px;min-width:0;overflow-wrap:anywhere}
+.appt-meta svg{width:14px;height:14px;color:var(--muted-2);flex-shrink:0}
+/* a barra de ações ocupa a LARGURA INTEIRA do cartão (por baixo do canhoto): os
+   três desfechos + editar/excluir cabem numa linha só. Se a tela for estreita e
+   quebrar, o grupo do fim (.act-fim) continua ancorado à direita. */
+.appt-actions{grid-column:1 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.act-fim{display:flex;align-items:center;gap:8px;margin-left:auto}
+.act-nota{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.act-nota svg{width:14px;height:14px}
 .act{
-  display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
-  padding:7px 11px;border-radius:9px;background:transparent;border:1px solid var(--border-2);
-  color:var(--muted);transition:.13s;font-family:inherit;
+  display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;cursor:pointer;line-height:1;
+  padding:8px 12px;border-radius:10px;background:transparent;border:1px solid var(--border-2);
+  color:var(--muted);font-family:inherit;white-space:nowrap;
+  transition:background .16s var(--ease),color .16s var(--ease),border-color .16s var(--ease),
+             transform .12s var(--ease),box-shadow .16s var(--ease);
 }
 .act svg{width:14px;height:14px}
 .act:hover{background:var(--surface);color:var(--text)}
+.act:active{transform:scale(.96)}
+.act:disabled{opacity:.55;cursor:progress;transform:none}
 .act.green{color:var(--green-txt);border-color:rgba(34,197,94,.35)} .act.green:hover{background:var(--green-soft)}
 .act.red{color:var(--red-txt);border-color:rgba(230,25,46,.35)} .act.red:hover{background:var(--red-soft)}
+.act.orange{color:var(--orange-txt);border-color:rgba(245,158,11,.4)} .act.orange:hover{background:var(--orange-soft)}
 .act.blue{color:var(--blue-txt);border-color:rgba(59,130,246,.35)} .act.blue:hover{background:var(--blue-soft)}
 .act.purple{color:var(--purple-txt);border-color:rgba(168,85,247,.35)} .act.purple:hover{background:var(--purple-soft)}
 .act.wa{color:var(--wa-txt);border-color:rgba(37,211,102,.35)} .act.wa:hover{background:var(--wa-soft)}
+/* o desfecho principal ("Veio e fechou") já nasce preenchido: é o clique mais comum */
+.act.solido.green{background:var(--green-soft);border-color:rgba(34,197,94,.5);color:var(--green-forte,var(--green-txt))}
+.act.solido.green:hover{box-shadow:0 6px 16px -8px rgba(34,197,94,.7)}
+.act.ico{padding:0;width:34px;height:34px;justify-content:center}
+.act.ico svg{width:15px;height:15px}
+/* saída do cartão: desliza para a direita ("foi para o CRM") e fecha o espaço */
+.appt.saindo{animation:apptSai .46s var(--ease) forwards;pointer-events:none}
+@keyframes apptSai{
+  0%{opacity:1;transform:none;max-height:var(--h,280px)}
+  50%{opacity:0;transform:translateX(56px) scale(.98);max-height:var(--h,280px)}
+  100%{opacity:0;transform:translateX(56px);max-height:0;padding-top:0;padding-bottom:0;
+       margin-top:calc(var(--gap,10px) * -1);border-top-width:0;border-bottom-width:0}
+}
 
 /* ============================== TABLES / LISTS ============================== */
 .tabela-rolagem{width:100%;overflow-x:auto}
@@ -362,7 +457,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .tab:hover{color:var(--text);background:var(--surface-3)}
 .tab.active{color:var(--text-forte)}
 .tab.active::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:3px;border-radius:3px;background:var(--red-2)}
-/* abas do painel "Agenda de hoje" (Agendados · Já vieram · Não vieram) */
+/* abas do painel "Agenda de hoje" (Agendados · Na oficina · Não vieram) */
 .tabs-hoje{padding:0 10px}
 .tab-num{font-style:normal;font-size:11px;font-weight:800;min-width:20px;height:20px;
   padding:0 6px;border-radius:10px;background:var(--surface-2);color:var(--muted);
@@ -456,13 +551,32 @@ body.portaria .btn-novo{display:none!important}
 .form-msg.ok{background:var(--green-soft);color:var(--green-txt);border:1px solid rgba(34,197,94,.35)}
 .form-msg.erro{background:var(--red-soft);color:var(--red-txt);border:1px solid rgba(230,25,46,.35)}
 
-/* ============================== TOAST ============================== */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
-  background:var(--pop);border:1px solid var(--border-2);color:var(--text);padding:13px 20px;border-radius:12px;
-  font-size:13.5px;font-weight:600;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.25s;z-index:200;display:flex;align-items:center;gap:9px}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.toast.ok{border-color:rgba(34,197,94,.5)} .toast.ok::before{content:"✓";color:var(--green-txt)}
-.toast.err{border-color:rgba(230,25,46,.5)} .toast.err::before{content:"✕";color:var(--red-txt)}
+/* ============================== TOAST ==============================
+   Recado no pé da tela. Com ação (Desfazer) ele aceita clique e mostra uma
+   barra com o tempo que resta. */
+.toast{position:fixed;bottom:24px;left:50%;z-index:200;max-width:min(560px,calc(100vw - 32px));
+  transform:translateX(-50%) translateY(24px) scale(.97);
+  display:flex;align-items:center;gap:11px;overflow:hidden;
+  background:var(--pop);border:1px solid var(--border-2);color:var(--text);
+  padding:12px 16px 13px;border-radius:14px;font-size:13.5px;font-weight:600;line-height:1.4;
+  box-shadow:var(--shadow);opacity:0;pointer-events:none;visibility:hidden;
+  transition:opacity .28s var(--ease),transform .34s var(--ease-out),visibility 0s linear .34s}
+.toast.show{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0) scale(1);transition-delay:0s}
+.toast.com-acao.show{pointer-events:auto}
+.toast-ico{flex-shrink:0;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:800;background:var(--green-soft);color:var(--green-txt)}
+.toast.err .toast-ico{background:var(--red-soft);color:var(--red-txt)}
+.toast.ok{border-color:rgba(34,197,94,.45)} .toast.err{border-color:rgba(230,25,46,.5)}
+.toast-msg{min-width:0;overflow-wrap:anywhere}
+.toast-acao{flex-shrink:0;margin-left:4px;padding:7px 12px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--border-2);background:var(--surface-2);color:var(--text-forte);
+  font-family:inherit;font-size:12.5px;font-weight:800;transition:background .15s var(--ease),transform .12s var(--ease)}
+.toast-acao:hover{background:var(--surface)} .toast-acao:active{transform:scale(.96)}
+.toast-barra{position:absolute;left:0;bottom:0;height:2px;width:100%;transform-origin:left;
+  background:var(--green);opacity:.7}
+.toast.err .toast-barra{background:var(--red-2)}
+.toast.show .toast-barra{animation:toastTempo linear forwards}
+@keyframes toastTempo{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 
 /* Foco nos campos que zeram o outline por conta própria (.search input, .inp).
    A regra genérica lá de cima usa :where() e perde para esses seletores —
@@ -573,3 +687,121 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
 .equipe-papel:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
 .equipe-papel:disabled{opacity:.5;cursor:wait}
 .equipe-papel-txt{flex:none;font-size:12.5px;color:var(--muted)}
+
+
+/* ============================== MOVIMENTO E POLIMENTO ==============================
+   Duas regras da casa, para não reintroduzir defeito já medido neste projeto:
+   1) animation-fill-mode é SEMPRE "backwards" nas entradas. Com "both/forwards" o
+      último quadro (transform:none) fica grudado e mata o hover que levanta o cartão.
+   2) Toda transição aqui morre durante a troca de tema (:root[data-trocando-tema]),
+      senão o Chrome congela a cor antiga — ver o comentário no topo do arquivo. */
+::selection{background:rgba(230,25,46,.22)}
+.btn,.btn-novo,.act,.icon-btn,.pilula,.tab,.tema-toggle,.nav-item,.toast-acao{-webkit-tap-highlight-color:transparent}
+.btn,.icon-btn,.pilula{transition:background .16s var(--ease),color .16s var(--ease),border-color .16s var(--ease),
+  transform .12s var(--ease),filter .16s var(--ease),box-shadow .16s var(--ease)}
+.btn:active,.icon-btn:active,.pilula:active,.btn-entrar:active{transform:scale(.97)}
+.btn-novo{transition:transform .18s var(--ease),filter .18s var(--ease),box-shadow .18s var(--ease)}
+.btn-novo:hover{box-shadow:0 12px 28px rgba(230,25,46,.5)}
+.btn-novo:active{transform:scale(.97)}
+.nav-item.active::before{animation:navTraco .32s var(--ease-out) backwards}
+@keyframes navTraco{from{transform:scaleY(0);opacity:0}}
+.table td{transition:background .15s var(--ease)}
+.modal{animation:pop .28s var(--ease-out)}
+.modal-overlay.open{animation:veu .2s ease}
+@keyframes veu{from{opacity:0}}
+
+/* abas do dia: o traço vermelho DESLIZA de uma aba para a outra (.tab-ink é
+   criado pelo JS; sem JS, a aba ativa continua com o traço fixo de sempre) */
+.tabs-hoje{position:relative}
+.tabs-hoje.com-tinta .tab.active::after{display:none}
+.tab-ink{position:absolute;left:0;top:0;height:3px;border-radius:3px;background:var(--red-2);pointer-events:none;
+  width:var(--ink-w,0);transform:translate(var(--ink-x,0),var(--ink-y,0));
+  transition:transform .36s var(--ease-out),width .36s var(--ease-out)}
+.tab svg{width:15px;height:15px}
+.tab-num{transition:background .2s var(--ease),color .2s var(--ease)}
+
+/* entrada das telas e das listas */
+@keyframes sobe{from{opacity:0;transform:translateY(12px)}}
+.view.entrando > .hero-dia,.view.entrando > .toolbar,.view.entrando > .panel,
+.view.entrando > .cols > .panel,.view.entrando > .kpi-row,.view.entrando > .pilulas{
+  animation:sobe .5s var(--ease-out) backwards}
+.view.entrando > .cols > .panel:nth-child(1){animation-delay:.12s}
+.view.entrando > .cols > .panel:nth-child(2){animation-delay:.18s}
+.view.entrando > .panel{animation-delay:.08s}
+.view.entrando .stat{animation:sobe .5s var(--ease-out) backwards}
+.view.entrando .stat:nth-child(1){animation-delay:.04s}
+.view.entrando .stat:nth-child(2){animation-delay:.09s}
+.view.entrando .stat:nth-child(3){animation-delay:.14s}
+.view.entrando .stat:nth-child(4){animation-delay:.19s}
+.view.entrando .stat:nth-child(5){animation-delay:.24s}
+.lista-anim > *{animation:sobe .4s var(--ease-out) backwards}
+.lista-anim > :nth-child(2){animation-delay:.04s}
+.lista-anim > :nth-child(3){animation-delay:.08s}
+.lista-anim > :nth-child(4){animation-delay:.12s}
+.lista-anim > :nth-child(5){animation-delay:.16s}
+.lista-anim > :nth-child(6){animation-delay:.2s}
+.lista-anim > :nth-child(n+7){animation-delay:.24s}
+
+/* esqueleto: o formato da tela aparece na hora; o conteúdo chega por cima */
+.skel{position:relative;overflow:hidden;border-radius:10px;background:var(--surface-2)}
+.skel::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,var(--surface-2),transparent);animation:brilho 1.25s infinite}
+@keyframes brilho{to{transform:translateX(100%)}}
+.esqueleto{display:flex;flex-direction:column;gap:18px}
+.skel-stat{min-height:122px;border-radius:18px}
+.skel-cartao{display:flex;gap:16px;padding:16px;border:1px solid var(--border);border-radius:16px;background:var(--panel-3)}
+.skel-linhas{flex:1;display:grid;gap:9px;align-content:start}
+
+/* duas colunas estreitas: os selos descem para baixo do nome (lado a lado eles
+   deixavam ~140px para o nome do cliente) */
+@media (min-width:1025px) and (max-width:1240px){
+  .appt-head{flex-direction:column;gap:8px}
+  .appt-badges{justify-content:flex-start;max-width:none}
+}
+/* cards estreitos (KPIs do CRM em 4 colunas): palavra longa + ícone não cabem */
+@media (max-width:1100px){
+  .kpi-row .stat .ico{display:none}
+}
+@media (max-width:640px){
+  /* topo compacto: no celular o endereco e o slogan comiam meia tela */
+  .topbar{padding:12px 16px;gap:10px}
+  .company-logo{width:38px;height:38px;border-radius:10px;font-size:12px}
+  .company-title h1{font-size:16.5px}
+  .company-sub{display:none}
+  .btn-novo{width:100%;justify-content:center;padding:10px 14px}
+  .hero-titulo{font-size:24px}
+  .hero-prox{width:100%}
+  .hero-prox .h{font-size:32px}
+  /* duas colunas estreitas: palavra longa + icone nao cabem — fica a barra colorida */
+  .stat .ico{display:none}
+  .stat .lbl{font-size:10.5px;letter-spacing:.6px}
+  /* abas do dia em COLUNAS IGUAIS, com o número em cima do nome: as três cabem
+     sempre, sem rolar de lado (rolando, a 3ª ficava escondida e sem pista) e sem
+     empilhar (empilhadas elas comiam a tela) */
+  .tabs-hoje{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:0;padding:0 6px}
+  .tabs-hoje .tab{flex-direction:column;justify-content:center;gap:4px;min-width:0;
+    padding:9px 4px 12px;font-size:12px;line-height:1.15;text-align:center}
+  .tabs-hoje .tab svg{display:none}
+  .tabs-hoje .tab-num{order:-1}
+  .stat{min-height:108px;padding:14px 14px 14px 17px}
+  .stat .num{font-size:44px}
+  .panel-body{padding:12px}
+  .appt{grid-template-columns:minmax(0,1fr);gap:10px 0;padding:14px 14px 14px 18px}
+  .appt-when{flex-direction:row;align-items:baseline;gap:10px;min-width:0;padding:0 0 10px;
+    border-right:0;border-bottom:1px dashed var(--border-2)}
+  .appt-hora{font-size:32px}
+  .appt-head{flex-direction:column;gap:8px}
+  .appt-badges{justify-content:flex-start;max-width:none}
+  .appt-actions .act:not(.ico){flex:1 1 auto;justify-content:center}
+  .toast{left:12px;right:12px;max-width:none;transform:translateY(24px) scale(.97)}
+  .toast.show{transform:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-delay:0s!important;
+    animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
+/* divisor "forte": muda de seção (A seguir / Já passaram); o comum muda de dia */
+.lista-sep.forte{margin-top:12px;font-size:11.5px;color:var(--text)}
+.lista-sep.forte:first-child{margin-top:0}
+.search.larga{flex:1 1 320px;max-width:640px}

@@ -587,7 +587,7 @@ async function api(req, res, url) {
   const ehAdmin = usuario?.papel === 'admin';
 
   /* Papel 'agenda' (ex.: Franklin): entra SÓ para marcar presença. Vê a agenda
-     de hoje e aperta Compareceu / Não veio / Veio e não fechou — e mais nada. Sem métricas, sem
+     de hoje e aperta Compareceu / Não veio — e mais nada. Sem métricas, sem
      clientes, sem WhatsApp, sem histórico. A lista do que ele PODE é esta: */
   const soPresenca = usuario?.papel === 'agenda';
   if (soPresenca) {
@@ -799,16 +799,24 @@ async function api(req, res, url) {
       // senão um "Não veio" corrigido para isto ficava com o selo "Não veio" preso.
       nao_fechou:      { status: 'nao_fechou', compareceu: true },
       aguardando:      { status: 'aguardando', compareceu: null },
-      cancelado:       { status: 'cancelado' },
+      // cancelado = a visita não aconteceu: zera o bit, senão um cancelado que um
+      // dia teve compareceu=true contava em "Compareceram" e caía em "Na oficina".
+      cancelado:       { status: 'cancelado', compareceu: null },
     };
     const ch = map[body.status];
     if (!ch) return bad(res, 'Status inválido.');
-    // Quem só marca presença aperta Compareceu, Não veio ou Veio e não fechou — nada além disso.
-    if (soPresenca && !['compareceu', 'nao_veio', 'nao_fechou'].includes(body.status)) {
+    // Quem só marca presença aperta Compareceu ou Não veio — nada além disso.
+    // (Fechar ou não a venda é desfecho comercial: fica com quem usa o Início.)
+    if (soPresenca && !['compareceu', 'nao_veio'].includes(body.status)) {
       return send(res, 403, { erro: 'Seu acesso só permite marcar se o cliente veio ou não.' });
     }
     const a = await dados.obterAgendamento(id);
     if (!a) return notFound(res);
+    // Presença não mexe em quem JÁ tem desfecho comercial: um "Compareceu" aqui
+    // desfaria o "Veio e fechou" do atendimento e reabriria a venda no CRM.
+    if (soPresenca && ['concluido', 'nao_fechou'].includes(a.status)) {
+      return send(res, 403, { erro: 'Este cliente já tem o desfecho registrado pelo atendimento — só o painel principal pode mudar.' });
+    }
     /* "Não veio" manda o aviso de ausência NA HORA — uma vez só. O carimbo
        no_show_notificado_em vai JUNTO com a troca de status: assim o gatilho
        do banco (edge function) vê o campo preenchido e não dispara também,
