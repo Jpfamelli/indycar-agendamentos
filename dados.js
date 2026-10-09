@@ -42,6 +42,7 @@ const T = {
   conversas: 'conversas',
   // Do Comunicar (ex-Pós-venda): a Agenda só LÊ — quem grava é ele.
   envios: 'posvenda_envios',
+  respostas: 'posvenda_respostas',
   regrasRetorno: 'comunicar_regras_retorno',
   // Do vigia: linha única (id=true) com o problema atual do sistema, se houver.
   vigia: 'vigia_estado',
@@ -329,9 +330,16 @@ const SEL_AGENDAMENTO = 'select=*,consultores(nome,cor)';
 // AGENDAMENTOS
 // ============================================================================
 
-export async function listarAgendamentos({ data, status, q } = {}) {
+export async function listarAgendamentos({ data, status, q, de, ate } = {}) {
   const p = new URLSearchParams(SEL_AGENDAMENTO);
   if (data) p.set('data', `eq.${data}`);
+  // intervalo (visão Semana/Mês): só o período pedido, não a tabela inteira
+  else if (de || ate) {
+    const d1 = dataBanco(de), d2 = dataBanco(ate);
+    if (d1 && d2) p.set('and', `(data.gte.${d1},data.lte.${d2})`);
+    else if (d1) p.set('data', `gte.${d1}`);
+    else if (d2) p.set('data', `lte.${d2}`);
+  }
   // status inválido viraria erro 22P02 no enum — melhor devolver lista vazia
   if (status) {
     if (!STATUS_VALIDOS.has(status)) return [];
@@ -340,7 +348,11 @@ export async function listarAgendamentos({ data, status, q } = {}) {
   if (q) {
     const t = termoBusca(q);
     // LIKE do SQLite era case-insensitive; no Postgres precisa ser ilike
-    p.set('or', `(cliente_nome.ilike.${t},placa.ilike.${t},veiculo.ilike.${t},telefone.ilike.${t})`);
+    // serviço também entra; e só os dígitos acham o telefone gravado com máscara pelo CRM
+    const filtros = [`cliente_nome.ilike.${t}`, `placa.ilike.${t}`, `veiculo.ilike.${t}`, `telefone.ilike.${t}`, `servico.ilike.${t}`];
+    const padraoTel = padraoTelefone(q);
+    if (padraoTel) filtros.push(`telefone.ilike.${padraoTel}`);
+    p.set('or', `(${filtros.join(',')})`);
   }
   p.set('order', 'data.desc,hora.asc');
   const linhas = await selecionarTudo(T.agendamentos, p);
@@ -529,7 +541,7 @@ export async function lembretesPorAgendamento(ids) {
   const validos = [...new Set((ids || []).filter(ehUuid))].slice(0, 300);
   if (!validos.length) return mapa;
   const consultar = async (lote, comResposta) => {
-    const p = new URLSearchParams(`select=agendamento_id,status${comResposta ? ',resposta_tipo' : ''}`);
+    const p = new URLSearchParams(`select=agendamento_id,status${comResposta ? ',resposta_tipo,resposta' : ''}`);
     p.set('tipo', 'eq.lembrete');
     p.set('agendamento_id', `in.(${lote.join(',')})`);
     p.set('order', 'created_at.desc');
@@ -544,7 +556,9 @@ export async function lembretesPorAgendamento(ids) {
     }
     for (const l of linhas) {
       if (!mapa.has(l.agendamento_id)) {   // o mais recente manda (order=created_at.desc)
-        mapa.set(l.agendamento_id, { status: l.status ?? null, resposta: l.resposta_tipo ?? null });
+        mapa.set(l.agendamento_id, { status: l.status ?? null, resposta: l.resposta_tipo ?? null,
+          // o que o cliente escreveu (cortado): aparece ao passar o mouse no selo do cartão
+          texto: l.resposta ? String(l.resposta).slice(0, 160) : null });
       }
     }
   }
@@ -1358,30 +1372,46 @@ export async function metricasCrm() {
   const naoVieram = linhas.filter((a) => a.compareceu === false).length;
   const concluidos = linhas.filter((a) => a.status === 'concluido').length;
 
+  /* Por origem: além do total, quantos faltaram — a TAXA DE FALTA por canal
+     mostra de onde vem o cliente que marca e não aparece. A taxa é sobre quem
+     já tem desfecho de visita (veio ou faltou), não sobre o que ainda vai acontecer. */
   const contagemOrigem = new Map();
   for (const a of linhas) {
     const rotulo = origemTela(a.origem);
-    contagemOrigem.set(rotulo, (contagemOrigem.get(rotulo) || 0) + 1);
+    const o = contagemOrigem.get(rotulo) || { total: 0, faltas: 0, vieram: 0, fechou: 0 };
+    o.total++;
+    if (a.status === 'nao_veio' || a.compareceu === false) o.faltas++;
+    else if (a.compareceu === true || ['concluido', 'nao_fechou'].includes(a.status)) o.vieram++;
+    if (a.status === 'concluido') o.fechou++;
+    contagemOrigem.set(rotulo, o);
   }
+  const taxa = (parte, todo) => (todo ? Math.round((parte / todo) * 100) : 0);
   const porOrigem = [...contagemOrigem.entries()]
-    .map(([origem, total]) => ({ origem, total }))
+    .map(([origem, o]) => ({ origem, ...o, taxaFalta: taxa(o.faltas, o.faltas + o.vieram), taxaFechamento: taxa(o.fechou, o.vieram) }))
     .sort((x, y) => y.total - x.total);
 
   // LEFT JOIN: todo consultor aparece, mesmo com zero agendamentos
   const porConsultor = consultores.map((c) => {
     const meus = linhas.filter((a) => a.consultor_id === c.id);
+    const vieram = meus.filter((a) => a.compareceu === true || ['concluido', 'nao_fechou'].includes(a.status)).length;
+    const faltas = meus.filter((a) => a.status === 'nao_veio' || a.compareceu === false).length;
+    const concluidos = meus.filter((a) => a.status === 'concluido').length;
     return {
-      nome: c.nome,
-      total: meus.length,
-      concluidos: meus.filter((a) => a.status === 'concluido').length,
+      nome: c.nome, ativo: c.ativo,
+      total: meus.length, vieram, faltas, concluidos,
+      naoFechou: meus.filter((a) => a.status === 'nao_fechou').length,
+      taxaFechamento: taxa(concluidos, vieram),
+      taxaFalta: taxa(faltas, faltas + vieram),
     };
   }).sort((x, y) => y.total - x.total);
+  // agendamento sem consultor também conta: é o buraco que o dono quer ver
+  const semConsultor = linhas.filter((a) => !a.consultor_id).length;
 
   return {
     total, compareceram, naoVieram, concluidos,
     taxaComparecimento: total ? Math.round((compareceram / total) * 100) : 0,
     taxaConversao: compareceram ? Math.round((concluidos / compareceram) * 100) : 0,
-    porOrigem, porConsultor,
+    porOrigem, porConsultor, semConsultor,
   };
 }
 
@@ -1394,4 +1424,236 @@ export async function duracoesDeServicos() {
     porId.set(s.id, Number(s.duracao_min) || 60);
   }
   return { porNome, porId };
+}
+
+// ============================================================================
+// RODADA 2 (09/10/2026) — conectividade, histórico, horários livres, busca
+// ============================================================================
+
+/**
+ * Padrão ilike que acha um telefone gravado COM ou SEM máscara pelos 8 últimos
+ * dígitos: '(12) 99141-5355' e '12991415355' casam com '*9141*5355*'. Menos de
+ * 8 dígitos: procura os dígitos seguidos. Menos de 4: nada (pegaria meio banco).
+ */
+export function padraoTelefone(q) {
+  const d = soDigitos(q);
+  if (d.length < 4) return null;
+  if (d.length < 8) return `*${d}*`;
+  const ult = d.slice(-8);
+  return `*${ult.slice(0, 4)}*${ult.slice(4)}*`;
+}
+
+/** Os dois jeitos de um telefone estar gravado: só nacional e com 55 na frente. */
+export function variantesTelefone(t) {
+  const n = telefoneNacional(t);
+  if (!n || n.length < 10) return [];
+  return [n, '55' + n];
+}
+
+const mesmoTelefone = (a, b) => {
+  const x = telefoneNacional(a), y = telefoneNacional(b);
+  return !!x && x === y;
+};
+
+/** Filtro or=(...) que acha os agendamentos de um cliente pela ficha OU pelo telefone (com/sem máscara). */
+function filtroDoCliente(clienteId, telefone) {
+  const f = [];
+  if (ehUuid(clienteId)) f.push(`cliente_id.eq.${clienteId}`);
+  const pt = telefone ? padraoTelefone(telefoneNacional(telefone)) : null;
+  if (pt && soDigitos(telefone).length >= 10) f.push(`telefone.ilike.${pt}`);
+  return f.length ? `(${f.join(',')})` : null;
+}
+
+/**
+ * Histórico do cliente na Agenda: os últimos agendamentos (qualquer situação),
+ * do mais recente para o mais antigo. Casa pela ficha e pelo telefone, e
+ * confere o telefone em JS (o padrão ilike pelos 8 últimos dígitos é largo).
+ */
+export async function historicoDoCliente({ cliente_id, telefone } = {}, limite = 20) {
+  const or = filtroDoCliente(cliente_id, telefone);
+  if (!or) return [];
+  const p = new URLSearchParams(SEL_AGENDAMENTO);
+  p.set('or', or);
+  p.set('order', 'data.desc,hora.desc');
+  p.set('limit', String(Math.min(60, limite * 2)));
+  const linhas = await selecionar(T.agendamentos, p);
+  return linhas
+    .filter((r) => (ehUuid(cliente_id) && r.cliente_id === cliente_id) || (telefone && mesmoTelefone(r.telefone, telefone)))
+    .slice(0, limite)
+    .map(lerAgendamento);
+}
+
+/* Rótulos dos envios do Comunicar, em português de oficina. */
+const TIPO_ENVIO = {
+  lembrete: 'Lembrete do horário', aniversario: 'Feliz aniversário', revisao: 'Lembrete de revisão',
+  pos_venda: 'Pós-venda', posvenda: 'Pós-venda', satisfacao: 'Pesquisa de satisfação', retorno: 'Convite de retorno',
+  ausencia: 'Aviso de falta', avulsa: 'Mensagem avulsa', reativacao: 'Reativação',
+};
+export const rotuloEnvio = (tipo) => TIPO_ENVIO[tipo] || (tipo ? String(tipo).replace(/_/g, ' ') : 'Mensagem');
+
+/**
+ * Mensagens automáticas que o COMUNICAR mandou para o cliente e o que ele
+ * respondeu (posvenda_envios) + as notas de satisfação (posvenda_respostas).
+ * A Agenda só LÊ. Qualquer falha devolve listas vazias: é um extra da ficha.
+ */
+export async function mensagensDoCliente({ cliente_id, telefone } = {}, limite = 15) {
+  const f = [];
+  if (ehUuid(cliente_id)) f.push(`cliente_id.eq.${cliente_id}`);
+  for (const v of variantesTelefone(telefone)) f.push(`telefone.eq.${v}`);
+  if (!f.length) return { envios: [], respostas: [] };
+  const pe = new URLSearchParams('select=id,tipo,status,corpo,enviar_em,enviado_em,resposta,resposta_tipo,respondido_em,agendamento_id,created_at');
+  pe.set('or', `(${f.join(',')})`);
+  pe.set('order', 'created_at.desc');
+  pe.set('limit', String(limite));
+  const pr = new URLSearchParams('select=id,satisfeito,nota,comentario,created_at,agendamento_id');
+  if (ehUuid(cliente_id)) { pr.set('cliente_id', `eq.${cliente_id}`); pr.set('order', 'created_at.desc'); pr.set('limit', '5'); }
+  const [envios, respostas] = await Promise.all([
+    selecionar(T.envios, pe).catch(() => []),
+    ehUuid(cliente_id) ? selecionar(T.respostas, pr).catch(() => []) : Promise.resolve([]),
+  ]);
+  return {
+    envios: envios.map((e) => ({
+      id: e.id, tipo: e.tipo, rotulo: rotuloEnvio(e.tipo), status: e.status ?? null,
+      // o texto vai cortado: a ficha mostra um resumo, não o histórico inteiro do WhatsApp
+      corpo: e.corpo ? String(e.corpo).slice(0, 280) : null,
+      quando: e.enviado_em || e.enviar_em || e.created_at || null,
+      resposta: e.resposta ? String(e.resposta).slice(0, 280) : null,
+      resposta_tipo: e.resposta_tipo ?? null, respondido_em: e.respondido_em ?? null,
+      agendamento_id: e.agendamento_id ?? null,
+    })),
+    respostas: respostas.map((r) => ({
+      id: r.id, satisfeito: r.satisfeito, nota: r.nota ?? null,
+      comentario: r.comentario ? String(r.comentario).slice(0, 280) : null, quando: r.created_at,
+    })),
+  };
+}
+
+/**
+ * Link de entrada (?tel=&cliente=) vindo do Atendimento/CRM/Comunicar.
+ * Acha a ficha pelo id; senão pelo telefone (telefone_e164 = só nacional, que
+ * já casa com quem gravou com ou sem 55). Devolve a ficha (ou null) e os
+ * agendamentos dele — os pendentes à parte, do mais próximo ao mais distante.
+ */
+export async function abrirPeloLink({ cliente, tel } = {}) {
+  let c = null;
+  if (ehUuid(cliente)) c = await obterCliente(cliente).catch(() => null);
+  const nacional = telefoneNacional(tel);
+  if (!c && nacional && nacional.length >= 10) {
+    const p = new URLSearchParams('select=*');
+    p.set('telefone_e164', `eq.${nacional}`);
+    p.set('limit', '1');
+    c = lerCliente(await selecionarUm(T.clientes, p).catch(() => null));
+  }
+  const telefone = c?.telefone || nacional || null;
+  const agendamentos = await historicoDoCliente({ cliente_id: c?.id, telefone }, 20).catch(() => []);
+  const pendentes = agendamentos.filter((a) => STATUS_OCUPA.has(a.status))
+    .sort((x, y) => `${x.data} ${x.hora}`.localeCompare(`${y.data} ${y.hora}`));
+  return { cliente: c, telefone: nacional || telefoneNacional(c?.telefone) || null, pendentes, agendamentos };
+}
+
+/* ---- horários livres ("✨ Sugerir horário") --------------------------------
+   Calculado AQUI, sem IA e sem outro sistema: seg–sáb, das 8h às 17h (último
+   começo sugerido; a oficina fecha 17h30), em passos de 30 min. Cada horário
+   ativo ocupa a janela de 30 min em que começa; a janela comporta tantos carros
+   quantos consultores ativos houver (a recepção é quem limita). */
+export const EXPEDIENTE = { abre: 8 * 60, ultimoInicio: 17 * 60, passo: 30, dias: [1, 2, 3, 4, 5, 6] };
+const STATUS_OCUPA = new Set(['aguardando', 'confirmado', 'compareceu', 'em_atendimento']);
+
+const minDe = (h) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(h || '')); return m ? +m[1] * 60 + +m[2] : null; };
+const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+const somaDias = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const diaDaSemana = (iso) => new Date(`${iso}T12:00:00Z`).getUTCDay();
+
+/**
+ * Função PURA (testada): as próximas `quantos` janelas livres a partir de `desde`.
+ *   agora         { data:'YYYY-MM-DD', min } — hoje só sugere daqui a 30 min em diante
+ *   agendamentos  [{data, hora, status, consultor_id}]
+ *   capacidade    quantos carros por janela (consultores ativos; mínimo 1)
+ *   consultor_id  se informado, conta só os horários DELE e a capacidade vira 1
+ *   ignorar       id de um agendamento que não ocupa (o próprio, ao remarcar)
+ * Espalha as sugestões: no máximo 2 por dia e com 90 min entre elas, para a
+ * pessoa ter escolha de verdade (manhã/tarde/outro dia), não 8h, 8h30 e 9h.
+ */
+export function horariosLivres({ desde, agora, agendamentos = [], capacidade = 1, consultor_id = null, ignorar = null,
+  quantos = 3, diasAFrente = 14, porDia = 2, intervalo = 90 } = {}) {
+  const inicio = desde && (!agora?.data || desde >= agora.data) ? desde : (agora?.data || desde);
+  if (!inicio || !/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return [];
+  const cap = consultor_id ? 1 : Math.max(1, Number(capacidade) || 1);
+  const ocupacao = new Map();               // 'data|janela' -> quantos
+  for (const a of agendamentos) {
+    if (!a || !STATUS_OCUPA.has(a.status) || (ignorar && a.id === ignorar)) continue;
+    if (consultor_id && a.consultor_id && a.consultor_id !== consultor_id) continue;
+    const m = minDe(a.hora); if (m === null) continue;
+    const jan = Math.floor(m / EXPEDIENTE.passo) * EXPEDIENTE.passo;
+    const k = `${a.data}|${jan}`;
+    ocupacao.set(k, (ocupacao.get(k) || 0) + 1);
+  }
+  const saida = [];
+  for (let n = 0; n <= diasAFrente && saida.length < quantos; n++) {
+    const d = somaDias(inicio, n);
+    if (!EXPEDIENTE.dias.includes(diaDaSemana(d))) continue;
+    const corte = agora?.data === d ? agora.min + 30 : -1;
+    let noDia = 0, ultimo = -Infinity;
+    for (let t = EXPEDIENTE.abre; t <= EXPEDIENTE.ultimoInicio && saida.length < quantos && noDia < porDia; t += EXPEDIENTE.passo) {
+      if (t < corte || t - ultimo < intervalo) continue;
+      const usados = ocupacao.get(`${d}|${t}`) || 0;
+      if (usados >= cap) continue;
+      saida.push({ data: d, hora: hhmm(t), livres: cap - usados, capacidade: cap });
+      noDia++; ultimo = t;
+    }
+  }
+  return saida;
+}
+
+/** Horários livres de verdade: lê os agendamentos ativos dos próximos 15 dias e os consultores ativos. */
+export async function sugerirHorarios({ data, consultor_id, ignorar } = {}) {
+  const hojeIso = hoje();
+  const pedido = dataBanco(data);
+  const desde = pedido && pedido >= hojeIso ? pedido : hojeIso;
+  const ate = somaDias(desde, 15);
+  const p = new URLSearchParams('select=id,data,hora,status,consultor_id');
+  p.set('and', `(data.gte.${desde},data.lte.${ate})`);
+  p.set('status', 'in.(aguardando,confirmado,compareceu,em_atendimento)');
+  p.set('order', 'data.asc,hora.asc');
+  p.set('limit', '1000');
+  const [linhas, ativos] = await Promise.all([
+    selecionar(T.agendamentos, p),
+    contar(T.consultores, 'ativo=is.true').catch(() => 1),
+  ]);
+  const capacidade = Math.max(1, Number(ativos) || 1);
+  const [h, m] = agoraHHMM().split(':').map(Number);
+  return {
+    capacidade,
+    sugestoes: horariosLivres({
+      desde, agora: { data: hojeIso, min: h * 60 + m }, capacidade,
+      consultor_id: ehUuid(consultor_id) ? consultor_id : null, ignorar: ehUuid(ignorar) ? ignorar : null,
+      agendamentos: linhas.map((r) => ({ ...r, hora: horaCurta(r.hora) })),
+    }),
+  };
+}
+
+/** Busca global (Ctrl+K): agendamentos e clientes de uma vez, poucos de cada. */
+export async function buscaGlobal(q) {
+  const termo = String(q ?? '').trim().slice(0, 80);
+  if (termo.length < 2) return { agendamentos: [], clientes: [] };
+  const t = termoBusca(termo);
+  const pa = new URLSearchParams(SEL_AGENDAMENTO);
+  const fa = [`cliente_nome.ilike.${t}`, `placa.ilike.${t}`, `veiculo.ilike.${t}`, `servico.ilike.${t}`];
+  const pt = padraoTelefone(termo);
+  if (pt) fa.push(`telefone.ilike.${pt}`);
+  pa.set('or', `(${fa.join(',')})`);
+  pa.set('order', 'data.desc,hora.desc');
+  pa.set('limit', '12');
+  const pc = new URLSearchParams('select=*');
+  const fc = [`nome.ilike.${t}`, `placa.ilike.${t}`, `carro_modelo.ilike.${t}`];
+  const dig = soDigitos(termo);
+  if (dig.length >= 4) fc.push(`telefone_e164.ilike.*${telefoneNacional(dig)}*`);
+  pc.set('or', `(${fc.join(',')})`);
+  pc.set('order', 'updated_at.desc.nullslast');
+  pc.set('limit', '8');
+  const [ag, cl] = await Promise.all([
+    selecionar(T.agendamentos, pa).catch(() => []),
+    selecionar(T.clientes, pc).catch(() => []),
+  ]);
+  return { agendamentos: ag.map(lerAgendamento), clientes: cl.map(lerCliente) };
 }

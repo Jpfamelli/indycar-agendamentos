@@ -25,6 +25,26 @@ const NUMERO_DA_EMPRESA = process.env.WHATSAPP_NUMERO || '5512996830272';
 // Os ids agora são uuid: as rotas de item não podem mais casar apenas dígitos.
 const UUID = '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})';
 
+/* Marca da versão no ar — aparece em /api/versao e no app.js (VERSAO_APP).
+   Serve para conferir, depois do deploy, que o Render subiu ESTE código. */
+const VERSAO = '2026-10-09-r2';
+
+/* Cache curtinho na memória do servidor para as leituras mais pesadas (painel,
+   serviços). Qualquer gravação (POST/PUT/PATCH/DELETE) ou importação do
+   CodeWords troca a "geração" e invalida tudo na hora: ninguém vê número velho
+   depois de marcar um desfecho. */
+let _geracao = 0;
+const _memo = new Map();   // chave -> { geracao, ate, valor }
+async function lembrar(chave, ms, fn) {
+  const m = _memo.get(chave);
+  if (m && m.geracao === _geracao && m.ate > Date.now()) return m.valor;
+  const valor = await fn();
+  if (_memo.size > 50) _memo.clear();
+  _memo.set(chave, { geracao: _geracao, ate: Date.now() + ms, valor });
+  return valor;
+}
+const invalidarCache = () => { _geracao++; };
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -533,7 +553,7 @@ async function usuarioLogado(req) {
    /api/primeiro-acesso entra aqui porque, por definição, ainda não existe
    ninguém para fazer login — ela mesma se fecha assim que houver um perfil. */
 const ROTAS_SEM_LOGIN = new Set([
-  '/api/config', '/api/agenda.ics', '/api/whatsapp/webhook', '/api/primeiro-acesso',
+  '/api/config', '/api/agenda.ics', '/api/whatsapp/webhook', '/api/primeiro-acesso', '/api/versao',
 ]);
 
 /* Freio por chave (IP ou usuário): um token válido — ou um script distraído —
@@ -583,6 +603,10 @@ async function api(req, res, url) {
 
   // A tela precisa saber onde fica o Supabase para montar o login.
   // A chave publicável é pública por design.
+  // Só a marca da versão (nada de dado): para conferir o deploy sem login.
+  if (pathname === '/api/versao' && m === 'GET')
+    return send(res, 200, { versao: VERSAO }, { 'Cache-Control': 'no-store' });
+
   if (pathname === '/api/config' && m === 'GET') {
     // Só vem do ambiente: 30 s de cache no navegador evita bater aqui a cada abertura de aba.
     return send(res, 200, {
@@ -663,6 +687,7 @@ async function api(req, res, url) {
   }
 
   const body = (m === 'POST' || m === 'PUT' || m === 'PATCH') ? await readBody(req) : {};
+  if (m !== 'GET' && m !== 'HEAD') invalidarCache();
 
   /* ---- saúde do sistema (faixa no topo da tela) ----
      Lê a linha única de vigia_estado, que o vigia mantém. Hoje: problema
@@ -782,9 +807,13 @@ async function api(req, res, url) {
     // Essencial no Render free, que "dorme" e não roda o timer de importação.
     if (Date.now() - _ultimaImportacao > 60000) {
       _ultimaImportacao = Date.now();
-      try { await Promise.race([importarAgendamentosCW(), new Promise((r) => setTimeout(r, 8000))]); } catch {}
+      try {
+        await Promise.race([importarAgendamentosCW(), new Promise((r) => setTimeout(r, 8000))]);
+      } catch {}
+      invalidarCache();          // a importação pode ter trazido agendamento novo
     }
-    return ok(res, await dados.estatisticas());
+    // 10 s de cache: várias abas/pessoas abrindo o Início não viram 7 consultas cada
+    return ok(res, await lembrar('dashboard', 10_000, () => dados.estatisticas()));
   }
 
   // ---- agendamentos
@@ -795,7 +824,11 @@ async function api(req, res, url) {
       const lista = await dados.listarAgendamentos({ data: hoje() });
       return ok(res, lista.map(({ telefone, ...resto }) => resto));
     }
+    const de = searchParams.get('de'), ate = searchParams.get('ate');
+    if ((de && !dados.dataBanco(de)) || (ate && !dados.dataBanco(ate))) return bad(res, 'Período inválido: use de=AAAA-MM-DD e ate=AAAA-MM-DD.');
+    if (de && ate && dados.dataBanco(de) > dados.dataBanco(ate)) return bad(res, 'Período invertido: "de" vem depois de "ate".');
     return ok(res, await dados.listarAgendamentos({
+      de: de || undefined, ate: ate || undefined,
       data: searchParams.get('data') || undefined,
       status: searchParams.get('status') || undefined,
       q: searchParams.get('q') || undefined,
@@ -931,6 +964,42 @@ async function api(req, res, url) {
     return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia });
   }
 
+  /* ---- link de entrada do ecossistema (?tel=&cliente=) ----
+     O Atendimento, o CRM e o Comunicar abrem a Agenda com o telefone do
+     cliente. Aqui vira: ficha (se houver) + agendamentos dele. */
+  if (pathname === '/api/abrir' && m === 'GET') {
+    const tel = dados.soDigitos(texto1(searchParams.get('tel'), 20));
+    const cliente = texto1(searchParams.get('cliente'), 40).trim();
+    if (!dados.ehUuid(cliente) && tel.length < 10) return bad(res, 'Informe ?tel= com DDD ou ?cliente=<id>.');
+    return send(res, 200, await dados.abrirPeloLink({ cliente, tel }), { 'Cache-Control': 'no-store' });
+  }
+
+  // ---- histórico do cliente na Agenda e mensagens do Comunicar (modal e ficha)
+  if ((pathname === '/api/clientes/historico' || pathname === '/api/clientes/mensagens') && m === 'GET') {
+    const cliente_id = texto1(searchParams.get('cliente_id'), 40).trim();
+    const telefone = dados.soDigitos(texto1(searchParams.get('tel'), 20));
+    if (!dados.ehUuid(cliente_id) && telefone.length < 10) return ok(res, pathname.endsWith('historico') ? [] : { envios: [], respostas: [] });
+    if (pathname.endsWith('historico')) return ok(res, await dados.historicoDoCliente({ cliente_id, telefone }, 15));
+    return ok(res, await dados.mensagensDoCliente({ cliente_id, telefone }));
+  }
+
+  // ---- "✨ Sugerir horário": janelas livres calculadas aqui (sem IA, sem outro domínio)
+  if (pathname === '/api/horarios-livres' && m === 'GET') {
+    const data = searchParams.get('data');
+    if (data && !dados.dataBanco(data)) return bad(res, 'Data inválida.');
+    return send(res, 200, await dados.sugerirHorarios({
+      data: data || undefined,
+      consultor_id: searchParams.get('consultor_id') || undefined,
+      ignorar: searchParams.get('ignorar') || undefined,
+    }), { 'Cache-Control': 'no-store' });
+  }
+
+  // ---- busca global (Ctrl+K): agendamentos + clientes
+  if (pathname === '/api/busca' && m === 'GET') {
+    const q = texto1(searchParams.get('q'), 80).trim();
+    return ok(res, await dados.buscaGlobal(q));
+  }
+
   // ---- clientes
   if (pathname === '/api/clientes' && m === 'GET')
     return ok(res, await dados.listarClientes(searchParams.get('q') || undefined));
@@ -981,8 +1050,10 @@ async function api(req, res, url) {
   }
 
   // ---- serviços (Arsenal)
-  if (pathname === '/api/servicos' && m === 'GET')
-    return ok(res, await dados.listarServicos(!!searchParams.get('todos')));
+  if (pathname === '/api/servicos' && m === 'GET') {
+    const todos = !!searchParams.get('todos');
+    return ok(res, await lembrar('servicos:' + todos, 60_000, () => dados.listarServicos(todos)));
+  }
   if (pathname === '/api/servicos' && m === 'POST') {
     if (!body.nome) return bad(res, 'Informe o nome do serviço.');
     return ok(res, await dados.criarServico(body));
@@ -1330,9 +1401,15 @@ const server = http.createServer(async (req, res) => {
   cabecalhosDeSeguranca(res);
   // Log só da API, com duração — sem a query string, que pode carregar o token do ICS.
   if (url.pathname.startsWith('/api/')) {
+    // id curto por requisição: aparece no log e volta no cabeçalho X-Request-Id,
+    // para casar a reclamação "deu erro às 10h" com a linha certa do log do Render
+    const rid = Math.random().toString(36).slice(2, 8);
+    res.setHeader('X-Request-Id', rid);
     res.on('finish', () => {
       const ms = Number(process.hrtime.bigint() - inicio) / 1e6;
-      console.log(`${req.method} ${url.pathname} ${res.statusCode} ${ms.toFixed(0)}ms`);
+      const lento = ms > 2000 ? ' LENTO' : '';
+      const linha = `${req.method} ${url.pathname} ${res.statusCode} ${ms.toFixed(0)}ms [${rid}]${lento}`;
+      (res.statusCode >= 500 ? console.error : console.log)(linha);
     });
   }
   try {
@@ -1380,8 +1457,8 @@ const aviso = (onde) => (e) => console.error(`${onde}:`, e?.message || e);
 const IMPORT_MIN = Math.max(1, Number(process.env.IMPORT_INTERVALO_MIN) || 15);
 
 const TIMERS = [
-  setInterval(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000),
-  setTimeout(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), 12 * 1000),
+  setInterval(() => importarAgendamentosCW().then(invalidarCache).catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000),
+  setTimeout(() => importarAgendamentosCW().then(invalidarCache).catch(aviso('Importação CodeWords')), 12 * 1000),
 ];
 
 /* Desligamento limpo: o Render manda SIGTERM a cada deploy. Para de aceitar

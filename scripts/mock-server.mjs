@@ -16,7 +16,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { montarUltimos, hoje, agoraHHMM } from '../dados.js';
+import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional } from '../dados.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3011);
@@ -135,6 +135,45 @@ http.createServer(async (req, res) => {
   const soPresenca = PAPEL === 'agenda';
   let mm;
 
+  if (p === '/api/versao') return json(res, 200, { versao:'mock' });
+  // ---- rodada 2: link de entrada, histórico, mensagens do Comunicar, horários livres, busca
+  const tel = (v) => telefoneNacional(v) || '';
+  const doCliente = (cid, t) => AGENDA.filter(a => (cid && a.cliente_id === cid) || (t && tel(a.telefone) === tel(t)))
+    .sort((x, y) => `${y.data} ${y.hora}`.localeCompare(`${x.data} ${x.hora}`));
+  if (p === '/api/abrir') {
+    const t = tel(url.searchParams.get('tel')), cid = url.searchParams.get('cliente') || '';
+    const c = CLIENTES.find(x => x.id === cid) || (t ? CLIENTES.find(x => tel(x.telefone) === t) : null) || null;
+    const ags = doCliente(c?.id, c?.telefone || t);
+    return json(res, 200, { cliente:c, telefone: t || tel(c?.telefone) || null, agendamentos: ags,
+      pendentes: ags.filter(a => ['aguardando', 'confirmado', 'compareceu', 'em_atendimento'].includes(a.status)).sort((x, y) => `${x.data} ${x.hora}`.localeCompare(`${y.data} ${y.hora}`)) });
+  }
+  if (p === '/api/clientes/historico') return json(res, 200, doCliente(url.searchParams.get('cliente_id'), url.searchParams.get('tel')).slice(0, 15));
+  if (p === '/api/clientes/mensagens') {
+    const cid = url.searchParams.get('cliente_id'), t = tel(url.searchParams.get('tel'));
+    const c = CLIENTES.find(x => x.id === cid || (t && tel(x.telefone) === t));
+    if (!c) return json(res, 200, { envios:[], respostas:[] });
+    return json(res, 200, { envios:[
+      { id:'e1', tipo:'lembrete', rotulo:'Lembrete do horário', status:'enviado', quando:new Date(Date.now() - 864e5).toISOString(), resposta:'Confirmado, estarei aí <b>!</b>', resposta_tipo:'positiva' },
+      { id:'e2', tipo:'aniversario', rotulo:'Feliz aniversário', status:'enviado', quando:'2026-09-02T12:00:00Z', resposta:null, resposta_tipo:null },
+      { id:'e3', tipo:'revisao', rotulo:'Lembrete de revisão', status:'falhou', quando:'2026-08-20T12:00:00Z', resposta:null, resposta_tipo:null },
+    ], respostas:[{ id:'r1', satisfeito:true, nota:10, comentario:'Ótimo atendimento', quando:'2026-08-01T12:00:00Z' }] });
+  }
+  if (p === '/api/horarios-livres') {
+    const [h, mi] = agoraHHMM().split(':').map(Number);
+    return json(res, 200, { capacidade:1, sugestoes: horariosLivres({ desde: url.searchParams.get('data') || hoje(), agora:{ data:hoje(), min:h * 60 + mi },
+      agendamentos: AGENDA, capacidade:1, ignorar: url.searchParams.get('ignorar') }) });
+  }
+  if (p === '/api/busca') {
+    const q = (url.searchParams.get('q') || '').toLowerCase(), d = q.replace(/D/g, '');
+    const casa = (vals) => vals.some(x => String(x || '').toLowerCase().includes(q)) ;
+    return json(res, 200, {
+      agendamentos: AGENDA.filter(a => casa([a.cliente_nome, a.placa, a.veiculo, a.servico]) || (d.length >= 4 && tel(a.telefone).includes(d))).slice(0, 12),
+      clientes: CLIENTES.filter(c => casa([c.nome, c.placa, c.veiculo]) || (d.length >= 4 && tel(c.telefone).includes(d))).slice(0, 8) });
+  }
+  if (p === '/api/servicos') return json(res, 200, [
+    { id:'s1', nome:'Troca de Óleo de Motor', duracao_min:40, ativo:1 }, { id:'s2', nome:'Alinhamento 3D', duracao_min:45, ativo:1 },
+    { id:'s3', nome:'Revisão de Motor', duracao_min:360, ativo:1 }, { id:'s4', nome:'Freios', duracao_min:90, ativo:1 },
+    { id:'s5', nome:'Diagnóstico com Scanner', duracao_min:30, ativo:1 }]);
   if (p === '/api/config') return json(res, 200, { configurado:true, supabaseUrl:'http://mock.local', supabaseAnonKey:'mock' });
   if (p === '/api/primeiro-acesso') return json(res, 200, { aberto:false });
   // saúde: o cenário real de hoje (chave do CodeWords recusada) — ?saude=ok no HTML não existe; edite aqui para testar sem faixa
@@ -198,12 +237,16 @@ http.createServer(async (req, res) => {
   if (p === '/api/consultores') return json(res, 200, [{ id:'c1', nome:'Leonardo', cor:'#e6192e', ativo:1 }]);
   if (p === '/api/dashboard') return json(res, 200, estatisticas());
   if (p === '/api/followup') return json(res, 200, AGENDA.filter(a => ['nao_veio', 'nao_fechou'].includes(a.status)));
-  if (p === '/api/crm') return json(res, 200, { total:97, taxaComparecimento:68, taxaConversao:41, concluidos:20,
-    porOrigem:[{ origem:'WhatsApp', total:41 }, { origem:'Google', total:33 }, { origem:'Indicação', total:15 }, { origem:'Instagram', total:8 }],
-    porConsultor:[{ nome:'Leonardo', total:97, concluidos:20 }] });
+  if (p === '/api/crm') return json(res, 200, { total:97, taxaComparecimento:68, taxaConversao:41, concluidos:20, semConsultor:12,
+    porOrigem:[{ origem:'WhatsApp', total:41, faltas:9, vieram:28, fechou:12, taxaFalta:24, taxaFechamento:43 }, { origem:'Google', total:33, faltas:12, vieram:18, fechou:6, taxaFalta:40, taxaFechamento:33 },
+      { origem:'Indicação', total:15, faltas:1, vieram:13, fechou:8, taxaFalta:7, taxaFechamento:62 }, { origem:'Instagram', total:8, faltas:3, vieram:5, fechou:1, taxaFalta:38, taxaFechamento:20 }],
+    porConsultor:[{ nome:'Leonardo', ativo:1, total:85, vieram:60, faltas:20, concluidos:20, naoFechou:30, taxaFechamento:33, taxaFalta:25 }] });
   if (p === '/api/agendamentos' && m === 'GET') {
     const q = (url.searchParams.get('q') || '').toLowerCase();
     let l = soPresenca ? AGENDA.filter(a => a.data === hoje()) : AGENDA;
+    const de = url.searchParams.get('de'), ate = url.searchParams.get('ate'), dt = url.searchParams.get('data');
+    if (!soPresenca && dt) l = l.filter(a => a.data === dt);
+    else if (!soPresenca && (de || ate)) l = l.filter(a => (!de || a.data >= de) && (!ate || a.data <= ate));
     if (q) l = l.filter(a => [a.cliente_nome, a.placa, a.veiculo, a.telefone].some(x => String(x || '').toLowerCase().includes(q)));
     l = l.slice().sort((a, b) => b.data.localeCompare(a.data) || a.hora.localeCompare(b.hora));
     return json(res, 200, soPresenca ? l.map(({ telefone, ...r }) => r) : l);
@@ -224,7 +267,20 @@ http.createServer(async (req, res) => {
     const i = AGENDA.findIndex(x => x.id === mm[1]);
     if (i < 0) return json(res, 404, { erro:'Agendamento não encontrado.' });
     if (m === 'DELETE') { AGENDA.splice(i, 1); return json(res, 200, { ok:true }); }
+    if (m === 'PUT') {
+      const a = AGENDA[i];
+      for (const k of ['cliente_nome', 'telefone', 'veiculo', 'placa', 'servico', 'data', 'hora', 'consultor_id', 'origem', 'status', 'observacoes', 'cliente_id', 'compareceu', 'no_show_notificado_em'])
+        if (body[k] !== undefined) a[k] = k === 'telefone' ? (String(body[k] || '').replace(/D/g, '') || null) : body[k];
+      if (['aguardando', 'confirmado'].includes(body.status) && body.compareceu === undefined) a.compareceu = null;
+      console.log('PUT', a.cliente_nome, JSON.stringify(body));
+      return json(res, 200, a);
+    }
     return json(res, 200, AGENDA[i]);
+  }
+  if (p === '/api/agendamentos' && m === 'POST') {
+    if (!body.cliente_nome || !body.servico || !body.data || !body.hora) return json(res, 400, { erro:'Informe cliente, serviço, data e hora.' });
+    const a = ag({ ...body, telefone: String(body.telefone || '').replace(/D/g, '') || null, status: body.status || 'aguardando' });
+    AGENDA.push(a); return json(res, 200, a);
   }
   if (m === 'GET') return json(res, 200, []);              // telas que não são o foco: lista vazia
   return json(res, 200, { ok:true });

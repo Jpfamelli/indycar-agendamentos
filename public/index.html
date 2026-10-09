@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>IndyCar Agendamentos</title>
-  <meta name="description" content="Sistema web de gestão de agendamentos automotivos com dashboard, cadastro de clientes, consultores e persistência em banco de dados." />
+  <meta name="description" content="Agenda da IndyCar Centro Automotivo: horários do dia, semana, presença e retorno dos clientes." />
   <meta name="theme-color" content="#070a14" />
 
   <!-- Tema (claro/escuro) aplicado ANTES de pintar a tela, para não piscar.
@@ -32,6 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/planejamento.css" />
 </head>
 <body>
   <div class="app">
@@ -52,6 +53,10 @@
           <a class="nav-item" data-route="agenda" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
             <span>AGENDA</span>
+          </a>
+          <a class="nav-item" data-route="semana" tabindex="0" role="button" title="Semana: ocupação por dia, remarcar e relatório (tecla S)">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 14h2M14 14h2M8 18h2"/></svg>
+            <span>SEMANA</span>
           </a>
           <a class="nav-item" data-route="clientes" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
@@ -128,8 +133,9 @@
            Só aparecem quando há algo errado; o texto vem do app.js. -->
       <div class="faixa faixa-saude" id="faixaSaude" role="status" aria-live="polite" hidden></div>
       <div class="faixa faixa-offline" id="faixaOffline" role="status" aria-live="polite" hidden>
-        Sem internet — o que você marcar agora não vai ser salvo até a conexão voltar.
+        Sem internet — o que você marcar agora fica guardado no aparelho e é enviado quando a conexão voltar.
       </div>
+      <div class="faixa faixa-fila" id="faixaFila" role="status" aria-live="polite" hidden></div>
       <header class="topbar">
         <div class="company">
           <div class="company-logo">IC</div>
@@ -144,10 +150,15 @@
             </div>
           </div>
         </div>
+        <div class="topo-acoes">
+        <button type="button" class="btn-busca" id="btnBusca" title="Buscar em tudo (Ctrl+K)" aria-label="Buscar agendamentos e clientes">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+        </button>
         <button class="btn-novo" id="btnNovo" title="Atalho: tecla N">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
           Novo agendamento
         </button>
+        </div>
       </header>
 
       <section class="view" id="view"><!-- preenchido por app.js --></section>
@@ -216,6 +227,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <!-- qrcode.min.js saiu junto com a tela de QR: o CodeWords passou a usar
        código de pareamento, e a conexão agora é feita no painel de atendimento. -->
+  <script src="/planejamento.js"></script>
   <script src="/app.js"></script>
+  <script src="/agenda-planejada.js"></script>
 </body>
 </html>

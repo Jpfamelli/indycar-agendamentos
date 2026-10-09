@@ -125,3 +125,17 @@ test('rotuloDia: Hoje, Amanhã, Ontem e dia da semana', () => {
   assert.equal(r('2026-10-13', '2026-10-09'), 'ter 13/10');
   assert.equal(r('2027-01-05', '2026-10-09'), 'ter 05/01/27');
 });
+
+// ---- rodada 2: selo do lembrete com a resposta do cliente (sem virar HTML) ----
+test('seloLembrete: mostra a resposta no title, escapada', () => {
+  const c2 = vm.createContext({});
+  vm.runInContext([constante('esc'), funcao('seloLembrete')].join('\n'), c2);
+  const selo = vm.runInContext('seloLembrete', c2);
+  const html = selo({ lembrete: { status: 'respondido', resposta: 'positiva', texto: '"><img src=x onerror=alert(1)>' } });
+  assert.match(html, /respondeu 👍/);
+  assert.ok(!html.includes('<img'));
+  assert.ok(html.includes('&lt;img'));
+  assert.ok(!/title="[^"]*"[^>]*"&gt;/.test(html) || html.includes('&quot;'));
+  assert.equal(selo({}), '');
+  assert.match(selo({ lembrete: { status: 'falhou' } }), /lembrete falhou/);
+});

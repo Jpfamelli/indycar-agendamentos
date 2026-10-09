@@ -8,8 +8,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "mock": "node scripts/mock-server.mjs",
-    "test": "node --test tests/dados.test.mjs tests/front.test.mjs",
-    "check": "node --check server.js && node --check dados.js && node --check supabase.js && node --check scripts/mock-server.mjs"
+    "test": "node --test tests/dados.test.mjs tests/front.test.mjs tests/planejamento.test.mjs",
+    "check": "node --check server.js && node --check dados.js && node --check supabase.js && node --check scripts/mock-server.mjs && node --check public/app.js && node --check public/planejamento.js && node --check public/agenda-planejada.js && node --check public/sw.js"
   },
   "engines": {
     "node": ">=22"

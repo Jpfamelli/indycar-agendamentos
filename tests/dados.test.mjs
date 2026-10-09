@@ -151,3 +151,42 @@ test('prazoDeRetorno aceita palavras como texto separado por vírgula', () => {
   const r = prazoDeRetorno('Revisão de suspensão', [{ rotulo: 'Suspensão', palavras: 'amortecedor, suspensao', meses: 18 }]);
   assert.deepEqual(r, { meses: 18, rotulo: 'Suspensão' });
 });
+
+// ---- rodada 2: horários livres, telefone com máscara, rótulos do Comunicar ----
+import { horariosLivres, padraoTelefone, variantesTelefone, rotuloEnvio, EXPEDIENTE } from '../dados.js';
+
+test('horariosLivres: pula o que está ocupado, o que já passou e o domingo; espalha as sugestões', () => {
+  const agora = { data: '2026-10-09', min: 10 * 60 };          // sexta, 10h
+  const ocupados = [{ data: '2026-10-09', hora: '10:30', status: 'confirmado' },
+    { data: '2026-10-09', hora: '11:00', status: 'nao_veio' }];   // falta não ocupa
+  const s = horariosLivres({ desde: '2026-10-09', agora, agendamentos: ocupados, capacidade: 1 });
+  assert.equal(s.length, 3);
+  assert.deepEqual(s.map((x) => `${x.data} ${x.hora}`), ['2026-10-09 11:00', '2026-10-09 12:30', '2026-10-10 08:00']);
+  // sábado cheio de manhã → pula; domingo nunca
+  const sab = horariosLivres({ desde: '2026-10-10', agora, quantos: 4,
+    agendamentos: ['08:00', '08:30', '09:00'].map((h) => ({ data: '2026-10-10', hora: h, status: 'aguardando' })) });
+  assert.equal(sab[0].hora, '09:30');
+  assert.ok(sab.every((x) => x.data !== '2026-10-11'));
+  assert.ok(sab.every((x) => x.hora <= '17:00' && x.hora >= '08:00'));
+});
+
+test('horariosLivres: capacidade = consultores; com consultor só a agenda dele; ignora o próprio ao remarcar', () => {
+  const agora = { data: '2026-10-08', min: 0 };
+  const l = [{ id: 'a', data: '2026-10-09', hora: '08:00', status: 'confirmado', consultor_id: 'c1' }];
+  assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, capacidade: 1 })[0].hora, '08:30');
+  assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, capacidade: 2 })[0].hora, '08:00');
+  assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, consultor_id: 'c2' })[0].hora, '08:00');
+  assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, ignorar: 'a' })[0].hora, '08:00');
+  assert.deepEqual(horariosLivres({ desde: 'ontem' }), []);
+  assert.equal(EXPEDIENTE.ultimoInicio, 17 * 60);
+});
+
+test('padraoTelefone acha número com e sem máscara; variantes com e sem 55', () => {
+  assert.equal(padraoTelefone('(12) 99141-5355'), '*9141*5355*');
+  assert.equal(padraoTelefone('5355'), '*5355*');
+  assert.equal(padraoTelefone('12'), null);
+  assert.deepEqual(variantesTelefone('+55 12 99141-5355'), ['12991415355', '5512991415355']);
+  assert.deepEqual(variantesTelefone('123'), []);
+  assert.equal(rotuloEnvio('lembrete'), 'Lembrete do horário');
+  assert.equal(rotuloEnvio('novo_tipo'), 'novo tipo');
+});

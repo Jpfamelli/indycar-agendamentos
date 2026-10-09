@@ -185,24 +185,69 @@ o telefone pelo nome em `conversas` (WhatsApp) e `clientes` e preenche com um
 clique; salvar sem telefone pede uma confirmação (sem telefone o cliente não
 recebe lembrete nem pós-venda e não entra no CRM).
 
+### 🔗 Links entre os apps (contrato do ecossistema)
+**Entrada** — o Atendimento, o CRM e o Comunicar abrem a Agenda com
+`https://indycar-agendamentos.onrender.com/?tel=<dígitos>` (às vezes `&cliente=<uuid>`;
+`&agendamento=<uuid>` abre um horário direto). A tela tira esses parâmetros da barra
+de endereço na hora (`history.replaceState`), guarda só na memória até o login e chama
+`GET /api/abrir`: a ficha é achada pelo `cliente` ou pelo telefone normalizado
+(`clientes.telefone_e164`, com ou sem 55). Um horário pendente → abre o agendamento;
+ficha → abre a ficha (histórico + "Agendar de novo"); vários sem ficha → Agenda filtrada
+pelo telefone; nada → "Novo agendamento" já com o telefone. O papel `agenda` ignora o link.
+
+**Saída** — no cartão (ícone de conversa), no modal e na ficha:
+Atendimento `?tel=<dígitos>` · CRM `?cliente=<uuid>&tel=<dígitos>` ·
+Comunicar `?cliente=<uuid>&tel=<dígitos>` (`public/planejamento.js › links`).
+
+### 🗓️ Semana (menu SEMANA ou tecla S)
+Dia · Semana · Mês, com **ocupação por dia** (horários ativos ÷ vagas de recepção:
+19 meias-horas × consultores ativos) e horas de serviço estimadas pela
+`servicos.duracao_min` (nunca preço). **Arrastar** um horário para outro dia remarca
+(mesma hora, com Desfazer); no celular/teclado, o ícone de calendário abre o
+**Remarcar** com sugestões. Filtros (busca, situação, consultor, origem, sem telefone),
+**relatório do período** (veio · fechou · faltou, por consultor e por origem, com taxa
+de falta), imprimir e CSV. Só baixa o período na tela (`/api/agendamentos?de=&ate=`).
+
+### ✨ Sugerir horário
+`GET /api/horarios-livres?data=&consultor_id=&ignorar=` → 3 horários livres calculados
+em `dados.js › horariosLivres` (função pura, testada): seg–sáb, 8h–17h (último começo;
+fecha 17h30), passos de 30 min, cada horário ativo ocupa a meia hora em que começa,
+capacidade = consultores ativos; no máximo 2 por dia e 90 min entre eles. Sem IA e sem
+outro domínio. O modal também avisa **horário disputado** e mostra a **duração estimada**.
+
+### 👤 Contexto do cliente (modal e ficha)
+Histórico na Agenda (`/api/clientes/historico`) e **mensagens automáticas do
+Comunicar com as respostas** (`/api/clientes/mensagens`, lê `posvenda_envios` e
+`posvenda_respostas`), mais os links para os outros apps. O selo do lembrete no
+cartão mostra o que o cliente respondeu ao passar o mouse.
+
+### 📴 Sem internet
+Desfecho marcado sem conexão vai para uma fila no aparelho (só id + situação) e é
+enviado sozinho quando a internet volta (faixa laranja mostra quantos faltam).
+
 ### ⌨️ Atalhos e miudezas
-`N` novo agendamento · `/` foca a busca · `Esc` fecha · o Tab fica preso dentro do
-modal. Ícone de impressora na "Agenda de hoje" imprime a **folha do dia**.
+`N` novo agendamento · `S` Semana · `Ctrl+K` busca em tudo (agendamentos + clientes) ·
+`/` foca a busca · `Esc` fecha · o Tab fica preso dentro do modal. Ícone de impressora na "Agenda de hoje" imprime a **folha do dia**.
 Telefones viram link `tel:` com botão de copiar. Hora fora de seg–sáb 8h–17h30
 avisa sem bloquear.
 
 ### 🧪 Testes
 ```bash
-npm test          # node --test: funções puras de dados.js e regras do front (grupoDoDia, máscara, expediente…)
-npm run check     # node --check em todos os arquivos
+npm test          # node --test: dados.js (inclui horariosLivres), regras do app.js e public/planejamento.js
+npm run check     # node --check no servidor, no mock e nos JS do public/
 ```
 
 ## 🔌 Principais endpoints da API
 
 ```
+GET    /api/versao              { versao }  (sem login: confere o deploy)
 GET    /api/saude               { ok, problema, desde, resumo }  (vigia_estado)
+GET    /api/abrir?tel=&cliente= ficha + agendamentos (link de entrada)
+GET    /api/horarios-livres     ?data=&consultor_id=&ignorar=  → { capacidade, sugestoes[3] }
+GET    /api/busca?q=            { agendamentos, clientes }
+GET    /api/clientes/historico  ?cliente_id=&tel=   ·   GET /api/clientes/mensagens (Comunicar)
 GET    /api/dashboard
-GET    /api/agendamentos        POST /api/agendamentos
+GET    /api/agendamentos        ?data= | ?de=&ate= | ?q=      POST /api/agendamentos
 PUT    /api/agendamentos/:id    DELETE /api/agendamentos/:id   (PUT com telefone novo liga o cliente_id)
 PATCH  /api/agendamentos/:id/status   { status }
 GET    /api/clientes            POST /api/clientes  (PUT/DELETE /:id)
