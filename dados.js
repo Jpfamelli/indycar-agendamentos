@@ -37,7 +37,34 @@ const T = {
   perfis: 'perfis',
   janelas: 'janelas_agendamento',
   catalogo: 'catalogo_servicos',
+  // Do Atendimento: as conversas do WhatsApp (nome + telefone de quem já falou
+  // com a oficina). A Agenda só LÊ, para achar o telefone pelo nome.
+  conversas: 'conversas',
+  // Do Comunicar (ex-Pós-venda): a Agenda só LÊ — quem grava é ele.
+  envios: 'posvenda_envios',
+  regrasRetorno: 'comunicar_regras_retorno',
+  // Do vigia: linha única (id=true) com o problema atual do sistema, se houver.
+  vigia: 'vigia_estado',
 };
+
+/* ---------------------------------------------------------------------------
+   Sonda de capacidade do banco.
+   A migração comunicar_v1 chega por partes (o banco é do coordenador): uma
+   coluna que ainda não existe derruba o PATCH inteiro com 400 do PostgREST. Em
+   vez de supor, a Agenda PERGUNTA uma vez (select=coluna&limit=0) e guarda a
+   resposta: "sim" vale para sempre, "ainda não" é reconferido em 5 minutos.
+   --------------------------------------------------------------------------- */
+const _capacidade = new Map(); // chave -> { tem, ate }
+async function temColuna(tabela, coluna) {
+  const chave = `${tabela}.${coluna}`;
+  const memo = _capacidade.get(chave);
+  if (memo && (memo.tem || memo.ate > Date.now())) return memo.tem;
+  let tem = false;
+  try { await selecionar(tabela, `select=${coluna}&limit=0`); tem = true; }
+  catch { tem = false; }
+  _capacidade.set(chave, { tem, ate: Date.now() + 5 * 60 * 1000 });
+  return tem;
+}
 
 // A linha única das tabelas de configuração tem id BOOLEAN true (não mais o inteiro 1).
 const LINHA_UNICA = 'id=is.true';
@@ -124,6 +151,68 @@ export function dataBanco(d) {
     return `${m[3]}-${p(m[2])}-${p(m[1])}`;
   }
   return null;
+}
+
+/* ---- aniversário (clientes.nascimento) --------------------------------------
+   Combinado do ecossistema: o ano 1904 quer dizer "só sei dia e mês" (é
+   bissexto, então 29/02 cabe). A tela aceita DD/MM ou DD/MM/AAAA.
+   Devolve: 'YYYY-MM-DD' | null (vazio = limpar) | undefined (não entendi). */
+export const ANO_SEM_ANO = 1904;
+export function nascimentoBanco(v) {
+  if (v === null || v === undefined) return null;
+  const t = String(v).trim();
+  if (!t) return null;
+  const p = (n) => String(n).padStart(2, '0');
+  let dia, mes, ano;
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) { ano = +m[1]; mes = +m[2]; dia = +m[3]; }
+  else if ((m = t.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2}|\d{4}))?$/))) {
+    dia = +m[1]; mes = +m[2];
+    ano = m[3] === undefined ? ANO_SEM_ANO : (m[3].length === 2 ? 1900 + +m[3] + (+m[3] <= 30 ? 100 : 0) : +m[3]);
+  } else return undefined;
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return undefined;
+  // dia que não existe no mês (31/02): new Date "vira" o mês — detecta e recusa
+  const d = new Date(Date.UTC(ano, mes - 1, dia));
+  if (d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia) return undefined;
+  if (ano !== ANO_SEM_ANO && (ano < 1900 || ano > new Date().getUTCFullYear())) return undefined;
+  return `${ano}-${p(mes)}-${p(dia)}`;
+}
+
+/** 'YYYY-MM-DD' -> 'DD/MM' (ano 1904) ou 'DD/MM/AAAA'. */
+export function nascimentoTela(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  return +m[1] === ANO_SEM_ANO ? `${m[3]}/${m[2]}` : `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** Soma meses a uma data ISO sem depender do fuso (meio-dia UTC). 31/01 + 1 → 28/02. */
+export function somarMeses(iso, meses) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const alvoMes = +m[2] - 1 + Number(meses || 0);
+  const d = new Date(Date.UTC(+m[1], alvoMes, 1, 12));
+  const ultimo = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 12)).getUTCDate();
+  d.setUTCDate(Math.min(+m[3], ultimo));
+  return d.toISOString().slice(0, 10);
+}
+
+/* Regras de retorno do Comunicar: cada uma tem um rótulo, palavras que casam
+   com o nome do serviço e um prazo em meses. Função pura — testável.
+   Sem regra que case (ou sem tabela ainda), vale a revisão geral de 6 meses. */
+const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+export const PRAZO_PADRAO = { meses: 6, rotulo: 'Revisão geral' };
+export function prazoDeRetorno(servico, regras) {
+  const alvo = semAcento(servico);
+  if (!alvo) return PRAZO_PADRAO;
+  for (const r of Array.isArray(regras) ? regras : []) {
+    if (r?.ativo === false) continue;
+    const palavras = Array.isArray(r?.palavras) ? r.palavras : String(r?.palavras ?? '').split(/[,;]/);
+    if (palavras.some((p) => semAcento(p) && alvo.includes(semAcento(p)))) {
+      return { meses: Number(r.meses) || PRAZO_PADRAO.meses, rotulo: r.rotulo || PRAZO_PADRAO.rotulo };
+    }
+  }
+  return PRAZO_PADRAO;
 }
 
 // ---- enum canal_origem -------------------------------------------------------
@@ -217,6 +306,13 @@ function lerCliente(r) {
     email: r.email ?? null,
     origem: origemTela(r.origem),
     observacoes: r.observacoes ?? null,
+    // Comunicar: aniversário e a chave de mensagens automáticas. Enquanto a
+    // coluna não existir no banco ela vem undefined — e o padrão é "aceita".
+    nascimento: r.nascimento ? String(r.nascimento).slice(0, 10) : null,
+    nascimento_tela: nascimentoTela(r.nascimento),
+    aceita_mensagens: r.aceita_mensagens === undefined || r.aceita_mensagens === null ? 1 : bit(r.aceita_mensagens),
+    aceita_mensagens_em: r.aceita_mensagens_em ?? null,
+    aceita_mensagens_motivo: r.aceita_mensagens_motivo ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -248,7 +344,8 @@ export async function listarAgendamentos({ data, status, q } = {}) {
   }
   p.set('order', 'data.desc,hora.asc');
   const linhas = await selecionarTudo(T.agendamentos, p);
-  return linhas.map(lerAgendamento);
+  // selo "lembrete enviado / respondeu" do Comunicar nos cartões pendentes
+  return anexarLembretes(linhas.map(lerAgendamento));
 }
 
 export async function obterAgendamento(id) {
@@ -415,32 +512,72 @@ export async function agendamentosParaICS(limite = 500) {
   return linhas.map(lerAgendamento);
 }
 
+/* Lembretes de agendamento: quem manda é o COMUNICAR (indycar-posvenda), com a
+   régua dele e a resposta do cliente gravada em posvenda_envios. A Agenda só
+   mostra o selinho no cartão. (agendamentosParaLembrete/marcarLembreteEnviado
+   saíram daqui junto com o agendador do server.js.) */
+
 /**
- * Agendamentos que precisam de lembrete.
- * A consulta antiga usava datetime(data || ' ' || hora) do SQLite. Aqui usamos a
- * coluna gerada inicio_em (timestamptz, já no fuso America/Sao_Paulo), comparada
- * com instantes reais — sem risco de erro de fuso.
+ * Para cada agendamento, o lembrete que o Comunicar mandou (se mandou) e o que
+ * o cliente respondeu. Uma consulta barata por lote de ids; qualquer falha
+ * devolve um mapa vazio — o selo é um extra, nunca pode derrubar a lista.
+ * resposta_tipo ainda pode não existir no banco: se o PostgREST recusar,
+ * repete só com status.
  */
-export async function agendamentosParaLembrete(horas = 24) {
-  const agora = new Date();
-  const limite = new Date(agora.getTime() + horas * 3600 * 1000);
-  const p = new URLSearchParams('select=*');
-  p.set('lembrete_enviado', 'is.false');
-  p.set('status', 'in.(aguardando,confirmado)');
-  p.set('telefone', 'not.is.null');
-  p.set('inicio_em', `gt.${agora.toISOString()}`);
-  p.append('inicio_em', `lte.${limite.toISOString()}`);
-  p.set('order', 'inicio_em.asc');
-  p.set('limit', '200');
-  const linhas = await selecionar(T.agendamentos, p);
-  // telefone vazio ('') não é pego por not.is.null — filtramos aqui
-  return linhas.map(lerAgendamento).filter((a) => soDigitos(a.telefone));
+export async function lembretesPorAgendamento(ids) {
+  const mapa = new Map();
+  const validos = [...new Set((ids || []).filter(ehUuid))].slice(0, 300);
+  if (!validos.length) return mapa;
+  const consultar = async (lote, comResposta) => {
+    const p = new URLSearchParams(`select=agendamento_id,status${comResposta ? ',resposta_tipo' : ''}`);
+    p.set('tipo', 'eq.lembrete');
+    p.set('agendamento_id', `in.(${lote.join(',')})`);
+    p.set('order', 'created_at.desc');
+    return selecionar(T.envios, p);
+  };
+  for (let i = 0; i < validos.length; i += 100) {
+    const lote = validos.slice(i, i + 100);
+    let linhas = [];
+    try { linhas = await consultar(lote, true); }
+    catch (e) {
+      if (e?.status === 400) { try { linhas = await consultar(lote, false); } catch { linhas = []; } }
+    }
+    for (const l of linhas) {
+      if (!mapa.has(l.agendamento_id)) {   // o mais recente manda (order=created_at.desc)
+        mapa.set(l.agendamento_id, { status: l.status ?? null, resposta: l.resposta_tipo ?? null });
+      }
+    }
+  }
+  return mapa;
 }
 
-export async function marcarLembreteEnviado(id) {
-  if (!ehUuid(id)) return false;
-  const r = await atualizarUm(T.agendamentos, `id=eq.${id}`, { lembrete_enviado: true });
-  return !!r;
+/** Anexa `lembrete` a quem ainda não tem desfecho (só esses recebem lembrete). */
+export async function anexarLembretes(lista) {
+  const alvo = lista.filter((a) => a && ['aguardando', 'confirmado'].includes(a.status));
+  if (!alvo.length) return lista;
+  const mapa = await lembretesPorAgendamento(alvo.map((a) => a.id));
+  if (!mapa.size) return lista;
+  for (const a of alvo) if (mapa.has(a.id)) a.lembrete = mapa.get(a.id);
+  return lista;
+}
+
+/* ---- saúde do sistema (vigia_estado, linha única) ----------------------------
+   O vigia (indycar-vigia) carimba aqui o problema atual — ex.: 'codewords-fora'
+   quando a chave do CodeWords leva 401 e nenhum WhatsApp automático sai. */
+export async function obterSaude() {
+  try {
+    const v = await selecionarUm(T.vigia, 'select=problema,desde,checado_em,ultimo_resumo&id=is.true');
+    return {
+      ok: !v?.problema,
+      problema: v?.problema ?? null,
+      desde: v?.desde ?? null,
+      checado_em: v?.checado_em ?? null,
+      resumo: v?.ultimo_resumo ?? null,
+    };
+  } catch (e) {
+    // sem leitura não é problema do sistema: a faixa só aparece com problema real
+    return { ok: true, problema: null, desde: null, checado_em: null, resumo: null, sem_leitura: true };
+  }
 }
 
 // ============================================================================
@@ -480,17 +617,153 @@ function clienteParaBanco(dados) {
   if (dados.email !== undefined) campos.email = dados.email || null;
   if (dados.origem !== undefined) campos.origem = origemBanco(dados.origem);
   if (dados.observacoes !== undefined) campos.observacoes = dados.observacoes || null;
+  if (dados.nascimento !== undefined) {
+    const n = nascimentoBanco(dados.nascimento);
+    if (n === undefined) throw new Error('Aniversário inválido. Use DD/MM ou DD/MM/AAAA.');
+    campos.nascimento = n;
+  }
+  /* A chave "aceita mensagens automáticas" é lida pelo Comunicar antes de cada
+     envio. Desligar carimba quando e por quê (a pessoa pediu no balcão, por
+     exemplo); religar limpa o carimbo. */
+  if (dados.aceita_mensagens !== undefined) {
+    const aceita = paraBool(dados.aceita_mensagens);
+    campos.aceita_mensagens = aceita;
+    campos.aceita_mensagens_em = aceita ? null : new Date().toISOString();
+    campos.aceita_mensagens_motivo = aceita ? null
+      : (String(dados.aceita_mensagens_motivo || '').trim().slice(0, 200) || 'Pedido feito na Agenda');
+  }
   return limparParaGravar(campos);
 }
 
+/* Tira do PATCH/INSERT as colunas do Comunicar que o banco AINDA não tem —
+   senão o PostgREST recusa a gravação inteira (400) e nem o nome salva. Assim
+   que a migração chegar, a sonda devolve "tem" e nada mais é removido. */
+const COLUNAS_COMUNICAR_CLIENTE = ['nascimento', 'aceita_mensagens', 'aceita_mensagens_em', 'aceita_mensagens_motivo'];
+async function soColunasQueExistem(campos) {
+  const saida = { ...campos };
+  for (const col of COLUNAS_COMUNICAR_CLIENTE) {
+    if (saida[col] === undefined) continue;
+    if (!(await temColuna(T.clientes, col))) {
+      delete saida[col];
+      console.warn(`clientes.${col} ainda não existe no banco — campo ignorado por enquanto.`);
+    }
+  }
+  return saida;
+}
+
 export async function criarCliente(dados) {
-  const linha = clienteParaBanco({ origem: 'Google', ...dados });
+  const linha = await soColunasQueExistem(clienteParaBanco({ origem: 'Google', ...dados }));
   return lerCliente(await inserirUm(T.clientes, linha, 'select=*'));
 }
 
 export async function atualizarCliente(id, dados) {
   if (!ehUuid(id)) return null;
-  return lerCliente(await atualizarUm(T.clientes, `id=eq.${id}&select=*`, clienteParaBanco(dados)));
+  const campos = await soColunasQueExistem(clienteParaBanco(dados));
+  return lerCliente(await atualizarUm(T.clientes, `id=eq.${id}&select=*`, campos));
+}
+
+/**
+ * "Achar pelo nome": quem já falou com a oficina no WhatsApp (conversas) ou já
+ * tem ficha (clientes). Devolve até 8 contatos COM telefone, os mais recentes
+ * primeiro, sem repetir o mesmo número. Serve para o formulário de agendamento
+ * não nascer sem telefone — 92 dos 159 agendamentos do banco nasceram assim e
+ * ficaram sem lembrete, sem pós-venda e sem ficha no CRM.
+ */
+export async function acharContato(q) {
+  // Filtro direto de coluna: SEM aspas (o PostgREST as trataria como texto e nada
+  // casaria — ver servicoIdPorNome). Tira o que tem sentido especial no ilike.
+  const termo = String(q ?? '').replace(/[%*"\\(),]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (termo.length < 2) return [];
+  const t = `*${termo}*`;
+  const pc = new URLSearchParams('select=nome,telefone,cliente_id,ultima_mensagem_em');
+  pc.set('nome', `ilike.${t}`);
+  pc.set('telefone', 'not.is.null');
+  pc.set('order', 'ultima_mensagem_em.desc.nullslast');
+  pc.set('limit', '8');
+  const pk = new URLSearchParams('select=id,nome,telefone,carro_modelo,placa,updated_at');
+  pk.set('nome', `ilike.${t}`);
+  pk.set('telefone', 'not.is.null');
+  pk.set('order', 'updated_at.desc.nullslast');
+  pk.set('limit', '8');
+  const [conversas, clientes] = await Promise.all([
+    selecionar(T.conversas, pc).catch(() => []),
+    selecionar(T.clientes, pk).catch(() => []),
+  ]);
+  const vistos = new Set();
+  const saida = [];
+  const por = (tel) => telefoneNacional(tel);
+  for (const c of conversas) {
+    const chave = por(c.telefone);
+    if (!chave || vistos.has(chave)) continue;
+    vistos.add(chave);
+    saida.push({ nome: c.nome, telefone: chave, cliente_id: c.cliente_id ?? null, origem: 'conversa',
+      quando: c.ultima_mensagem_em ?? null, veiculo: null, placa: null });
+  }
+  for (const k of clientes) {
+    const chave = por(k.telefone);
+    if (!chave) continue;
+    if (vistos.has(chave)) {       // já veio da conversa: só completa carro/placa/id
+      const j = saida.find((s) => s.telefone === chave);
+      if (j) { j.cliente_id = j.cliente_id ?? k.id; j.veiculo = k.carro_modelo ?? null; j.placa = k.placa ?? null; }
+      continue;
+    }
+    vistos.add(chave);
+    saida.push({ nome: k.nome, telefone: chave, cliente_id: k.id, origem: 'cliente',
+      quando: k.updated_at ?? null, veiculo: k.carro_modelo ?? null, placa: k.placa ?? null });
+  }
+  return saida.slice(0, 8);
+}
+
+/** Quantos agendamentos dos últimos `dias` nasceram sem telefone (não recebem nada do Comunicar). */
+export async function contarSemTelefone(dias = 30) {
+  const desde = diasAntes(hoje(), dias);
+  const linhas = await selecionar(T.agendamentos, `select=id,telefone&data=gte.${desde}&limit=2000`).catch(() => []);
+  return linhas.filter((a) => !soDigitos(a.telefone)).length;
+}
+
+/* ---- regras de retorno do Comunicar (cache de 5 min) ------------------------ */
+let _regras = { lista: [], ate: 0 };
+export async function regrasDeRetorno() {
+  if (_regras.ate > Date.now()) return _regras.lista;
+  let lista = [];
+  try {
+    lista = await selecionar(T.regrasRetorno, 'select=rotulo,palavras,meses,ativo,ordem&ativo=is.true&order=ordem.asc');
+  } catch { lista = []; /* tabela ainda não existe: vale o prazo padrão */ }
+  _regras = { lista, ate: Date.now() + 5 * 60 * 1000 };
+  return lista;
+}
+
+/**
+ * Ficha do cliente para o modal: cadastro + última visita (último agendamento
+ * CONCLUÍDO dele) + próxima revisão prevista (última visita + prazo da regra
+ * que casar com o serviço; sem regra, 6 meses). Casa pelo cliente_id e também
+ * pelo telefone, porque agendamentos antigos nem sempre têm o vínculo.
+ */
+export async function fichaDoCliente(id) {
+  const cliente = await obterCliente(id);
+  if (!cliente) return null;
+  const p = new URLSearchParams('select=id,data,hora,servico,status');
+  const tel = soDigitos(cliente.telefone);
+  const nacional = telefoneNacional(tel);
+  const filtros = [`cliente_id.eq.${id}`];
+  if (tel) filtros.push(`telefone.eq.${tel}`);
+  if (nacional && nacional !== tel) filtros.push(`telefone.eq.${nacional}`);
+  p.set('or', `(${filtros.join(',')})`);
+  p.set('status', 'eq.concluido');
+  p.set('order', 'data.desc,hora.desc');
+  p.set('limit', '1');
+  const [ultimo, regras, total] = await Promise.all([
+    selecionarUm(T.agendamentos, p).catch(() => null),
+    regrasDeRetorno(),
+    contar(T.agendamentos, `or=(${filtros.join(',')})`).catch(() => 0),
+  ]);
+  let ultima_visita = null, proxima_revisao = null;
+  if (ultimo) {
+    const prazo = prazoDeRetorno(ultimo.servico, regras);
+    ultima_visita = { data: ultimo.data, servico: ultimo.servico, agendamento_id: ultimo.id };
+    proxima_revisao = { data: somarMeses(ultimo.data, prazo.meses), meses: prazo.meses, rotulo: prazo.rotulo };
+  }
+  return { ...cliente, ultima_visita, proxima_revisao, total_agendamentos: total };
 }
 
 export async function removerCliente(id) {
@@ -742,12 +1015,12 @@ export async function listarCatalogo() {
 }
 
 export async function obterWaConfig() {
-  const c = await lerLinhaUnica(T.waConfig);
+  // lembrete_ativo/lembrete_horas ficaram no banco mas não saem mais daqui:
+  // o lembrete de agendamento é do Comunicar.
+  const { lembrete_ativo, lembrete_horas, ...c } = await lerLinhaUnica(T.waConfig);
   return {
     ...c,
     ativo: bit(c.ativo),
-    lembrete_ativo: bit(c.lembrete_ativo),
-    lembrete_horas: Number(c.lembrete_horas ?? 24),
     verify_token: c.verify_token ?? 'indycar',
     api_version: c.api_version ?? 'v21.0',
   };
@@ -762,8 +1035,6 @@ export async function salvarWaConfig(dados) {
     verify_token: dados.verify_token || 'indycar',
     api_version: dados.api_version || 'v21.0',
     numero_exibicao: dados.numero_exibicao ?? null,
-    lembrete_ativo: paraBool(dados.lembrete_ativo),
-    lembrete_horas: Number(dados.lembrete_horas) || 24,
   });
   return obterWaConfig();
 }
@@ -1025,7 +1296,7 @@ export function montarUltimos(lista, hojeIso, agora, limite = ULTIMOS_LIMITE) {
 export async function estatisticas() {
   const d = hoje();
 
-  const [agendaHoje, deHojeEmDiante, passadosRecentes, naOficinaDeAntes, totalClientes, totalConsult] = await Promise.all([
+  const [agendaHoje, deHojeEmDiante, passadosRecentes, naOficinaDeAntes, totalClientes, totalConsult, semTelefone30d] = await Promise.all([
     listarAgendamentos({ data: d }).then((l) => l.slice().sort((a, b) => String(a.hora).localeCompare(String(b.hora)))),
     selecionar(T.agendamentos,
       `${SEL_AGENDAMENTO}&${STATUS_EM_ULTIMOS}&data=gte.${d}&order=data.asc,hora.asc&limit=${ULTIMOS_LIMITE * 2}`),
@@ -1040,6 +1311,8 @@ export async function estatisticas() {
       + '&order=data.desc,hora.desc&limit=20'),
     contar(T.clientes),
     contar(T.consultores, 'ativo=is.true'),
+    // agendamentos sem telefone nos últimos 30 dias: só aparece na tela quando > 0
+    contarSemTelefone(30),
   ]);
 
   /* MESMA regra das abas do painel (grupoDoDia em public/app.js): status vivo
@@ -1060,9 +1333,11 @@ export async function estatisticas() {
     aguardando: agendaHoje.filter(esperando).length,
     totalClientes,
     totalConsult,
+    semTelefone30d,
   };
 
-  const ultimos = montarUltimos([...deHojeEmDiante, ...passadosRecentes].map(lerAgendamento), d, agoraHHMM());
+  const ultimos = await anexarLembretes(
+    montarUltimos([...deHojeEmDiante, ...passadosRecentes].map(lerAgendamento), d, agoraHHMM()));
   return { cards, agendaHoje, ultimos, naOficina: naOficinaDeAntes.map(lerAgendamento), data: d, agora: agoraHHMM() };
 }
 

@@ -158,19 +158,56 @@ Configure na aba **WHATSAPP › IA Atendimento** (motor CodeWords): cole a chave
 para colar no painel da Meta. A "resposta automática" interna fica **desligada**
 nesse modo (quem responde é o Carlos).
 
-### ⏰ Lembretes automáticos — aba **WHATSAPP › Configuração**
-Ative "Lembretes automáticos" e defina quantas horas antes. Um agendador roda no
-servidor e, **pela Cloud API**, envia o lembrete (usando o modelo "Lembrete" se
-existir) para agendamentos que estão chegando, sem duplicar.
+### ⏰ Lembretes de agendamento — são do **Comunicar**
+Desde 09/10/2026 a Agenda **não manda lembrete**: quem manda é o
+[Comunicar](https://indycar-posvenda.onrender.com) (ex-Pós-venda), com a régua
+dele, o opt-out do cliente (`clientes.aceita_mensagens`) e a resposta gravada em
+`posvenda_envios` (tipo `lembrete`). A Agenda só **mostra o selo** no cartão:
+"lembrete enviado", "respondeu 👍 / 👎", "pediu p/ parar 🔕". O agendador
+`verificarLembretes` e a configuração "Lembretes automáticos" foram removidos.
+
+### 🩺 Faixa de saúde e ecossistema
+- `GET /api/saude` lê `vigia_estado` (linha única mantida pelo vigia) e devolve
+  `{ok, problema, desde, resumo}`. Com `problema` preenchido, a tela mostra uma
+  faixa discreta no topo (ex.: `codewords-fora` = chave do CodeWords recusada,
+  nenhum WhatsApp automático sai até o gestor trocá-la em Atendimento › Integrações).
+- O botão **Apps** na barra lateral abre o seletor "Ecossistema IndyCar"
+  (Agenda · CRM · Atendimento · Comunicar · Orçador · Site), com a Agenda marcada.
+
+### 👤 Ficha do cliente (Clientes › ícone de editar, ou "Abrir ficha" no agendamento)
+Além do cadastro: **aniversário** (`DD/MM` ou `DD/MM/AAAA`; sem ano o banco
+guarda 1904 = "só dia e mês"), a chave **"Aceita mensagens automáticas"** (quando
+desligada mostra quando e por quê — é o que o Comunicar lê antes de enviar),
+**última visita** (último agendamento concluído) e **próxima revisão prevista**
+(última visita + prazo da regra de `comunicar_regras_retorno` que casar com o
+serviço; sem regra, 6 meses). No modal de agendamento, o botão **Achar** procura
+o telefone pelo nome em `conversas` (WhatsApp) e `clientes` e preenche com um
+clique; salvar sem telefone pede uma confirmação (sem telefone o cliente não
+recebe lembrete nem pós-venda e não entra no CRM).
+
+### ⌨️ Atalhos e miudezas
+`N` novo agendamento · `/` foca a busca · `Esc` fecha · o Tab fica preso dentro do
+modal. Ícone de impressora na "Agenda de hoje" imprime a **folha do dia**.
+Telefones viram link `tel:` com botão de copiar. Hora fora de seg–sáb 8h–17h30
+avisa sem bloquear.
+
+### 🧪 Testes
+```bash
+npm test          # node --test: funções puras de dados.js e regras do front (grupoDoDia, máscara, expediente…)
+npm run check     # node --check em todos os arquivos
+```
 
 ## 🔌 Principais endpoints da API
 
 ```
+GET    /api/saude               { ok, problema, desde, resumo }  (vigia_estado)
 GET    /api/dashboard
 GET    /api/agendamentos        POST /api/agendamentos
-PUT    /api/agendamentos/:id    DELETE /api/agendamentos/:id
+PUT    /api/agendamentos/:id    DELETE /api/agendamentos/:id   (PUT com telefone novo liga o cliente_id)
 PATCH  /api/agendamentos/:id/status   { status }
 GET    /api/clientes            POST /api/clientes  (PUT/DELETE /:id)
+GET    /api/clientes/:id/ficha  cadastro + última visita + próxima revisão
+GET    /api/clientes/achar?q=   telefone pelo nome (conversas + clientes)
 GET    /api/consultores         POST /api/consultores (PUT/DELETE /:id)
 GET    /api/crm
 GET    /api/followup            GET /api/historico

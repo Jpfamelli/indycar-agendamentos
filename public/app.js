@@ -26,6 +26,11 @@ const I = {
   cadeado:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   loja:'<path d="M3 9l1.6-5h14.8L21 9M3 9h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/>',
   relogio:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  copiar:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  bolo:'<path d="M3 21h18M4 21v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6M6 13V9h12v4M12 9V6"/><path d="M12 3c-.8 1 .8 2 0 3"/>',
+  imprimir:'<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/>',
+  sino_off:'<path d="M13.7 21a2 2 0 0 1-3.4 0M18.6 13A17.9 17.9 0 0 1 18 8M6.3 6.3A6 6 0 0 0 6 8c0 7-3 9-3 9h14M18 8a6 6 0 0 0-9.3-5M1 1l22 22"/>',
+  alerta:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/>',
 };
 const svg = (p, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24">${p}</svg>`;
 
@@ -121,6 +126,87 @@ const dataHoraBR = (ts) => { if(!ts) return '';
 const STATUS_LABEL = { aguardando:'Aguardando', confirmado:'Confirmado', em_atendimento:'Em atendimento',
   compareceu:'Compareceu', nao_veio:'Não veio', concluido:'Concluído', nao_fechou:'Não fechou',
   cancelado:'Cancelado' };
+
+/* ---------------------------------------------------------------------------
+   ECOSSISTEMA INDYCAR — os apps da oficina. O seletor da barra lateral marca
+   este (a Agenda) e abre os outros numa aba nova.
+   --------------------------------------------------------------------------- */
+const ECOSSISTEMA = [
+  { chave:'agenda',      nome:'Agenda',      desc:'horários e presença',        url:'https://indycar-agendamentos.onrender.com', ico:I.calendar },
+  { chave:'crm',         nome:'CRM',         desc:'leads e funil',              url:'https://indycar-crm.onrender.com',          ico:I.flag },
+  { chave:'atendimento', nome:'Atendimento', desc:'conversas do WhatsApp',      url:'https://indycar-atendimento.onrender.com',  ico:I.wa },
+  { chave:'comunicar',   nome:'Comunicar',   desc:'lembretes e réguas',         url:'https://indycar-posvenda.onrender.com',     ico:I.send },
+  { chave:'orcador',     nome:'Orçador',     desc:'orçamentos com IA',          url:'https://indycar-orcador.netlify.app',       ico:I.money },
+  { chave:'site',        nome:'Site',        desc:'indycar-taubate',            url:'https://indycar-taubate.netlify.app',       ico:I.loja },
+];
+const APP_ATUAL = 'agenda';
+
+/* Horário real da oficina: seg–sáb, 8h às 17h30. Fora disso a tela AVISA ao
+   marcar (sem bloquear — o dono pode abrir exceção). */
+const EXPEDIENTE = { diasAbertos:[1, 2, 3, 4, 5, 6], abre:8 * 60, fecha:17 * 60 + 30 };
+function foraDoExpediente(dataIso, hora) {
+  if (!dataIso || !hora) return null;                 // campo vazio não é "fora do expediente"
+  const d = new Date(`${dataIso}T12:00:00Z`);
+  const [h, m] = String(hora).split(':').map(Number);
+  if (Number.isNaN(d.getTime()) || Number.isNaN(h)) return null;
+  if (!EXPEDIENTE.diasAbertos.includes(d.getUTCDay())) return 'Domingo a oficina não abre.';
+  const min = h * 60 + (m || 0);
+  if (min < EXPEDIENTE.abre || min > EXPEDIENTE.fecha) return 'Fora do expediente (seg–sáb, 8h às 17h30).';
+  return null;
+}
+
+/** Máscara leve de telefone: só dígitos → "(12) 99999-9999". Não trava o que a pessoa digita. */
+function mascaraTelefone(v) {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.length > 11 && d.startsWith('55')) d = d.slice(2);  // 55 na frente: tira, o servidor repõe
+  d = d.slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+const telefoneOk = (v) => { const d = String(v || '').replace(/\D/g, ''); return !d || (d.length >= 10 && d.length <= 13); };
+/** Liga a máscara num campo (e mantém o cursor no fim, onde a pessoa está digitando). */
+function ligarMascaraTelefone(input) {
+  if (!input) return;
+  input.addEventListener('input', () => { input.value = mascaraTelefone(input.value); });
+  if (input.value) input.value = mascaraTelefone(input.value);
+}
+/** Link tel: com DDI (o celular abre o discador). */
+const linkTel = (t) => { let d = String(t || '').replace(/\D/g, ''); if (d && d.length <= 11) d = '55' + d; return d ? `tel:+${d}` : ''; };
+/** Máscara do aniversário: dígitos → DD/MM ou DD/MM/AAAA. */
+function mascaraAniversario(v) {
+  const d = String(v || '').replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+/** Quantos dias faltam para o aniversário (0 = hoje; null sem data). Ignora o ano. */
+function diasParaAniversario(nascIso, hojeIso) {
+  const m = String(nascIso || '').match(/^\d{4}-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const ano = +hojeIso.slice(0, 4);
+  let prox = Date.UTC(ano, +m[1] - 1, +m[2]);
+  const hoje = Date.parse(hojeIso + 'T00:00:00Z');
+  if (prox < hoje) prox = Date.UTC(ano + 1, +m[1] - 1, +m[2]);
+  return Math.round((prox - hoje) / 86400000);
+}
+
+/* Selo do lembrete que o COMUNICAR mandou (posvenda_envios, tipo 'lembrete').
+   O servidor anexa `lembrete` {status, resposta} só a quem ainda não tem desfecho. */
+function seloLembrete(a) {
+  const l = a?.lembrete;
+  if (!l) return '';
+  const r = l.resposta;
+  if (r === 'positiva') return `<span class="badge-pill bp-green" title="O cliente confirmou pelo WhatsApp">respondeu 👍</span>`;
+  if (r === 'negativa') return `<span class="badge-pill bp-orange" title="O cliente disse que não vem">respondeu 👎</span>`;
+  if (r === 'parar')    return `<span class="badge-pill bp-red" title="Pediu para não receber mensagens">pediu p/ parar 🔕</span>`;
+  if (r === 'neutra')   return `<span class="badge-pill bp-blue" title="O cliente respondeu ao lembrete">respondeu</span>`;
+  if (['enviado', 'entregue', 'lido', 'respondido'].includes(l.status)) return `<span class="badge-pill bp-blue" title="Lembrete enviado pelo Comunicar">lembrete enviado</span>`;
+  if (['pendente', 'agendado', 'fila'].includes(l.status)) return `<span class="badge-pill bp-gray" title="Lembrete na fila do Comunicar">lembrete na fila</span>`;
+  if (l.status === 'falhou') return `<span class="badge-pill bp-red" title="O Comunicar não conseguiu enviar">lembrete falhou</span>`;
+  return '';
+}
 
 /* O que dizer depois de marcar "Não veio" — a VERDADE sobre o aviso automático.
    Antes o painel dizia "delegado à IA" com a mensagem falhando por trás. */
@@ -244,12 +330,15 @@ function corpoDoCartao(a, agora, botoes) {
         </div>
         <div class="appt-badges">
           ${rel ? `<span class="quando ${rel.tom}">${esc(rel.txt)}</span>` : ''}
+          ${seloLembrete(a)}
+          ${!a.telefone && !emPresenca() ? '<span class="badge-pill bp-gray sem-tel" title="Sem telefone não recebe lembrete nem pós-venda — edite e use “Achar pelo nome”">sem telefone</span>' : ''}
           <span class="badge-pill ${seloCls}">${esc(seloTxt)}</span>
         </div>
       </div>
       <div class="appt-meta">
         ${veic ? `<span>${svg(I.car)} ${veic}</span>` : ''}
-        ${a.telefone ? `<span>${svg(I.phone)} ${esc(a.telefone)}</span>` : ''}
+        ${a.telefone ? `<span class="tel">${svg(I.phone)} <a href="${esc(linkTel(a.telefone))}" title="Ligar">${esc(mascaraTelefone(a.telefone) || a.telefone)}</a>
+            <button type="button" class="copiar" data-copiar="${esc(a.telefone)}" title="Copiar telefone" aria-label="Copiar telefone de ${esc(a.cliente_nome)}">${svg(I.copiar)}</button></span>` : ''}
         ${a.origem ? `<span>${svg(I.pin)} ${esc(a.origem)}</span>` : ''}
         ${a.consultor_nome ? `<span>${svg(I.user)} ${esc(a.consultor_nome)}</span>` : ''}
       </div>
@@ -345,6 +434,25 @@ async function marcarDesfecho(card, id, act) {
   }
   route();                 // sem argumento = atualiza a mesma tela em silêncio
 }
+
+/* Copiar telefone (botão pequeno ao lado do número, em qualquer cartão/ficha).
+   Um ouvinte só no documento: os cartões são repintados o tempo todo. */
+async function copiarTexto(txt) {
+  try { await navigator.clipboard.writeText(txt); return true; }
+  catch {
+    const ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.append(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch { ok = false; }
+    ta.remove(); return ok;
+  }
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-copiar]');
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const ok = await copiarTexto(b.dataset.copiar);
+  toast(ok ? `Telefone copiado: ${mascaraTelefone(b.dataset.copiar) || b.dataset.copiar}` : 'Não consegui copiar — selecione e copie à mão', ok ? 'ok' : 'err');
+});
 
 // delegação de cliques nos cards
 function bindApptActions(root) {
@@ -532,6 +640,9 @@ function pintarInicio(d, opts = {}) {
       <div>
         <div class="hero-data">${esc(dataExtenso(d.data))}</div>
         <h2 class="hero-titulo">${saud}${primeiroNome ? ', ' + esc(primeiroNome) : ''}. <span>${frase}</span></h2>
+        ${c.semTelefone30d > 0 ? `<button type="button" class="chip-aviso" id="chipSemTel"
+            title="Sem telefone o cliente não recebe lembrete nem pós-venda. Toque para ver e corrigir.">
+            ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
       </div>
       ${prox ? `<div class="hero-prox">
         <span class="h">${esc(prox.hora)}</span>
@@ -552,6 +663,8 @@ function pintarInicio(d, opts = {}) {
         <div class="panel-head">
           <h2>${svg(I.calendar)} Agenda de hoje</h2>
           <span class="panel-sub">quem veio vai para o CRM</span>
+          <button type="button" class="icon-btn so-tela" id="btnImprimir" title="Imprimir a folha do dia"
+                  aria-label="Imprimir a folha do dia">${svg(I.imprimir)}</button>
         </div>
         <div class="tabs tabs-hoje" id="tabsHoje">
           ${abas.map(([chave, rotulo, ico]) =>
@@ -588,6 +701,11 @@ function pintarInicio(d, opts = {}) {
   moverTinta($('#tabsHoje'), true);
   pintarLista($('#ultimos'), htmlUltimos, !opts.quieto);
   bindApptActions($('#ultimos'));
+  // Folha do dia: a impressão (styles.css › @media print) mostra só a agenda de hoje,
+  // em ordem de horário, com os três grupos — sem botões, sem menu, sem números.
+  $('#btnImprimir')?.addEventListener('click', () => imprimirFolhaDoDia(d));
+  // o chip leva para a Agenda já filtrada em "só sem telefone"
+  $('#chipSemTel')?.addEventListener('click', () => { state.agendaQ = ''; state.agendaSemTel = true; route('agenda'); });
 
   // números: contam na abertura; numa atualização silenciosa, só o que mudou "pulsa"
   if (opts.quieto && state._cards) {
@@ -597,6 +715,34 @@ function pintarInicio(d, opts = {}) {
   } else if (!opts.quieto) animarNumeros(view);
   state._cards = c;
 }
+/* Folha do dia imprimível: monta uma lista limpa de TODOS os horários de hoje
+   (agendados, na oficina, não vieram), em ordem, e chama a impressão. A folha
+   fica numa <div class="folha"> escondida na tela e visível só no @media print. */
+function imprimirFolhaDoDia(d) {
+  // TODOS os horários de hoje, inclusive quem já teve desfecho — no papel, o dia inteiro conta
+  const todos = (d.agendaHoje || []).slice().sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
+  let folha = $('#folhaDia');
+  if (!folha) { folha = document.createElement('div'); folha.id = 'folhaDia'; folha.className = 'folha'; document.body.append(folha); }
+  const sit = (a) => seloDoCartao(a)[1];
+  folha.innerHTML = `
+    <h1>${esc(state.empresa?.nome || 'IndyCar')} — Agenda do dia</h1>
+    <p class="folha-sub">${esc(dataExtenso(d.data))} · ${todos.length} ${todos.length === 1 ? 'horário' : 'horários'} · impresso às ${esc(agoraSP().hm)}</p>
+    ${todos.length ? `<table>
+      <thead><tr><th>Hora</th><th>Cliente</th><th>Carro / placa</th><th>Serviço</th><th>Telefone</th><th>Situação</th><th>Veio?</th></tr></thead>
+      <tbody>${todos.map(a => `<tr>
+        <td class="h">${esc(a.hora)}</td><td><b>${esc(a.cliente_nome)}</b></td>
+        <td>${esc([a.veiculo, a.placa].filter(Boolean).join(' · ') || '—')}</td>
+        <td>${esc(a.servico)}</td><td>${esc(mascaraTelefone(a.telefone) || '—')}</td>
+        <td>${esc(sit(a))}</td><td class="caixa">☐</td></tr>`).join('')}</tbody>
+    </table>` : '<p>Nenhum horário marcado para hoje.</p>'}
+    <p class="folha-pe">Quem conhece, Indyca! 🏎</p>`;
+  document.body.classList.add('imprimindo-folha');
+  const limpar = () => { document.body.classList.remove('imprimindo-folha'); window.removeEventListener('afterprint', limpar); };
+  window.addEventListener('afterprint', limpar);
+  window.print();
+  setTimeout(limpar, 60000);   // navegador que não dispara afterprint
+}
+
 function statCard(cls, num, lbl, ico, mini = false) {
   return `<div class="stat ${cls}${mini ? ' mini' : ''}">
     <div class="stat-top"><span class="lbl">${lbl}</span><span class="ico">${svg(ico)}</span></div>
@@ -628,13 +774,22 @@ async function renderAgenda(opts = {}) {
     const todos = await api('GET', '/agendamentos' + (q ? '?q=' + encodeURIComponent(q) : ''));
     return q ? todos : todos.filter(a => !['oficina', 'resolvidos'].includes(grupoDoDia(a)));
   };
+  // filtro "só sem telefone" (vem do chip do Início ou do botão da barra)
+  const semTel = (l) => state.agendaSemTel ? l.filter(a => !a.telefone) : l;
   const pintar = (itens, q, animar) => {
     const box = $('#agendaList');
     if (!box) return;
     // na busca nada "sai": ela mostra todo mundo, inclusive quem já foi para o CRM
     if (q) box.removeAttribute('data-saida'); else box.dataset.saida = 'desfecho';
-    pintarLista(box, htmlDaAgenda(itens, agoraSP(), !!q), animar);
+    const vis = semTel(itens);
+    pintarLista(box, (state.agendaSemTel && !vis.length)
+      ? vazio(I.check, 'Todo mundo com telefone', 'Nenhum agendamento pendente sem telefone. 🏁')
+      : htmlDaAgenda(vis, agoraSP(), !!q), animar);
     bindApptActions(box);
+    const n = itens.filter(a => !a.telefone).length;
+    const b = $('#btnSemTel');
+    if (b) { b.hidden = !n && !state.agendaSemTel; b.classList.toggle('ativo', !!state.agendaSemTel);
+      b.innerHTML = `${svg(I.alerta)} Sem telefone <em class="tab-num">${n}</em>`; }
     state._repintar = () => { if (state.route === 'agenda') pintar(itens, q, false); };
   };
 
@@ -650,10 +805,13 @@ async function renderAgenda(opts = {}) {
   view.innerHTML = `
     <div class="toolbar">
       <!-- sem botão "Novo agendamento" aqui: o do topo da página já faz isso -->
-      <div class="search larga">${svg(I.search)}<input id="qAgenda" placeholder="Buscar por cliente, placa ou telefone — a busca acha também quem já foi para o CRM" value="${esc(q0)}"></div>
+      <div class="search larga">${svg(I.search)}<input id="qAgenda" placeholder="Buscar por cliente, placa ou telefone — a busca acha também quem já foi para o CRM" value="${esc(q0)}" aria-label="Buscar agendamento"></div>
+      <button type="button" class="btn filtro-semtel" id="btnSemTel" hidden
+              title="Mostrar só quem está sem telefone (não recebe lembrete nem pós-venda)"></button>
     </div>
     <div class="panel"><div class="panel-body lista" id="agendaList"></div></div>`;
   pintar(lista, q0, !opts.quieto);
+  $('#btnSemTel').addEventListener('click', () => { state.agendaSemTel = !state.agendaSemTel; route(); });
   $('#qAgenda').addEventListener('input', debounce(async e => {
     const q = e.target.value.trim();
     state.agendaQ = q;
@@ -663,32 +821,55 @@ async function renderAgenda(opts = {}) {
   }, 250));
 }
 
-async function renderClientes() {
-  const list = await api('GET', '/clientes');
+async function renderClientes(opts = {}) {
+  const q0 = state.clientesQ || '';
+  const list = await api('GET', '/clientes' + (q0 ? '?q=' + encodeURIComponent(q0) : ''));
+  if (opts.vez && opts.vez !== state._vez) return;
+  // atualização silenciosa (depois de salvar/excluir): só a tabela, sem apagar a busca
+  if (opts.quieto && $('#cliBody') && $('#qCli')) { $('#cliBody').innerHTML = clienteRows(list, q0); bindCliRows(); return; }
   view.innerHTML = `
     <div class="toolbar">
-      <div class="left"><div class="search">${svg(I.search)}<input id="qCli" placeholder="Buscar cliente..."></div></div>
+      <div class="left"><div class="search">${svg(I.search)}<input id="qCli" placeholder="Buscar por nome, telefone ou placa…" value="${esc(q0)}" aria-label="Buscar cliente"></div>
+        <span class="badge-pill bp-gray" id="cliTotal">${list.length} ${list.length === 1 ? 'cliente' : 'clientes'}</span></div>
       <button class="btn primary" onclick="openClienteModal()">${svg(I.plus)} Novo cliente</button>
     </div>
-    <div class="panel"><table class="table"><thead><tr>
-      <th>Nome</th><th>Telefone</th><th>Veículo</th><th>Placa</th><th>Origem</th><th></th>
-    </tr></thead><tbody id="cliBody">${clienteRows(list)}</tbody></table></div>`;
+    <div class="panel"><div class="tabela-rolagem"><table class="table"><thead><tr>
+      <th>Nome</th><th>Telefone</th><th>Carro</th><th>Placa</th><th>Origem</th><th></th>
+    </tr></thead><tbody id="cliBody">${clienteRows(list, q0)}</tbody></table></div></div>`;
   bindCliRows();
   $('#qCli').addEventListener('input', debounce(async e => {
-    const r = await api('GET', '/clientes?q=' + encodeURIComponent(e.target.value));
-    $('#cliBody').innerHTML = clienteRows(r); bindCliRows();
+    const q = e.target.value.trim();
+    state.clientesQ = q;
+    const r = await api('GET', '/clientes' + (q ? '?q=' + encodeURIComponent(q) : ''));
+    if (state.route !== 'clientes' || (state.clientesQ || '') !== q) return;   // resposta velha não pinta
+    $('#cliBody').innerHTML = clienteRows(r, q); bindCliRows();
+    const t = $('#cliTotal'); if (t) t.textContent = `${r.length} ${r.length === 1 ? 'cliente' : 'clientes'}`;
   }, 250));
 }
-function clienteRows(list) {
-  if (!list.length) return '<tr><td colspan="6" class="empty">Nenhum cliente.</td></tr>';
+/* Marquinhas discretas na lista: 🎂 quando o aniversário está a até 7 dias
+   (ou é hoje) e 🔕 quando a pessoa pediu para não receber mensagem automática. */
+function marcasDoCliente(c) {
+  const hoje = agoraSP().data;
+  const dias = diasParaAniversario(c.nascimento, hoje);
+  const m = [];
+  if (dias !== null && dias <= 7) m.push(`<span class="marca" title="${dias === 0 ? 'Aniversário HOJE' : `Aniversário em ${dias} dia${dias === 1 ? '' : 's'} (${esc(c.nascimento_tela)})`}">🎂</span>`);
+  if (c.aceita_mensagens === 0) m.push(`<span class="marca" title="Não recebe mensagens automáticas${c.aceita_mensagens_motivo ? ': ' + esc(c.aceita_mensagens_motivo) : ''}">🔕</span>`);
+  return m.join('');
+}
+function clienteRows(list, q) {
+  if (!list.length) return `<tr><td colspan="6">${q
+    ? vazio(I.search, 'Nenhum cliente com esse termo', 'Tente só o primeiro nome, os números do telefone ou a placa.')
+    : vazio(I.user, 'Nenhum cliente ainda', 'O primeiro agendamento com telefone cria a ficha sozinho — ou use "Novo cliente".')}</td></tr>`;
   return list.map(c => `<tr data-id="${c.id}">
-    <td><b>${esc(c.nome)}</b></td><td>${esc(c.telefone||'—')}</td>
+    <td><b>${esc(c.nome)}</b> ${marcasDoCliente(c)}</td>
+    <td>${c.telefone ? `<span class="tel"><a href="${esc(linkTel(c.telefone))}">${esc(mascaraTelefone(c.telefone) || c.telefone)}</a>
+      <button type="button" class="copiar" data-copiar="${esc(c.telefone)}" title="Copiar telefone" aria-label="Copiar telefone de ${esc(c.nome)}">${svg(I.copiar)}</button></span>` : '—'}</td>
     <td>${esc(c.veiculo||'—')}</td><td>${esc(c.placa||'—')}</td>
     <td><span class="badge-pill bp-gray">${esc(c.origem||'—')}</span></td>
     <td><div class="actions">
-      <button class="icon-btn wa" data-act="wa" title="WhatsApp">${svg(I.wa)}</button>
-      <button class="icon-btn" data-act="edit" title="Editar">${svg(I.edit)}</button>
-      <button class="icon-btn red" data-act="del" title="Excluir">${svg(I.trash)}</button>
+      <button class="icon-btn wa" data-act="wa" title="WhatsApp" aria-label="Mandar WhatsApp para ${esc(c.nome)}">${svg(I.wa)}</button>
+      <button class="icon-btn" data-act="edit" title="Abrir ficha" aria-label="Abrir ficha de ${esc(c.nome)}">${svg(I.edit)}</button>
+      <button class="icon-btn red" data-act="del" title="Excluir" aria-label="Excluir ${esc(c.nome)}">${svg(I.trash)}</button>
     </div></td></tr>`).join('');
 }
 function bindCliRows() {
@@ -699,7 +880,7 @@ function bindCliRows() {
     tr.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
       if (!confirm('Excluir cliente?')) return;
       // clientes agora é compartilhada: o banco pode recusar se houver agendamento ligado
-      try { await api('DELETE', `/clientes/${id}`); toast('Cliente excluído'); renderClientes(); }
+      try { await api('DELETE', `/clientes/${id}`); toast('Cliente excluído'); route(); }
       catch (e) { toast(e.message, 'err'); }
     });
   });
@@ -712,16 +893,17 @@ async function renderEquipe() {
       <button class="btn primary" onclick="openConsultorModal()">${svg(I.plus)} Novo consultor</button></div>
     <div class="panel"><table class="table"><thead><tr>
       <th>Consultor</th><th>Telefone</th><th>Status</th><th></th></tr></thead>
-      <tbody>${list.map(c => `<tr data-id="${c.id}">
+      <tbody>${list.length ? list.map(c => `<tr data-id="${c.id}">
         <td><span style="display:inline-flex;align-items:center;gap:9px">
           <i style="width:12px;height:12px;border-radius:50%;background:${esc(c.cor)};display:inline-block"></i>
           <b>${esc(c.nome)}</b></span></td>
-        <td>${esc(c.telefone||'—')}</td>
+        <td>${esc(mascaraTelefone(c.telefone)||'—')}</td>
         <td><span class="badge-pill ${c.ativo?'bp-green':'bp-gray'}">${c.ativo?'Ativo':'Inativo'}</span></td>
         <td><div class="actions">
-          <button class="icon-btn" data-act="edit">${svg(I.edit)}</button>
-          <button class="icon-btn red" data-act="del">${svg(I.trash)}</button>
-        </div></td></tr>`).join('')}
+          <button class="icon-btn" data-act="edit" title="Editar" aria-label="Editar ${esc(c.nome)}">${svg(I.edit)}</button>
+          <button class="icon-btn red" data-act="del" title="Excluir" aria-label="Excluir ${esc(c.nome)}">${svg(I.trash)}</button>
+        </div></td></tr>`).join('')
+        : `<tr><td colspan="4">${vazio(I.user, 'Nenhum consultor', 'Cadastre quem atende no balcão para ligar cada agendamento a uma pessoa.')}</td></tr>`}
       </tbody></table></div>`;
   $$('tr[data-id]', view).forEach(tr => {
     const id = tr.dataset.id; // uuid (string)
@@ -761,9 +943,11 @@ async function renderCrm() {
 async function renderFollowup() {
   const list = await api('GET', '/followup');
   view.innerHTML = `
-    <div class="toolbar"><div class="left"><h2 style="font-size:18px">Follow-up — retornos pendentes</h2></div></div>
-    <div class="panel"><div class="panel-body">
-      ${list.length ? list.map(a => appointmentCard(a, { comWhatsapp: true })).join('') : '<div class="empty">Tudo em dia! Nenhum retorno pendente. 🏁</div>'}
+    <div class="toolbar"><div class="left"><h2 style="font-size:18px">Follow-up — retornos pendentes</h2>
+      ${list.length ? `<span class="badge-pill bp-orange">${list.length} para ligar</span>` : ''}</div></div>
+    <div class="panel"><div class="panel-body lista">
+      ${list.length ? list.map(a => appointmentCard(a, { comWhatsapp: true })).join('')
+        : vazio(I.check, 'Tudo em dia! 🏁', 'Quem não veio ou não fechou aparece aqui para você chamar de volta.')}
     </div></div>`;
   bindApptActions(view);
 }
@@ -777,8 +961,8 @@ async function renderHistorico() {
       ${list.length ? list.map(a => `<tr>
         <td>${dataBR(a.data)}</td><td>${esc(a.hora)}</td><td><b>${esc(a.cliente_nome)}</b></td>
         <td>${esc(a.servico)}</td><td>${esc(a.consultor_nome||'—')}</td>
-        <td><span class="badge-pill ${statusClass(a.status)}">${STATUS_LABEL[a.status]||a.status}</span></td>
-      </tr>`).join('') : '<tr><td colspan="6" class="empty">Sem histórico.</td></tr>'}
+        <td><span class="badge-pill ${statusClass(a.status)}">${esc(STATUS_LABEL[a.status]||a.status)}</span></td>
+      </tr>`).join('') : `<tr><td colspan="6">${vazio(I.relogio, 'Sem histórico ainda', 'Cada agendamento marcado aparece aqui, do mais recente para o mais antigo.')}</td></tr>`}
     </tbody></table></div>`;
 }
 function statusClass(s){return {concluido:'bp-purple',compareceu:'bp-green',confirmado:'bp-green',
@@ -875,7 +1059,7 @@ async function renderConfiguracoes() {
       ${pilula('oficina', 'Oficina')}
       ${pilula('equipe', 'Equipe e acessos')}
     </div>
-    <div id="cfgConteudo"><div class="empty">Carregando…</div></div>`;
+    <div id="cfgConteudo">${esqueletoFormulario()}</div>`;
   $$('#cfgPilulas .pilula', view).forEach(b => b.addEventListener('click', () => {
     state.cfgSecao = b.dataset.secao;
     renderConfiguracoes().catch(e => toast(e.message, 'err'));
@@ -1272,7 +1456,7 @@ async function renderWhatsapp() {
       <button class="tab ${tab==='modelos'?'active':''}" data-tab="modelos">${svg(I.edit)} Modelos</button>
       <button class="tab ${tab==='mensagens'?'active':''}" data-tab="mensagens">${svg(I.wa)} Mensagens</button>
     </div>
-    <div id="waContent"><div class="empty">Carregando…</div></div>`;
+    <div id="waContent">${esqueletoFormulario()}</div>`;
   $$('.tab', view).forEach(b => b.addEventListener('click', () => { state.waTab = b.dataset.tab; renderWhatsapp(); }));
   const box = $('#waContent');
   if (tab === 'config') await waConfig(box, cfg);
@@ -1403,11 +1587,13 @@ async function waConfig(box, cfg) {
           <div class="field"><label>URL do Webhook (cole na Meta)</label>
             <input id="cfg_webhook" value="${esc(webhook)}" readonly onclick="this.select()"></div>
           <div class="field"><label>Token de verificação</label><input id="cfg_verify" value="${esc(cfg.verify_token||'indycar')}"></div>
-          <div style="border-top:1px solid var(--border);margin:8px 0 4px;padding-top:14px">
-            <div class="field"><label class="switch"><input type="checkbox" id="cfg_lemb" ${cfg.lembrete_ativo?'checked':''}> <span>⏰ Lembretes automáticos</span></label>
-              <small class="muted">Envia um lembrete automaticamente (pela Cloud API) antes do horário do agendamento.</small></div>
-            <div class="field"><label>Enviar quantas horas antes</label><input id="cfg_lembh" type="number" min="1" max="168" value="${cfg.lembrete_horas||24}"></div>
-          </div>
+          <!-- Lembretes de agendamento saíram daqui (09/10): quem manda é o Comunicar,
+               com a régua dele e o "aceita mensagens" de cada cliente. -->
+          <div class="aviso-leitura" style="margin-top:4px">${svg(I.send)}
+            <div><b>Lembretes de agendamento são do Comunicar.</b> A régua (quando avisar, o
+            texto, quem pediu para não receber) fica lá — aqui o cartão só mostra
+            "lembrete enviado" e "respondeu 👍".
+            <a href="https://indycar-posvenda.onrender.com" target="_blank" rel="noopener">Abrir o Comunicar</a></div></div>
           <div class="tpl"><div class="tpl-body"><b>Como conectar em 5 passos:</b>
 1. Crie um app no <b>Meta for Developers</b> e ative o produto <b>WhatsApp</b>.
 2. Copie o <b>Phone Number ID</b> e gere um <b>Access Token</b> permanente.
@@ -1422,8 +1608,7 @@ async function waConfig(box, cfg) {
     const p = { ativo:$('#cfg_ativo').checked, phone_number_id:$('#cfg_pnid').value.trim(),
       access_token:$('#cfg_token').value.trim(), business_account_id:$('#cfg_waba').value.trim(),
       api_version:$('#cfg_ver').value.trim()||'v21.0', verify_token:$('#cfg_verify').value.trim()||'indycar',
-      numero_exibicao:$('#cfg_num').value.trim(),
-      lembrete_ativo:$('#cfg_lemb').checked, lembrete_horas:parseInt($('#cfg_lembh').value)||24 };
+      numero_exibicao:$('#cfg_num').value.trim() };
     if (p.ativo && (!p.phone_number_id || (!p.access_token && !cfg.tem_token)))
       return toast('Para ativar a Cloud API, informe Phone Number ID e Access Token','err');
     try { await api('PUT','/whatsapp/config',p); toast('Configuração salva ✅'); renderWhatsapp(); }
@@ -1452,8 +1637,8 @@ async function waModelos(box) {
           <div class="tpl-body">${esc(t.corpo)}</div>
           <div style="display:flex;gap:8px;margin-top:10px">
             <button class="btn" data-act="usar">${svg(I.send)} Usar</button>
-            <button class="icon-btn" data-act="edit">${svg(I.edit)}</button>
-            <button class="icon-btn red" data-act="del">${svg(I.trash)}</button>
+            <button class="icon-btn" data-act="edit" title="Editar" aria-label="Editar modelo ${esc(t.nome)}">${svg(I.edit)}</button>
+            <button class="icon-btn red" data-act="del" title="Excluir" aria-label="Excluir modelo ${esc(t.nome)}">${svg(I.trash)}</button>
           </div></div>`).join('')}
       </div></div>`;
   $$('.tpl[data-id]', box).forEach(el => {
@@ -1490,11 +1675,11 @@ async function waIA(box) {
       <div class="panel"><div class="panel-head"><h2>${svg(I.bot)} Integração WhatsApp (CodeWords)</h2>
         <span class="badge-pill ${cfg.tem_cw_chave?'bp-green':'bp-orange'}">${cfg.tem_cw_chave?'Configurada':'Falta a chave'}</span></div>
         <div class="panel-body">
-          <div class="tpl" style="border-color:rgba(37,211,102,.35)"><div class="tpl-body">🟢 <b>Como funciona:</b> a IA já cadastrada no seu WhatsApp atende os clientes. O app só faz 3 coisas:
-1. <b>Puxa os agendamentos</b> que a IA fecha e coloca na agenda (sozinho).
-2. No <b>"Não veio"</b>, aciona a IA para ela fazer o <b>follow-up</b> com o cliente.
-3. Mantém a <b>conexão do número</b> (aba Conexão).
-O app <b>não envia nenhuma mensagem automática</b> por conta própria.</div></div>
+          <div class="tpl" style="border-color:rgba(37,211,102,.35)"><div class="tpl-body">🟢 <b>Como funciona:</b> a IA já cadastrada no seu WhatsApp atende os clientes. A Agenda faz 3 coisas:
+1. <b>Puxa os agendamentos</b> que a IA fecha e coloca na agenda (sozinha).
+2. No <b>"Não veio"</b>, manda o <b>aviso de falta</b> na hora, pelo WhatsApp da empresa.
+3. Mostra a <b>conexão do número</b> (aba Conexão).
+Lembrete, aniversário e revisão são do <b>Comunicar</b>.</div></div>
           <div class="field"><label>Chave do CodeWords ${cfg.tem_cw_chave?`<span class="chip">salva: ${esc(cfg.cw_chave_mask)}</span>`:''}</label>
             <input id="cw_key" type="password" autocomplete="off" placeholder="${cfg.tem_cw_chave?'•••• deixe em branco para manter':'cwk-...'}"></div>
           <div class="field"><label>Workflow do atendente (vincula o número)</label><input id="cw_sid" value="${esc(cfg.cw_service_id||'')}" placeholder="indycar_carlos_whatsapp_..."></div>
@@ -1508,7 +1693,7 @@ O app <b>não envia nenhuma mensagem automática</b> por conta própria.</div></
           <div class="tpl"><div class="tpl-body">Os agendamentos que a IA fecha no WhatsApp entram <b>sozinhos</b> na agenda (a cada poucos minutos e sempre que o painel abre). Se quiser forçar agora:</div></div>
           <button class="btn green" id="cw_sync">${svg(I.calendar)} Sincronizar agendamentos agora</button>
           <div id="cw_sync_result"></div>
-          <small class="muted" style="display:block;margin-top:10px">O follow-up de ausência aparece na aba <b>Mensagens</b> como "delegado à IA" sempre que você marcar <b>Não veio</b>.</small>
+          <small class="muted" style="display:block;margin-top:10px">O aviso de falta aparece na aba <b>Mensagens</b> sempre que você marcar <b>Não veio</b> — com "enviado" ou o motivo da falha.</small>
         </div></div>
     </div>`;
 
@@ -1536,9 +1721,60 @@ O app <b>não envia nenhuma mensagem automática</b> por conta própria.</div></
 // MODAIS
 // ============================================================================
 const overlay = $('#modalOverlay'), modal = $('#modal');
-function openModal(html){ modal.innerHTML = html; overlay.classList.add('open'); }
-function closeModal(){ overlay.classList.remove('open'); }
+const FOCAVEIS = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+let _focoAntes = null;
+/* Abre o modal, leva o foco para o primeiro campo e devolve o foco a quem o
+   abriu quando fechar. O Tab fica PRESO dentro do modal (ver tecla abaixo). */
+function openModal(html){
+  _focoAntes = document.activeElement;
+  modal.innerHTML = html;
+  overlay.classList.add('open');
+  const titulo = $('.modal-head h3', modal);
+  if (titulo) { titulo.id = 'modalTitulo'; modal.setAttribute('aria-labelledby', 'modalTitulo'); }
+  $$('.modal-close', modal).forEach(b => { if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', 'Fechar'); });
+  // o prefixo vale para CADA seletor da lista (senão só o primeiro ganhava o ".modal-body")
+  const noCorpo = FOCAVEIS.split(',').map(s => '.modal-body ' + s).join(',');
+  const primeiro = $$(noCorpo, modal).find(el => el.offsetParent !== null) || $('.modal-close', modal);
+  setTimeout(() => primeiro?.focus({ preventScroll: true }), 30);
+}
+function closeModal(){
+  if (!overlay.classList.contains('open')) return;
+  overlay.classList.remove('open');
+  if (_focoAntes && _focoAntes.isConnected && typeof _focoAntes.focus === 'function') _focoAntes.focus({ preventScroll: true });
+  _focoAntes = null;
+}
+const modalAberto = () => overlay.classList.contains('open');
 overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+// Tab dentro do modal: do último campo volta ao primeiro (e vice-versa com Shift)
+overlay.addEventListener('keydown', e => {
+  if (e.key !== 'Tab' || !modalAberto()) return;
+  const itens = $$(FOCAVEIS, modal).filter(el => el.offsetParent !== null);
+  if (!itens.length) return;
+  const i = itens.indexOf(document.activeElement);
+  if (e.shiftKey && (i <= 0)) { e.preventDefault(); itens[itens.length - 1].focus(); }
+  else if (!e.shiftKey && (i === -1 || i === itens.length - 1)) { e.preventDefault(); itens[0].focus(); }
+});
+
+/* Mini-ficha do cliente dentro do modal de agendamento: última visita, próxima
+   revisão prevista e aniversário — o que ajuda quem está marcando o horário. */
+function fichaMiniHtml(f) {
+  if (!f) return '';
+  const hoje = agoraSP().data;
+  const pedacos = [];
+  if (f.ultima_visita) pedacos.push(`<span>${svg(I.check)} Última visita <b>${esc(dataBR(f.ultima_visita.data))}</b> · ${esc(f.ultima_visita.servico)}</span>`);
+  else pedacos.push(`<span>${svg(I.user)} <b>Primeira visita</b> — ainda não tem serviço concluído aqui</span>`);
+  if (f.proxima_revisao) {
+    const atrasada = f.proxima_revisao.data < hoje;
+    pedacos.push(`<span class="${atrasada ? 'alerta' : ''}">${svg(I.relogio)} ${esc(f.proxima_revisao.rotulo)} prevista <b>${esc(dataBR(f.proxima_revisao.data))}</b>${atrasada ? ' (já passou)' : ''}</span>`);
+  }
+  if (f.nascimento) {
+    const dias = diasParaAniversario(f.nascimento, hoje);
+    pedacos.push(`<span>${svg(I.bolo)} Aniversário <b>${esc(f.nascimento_tela)}</b>${dias === 0 ? ' — é HOJE 🎉' : dias !== null && dias <= 7 ? ` — em ${dias} dia${dias === 1 ? '' : 's'}` : ''}</span>`);
+  }
+  if (f.aceita_mensagens === 0) pedacos.push(`<span class="alerta">${svg(I.sino_off)} Não recebe mensagem automática</span>`);
+  return `<div class="ficha-mini">${pedacos.join('')}
+    <button type="button" class="btn mini" data-ficha="${esc(f.id)}">${svg(I.user)} Abrir ficha</button></div>`;
+}
 
 function fieldsConsultorOptions(sel){
   return state.consultores.map(c => `<option value="${c.id}" ${c.id==sel?'selected':''}>${esc(c.nome)}</option>`).join('');
@@ -1551,24 +1787,37 @@ window.openAgendamentoModal = async function(id){
   if (id) a = await api('GET',`/agendamentos/${id}`).catch(()=>null) || a;
   openModal(`
     <div class="modal-head"><h3>${svg(I.calendar)} ${id?'Editar':'Novo'} agendamento</h3>
-      <button class="modal-close" onclick="closeModal()">×</button></div>
+      <button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="grid2">
-        <div class="field"><label>Cliente *</label><input id="f_nome" value="${esc(a.cliente_nome)}"></div>
-        <div class="field"><label>Telefone (WhatsApp)</label><input id="f_tel" value="${esc(a.telefone)}" placeholder="12 99999-9999"></div>
+        <div class="field"><label for="f_nome">Cliente *</label><input id="f_nome" value="${esc(a.cliente_nome)}" autocomplete="off"></div>
+        <!-- Telefone em DESTAQUE: sem ele o cliente não recebe lembrete nem pós-venda e
+             o CRM não liga a ficha (92 dos 159 agendamentos nasceram assim). -->
+        <div class="field destaque"><label for="f_tel">Telefone (WhatsApp)</label>
+          <div class="campo-com-botao">
+            <input id="f_tel" type="tel" inputmode="tel" value="${esc(a.telefone)}" placeholder="(12) 99999-9999" autocomplete="off">
+            <button type="button" class="btn" id="f_achar" aria-label="Achar o telefone pelo nome"
+                    title="Achar o telefone pelo nome, nas conversas do WhatsApp e nos clientes (ou Enter no nome)">${svg(I.search)} <span>Achar</span></button>
+          </div>
+          <div class="achar-lista" id="f_achar_lista" hidden></div>
+          <input type="hidden" id="f_cli" value="${esc(a.cliente_id || '')}">
+        </div>
       </div>
+      <p class="aviso-campo" id="f_semtel" hidden>${svg(I.alerta)} <span>Sem telefone este cliente não recebe lembrete nem pós-venda, e não entra no CRM.</span></p>
+      <div id="f_ficha">${a.cliente_id ? '<div class="ficha-mini carregando"><span class="skel" style="height:12px;width:60%"></span></div>' : ''}</div>
       <div class="grid2">
-        <div class="field"><label>Veículo</label><input id="f_veic" value="${esc(a.veiculo)}" placeholder="Ônix"></div>
-        <div class="field"><label>Placa</label><input id="f_placa" value="${esc(a.placa)}" placeholder="AURA6742"></div>
+        <div class="field"><label for="f_veic">Carro</label><input id="f_veic" value="${esc(a.veiculo)}" placeholder="Ônix"></div>
+        <div class="field"><label for="f_placa">Placa</label><input id="f_placa" value="${esc(a.placa)}" placeholder="AURA6742" style="text-transform:uppercase"></div>
       </div>
-      <div class="field"><label>Serviço *</label>
+      <div class="field"><label for="f_serv">Serviço *</label>
         <input id="f_serv" list="servListAg" value="${esc(a.servico)}" placeholder="Selecione ou digite o serviço">
         <datalist id="servListAg">${servicos.map(s=>`<option value="${esc(s.nome)}"></option>`).join('')}</datalist></div>
       <div class="grid3">
-        <div class="field"><label>Data *</label><input id="f_data" type="date" value="${a.data}"></div>
-        <div class="field"><label>Hora *</label><input id="f_hora" type="time" value="${a.hora}"></div>
-        <div class="field"><label>Consultor</label><select id="f_cons"><option value="">—</option>${fieldsConsultorOptions(a.consultor_id)}</select></div>
+        <div class="field"><label for="f_data">Data *</label><input id="f_data" type="date" value="${a.data}"></div>
+        <div class="field"><label for="f_hora">Hora *</label><input id="f_hora" type="time" value="${a.hora}" min="08:00" max="17:30" step="900"></div>
+        <div class="field"><label for="f_cons">Consultor</label><select id="f_cons"><option value="">—</option>${fieldsConsultorOptions(a.consultor_id)}</select></div>
       </div>
+      <p class="aviso-campo" id="f_expediente" hidden>${svg(I.alerta)} <span></span> Pode salvar mesmo assim.</p>
       <div class="grid2">
         <div class="field"><label>Origem</label><select id="f_ori">
           ${ORIGENS.map(o=>`<option ${o==a.origem?'selected':''}>${o}</option>`).join('')}
@@ -1577,12 +1826,72 @@ window.openAgendamentoModal = async function(id){
           ${Object.entries(STATUS_LABEL).map(([k,v])=>`<option value="${k}" ${k==a.status?'selected':''}>${v}</option>`).join('')}
         </select></div>
       </div>
-      <div class="field"><label>Observações</label><textarea id="f_obs">${esc(a.observacoes)}</textarea></div>
+      <div class="field"><label for="f_obs">Observações</label><textarea id="f_obs">${esc(a.observacoes)}</textarea></div>
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn primary" id="f_save">${svg(I.check)} Salvar</button>
     </div>`);
+  ligarMascaraTelefone($('#f_tel'));
+  /* "Achar pelo nome": procura nas conversas do WhatsApp e nos clientes e
+     preenche telefone (+ ficha) com um clique. Enter no campo do nome também busca. */
+  const mostrarFicha = (cid) => {
+    const box = $('#f_ficha'); if (!box) return;
+    if (!cid) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="ficha-mini carregando"><span class="skel" style="height:12px;width:60%"></span></div>';
+    api('GET', `/clientes/${cid}/ficha`).then(f => {
+      if (!modalAberto() || $('#f_cli')?.value !== cid) return;
+      box.innerHTML = fichaMiniHtml(f);
+      $('[data-ficha]', box)?.addEventListener('click', () => openClienteModal(f.id, { voltarPara: id }));
+    }).catch(() => { box.innerHTML = ''; });
+  };
+  const acharPeloNome = async () => {
+    const q = $('#f_nome').value.trim(), lista = $('#f_achar_lista'), btn = $('#f_achar');
+    if (q.length < 2) { $('#f_nome').focus(); return toast('Digite pelo menos 2 letras do nome para procurar', 'err'); }
+    btn.disabled = true; lista.hidden = false;
+    lista.innerHTML = '<div class="achar-item muted">Procurando…</div>';
+    try {
+      const r = await api('GET', '/clientes/achar?q=' + encodeURIComponent(q));
+      if (!r.length) { lista.innerHTML = `<div class="achar-item muted">Ninguém com "${esc(q)}" nas conversas nem nos clientes. Digite o telefone à mão.</div>`; return; }
+      lista.innerHTML = r.map((c, i) => `<button type="button" class="achar-item" data-i="${i}">
+          <span class="achar-ico">${svg(c.origem === 'conversa' ? I.wa : I.user)}</span>
+          <span class="achar-txt"><b>${esc(c.nome || 'Sem nome')}</b>
+            <small>${esc(mascaraTelefone(c.telefone))}${c.veiculo ? ' · ' + esc(c.veiculo) : ''}${c.placa ? ' · ' + esc(c.placa) : ''}${c.quando ? ' · ' + esc(dataCurtaBR(c.quando)) : ''}</small></span>
+          <span class="achar-de">${c.origem === 'conversa' ? 'WhatsApp' : 'cliente'}</span></button>`).join('');
+      $$('.achar-item[data-i]', lista).forEach(b => b.addEventListener('click', () => {
+        const c = r[+b.dataset.i];
+        $('#f_tel').value = mascaraTelefone(c.telefone);
+        $('#f_cli').value = c.cliente_id || '';
+        if (!$('#f_veic').value && c.veiculo) $('#f_veic').value = c.veiculo;
+        if (!$('#f_placa').value && c.placa) $('#f_placa').value = c.placa;
+        lista.hidden = true; lista.innerHTML = '';
+        $('#f_semtel').hidden = true; $('#f_save').textContent = ''; $('#f_save').innerHTML = `${svg(I.check)} Salvar`;
+        mostrarFicha(c.cliente_id);
+        toast(`Telefone de ${c.nome || 'contato'} preenchido`);
+      }));
+    } catch (e) { lista.innerHTML = `<div class="achar-item muted">${esc(e.message)}</div>`; }
+    finally { btn.disabled = false; }
+  };
+  $('#f_achar').addEventListener('click', acharPeloNome);
+  $('#f_nome').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); acharPeloNome(); } });
+  // digitou um telefone diferente: a ficha antiga não vale mais
+  $('#f_tel').addEventListener('input', () => {
+    const d = $('#f_tel').value.replace(/\D/g, '');
+    if (d.length >= 10) { $('#f_semtel').hidden = true; const s = $('#f_save'); if (/assim mesmo/.test(s.textContent)) s.innerHTML = `${svg(I.check)} Salvar`; }
+    if (a.telefone && d !== String(a.telefone).replace(/\D/g, '')) { $('#f_cli').value = ''; $('#f_ficha').innerHTML = ''; }
+  });
+  // aviso (sem bloquear) quando o horário cai fora de seg–sáb 8h–17h30
+  const conferirExpediente = () => {
+    const av = $('#f_expediente'); if (!av) return;
+    const msg = foraDoExpediente($('#f_data').value, $('#f_hora').value);
+    av.hidden = !msg; if (msg) $('span', av).textContent = msg;
+  };
+  $('#f_data').addEventListener('change', conferirExpediente);
+  $('#f_hora').addEventListener('input', conferirExpediente);
+  conferirExpediente();
+  // mini-ficha de quem já é cliente (última visita, próxima revisão, aniversário)
+  if (a.cliente_id) mostrarFicha(a.cliente_id);
+  let confirmouSemTelefone = false;
   $('#f_save').addEventListener('click', async () => {
     const payload = {
       cliente_nome:$('#f_nome').value.trim(), telefone:$('#f_tel').value.trim(),
@@ -1592,43 +1901,106 @@ window.openAgendamentoModal = async function(id){
       status:$('#f_status').value, confirmado:$('#f_status').value==='confirmado'?1:(a.confirmado||0),
       observacoes:$('#f_obs').value.trim(),
     };
+    const cid = $('#f_cli').value.trim();
+    if (cid) payload.cliente_id = cid;              // veio do "achar pelo nome": liga à ficha certa
     if(!payload.cliente_nome||!payload.servico||!payload.data||!payload.hora) return toast('Preencha os campos obrigatórios','err');
+    if(!telefoneOk(payload.telefone)) { $('#f_tel').focus(); return toast('Telefone incompleto: use DDD + número, ex.: (12) 99999-9999','err'); }
+    /* Sem telefone: avisa UMA vez e pede um segundo clique ("Salvar assim mesmo").
+       Não bloqueia — o dono pode marcar quem passou no balcão sem WhatsApp. */
+    if (!payload.telefone && !confirmouSemTelefone) {
+      confirmouSemTelefone = true;
+      $('#f_semtel').hidden = false;
+      $('#f_save').innerHTML = `${svg(I.alerta)} Salvar assim mesmo`;
+      $('#f_tel').focus();
+      return;
+    }
+    const btn = $('#f_save'); btn.disabled = true;
     try {
       if (id) await api('PUT', `/agendamentos/${id}`, payload);
       else await api('POST', '/agendamentos', payload);
       toast('Agendamento salvo'); closeModal(); route();
     } catch(e){ toast(e.message,'err'); }
+    finally { btn.disabled = false; }
   });
 };
 
-window.openClienteModal = async function(id){
-  let c = {nome:'',telefone:'',veiculo:'',placa:'',modelo:'',origem:'Google',observacoes:''};
-  if (id) c = await api('GET','/clientes').then(l=>l.find(x=>x.id===id)) || c;
+/* FICHA DO CLIENTE. Além do cadastro: aniversário (DD/MM ou DD/MM/AAAA — sem o
+   ano, o Comunicar só sabe o dia), a chave "aceita mensagens automáticas" (é
+   ela que o Comunicar lê antes de mandar qualquer coisa), a última visita e a
+   próxima revisão prevista pela regra do serviço. opts.voltarPara = id de um
+   agendamento para reabrir ao fechar (quando veio da mini-ficha). */
+window.openClienteModal = async function(id, opts = {}){
+  let c = {nome:'',telefone:'',veiculo:'',placa:'',modelo:'',origem:'Google',observacoes:'',
+           nascimento:null,nascimento_tela:'',aceita_mensagens:1,aceita_mensagens_em:null,aceita_mensagens_motivo:null,
+           ultima_visita:null,proxima_revisao:null,total_agendamentos:0};
+  if (id) c = await api('GET',`/clientes/${id}/ficha`).catch(()=>null) || c;
+  const hoje = agoraSP().data;
+  const diasAniv = diasParaAniversario(c.nascimento, hoje);
+  const revAtrasada = c.proxima_revisao && c.proxima_revisao.data < hoje;
   openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} cliente</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-head"><h3>${svg(I.user)} ${id?'Ficha do cliente':'Novo cliente'}</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
     <div class="modal-body">
+      ${id ? `<div class="ficha-resumo">
+        <div class="ficha-item"><small>Última visita</small>
+          <b>${c.ultima_visita ? esc(dataBR(c.ultima_visita.data)) : '—'}</b>
+          <span>${c.ultima_visita ? esc(c.ultima_visita.servico) : 'nenhum serviço concluído ainda'}</span></div>
+        <div class="ficha-item${revAtrasada ? ' atrasada' : ''}"><small>Próxima revisão prevista</small>
+          <b>${c.proxima_revisao ? esc(dataBR(c.proxima_revisao.data)) : '—'}</b>
+          <span>${c.proxima_revisao ? `${esc(c.proxima_revisao.rotulo)} · ${c.proxima_revisao.meses} meses${revAtrasada ? ' · já passou' : ''}` : 'aparece depois da primeira visita'}</span></div>
+        <div class="ficha-item"><small>Visitas marcadas</small><b>${Number(c.total_agendamentos) || 0}</b><span>no total</span></div>
+      </div>` : ''}
       <div class="grid2">
-        <div class="field"><label>Nome *</label><input id="c_nome" value="${esc(c.nome)}"></div>
-        <div class="field"><label>Telefone</label><input id="c_tel" value="${esc(c.telefone)}"></div>
+        <div class="field"><label for="c_nome">Nome *</label><input id="c_nome" value="${esc(c.nome)}" autocomplete="off"></div>
+        <div class="field"><label for="c_tel">Telefone</label><input id="c_tel" type="tel" inputmode="tel" value="${esc(c.telefone)}" placeholder="(12) 99999-9999" autocomplete="off"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>Veículo</label><input id="c_veic" value="${esc(c.veiculo)}"></div>
-        <div class="field"><label>Placa</label><input id="c_placa" value="${esc(c.placa)}"></div>
+        <div class="field"><label for="c_veic">Carro</label><input id="c_veic" value="${esc(c.veiculo)}" placeholder="Ônix"></div>
+        <div class="field"><label for="c_placa">Placa</label><input id="c_placa" value="${esc(c.placa)}" style="text-transform:uppercase"></div>
       </div>
-      <div class="grid2">
-        <div class="field"><label>Ano do veículo</label><input id="c_mod" inputmode="numeric" maxlength="4" placeholder="2020" value="${esc(c.modelo)}"></div>
-        <div class="field"><label>Origem</label><select id="c_ori">${ORIGENS.map(o=>`<option ${o==c.origem?'selected':''}>${o}</option>`).join('')}</select></div>
+      <div class="grid3">
+        <div class="field"><label for="c_mod">Ano do carro</label><input id="c_mod" inputmode="numeric" maxlength="4" placeholder="2020" value="${esc(c.modelo)}"></div>
+        <div class="field"><label for="c_ori">Origem</label><select id="c_ori">${ORIGENS.map(o=>`<option ${o==c.origem?'selected':''}>${o}</option>`).join('')}</select></div>
+        <div class="field"><label for="c_nasc">Aniversário</label>
+          <input id="c_nasc" inputmode="numeric" maxlength="10" placeholder="DD/MM ou DD/MM/AAAA" value="${esc(c.nascimento_tela)}" autocomplete="off">
+          ${diasAniv !== null && diasAniv <= 7 ? `<small class="muted">🎂 ${diasAniv === 0 ? 'É hoje!' : `Em ${diasAniv} dia${diasAniv === 1 ? '' : 's'}`}</small>` : ''}</div>
       </div>
-      <div class="field"><label>Observações</label><textarea id="c_obs">${esc(c.observacoes)}</textarea></div>
+      <div class="field opt-mensagens">
+        <label class="switch"><input type="checkbox" id="c_aceita" ${c.aceita_mensagens ? 'checked' : ''}>
+          <span>Aceita mensagens automáticas (lembrete, aniversário, revisão)</span></label>
+        <div id="c_motivo_box" ${c.aceita_mensagens ? 'hidden' : ''}>
+          <input id="c_motivo" maxlength="200" placeholder="Por quê? Ex.: pediu no balcão" value="${esc(c.aceita_mensagens_motivo || '')}">
+          <small class="muted">${c.aceita_mensagens === 0 && c.aceita_mensagens_em
+            ? `Desligado em ${esc(dataHoraBR(c.aceita_mensagens_em))}${c.aceita_mensagens_motivo ? ' — ' + esc(c.aceita_mensagens_motivo) : ''}. O Comunicar não manda nada para este cliente.`
+            : 'Desligado, o Comunicar não manda nenhuma mensagem automática para este cliente.'}</small>
+        </div>
+      </div>
+      <div class="field"><label for="c_obs">Observações</label><textarea id="c_obs">${esc(c.observacoes)}</textarea></div>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot">
+      ${id && c.telefone ? `<button class="btn" id="c_wa" style="margin-right:auto">${svg(I.wa)} WhatsApp</button>` : ''}
+      <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn primary" id="c_save">${svg(I.check)} Salvar</button></div>`);
+  ligarMascaraTelefone($('#c_tel'));
+  $('#c_nasc').addEventListener('input', e => { e.target.value = mascaraAniversario(e.target.value); });
+  $('#c_aceita').addEventListener('change', e => { $('#c_motivo_box').hidden = e.target.checked; if (!e.target.checked) $('#c_motivo').focus(); });
+  $('#c_wa')?.addEventListener('click', () => openWhatsappModal(null, id));
   $('#c_save').addEventListener('click', async () => {
+    const nasc = $('#c_nasc').value.trim();
+    if (nasc && !/^\d{2}\/\d{2}(\/\d{4})?$/.test(nasc)) { $('#c_nasc').focus(); return toast('Aniversário: use DD/MM ou DD/MM/AAAA','err'); }
+    const aceita = $('#c_aceita').checked;
     const p = {nome:$('#c_nome').value.trim(),telefone:$('#c_tel').value.trim(),veiculo:$('#c_veic').value.trim(),
-      placa:$('#c_placa').value.trim().toUpperCase(),modelo:$('#c_mod').value.trim(),origem:$('#c_ori').value,observacoes:$('#c_obs').value.trim()};
+      placa:$('#c_placa').value.trim().toUpperCase(),modelo:$('#c_mod').value.trim(),origem:$('#c_ori').value,observacoes:$('#c_obs').value.trim(),
+      nascimento: nasc || null};
+    // só manda a chave quando ela MUDOU: assim não recarimba a data de quem já estava desligado
+    if (aceita !== !!c.aceita_mensagens) { p.aceita_mensagens = aceita; if (!aceita) p.aceita_mensagens_motivo = $('#c_motivo').value.trim(); }
     if(!p.nome) return toast('Informe o nome','err');
+    if(!telefoneOk(p.telefone)) { $('#c_tel').focus(); return toast('Telefone incompleto: use DDD + número, ex.: (12) 99999-9999','err'); }
+    const btn = $('#c_save'); btn.disabled = true;
     try{ if(id) await api('PUT',`/clientes/${id}`,p); else await api('POST','/clientes',p);
-      toast('Cliente salvo'); closeModal(); renderClientes(); }catch(e){toast(e.message,'err');}
+      toast(id ? 'Ficha salva' : 'Cliente criado'); closeModal();
+      if (opts.voltarPara) openAgendamentoModal(opts.voltarPara); else route();
+    }catch(e){toast(e.message,'err');}
+    finally { btn.disabled = false; }
   });
 };
 
@@ -1689,8 +2061,8 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
     <div class="modal-head"><h3 style="color:#25d366">${svg(I.wa)} Enviar WhatsApp</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="grid2">
-        <div class="field"><label>Nome</label><input id="w_nome" value="${esc(nome)}"></div>
-        <div class="field"><label>Telefone *</label><input id="w_tel" value="${esc(telefone)}" placeholder="12 99999-9999"></div>
+        <div class="field"><label for="w_nome">Nome</label><input id="w_nome" value="${esc(nome)}"></div>
+        <div class="field"><label for="w_tel">Telefone *</label><input id="w_tel" type="tel" inputmode="tel" value="${esc(telefone)}" placeholder="(12) 99999-9999"></div>
       </div>
       <div class="field"><label>Usar modelo</label><select id="w_tpl"><option value="">— Mensagem livre —</option>
         ${templates.map(t=>`<option value="${t.id}" ${t.id==templateId?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></div>
@@ -1703,6 +2075,7 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn green" id="w_send">${svg(I.send)} ${enviaCloud?'Enviar pela Cloud API':'Registrar e abrir WhatsApp'}</button></div>`);
 
+  ligarMascaraTelefone($('#w_tel'));
   async function carregaTemplate(){
     const tid = $('#w_tpl').value;
     if (!tid){ return; }
@@ -1716,6 +2089,7 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
   $('#w_send').addEventListener('click', async () => {
     const tel=$('#w_tel').value.trim(), corpo=$('#w_corpo').value.trim();
     if(!tel||!corpo) return toast('Informe telefone e mensagem','err');
+    if(!telefoneOk(tel)) { $('#w_tel').focus(); return toast('Telefone incompleto: use DDD + número, ex.: (12) 99999-9999','err'); }
     try{
       const r = await api('POST','/whatsapp/enviar',{ telefone:tel, nome:$('#w_nome').value.trim(),
         corpo, agendamento_id:agId||null, template_id:$('#w_tpl').value||null });
@@ -1850,6 +2224,14 @@ function esqueleto(rota) {
     <div class="skel" style="height:12px;width:64%"></div><div class="skel" style="height:12px;width:48%"></div></div></div>`;
   return `<div class="esqueleto" aria-busy="true" aria-label="Carregando">${miolo}</div>`;
 }
+/* Esqueleto de formulário em duas colunas — para as telas que pintam em etapas
+   (Configurações, WhatsApp) e antes mostravam um "Carregando…" solto. */
+function esqueletoFormulario() {
+  const campo = '<div class="skel" style="height:11px;width:30%"></div><div class="skel" style="height:40px"></div>';
+  const painel = `<div class="panel"><div class="panel-head"><div class="skel" style="height:18px;width:160px"></div></div>
+    <div class="panel-body">${campo}${campo}${campo}<div class="skel" style="height:38px;width:140px"></div></div></div>`;
+  return `<div class="esqueleto" aria-busy="true" aria-label="Carregando"><div class="cols">${painel}${painel}</div></div>`;
+}
 
 /* route('tela')  → troca de tela: esqueleto + entrada animada.
    route()        → ATUALIZA a tela atual em silêncio (depois de salvar, marcar,
@@ -1932,11 +2314,112 @@ $('#nav').addEventListener('keydown', e => {
   route(item.dataset.route);
 });
 $('#btnNovo').addEventListener('click', () => openAgendamentoModal());
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ATALHOS DE TECLADO (fora de campo de texto):
+     N  → novo agendamento        /  → foca a busca da tela
+     Esc → fecha o modal (ou o popover dos apps) */
+const digitando = (el) => el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if ($('#ecoPop') && !$('#ecoPop').hidden) return fecharEco();
+    return closeModal();
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey || modalAberto() || document.body.classList.contains('deslogado')) return;
+  if (digitando(e.target)) return;
+  if ((e.key === 'n' || e.key === 'N') && !emPresenca()) { e.preventDefault(); openAgendamentoModal(); }
+  else if (e.key === '/') {
+    const busca = $('.view .search input');
+    if (busca) { e.preventDefault(); busca.focus(); busca.select(); }
+  }
+});
 
 // PWA: service worker + prompt de instalação
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.installPrompt = e; });
+
+/* ============================================================
+   FAIXA DE SAÚDE — o vigia carimba em vigia_estado o problema atual do
+   sistema; aqui vira uma faixa discreta no topo. Hoje: 'codewords-fora'
+   (chave do CodeWords recusada → nenhum WhatsApp automático sai).
+   ============================================================ */
+const TEXTO_PROBLEMA = {
+  'codewords-fora': 'WhatsApp automático parado: a chave do CodeWords foi recusada. '
+    + 'Nenhum lembrete ou aviso sai até o gestor trocar a chave em Atendimento › Integrações.',
+};
+function dataCurtaBR(ts) {
+  const d = new Date(ts); if (isNaN(d)) return '';
+  return d.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit' });
+}
+async function carregarSaude() {
+  const faixa = $('#faixaSaude'); if (!faixa) return;
+  let s;
+  try { s = await api('GET', '/saude'); } catch { return; }          // sem leitura = sem alarme
+  state.saude = s;
+  if (!s || !s.problema) { faixa.hidden = true; return; }
+  const texto = TEXTO_PROBLEMA[s.problema] || s.resumo || `Problema no sistema: ${s.problema}.`;
+  faixa.textContent = '';
+  const ico = document.createElement('span'); ico.className = 'faixa-ico'; ico.innerHTML = svg(I.alerta);
+  const txt = document.createElement('span'); txt.className = 'faixa-txt';
+  txt.textContent = texto + (s.desde ? ` (desde ${dataCurtaBR(s.desde)})` : '');
+  faixa.append(ico, txt);
+  if (s.problema === 'codewords-fora') {
+    const a = document.createElement('a'); a.href = 'https://indycar-atendimento.onrender.com'; a.target = '_blank'; a.rel = 'noopener';
+    a.className = 'faixa-link'; a.textContent = 'Abrir Atendimento';
+    faixa.append(a);
+  }
+  faixa.hidden = false;
+}
+setInterval(() => { if (!document.hidden && !document.body.classList.contains('deslogado')) carregarSaude(); }, 5 * 60 * 1000);
+
+/* ============================================================
+   SEM INTERNET — faixa enquanto estiver offline; recado quando voltar.
+   ============================================================ */
+function marcarRede() {
+  const f = $('#faixaOffline'); if (!f) return;
+  f.hidden = navigator.onLine !== false;
+}
+window.addEventListener('offline', marcarRede);
+window.addEventListener('online', () => { marcarRede(); toast('Conexão de volta — tudo normal de novo'); carregarSaude(); });
+marcarRede();
+
+/* ============================================================
+   ECOSSISTEMA INDYCAR — popover ao lado da barra lateral com os outros apps
+   da oficina; este (Agenda) vem marcado "você está aqui".
+   ============================================================ */
+function desenharEco() {
+  const pop = $('#ecoPop'); if (!pop) return;
+  pop.innerHTML = `<p class="eco-titulo">Ecossistema IndyCar</p>` + ECOSSISTEMA.map(app => {
+    const atual = app.chave === APP_ATUAL;
+    return `<a class="eco-item${atual ? ' atual' : ''}" role="menuitem" href="${esc(app.url)}"
+      ${atual ? 'aria-current="page"' : 'target="_blank" rel="noopener"'}>
+      <span class="eco-ico">${svg(app.ico)}</span>
+      <span class="eco-txt"><b>${esc(app.nome)}</b><small>${atual ? 'você está aqui' : esc(app.desc)}</small></span>
+      ${atual ? '' : '<span class="eco-seta" aria-hidden="true">↗</span>'}</a>`;
+  }).join('');
+}
+function abrirEco() {
+  const pop = $('#ecoPop'), btn = $('#btnEco'); if (!pop || !btn) return;
+  if (!pop.innerHTML) desenharEco();
+  const r = btn.getBoundingClientRect();
+  // ancora ao lado do botão; em tela estreita (≤640) vira folha no pé da tela (CSS)
+  pop.style.setProperty('--eco-x', `${r.right + 10}px`);
+  pop.style.setProperty('--eco-y', `${Math.max(12, r.bottom - 8)}px`);
+  pop.hidden = false; btn.setAttribute('aria-expanded', 'true');
+  // setTimeout, não rAF: em aba oculta o rAF não roda e o popover ficaria invisível (opacity 0)
+  setTimeout(() => pop.classList.add('aberto'), 10);
+  ($('.eco-item:not(.atual)', pop) || pop).focus?.();
+}
+function fecharEco() {
+  const pop = $('#ecoPop'), btn = $('#btnEco'); if (!pop || pop.hidden) return;
+  pop.classList.remove('aberto'); pop.hidden = true; btn?.setAttribute('aria-expanded', 'false'); btn?.focus();
+}
+$('#btnEco')?.addEventListener('click', () => ($('#ecoPop').hidden ? abrirEco() : fecharEco()));
+document.addEventListener('click', e => {
+  const pop = $('#ecoPop');
+  if (!pop || pop.hidden) return;
+  if (!pop.contains(e.target) && !e.target.closest('#btnEco')) fecharEco();
+});
+window.addEventListener('resize', debounce(() => { if ($('#ecoPop') && !$('#ecoPop').hidden) abrirEco(); }, 120));
 
 /* ============================================================
    LOGIN — nada da Agenda aparece antes de entrar
@@ -2031,6 +2514,7 @@ $('#formPrimeiro').addEventListener('submit', async e => {
 async function abrirApp(){
   // o perfil vem PRIMEIRO: é ele que diz o que esta pessoa pode ver
   await loadPerfil();
+  carregarSaude();                           // faixa no topo, sem segurar a abertura
   if (emPresenca()) {
     // papel 'agenda' (só presença): menu e botão de novo agendamento somem;
     // o servidor recusaria tudo isso de qualquer jeito.

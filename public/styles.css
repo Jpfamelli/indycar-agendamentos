@@ -805,3 +805,157 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
 .lista-sep.forte{margin-top:12px;font-size:11.5px;color:var(--text)}
 .lista-sep.forte:first-child{margin-top:0}
 .search.larga{flex:1 1 320px;max-width:640px}
+
+/* ============================== RODADA 09/10/2026 ==============================
+   Faixa de saúde, seletor do ecossistema, ficha do cliente, telefone com
+   copiar/ligar, folha do dia (impressão) e miudezas de acessibilidade. */
+
+/* ---- faixas no topo (saúde do vigia / sem internet) ----
+   Discretas: uma linha, cor de aviso, sem empurrar o conteúdo mais que o necessário. */
+.faixa{display:flex;align-items:center;gap:10px;padding:9px 26px;font-size:12.5px;font-weight:600;line-height:1.4;
+  border-bottom:1px solid rgba(245,158,11,.35);background:var(--orange-soft);color:var(--text)}
+.faixa-ico{flex-shrink:0;display:grid;place-items:center;color:var(--orange-txt)}
+.faixa-ico svg{width:16px;height:16px}
+.faixa-txt{min-width:0;flex:1}
+.faixa-link{flex-shrink:0;font-weight:800;color:var(--orange-txt);text-decoration:underline;text-underline-offset:2px}
+.faixa-offline{background:var(--red-soft);border-bottom-color:rgba(230,25,46,.35)}
+
+/* ---- Ecossistema IndyCar (popover ao lado da barra lateral) ---- */
+.eco-toggle{margin-bottom:-2px}
+.eco-pop{position:fixed;left:var(--eco-x,110px);bottom:calc(100vh - var(--eco-y,200px));z-index:60;
+  width:260px;padding:8px;border-radius:16px;border:1px solid var(--border-2);background:var(--pop);
+  box-shadow:var(--shadow);opacity:0;transform:translateY(6px) scale(.98);
+  transition:opacity .18s var(--ease),transform .22s var(--ease-out)}
+.eco-pop.aberto{opacity:1;transform:none}
+.eco-titulo{padding:6px 10px 8px;font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted-2)}
+.eco-item{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:11px;text-decoration:none;color:var(--text);
+  transition:background .15s var(--ease)}
+.eco-item:hover{background:var(--surface)}
+.eco-item.atual{background:linear-gradient(180deg,var(--red-soft),rgba(230,25,46,.04));box-shadow:inset 0 0 0 1px rgba(230,25,46,.3);cursor:default}
+.eco-ico{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;background:var(--surface-2);color:var(--muted)}
+.eco-item.atual .eco-ico{background:var(--red);color:#fff}
+.eco-ico svg{width:16px;height:16px}
+.eco-txt{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.eco-txt b{font-size:13.5px;font-weight:800}
+.eco-txt small{font-size:11.5px;color:var(--muted)}
+.eco-item.atual .eco-txt small{color:var(--red-txt);font-weight:700}
+.eco-seta{color:var(--muted-2);font-size:13px}
+@media (max-width:640px){
+  .eco-pop{left:12px;right:12px;width:auto;bottom:12px}
+}
+
+/* ---- telefone com ligar + copiar ---- */
+.tel{display:inline-flex;align-items:center;gap:5px;min-width:0}
+.tel a{color:inherit;text-decoration:none;border-bottom:1px dashed var(--border-2)}
+.tel a:hover{color:var(--text);border-bottom-color:var(--text)}
+.copiar{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;border:1px solid transparent;
+  background:transparent;color:var(--muted-2);cursor:pointer;padding:0;transition:background .15s,color .15s,border-color .15s}
+.copiar svg{width:12px;height:12px}
+.copiar:hover{background:var(--surface-2);color:var(--text);border-color:var(--border-2)}
+.marca{font-size:13px;margin-left:4px;cursor:help}
+
+/* ---- ficha do cliente (modal) ---- */
+.ficha-resumo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ficha-item{display:flex;flex-direction:column;gap:3px;padding:11px 13px;border-radius:13px;min-width:0;
+  background:var(--panel-3);border:1px solid var(--border)}
+.ficha-item small{font-size:10px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;color:var(--muted-2)}
+.ficha-item b{font-family:var(--font-num);font-size:24px;font-weight:700;line-height:1;color:var(--text-forte);font-variant-numeric:tabular-nums}
+.ficha-item span{font-size:11.5px;color:var(--muted);line-height:1.35;overflow-wrap:anywhere}
+.ficha-item.atrasada{border-color:rgba(245,158,11,.45);background:var(--orange-soft)}
+.ficha-item.atrasada b{color:var(--orange-txt)}
+.opt-mensagens #c_motivo_box{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.opt-mensagens #c_motivo_box input{background:var(--panel-3);border:1px solid var(--border-2);border-radius:10px;padding:10px 12px;
+  color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.opt-mensagens #c_motivo_box input:focus{border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+/* mini-ficha no modal de agendamento */
+.ficha-mini{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:10px 13px;border-radius:12px;
+  background:var(--surface-3);border:1px dashed var(--border-2);font-size:12.5px;color:var(--muted)}
+.ficha-mini span{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.ficha-mini svg{width:14px;height:14px;color:var(--muted-2);flex-shrink:0}
+.ficha-mini b{color:var(--text)}
+.ficha-mini .alerta{color:var(--orange-txt)} .ficha-mini .alerta svg{color:var(--orange-txt)}
+.ficha-mini .btn.mini{margin-left:auto;padding:6px 10px;font-size:12px;border-radius:9px}
+.ficha-mini.carregando{min-height:38px}
+.ficha-mini .skel{flex:1}
+/* aviso de campo (hora fora do expediente): informa, não bloqueia */
+.aviso-campo{display:flex;align-items:center;gap:8px;margin:-4px 0 0;padding:8px 12px;border-radius:10px;
+  font-size:12.5px;font-weight:600;color:var(--orange-txt);background:var(--orange-soft);border:1px solid rgba(245,158,11,.35)}
+.aviso-campo svg{width:15px;height:15px;flex-shrink:0}
+.aviso-campo span{font-weight:700}
+.aviso-leitura a{color:var(--blue-txt);font-weight:700}
+
+/* ---- folha do dia (impressão) ----
+   Na tela a folha não existe; ao imprimir, só ela aparece: preto no branco. */
+.folha{display:none}
+@media print{
+  @page{margin:14mm}
+  body.imprimindo-folha{background:#fff!important;color:#000}
+  body.imprimindo-folha .app,body.imprimindo-folha .toast,body.imprimindo-folha .modal-overlay,
+  body.imprimindo-folha .faixa,body.imprimindo-folha .eco-pop,body.imprimindo-folha #telaLogin{display:none!important}
+  body.imprimindo-folha .folha{display:block;font-family:'Inter',system-ui,sans-serif;color:#000}
+  .folha h1{font-size:20px;font-weight:800;margin:0 0 4px}
+  .folha-sub{font-size:12px;color:#444;margin:0 0 14px}
+  .folha table{width:100%;border-collapse:collapse;font-size:12px}
+  .folha th{text-align:left;padding:7px 8px;border-bottom:2px solid #000;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase}
+  .folha td{padding:8px;border-bottom:1px solid #bbb;vertical-align:top}
+  .folha td.h{font-weight:800;font-size:14px;white-space:nowrap}
+  .folha td.caixa{font-size:16px;text-align:center}
+  .folha tr{break-inside:avoid}
+  .folha-pe{margin-top:18px;font-size:11px;color:#666;font-style:italic}
+  /* impressão comum (Ctrl+P sem a folha): esconde o que não é conteúdo */
+  .sidebar,.btn-novo,.appt-actions,.so-tela,.toast,.faixa,.eco-pop{display:none!important}
+  .main{display:block}
+  .view{padding:0}
+}
+
+/* ---- miudezas ----
+   rótulos de formulário clicáveis (for=) já vêm do HTML; aqui só o cursor */
+.field label[for]{cursor:pointer}
+.panel-head .icon-btn{margin-left:auto}
+.panel-head .panel-sub + .icon-btn{margin-left:0}
+
+/* ---- telefone em destaque + "achar pelo nome" (modal de agendamento) ---- */
+.field.destaque label{color:var(--text);font-weight:700}
+.field.destaque input{border-color:rgba(37,211,102,.45);background:var(--wa-soft)}
+.field.destaque input:focus{border-color:var(--wa);box-shadow:0 0 0 3px var(--wa-soft)}
+.campo-com-botao{display:flex;gap:8px;align-items:stretch}
+.campo-com-botao input{flex:1;min-width:0}
+.campo-com-botao .btn{flex-shrink:0;padding:0 12px;white-space:nowrap}
+.achar-lista{display:flex;flex-direction:column;gap:4px;margin-top:6px;padding:6px;border-radius:12px;
+  background:var(--pop);border:1px solid var(--border-2);box-shadow:var(--shadow);max-height:260px;overflow:auto}
+.achar-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border-radius:9px;
+  border:none;background:transparent;color:var(--text);font-family:inherit;font-size:13px;cursor:pointer;
+  transition:background .14s var(--ease)}
+.achar-item:hover,.achar-item:focus-visible{background:var(--surface-2)}
+.achar-item.muted{cursor:default;font-size:12.5px}
+.achar-ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;background:var(--surface-2);color:var(--muted)}
+.achar-ico svg{width:14px;height:14px}
+.achar-txt{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.achar-txt b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.achar-txt small{font-size:11.5px;color:var(--muted)}
+.achar-de{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted-2);flex-shrink:0}
+.badge-pill.sem-tel{border-style:dashed;cursor:help}
+/* chip de aviso no topo do Início (só aparece quando há o que corrigir) */
+.chip-aviso{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:7px 12px;border-radius:20px;
+  border:1px solid rgba(245,158,11,.4);background:var(--orange-soft);color:var(--orange-txt);
+  font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;transition:background .15s,transform .12s}
+.chip-aviso svg{width:14px;height:14px}
+.chip-aviso:hover{filter:brightness(1.05);transform:translateY(-1px)}
+.filtro-semtel{color:var(--orange-txt);border-color:rgba(245,158,11,.4)}
+.filtro-semtel.ativo{background:var(--orange-soft)}
+.filtro-semtel .tab-num{margin-left:2px}
+@media (max-width:640px){
+  .campo-com-botao .btn span{display:none}
+  .campo-com-botao .btn{padding:0 11px}
+  .ficha-resumo{grid-template-columns:1fr}
+}
+/* campos em grade: o input não pode ser mais largo que a coluna (o placeholder
+   longo do aniversário empurrava o campo para fora do modal) */
+.grid2 > .field,.grid3 > .field{min-width:0}
+.field input,.field select,.field textarea{width:100%;min-width:0}
+@media (max-width:640px){
+  /* faixa no celular: texto menor e o link vai para a linha de baixo */
+  .faixa{flex-wrap:wrap;padding:8px 14px;font-size:12px;gap:6px 8px}
+  .faixa-txt{flex:1 1 calc(100% - 30px)}
+  .faixa-link{margin-left:26px}
+}

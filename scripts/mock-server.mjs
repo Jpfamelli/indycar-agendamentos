@@ -34,15 +34,38 @@ const ag = (o) => ({ id:`00000000-0000-4000-8000-${String(++seq).padStart(12, '0
   lead_id:'l-mock', veiculo:null, placa:null, origem:'WhatsApp', consultor_nome:'Leonardo', confirmado:0, compareceu:null,
   valor:0, observacoes:'', ...o });
 
+// Clientes de mentira — com aniversário e a chave de mensagens do Comunicar.
+const CLI = (o) => ({ id:`10000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, telefone:'12999990000', veiculo:null, modelo:null, placa:null,
+  email:null, origem:'Google', observacoes:'', nascimento:null, nascimento_tela:'', aceita_mensagens:1, aceita_mensagens_em:null,
+  aceita_mensagens_motivo:null, created_at:'2026-01-10T12:00:00Z', ...o });
+const hojeMD = hoje().slice(5);           // 'MM-DD' de hoje, para o aniversário "é hoje"
+let CLIENTES = [
+  CLI({ nome:'Maria Aparecida', veiculo:'HB20', placa:'FHR6F16', telefone:'12991110001', nascimento:`1904-${hojeMD}`, nascimento_tela: hojeMD.split('-').reverse().join('/') }),
+  CLI({ nome:'Carlos Eduardo Nogueira', veiculo:'Corolla', modelo:'2019', placa:'GFK3H26', telefone:'12991110002', nascimento:'1980-03-15', nascimento_tela:'15/03/1980', origem:'WhatsApp' }),
+  CLI({ nome:'Vanderlei', veiculo:'City', placa:'FHR6F16', telefone:'12991110003', aceita_mensagens:0, aceita_mensagens_em:'2026-10-02T14:03:00Z', aceita_mensagens_motivo:'Pediu no balcão', origem:'Indicação' }),
+  CLI({ nome:'Patrícia Lemos', veiculo:'Onix', telefone:'12991110004', origem:'Instagram' }),
+  CLI({ nome:'Sem Telefone', telefone:null }),
+];
+const fichaDe = (c) => {
+  const concl = AGENDA.filter(a => a.cliente_id === c.id && a.status === 'concluido').sort((x, y) => `${y.data} ${y.hora}`.localeCompare(`${x.data} ${x.hora}`))[0];
+  const total = AGENDA.filter(a => a.cliente_id === c.id).length;
+  if (!concl) return { ...c, ultima_visita:null, proxima_revisao:null, total_agendamentos: total };
+  const oleo = /[óo]leo/i.test(concl.servico);
+  const d = new Date(`${concl.data}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + (oleo ? 6 : 12));
+  return { ...c, ultima_visita:{ data: concl.data, servico: concl.servico, agendamento_id: concl.id },
+    proxima_revisao:{ data: d.toISOString().slice(0, 10), meses: oleo ? 6 : 12, rotulo: oleo ? 'Troca de óleo' : 'Revisão geral' }, total_agendamentos: total };
+};
+
 let AGENDA = [
-  ag({ cliente_nome:'Maria Aparecida', veiculo:'HB20', placa:'FHR6F16', servico:'Montagem de pneus e alinhamento', data:dia(0), hora:hm(40),  status:'confirmado', confirmado:1, origem:'Google' }),
-  ag({ cliente_nome:'Carlos Eduardo Nogueira', veiculo:'Corolla', placa:'GFK3H26', servico:'Troca de óleo de câmbio (diálise)', data:dia(0), hora:hm(180), status:'aguardando' }),
+  ag({ cliente_nome:'Maria Aparecida', cliente_id:CLIENTES[0].id, telefone:'12991110001', veiculo:'HB20', placa:'FHR6F16', servico:'Montagem de pneus e alinhamento', data:dia(0), hora:hm(40),  status:'confirmado', confirmado:1, origem:'Google', lembrete:{ status:'enviado', resposta:'positiva' } }),
+  ag({ cliente_nome:'Carlos Eduardo Nogueira', cliente_id:CLIENTES[1].id, telefone:'12991110002', veiculo:'Corolla', placa:'GFK3H26', servico:'Troca de óleo de câmbio (diálise)', data:dia(0), hora:hm(180), status:'aguardando', lembrete:{ status:'enviado', resposta:null } }),
+  ag({ cliente_nome:'Carlos Eduardo Nogueira', cliente_id:CLIENTES[1].id, telefone:'12991110002', veiculo:'Corolla', placa:'GFK3H26', servico:'Troca de óleo de motor', data:dia(-120), hora:'09:00', status:'concluido', compareceu:1, confirmado:1 }),
   ag({ cliente_nome:'Donizetti', veiculo:'ix35', servico:'Pastilha de freio', data:dia(0), hora:hm(-50), status:'confirmado', confirmado:1, origem:'Indicação' }),
   ag({ cliente_nome:'Patrícia Lemos', veiculo:'Onix', servico:'Revisão de suspensão', data:dia(0), hora:hm(-160), status:'compareceu', compareceu:1, confirmado:1 }),
   ag({ cliente_nome:'Diogo Barros', servico:'Alinhamento 3D', data:dia(0), hora:hm(-240), status:'nao_veio', compareceu:0 }),
   ag({ cliente_nome:'Altamir', veiculo:'Ka', placa:'GFK3H26', servico:'Veio cotar troca da correia dentada', data:dia(0), hora:hm(-300), status:'concluido', compareceu:1, confirmado:1 }),
   ag({ cliente_nome:'Renata Figueiredo de Albuquerque Monteiro', veiculo:'Compass', servico:'Diagnóstico com scanner + limpeza de bicos injetores', data:dia(1), hora:'08:30', status:'confirmado', confirmado:1, origem:'Instagram' }),
-  ag({ cliente_nome:'Vanderlei', veiculo:'City', placa:'FHR6F16', servico:'Troca de óleo de câmbio', data:dia(1), hora:'14:00', status:'aguardando' }),
+  ag({ cliente_nome:'Vanderlei', cliente_id:CLIENTES[2].id, telefone:'12991110003', veiculo:'City', placa:'FHR6F16', servico:'Troca de óleo de câmbio', data:dia(1), hora:'14:00', status:'aguardando', lembrete:{ status:'enviado', resposta:'parar' } }),
   ag({ cliente_nome:'José Antônio', veiculo:'S10', servico:'Troca de embreagem', data:dia(4), hora:'09:00', status:'confirmado', confirmado:1, origem:'Telefone' }),
   ag({ cliente_nome:'Luciana Prado', veiculo:'Fit', servico:'Troca de amortecedores', data:dia(-1), hora:'14:30', status:'confirmado', confirmado:1 }),
   ag({ cliente_nome:'Marcos Vinícius', veiculo:'Gol', servico:'Correia dentada', data:dia(-1), hora:'09:00', status:'nao_veio', compareceu:0 }),
@@ -74,7 +97,8 @@ function estatisticas() {
     cards: { totalHoje: agendaHoje.length, concluidosHoje: agendaHoje.filter(a => a.status === 'concluido').length,
       compareceram: agendaHoje.filter(a => !esperando(a) && veio(a)).length, naoVieram: agendaHoje.filter(faltou).length,
       naoFechou: agendaHoje.filter(a => a.status === 'nao_fechou').length, aguardando: agendaHoje.filter(esperando).length,
-      totalClientes: 2226, totalConsult: 1 },
+      totalClientes: 2226, totalConsult: 1,
+      semTelefone30d: AGENDA.filter(a => !a.telefone && a.data >= (() => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() - 30); return x.toISOString().slice(0, 10); })()).length },
     agendaHoje, ultimos: montarUltimos(candidatos, d, agoraHHMM()),
     naOficina: AGENDA.filter(a => ['compareceu', 'em_atendimento'].includes(a.status) && a.data < d && a.data >= seteDias),
     data: d, agora: agoraHHMM(),
@@ -113,6 +137,62 @@ http.createServer(async (req, res) => {
 
   if (p === '/api/config') return json(res, 200, { configurado:true, supabaseUrl:'http://mock.local', supabaseAnonKey:'mock' });
   if (p === '/api/primeiro-acesso') return json(res, 200, { aberto:false });
+  // saúde: o cenário real de hoje (chave do CodeWords recusada) — ?saude=ok no HTML não existe; edite aqui para testar sem faixa
+  if (p === '/api/saude') return json(res, 200, { ok:false, problema:'codewords-fora', desde:'2026-10-01T16:56:31Z', checado_em:new Date().toISOString(),
+    resumo:'O CodeWords (que leva as mensagens do WhatsApp) respondeu com erro 401.' });
+  if (p === '/api/whatsapp/config') return json(res, 200, { ativo:0, phone_number_id:'', tem_token:false, token_mask:'', verify_token:'indycar', api_version:'v21.0', numero_exibicao:'' });
+  if (p === '/api/whatsapp/ia/config') return json(res, 200, { tem_cw_chave:true, cw_chave_mask:'••••••••abcd', cw_service_id:'indycar_carlos_whatsapp_x', cw_db_service_id:'indycar_agendamentos_db_x', cw_noshow_service_id:'', cw_base_url:'https://runtime.codewords.ai' });
+  if (p === '/api/whatsapp/conexao') return json(res, 200, { configurado:true, ok:false, status:401, erro:'A chave do CodeWords foi recusada (401). Nenhum WhatsApp automático sai até trocá-la: peça ao gestor para trocar em Atendimento › Integrações.' });
+  if (p === '/api/integracoes') return json(res, 200, { ics_token:'mock-token', webhook_url:'', webhook_ativo:false });
+  if (p === '/api/equipe') return json(res, 200, { equipe:[{ id:'u1', nome:'João Pedro Famelli', email:'teste@indycartaubate.com', papel:'admin', ativo:1 }], souAdmin:true, meuId:'u1' });
+  // "achar pelo nome": conversas de mentira + clientes
+  if (p === '/api/clientes/achar') {
+    const q = (url.searchParams.get('q') || '').toLowerCase();
+    if (q.length < 2) return json(res, 200, []);
+    const conv = [{ nome:'Maria Aparecida', telefone:'12991110001', cliente_id:CLIENTES[0].id, quando:'2026-10-08T15:20:00Z', origem:'conversa', veiculo:'HB20', placa:'FHR6F16' },
+      { nome:'Marcos Vinícius', telefone:'12991110077', cliente_id:null, quando:'2026-10-07T10:00:00Z', origem:'conversa', veiculo:null, placa:null }];
+    const cli = CLIENTES.filter(c => c.telefone).map(c => ({ nome:c.nome, telefone:c.telefone, cliente_id:c.id, quando:c.created_at, origem:'cliente', veiculo:c.veiculo, placa:c.placa }));
+    const vistos = new Set(); const saida = [];
+    for (const c of [...conv, ...cli]) { if (!c.nome.toLowerCase().includes(q) || vistos.has(c.telefone)) continue; vistos.add(c.telefone); saida.push(c); }
+    return json(res, 200, saida.slice(0, 8));
+  }
+  // clientes: lista, ficha, criar e editar (tudo na memória)
+  if (p === '/api/clientes' && m === 'GET') {
+    const q = (url.searchParams.get('q') || '').toLowerCase();
+    const l = q ? CLIENTES.filter(c => [c.nome, c.telefone, c.placa].some(x => String(x || '').toLowerCase().includes(q))) : CLIENTES;
+    return json(res, 200, l.slice().sort((a, b) => a.nome.localeCompare(b.nome)));
+  }
+  if (p === '/api/clientes' && m === 'POST') {
+    if (!body.nome) return json(res, 400, { erro:'Informe o nome.' });
+    const c = CLI({ ...body, telefone: String(body.telefone || '').replace(/\D/g, '') || null });
+    CLIENTES.push(c); return json(res, 200, c);
+  }
+  if ((mm = p.match(/^\/api\/clientes\/([0-9a-f-]+)\/ficha$/)) && m === 'GET') {
+    const c = CLIENTES.find(x => x.id === mm[1]);
+    return c ? json(res, 200, fichaDe(c)) : json(res, 404, { erro:'Não encontrado' });
+  }
+  if ((mm = p.match(/^\/api\/clientes\/([0-9a-f-]+)$/))) {
+    const c = CLIENTES.find(x => x.id === mm[1]);
+    if (!c) return json(res, 404, { erro:'Não encontrado' });
+    if (m === 'DELETE') { CLIENTES = CLIENTES.filter(x => x !== c); return json(res, 200, { ok:true }); }
+    if (m === 'PUT') {
+      if (body.nascimento !== undefined) {
+        const t = String(body.nascimento || '').trim();
+        if (!t) { c.nascimento = null; c.nascimento_tela = ''; }
+        else { const [d, mo, a] = t.split('/'); if (!d || !mo) return json(res, 400, { erro:'Aniversário inválido. Use DD/MM ou DD/MM/AAAA.' });
+          c.nascimento = `${a || '1904'}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`; c.nascimento_tela = a ? `${d}/${mo}/${a}` : `${d}/${mo}`; }
+      }
+      if (body.aceita_mensagens !== undefined) {
+        c.aceita_mensagens = body.aceita_mensagens ? 1 : 0;
+        c.aceita_mensagens_em = body.aceita_mensagens ? null : new Date().toISOString();
+        c.aceita_mensagens_motivo = body.aceita_mensagens ? null : (body.aceita_mensagens_motivo || 'Pedido feito na Agenda');
+      }
+      for (const k of ['nome', 'veiculo', 'placa', 'modelo', 'origem', 'observacoes']) if (body[k] !== undefined) c[k] = body[k];
+      if (body.telefone !== undefined) c.telefone = String(body.telefone || '').replace(/\D/g, '') || null;
+      return json(res, 200, c);
+    }
+    return json(res, 200, c);
+  }
   if (p === '/api/perfil') return json(res, 200, { id:'u1', nome: soPresenca ? 'Franklin' : 'João Pedro Famelli', email:'teste@indycartaubate.com', papel:PAPEL, ativo:true });
   if (p === '/api/empresa') return json(res, 200, { nome:'IndyCar Centro Automotivo', endereco:'Av. Bandeirantes, 875 — Parque Paduan, Taubaté/SP', slogan:'Quem conhece, Indyca!' });
   if (p === '/api/consultores') return json(res, 200, [{ id:'c1', nome:'Leonardo', cor:'#e6192e', ativo:1 }]);

@@ -102,6 +102,16 @@
       </nav>
 
       <div class="rodape-lateral">
+        <!-- Ecossistema IndyCar: os outros apps da oficina, com este marcado.
+             A lista é desenhada pelo app.js (ECOSSISTEMA) num popover. -->
+        <button type="button" class="tema-toggle eco-toggle" id="btnEco"
+                aria-label="Abrir os outros apps do ecossistema IndyCar"
+                aria-haspopup="true" aria-expanded="false" aria-controls="ecoPop">
+          <span class="tema-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          </span>
+          <span class="tema-txt">Apps</span>
+        </button>
         <button type="button" class="tema-toggle" id="btnTema"
                 aria-label="Alternar entre tema claro e escuro">
           <span class="tema-ico" id="temaIco" aria-hidden="true">🌙</span>
@@ -110,9 +120,16 @@
         <div class="avatar-bottom" id="avatarPerfil" title="Sua conta">IC</div>
       </div>
     </aside>
+    <div class="eco-pop" id="ecoPop" role="menu" aria-label="Ecossistema IndyCar" hidden></div>
 
     <!-- ===================== CONTEÚDO ===================== -->
     <main class="main">
+      <!-- Faixas discretas no topo: saúde do sistema (vigia) e sem internet.
+           Só aparecem quando há algo errado; o texto vem do app.js. -->
+      <div class="faixa faixa-saude" id="faixaSaude" role="status" aria-live="polite" hidden></div>
+      <div class="faixa faixa-offline" id="faixaOffline" role="status" aria-live="polite" hidden>
+        Sem internet — o que você marcar agora não vai ser salvo até a conexão voltar.
+      </div>
       <header class="topbar">
         <div class="company">
           <div class="company-logo">IC</div>
@@ -127,7 +144,7 @@
             </div>
           </div>
         </div>
-        <button class="btn-novo" id="btnNovo">
+        <button class="btn-novo" id="btnNovo" title="Atalho: tecla N">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
           Novo agendamento
         </button>
@@ -139,7 +156,7 @@
 
   <!-- ===================== MODAL ===================== -->
   <div class="modal-overlay" id="modalOverlay">
-    <div class="modal" id="modal"><!-- preenchido por app.js --></div>
+    <div class="modal" id="modal" role="dialog" aria-modal="true"><!-- preenchido por app.js --></div>
   </div>
 
   <!-- Toast -->

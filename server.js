@@ -45,15 +45,55 @@ const ok = (res, data) => send(res, 200, data);
 const bad = (res, msg) => send(res, 400, { erro: msg });
 const notFound = (res) => send(res, 404, { erro: 'Não encontrado' });
 
+/* Erro com status HTTP: o catch geral do servidor devolve `{erro}` com esse
+   código em vez de um 500 genérico. Toda resposta de erro da API tem o mesmo
+   formato — a tela só lê `erro`. */
+class ErroHttp extends Error {
+  constructor(status, mensagem) { super(mensagem); this.status = status; }
+}
+
+/* Corpo de requisição: no máximo 64 KB (um agendamento tem uns 600 bytes; o
+   webhook da Meta, uns 2 KB). Acima disso a conexão é cortada com 413 em vez
+   de deixar alguém encher a memória do servidor. JSON quebrado vira 400 claro —
+   antes virava `{}` em silêncio e o erro aparecia só lá na frente, como
+   "Informe cliente, serviço, data e hora". */
+const LIMITE_CORPO = 64 * 1024;
 function readBody(req) {
-  return new Promise((resolve) => {
-    let raw = '';
-    req.on('data', (c) => (raw += c));
+  return new Promise((resolve, reject) => {
+    let raw = '', tamanho = 0, estourou = false;
+    req.on('data', (c) => {
+      if (estourou) return;
+      tamanho += c.length;
+      if (tamanho > LIMITE_CORPO) {
+        estourou = true;
+        req.resume();                      // descarta o resto sem travar o socket
+        reject(new ErroHttp(413, 'Corpo da requisição grande demais (limite de 64 KB).'));
+        return;
+      }
+      raw += c;
+    });
+    req.on('error', (e) => reject(new ErroHttp(400, 'Não consegui ler a requisição: ' + (e?.message || e))));
     req.on('end', () => {
-      try { resolve(raw ? JSON.parse(raw) : {}); } catch { resolve({}); }
+      if (estourou) return;
+      if (!raw.trim()) return resolve({});
+      try {
+        const j = JSON.parse(raw);
+        // array ou valor solto no lugar do objeto quebraria o `body.campo` lá na frente
+        resolve(j && typeof j === 'object' && !Array.isArray(j) ? j : {});
+      } catch { reject(new ErroHttp(400, 'Corpo inválido: envie JSON.')); }
     });
   });
 }
+
+/* Telefone digitado na tela: ou vazio, ou DDD + número (10/11 dígitos; 12/13
+   com o 55 na frente). Só vale para o que vem do formulário — a importação do
+   CodeWords e os registros antigos não passam por aqui. */
+function telefoneParecValido(t) {
+  const d = soDigitos(t);
+  if (!d) return true;
+  return d.length >= 10 && d.length <= 13;
+}
+const ERRO_TELEFONE = 'Telefone incompleto: use DDD + número, ex.: (12) 99999-9999.';
 
 // Data de hoje no fuso da oficina (America/Sao_Paulo) — não em UTC.
 const hoje = dados.hoje;
@@ -133,6 +173,19 @@ async function iaConfigMascarada() {
 //  no WhatsApp via CodeWords. O app só importa agendamentos e aciona workflows.)
 
 // --------- CodeWords (runtime.codewords.ai) — workflows ---------
+/* O que dizer quando o CodeWords recusa. 401/403 é SEMPRE a chave: desde 01/10
+   ela está recusada e nenhum WhatsApp automático sai — a mensagem tem de dizer
+   isso e onde se resolve, em vez de um "HTTP 401" que ninguém entende. */
+const ERRO_CHAVE_CODEWORDS = 'A chave do CodeWords foi recusada (401). Nenhum WhatsApp automático sai até '
+  + 'trocá-la: peça ao gestor para trocar em Atendimento › Integrações.';
+function erroCodeWords(status, detalhe) {
+  if (status === 401 || status === 403) return ERRO_CHAVE_CODEWORDS;
+  if (status === 404) return 'O CodeWords não achou esse fluxo/conexão (404). Confira o Service ID e se o número está pareado no Atendimento.';
+  if (status === 429) return 'O CodeWords está limitando as chamadas (429). Tente de novo em alguns minutos.';
+  if (status >= 500) return `O CodeWords está com problema do lado dele (HTTP ${status}). Tente de novo mais tarde.`;
+  return detalhe || `O CodeWords respondeu HTTP ${status}.`;
+}
+
 // Contrato REST (do codewords-client): POST {base}/run/{service_id}/ com Authorization: <chave>
 // e os inputs como JSON; a resposta é a própria saída do workflow.
 async function chamarCodeWords({ base_url, api_key, service_id, path = '', method = 'POST', inputs, background = false }) {
@@ -140,13 +193,16 @@ async function chamarCodeWords({ base_url, api_key, service_id, path = '', metho
   const seg = (path || '').replace(/^\/+/, '');
   const url = `${base}/${background ? 'run_async' : 'run'}/${encodeURIComponent(service_id)}/${seg}`;
   try {
-    const opt = { method, headers: { Authorization: api_key, 'Content-Type': 'application/json' } };
+    const opt = { method, headers: { Authorization: api_key, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(30000) };
     if (method !== 'GET') opt.body = JSON.stringify(inputs ?? {});
     const r = await fetch(url, opt);
     const txt = await r.text();
     let data; try { data = JSON.parse(txt); } catch { data = txt; }
-    if (!r.ok) return { ok: false, status: r.status,
-      erro: (data && data.error) || (typeof data === 'string' && data) || `HTTP ${r.status}` };
+    if (!r.ok) {
+      const detalhe = (data && (data.error || data.detail || data.message)) || (typeof data === 'string' && data.slice(0, 200)) || '';
+      return { ok: false, status: r.status, erro: erroCodeWords(r.status, detalhe) };
+    }
     return { ok: true, data };
   } catch (e) { return { ok: false, erro: String(e?.message || e) }; }
 }
@@ -320,10 +376,13 @@ async function enviarViaGowa(telefone, mensagem) {
   const url = `${base}/run/${sid}/proxy/send/message?phone_id=${encodeURIComponent(deviceId)}`;
   const body = new URLSearchParams({ phone: telefoneInternacional(telefone), message: mensagem }).toString();
   try {
-    const r = await fetch(url, { method: 'POST', headers: { Authorization: cfg.cw_api_key, 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+    const r = await fetch(url, { method: 'POST', headers: { Authorization: cfg.cw_api_key, 'Content-Type': 'application/x-www-form-urlencoded' }, body,
+      signal: AbortSignal.timeout(30000) });
     const data = await r.json().catch(() => ({}));
+    // HTTP 200 não é entrega: o GOWA responde 200 com {code:'ERROR'} — confere o conteúdo
     if (r.ok && /success/i.test(JSON.stringify(data))) return { ok: true, data };
-    return { ok: false, erro: data?.message || data?.detail || `HTTP ${r.status}` };
+    if (!r.ok) return { ok: false, status: r.status, erro: erroCodeWords(r.status, data?.message || data?.detail) };
+    return { ok: false, erro: 'O WhatsApp não confirmou o envio: ' + (data?.message || data?.detail || data?.code || 'resposta sem sucesso') };
   } catch (e) { return { ok: false, erro: String(e?.message || e) }; }
 }
 
@@ -525,11 +584,12 @@ async function api(req, res, url) {
   // A tela precisa saber onde fica o Supabase para montar o login.
   // A chave publicável é pública por design.
   if (pathname === '/api/config' && m === 'GET') {
+    // Só vem do ambiente: 30 s de cache no navegador evita bater aqui a cada abertura de aba.
     return send(res, 200, {
       supabaseUrl: SUPA_URL,
       supabaseAnonKey: SUPA_ANON,
       configurado: !!(SUPA_URL && SUPA_ANON && SUPA_SRV),
-    });
+    }, { 'Cache-Control': 'public, max-age=30' });
   }
 
   /* ---- primeiro acesso ----
@@ -594,6 +654,7 @@ async function api(req, res, url) {
     const liberado =
          (pathname === '/api/perfil' && m === 'GET')
       || (pathname === '/api/empresa' && m === 'GET')
+      || (pathname === '/api/saude' && m === 'GET')     // a faixa de saúde vale para todo mundo
       || (pathname === '/api/agendamentos' && m === 'GET')
       || (m === 'PATCH' && new RegExp(`^/api/agendamentos/${UUID}/status$`).test(pathname));
     if (!liberado) {
@@ -602,6 +663,13 @@ async function api(req, res, url) {
   }
 
   const body = (m === 'POST' || m === 'PUT' || m === 'PATCH') ? await readBody(req) : {};
+
+  /* ---- saúde do sistema (faixa no topo da tela) ----
+     Lê a linha única de vigia_estado, que o vigia mantém. Hoje: problema
+     'codewords-fora' desde 01/10 — chave do CodeWords recusada, nenhum WhatsApp
+     automático sai. Sem problema: {ok:true, problema:null}. */
+  if (pathname === '/api/saude' && m === 'GET')
+    return send(res, 200, await dados.obterSaude(), { 'Cache-Control': 'no-store' });
 
   // ---- empresa
   if (pathname === '/api/empresa' && m === 'GET')
@@ -737,6 +805,9 @@ async function api(req, res, url) {
   if (pathname === '/api/agendamentos' && m === 'POST') {
     if (!body.cliente_nome || !body.servico || !body.data || !body.hora)
       return bad(res, 'Informe cliente, serviço, data e hora.');
+    if (!dados.dataBanco(body.data) || !dados.horaBanco(body.hora))
+      return bad(res, 'Data ou hora em formato inválido.');
+    if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
     // dedupe: mesmo horário + mesmo telefone (ou mesmo nome) = mesmo agendamento
     const dup = await dados.agendamentoDuplicado(
       body.data, body.hora, soDigitos(body.telefone || ''), body.cliente_nome);
@@ -765,8 +836,21 @@ async function api(req, res, url) {
     if (m === 'PUT') {
       const a = await dados.obterAgendamento(id);
       if (!a) return notFound(res);
+      if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
       // merge: o que não veio no corpo mantém o valor atual
       const novo = { ...a, ...body };
+      /* Ganhou telefone (ou trocou)? Liga à ficha do cliente — reaproveitando
+         pelo telefone ou criando. O gatilho do banco (vincular_cliente_no_
+         agendamento) só roda no INSERT: um agendamento que nasceu sem telefone
+         e foi corrigido depois ficava sem cliente_id para sempre, e por isso
+         sem lembrete, sem pós-venda e sem ficha no CRM. */
+      const telNovo = soDigitos(body.telefone);
+      if (telNovo && !dados.ehUuid(body.cliente_id) && (!a.cliente_id || telNovo !== soDigitos(a.telefone))) {
+        novo.cliente_id = await dados.obterOuCriarCliente({
+          nome: novo.cliente_nome, telefone: telNovo,
+          veiculo: novo.veiculo ?? null, placa: novo.placa ?? null, origem: novo.origem ?? 'Google',
+        }) ?? a.cliente_id ?? null;
+      }
       /* Voltar para Aguardando/Confirmado zera o comparecimento: esses status
          significam "ainda não chegou". Sem isto, um "Não veio" marcado por
          engano e corrigido pela edição ficava preso na aba "Não vieram" —
@@ -851,14 +935,31 @@ async function api(req, res, url) {
   if (pathname === '/api/clientes' && m === 'GET')
     return ok(res, await dados.listarClientes(searchParams.get('q') || undefined));
   if (pathname === '/api/clientes' && m === 'POST') {
-    if (!body.nome) return bad(res, 'Informe o nome.');
-    return ok(res, await dados.criarCliente(body));
+    if (!String(body.nome ?? '').trim()) return bad(res, 'Informe o nome.');
+    if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
+    try { return ok(res, await dados.criarCliente(body)); }
+    catch (e) { if (/Aniversário inválido/.test(e?.message)) return bad(res, e.message); throw e; }
+  }
+  // "Achar pelo nome": telefone de quem já conversou (conversas) ou já tem ficha (clientes)
+  if (pathname === '/api/clientes/achar' && m === 'GET') {
+    const q = texto1(searchParams.get('q'), 80).trim();
+    if (q.length < 2) return ok(res, []);
+    return ok(res, await dados.acharContato(q));
+  }
+  // Ficha: cadastro + última visita + próxima revisão prevista (regras do Comunicar)
+  if ((mm = pathname.match(new RegExp(`^/api/clientes/${UUID}/ficha$`))) && m === 'GET') {
+    const f = await dados.fichaDoCliente(mm[1]);
+    return f ? ok(res, f) : notFound(res);
   }
   if ((mm = pathname.match(new RegExp(`^/api/clientes/${UUID}$`)))) {
     const id = mm[1];
     if (m === 'PUT') {
-      const c = await dados.atualizarCliente(id, body);
-      return c ? ok(res, c) : notFound(res);
+      if (body.nome !== undefined && !String(body.nome ?? '').trim()) return bad(res, 'Informe o nome.');
+      if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
+      try {
+        const c = await dados.atualizarCliente(id, body);
+        return c ? ok(res, c) : notFound(res);
+      } catch (e) { if (/Aniversário inválido/.test(e?.message)) return bad(res, e.message); throw e; }
     }
     if (m === 'DELETE') { await dados.removerCliente(id); return ok(res, { ok: true }); }
   }
@@ -1107,7 +1208,7 @@ async function api(req, res, url) {
       const r = await fetch(`${base}/run/${sid}/connections`, {
         headers: { Authorization: cfg.cw_api_key }, signal: AbortSignal.timeout(15000),
       });
-      if (!r.ok) return ok(res, { configurado: true, ok: false, erro: `O CodeWords respondeu ${r.status}.` });
+      if (!r.ok) return ok(res, { configurado: true, ok: false, status: r.status, erro: erroCodeWords(r.status) });
 
       const lista = await r.json();
       const nossas = (Array.isArray(lista) ? lista : []).filter((c) => c.phone_number === numeroEmpresa);
@@ -1199,64 +1300,70 @@ async function serveStatic(req, res, pathname) {
   }
 }
 
+/* Cabeçalhos de segurança em TODA resposta. A CSP é simples de propósito: a
+   tela usa script/estilo inline (tema no <head>, onclick nos modais), carrega
+   o supabase-js do jsDelivr e as fontes do Google; fala com o Supabase direto
+   do navegador (login). frame-ancestors 'none' = ninguém embute a Agenda num
+   iframe (clickjacking). */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+function cabecalhosDeSeguranca(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', CSP);
+}
+
 const server = http.createServer(async (req, res) => {
+  const inicio = process.hrtime.bigint();
   const url = new URL(req.url, `http://${req.headers.host}`);
+  cabecalhosDeSeguranca(res);
+  // Log só da API, com duração — sem a query string, que pode carregar o token do ICS.
+  if (url.pathname.startsWith('/api/')) {
+    res.on('finish', () => {
+      const ms = Number(process.hrtime.bigint() - inicio) / 1e6;
+      console.log(`${req.method} ${url.pathname} ${res.statusCode} ${ms.toFixed(0)}ms`);
+    });
+  }
   try {
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     return await serveStatic(req, res, url.pathname);
   } catch (e) {
-    console.error(e);
+    // ErroHttp (413, 400 de JSON…) sai com o próprio código; o resto é 500.
+    const status = Number.isInteger(e?.status) && e.status >= 400 && e.status < 600 ? e.status : 500;
+    if (status === 500) console.error(e);
+    if (res.headersSent) { try { res.end(); } catch { /* conexão já foi */ } return; }
     // a tela só lê 'erro'; sem isso as mensagens claras em português
     // (ex.: "preencha SUPABASE_SERVICE_ROLE_KEY no .env") nunca apareceriam
-    send(res, 500, { erro: String(e?.message || 'Erro interno') });
+    send(res, status, { erro: String(e?.message || 'Erro interno') });
   }
 });
+// Requisição que fica pendurada (cliente sumiu no meio) não segura a conexão para sempre.
+server.requestTimeout = 60_000;
+server.headersTimeout = 30_000;
 
 // ---------------------------------------------------------------------------
-// Lembretes automáticos (agendador)
+// Lembretes automáticos: NÃO saem mais daqui.
+// Quem manda o lembrete de agendamento é o COMUNICAR (indycar-posvenda), com a
+// régua dele, o opt-out do cliente (clientes.aceita_mensagens) e a resposta
+// gravada em posvenda_envios (tipo 'lembrete'). A Agenda só mostra o selinho
+// "lembrete enviado / respondeu" no cartão. O agendador verificarLembretes e a
+// configuração "Lembretes automáticos" da aba WhatsApp foram removidos em 09/10.
 // ---------------------------------------------------------------------------
-async function verificarLembretes() {
-  const cfg = await getWaConfig(); // await obrigatório: sem ele cfg seria uma Promise
-  if (!cfg.lembrete_ativo) return;
-  // envia pelo número conectado (GOWA); se não houver, tenta a Cloud API da Meta
-  const temCloud = !!(cfg.ativo && cfg.phone_number_id && cfg.access_token);
-
-  const horas = Number(cfg.lembrete_horas) || 24;
-  const lista = await dados.agendamentosParaLembrete(horas);
-  if (!lista.length) return;
-
-  const [tpl, emp] = await Promise.all([
-    dados.templatePorGatilho('lembrete'),
-    dados.obterEmpresa(),
-  ]);
-  for (const a of lista) {
-    const ctx = { nome: a.cliente_nome, servico: a.servico, data: formatarDataBR(a.data),
-                  hora: a.hora, veiculo: a.veiculo || '', placa: a.placa || '' };
-    const corpo = tpl ? renderTemplate(tpl.corpo, ctx)
-      : `Oi ${a.cliente_nome}! Lembrete do seu agendamento em ${formatarDataBR(a.data)} às ${a.hora} para ${a.servico} na ${emp.nome}. Te esperamos! 🏁`;
-    try {
-      // 1º tenta o número conectado (GOWA); se falhar e houver Cloud API, usa a Meta
-      let r = await enviarViaGowa(a.telefone, corpo);
-      if (r.ok) {
-        await dados.registrarMensagem({ agendamento_id: a.id, telefone: a.telefone,
-          nome: a.cliente_nome, corpo, direcao: 'saida', status: 'enviado' });
-      } else if (temCloud) {
-        await despacharMensagem({ agendamento_id: a.id, telefone: a.telefone, nome: a.cliente_nome, corpo });
-        r = { ok: true };
-      }
-      if (!r.ok) continue; // sem canal disponível agora — tenta no próximo ciclo
-      await dados.marcarLembreteEnviado(a.id);
-      console.log(`Lembrete enviado: agendamento ${a.id} (${a.cliente_nome})`);
-    } catch (e) { console.error('Lembrete:', e?.message || e); }
-  }
-}
 
 // Os agendadores registram o erro em vez de engoli-lo — sem isso, uma falha do
 // Supabase (400/401/enum) desapareceria e o diagnóstico ficaria impossível.
 const aviso = (onde) => (e) => console.error(`${onde}:`, e?.message || e);
-
-setInterval(() => verificarLembretes().catch(aviso('Lembretes')), 5 * 60 * 1000); // a cada 5 min
-setTimeout(() => verificarLembretes().catch(aviso('Lembretes')), 10 * 1000);      // 10s após iniciar
 
 // Importa agendamentos do CodeWords — roda 24/7.
 //
@@ -1272,8 +1379,25 @@ setTimeout(() => verificarLembretes().catch(aviso('Lembretes')), 10 * 1000);    
 // por aqui, e não para. Isto é só a busca por agendamentos que ele registrou.
 const IMPORT_MIN = Math.max(1, Number(process.env.IMPORT_INTERVALO_MIN) || 15);
 
-setInterval(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000);
-setTimeout(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), 12 * 1000);
+const TIMERS = [
+  setInterval(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000),
+  setTimeout(() => importarAgendamentosCW().catch(aviso('Importação CodeWords')), 12 * 1000),
+];
+
+/* Desligamento limpo: o Render manda SIGTERM a cada deploy. Para de aceitar
+   conexão nova, deixa as requisições em curso terminarem (até 10 s) e sai —
+   sem cortar um PATCH de "Veio e fechou" no meio. */
+let _desligando = false;
+function desligar(sinal) {
+  if (_desligando) return;
+  _desligando = true;
+  console.log(`\n  ${sinal}: encerrando a Agenda com cuidado…`);
+  for (const t of TIMERS) clearTimeout(t);
+  server.close(() => { console.log('  Conexões encerradas. Até logo. 🏁'); process.exit(0); });
+  setTimeout(() => { console.error('  Tempo esgotado: saindo mesmo assim.'); process.exit(1); }, 10_000).unref();
+}
+process.on('SIGTERM', () => desligar('SIGTERM'));
+process.on('SIGINT', () => desligar('SIGINT'));
 
 /* O espelho local → cloud foi REMOVIDO. Os dois lados usam o MESMO Supabase
    (nada a espelhar) e, desde que o login entrou, o POST sem token levava 401
