@@ -16,7 +16,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional } from '../dados.js';
+import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional, casaBusca, cargaDoDia, sugerirConsultor } from '../dados.js';
+import { decidirAcesso, decidirNaoVeioNaEdicao } from '../regras.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3011);
@@ -76,6 +77,12 @@ let AGENDA = [
   ag({ cliente_nome:'Bruno (não fechou)', veiculo:'Tracker', servico:'Orçamento de suspensão', data:dia(-2), hora:'16:00', status:'nao_fechou', compareceu:1 }),
 ];
 
+// Leonardo e Gabriel em alguns horários: carga por consultor e "Minha agenda"
+AGENDA[0].consultor_id = '20000000-0000-4000-8000-000000000101'; AGENDA[0].consultor_nome = 'Leonardo';
+AGENDA[1].consultor_id = '20000000-0000-4000-8000-000000000102'; AGENDA[1].consultor_nome = 'Gabriel';
+AGENDA[7].consultor_id = '20000000-0000-4000-8000-000000000102'; AGENDA[7].consultor_nome = 'Gabriel';
+for (const a of AGENDA) if (!a.consultor_id) a.consultor_nome = null;
+
 const MAPA = {
   confirmado:{ status:'confirmado', confirmado:1, compareceu:null }, compareceu:{ status:'compareceu', compareceu:1 },
   nao_veio:{ status:'nao_veio', compareceu:0 }, em_atendimento:{ status:'em_atendimento' },
@@ -106,10 +113,81 @@ function estatisticas() {
 }
 
 const json = (res, code, obj) => { res.writeHead(code, { 'Content-Type':'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
-const DUBLE_SUPABASE = `<script>window.supabase={createClient:()=>({auth:{
-  getSession:async()=>({data:{session:{access_token:'mock'}}}),
-  signInWithPassword:async()=>({error:null}),signOut:async()=>({error:null}),
-  onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})}})};</script>`;
+
+/* ---------------------------------------------------------------------------
+   RODADA 3 — os PAPÉIS do padrão comum de login. Abra com ?papel=:
+     admin (padrão) · gestor · atendente (é consultor: tem "Minha agenda") ·
+     agenda (Franklin, só presença) · desativado · semacesso (sem a Agenda nos
+     apps) · trocarsenha (senha provisória) · mfa (pede o código: 123456)
+   As regras de acesso são as REAIS (regras.js), as mesmas do servidor.
+   --------------------------------------------------------------------------- */
+const PAPEIS_MOCK = ['admin', 'gestor', 'atendente', 'agenda', 'desativado', 'semacesso', 'trocarsenha', 'mfa'];
+const U = (n) => `20000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const CONS = [
+  { id: U(101), nome:'Leonardo', cor:'#e6192e', ativo:1, telefone:'12991234567', perfil_id: U(1) },
+  { id: U(102), nome:'Gabriel', cor:'#3b82f6', ativo:1, telefone:null, perfil_id: U(3) },
+  { id: U(103), nome:'Antigo', cor:'#64748b', ativo:0, telefone:null, perfil_id: null },
+];
+const PERFIS = {
+  admin:       { id: U(1), nome:'João Pedro Famelli', papel:'admin', apps:['atendimento','crm','agenda','comunicar','orcador','ads'], cargo:'Dono' },
+  gestor:      { id: U(2), nome:'Leo Gestor', papel:'gestor', apps:['agenda','crm','atendimento'], cargo:'Gerente' },
+  atendente:   { id: U(3), nome:'Gabriel', papel:'atendente', apps:['agenda','atendimento'], cargo:'Consultor' },
+  agenda:      { id: U(4), nome:'Franklin', papel:'agenda', apps:['agenda'], cargo:'Consultor presencial' },
+  desativado:  { id: U(5), nome:'Saiu', papel:'atendente', apps:['agenda'], ativo:false },
+  semacesso:   { id: U(6), nome:'Só CRM', papel:'atendente', apps:['crm','atendimento'] },
+  trocarsenha: { id: U(7), nome:'Novata', papel:'atendente', apps:['agenda'], precisa_trocar_senha:true },
+  mfa:         { id: U(8), nome:'Com Código', papel:'gestor', apps:['agenda','crm'] },
+};
+let NOTIF = [], TAREFAS = [];
+function semearRodada3() {
+  const agora = Date.now();
+  NOTIF = [
+    { id: U(201), tipo:'atraso', titulo:'Donizetti está 50 min atrasado', corpo:'Pastilha de freio — marque se veio ou não veio.', link:`/?agendamento=${AGENDA[3].id}`, app:'agenda', lida_em:null, created_at:new Date(agora - 5 * 60e3).toISOString() },
+    { id: U(202), tipo:'tarefa', titulo:'Nova tarefa: Reagendar', corpo:'Diogo Barros não veio', link:null, app:'automacao', lida_em:null, created_at:new Date(agora - 40 * 60e3).toISOString() },
+    { id: U(203), tipo:'conversa', titulo:'Conversa passada para você: <b>Maria</b>', corpo:'Quero remarcar', link:'/?conversa=abc', app:'atendimento', lida_em:new Date().toISOString(), created_at:new Date(agora - 26 * 3600e3).toISOString() },
+  ];
+  TAREFAS = [
+    { id: U(301), titulo:'Confirmar com o cliente', descricao:'Renata — Diagnóstico, amanhã às 08:30. O lembrete automático é do Comunicar.', origem:'automacao', prioridade:2, vence_em:new Date(agora + 3600e3).toISOString(), status:'aberta', agendamento_id: AGENDA[7].id },
+    { id: U(302), titulo:'Reagendar', descricao:'Diogo Barros não veio (Alinhamento 3D).', origem:'automacao', prioridade:1, vence_em:new Date(agora - 3600e3).toISOString(), status:'aberta', agendamento_id: AGENDA[5].id },
+  ];
+}
+let SENHA_TROCADA = false, MFA_OK = false, MFA_LIGADO = false;
+const perfilMock = () => {
+  const base = PERFIS[PAPEL] || PERFIS.admin;
+  const apps = base.papel === 'agenda' ? ['agenda'] : base.apps;
+  const cons = CONS.find((c) => c.perfil_id === base.id);
+  return { id: base.id, nome: base.nome, email: `${PAPEL}@indycartaubate.com`, papel: base.papel, ativo: base.ativo !== false,
+    apps, cargo: base.cargo || '', telefone: '', avatar_cor: '#e50914', preferencias: {},
+    pode_agenda: base.papel === 'admin' || apps.includes('agenda'), gestor: ['admin', 'gestor'].includes(base.papel),
+    precisa_trocar_senha: !!base.precisa_trocar_senha && !SENHA_TROCADA,
+    consultor_id: cons?.id || null, consultor_nome: cons?.nome || null };
+};
+
+const DUBLE_SUPABASE = (papel, semSessao = false) => `<script>window.__PAPEL_MOCK=${JSON.stringify(papel)};
+(function(){
+  var mfaOk=false, ligado=${papel === 'mfa' ? 'true' : 'false'}, logado=${semSessao ? 'false' : 'true'};
+  function ok(d){return Promise.resolve({data:d,error:null});}
+  window.supabase={createClient:function(){return {
+    auth:{
+      getSession:function(){return ok({session:logado?{access_token:'mock',user:{email:window.__PAPEL_MOCK+'@indycartaubate.com'}}:null});},
+      signInWithPassword:function(c){ if(c.password==='errada') return Promise.resolve({data:null,error:{message:'Invalid login credentials'}}); logado=true; return ok({}); },
+      signOut:function(){return ok({});},
+      onAuthStateChange:function(){return {data:{subscription:{unsubscribe:function(){}}}};},
+      resetPasswordForEmail:function(){return ok({});},
+      updateUser:function(){return ok({user:{}});},
+      mfa:{
+        getAuthenticatorAssuranceLevel:function(){return ok({currentLevel:mfaOk?'aal2':'aal1',nextLevel:ligado?'aal2':'aal1'});},
+        listFactors:function(){return ok({totp:ligado?[{id:'f1',status:'verified'}]:[],all:[]});},
+        enroll:function(){return ok({id:'f1',totp:{qr_code:'data:image/svg+xml;utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22180%22 height=%22180%22%3E%3Crect width=%22180%22 height=%22180%22 fill=%22%23eee%22/%3E%3Ctext x=%2230%22 y=%2295%22%3EQR de teste%3C/text%3E%3C/svg%3E',secret:'JBSWY3DPEHPK3PXP'}});},
+        challenge:function(){return ok({id:'ch1'});},
+        verify:function(o){ if(o.code!=='123456') return Promise.resolve({data:null,error:{message:'Invalid TOTP code entered'}}); mfaOk=true; ligado=true; return ok({}); },
+        unenroll:function(){ ligado=false; return ok({}); }
+      }
+    },
+    channel:function(){var c={on:function(){return c;},subscribe:function(){return c;}};return c;},
+    removeChannel:function(){}
+  };}};
+})();</script>`;
 
 let PAPEL = 'admin';
 http.createServer(async (req, res) => {
@@ -117,9 +195,11 @@ http.createServer(async (req, res) => {
   const p = url.pathname, m = req.method;
   if (!p.startsWith('/api/')) {
     if (p === '/' || p === '/index.html') {
-      PAPEL = url.searchParams.get('papel') === 'agenda' ? 'agenda' : 'admin';
+      const pedido = url.searchParams.get('papel');
+      PAPEL = PAPEIS_MOCK.includes(pedido) ? pedido : 'admin';
+      SENHA_TROCADA = false; semearRodada3();
       const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8')
-        .replace(/<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase[^"]*"><\/script>/, DUBLE_SUPABASE);
+        .replace(/<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase[^"]*"><\/script>/, DUBLE_SUPABASE(PAPEL, url.searchParams.get('semsessao') === '1'));
       res.writeHead(200, { 'Content-Type': MIME['.html'] }); return res.end(html);
     }
     if (p === '/sw.js') { res.writeHead(200, { 'Content-Type': MIME['.js'] }); return res.end('/* sem service worker no modo de teste */'); }
@@ -134,6 +214,64 @@ http.createServer(async (req, res) => {
   await new Promise(r => setTimeout(r, 220));            // latência de verdade, para ver o "ocupado" e o esqueleto
   const soPresenca = PAPEL === 'agenda';
   let mm;
+
+  // ---- RODADA 3: porteiro com os papéis (regras.js real) e as rotas novas
+  if (p === '/api/versao') return json(res, 200, { versao:'mock' });
+  if (!['/api/config', '/api/primeiro-acesso'].includes(p)) {
+    const eu = perfilMock();
+    const recusa = decidirAcesso({ perfil: eu, metodo: m, rota: p });
+    if (recusa) return json(res, recusa.status, { erro: recusa.erro, codigo: recusa.codigo });
+  }
+  if (p === '/api/perfil' && m === 'GET') return json(res, 200, perfilMock());
+  if (p === '/api/perfil' && m === 'PUT') {
+    const b = PERFIS[PAPEL] || PERFIS.admin;
+    for (const k of ['nome', 'cargo', 'telefone', 'avatar_cor']) if (body[k] !== undefined) b[k] = body[k];
+    return json(res, 200, { ...perfilMock(), ...body });
+  }
+  if (p === '/api/perfil/senha-trocada') { SENHA_TROCADA = true; return json(res, 200, { ok:true }); }
+  if (p === '/api/notificacoes' && m === 'GET') return json(res, 200, { itens: NOTIF, naoLidas: NOTIF.filter((n) => !n.lida_em).length });
+  if (p === '/api/notificacoes/lidas') {
+    for (const n of NOTIF) if (body.todas || (body.ids || []).includes(n.id)) n.lida_em = n.lida_em || new Date().toISOString();
+    return json(res, 200, { ok:true });
+  }
+  if (p === '/api/tarefas' && m === 'GET') return json(res, 200, TAREFAS.filter((t) => t.status === 'aberta'));
+  if (p === '/api/tarefas' && m === 'POST') {
+    if (!String(body.titulo || '').trim()) return json(res, 400, { erro:'Escreva o que precisa ser feito.' });
+    const t = { id: U(400 + TAREFAS.length), status:'aberta', origem:'agenda', prioridade:2, ...body };
+    TAREFAS.unshift(t); console.log('TAREFA', JSON.stringify(t)); return json(res, 201, t);
+  }
+  if ((mm = p.match(/^\/api\/tarefas\/([0-9a-f-]{36})$/)) && m === 'PATCH') {
+    const t = TAREFAS.find((x) => x.id === mm[1]); if (!t) return json(res, 404, { erro:'Não encontrado' });
+    t.status = body.status; return json(res, 200, t);
+  }
+  if (p === '/api/consultores' && m === 'GET') return json(res, 200, CONS);
+  if (p === '/api/consultores/carga') {
+    const d = url.searchParams.get('data') || hoje();
+    return json(res, 200, cargaDoDia(CONS, AGENDA, d));
+  }
+  if (p === '/api/consultores/sugerir') {
+    const d = url.searchParams.get('data'), h = url.searchParams.get('hora');
+    return json(res, 200, { sugestao: sugerirConsultor({ consultores: CONS, agendamentos: AGENDA, data: d, hora: h, ignorar: url.searchParams.get('ignorar') }),
+      carga: cargaDoDia(CONS, AGENDA, d).consultores });
+  }
+  if (p === '/api/consultores' && m === 'POST') { const c = { id: U(110 + CONS.length), ativo:1, ...body }; CONS.push(c); return json(res, 200, c); }
+  if ((mm = p.match(/^\/api\/consultores\/([0-9a-f-]{36})$/)) && m === 'PUT') {
+    const c = CONS.find((x) => x.id === mm[1]); Object.assign(c, body); console.log('CONSULTOR', JSON.stringify(c)); return json(res, 200, c);
+  }
+  if (p === '/api/equipe/nomes') return json(res, 200, Object.values(PERFIS).filter((x) => x.ativo !== false).map((x) => ({ id: x.id, nome: x.nome, papel: x.papel })));
+  if (p === '/api/equipe' && m === 'GET') {
+    const eu = perfilMock();
+    const lista = Object.values(PERFIS).map((x) => ({ id: x.id, nome: x.nome, email: `${x.nome.split(' ')[0].toLowerCase()}@indycartaubate.com`, papel: x.papel,
+      ativo: x.ativo === false ? 0 : 1, apps: x.papel === 'agenda' ? ['agenda'] : x.apps, ultimo_acesso_em: x.id === U(3) ? new Date(Date.now() - 3600e3).toISOString() : null,
+      ultimo_app: x.id === U(3) ? 'agenda' : null, precisa_trocar_senha: !!x.precisa_trocar_senha }));
+    return json(res, 200, { equipe: eu.papel === 'admin' ? lista : lista.filter((x) => x.id === eu.id), souAdmin: eu.papel === 'admin', meuId: eu.id });
+  }
+  if (p === '/api/equipe/apps') { const x = Object.values(PERFIS).find((y) => y.id === body.id); if (x) x.apps = body.apps; return json(res, 200, { ok:true, apps: body.apps }); }
+  if (p === '/api/equipe/papel') { const x = Object.values(PERFIS).find((y) => y.id === body.id); if (x) x.papel = body.papel; return json(res, 200, { ok:true, papel: body.papel }); }
+  if (p === '/api/equipe/senha-temporaria') return json(res, 200, { ok:true, senha:'Kp7wQm4ZtR9x' });
+  if (p === '/api/export/agendamentos.csv' || p === '/api/export/clientes.csv') {
+    res.writeHead(200, { 'Content-Type':'text/csv; charset=utf-8' }); return res.end('﻿"id";"cliente"\r\n"1";"Maria"');
+  }
 
   if (p === '/api/versao') return json(res, 200, { versao:'mock' });
   // ---- rodada 2: link de entrada, histórico, mensagens do Comunicar, horários livres, busca
@@ -165,7 +303,7 @@ http.createServer(async (req, res) => {
   }
   if (p === '/api/busca') {
     const q = (url.searchParams.get('q') || '').toLowerCase(), d = q.replace(/D/g, '');
-    const casa = (vals) => vals.some(x => String(x || '').toLowerCase().includes(q)) ;
+    const casa = (vals) => casaBusca(vals, q);
     return json(res, 200, {
       agendamentos: AGENDA.filter(a => casa([a.cliente_nome, a.placa, a.veiculo, a.servico]) || (d.length >= 4 && tel(a.telefone).includes(d))).slice(0, 12),
       clientes: CLIENTES.filter(c => casa([c.nome, c.placa, c.veiculo]) || (d.length >= 4 && tel(c.telefone).includes(d))).slice(0, 8) });
@@ -247,7 +385,9 @@ http.createServer(async (req, res) => {
     const de = url.searchParams.get('de'), ate = url.searchParams.get('ate'), dt = url.searchParams.get('data');
     if (!soPresenca && dt) l = l.filter(a => a.data === dt);
     else if (!soPresenca && (de || ate)) l = l.filter(a => (!de || a.data >= de) && (!ate || a.data <= ate));
-    if (q) l = l.filter(a => [a.cliente_nome, a.placa, a.veiculo, a.telefone].some(x => String(x || '').toLowerCase().includes(q)));
+    if (q) l = l.filter(a => casaBusca([a.cliente_nome, a.placa, a.veiculo, a.servico], q, a.telefone));
+    const cons = url.searchParams.get('consultor_id');
+    if (cons) l = l.filter(a => a.consultor_id === cons);
     l = l.slice().sort((a, b) => b.data.localeCompare(a.data) || a.hora.localeCompare(b.hora));
     return json(res, 200, soPresenca ? l.map(({ telefone, ...r }) => r) : l);
   }
@@ -269,11 +409,15 @@ http.createServer(async (req, res) => {
     if (m === 'DELETE') { AGENDA.splice(i, 1); return json(res, 200, { ok:true }); }
     if (m === 'PUT') {
       const a = AGENDA[i];
+      const nv = decidirNaoVeioNaEdicao(a, body);
+      if (nv.acao === 'perguntar') return json(res, 409, { codigo:'confirmar_aviso', erro:'Marcar "Não veio" manda o WhatsApp de falta para o cliente. Avisar o cliente?' });
+      if (nv.acao === 'carimbar') a.no_show_notificado_em = new Date().toISOString();
+      if (nv.acao === 'avisar') { a.no_show_notificado_em = new Date().toISOString(); console.log('AVISO DE FALTA ENVIADO (mock)', a.cliente_nome); }
       for (const k of ['cliente_nome', 'telefone', 'veiculo', 'placa', 'servico', 'data', 'hora', 'consultor_id', 'origem', 'status', 'observacoes', 'cliente_id', 'compareceu', 'no_show_notificado_em'])
         if (body[k] !== undefined) a[k] = k === 'telefone' ? (String(body[k] || '').replace(/D/g, '') || null) : body[k];
       if (['aguardando', 'confirmado'].includes(body.status) && body.compareceu === undefined) a.compareceu = null;
       console.log('PUT', a.cliente_nome, JSON.stringify(body));
-      return json(res, 200, a);
+      return json(res, 200, { ...a, aviso_ausencia: nv.acao === 'avisar' ? { ok:true } : null });
     }
     return json(res, 200, AGENDA[i]);
   }

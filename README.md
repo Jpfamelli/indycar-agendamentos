@@ -231,9 +231,45 @@ enviado sozinho quando a internet volta (faixa laranja mostra quantos faltam).
 Telefones viram link `tel:` com botão de copiar. Hora fora de seg–sáb 8h–17h30
 avisa sem bloquear.
 
+### 🔐 Login, perfil e acesso (rodada 3 — padrão comum do ecossistema)
+- **Login**: mostrar senha, aviso de Caps Lock, "lembrar meu e-mail", recados claros (senha errada,
+  desativado, sem internet) e espera progressiva depois de 5 erros seguidos. **Esqueci a senha** manda o
+  link do Supabase (poucos por hora no plano gratuito — o admin também gera **senha temporária** em
+  Configurações › Equipe); na volta abre a tela de senha nova.
+- **Troca obrigatória** (`perfis.precisa_trocar_senha`) antes de entrar; **duas etapas (TOTP)** opcional no
+  menu do perfil — o servidor exige token `aal2` de quem tem fator verificado.
+- **Acesso por app**: admin sempre; os demais precisam de `agenda` em `perfis.apps` (sem ela, tela "Você
+  não tem acesso" com os apps da pessoa). Papéis: admin · gestor · atendente · agenda (Franklin, só
+  presença). As regras ficam em `regras.js` e são conferidas em TODA rota; só gestor/admin apaga,
+  exporta e muda configuração.
+- **Menu do perfil** (avatar): Meu perfil, trocar senha, duas etapas, notificações, tema, sair, sair de
+  todos os aparelhos. **Sino** (só as minhas notificações, tempo real) e **Minhas tarefas** no topo.
+
+### 👥 Consultores
+`consultores.perfil_id` (migração `ag_consultor_perfil`) liga o consultor a um login: "Minha agenda"
+na Agenda, tarefas e avisos de atraso vão para a pessoa certa. O modal sugere o consultor de **menor
+carga** e livre naquela meia hora (sem bloquear); a sugestão de horário respeita a capacidade por
+consultor e da recepção.
+
+### 🤖 Automações (só em produção, ou com `AUTOMACOES=1`)
+A cada 5 min (`automacoes.js`, relógio injetável): às 16h, horário do próximo dia útil sem confirmação →
+tarefa **"Confirmar com o cliente"**; cliente que faltou → tarefa **"Reagendar"** para quem atendeu a
+conversa; 30 min de atraso sem desfecho → notificação. Nenhum WhatsApp: o lembrete é do Comunicar.
+
+### 🚫 Aviso de falta pela edição
+Mudar para "Não veio" pelo modal de **edição** pergunta "Avisar o cliente?". Sem resposta o servidor
+devolve 409; `avisar_cliente:false` carimba `no_show_notificado_em` junto (o gatilho do banco não dispara);
+`true` usa o mesmo fluxo do cartão (envia uma vez).
+
+### 🔎 Busca sem acento
+"oleo" acha "Óleo", "jose" acha "José" — ilike na forma digitada e numa forma larga (curinga no lugar das
+vogais/ç), conferida em JS (`dados.js › casaBusca`). Sem extensão nova no banco.
+
 ### 🧪 Testes
 ```bash
-npm test          # node --test: dados.js (inclui horariosLivres), regras do app.js e public/planejamento.js
+npm test          # node --test: dados.js, app.js, planejamento.js, regras.js, automacoes.js, conta.js e o server.js por HTTP
+npm run segredos  # varre os arquivos versionados atrás de chave/senha
+npm run mock      # http://localhost:3011/?papel=admin|gestor|atendente|agenda|desativado|semacesso|trocarsenha|mfa (&semsessao=1 = tela de login)
 npm run check     # node --check no servidor, no mock e nos JS do public/
 ```
 
@@ -241,6 +277,11 @@ npm run check     # node --check no servidor, no mock e nos JS do public/
 
 ```
 GET    /api/versao              { versao }  (sem login: confere o deploy)
+GET    /api/notificacoes        POST /api/notificacoes/lidas  { ids } | { todas:true }   (só as minhas)
+GET    /api/tarefas             POST /api/tarefas   PATCH /api/tarefas/:id { status }   (minhas)
+PUT    /api/perfil              { nome, cargo, telefone, avatar_cor, preferencias }   POST /api/perfil/senha-trocada
+GET    /api/consultores/carga   ?data=     GET /api/consultores/sugerir ?data=&hora=&ignorar=
+POST   /api/equipe/apps         POST /api/equipe/senha-temporaria   GET /api/equipe/nomes   GET /api/auditoria (admin)
 GET    /api/saude               { ok, problema, desde, resumo }  (vigia_estado)
 GET    /api/abrir?tel=&cliente= ficha + agendamentos (link de entrada)
 GET    /api/horarios-livres     ?data=&consultor_id=&ignorar=  → { capacidade, sugestoes[3] }

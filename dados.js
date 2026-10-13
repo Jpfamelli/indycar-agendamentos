@@ -14,7 +14,7 @@
 
 import {
   selecionar, selecionarUm, selecionarTudo,
-  inserirUm, atualizar, atualizarUm, remover, contar, criarUsuarioAuth,
+  inserirUm, atualizar, atualizarUm, remover, contar, criarUsuarioAuth, rpc, trocarSenhaAuth,
 } from './supabase.js';
 import { randomBytes } from 'node:crypto';
 
@@ -274,6 +274,46 @@ function termoBusca(q) {
   return `"*${limpo}*"`;
 }
 
+/* ---------------------------------------------------------------------------
+   BUSCA SEM ACENTO (sem a extensão unaccent no banco — nada de DDL).
+   O ilike do Postgres diferencia "oleo" de "Óleo". Então a busca vai em duas
+   formas: a digitada e uma "larga", sem acento e com o curinga _ (um caractere
+   qualquer) no lugar de cada vogal e do ç — "oleo" vira *_l__*, que casa
+   "Óleo", "óleo", "Oleo"… A forma larga pega a mais; o JS (casaBusca) confere
+   sem acento e joga fora o que não é. Funções puras, testadas.
+   --------------------------------------------------------------------------- */
+export function padraoSemAcento(q) {
+  const base = semAcento(q).replace(/[%*"\\(),:]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (base.length < 2) return null;
+  const largo = base.replace(/[aeiouc]/g, '_');
+  // só curinga (ex.: "ao") pegaria a tabela inteira: aí fica só a forma digitada
+  if (!/[^_ ]/.test(largo)) return null;
+  return `"*${largo}*"`;
+}
+/** Filtros or=(...) de busca: cada coluna na forma digitada e na forma sem acento. */
+export function filtrosDeBusca(q, colunas) {
+  const t = termoBusca(q), largo = padraoSemAcento(q);
+  const f = [];
+  for (const c of colunas) {
+    f.push(`${c}.ilike.${t}`);
+    if (largo && largo !== t) f.push(`${c}.ilike.${largo}`);
+  }
+  return f;
+}
+/** Confere em JS, sem acento e sem maiúscula. Telefone casa pelos dígitos (com ou sem máscara/55). */
+export function casaBusca(valores, q, telefone = null) {
+  const alvo = semAcento(q);
+  if (!alvo) return true;
+  if (valores.some((v) => semAcento(v).includes(alvo))) return true;
+  const dig = soDigitos(q);
+  if (dig.length >= 4 && telefone) {
+    const tel = soDigitos(telefone);
+    const nac = telefoneNacional(dig) || dig;
+    if (tel.includes(nac) || tel.includes(dig.slice(-8))) return true;
+  }
+  return false;
+}
+
 // ============================================================================
 // Mapeamentos de leitura (banco -> formato que a tela já consome)
 // ============================================================================
@@ -330,7 +370,7 @@ const SEL_AGENDAMENTO = 'select=*,consultores(nome,cor)';
 // AGENDAMENTOS
 // ============================================================================
 
-export async function listarAgendamentos({ data, status, q, de, ate } = {}) {
+export async function listarAgendamentos({ data, status, q, de, ate, consultor_id } = {}) {
   const p = new URLSearchParams(SEL_AGENDAMENTO);
   if (data) p.set('data', `eq.${data}`);
   // intervalo (visão Semana/Mês): só o período pedido, não a tabela inteira
@@ -346,16 +386,20 @@ export async function listarAgendamentos({ data, status, q, de, ate } = {}) {
     p.set('status', `eq.${status}`);
   }
   if (q) {
-    const t = termoBusca(q);
-    // LIKE do SQLite era case-insensitive; no Postgres precisa ser ilike
-    // serviço também entra; e só os dígitos acham o telefone gravado com máscara pelo CRM
-    const filtros = [`cliente_nome.ilike.${t}`, `placa.ilike.${t}`, `veiculo.ilike.${t}`, `telefone.ilike.${t}`, `servico.ilike.${t}`];
+    // LIKE do SQLite era case-insensitive; no Postgres precisa ser ilike.
+    // Sem acento: "oleo" acha "Óleo" — o ilike vai nas DUAS formas (a digitada e
+    // uma com curinga no lugar de cada vogal/ç) e o JS confere de verdade depois.
+    // Serviço também entra; e só os dígitos acham o telefone gravado com máscara pelo CRM.
+    const filtros = filtrosDeBusca(q, ['cliente_nome', 'placa', 'veiculo', 'telefone', 'servico']);
     const padraoTel = padraoTelefone(q);
     if (padraoTel) filtros.push(`telefone.ilike.${padraoTel}`);
     p.set('or', `(${filtros.join(',')})`);
   }
+  // "Minha agenda": só os horários de um consultor
+  if (ehUuid(consultor_id)) p.set('consultor_id', `eq.${consultor_id}`);
   p.set('order', 'data.desc,hora.asc');
-  const linhas = await selecionarTudo(T.agendamentos, p);
+  let linhas = await selecionarTudo(T.agendamentos, p);
+  if (q) linhas = linhas.filter((r) => casaBusca([r.cliente_nome, r.placa, r.veiculo, r.servico, r.telefone], q, r.telefone));
   // selo "lembrete enviado / respondeu" do Comunicar nos cartões pendentes
   return anexarLembretes(linhas.map(lerAgendamento));
 }
@@ -603,11 +647,13 @@ export async function listarClientes(q) {
   if (q) {
     const t = termoBusca(q);
     // telefone_e164 entra na busca para achar o cliente digitando só os números,
-    // mesmo quando o CRM gravou o telefone com máscara
-    p.set('or', `(nome.ilike.${t},telefone.ilike.${t},telefone_e164.ilike.${t},placa.ilike.${t})`);
+    // mesmo quando o CRM gravou o telefone com máscara. Nome e placa também sem acento.
+    const f = [...filtrosDeBusca(q, ['nome', 'placa']), `telefone.ilike.${t}`, `telefone_e164.ilike.${t}`];
+    p.set('or', `(${f.join(',')})`);
   }
   p.set('order', 'nome.asc');
-  const linhas = await selecionarTudo(T.clientes, p);
+  let linhas = await selecionarTudo(T.clientes, p);
+  if (q) linhas = linhas.filter((r) => casaBusca([r.nome, r.placa, r.telefone, r.telefone_e164], q, r.telefone_e164 || r.telefone));
   return linhas.map(lerCliente);
 }
 
@@ -689,20 +735,26 @@ export async function acharContato(q) {
   const termo = String(q ?? '').replace(/[%*"\\(),]/g, ' ').replace(/\s+/g, ' ').trim();
   if (termo.length < 2) return [];
   const t = `*${termo}*`;
+  // sem acento: "jose" acha "José" (forma larga no ilike + conferência em JS logo abaixo)
+  const largo = padraoSemAcento(termo);
+  const filtroNome = largo ? `(nome.ilike.${termoBusca(termo)},nome.ilike.${largo})` : null;
   const pc = new URLSearchParams('select=nome,telefone,cliente_id,ultima_mensagem_em');
-  pc.set('nome', `ilike.${t}`);
+  if (filtroNome) pc.set('or', filtroNome); else pc.set('nome', `ilike.${t}`);
   pc.set('telefone', 'not.is.null');
   pc.set('order', 'ultima_mensagem_em.desc.nullslast');
-  pc.set('limit', '8');
+  pc.set('limit', '40');
   const pk = new URLSearchParams('select=id,nome,telefone,carro_modelo,placa,updated_at');
-  pk.set('nome', `ilike.${t}`);
+  if (filtroNome) pk.set('or', filtroNome); else pk.set('nome', `ilike.${t}`);
   pk.set('telefone', 'not.is.null');
   pk.set('order', 'updated_at.desc.nullslast');
-  pk.set('limit', '8');
-  const [conversas, clientes] = await Promise.all([
+  pk.set('limit', '40');
+  const [conversasT, clientesT] = await Promise.all([
     selecionar(T.conversas, pc).catch(() => []),
     selecionar(T.clientes, pk).catch(() => []),
   ]);
+  // a forma larga traz a mais: aqui fica só quem casa de verdade (sem acento)
+  const conversas = conversasT.filter((c) => casaBusca([c.nome], termo));
+  const clientes = clientesT.filter((c) => casaBusca([c.nome], termo));
   const vistos = new Set();
   const saida = [];
   const por = (tel) => telefoneNacional(tel);
@@ -820,24 +872,102 @@ export async function listarConsultores() {
   return linhas.map(lerConsultor);
 }
 
+/* Ligação opcional consultor → login (perfis), coluna `consultores.perfil_id`
+   (migração ag_consultor_perfil). Só entra no INSERT/PATCH quando a coluna
+   existe — mesma sonda das colunas do Comunicar. Vazio desliga. */
+async function campoPerfilDoConsultor(dados, campos) {
+  if (dados.perfil_id === undefined) return campos;
+  if (!(await temColuna(T.consultores, 'perfil_id'))) return campos;
+  campos.perfil_id = uuidOuNulo(dados.perfil_id);
+  return campos;
+}
+
 export async function criarConsultor(dados) {
-  const linha = limparParaGravar({
-    nome: dados.nome,
+  const linha = await campoPerfilDoConsultor(dados, limparParaGravar({
+    nome: String(dados.nome).trim().slice(0, 80),
     telefone: soDigitos(dados.telefone) || null,
-    cor: dados.cor || '#e6192e',
+    cor: /^#[0-9a-fA-F]{6}$/.test(dados.cor || '') ? dados.cor : '#e6192e',
     ativo: dados.ativo === undefined ? true : paraBool(dados.ativo),
-  });
+  }));
   return lerConsultor(await inserirUm(T.consultores, linha, 'select=*'));
 }
 
 export async function atualizarConsultor(id, dados) {
   if (!ehUuid(id)) return null;
   const campos = {};
-  if (dados.nome !== undefined) campos.nome = dados.nome;
+  if (dados.nome !== undefined) campos.nome = String(dados.nome).trim().slice(0, 80);
   if (dados.telefone !== undefined) campos.telefone = soDigitos(dados.telefone) || null;
-  if (dados.cor !== undefined) campos.cor = dados.cor || '#e6192e';
+  if (dados.cor !== undefined) campos.cor = /^#[0-9a-fA-F]{6}$/.test(dados.cor || '') ? dados.cor : '#e6192e';
   if (dados.ativo !== undefined) campos.ativo = paraBool(dados.ativo);
+  await campoPerfilDoConsultor(dados, campos);
   return lerConsultor(await atualizarUm(T.consultores, `id=eq.${id}&select=*`, limparParaGravar(campos)));
+}
+
+/** O consultor ligado a um login (ou null). É o que liga "Minha agenda". */
+export async function consultorDoPerfil(perfilId) {
+  if (!ehUuid(perfilId) || !(await temColuna(T.consultores, 'perfil_id'))) return null;
+  return lerConsultor(await selecionarUm(T.consultores, `select=*&perfil_id=eq.${perfilId}&limit=1`));
+}
+
+/**
+ * Função PURA (testada): carga de cada consultor num dia — quantos horários
+ * ATIVOS (ainda vão acontecer ou estão acontecendo) cada um tem, mais a linha
+ * "sem consultor". Inativo só aparece se tiver horário.
+ */
+export function cargaDoDia(consultores = [], agendamentos = [], data = null) {
+  const conta = new Map();
+  let sem = 0;
+  for (const a of agendamentos) {
+    if (!a || (data && a.data !== data) || !STATUS_OCUPA.has(a.status)) continue;
+    if (a.consultor_id) conta.set(a.consultor_id, (conta.get(a.consultor_id) || 0) + 1);
+    else sem++;
+  }
+  const linhas = consultores
+    .filter((c) => (c.ativo !== 0 && c.ativo !== false) || conta.get(c.id))
+    .map((c) => ({ id: c.id, nome: c.nome, cor: c.cor, ativo: c.ativo, perfil_id: c.perfil_id ?? null, total: conta.get(c.id) || 0 }))
+    .sort((x, y) => x.total - y.total || String(x.nome).localeCompare(String(y.nome), 'pt-BR'));
+  return { data, consultores: linhas, sem_consultor: sem };
+}
+
+/**
+ * Função PURA (testada): qual consultor sugerir para um horário — SÓ sugere,
+ * nunca bloqueia. Fora quem já tem carro naquela meia hora (o banco recusaria:
+ * índice agendamentos_slot_uk), fica o de MENOR carga no dia; empate → nome.
+ * Ninguém livre → null (a tela deixa escolher mesmo assim).
+ */
+export function sugerirConsultor({ consultores = [], agendamentos = [], data, hora, ignorar = null } = {}) {
+  const ativos = consultores.filter((c) => c.ativo !== 0 && c.ativo !== false);
+  if (!ativos.length || !data) return null;
+  const doDia = agendamentos.filter((a) => a && a.data === data && STATUS_OCUPA.has(a.status) && (!ignorar || a.id !== ignorar));
+  const janela = (h) => { const m = minDe(h); return m === null ? null : Math.floor(m / EXPEDIENTE.passo) * EXPEDIENTE.passo; };
+  const jan = hora ? janela(hora) : null;
+  const ocupados = new Set(jan === null ? [] : doDia.filter((a) => a.consultor_id && janela(a.hora) === jan).map((a) => a.consultor_id));
+  const carga = cargaDoDia(ativos, doDia, data).consultores.filter((c) => !ocupados.has(c.id));
+  if (!carga.length) return null;
+  const melhor = carga[0];
+  return { id: melhor.id, nome: melhor.nome, total: melhor.total,
+    motivo: melhor.total === 0 ? 'livre o dia todo' : `${melhor.total} ${melhor.total === 1 ? 'carro' : 'carros'} no dia` };
+}
+
+/** Carga do dia lida do banco: consultores + horários ativos daquela data. */
+export async function cargaPorConsultor(data) {
+  const d = dataBanco(data) || hoje();
+  const [consultores, linhas] = await Promise.all([
+    listarConsultores(),
+    selecionar(T.agendamentos, `select=id,data,hora,status,consultor_id&data=eq.${d}&limit=1000`),
+  ]);
+  return { ...cargaDoDia(consultores, linhas.map((r) => ({ ...r, hora: horaCurta(r.hora) })), d), linhas };
+}
+
+/** Sugestão de consultor para data/hora (modal de agendamento). */
+export async function consultorSugerido({ data, hora, ignorar } = {}) {
+  const d = dataBanco(data);
+  if (!d) return { sugestao: null, carga: [] };
+  const { consultores, linhas } = await cargaPorConsultor(d);
+  const todos = await listarConsultores();
+  const sugestao = sugerirConsultor({ consultores: todos, agendamentos: linhas.map((r) => ({ ...r, hora: horaCurta(r.hora) })),
+    data: d, hora: horaBanco(hora) ? horaCurta(horaBanco(hora)) : null, ignorar: ehUuid(ignorar) ? ignorar : null });
+  return { sugestao, carga: consultores };
 }
 
 export async function removerConsultor(id) {
@@ -924,17 +1054,44 @@ export async function salvarEmpresa(dados) {
 // assim ninguém consegue ler nem renomear o perfil de outra pessoa.
 // ============================================================================
 
-export async function obterPerfil(id, emailDoLogin = '') {
-  const p = await selecionarUm(
-    T.perfis, `select=id,nome,email,papel,ativo&id=eq.${encodeURIComponent(id)}`);
+/* Colunas do perfil ampliado (migração rodada3_base). Se ainda não existirem
+   (banco antigo / teste), o select cai para o básico em vez de quebrar o login. */
+const SEL_PERFIL = 'id,nome,email,papel,ativo,avatar_cor,apps,cargo,telefone,precisa_trocar_senha,preferencias,ultimo_acesso_em,ultimo_app';
+const SEL_PERFIL_BASICO = 'id,nome,email,papel,ativo';
+export const APPS_DO_ECOSSISTEMA = ['atendimento', 'crm', 'agenda', 'comunicar', 'orcador', 'ads'];
+
+/** Normaliza o perfil para a tela (pura, testada). `apps` do papel agenda é sempre só ['agenda']. */
+export function perfilParaTela(p, id, emailDoLogin = '') {
+  const papel = p?.papel ?? '';
+  const apps = papel === 'agenda' ? ['agenda']
+    : (Array.isArray(p?.apps) ? p.apps.filter((a) => APPS_DO_ECOSSISTEMA.includes(a)) : APPS_DO_ECOSSISTEMA.slice());
   return {
     id,
     nome: p?.nome ?? '',
     // o e-mail do Auth é a fonte da verdade quando o perfil ainda não tem um
     email: p?.email || emailDoLogin || '',
-    papel: p?.papel ?? '',
+    papel,
     ativo: bit(p?.ativo ?? true),
+    avatar_cor: /^#[0-9a-fA-F]{6}$/.test(p?.avatar_cor || '') ? p.avatar_cor : '#e50914',
+    cargo: p?.cargo ?? '',
+    telefone: p?.telefone ?? '',
+    apps,
+    pode_agenda: papel === 'admin' || apps.includes('agenda'),
+    gestor: papel === 'admin' || papel === 'gestor',
+    precisa_trocar_senha: !!p?.precisa_trocar_senha,
+    preferencias: p?.preferencias && typeof p.preferencias === 'object' ? p.preferencias : {},
+    ultimo_acesso_em: p?.ultimo_acesso_em ?? null,
   };
+}
+
+async function lerPerfilBruto(id) {
+  try { return await selecionarUm(T.perfis, `select=${SEL_PERFIL}&id=eq.${encodeURIComponent(id)}`); }
+  catch { return selecionarUm(T.perfis, `select=${SEL_PERFIL_BASICO}&id=eq.${encodeURIComponent(id)}`); }
+}
+
+export async function obterPerfil(id, emailDoLogin = '') {
+  const [p, consultor] = await Promise.all([lerPerfilBruto(id), consultorDoPerfil(id).catch(() => null)]);
+  return { ...perfilParaTela(p, id, emailDoLogin), consultor_id: consultor?.id ?? null, consultor_nome: consultor?.nome ?? null };
 }
 
 /** Troca só o nome — papel, e-mail e situação continuam com o administrador. */
@@ -943,6 +1100,47 @@ export async function atualizarPerfilNome(id, nome, emailDoLogin = '') {
     nome, updated_at: new Date().toISOString(),
   });
   return obterPerfil(id, emailDoLogin);
+}
+
+/** "Meu perfil": nome, cargo, telefone, cor do avatar e preferências de notificação.
+    O e-mail fica só leitura; papel/apps/ativo NUNCA passam por aqui. */
+export async function atualizarMeuPerfil(id, campos, emailDoLogin = '') {
+  const permitido = {};
+  for (const k of ['nome', 'cargo', 'telefone', 'avatar_cor', 'preferencias']) if (campos[k] !== undefined) permitido[k] = campos[k];
+  await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`, { ...permitido, updated_at: new Date().toISOString() });
+  return obterPerfil(id, emailDoLogin);
+}
+
+/** Último acesso (o servidor chama no máximo a cada 5 min por pessoa). */
+export async function marcarUltimoAcesso(id, app = 'agenda') {
+  await atualizar(T.perfis, `id=eq.${encodeURIComponent(id)}`, { ultimo_acesso_em: new Date().toISOString(), ultimo_app: app });
+}
+
+/** A pessoa trocou a senha obrigatória: desliga a marca. */
+export async function marcarSenhaTrocada(id) {
+  await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`, { precisa_trocar_senha: false });
+}
+
+/** Admin: quais apps a pessoa usa (o papel agenda fica sempre só com ['agenda']). */
+export async function definirApps(id, apps) {
+  const lista = [...new Set((apps || []).filter((a) => APPS_DO_ECOSSISTEMA.includes(a)))];
+  await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`, { apps: lista, updated_at: new Date().toISOString() });
+  return lista;
+}
+
+/** Admin: senha temporária (12 caracteres sem confusão 0/O, 1/l) + troca obrigatória no próximo login. */
+export function gerarSenhaTemporaria() {
+  const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const b = randomBytes(12);
+  let s = '';
+  for (let i = 0; i < 12; i++) s += alfabeto[b[i] % alfabeto.length];
+  return s;
+}
+export async function definirSenhaTemporaria(id) {
+  const senha = gerarSenhaTemporaria();
+  await trocarSenhaAuth(id, senha);
+  await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`, { precisa_trocar_senha: true, updated_at: new Date().toISOString() });
+  return senha;
 }
 
 // ============================================================================
@@ -956,8 +1154,10 @@ export async function atualizarPerfilNome(id, nome, emailDoLogin = '') {
 export async function listarEquipe(soEsteId = null) {
   const filtro = soEsteId ? `&id=eq.${encodeURIComponent(soEsteId)}` : '';
   const linhas = await selecionar(T.perfis,
-    `select=id,nome,email,papel,ativo,created_at&order=created_at.asc${filtro}`);
-  return linhas.map((p) => ({ ...p, ativo: bit(p.ativo) }));
+    `select=id,nome,email,papel,ativo,created_at,apps,cargo,ultimo_acesso_em,ultimo_app,precisa_trocar_senha&order=created_at.asc${filtro}`)
+    .catch(() => selecionar(T.perfis, `select=id,nome,email,papel,ativo,created_at&order=created_at.asc${filtro}`));
+  return linhas.map((p) => ({ ...p, ativo: bit(p.ativo),
+    apps: p.papel === 'agenda' ? ['agenda'] : (Array.isArray(p.apps) ? p.apps : APPS_DO_ECOSSISTEMA.slice()) }));
 }
 
 /** Quantas pessoas já têm acesso — é isto que decide se o primeiro acesso está aberto. */
@@ -973,7 +1173,7 @@ export async function resumoDoPerfil(id) {
 }
 
 /** Cria o acesso e acerta nome e função no perfil que o gatilho do banco criou. */
-export async function criarMembro({ nome, email, senha, papel = 'atendente' }) {
+export async function criarMembro({ nome, email, senha, papel = 'atendente', convidadoPor = null, trocarSenha = false }) {
   const usuario = await criarUsuarioAuth({ email, senha, nome });
 
   /* O gatilho criar_perfil_novo_usuario já inseriu a linha em `perfis`; aqui só
@@ -981,8 +1181,16 @@ export async function criarMembro({ nome, email, senha, papel = 'atendente' }) {
      o cadastro esbarraria em "e-mail já cadastrado" e a pessoa ficaria sem
      entender. Por isso devolvemos um aviso em vez de estourar o erro. */
   try {
+    const extras = {
+      ...(papel === 'agenda' ? { apps: ['agenda'] } : {}),
+      ...(ehUuid(convidadoPor) ? { convidado_por: convidadoPor } : {}),
+      // senha criada pelo admin: a pessoa escolhe a dela no primeiro login
+      ...(trocarSenha ? { precisa_trocar_senha: true } : {}),
+    };
     const gravado = await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(usuario.id)}`,
-      { nome, papel, ativo: true, updated_at: new Date().toISOString() });
+      { nome, papel, ativo: true, ...extras, updated_at: new Date().toISOString() })
+      .catch(() => atualizarUm(T.perfis, `id=eq.${encodeURIComponent(usuario.id)}`,
+        { nome, papel, ativo: true, updated_at: new Date().toISOString() }));
     /* Sem gatilho no banco, o UPDATE não acha linha nenhuma e a pessoa ficaria
        com login mas sem perfil — e o porteiro do servidor recusa quem não tem
        perfil. Criar aqui evita um acesso que não entra em lugar nenhum. */
@@ -997,9 +1205,18 @@ export async function criarMembro({ nome, email, senha, papel = 'atendente' }) {
   return { id: usuario.id, nome, email, papel, aviso: null };
 }
 
-export async function definirPapel(id, papel) {
-  await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`,
-    { papel, updated_at: new Date().toISOString() });
+export async function definirPapel(id, papel, papelAntes = null) {
+  /* O papel 'agenda' (presença) só usa a Agenda: apps = ['agenda']. Saindo
+     dele, a pessoa volta a ter todos os apps (o admin restringe depois). */
+  const extra = papel === 'agenda' ? { apps: ['agenda'] }
+    : (papelAntes === 'agenda' ? { apps: APPS_DO_ECOSSISTEMA.slice() } : {});
+  try {
+    await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`,
+      { papel, ...extra, updated_at: new Date().toISOString() });
+  } catch (e) {
+    if (!Object.keys(extra).length) throw e;      // banco sem a coluna apps: grava só o papel
+    await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`, { papel, updated_at: new Date().toISOString() });
+  }
 }
 
 /** Liga/desliga o acesso. Desligado, o porteiro do servidor recusa o token. */
@@ -1575,19 +1792,28 @@ const diaDaSemana = (iso) => new Date(`${iso}T12:00:00Z`).getUTCDay();
  * pessoa ter escolha de verdade (manhã/tarde/outro dia), não 8h, 8h30 e 9h.
  */
 export function horariosLivres({ desde, agora, agendamentos = [], capacidade = 1, consultor_id = null, ignorar = null,
-  quantos = 3, diasAFrente = 14, porDia = 2, intervalo = 90 } = {}) {
+  consultores = [], quantos = 3, diasAFrente = 14, porDia = 2, intervalo = 90 } = {}) {
   const inicio = desde && (!agora?.data || desde >= agora.data) ? desde : (agora?.data || desde);
   if (!inicio || !/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return [];
-  const cap = consultor_id ? 1 : Math.max(1, Number(capacidade) || 1);
-  const ocupacao = new Map();               // 'data|janela' -> quantos
+  /* Capacidade POR CONSULTOR: cada consultor atende um carro por meia hora (o
+     banco recusa dois — índice agendamentos_slot_uk) e a recepção comporta
+     `capacidade` carros no total (consultores ativos). Com consultor_id, a
+     janela só serve se ELE está livre E a recepção ainda tem vaga. Sem
+     consultor, basta a recepção; e cada sugestão diz quem está livre
+     (`consultores_livres`), para o modal já pré-escolher. */
+  const capTotal = Math.max(1, Number(capacidade) || 1);
+  const ocupacao = new Map();               // 'data|janela' -> quantos (todos)
+  const doConsultor = new Map();            // 'data|janela' -> Set(consultor_id)
   for (const a of agendamentos) {
     if (!a || !STATUS_OCUPA.has(a.status) || (ignorar && a.id === ignorar)) continue;
-    if (consultor_id && a.consultor_id && a.consultor_id !== consultor_id) continue;
     const m = minDe(a.hora); if (m === null) continue;
     const jan = Math.floor(m / EXPEDIENTE.passo) * EXPEDIENTE.passo;
     const k = `${a.data}|${jan}`;
     ocupacao.set(k, (ocupacao.get(k) || 0) + 1);
+    if (a.consultor_id) { if (!doConsultor.has(k)) doConsultor.set(k, new Set()); doConsultor.get(k).add(a.consultor_id); }
   }
+  const ativos = (consultores || []).filter(Boolean);
+  const cap = consultor_id ? 1 : capTotal;
   const saida = [];
   for (let n = 0; n <= diasAFrente && saida.length < quantos; n++) {
     const d = somaDias(inicio, n);
@@ -1596,9 +1822,15 @@ export function horariosLivres({ desde, agora, agendamentos = [], capacidade = 1
     let noDia = 0, ultimo = -Infinity;
     for (let t = EXPEDIENTE.abre; t <= EXPEDIENTE.ultimoInicio && saida.length < quantos && noDia < porDia; t += EXPEDIENTE.passo) {
       if (t < corte || t - ultimo < intervalo) continue;
-      const usados = ocupacao.get(`${d}|${t}`) || 0;
-      if (usados >= cap) continue;
-      saida.push({ data: d, hora: hhmm(t), livres: cap - usados, capacidade: cap });
+      const k = `${d}|${t}`;
+      const usados = ocupacao.get(k) || 0;
+      const ocupadosAqui = doConsultor.get(k) || new Set();
+      if (usados >= capTotal) continue;                               // recepção lotada
+      if (consultor_id && ocupadosAqui.has(consultor_id)) continue;   // ele já tem carro aqui
+      const livresIds = ativos.filter((id) => !ocupadosAqui.has(id));
+      if (!consultor_id && ativos.length && !livresIds.length) continue;
+      saida.push({ data: d, hora: hhmm(t), livres: consultor_id ? 1 : capTotal - usados, capacidade: cap,
+        ...(ativos.length ? { consultores_livres: consultor_id ? [consultor_id] : livresIds } : {}) });
       noDia++; ultimo = t;
     }
   }
@@ -1618,14 +1850,14 @@ export async function sugerirHorarios({ data, consultor_id, ignorar } = {}) {
   p.set('limit', '1000');
   const [linhas, ativos] = await Promise.all([
     selecionar(T.agendamentos, p),
-    contar(T.consultores, 'ativo=is.true').catch(() => 1),
+    selecionar(T.consultores, 'select=id&ativo=is.true').catch(() => []),
   ]);
-  const capacidade = Math.max(1, Number(ativos) || 1);
+  const capacidade = Math.max(1, ativos.length || 1);
   const [h, m] = agoraHHMM().split(':').map(Number);
   return {
     capacidade,
     sugestoes: horariosLivres({
-      desde, agora: { data: hojeIso, min: h * 60 + m }, capacidade,
+      desde, agora: { data: hojeIso, min: h * 60 + m }, capacidade, consultores: ativos.map((c) => c.id),
       consultor_id: ehUuid(consultor_id) ? consultor_id : null, ignorar: ehUuid(ignorar) ? ignorar : null,
       agendamentos: linhas.map((r) => ({ ...r, hora: horaCurta(r.hora) })),
     }),
@@ -1638,22 +1870,170 @@ export async function buscaGlobal(q) {
   if (termo.length < 2) return { agendamentos: [], clientes: [] };
   const t = termoBusca(termo);
   const pa = new URLSearchParams(SEL_AGENDAMENTO);
-  const fa = [`cliente_nome.ilike.${t}`, `placa.ilike.${t}`, `veiculo.ilike.${t}`, `servico.ilike.${t}`];
+  const fa = filtrosDeBusca(termo, ['cliente_nome', 'placa', 'veiculo', 'servico']);
   const pt = padraoTelefone(termo);
   if (pt) fa.push(`telefone.ilike.${pt}`);
   pa.set('or', `(${fa.join(',')})`);
   pa.set('order', 'data.desc,hora.desc');
-  pa.set('limit', '12');
+  pa.set('limit', '60');      // a forma sem acento traz a mais; o JS corta em 12
   const pc = new URLSearchParams('select=*');
-  const fc = [`nome.ilike.${t}`, `placa.ilike.${t}`, `carro_modelo.ilike.${t}`];
+  const fc = filtrosDeBusca(termo, ['nome', 'placa', 'carro_modelo']);
   const dig = soDigitos(termo);
   if (dig.length >= 4) fc.push(`telefone_e164.ilike.*${telefoneNacional(dig)}*`);
   pc.set('or', `(${fc.join(',')})`);
   pc.set('order', 'updated_at.desc.nullslast');
-  pc.set('limit', '8');
+  pc.set('limit', '40');
   const [ag, cl] = await Promise.all([
     selecionar(T.agendamentos, pa).catch(() => []),
     selecionar(T.clientes, pc).catch(() => []),
   ]);
-  return { agendamentos: ag.map(lerAgendamento), clientes: cl.map(lerCliente) };
+  return {
+    agendamentos: ag.filter((r) => casaBusca([r.cliente_nome, r.placa, r.veiculo, r.servico], termo, r.telefone))
+      .slice(0, 12).map(lerAgendamento),
+    clientes: cl.filter((r) => casaBusca([r.nome, r.placa, r.carro_modelo], termo, r.telefone_e164 || r.telefone))
+      .slice(0, 8).map(lerCliente),
+  };
+}
+
+// ============================================================================
+// RODADA 3 (13/10/2026) — auditoria, notificações, tarefas e automações
+// Tudo pelo servidor (service role). O id de quem pede vem SEMPRE do token
+// conferido no server.js — nunca do corpo da requisição.
+// ============================================================================
+
+/** Registra quem fez o quê (rpc da base). Nunca derruba a ação: só avisa no log. */
+export async function auditar(perfilId, acao, tabela = null, registro = null, detalhes = null) {
+  try {
+    await rpc('registrar_auditoria', {
+      p_perfil: ehUuid(perfilId) ? perfilId : null, p_app: 'agenda', p_acao: String(acao).slice(0, 80),
+      p_tabela: tabela, p_registro: registro ? String(registro).slice(0, 80) : null, p_detalhes: detalhes,
+    });
+    return true;
+  } catch (e) {
+    console.error('Auditoria (não gravou):', e?.message || e);
+    return false;
+  }
+}
+
+/** Notificação para alguém (rpc da base; `chave` evita repetir). */
+export async function notificar({ perfil_id, tipo, titulo, corpo = null, link = null, app = 'agenda', chave = null }) {
+  if (!ehUuid(perfil_id)) return null;
+  return rpc('notificar', { p_perfil: perfil_id, p_tipo: tipo, p_titulo: titulo, p_corpo: corpo,
+    p_link: link, p_app: app, p_chave: chave });
+}
+
+export async function listarNotificacoes(perfilId, limite = 30) {
+  if (!ehUuid(perfilId)) return { itens: [], naoLidas: 0 };
+  const [itens, naoLidas] = await Promise.all([
+    selecionar('notificacoes', `select=id,tipo,titulo,corpo,link,app,lida_em,created_at&perfil_id=eq.${perfilId}&order=created_at.desc&limit=${limite}`),
+    contar('notificacoes', `perfil_id=eq.${perfilId}&lida_em=is.null`),
+  ]);
+  return { itens, naoLidas };
+}
+
+/** Marca como lidas (só as da própria pessoa: o filtro perfil_id vai junto). */
+export async function marcarNotificacoesLidas(perfilId, ids = null) {
+  if (!ehUuid(perfilId)) return 0;
+  const p = new URLSearchParams();
+  p.set('perfil_id', `eq.${perfilId}`);
+  p.set('lida_em', 'is.null');
+  if (Array.isArray(ids)) {
+    const validos = ids.filter(ehUuid).slice(0, 100);
+    if (!validos.length) return 0;
+    p.set('id', `in.(${validos.join(',')})`);
+  }
+  const r = await atualizar('notificacoes', p, { lida_em: new Date().toISOString() });
+  return r.length;
+}
+
+const SEL_TAREFA = 'id,titulo,descricao,responsavel_id,criado_por,cliente_id,agendamento_id,lead_id,conversa_id,origem,prioridade,vence_em,status,concluida_em,created_at';
+
+export async function listarTarefasDe(perfilId, { status = 'aberta', limite = 50 } = {}) {
+  if (!ehUuid(perfilId)) return [];
+  const p = new URLSearchParams(`select=${SEL_TAREFA}`);
+  p.set('responsavel_id', `eq.${perfilId}`);
+  if (status) p.set('status', `eq.${status}`);
+  p.set('order', 'vence_em.asc.nullslast,created_at.desc');
+  p.set('limit', String(limite));
+  return selecionar('tarefas', p);
+}
+
+export async function obterTarefa(id) {
+  if (!ehUuid(id)) return null;
+  return selecionarUm('tarefas', `select=${SEL_TAREFA}&id=eq.${id}`);
+}
+
+export async function criarTarefa(t) {
+  const linha = limparParaGravar({
+    titulo: String(t.titulo || '').trim().slice(0, 200),
+    descricao: t.descricao ? String(t.descricao).slice(0, 1000) : null,
+    responsavel_id: uuidOuNulo(t.responsavel_id),
+    criado_por: uuidOuNulo(t.criado_por),
+    cliente_id: uuidOuNulo(t.cliente_id),
+    agendamento_id: uuidOuNulo(t.agendamento_id),
+    lead_id: uuidOuNulo(t.lead_id),
+    conversa_id: uuidOuNulo(t.conversa_id),
+    origem: ['manual', 'agenda', 'automacao'].includes(t.origem) ? t.origem : 'agenda',
+    prioridade: [1, 2, 3].includes(Number(t.prioridade)) ? Number(t.prioridade) : 2,
+    vence_em: t.vence_em || null,
+  });
+  if (!linha.titulo) throw new Error('Escreva o que precisa ser feito.');
+  return inserirUm('tarefas', linha, `select=${SEL_TAREFA}`);
+}
+
+export async function mudarStatusTarefa(id, status) {
+  if (!ehUuid(id) || !['aberta', 'feita', 'cancelada'].includes(status)) return null;
+  return atualizarUm('tarefas', `id=eq.${id}&select=${SEL_TAREFA}`, { status });
+}
+
+/* ---- leituras das automações (janela pequena, poucas consultas) ------------ */
+
+/** Agendamentos entre duas datas (só o que as automações olham). */
+export async function agendamentosParaAutomacao(de, ate) {
+  const p = new URLSearchParams('select=id,cliente_id,cliente_nome,telefone,servico,data,hora,status,confirmado,compareceu,consultor_id,no_show_notificado_em,updated_at');
+  p.set('and', `(data.gte.${de},data.lte.${ate})`);
+  p.set('status', 'in.(aguardando,confirmado,nao_veio)');
+  p.set('limit', '1000');
+  return (await selecionar(T.agendamentos, p)).map((r) => ({ ...r, hora: horaCurta(r.hora) }));
+}
+
+/** Tarefas da automação já criadas para estes agendamentos (para não repetir). */
+export async function tarefasDosAgendamentos(ids) {
+  const validos = (ids || []).filter(ehUuid);
+  if (!validos.length) return [];
+  const saida = [];
+  for (let i = 0; i < validos.length; i += 100) {
+    const p = new URLSearchParams('select=id,titulo,agendamento_id,status,origem');
+    p.set('agendamento_id', `in.(${validos.slice(i, i + 100).join(',')})`);
+    saida.push(...await selecionar('tarefas', p));
+  }
+  return saida;
+}
+
+/** Quem está com a conversa de cada cliente/telefone (para "Reagendar"). */
+export async function donosDasConversas({ clienteIds = [], telefones = [] } = {}) {
+  const f = [];
+  const ids = clienteIds.filter(ehUuid);
+  if (ids.length) f.push(`cliente_id.in.(${ids.slice(0, 100).join(',')})`);
+  const tels = [...new Set(telefones.map(telefoneNacional).filter((t) => t && t.length >= 10))].slice(0, 100);
+  if (tels.length) f.push(`telefone_e164.in.(${tels.join(',')})`);
+  if (!f.length) return [];
+  const p = new URLSearchParams('select=id,cliente_id,telefone_e164,atribuida_a,ultima_mensagem_em');
+  p.set('or', `(${f.join(',')})`);
+  p.set('atribuida_a', 'not.is.null');
+  p.set('order', 'ultima_mensagem_em.desc.nullslast');
+  p.set('limit', '300');
+  return selecionar(T.conversas, p).catch(() => []);
+}
+
+/** Gestores/admins ativos (quem recebe o que não tem dono). */
+export async function gestoresAtivos() {
+  return selecionar(T.perfis, 'select=id,nome,papel&ativo=is.true&papel=in.(admin,gestor)&order=papel.desc,created_at.asc')
+    .catch(() => []);
+}
+
+/** Últimas ações registradas pela Agenda (tela do admin). */
+export async function ultimasAuditorias(limite = 50) {
+  return selecionar('auditoria', `select=id,perfil_id,app,acao,tabela,registro_id,detalhes,created_at&app=eq.agenda&order=created_at.desc&limit=${limite}`)
+    .catch(() => []);
 }

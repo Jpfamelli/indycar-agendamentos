@@ -175,7 +175,10 @@ test('horariosLivres: capacidade = consultores; com consultor só a agenda dele;
   const l = [{ id: 'a', data: '2026-10-09', hora: '08:00', status: 'confirmado', consultor_id: 'c1' }];
   assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, capacidade: 1 })[0].hora, '08:30');
   assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, capacidade: 2 })[0].hora, '08:00');
-  assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, consultor_id: 'c2' })[0].hora, '08:00');
+  // rodada 3: com consultor, a recepção também precisa ter vaga (capacidade = consultores ativos)
+  assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, consultor_id: 'c2', capacidade: 2 })[0].hora, '08:00');
+  assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, consultor_id: 'c2', capacidade: 1 })[0].hora, '08:30');
+  assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, consultor_id: 'c1', capacidade: 2 })[0].hora, '08:30');
   assert.equal(horariosLivres({ desde: '2026-10-09', agora, agendamentos: l, ignorar: 'a' })[0].hora, '08:00');
   assert.deepEqual(horariosLivres({ desde: 'ontem' }), []);
   assert.equal(EXPEDIENTE.ultimoInicio, 17 * 60);
@@ -189,4 +192,82 @@ test('padraoTelefone acha número com e sem máscara; variantes com e sem 55', (
   assert.deepEqual(variantesTelefone('123'), []);
   assert.equal(rotuloEnvio('lembrete'), 'Lembrete do horário');
   assert.equal(rotuloEnvio('novo_tipo'), 'novo tipo');
+});
+
+// ============================ Rodada 3 (13/10/2026) ============================
+import { padraoSemAcento, filtrosDeBusca, casaBusca, cargaDoDia, sugerirConsultor, perfilParaTela, gerarSenhaTemporaria } from '../dados.js';
+
+test('busca sem acento: forma larga no ilike e conferência em JS ("oleo" acha "Óleo")', () => {
+  assert.equal(padraoSemAcento('oleo'), '"*_l__*"');
+  assert.equal(padraoSemAcento('Óleo'), '"*_l__*"', 'com acento digitado dá o mesmo padrão');
+  assert.equal(padraoSemAcento('ao'), null, 'só curinga pegaria a tabela inteira');
+  assert.equal(padraoSemAcento('x'), null);
+  assert.equal(padraoSemAcento('Conceição*'), '"*__n______*"');
+  const f = filtrosDeBusca('oleo', ['servico', 'placa']);
+  assert.deepEqual(f, ['servico.ilike."*oleo*"', 'servico.ilike."*_l__*"', 'placa.ilike."*oleo*"', 'placa.ilike."*_l__*"']);
+  assert.equal(casaBusca(['Troca de Óleo de motor'], 'oleo'), true);
+  assert.equal(casaBusca(['Troca de oleo'], 'ÓLEO'), true);
+  assert.equal(casaBusca(['José Antônio'], 'jose antonio'), true);
+  assert.equal(casaBusca(['Conceição'], 'conceicao'), true);
+  assert.equal(casaBusca(['Altamir'], 'oleo'), false, 'o que a forma larga trouxe a mais sai aqui');
+  assert.equal(casaBusca(['Maria'], '9111-0001', '(12) 99111-0001'), true, 'telefone com máscara pelos dígitos');
+  assert.equal(casaBusca(['Maria'], '5512991110001', '12991110001'), true, 'com 55 na frente');
+});
+
+test('carga por consultor no dia: só horários ativos, menor carga primeiro, "sem consultor" à parte', () => {
+  const cons = [{ id: 'c1', nome: 'Gabriel', ativo: 1 }, { id: 'c2', nome: 'Ana', ativo: 1 }, { id: 'c3', nome: 'Saiu', ativo: 0 }];
+  const ags = [
+    { data: '2026-10-14', hora: '08:00', status: 'confirmado', consultor_id: 'c1' },
+    { data: '2026-10-14', hora: '09:00', status: 'aguardando', consultor_id: 'c1' },
+    { data: '2026-10-14', hora: '09:00', status: 'nao_veio', consultor_id: 'c2' },
+    { data: '2026-10-14', hora: '10:00', status: 'aguardando', consultor_id: null },
+    { data: '2026-10-15', hora: '10:00', status: 'aguardando', consultor_id: 'c2' },
+  ];
+  const c = cargaDoDia(cons, ags, '2026-10-14');
+  assert.deepEqual(c.consultores.map((x) => [x.nome, x.total]), [['Ana', 0], ['Gabriel', 2]]);
+  assert.equal(c.sem_consultor, 1);
+});
+
+test('sugerirConsultor: menor carga e livre na meia hora; ninguém livre → null (não bloqueia)', () => {
+  const cons = [{ id: 'c1', nome: 'Gabriel', ativo: 1 }, { id: 'c2', nome: 'Ana', ativo: 1 }];
+  const ags = [
+    { id: 'x', data: '2026-10-14', hora: '08:00', status: 'confirmado', consultor_id: 'c2' },
+    { id: 'y', data: '2026-10-14', hora: '09:00', status: 'confirmado', consultor_id: 'c1' },
+    { id: 'z', data: '2026-10-14', hora: '10:00', status: 'confirmado', consultor_id: 'c1' },
+  ];
+  assert.equal(sugerirConsultor({ consultores: cons, agendamentos: ags, data: '2026-10-14', hora: '11:00' }).nome, 'Ana');
+  assert.equal(sugerirConsultor({ consultores: cons, agendamentos: ags, data: '2026-10-14', hora: '08:15' }).nome, 'Gabriel');
+  assert.equal(sugerirConsultor({ consultores: cons, agendamentos: ags, data: '2026-10-14', hora: '08:00', ignorar: 'x' }).nome, 'Ana');
+  const lotado = [...ags, { id: 'w', data: '2026-10-14', hora: '09:00', status: 'confirmado', consultor_id: 'c2' }];
+  assert.equal(sugerirConsultor({ consultores: cons, agendamentos: lotado, data: '2026-10-14', hora: '09:00' }), null);
+  assert.equal(sugerirConsultor({ consultores: [], agendamentos: [], data: '2026-10-14' }), null);
+  assert.match(sugerirConsultor({ consultores: cons, agendamentos: [], data: '2026-10-14' }).motivo, /livre o dia todo/);
+});
+
+test('horariosLivres: diz quais consultores estão livres em cada sugestão', () => {
+  const agora = { data: '2026-10-13', min: 0 };
+  const l = [{ id: 'a', data: '2026-10-14', hora: '08:00', status: 'confirmado', consultor_id: 'c1' }];
+  const s = horariosLivres({ desde: '2026-10-14', agora, agendamentos: l, capacidade: 2, consultores: ['c1', 'c2'] });
+  assert.equal(s[0].hora, '08:00');
+  assert.deepEqual(s[0].consultores_livres, ['c2']);
+  assert.deepEqual(s[1].consultores_livres, ['c1', 'c2']);
+});
+
+test('perfilParaTela: papel agenda só tem a Agenda; acesso, gestor e cor', () => {
+  const franklin = perfilParaTela({ papel: 'agenda', apps: ['crm', 'agenda'], ativo: true }, 'id1');
+  assert.deepEqual(franklin.apps, ['agenda']);
+  assert.equal(franklin.pode_agenda, true);
+  assert.equal(franklin.gestor, false);
+  const semApp = perfilParaTela({ papel: 'atendente', apps: ['crm'], ativo: true }, 'id2');
+  assert.equal(semApp.pode_agenda, false);
+  assert.equal(perfilParaTela({ papel: 'admin', apps: [] }, 'id3').pode_agenda, true);
+  assert.equal(perfilParaTela({ papel: 'gestor', apps: ['agenda'], avatar_cor: 'javascript:' }, 'id4').avatar_cor, '#e50914');
+  assert.equal(perfilParaTela({ papel: 'gestor', precisa_trocar_senha: true }, 'id5').precisa_trocar_senha, true);
+});
+
+test('senha temporária: 12 caracteres sem 0/O/1/l e diferente a cada vez', () => {
+  const a = gerarSenhaTemporaria(), b = gerarSenhaTemporaria();
+  assert.equal(a.length, 12);
+  assert.doesNotMatch(a, /[0O1lI]/);
+  assert.notEqual(a, b);
 });

@@ -156,3 +156,98 @@ modal) foi refeita; os links dele usavam `?telefone=`/`?lead=` e viraram o contr
 105. Busca global: **Enter abre o primeiro resultado** (agendamento antes de cliente).
 106. A Semana **lembra Dia/Semana/Mês neste aparelho** (localStorage com try/catch; sem armazenamento, começa na semana).
 107. Botão **"Semana"** na barra da Agenda leva direto para a grade.
+
+## Rodada 3 (13/10/2026)
+Verificado com `npm test` (75 testes, 38 novos: papéis, server.js por HTTP com banco e porteiro injetados,
+aviso de falta, busca sem acento, consultor/carga, automações com relógio injetável, regras da tela de
+conta), roteiro puppeteer contra o mock (`npm run mock`, 8 papéis, 1440 e 375 px, tema claro: 123/123),
+leitura real do Supabase (só SELECT) das funções novas de `dados.js` e o `server.js` de verdade na porta
+3010 (sem login 401, token falso 401, CORS, cabeçalhos, arquivos novos). `npm audit` 0 e `npm run segredos` limpo.
+
+### Login, perfil e acesso (padrão comum)
+108. Login: botão **Mostrar/Esconder senha** (aria-pressed) também nas telas de senha nova e trocar senha.
+109. Aviso de **Caps Lock ligado** em todo campo de senha.
+110. **"Lembrar meu e-mail neste aparelho"** (localStorage com try/catch; desmarcado esquece).
+111. Recados claros: senha errada, acesso desativado, sem internet, servidor de login fora, limite de tentativas.
+112. **Espera progressiva** depois de 5 erros seguidos neste aparelho (15 s, dobrando até 5 min).
+113. **Esqueci a senha**: link do Supabase com volta para a Agenda, e-mail já preenchido, aviso do limite do plano gratuito e da senha temporária.
+114. Volta do link de recuperação (`PASSWORD_RECOVERY`) abre a tela de **senha nova** antes de qualquer outra coisa.
+115. **Troca obrigatória** (`precisa_trocar_senha`): cria a senha (8+, iguais, diferente do e-mail) antes de entrar e o servidor desliga a marca (`POST /api/perfil/senha-trocada`, auditado).
+116. Sem a Agenda em `perfis.apps` → tela **"Você não tem acesso à Agenda"** com links dos apps que a pessoa usa.
+117. O **servidor confere papel e app em TODA rota** (`regras.js › decidirAcesso`): sem o app → 403 `sem_acesso_app` (só o próprio perfil e a troca de senha passam).
+118. **Desativado no meio do uso** → 403 `desativado` (não confunde com senha errada); a tela sai e volta ao login com o aviso.
+119. Mudar papel, apps ou acesso de alguém **limpa o cache do porteiro na hora** (antes valia até 60 s).
+120. **Verificação em duas etapas (TOTP)**: ligar com QR + chave, confirmar o código, desligar.
+121. Duas etapas exigidas depois da senha na tela e **no servidor** (fator verificado + token aal1 → 401 `mfa_pendente`).
+122. **Menu do perfil** no avatar: Meu perfil, Trocar senha, Duas etapas, Notificações, Tema, Sair, Sair de todos os aparelhos.
+123. **Meu perfil**: nome, cargo, telefone (com máscara) e cor do avatar; e-mail só leitura; papel/apps/ativo nunca passam por essa rota (testado).
+124. **Sair** e **Sair de todos os aparelhos** (`signOut({scope:'global'})`) — a Agenda não tinha botão de sair.
+125. **Último acesso** gravado pelo servidor no máximo a cada 5 min (`ultimo_acesso_em`, `ultimo_app='agenda'`).
+126. **Preferências de notificação** (atrasos, tarefas novas, som) em `perfis.preferencias` — só chaves conhecidas e booleanas.
+127. Configurações › Minha conta refeita: resumo do perfil, estado das duas etapas e os botões de cada ação.
+
+### Sino e minhas tarefas
+128. **Sino** no topo: só as notificações da pessoa (filtro pelo id do token, nunca do corpo — testado), contador, marcar lida e todas.
+129. Tempo real (canal do Supabase em `notificacoes`) + consulta a cada minuto e ao voltar para a aba; bipe opcional.
+130. Link da notificação: relativo abre no app de origem; agendamento da Agenda abre o modal sem recarregar; link absoluto só de domínio do ecossistema (`javascript:` e site de fora recusados — testado).
+131. **Minhas tarefas**: prazo (atrasada em vermelho), prioridade alta marcada, concluir com **Desfazer**, botão "Abrir" o agendamento.
+132. **Nova tarefa** pelo painel ou pelo botão **Tarefa** do modal do agendamento (já ligada a ele e ao cliente).
+133. Franklin (papel agenda) vê sino e as tarefas DELE; não cria tarefa.
+134. API de tarefas: concluir/reabrir só responsável, quem criou ou gestor; UUID validado; 30 por minuto.
+
+### Equipe e acessos
+135. Papel **Gestor** no cadastro e na troca de função.
+136. **Apps de cada pessoa** em chips (`POST /api/equipe/apps`, só admin; admin entra em todos, "só presença" fica só com a Agenda).
+137. **Senha temporária** gerada no servidor (12 caracteres sem 0/O/1/l), mostrada uma vez, liga a troca obrigatória; a senha nunca vai para a auditoria.
+138. Cadastro novo já pede "criar a senha no primeiro login" (desmarcável) e grava `convidado_por`.
+139. Lista da equipe mostra **último acesso** e "vai criar a senha no 1º login".
+140. Trocar para/de "só presença" acerta `perfis.apps` sozinho.
+
+### Mais funcionários: consultores
+141. Migração **`ag_consultor_perfil`** (aditiva): `consultores.perfil_id` → perfis, índice único parcial; advisors sem WARN novo.
+142. Cadastro de consultor com **ligação opcional ao login** (lista só com nome e função; login já ligado aparece desabilitado).
+143. Equipe/Consultores com colunas **Login**, **Hoje** e **Amanhã** (carga) e "N hoje sem consultor".
+144. **Consultor sugerido** no modal: menor carga no dia e livre naquela meia hora; pré-escolhido em agendamento novo, botão "Usar" e a carga de cada um ao lado.
+145. Consultor "obrigatório-ish": salvar sem consultor avisa UMA vez ("Salvar sem consultor"), sem bloquear.
+146. **"Minha agenda"** na Agenda para quem é consultor (filtro no servidor `consultor_id=`, lembrado no aparelho).
+147. **Capacidade por consultor** na sugestão de horário: o consultor livre E a recepção com vaga; cada sugestão diz quem está livre.
+148. Dois carros do mesmo consultor no mesmo horário (índice `agendamentos_slot_uk`) viram 409 com recado claro em vez de 500.
+149. `GET /api/consultores/carga` e `/api/consultores/sugerir` (funções puras `cargaDoDia`/`sugerirConsultor`, testadas).
+
+### Aviso de falta acidental bloqueado
+150. Edição para "Não veio" **sem resposta → 409** `confirmar_aviso`: nada gravado, nada enviado (testado).
+151. `avisar_cliente:false` → carimba `no_show_notificado_em` no MESMO update do status: o gatilho do banco não dispara.
+152. `avisar_cliente:true` → mesmo fluxo do cartão (envia uma vez, carimba, solta o carimbo se falhar).
+153. O modal pergunta **"Avisar o cliente pelo WhatsApp?"** antes de salvar; mudar a situação desfaz a escolha.
+154. Agendamento novo nunca nasce "Não veio"; desfazer remarcação continua devolvendo o carimbo sem perguntar.
+
+### Busca sem acento
+155. Agenda: **"oleo" acha "Óleo"** (no banco real: 0 → 21 agendamentos), sem DDL nem extensão.
+156. Busca global, Clientes e "Achar pelo nome" também sem acento ("jose" acha "José").
+
+### Automações (tarefas e avisos, sem WhatsApp)
+157. **16h**: horário do próximo dia útil sem confirmação → tarefa **"Confirmar com o cliente"** para o consultor (ou um gestor); sábado olha a segunda.
+158. **Faltou** → tarefa **"Reagendar"** para quem atendeu a conversa (senão o consultor, senão um gestor) — na hora em que marca e no ciclo.
+159. **30 min de atraso sem desfecho** → notificação para o consultor (ou os gestores), chave `atraso:<id>` para não repetir.
+160. Automações só no servidor de produção (`RENDER`) ou com `AUTOMACOES=1`: servidor local de teste nunca cria tarefa.
+161. `automacoes.js › planejar` puro com relógio injetável; `rodarAutomacoes` não para por erro de uma gravação.
+
+### Segurança do servidor
+162. `regras.js`: allowlist da presença e lista do gestor num lugar só, testadas por papel.
+163. Só gestor/admin **apaga**, **exporta** e **muda configuração** (oficina, WhatsApp, IA, integrações, CodeWords, serviços); a tela esconde para os outros (`body.gestor`).
+164. **Auditoria** (`registrar_auditoria`): apagar agendamento/cliente/consultor, exportar CSV, mudar desfecho já registrado, mudar papel/apps/acesso, senha temporária, cadastros e configuração (chaves aparecem como •••).
+165. **CORS** só para os domínios do ecossistema (preflight 204); outra origem → 403.
+166. **HSTS** e Cross-Origin-Opener-Policy.
+167. **Limite por IP** em toda a API (300/min, IP real pelo X-Forwarded-For) e por pessoa nas rotas caras (30/min).
+168. Erro interno **sem detalhe** (código da requisição; o detalhe fica só no log); recados de formulário continuam em português.
+169. UUID validado nos parâmetros (`consultor_id`, `ignorar`, `agendamento_id`); busca cortada em 80 caracteres.
+170. CSV do servidor neutraliza fórmula (= + - @).
+171. `esc()` também escapa aspas simples.
+172. **Exportar CSV** vai com o token (o link antigo levava 401) e Conectores (que mostra o token do Google Agenda) só para gestor.
+173. `npm run segredos`: varre os arquivos versionados (JWT anon liberado) — limpo; `package-lock.json` para o `npm audit` (0).
+
+### Testes e ferramentas
+174. `tests/servidor.test.mjs`: o server.js de verdade por HTTP com banco e porteiro de mentira (14 testes).
+175. `tests/regras.test.mjs`, `tests/automacoes.test.mjs`, `tests/conta.test.mjs` e 6 testes novos em `dados.test.mjs`.
+176. Mock com os 8 papéis (`?papel=admin|gestor|atendente|agenda|desativado|semacesso|trocarsenha|mfa`, `&semsessao=1` = tela de login), usando as MESMAS regras do servidor.
+177. `server.js` importável sem abrir porta nem ligar timers (`EH_PRINCIPAL`); service worker `indycar-v13` com conta.js/conta.css.

@@ -1,0 +1,127 @@
+/* ============================================================================
+   CONTA (rodada 3): login caprichado, sino, minhas tarefas e menu do perfil.
+   Só variáveis do tema (claro/escuro) — nenhuma cor nova solta.
+   ============================================================================ */
+[hidden]{display:none!important}
+
+/* ---- login ---- */
+.campo-senha{position:relative;display:flex;align-items:stretch}
+.campo-senha input{flex:1;min-width:0;padding-right:84px!important}
+.ver-senha{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:1px solid var(--border-2);
+  background:var(--surface);color:var(--muted);font:600 12px/1 inherit;font-family:inherit;padding:7px 10px;border-radius:8px;cursor:pointer}
+.ver-senha:hover{color:var(--text);background:var(--surface-2)}
+.ver-senha:focus-visible,.login-link:focus-visible,.btn-topo:focus-visible,.avatar-bottom:focus-visible,
+.notif-item:focus-visible,.tarefa-check:focus-visible,.cor:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+.login-caps{margin:-8px 0 0;font-size:12.5px;font-weight:700;color:var(--orange-txt)}
+.login-caixa label.login-lembrar{flex-direction:row;align-items:center;gap:9px;cursor:pointer;margin-top:-4px}
+.login-lembrar input{width:17px;height:17px;padding:0;accent-color:var(--red)}
+.login-nota{font-size:12.5px;color:var(--muted);margin:-4px 0 0;line-height:1.45}
+.login-erro.ok{background:var(--green-soft);border-color:rgba(34,197,94,.4);color:var(--green-txt)}
+.sem-acesso-apps{display:flex;flex-direction:column;gap:4px}
+#formMfa #mfa_codigo{font:800 28px/1 var(--font-num);letter-spacing:10px;text-align:center}
+
+/* ---- botões do topo (sino, tarefas) ---- */
+.btn-topo{position:relative}
+body.portaria .btn-topo{display:grid!important}
+.badge-topo{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;
+  background:var(--red);color:#fff;font:800 11px/19px 'Inter',sans-serif;font-style:normal;text-align:center;
+  box-shadow:0 0 0 2px var(--bg)}
+button.avatar-bottom{cursor:pointer;font-family:inherit;transition:filter .15s,box-shadow .15s;color:#fff}
+button.avatar-bottom:hover{filter:brightness(1.1);box-shadow:0 0 0 3px var(--surface-2)}
+
+/* ---- popovers ---- */
+.pop-conta{position:fixed;left:var(--pop-x,12px);top:var(--pop-y,70px);z-index:70;width:360px;max-width:calc(100vw - 24px);
+  max-height:min(520px,calc(100vh - 90px));display:flex;flex-direction:column;
+  border-radius:16px;border:1px solid var(--border-2);background:var(--pop);box-shadow:var(--shadow);
+  opacity:0;transform:translateY(-4px) scale(.98);transition:opacity .16s var(--ease),transform .2s var(--ease-out)}
+.pop-conta.aberto{opacity:1;transform:none}
+.pop-perfil{width:290px;padding:8px;max-height:none}
+.pop-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px 10px;border-bottom:1px solid var(--border)}
+.pop-head b{font-size:14px;font-weight:800}
+.pop-head .btn.mini{padding:6px 11px;font-size:12px;border-radius:9px}
+.pop-lista{overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:2px;overscroll-behavior:contain}
+.pop-vazio{padding:22px 16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.5}
+
+.notif-item{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;border:0;background:none;color:var(--text);
+  padding:10px;border-radius:11px;cursor:pointer;font-family:inherit}
+.notif-item:hover{background:var(--surface)}
+.notif-ponto{width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0;background:transparent}
+.notif-item.nova .notif-ponto{background:var(--red)}
+.notif-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.notif-txt b{font-size:13.5px;font-weight:700;overflow-wrap:anywhere}
+.notif-item:not(.nova) .notif-txt b{font-weight:600;color:var(--muted)}
+.notif-txt small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.notif-txt em{font-style:normal;font-size:11px;color:var(--muted-2)}
+
+.tarefa-item{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:11px}
+.tarefa-item:hover{background:var(--surface-3)}
+.tarefa-item.urgente{box-shadow:inset 3px 0 0 var(--red)}
+.tarefa-check{width:22px;height:22px;border-radius:7px;border:2px solid var(--border-2);background:none;cursor:pointer;flex-shrink:0;margin-top:1px;
+  transition:border-color .15s,background .15s}
+.tarefa-check:hover{border-color:var(--green);background:var(--green-soft)}
+.tarefa-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.tarefa-txt b{font-size:13.5px;overflow-wrap:anywhere}
+.tarefa-txt small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.tarefa-txt em{font-style:normal;font-size:11px;color:var(--muted-2)}
+.tarefa-txt em.atrasada{color:var(--red-txt);font-weight:700}
+.tarefa-item .btn.mini{padding:5px 10px;font-size:12px;border-radius:9px}
+
+.perfil-topo{display:flex;gap:11px;align-items:center;padding:10px 10px 12px}
+.perfil-topo b{display:block;font-size:14px}
+.perfil-topo small{display:block;font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.perfil-avatar{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0}
+.pop-perfil .eco-item{width:100%;border:0;background:none;text-align:left;font-family:inherit;cursor:pointer}
+.pop-perfil .eco-item.perigo b{color:var(--red-txt)}
+.perfil-sep{height:1px;background:var(--border);margin:6px 4px}
+
+/* ---- modais da conta ---- */
+.rotulo-campo{font-size:12px;font-weight:600;color:var(--muted)}
+.cores{display:flex;flex-wrap:wrap;gap:9px}
+.cor{width:32px;height:32px;border-radius:50%;border:2px solid transparent;cursor:pointer;box-shadow:0 0 0 1px var(--border-2)}
+.cor.ativa{border-color:var(--text-forte);box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--text)}
+.pref{display:flex;gap:12px;align-items:flex-start;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer}
+.pref input{width:18px;height:18px;margin-top:2px;accent-color:var(--red)}
+.pref b{display:block;font-size:14px}
+.pref small{display:block;font-size:12.5px;color:var(--muted)}
+.mfa-qr{display:block;margin:6px auto;background:#fff;border-radius:12px;padding:8px}
+.mfa-chave{font-size:12px;color:var(--muted);text-align:center;overflow-wrap:anywhere}
+.mfa-chave code{font-size:12.5px;color:var(--text)}
+
+/* ---- aviso de falta na edição ---- */
+.aviso-falta{border:1px solid rgba(245,158,11,.45);background:var(--orange-soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.aviso-falta b{font-size:14px}
+.aviso-falta p{margin:0;font-size:13px;color:var(--muted)}
+.aviso-falta .linha{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---- consultor no modal / equipe ---- */
+.dica-consultor{font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.dica-consultor b{color:var(--text)}
+.dica-consultor .btn.mini{padding:3px 8px;font-size:11.5px;border-radius:8px}
+.carga-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;
+  background:var(--surface-2);color:var(--muted)}
+.carga-chip i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.carga-linha{display:flex;flex-wrap:wrap;gap:8px}
+.filtro-meus.ativo{background:var(--red-soft);border-color:rgba(230,25,46,.45);color:var(--red-txt)}
+.equipe-apps{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.equipe-apps label{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:999px;
+  border:1px solid var(--border-2);cursor:pointer;color:var(--muted)}
+.equipe-apps input{accent-color:var(--red);width:14px;height:14px}
+.equipe-apps label:has(input:checked){color:var(--text);background:var(--surface-2)}
+.equipe-meta{font-size:11.5px;color:var(--muted-2)}
+.senha-temp{font:800 20px/1.2 var(--font-num);letter-spacing:2px;padding:12px;border-radius:10px;background:var(--surface-2);text-align:center;user-select:all}
+
+/* só gestor/admin vê o que o servidor só deixa gestor fazer */
+body:not(.gestor) .so-gestor{display:none!important}
+body.portaria .so-equipe{display:none!important}
+
+@media (max-width:640px){
+  .pop-conta{left:12px!important;right:12px;width:auto;top:auto!important;bottom:12px;max-height:72vh}
+  .pop-perfil{left:12px!important;bottom:12px;top:auto!important}
+  .topo-acoes{flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){ .pop-conta{transition:none} }
+@media print{ .pop-conta,.btn-topo{display:none!important} }
+/* equipe: chips de apps numa linha inteira embaixo da pessoa */
+.equipe-item{flex-wrap:wrap}
+.equipe-item > .equipe-apps{flex-basis:100%;margin:2px 0 0 48px}
+@media (max-width:640px){ .equipe-item > .equipe-apps{margin-left:0} }

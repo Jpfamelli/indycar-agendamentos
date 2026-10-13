@@ -313,8 +313,34 @@ export async function criarUsuarioAuth({ email, senha, nome }) {
   return corpo;
 }
 
+/**
+ * Troca a senha de alguém pela Auth Admin API (senha temporária que o
+ * administrador entrega em mãos). Quem chama marca `precisa_trocar_senha`, para
+ * a pessoa escolher a dela no primeiro login. Nunca registra a senha em log.
+ */
+export async function trocarSenhaAuth(id, senha) {
+  const { url, chave } = credenciais();
+  let resposta, corpo;
+  try {
+    resposta = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { apikey: chave, Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: senha }),
+      signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
+    });
+    corpo = await resposta.json().catch(() => null);
+  } catch (e) {
+    throw new ErroSupabase('Não consegui falar com o Supabase para trocar a senha. Tente de novo.', 0);
+  }
+  if (!resposta.ok) {
+    throw new ErroSupabase('O Supabase recusou a troca de senha (HTTP ' + resposta.status + ').', resposta.status,
+      corpo?.msg || corpo?.message || null);
+  }
+  return true;
+}
+
 export default {
   selecionar, selecionarUm, selecionarTudo,
   inserir, inserirUm, atualizar, atualizarUm, remover, contar, rpc,
-  criarUsuarioAuth, conferirConfiguracao, ErroSupabase,
+  criarUsuarioAuth, trocarSenhaAuth, conferirConfiguracao, ErroSupabase,
 };

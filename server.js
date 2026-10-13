@@ -3,10 +3,18 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize, sep } from 'node:path';
-import * as dados from './dados.js';
+import { dirname, join, extname, normalize, sep, resolve } from 'node:path';
+import * as dadosReal from './dados.js';
 import { selecionarUm } from './supabase.js';
 import { conferirConfiguracao } from './supabase.js';
+import {
+  decidirAcesso, decidirNaoVeioNaEdicao, mudaDesfechoRegistrado, origemPermitida, mensagemSegura, ehGestor,
+} from './regras.js';
+import { rodarAutomacoes } from './automacoes.js';
+
+/* A camada de dados é trocável SÓ nos testes (tests/servidor.test.mjs injeta
+   um banco de mentira com _injetar). Em produção é sempre o dados.js. */
+let dados = dadosReal;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
@@ -27,7 +35,7 @@ const UUID = '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a
 
 /* Marca da versão no ar — aparece em /api/versao e no app.js (VERSAO_APP).
    Serve para conferir, depois do deploy, que o Render subiu ESTE código. */
-const VERSAO = '2026-10-09-r2';
+const VERSAO = '2026-10-13-r3';
 
 /* Cache curtinho na memória do servidor para as leituras mais pesadas (painel,
    serviços). Qualquer gravação (POST/PUT/PATCH/DELETE) ou importação do
@@ -461,7 +469,8 @@ async function gerarICS() {
 
 // Gera CSV (separador ; — abre direto no Excel BR)
 function gerarCSV(colunas, rows) {
-  const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  // célula que começa com = + - @ vira texto (o Excel executaria como fórmula)
+  const q = (v) => { let t = String(v ?? ''); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return '"' + t.replace(/"/g, '""') + '"'; };
   return '\ufeff' + [colunas.map(q).join(';'), ...rows.map(r => colunas.map(c => q(r[c])).join(';'))].join('\r\n');
 }
 
@@ -506,22 +515,31 @@ function validadeDoToken(token) {
   } catch { return 0; }
 }
 
-async function usuarioLogado(req) {
+/* Confere o token e devolve { usuario } — com papel, ativo e apps do perfil —
+   ou { usuario: null, motivo }. Desativado NÃO é "sem login": a tela precisa
+   dizer "seu acesso foi desativado" em vez de "senha errada". O cache de 60 s
+   evita perguntar ao Supabase a cada clique; mudar papel/ativo/apps pela tela
+   da equipe limpa o cache na hora (esquecerLogins). */
+function nivelDoToken(token) {
+  try { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')).aal || 'aal1'; }
+  catch { return 'aal1'; }
+}
+async function usuarioLogadoReal(req) {
   const auth = req.headers['authorization'] || '';
   const achado = /^\s*bearer\s+(\S+)\s*$/i.exec(auth);      // "Bearer" é case-insensitive
   const token = achado ? achado[1] : null;
-  if (!token || !SUPA_URL || !SUPA_ANON || !SUPA_SRV) return null;
+  if (!token || !SUPA_URL || !SUPA_ANON || !SUPA_SRV) return { usuario: null, motivo: 'sem_login' };
 
   const lembrado = CACHE_LOGIN.get(token);
-  if (lembrado && lembrado.expira > Date.now()) return lembrado.negado ? null : lembrado.usuario;
+  if (lembrado && lembrado.expira > Date.now()) return lembrado.negado ? { usuario: null, motivo: lembrado.negado } : { usuario: lembrado.usuario };
 
   const vence = validadeDoToken(token);
-  if (vence && vence <= Date.now()) return null;            // já venceu: nem pergunta
+  if (vence && vence <= Date.now()) return { usuario: null, motivo: 'sem_login' };   // já venceu: nem pergunta
 
-  const negar = () => {
+  const negar = (motivo = 'sem_login') => {
     if (CACHE_LOGIN.size > 500) CACHE_LOGIN.clear();
-    CACHE_LOGIN.set(token, { negado: true, expira: Date.now() + 30_000 });
-    return null;
+    CACHE_LOGIN.set(token, { negado: motivo, expira: Date.now() + 30_000 });
+    return { usuario: null, motivo };
   };
 
   try {
@@ -532,20 +550,43 @@ async function usuarioLogado(req) {
     if (!r.ok) return negar();
     const usuario = await r.json();
     if (!usuario?.id) return negar();
+    /* Verificação em duas etapas: quem tem fator TOTP verificado só passa com
+       token de nível aal2 (depois do código). Sem isso, a senha sozinha
+       abriria a API mesmo com a tela pedindo o código. */
+    const temFator = (usuario.factors || []).some((f) => f.status === 'verified');
+    if (temFator && nivelDoToken(token) !== 'aal2') return negar('mfa_pendente');
 
-    const p = await fetch(
-      `${SUPA_URL}/rest/v1/perfis?select=ativo,papel&id=eq.${encodeURIComponent(usuario.id)}`,
-      { headers: { apikey: SUPA_SRV, Authorization: `Bearer ${SUPA_SRV}` },
-        signal: AbortSignal.timeout(8000) });
-    if (!p.ok) return negar();
+    const cab = { headers: { apikey: SUPA_SRV, Authorization: `Bearer ${SUPA_SRV}` }, signal: AbortSignal.timeout(8000) };
+    let p = await fetch(`${SUPA_URL}/rest/v1/perfis?select=ativo,papel,apps,ultimo_acesso_em&id=eq.${encodeURIComponent(usuario.id)}`, cab);
+    // banco sem as colunas novas (ainda): cai para o básico em vez de trancar todo mundo
+    if (p.status === 400) p = await fetch(`${SUPA_URL}/rest/v1/perfis?select=ativo,papel&id=eq.${encodeURIComponent(usuario.id)}`, cab);
+    if (!p.ok) return { usuario: null, motivo: 'sem_login' };    // banco fora: não guarda a recusa
     const [perfil] = await p.json();
-    if (!perfil?.ativo) return negar();
+    if (!perfil) return negar();
+    if (!perfil.ativo) return negar('desativado');
     usuario.papel = perfil.papel;
+    usuario.ativo = !!perfil.ativo;
+    usuario.apps = perfil.papel === 'agenda' ? ['agenda'] : (Array.isArray(perfil.apps) ? perfil.apps : ['agenda']);
+    usuario.ultimo_acesso_em = perfil.ultimo_acesso_em || null;
 
     if (CACHE_LOGIN.size > 500) CACHE_LOGIN.clear();
     CACHE_LOGIN.set(token, { usuario, expira: Math.min(Date.now() + 60_000, vence || Infinity) });
-    return usuario;
-  } catch { return null; }
+    return { usuario };
+  } catch { return { usuario: null, motivo: 'sem_login' }; }
+}
+let usuarioLogado = usuarioLogadoReal;
+/** Mudou papel/ativo/apps de alguém: o porteiro esquece o que tinha guardado. */
+const esquecerLogins = () => CACHE_LOGIN.clear();
+
+/* Último acesso: no máximo uma gravação a cada 5 min por pessoa. */
+const _ultimoAcesso = new Map();
+function marcarAcesso(usuario) {
+  const agora = Date.now();
+  const antes = _ultimoAcesso.get(usuario.id) ?? (usuario.ultimo_acesso_em ? Date.parse(usuario.ultimo_acesso_em) : 0);
+  if (agora - antes < 5 * 60_000) return;
+  _ultimoAcesso.set(usuario.id, agora);
+  if (_ultimoAcesso.size > 500) _ultimoAcesso.clear();
+  Promise.resolve(dados.marcarUltimoAcesso?.(usuario.id, 'agenda')).catch(() => { /* coluna ausente: segue */ });
 }
 
 /* Rotas que o CodeWords/Google chamam de fora e não falam Supabase Auth.
@@ -554,6 +595,14 @@ async function usuarioLogado(req) {
    ninguém para fazer login — ela mesma se fecha assim que houver um perfil. */
 const ROTAS_SEM_LOGIN = new Set([
   '/api/config', '/api/agenda.ics', '/api/whatsapp/webhook', '/api/primeiro-acesso', '/api/versao',
+]);
+
+/* Rotas que custam caro (varrem a tabela, chamam serviço de fora): no máximo
+   30 por minuto por pessoa. */
+const ROTAS_CARAS = new Set([
+  '/api/busca', '/api/export/agendamentos.csv', '/api/export/clientes.csv', '/api/horarios-livres',
+  '/api/codewords/run', '/api/codewords/importar', '/api/integracoes/testar-webhook', '/api/whatsapp/testar',
+  '/api/whatsapp/conexao', '/api/clientes/achar', '/api/consultores/sugerir',
 ]);
 
 /* Freio por chave (IP ou usuário): um token válido — ou um script distraído —
@@ -582,6 +631,7 @@ function texto1(v, max) {
   return String(v).slice(0, max);
 }
 
+const PAPEIS_EQUIPE = ['admin', 'gestor', 'atendente', 'agenda'];
 const EMAIL_PARECE_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /* O Supabase recusa em inglês ("A user with this email address has already
@@ -597,9 +647,73 @@ function recusaDeCadastro(e) {
   return { status: 400, erro: msg };
 }
 
+/* ---------------------------------------------------------------------------
+   MUDANÇA DE SITUAÇÃO — um caminho só para o cartão (PATCH /status) e para a
+   edição que escolheu "avisar o cliente". É aqui que o aviso de falta sai, UMA
+   vez, com o carimbo no_show_notificado_em gravado JUNTO com o status (o
+   gatilho do banco vê o carimbo e não manda de novo).
+   --------------------------------------------------------------------------- */
+const MAPA_STATUS = {
+  // aguardando/confirmado = "ainda não chegou": zeram o comparecimento,
+  // senão desfazer um "Não veio" deixava o bit antigo preso.
+  confirmado:      { status: 'confirmado', confirmado: true, compareceu: null },
+  compareceu:      { status: 'compareceu', compareceu: true },
+  nao_veio:        { status: 'nao_veio', compareceu: false },
+  em_atendimento:  { status: 'em_atendimento' },
+  concluido:       { status: 'concluido', compareceu: true },
+  // "Veio e não fechou": a pessoa ESTEVE na oficina, então compareceu=true —
+  // senão um "Não veio" corrigido para isto ficava com o selo "Não veio" preso.
+  nao_fechou:      { status: 'nao_fechou', compareceu: true },
+  aguardando:      { status: 'aguardando', compareceu: null },
+  // cancelado = a visita não aconteceu: zera o bit, senão um cancelado que um
+  // dia teve compareceu=true contava em "Compareceram" e caía em "Na oficina".
+  cancelado:       { status: 'cancelado', compareceu: null },
+};
+
+async function mudarStatus({ antes: a, status, usuario }) {
+  const ch = MAPA_STATUS[status];
+  /* "Não veio" manda o aviso de ausência NA HORA — uma vez só. Clique repetido não reenvia. */
+  const avisar = status === 'nao_veio' && !a.no_show_notificado_em && !!dados.soDigitos(a.telefone);
+  let atualizado = await dados.atualizarAgendamento(a.id, {
+    status: ch.status,
+    confirmado: ch.confirmado !== undefined ? ch.confirmado : a.confirmado,
+    compareceu: ch.compareceu !== undefined ? ch.compareceu : a.compareceu,
+    ...(avisar ? { no_show_notificado_em: new Date().toISOString() } : {}),
+  });
+  let avisoAusencia = null;
+  if (avisar && atualizado) {
+    try {
+      avisoAusencia = await enviarAvisoDeAusencia(atualizado);
+    } catch (e) { avisoAusencia = { ok: false, erro: String(e?.message || e) }; }
+    if (!avisoAusencia.ok) {
+      // solta o carimbo: o próximo clique em "Não veio" tenta enviar de novo
+      await dados.atualizarAgendamento(a.id, { no_show_notificado_em: null })
+        .catch((e) => console.error('Liberar reenvio do aviso:', e?.message || e));
+    }
+  } else if (status === 'nao_veio' && a.no_show_notificado_em) {
+    avisoAusencia = { ok: true, repetido: true };
+  }
+  await depoisDeMudarStatus({ antes: a, depois: atualizado, usuario, via: 'cartao' });
+  return { atualizado, avisoAusencia };
+}
+
+/** O que vem depois de qualquer troca de situação: webhook, auditoria e automação. */
+async function depoisDeMudarStatus({ antes: a, depois, usuario, via }) {
+  if (!depois) return;
+  await dispararWebhook('status_alterado', { agendamento: depois, novo_status: depois.status });
+  // mudar um desfecho JÁ registrado (fechou / não fechou / não veio) fica na auditoria
+  if (mudaDesfechoRegistrado(a.status, depois.status)) {
+    await dados.auditar(usuario?.id, 'mudou_desfecho', 'agendamentos', a.id,
+      { de: a.status, para: depois.status, via, cliente: a.cliente_nome });
+  }
+  // faltou: a tarefa "Reagendar" nasce na hora (sem esperar o próximo ciclo)
+  if (depois.status === 'nao_veio') agendarAutomacoes(2_000);
+}
+
 async function api(req, res, url) {
   const { pathname, searchParams } = url;
   const m = req.method;
+  let mm0;
 
   // A tela precisa saber onde fica o Supabase para montar o login.
   // A chave publicável é pública por design.
@@ -631,7 +745,7 @@ async function api(req, res, url) {
 
   if (pathname === '/api/primeiro-acesso' && m === 'POST') {
     // Ninguém está logado para chegar aqui, então o freio possível é o IP.
-    const ip = req.socket?.remoteAddress || 'desconhecido';
+    const ip = ipDaRequisicao(req);
     if (!dentroDoLimite(`primeiro:${ip}`, 5, 600_000)) {
       return send(res, 429, { erro: 'Muitas tentativas seguidas. Espere alguns minutos e tente de novo.' });
     }
@@ -664,27 +778,36 @@ async function api(req, res, url) {
   // e ele tem de vir do token conferido aqui — nunca do corpo da requisição.
   let usuario = null;
   if (!ROTAS_SEM_LOGIN.has(pathname)) {
-    usuario = await usuarioLogado(req);
-    if (!usuario) return send(res, 401, { erro: 'Faça login para usar a Agenda.' });
+    const quem = await usuarioLogado(req);
+    usuario = quem.usuario;
+    if (!usuario) {
+      // desativado no meio do uso: 403 com código — a tela volta ao login com o aviso certo
+      if (quem.motivo === 'desativado') {
+        return send(res, 403, { erro: 'Seu acesso foi desativado. Fale com o administrador.', codigo: 'desativado' });
+      }
+      if (quem.motivo === 'mfa_pendente') {
+        return send(res, 401, { erro: 'Falta o código da verificação em duas etapas.', codigo: 'mfa_pendente' });
+      }
+      return send(res, 401, { erro: 'Faça login para usar a Agenda.', codigo: 'sem_login' });
+    }
+    /* Papel e app conferidos AQUI, em toda rota (regras.js, testado):
+       - sem 'agenda' em perfis.apps (e não admin) → 403 "sem acesso a este app"
+       - papel 'agenda' (Franklin): allowlist de presença
+       - apagar/exportar/configurar: só gestor ou admin */
+    const recusa = decidirAcesso({ perfil: usuario, metodo: m, rota: pathname });
+    if (recusa) return send(res, recusa.status, { erro: recusa.erro, codigo: recusa.codigo });
+    marcarAcesso(usuario);
+    // rotas caras: freio por pessoa (um script distraído não derruba o servidor)
+    if (ROTAS_CARAS.has(pathname) && !dentroDoLimite(`caro:${usuario.id}:${pathname}`, 30, 60_000)) {
+      return send(res, 429, { erro: 'Muitos pedidos seguidos. Espere um minuto e tente de novo.' });
+    }
   }
   // Quem manda na equipe. Conferido AQUI: esconder o botão na tela não protege nada.
   const ehAdmin = usuario?.papel === 'admin';
-
-  /* Papel 'agenda' (ex.: Franklin): entra SÓ para marcar presença. Vê a agenda
-     de hoje e aperta Compareceu / Não veio — e mais nada. Sem métricas, sem
-     clientes, sem WhatsApp, sem histórico. A lista do que ele PODE é esta: */
+  const souGestor = ehGestor(usuario?.papel);
+  /* Papel 'agenda' (ex.: Franklin): entra SÓ para marcar presença — a allowlist
+     está em regras.js (rotaDaPresenca) e já foi conferida acima. */
   const soPresenca = usuario?.papel === 'agenda';
-  if (soPresenca) {
-    const liberado =
-         (pathname === '/api/perfil' && m === 'GET')
-      || (pathname === '/api/empresa' && m === 'GET')
-      || (pathname === '/api/saude' && m === 'GET')     // a faixa de saúde vale para todo mundo
-      || (pathname === '/api/agendamentos' && m === 'GET')
-      || (m === 'PATCH' && new RegExp(`^/api/agendamentos/${UUID}/status$`).test(pathname));
-    if (!liberado) {
-      return send(res, 403, { erro: 'Seu acesso é só para marcar presença na agenda de hoje.' });
-    }
-  }
 
   const body = (m === 'POST' || m === 'PUT' || m === 'PATCH') ? await readBody(req) : {};
   if (m !== 'GET' && m !== 'HEAD') invalidarCache();
@@ -701,6 +824,7 @@ async function api(req, res, url) {
     return ok(res, await dados.obterEmpresa());
   if (pathname === '/api/empresa' && m === 'PUT') {
     if (!String(body.nome ?? '').trim()) return bad(res, 'Informe o nome da oficina.');
+    await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_empresa', null, { campos: Object.keys(body) });
     return ok(res, await dados.salvarEmpresa(body));
   }
 
@@ -708,10 +832,87 @@ async function api(req, res, url) {
   if (pathname === '/api/perfil' && m === 'GET')
     return ok(res, await dados.obterPerfil(usuario.id, usuario.email));
   if (pathname === '/api/perfil' && m === 'PUT') {
-    const nome = String(body.nome ?? '').trim();
-    if (!nome) return bad(res, 'Informe o seu nome.');
-    // sempre usuario.id: ninguém renomeia o perfil de outra pessoa por aqui
-    return ok(res, await dados.atualizarPerfilNome(usuario.id, nome, usuario.email));
+    /* "Meu perfil": nome, cargo, telefone, cor do avatar e preferências de
+       notificação. Sempre usuario.id (ninguém mexe no perfil de outra pessoa
+       por aqui) e NUNCA papel/apps/ativo — esses são do administrador. */
+    const campos = {};
+    if (body.nome !== undefined) {
+      campos.nome = texto1(body.nome, 80).trim();
+      if (!campos.nome) return bad(res, 'Informe o seu nome.');
+    }
+    if (body.cargo !== undefined) campos.cargo = texto1(body.cargo, 60).trim() || null;
+    if (body.telefone !== undefined) {
+      if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
+      campos.telefone = soDigitos(texto1(body.telefone, 20)) || null;
+    }
+    if (body.avatar_cor !== undefined) {
+      if (!/^#[0-9a-fA-F]{6}$/.test(texto1(body.avatar_cor, 7))) return bad(res, 'Cor inválida.');
+      campos.avatar_cor = body.avatar_cor;
+    }
+    if (body.preferencias !== undefined) {
+      const p = body.preferencias && typeof body.preferencias === 'object' && !Array.isArray(body.preferencias) ? body.preferencias : {};
+      // só chaves conhecidas, só booleano: nada de JSON arbitrário no perfil
+      campos.preferencias = Object.fromEntries(['notif_atraso', 'notif_tarefas', 'notif_som']
+        .filter((k) => typeof p[k] === 'boolean').map((k) => [k, p[k]]));
+    }
+    if (!Object.keys(campos).length) return bad(res, 'Nada para salvar.');
+    return ok(res, await dados.atualizarMeuPerfil(usuario.id, campos, usuario.email));
+  }
+  // Troca obrigatória de senha concluída (a tela já trocou com sb.auth.updateUser)
+  if (pathname === '/api/perfil/senha-trocada' && m === 'POST') {
+    await dados.marcarSenhaTrocada(usuario.id);
+    await dados.auditar(usuario.id, 'trocou_senha_obrigatoria', 'perfis', usuario.id);
+    return ok(res, { ok: true });
+  }
+
+  /* ---- sino de notificações (só as MINHAS: o filtro é o id do token) ---- */
+  if (pathname === '/api/notificacoes' && m === 'GET') {
+    return send(res, 200, await dados.listarNotificacoes(usuario.id), { 'Cache-Control': 'no-store' });
+  }
+  if (pathname === '/api/notificacoes/lidas' && m === 'POST') {
+    const ids = Array.isArray(body.ids) ? body.ids.map((x) => texto1(x, 40)) : null;
+    if (!ids && body.todas !== true) return bad(res, 'Diga quais notificações (ids) ou todas.');
+    return ok(res, { ok: true, marcadas: await dados.marcarNotificacoesLidas(usuario.id, ids) });
+  }
+
+  /* ---- minhas tarefas ---- */
+  if (pathname === '/api/tarefas' && m === 'GET') {
+    const st = searchParams.get('status');
+    return send(res, 200, await dados.listarTarefasDe(usuario.id, { status: ['aberta', 'feita'].includes(st) ? st : 'aberta' }),
+      { 'Cache-Control': 'no-store' });
+  }
+  if (pathname === '/api/tarefas' && m === 'POST') {
+    if (!dentroDoLimite(`tarefa:${usuario.id}`, 30, 60_000)) return send(res, 429, { erro: 'Muitas tarefas seguidas. Espere um minuto.' });
+    const titulo = texto1(body.titulo, 200).trim();
+    if (!titulo) return bad(res, 'Escreva o que precisa ser feito.');
+    for (const k of ['responsavel_id', 'agendamento_id', 'cliente_id']) {
+      if (body[k] !== undefined && body[k] !== null && body[k] !== '' && !dados.ehUuid(texto1(body[k], 40))) return bad(res, 'Identificador inválido.');
+    }
+    const venc = texto1(body.vence_em, 40);
+    if (venc && Number.isNaN(Date.parse(venc))) return bad(res, 'Prazo inválido.');
+    const t = await dados.criarTarefa({
+      titulo, descricao: texto1(body.descricao, 1000).trim() || null,
+      responsavel_id: body.responsavel_id || usuario.id, criado_por: usuario.id,
+      agendamento_id: body.agendamento_id || null, cliente_id: body.cliente_id || null,
+      prioridade: body.prioridade, vence_em: venc || null, origem: 'agenda',
+    });
+    return send(res, 201, t);
+  }
+  if ((mm0 = pathname.match(new RegExp(`^/api/tarefas/${UUID}$`))) && m === 'PATCH') {
+    const t = await dados.obterTarefa(mm0[1]);
+    if (!t) return notFound(res);
+    // concluir/reabrir: quem é responsável, quem criou ou gestor
+    if (t.responsavel_id !== usuario.id && t.criado_por !== usuario.id && !souGestor) {
+      return send(res, 403, { erro: 'Essa tarefa é de outra pessoa.' });
+    }
+    if (!['aberta', 'feita', 'cancelada'].includes(body.status)) return bad(res, 'Situação inválida.');
+    return ok(res, await dados.mudarStatusTarefa(t.id, body.status));
+  }
+
+  /* ---- auditoria (admin): o que a Agenda registrou por último ---- */
+  if (pathname === '/api/auditoria' && m === 'GET') {
+    if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador vê a auditoria.' });
+    return ok(res, await dados.ultimasAuditorias?.(50) ?? []);
   }
 
   /* ---- equipe: quem tem acesso ao sistema (Configurações › Equipe) ----
@@ -724,6 +925,13 @@ async function api(req, res, url) {
     return ok(res, { equipe, souAdmin: ehAdmin, meuId: usuario.id });
   }
 
+  /* Nomes da equipe ativa (sem e-mail) — para o gestor ligar um consultor a um
+     login no cadastro de consultores. Só id, nome e função. */
+  if (pathname === '/api/equipe/nomes' && m === 'GET') {
+    const lista = await dados.listarEquipe(null);
+    return ok(res, lista.filter((p) => p.ativo).map((p) => ({ id: p.id, nome: p.nome, papel: p.papel })));
+  }
+
   if (pathname === '/api/equipe' && m === 'POST') {
     if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador cadastra a equipe.' });
     if (!dentroDoLimite(`equipe:${usuario.id}`, 10, 60_000)) {
@@ -733,13 +941,19 @@ async function api(req, res, url) {
     const email = texto1(body.email, 160).trim().toLowerCase();
     const senha = texto1(body.senha, 200);
     // 'agenda' = só marca presença na Agenda (não entra nos outros sistemas)
-    const papel = ['admin', 'agenda'].includes(body.papel) ? body.papel : 'atendente';
+    const papel = PAPEIS_EQUIPE.includes(body.papel) ? body.papel : 'atendente';
     if (!nome) return bad(res, 'Informe o nome da pessoa.');
     if (!EMAIL_PARECE_VALIDO.test(email)) return bad(res, 'Esse e-mail não parece válido. Confira e tente de novo.');
     if (senha.length < 8) return bad(res, 'A senha precisa ter pelo menos 8 caracteres.');
+    if (senha.toLowerCase() === email) return bad(res, 'A senha não pode ser igual ao e-mail.');
 
     try {
-      return send(res, 201, { ok: true, ...(await dados.criarMembro({ nome, email, senha, papel })) });
+      /* A senha foi o admin quem escolheu: no primeiro login a pessoa troca pela
+         dela (precisa_trocar_senha), a não ser que o admin desmarque. */
+      const criado = await dados.criarMembro({ nome, email, senha, papel, convidadoPor: usuario.id,
+        trocarSenha: body.trocar_senha !== false });
+      await dados.auditar(usuario.id, 'cadastrou_pessoa', 'perfis', criado.id, { papel, email });
+      return send(res, 201, { ok: true, ...criado });
     } catch (e) {
       const r = recusaDeCadastro(e);
       return send(res, r.status, { erro: r.erro });
@@ -749,7 +963,7 @@ async function api(req, res, url) {
   if (pathname === '/api/equipe/papel' && m === 'POST') {
     if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador muda a função da equipe.' });
     const id = texto1(body.id, 60);
-    const papel = ['admin', 'agenda'].includes(body.papel) ? body.papel : 'atendente';
+    const papel = PAPEIS_EQUIPE.includes(body.papel) ? body.papel : 'atendente';
     if (!dados.ehUuid(id)) return bad(res, 'Informe de quem você quer mudar a função.');
 
     const alvo = await dados.resumoDoPerfil(id);
@@ -764,8 +978,42 @@ async function api(req, res, url) {
         erro: 'Este é o único administrador. Promova outra pessoa antes de rebaixar esta.' });
     }
 
-    await dados.definirPapel(id, papel);
+    await dados.definirPapel(id, papel, alvo.papel);
+    esquecerLogins();
+    await dados.auditar(usuario.id, 'mudou_papel', 'perfis', id, { de: alvo.papel, para: papel });
     return ok(res, { ok: true, papel });
+  }
+
+  // Quais apps a pessoa usa (admin). O papel 'agenda' fica sempre só com a Agenda.
+  if (pathname === '/api/equipe/apps' && m === 'POST') {
+    if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador muda os apps de alguém.' });
+    const id = texto1(body.id, 60);
+    if (!dados.ehUuid(id)) return bad(res, 'Informe de quem você quer mudar os apps.');
+    if (!Array.isArray(body.apps)) return bad(res, 'Envie a lista de apps.');
+    const alvo = await dados.resumoDoPerfil(id);
+    if (!alvo) return send(res, 404, { erro: 'Não encontrei essa pessoa na equipe. Atualize a página.' });
+    if (alvo.papel === 'agenda') return bad(res, 'Quem só marca presença usa apenas a Agenda. Mude a função antes.');
+    if (alvo.papel === 'admin') return bad(res, 'O administrador sempre entra em todos os apps.');
+    const apps = await dados.definirApps(id, body.apps.map((a) => texto1(a, 20)));
+    esquecerLogins();
+    await dados.auditar(usuario.id, 'mudou_apps', 'perfis', id, { apps });
+    return ok(res, { ok: true, apps });
+  }
+
+  /* Senha temporária (admin): quando o e-mail de "esqueci a senha" não chega
+     (o plano gratuito do Supabase manda poucos por hora). Aparece UMA vez para o
+     admin entregar em mãos; a pessoa troca pela dela no próximo login. */
+  if (pathname === '/api/equipe/senha-temporaria' && m === 'POST') {
+    if (!ehAdmin) return send(res, 403, { erro: 'Só o administrador gera senha temporária.' });
+    if (!dentroDoLimite(`senhatemp:${usuario.id}`, 5, 600_000)) return send(res, 429, { erro: 'Muitas senhas seguidas. Espere alguns minutos.' });
+    const id = texto1(body.id, 60);
+    if (!dados.ehUuid(id)) return bad(res, 'Informe para quem é a senha.');
+    if (id === usuario.id) return bad(res, 'Para a sua própria senha use "Trocar senha" no seu perfil.');
+    const alvo = await dados.resumoDoPerfil(id);
+    if (!alvo) return send(res, 404, { erro: 'Não encontrei essa pessoa na equipe. Atualize a página.' });
+    const senha = await dados.definirSenhaTemporaria(id);
+    await dados.auditar(usuario.id, 'gerou_senha_temporaria', 'perfis', id, null);   // a senha nunca vai para a auditoria
+    return send(res, 200, { ok: true, senha }, { 'Cache-Control': 'no-store' });
   }
 
   if (pathname === '/api/equipe/ativo' && m === 'POST') {
@@ -790,6 +1038,8 @@ async function api(req, res, url) {
     }
 
     await dados.definirAtivo(id, ativo);
+    esquecerLogins();                       // desativado: perde o acesso no próximo clique, não em 60 s
+    await dados.auditar(usuario.id, ativo ? 'devolveu_acesso' : 'tirou_acesso', 'perfis', id, null);
     return ok(res, { ok: true, ativo });
   }
 
@@ -827,11 +1077,16 @@ async function api(req, res, url) {
     const de = searchParams.get('de'), ate = searchParams.get('ate');
     if ((de && !dados.dataBanco(de)) || (ate && !dados.dataBanco(ate))) return bad(res, 'Período inválido: use de=AAAA-MM-DD e ate=AAAA-MM-DD.');
     if (de && ate && dados.dataBanco(de) > dados.dataBanco(ate)) return bad(res, 'Período invertido: "de" vem depois de "ate".');
+    const data = searchParams.get('data');
+    if (data && !dados.dataBanco(data)) return bad(res, 'Data inválida.');
+    const cons = searchParams.get('consultor_id');
+    if (cons && !dados.ehUuid(cons)) return bad(res, 'Consultor inválido.');
     return ok(res, await dados.listarAgendamentos({
       de: de || undefined, ate: ate || undefined,
-      data: searchParams.get('data') || undefined,
+      data: data || undefined,
       status: searchParams.get('status') || undefined,
-      q: searchParams.get('q') || undefined,
+      q: texto1(searchParams.get('q'), 80).trim() || undefined,
+      consultor_id: cons || undefined,
     }));
   }
 
@@ -841,6 +1096,11 @@ async function api(req, res, url) {
     if (!dados.dataBanco(body.data) || !dados.horaBanco(body.hora))
       return bad(res, 'Data ou hora em formato inválido.');
     if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
+    for (const k of ['consultor_id', 'cliente_id']) {
+      if (body[k] && !dados.ehUuid(texto1(body[k], 40))) return bad(res, 'Identificador inválido.');
+    }
+    // "Não veio" não nasce num agendamento novo: o aviso de falta é do cartão
+    if (body.status === 'nao_veio') body.status = 'aguardando';
     // dedupe: mesmo horário + mesmo telefone (ou mesmo nome) = mesmo agendamento
     const dup = await dados.agendamentoDuplicado(
       body.data, body.hora, soDigitos(body.telefone || ''), body.cliente_nome);
@@ -870,8 +1130,20 @@ async function api(req, res, url) {
       const a = await dados.obterAgendamento(id);
       if (!a) return notFound(res);
       if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
+      if (body.consultor_id && !dados.ehUuid(texto1(body.consultor_id, 40))) return bad(res, 'Consultor inválido.');
+      /* "Não veio" pela EDIÇÃO: o gatilho do banco mandaria o WhatsApp de falta
+         sem ninguém pedir. Só passa com resposta explícita (regras.js):
+         avisar_cliente true → mesmo fluxo do cartão; false → carimba junto. */
+      const naoVeio = decidirNaoVeioNaEdicao(a, body);
+      if (naoVeio.acao === 'perguntar') {
+        return send(res, 409, { codigo: 'confirmar_aviso',
+          erro: 'Marcar "Não veio" manda o WhatsApp de falta para o cliente. Avisar o cliente?' });
+      }
+      const { avisar_cliente, ...resto } = body;
       // merge: o que não veio no corpo mantém o valor atual
-      const novo = { ...a, ...body };
+      const novo = { ...a, ...resto };
+      if (naoVeio.acao === 'carimbar') novo.no_show_notificado_em = new Date().toISOString();
+      if (naoVeio.acao === 'avisar') { delete novo.status; delete novo.compareceu; }   // o status vai pelo fluxo do cartão, logo abaixo
       /* Ganhou telefone (ou trocou)? Liga à ficha do cliente — reaproveitando
          pelo telefone ou criando. O gatilho do banco (vincular_cliente_no_
          agendamento) só roda no INSERT: um agendamento que nasceu sem telefone
@@ -892,11 +1164,25 @@ async function api(req, res, url) {
           && ['aguardando', 'confirmado'].includes(body.status)) {
         novo.compareceu = null;
       }
-      const atualizado = await dados.atualizarAgendamento(id, novo);
-      return atualizado ? ok(res, atualizado) : notFound(res);
+      if (body.status === 'nao_veio' && naoVeio.acao !== 'avisar' && body.compareceu === undefined) novo.compareceu = false;
+      let atualizado = await dados.atualizarAgendamento(id, novo);
+      if (!atualizado) return notFound(res);
+      let avisoAusencia = null;
+      if (naoVeio.acao === 'avisar') {
+        const r = await mudarStatus({ antes: atualizado, status: 'nao_veio', usuario });
+        atualizado = r.atualizado; avisoAusencia = r.avisoAusencia;
+      } else if (body.status !== undefined && body.status !== a.status) {
+        await depoisDeMudarStatus({ antes: a, depois: atualizado, usuario, via: 'edicao' });
+      }
+      return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia });
     }
     if (m === 'DELETE') {
+      const a = await dados.obterAgendamento(id);
+      if (!a) return notFound(res);
       await dados.removerAgendamento(id);
+      // quem apagou o quê (o gatilho do banco guarda a linha; aqui fica QUEM foi)
+      await dados.auditar(usuario.id, 'apagou_agendamento', 'agendamentos', id,
+        { cliente: a.cliente_nome, data: a.data, hora: a.hora, status: a.status });
       return ok(res, { ok: true });
     }
   }
@@ -904,24 +1190,7 @@ async function api(req, res, url) {
   // mudança rápida de status (botões do card)
   if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/status$`))) && m === 'PATCH') {
     const id = mm[1];
-    const map = {
-      // aguardando/confirmado = "ainda não chegou": zeram o comparecimento,
-      // senão desfazer um "Não veio" deixava o bit antigo preso.
-      confirmado:      { status: 'confirmado', confirmado: true, compareceu: null },
-      compareceu:      { status: 'compareceu', compareceu: true },
-      nao_veio:        { status: 'nao_veio', compareceu: false },
-      em_atendimento:  { status: 'em_atendimento' },
-      concluido:       { status: 'concluido', compareceu: true },
-      // "Veio e não fechou": a pessoa ESTEVE na oficina, então compareceu=true —
-      // senão um "Não veio" corrigido para isto ficava com o selo "Não veio" preso.
-      nao_fechou:      { status: 'nao_fechou', compareceu: true },
-      aguardando:      { status: 'aguardando', compareceu: null },
-      // cancelado = a visita não aconteceu: zera o bit, senão um cancelado que um
-      // dia teve compareceu=true contava em "Compareceram" e caía em "Na oficina".
-      cancelado:       { status: 'cancelado', compareceu: null },
-    };
-    const ch = map[body.status];
-    if (!ch) return bad(res, 'Status inválido.');
+    if (!MAPA_STATUS[body.status]) return bad(res, 'Status inválido.');
     // Quem só marca presença aperta Compareceu ou Não veio — nada além disso.
     // (Fechar ou não a venda é desfecho comercial: fica com quem usa o Início.)
     if (soPresenca && !['compareceu', 'nao_veio'].includes(body.status)) {
@@ -934,33 +1203,7 @@ async function api(req, res, url) {
     if (soPresenca && ['concluido', 'nao_fechou'].includes(a.status)) {
       return send(res, 403, { erro: 'Este cliente já tem o desfecho registrado pelo atendimento — só o painel principal pode mudar.' });
     }
-    /* "Não veio" manda o aviso de ausência NA HORA — uma vez só. O carimbo
-       no_show_notificado_em vai JUNTO com a troca de status: assim o gatilho
-       do banco (edge function) vê o campo preenchido e não dispara também,
-       senão o cliente receberia duas mensagens. Clique repetido não reenvia. */
-    const avisar = body.status === 'nao_veio'
-      && !a.no_show_notificado_em
-      && !!dados.soDigitos(a.telefone);
-    const atualizado = await dados.atualizarAgendamento(id, {
-      status: ch.status,
-      confirmado: ch.confirmado !== undefined ? ch.confirmado : a.confirmado,
-      compareceu: ch.compareceu !== undefined ? ch.compareceu : a.compareceu,
-      ...(avisar ? { no_show_notificado_em: new Date().toISOString() } : {}),
-    });
-    let avisoAusencia = null;
-    if (avisar && atualizado) {
-      try {
-        avisoAusencia = await enviarAvisoDeAusencia(atualizado);
-      } catch (e) { avisoAusencia = { ok: false, erro: String(e?.message || e) }; }
-      if (!avisoAusencia.ok) {
-        // solta o carimbo: o próximo clique em "Não veio" tenta enviar de novo
-        await dados.atualizarAgendamento(id, { no_show_notificado_em: null })
-          .catch((e) => console.error('Liberar reenvio do aviso:', e?.message || e));
-      }
-    } else if (body.status === 'nao_veio' && a.no_show_notificado_em) {
-      avisoAusencia = { ok: true, repetido: true };
-    }
-    await dispararWebhook('status_alterado', { agendamento: atualizado, novo_status: body.status });
+    const { atualizado, avisoAusencia } = await mudarStatus({ antes: a, status: body.status, usuario });
     return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia });
   }
 
@@ -989,8 +1232,8 @@ async function api(req, res, url) {
     if (data && !dados.dataBanco(data)) return bad(res, 'Data inválida.');
     return send(res, 200, await dados.sugerirHorarios({
       data: data || undefined,
-      consultor_id: searchParams.get('consultor_id') || undefined,
-      ignorar: searchParams.get('ignorar') || undefined,
+      consultor_id: dados.ehUuid(searchParams.get('consultor_id') || '') ? searchParams.get('consultor_id') : undefined,
+      ignorar: dados.ehUuid(searchParams.get('ignorar') || '') ? searchParams.get('ignorar') : undefined,
     }), { 'Cache-Control': 'no-store' });
   }
 
@@ -1002,7 +1245,7 @@ async function api(req, res, url) {
 
   // ---- clientes
   if (pathname === '/api/clientes' && m === 'GET')
-    return ok(res, await dados.listarClientes(searchParams.get('q') || undefined));
+    return ok(res, await dados.listarClientes(texto1(searchParams.get('q'), 80).trim() || undefined));
   if (pathname === '/api/clientes' && m === 'POST') {
     if (!String(body.nome ?? '').trim()) return bad(res, 'Informe o nome.');
     if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
@@ -1030,23 +1273,58 @@ async function api(req, res, url) {
         return c ? ok(res, c) : notFound(res);
       } catch (e) { if (/Aniversário inválido/.test(e?.message)) return bad(res, e.message); throw e; }
     }
-    if (m === 'DELETE') { await dados.removerCliente(id); return ok(res, { ok: true }); }
+    if (m === 'DELETE') {
+      const c = await dados.obterCliente(id);
+      if (!c) return notFound(res);
+      await dados.removerCliente(id);
+      await dados.auditar(usuario.id, 'apagou_cliente', 'clientes', id, { nome: c.nome });
+      return ok(res, { ok: true });
+    }
   }
 
   // ---- consultores (equipe)
   if (pathname === '/api/consultores' && m === 'GET')
     return ok(res, await dados.listarConsultores());
+  // carga do dia por consultor (Equipe, modal e "Minha agenda")
+  if (pathname === '/api/consultores/carga' && m === 'GET') {
+    const data = searchParams.get('data');
+    if (data && !dados.dataBanco(data)) return bad(res, 'Data inválida.');
+    const { linhas, ...carga } = await dados.cargaPorConsultor(data || hoje());
+    return send(res, 200, carga, { 'Cache-Control': 'no-store' });
+  }
+  // consultor sugerido para data/hora: o de menor carga e livre naquela meia hora (só sugere)
+  if (pathname === '/api/consultores/sugerir' && m === 'GET') {
+    const data = searchParams.get('data'), hora = searchParams.get('hora');
+    if (!dados.dataBanco(data)) return bad(res, 'Data inválida.');
+    if (hora && !dados.horaBanco(hora)) return bad(res, 'Hora inválida.');
+    return send(res, 200, await dados.consultorSugerido({ data, hora,
+      ignorar: dados.ehUuid(searchParams.get('ignorar') || '') ? searchParams.get('ignorar') : undefined }),
+      { 'Cache-Control': 'no-store' });
+  }
   if (pathname === '/api/consultores' && m === 'POST') {
-    if (!body.nome) return bad(res, 'Informe o nome.');
-    return ok(res, await dados.criarConsultor(body));
+    const nome = texto1(body.nome, 80).trim();
+    if (!nome) return bad(res, 'Informe o nome.');
+    if (body.perfil_id && !dados.ehUuid(texto1(body.perfil_id, 40))) return bad(res, 'Login inválido.');
+    if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
+    const c = await dados.criarConsultor({ ...body, nome });
+    await dados.auditar(usuario.id, 'cadastrou_consultor', 'consultores', c?.id, { nome, perfil_id: body.perfil_id || null });
+    return ok(res, c);
   }
   if ((mm = pathname.match(new RegExp(`^/api/consultores/${UUID}$`)))) {
     const id = mm[1];
     if (m === 'PUT') {
+      if (body.nome !== undefined && !texto1(body.nome, 80).trim()) return bad(res, 'Informe o nome.');
+      if (body.perfil_id && !dados.ehUuid(texto1(body.perfil_id, 40))) return bad(res, 'Login inválido.');
+      if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
       const c = await dados.atualizarConsultor(id, body);
+      if (c && body.perfil_id !== undefined) await dados.auditar(usuario.id, 'ligou_consultor_login', 'consultores', id, { perfil_id: body.perfil_id || null });
       return c ? ok(res, c) : notFound(res);
     }
-    if (m === 'DELETE') { await dados.removerConsultor(id); return ok(res, { ok: true }); }
+    if (m === 'DELETE') {
+      await dados.removerConsultor(id);
+      await dados.auditar(usuario.id, 'apagou_consultor', 'consultores', id, null);
+      return ok(res, { ok: true });
+    }
   }
 
   // ---- serviços (Arsenal)
@@ -1082,6 +1360,7 @@ async function api(req, res, url) {
   }
   if (pathname === '/api/integracoes' && m === 'PUT') {
     await dados.salvarIntegracoes(body);
+    await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_integracoes', null, { campos: Object.keys(body).filter((k) => k !== 'ics_token') });
     return ok(res, { ok: true });
   }
   if (pathname === '/api/integracoes/testar-webhook' && m === 'POST') {
@@ -1109,6 +1388,7 @@ async function api(req, res, url) {
   // ---- exportações CSV (abre no Excel)
   if (pathname === '/api/export/agendamentos.csv' && m === 'GET') {
     const lista = await dados.listarTodosAgendamentos('select=*,consultores(nome,cor)&order=data.desc,hora.asc');
+    await dados.auditar(usuario.id, 'exportou_csv', 'agendamentos', null, { linhas: lista.length });
     const rows = lista.map((a) => ({
       id: a.id, cliente: a.cliente_nome, telefone: a.telefone, veiculo: a.veiculo, placa: a.placa,
       servico: a.servico, data: a.data, hora: a.hora, status: a.status, origem: a.origem,
@@ -1119,6 +1399,7 @@ async function api(req, res, url) {
   }
   if (pathname === '/api/export/clientes.csv' && m === 'GET') {
     const lista = await dados.listarClientes();
+    await dados.auditar(usuario.id, 'exportou_csv', 'clientes', null, { linhas: lista.length });
     const rows = lista.map((c) => ({
       id: c.id, nome: c.nome, telefone: c.telefone, veiculo: c.veiculo,
       placa: c.placa, modelo: c.modelo, origem: c.origem, criado_em: c.created_at,
@@ -1144,6 +1425,8 @@ async function api(req, res, url) {
     // só atualiza o token se um novo for digitado (campo vazio mantém o atual)
     const token = (body.access_token && body.access_token.trim()) ? body.access_token.trim() : c.access_token;
     const nc = await dados.salvarWaConfig({ ...body, access_token: token ?? null });
+    await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_whatsapp_config', null,
+      { campos: Object.keys(body).map((k) => (k === 'access_token' ? 'access_token(•••)' : k)) });
     const t = nc.access_token || '';
     return ok(res, { ...nc, access_token: undefined, tem_token: !!t,
       token_mask: t ? '••••••••' + t.slice(-4) : '' });
@@ -1184,6 +1467,7 @@ async function api(req, res, url) {
   // histórico de mensagens
   if (pathname === '/api/whatsapp/mensagens' && m === 'GET') {
     const ag = searchParams.get('agendamento_id');
+    if (ag && !dados.ehUuid(ag)) return bad(res, 'Agendamento inválido.');
     return ok(res, await dados.listarMensagens(ag ? { agendamento_id: ag } : {}));
   }
 
@@ -1245,6 +1529,8 @@ async function api(req, res, url) {
       cw_device_id: pick('cw_device_id', null),
       cw_base_url: pick('cw_base_url', 'https://runtime.codewords.ai'),
     });
+    await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_ia_config', null,
+      { campos: Object.keys(body).map((k) => (/key/.test(k) ? k + '(•••)' : k)) });
     return ok(res, await iaConfigMascarada());
   }
   // CodeWords: disparar um workflow qualquer. Usa a chave salva ou a do corpo.
@@ -1393,6 +1679,28 @@ function cabecalhosDeSeguranca(res) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Content-Security-Policy', CSP);
+  // HTTPS sempre (o Render serve só HTTPS; o navegador passa a recusar http por 1 ano)
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+}
+
+/* Limite por IP em toda a API (além do limite por pessoa nas rotas caras):
+   300 pedidos por minuto é muito acima do uso normal de uma tela aberta. */
+const USO_IP = new Map();
+function ipDaRequisicao(req) {
+  // atrás do proxy do Render o IP do cliente vem no X-Forwarded-For (o primeiro)
+  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return xff || req.socket?.remoteAddress || 'desconhecido';
+}
+function ipDentroDoLimite(ip, teto = 300, janelaMs = 60_000) {
+  const agora = Date.now();
+  const atual = USO_IP.get(ip);
+  if (!atual || atual.zeraEm <= agora) {
+    if (USO_IP.size > 2000) USO_IP.clear();
+    USO_IP.set(ip, { qtd: 1, zeraEm: agora + janelaMs });
+    return true;
+  }
+  return ++atual.qtd <= teto;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -1413,16 +1721,35 @@ const server = http.createServer(async (req, res) => {
     });
   }
   try {
-    if (url.pathname.startsWith('/api/')) return await api(req, res, url);
+    if (url.pathname.startsWith('/api/')) {
+      /* CORS: só os domínios do ecossistema IndyCar (regras.js). Pedido de outro
+         site é recusado ANTES de qualquer coisa — com ou sem token. */
+      const origem = req.headers.origin;
+      if (!origemPermitida(origem, req.headers.host)) return send(res, 403, { erro: 'Origem não permitida.' });
+      if (origem) {
+        res.setHeader('Access-Control-Allow-Origin', origem);
+        res.setHeader('Vary', 'Origin');
+        res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Max-Age', '600');
+      }
+      if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+      if (!ipDentroDoLimite(ipDaRequisicao(req))) {
+        return send(res, 429, { erro: 'Muitos pedidos deste aparelho. Espere um minuto.' }, { 'Retry-After': '60' });
+      }
+      return await api(req, res, url);
+    }
     return await serveStatic(req, res, url.pathname);
   } catch (e) {
-    // ErroHttp (413, 400 de JSON…) sai com o próprio código; o resto é 500.
-    const status = Number.isInteger(e?.status) && e.status >= 400 && e.status < 600 ? e.status : 500;
-    if (status === 500) console.error(e);
+    // ErroHttp (413, 400 de JSON…) sai com o próprio código e o recado em
+    // português; erro interno (banco, rede, bug) vira genérico com o código da
+    // requisição — o detalhe fica SÓ no log (regras.js › mensagemSegura).
+    const rid = res.getHeader('X-Request-Id') || '';
+    const { status, erro } = mensagemSegura(e, rid);
+    if (status >= 500) console.error(`[${rid}]`, e);
+    else if (e?.name === 'ErroSupabase') console.warn(`[${rid}]`, e?.message || e);
     if (res.headersSent) { try { res.end(); } catch { /* conexão já foi */ } return; }
-    // a tela só lê 'erro'; sem isso as mensagens claras em português
-    // (ex.: "preencha SUPABASE_SERVICE_ROLE_KEY no .env") nunca apareceriam
-    send(res, status, { erro: String(e?.message || 'Erro interno') });
+    send(res, status, { erro });
   }
 });
 // Requisição que fica pendurada (cliente sumiu no meio) não segura a conexão para sempre.
@@ -1456,10 +1783,37 @@ const aviso = (onde) => (e) => console.error(`${onde}:`, e?.message || e);
 // por aqui, e não para. Isto é só a busca por agendamentos que ele registrou.
 const IMPORT_MIN = Math.max(1, Number(process.env.IMPORT_INTERVALO_MIN) || 15);
 
-const TIMERS = [
+/* Automações (tarefas "Confirmar com o cliente" às 16h, "Reagendar" quando
+   falta, notificação de atraso de 30 min) — automacoes.js. Rodam a cada 5 min
+   SÓ no servidor de produção (RENDER=true) ou com AUTOMACOES=1: um servidor
+   local de teste nunca cria tarefa no banco de verdade. */
+const AUTOMACOES_LIGADAS = process.env.AUTOMACOES === '1' || (!!process.env.RENDER && process.env.AUTOMACOES !== '0');
+let _automacaoRodando = false, _automacaoTimer = null;
+async function cicloDeAutomacoes() {
+  if (!AUTOMACOES_LIGADAS || _automacaoRodando) return;
+  _automacaoRodando = true;
+  try { await rodarAutomacoes({ dados }); }
+  catch (e) { console.error('Automações:', e?.message || e); }
+  finally { _automacaoRodando = false; }
+}
+/** Pede um ciclo daqui a pouco (ex.: alguém acabou de marcar "Não veio"). */
+function agendarAutomacoes(ms = 2000) {
+  if (!AUTOMACOES_LIGADAS) return;
+  clearTimeout(_automacaoTimer);
+  _automacaoTimer = setTimeout(cicloDeAutomacoes, ms);
+  _automacaoTimer.unref?.();
+}
+
+/* Roda como programa (node server.js) ou importado pelos testes? Só o programa
+   liga timers e abre a porta. */
+const EH_PRINCIPAL = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+const TIMERS = EH_PRINCIPAL ? [
   setInterval(() => importarAgendamentosCW().then(invalidarCache).catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000),
   setTimeout(() => importarAgendamentosCW().then(invalidarCache).catch(aviso('Importação CodeWords')), 12 * 1000),
-];
+  setInterval(cicloDeAutomacoes, 5 * 60 * 1000),
+  setTimeout(cicloDeAutomacoes, 45 * 1000),
+] : [];
 
 /* Desligamento limpo: o Render manda SIGTERM a cada deploy. Para de aceitar
    conexão nova, deixa as requisições em curso terminarem (até 10 s) e sai —
@@ -1473,8 +1827,6 @@ function desligar(sinal) {
   server.close(() => { console.log('  Conexões encerradas. Até logo. 🏁'); process.exit(0); });
   setTimeout(() => { console.error('  Tempo esgotado: saindo mesmo assim.'); process.exit(1); }, 10_000).unref();
 }
-process.on('SIGTERM', () => desligar('SIGTERM'));
-process.on('SIGINT', () => desligar('SIGINT'));
 
 /* O espelho local → cloud foi REMOVIDO. Os dois lados usam o MESMO Supabase
    (nada a espelhar) e, desde que o login entrou, o POST sem token levava 401
@@ -1503,4 +1855,17 @@ async function iniciar() {
   });
 }
 
-iniciar();
+if (EH_PRINCIPAL) {
+  process.on('SIGTERM', () => desligar('SIGTERM'));
+  process.on('SIGINT', () => desligar('SIGINT'));
+  iniciar();
+}
+
+/* ---- só para os testes (tests/servidor.test.mjs): banco e porteiro de mentira ---- */
+export function _injetar({ dados: d, usuarioLogado: u } = {}) {
+  if (d) dados = d;
+  if (u) usuarioLogado = u;
+  esquecerLogins();
+  USO.clear(); USO_IP.clear();
+}
+export { server };

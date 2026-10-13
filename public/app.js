@@ -36,7 +36,7 @@ const svg = (p, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24">${p}</svg>
 
 // ---- estado -----------------------------------------------------------------
 /* Marca da versão (igual à de /api/versao no server.js): confere o deploy. */
-const VERSAO_APP = '2026-10-09-r2';
+const VERSAO_APP = '2026-10-13-r3';
 const state = { route:'inicio', empresa:{}, consultores:[] };
 /* LINK DE ENTRADA do ecossistema: o Atendimento, o CRM e o Comunicar abrem a
    Agenda com ?tel=<dígitos> (às vezes &cliente=<uuid>). Lido UMA vez aqui e
@@ -68,8 +68,24 @@ async function api(method, path, body) {
   if (body) opt.body = JSON.stringify(body);
   const r = await fetch('/api' + path, opt);
   const data = await r.json().catch(() => ({}));
+  /* Sessão (padrão comum, item 9): desativado no meio do uso → volta ao login
+     com o aviso; falta o código das duas etapas → pede o código; sem a Agenda
+     nos apps → tela "você não tem acesso". O servidor confere em toda rota. */
+  if (r.status === 401 && data.codigo === 'mfa_pendente' && typeof contaExigirMfa === 'function') {
+    contaExigirMfa().then((ok) => { if (ok) location.reload(); });
+    throw Object.assign(new Error(data.erro), { parar: true, codigo: data.codigo });
+  }
   if (r.status === 401) { mostrarLogin('Sua sessão expirou. Entre de novo.'); throw new Error('Sessão expirada'); }
-  if (!r.ok) throw new Error(data.erro || 'Erro na requisição');
+  if (r.status === 403 && data.codigo === 'desativado') {
+    try { await sb?.auth?.signOut(); } catch { /* sai mesmo assim */ }
+    mostrarLogin(data.erro || 'Seu acesso foi desativado.');
+    throw Object.assign(new Error(data.erro), { parar: true, codigo: data.codigo });
+  }
+  if (r.status === 403 && data.codigo === 'sem_acesso_app' && typeof contaTelaSemAcesso === 'function') {
+    contaTelaSemAcesso(state.perfil);
+    throw Object.assign(new Error(data.erro), { parar: true, codigo: data.codigo });
+  }
+  if (!r.ok) { const e = new Error(data.erro || 'Erro na requisição'); e.status = r.status; e.codigo = data.codigo; throw e; }
   return data;
 }
 
@@ -113,7 +129,7 @@ function toast(msg, type = 'ok', opts = {}) {
   t.className = `toast show ${type}${opts.acao ? ' com-acao' : ''}`;
   _toastTimer = setTimeout(fechar, dur);
 }
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Duas letras para o círculo do avatar (rodapé da lateral e lista da equipe). */
 const iniciais = (nome) => String(nome || '').trim().split(/\s+/).filter(Boolean)
@@ -388,7 +404,7 @@ function appointmentCard(a, opts) {
         ${linkConversa(a)}
         <button class="act ico" data-act="remarcar" title="Remarcar (outro dia ou hora)" aria-label="Remarcar ${esc(a.cliente_nome)}">${svg(I.calendar)}</button>
         <button class="act ico" data-act="editar" title="Editar" aria-label="Editar agendamento">${svg(I.edit)}</button>
-        <button class="act red ico" data-act="excluir" title="Excluir" aria-label="Excluir agendamento">${svg(I.trash)}</button>
+        <button class="act red ico so-gestor" data-act="excluir" title="Excluir" aria-label="Excluir agendamento">${svg(I.trash)}</button>
         </span>`);
 }
 
@@ -805,8 +821,14 @@ function htmlDaAgenda(lista, agora, buscando) {
   return html;
 }
 async function renderAgenda(opts = {}) {
+  const meuConsultor = state.perfil?.consultor_id || null;
+  // "Minha agenda" lembra a escolha neste aparelho (sem armazenamento: começa desligada)
+  if (state.minhaAgenda === undefined) { try { state.minhaAgenda = localStorage.getItem('indycar_minha_agenda') === '1'; } catch { state.minhaAgenda = false; } }
   const buscar = async (q) => {
-    const todos = await api('GET', '/agendamentos' + (q ? '?q=' + encodeURIComponent(q) : ''));
+    const qs = new URLSearchParams();
+    if (q) qs.set('q', q);
+    if (meuConsultor && state.minhaAgenda) qs.set('consultor_id', meuConsultor);
+    const todos = await api('GET', '/agendamentos' + (qs.toString() ? '?' + qs : ''));
     return q ? todos : todos.filter(a => !['oficina', 'resolvidos'].includes(grupoDoDia(a)));
   };
   // filtro "só sem telefone" (vem do chip do Início ou do botão da barra)
@@ -842,6 +864,8 @@ async function renderAgenda(opts = {}) {
       <!-- sem botão "Novo agendamento" aqui: o do topo da página já faz isso -->
       <div class="search larga">${svg(I.search)}<input id="qAgenda" placeholder="Buscar por cliente, placa ou telefone — a busca acha também quem já foi para o CRM" value="${esc(q0)}" aria-label="Buscar agendamento"></div>
       <button type="button" class="btn" id="btnVerSemana" title="Ver a semana em grade, com ocupação por dia (tecla S)">${svg(I.calendar)} Semana</button>
+      ${meuConsultor ? `<button type="button" class="btn filtro-meus${state.minhaAgenda ? ' ativo' : ''}" id="btnMinhaAgenda" aria-pressed="${!!state.minhaAgenda}"
+        title="Só os horários em que você é o consultor">${svg(I.user)} Minha agenda</button>` : ''}
       <button type="button" class="btn filtro-semtel" id="btnSemTel" hidden
               title="Mostrar só quem está sem telefone (não recebe lembrete nem pós-venda)"></button>
     </div>
@@ -849,6 +873,11 @@ async function renderAgenda(opts = {}) {
   pintar(lista, q0, !opts.quieto);
   $('#btnSemTel').addEventListener('click', () => { state.agendaSemTel = !state.agendaSemTel; route(); });
   $('#btnVerSemana').addEventListener('click', () => route('semana'));
+  $('#btnMinhaAgenda')?.addEventListener('click', () => {
+    state.minhaAgenda = !state.minhaAgenda;
+    try { localStorage.setItem('indycar_minha_agenda', state.minhaAgenda ? '1' : '0'); } catch { /* ok */ }
+    route();
+  });
   $('#qAgenda').addEventListener('input', debounce(async e => {
     const q = e.target.value.trim();
     state.agendaQ = q;
@@ -906,7 +935,7 @@ function clienteRows(list, q) {
     <td><div class="actions">
       <button class="icon-btn wa" data-act="wa" title="WhatsApp" aria-label="Mandar WhatsApp para ${esc(c.nome)}">${svg(I.wa)}</button>
       <button class="icon-btn" data-act="edit" title="Abrir ficha" aria-label="Abrir ficha de ${esc(c.nome)}">${svg(I.edit)}</button>
-      <button class="icon-btn red" data-act="del" title="Excluir" aria-label="Excluir ${esc(c.nome)}">${svg(I.trash)}</button>
+      <button class="icon-btn red so-gestor" data-act="del" title="Excluir" aria-label="Excluir ${esc(c.nome)}">${svg(I.trash)}</button>
     </div></td></tr>`).join('');
 }
 function bindCliRows() {
@@ -924,30 +953,49 @@ function bindCliRows() {
 }
 
 async function renderEquipe() {
-  const list = await api('GET', '/consultores');
+  /* Consultores = quem atende o carro na recepção. Cada um pode ser ligado a
+     um LOGIN (perfis): é isso que liga "Minha agenda", a tarefa automática para
+     a pessoa certa e o aviso de atraso. Carga de hoje e de amanhã ao lado. */
+  const amanha = (() => { const d = new Date(`${agoraSP().data}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
+  const [list, cargaHoje, cargaAmanha, nomes] = await Promise.all([
+    api('GET', '/consultores'),
+    api('GET', '/consultores/carga?data=' + agoraSP().data).catch(() => null),
+    api('GET', '/consultores/carga?data=' + amanha).catch(() => null),
+    api('GET', '/equipe/nomes').catch(() => []),
+  ]);
+  state.consultores = list;
+  const de = (c, carga) => carga?.consultores?.find(x => x.id === c.id)?.total ?? 0;
+  const login = (c) => nomes.find(n => n.id === c.perfil_id)?.nome;
+  const semCons = (cargaHoje?.sem_consultor || 0);
   view.innerHTML = `
-    <div class="toolbar"><div class="left"><h2 style="font-size:18px">Equipe / Consultores</h2></div>
-      <button class="btn primary" onclick="openConsultorModal()">${svg(I.plus)} Novo consultor</button></div>
-    <div class="panel"><table class="table"><thead><tr>
-      <th>Consultor</th><th>Telefone</th><th>Status</th><th></th></tr></thead>
-      <tbody>${list.length ? list.map(c => `<tr data-id="${c.id}">
+    <div class="toolbar"><div class="left"><h2 style="font-size:18px">Equipe / Consultores</h2>
+      ${semCons ? `<span class="badge-pill bp-orange" title="Horários de hoje sem consultor">${semCons} hoje sem consultor</span>` : ''}</div>
+      <button class="btn primary so-gestor" onclick="openConsultorModal()">${svg(I.plus)} Novo consultor</button></div>
+    <div class="panel"><div class="tabela-rolagem"><table class="table"><thead><tr>
+      <th>Consultor</th><th>Login</th><th>Hoje</th><th>Amanhã</th><th>Status</th><th></th></tr></thead>
+      <tbody>${list.length ? list.map(c => `<tr data-id="${esc(c.id)}">
         <td><span style="display:inline-flex;align-items:center;gap:9px">
           <i style="width:12px;height:12px;border-radius:50%;background:${esc(c.cor)};display:inline-block"></i>
-          <b>${esc(c.nome)}</b></span></td>
-        <td>${esc(mascaraTelefone(c.telefone)||'—')}</td>
+          <b>${esc(c.nome)}</b></span>${c.telefone ? `<br><small class="muted">${esc(mascaraTelefone(c.telefone))}</small>` : ''}</td>
+        <td>${login(c) ? `<span class="badge-pill bp-green" title="Ligado ao login: Minha agenda, tarefas e avisos vão para esta pessoa">${esc(login(c))}</span>`
+          : '<span class="muted" title="Sem login ligado: tarefas automáticas vão para o gestor">—</span>'}</td>
+        <td><span class="carga-chip">${de(c, cargaHoje)} ${de(c, cargaHoje) === 1 ? 'carro' : 'carros'}</span></td>
+        <td><span class="carga-chip">${de(c, cargaAmanha)}</span></td>
         <td><span class="badge-pill ${c.ativo?'bp-green':'bp-gray'}">${c.ativo?'Ativo':'Inativo'}</span></td>
         <td><div class="actions">
-          <button class="icon-btn" data-act="edit" title="Editar" aria-label="Editar ${esc(c.nome)}">${svg(I.edit)}</button>
-          <button class="icon-btn red" data-act="del" title="Excluir" aria-label="Excluir ${esc(c.nome)}">${svg(I.trash)}</button>
+          <button class="icon-btn so-gestor" data-act="edit" title="Editar" aria-label="Editar ${esc(c.nome)}">${svg(I.edit)}</button>
+          <button class="icon-btn red so-gestor" data-act="del" title="Excluir" aria-label="Excluir ${esc(c.nome)}">${svg(I.trash)}</button>
         </div></td></tr>`).join('')
-        : `<tr><td colspan="4">${vazio(I.user, 'Nenhum consultor', 'Cadastre quem atende no balcão para ligar cada agendamento a uma pessoa.')}</td></tr>`}
-      </tbody></table></div>`;
+        : `<tr><td colspan="6">${vazio(I.user, 'Nenhum consultor', 'Cadastre quem atende no balcão para ligar cada agendamento a uma pessoa.')}</td></tr>`}
+      </tbody></table></div></div>
+    <small class="muted">Ligue cada consultor ao login dele: o modal de agendamento já sugere o de menor carga no horário,
+      e quem é consultor ganha o botão "Minha agenda".</small>`;
   $$('tr[data-id]', view).forEach(tr => {
     const id = tr.dataset.id; // uuid (string)
     tr.querySelector('[data-act="edit"]')?.addEventListener('click', () => openConsultorModal(id));
     tr.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
-      if (!confirm('Excluir consultor?')) return;
-      try { await api('DELETE', `/consultores/${id}`); toast('Consultor excluído'); renderEquipe(); }
+      if (!confirm('Excluir consultor? Os agendamentos dele ficam sem consultor.')) return;
+      try { await api('DELETE', `/consultores/${id}`); toast('Consultor excluído'); await loadConsultores(); renderEquipe(); }
       catch (e) { toast(e.message, 'err'); }
     });
   });
@@ -1118,70 +1166,49 @@ function recado(seletor, texto, ok) {
 
 async function cfgConta(box) {
   const p = await api('GET', '/perfil');
-  state.perfil = p;
+  state.perfil = { ...state.perfil, ...p };
+  aplicarPerfilNaTela();
+  const { data } = sb?.auth?.mfa ? await sb.auth.mfa.listFactors().catch(() => ({ data: null })) : { data: null };
+  const comMfa = (data?.totp || []).some((f) => f.status === 'verified');
   box.innerHTML = `
     <div class="cols">
       <div class="panel">
-        <div class="panel-head"><h2>${svg(I.user)} Meu perfil</h2></div>
+        <div class="panel-head"><h2>${svg(I.user)} Minha conta</h2>
+          <span class="badge-pill bp-gray">${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}</span></div>
         <div class="panel-body">
-          <small class="muted">Seu nome aparece para a equipe. O e-mail e a função são do
-            administrador — se estiverem errados, peça a ele.</small>
-          <div class="field"><label>Nome</label>
-            <input id="cf_nome" value="${esc(p.nome)}" placeholder="Seu nome" autocomplete="name"></div>
-          <div class="field"><label>E-mail (só leitura)</label>
-            <input id="cf_email" value="${esc(p.email)}" disabled></div>
-          <div class="field"><label>Função (só leitura)</label>
-            <input id="cf_papel" value="${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}" disabled></div>
-          <div><button class="btn primary" id="cf_salvar">${svg(I.check)} Salvar nome</button></div>
-          <p class="form-msg" id="cf_msg" hidden></p>
+          <div class="perfil-topo"><span class="perfil-avatar" style="background:${esc(p.avatar_cor || '#e50914')}">${esc(iniciais(p.nome) || 'IC')}</span>
+            <span><b>${esc(p.nome || 'Sem nome')}</b><small>${esc([p.cargo, p.email].filter(Boolean).join(' · '))}</small>
+            ${p.consultor_nome ? `<small>Consultor na agenda: <b>${esc(p.consultor_nome)}</b></small>` : ''}</span></div>
+          <small class="muted">É o mesmo login da Agenda, do CRM e do Atendimento. Função, apps e e-mail são do administrador.</small>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn primary" id="cf_perfil">${svg(I.edit)} Editar meu perfil</button>
+            <button class="btn" id="cf_notif">🔔 Notificações</button>
+          </div>
         </div>
       </div>
-
       <div class="panel">
-        <div class="panel-head"><h2>${svg(I.cadeado)} Trocar minha senha</h2></div>
+        <div class="panel-head"><h2>${svg(I.cadeado)} Segurança</h2>
+          <span class="badge-pill ${comMfa ? 'bp-green' : 'bp-gray'}">${comMfa ? 'duas etapas ligada' : 'só senha'}</span></div>
         <div class="panel-body">
-          <small class="muted">É o mesmo login da Agenda, do CRM e do Atendimento: a senha nova
-            vale nos três. Mínimo de 8 caracteres.</small>
-          <div class="field"><label>Nova senha</label>
-            <input id="cf_s1" type="password" minlength="8" autocomplete="new-password"
-                   placeholder="pelo menos 8 caracteres"></div>
-          <div class="field"><label>Repetir a nova senha</label>
-            <input id="cf_s2" type="password" minlength="8" autocomplete="new-password"
-                   placeholder="digite a mesma senha"></div>
-          <div><button class="btn primary" id="cf_trocar">${svg(I.check)} Trocar senha</button></div>
-          <p class="form-msg" id="cf_msg2" hidden></p>
+          <small class="muted">Senha nova vale em todos os apps. A verificação em duas etapas pede um código do celular depois da senha.</small>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="cf_senha">${svg(I.cadeado)} Trocar senha</button>
+            <button class="btn" id="cf_mfa">${svg(I.chave)} ${comMfa ? 'Duas etapas: gerenciar' : 'Ligar duas etapas'}</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="cf_sair">Sair</button>
+            <button class="btn" id="cf_sair_todos">Sair de todos os aparelhos</button>
+          </div>
         </div>
       </div>
     </div>`;
-
-  $('#cf_salvar').addEventListener('click', async () => {
-    const nome = $('#cf_nome').value.trim();
-    if (!nome) return recado('#cf_msg', 'Escreva o seu nome antes de salvar.', false);
-    const btn = $('#cf_salvar'); btn.disabled = true;
-    try {
-      state.perfil = await api('PUT', '/perfil', { nome });
-      aplicarPerfilNaTela();
-      recado('#cf_msg', 'Nome salvo.', true);
-      toast('Nome atualizado');
-    } catch (e) { recado('#cf_msg', 'Não consegui salvar: ' + e.message, false); }
-    finally { btn.disabled = false; }
-  });
-
-  // A troca de senha fala direto com o Supabase Auth, igual ao Atendimento.
-  $('#cf_trocar').addEventListener('click', async () => {
-    const s1 = $('#cf_s1').value, s2 = $('#cf_s2').value;
-    if (s1.length < 8) return recado('#cf_msg2', 'A senha precisa ter pelo menos 8 caracteres.', false);
-    if (s1 !== s2)     return recado('#cf_msg2', 'As duas senhas não são iguais. Confira e tente de novo.', false);
-    if (!sb)           return recado('#cf_msg2', 'Conexão com o Supabase não configurada.', false);
-    const btn = $('#cf_trocar'); btn.disabled = true;
-    try {
-      const { error } = await sb.auth.updateUser({ password: s1 });
-      if (error) throw new Error(error.message);
-      $('#cf_s1').value = ''; $('#cf_s2').value = '';
-      recado('#cf_msg2', 'Senha trocada. Use a nova da próxima vez que entrar.', true);
-      toast('Senha alterada');
-    } catch (e) { recado('#cf_msg2', 'Não consegui trocar: ' + e.message, false); }
-    finally { btn.disabled = false; }
+  $('#cf_perfil').addEventListener('click', () => contaModalPerfil());
+  $('#cf_notif').addEventListener('click', () => contaModalNotif());
+  $('#cf_senha').addEventListener('click', () => contaModalSenha());
+  $('#cf_mfa').addEventListener('click', () => contaModalMfa());
+  $('#cf_sair').addEventListener('click', () => contaSair(false));
+  $('#cf_sair_todos').addEventListener('click', () => {
+    if (confirm('Sair de TODOS os aparelhos? Quem estiver logado com a sua conta vai precisar entrar de novo.')) contaSair(true);
   });
 }
 
@@ -1203,7 +1230,7 @@ async function cfgOficina(box) {
             <input id="of_slogan" value="${esc(empresa.slogan)}" placeholder="Quem conhece, indica!"></div>
           <div class="field"><label>Telefone</label>
             <input id="of_tel" value="${esc(empresa.telefone)}" placeholder="12 99999-9999"></div>
-          <div><button class="btn primary" id="of_salvar">${svg(I.check)} Salvar dados</button></div>
+          <div><button class="btn primary so-gestor" id="of_salvar">${svg(I.check)} Salvar dados</button></div>
           <p class="form-msg" id="of_msg" hidden></p>
         </div>
       </div>
@@ -1265,19 +1292,31 @@ async function cfgOficina(box) {
    aceita. Se alguém tiver outra função herdada (ex.: gestor), ela aparece como
    opção própria — assim a lista não mostra a pessoa como se fosse atendente. */
 function opcoesDePapel(papel) {
-  const conhecido = papel === 'admin' || papel === 'atendente' || papel === 'agenda';
+  const conhecido = ['admin', 'gestor', 'atendente', 'agenda'].includes(papel);
   const outra = conhecido ? ''
     : `<option value="${esc(papel)}" selected>${esc(PAPEL_LABEL[papel] || papel || '—')}</option>`;
   return `${outra}
     <option value="atendente"${papel === 'atendente' ? ' selected' : ''}>Atendente</option>
+    <option value="gestor"${papel === 'gestor' ? ' selected' : ''}>Gestor</option>
     <option value="agenda"${papel === 'agenda' ? ' selected' : ''}>Só presença (agenda)</option>
     <option value="admin"${papel === 'admin' ? ' selected' : ''}>Administrador</option>`;
+}
+
+/* Apps que cada pessoa usa (perfis.apps). Admin entra em todos; o papel
+   "só presença" usa só a Agenda — nos dois casos não há o que escolher. */
+const APPS_EQUIPE = [['agenda', 'Agenda'], ['atendimento', 'Atendimento'], ['crm', 'CRM'], ['comunicar', 'Comunicar'], ['orcador', 'Orçador'], ['ads', 'Tráfego']];
+function chipsDeApps(p) {
+  if (p.papel === 'admin') return '<div class="equipe-apps equipe-meta">Entra em todos os apps</div>';
+  if (p.papel === 'agenda') return '<div class="equipe-apps equipe-meta">Só a Agenda (marca presença)</div>';
+  const apps = Array.isArray(p.apps) ? p.apps : [];
+  return `<div class="equipe-apps" data-apps="${esc(p.id)}">${APPS_EQUIPE.map(([k, r]) =>
+    `<label><input type="checkbox" value="${k}"${apps.includes(k) ? ' checked' : ''}> ${r}</label>`).join('')}</div>`;
 }
 
 function linhaEquipe(p, souAdmin, meuId) {
   const souEu = p.id === meuId;
   const funcao = souAdmin
-    ? `<select class="equipe-papel" data-papel="${esc(p.id)}"
+    ? `<select class="equipe-papel" data-papel="${esc(p.id)}" aria-label="Função de ${esc(p.nome || 'pessoa')}"
                title="O que esta pessoa pode fazer">${opcoesDePapel(p.papel)}</select>`
     : `<span class="equipe-papel-txt">${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}</span>`;
   // Ninguém tira o próprio acesso — o servidor recusa, então nem oferecemos.
@@ -1285,14 +1324,20 @@ function linhaEquipe(p, souAdmin, meuId) {
     ? `<button class="btn" data-membro="${esc(p.id)}" data-ativar="${p.ativo ? '0' : '1'}">
          ${p.ativo ? 'Tirar acesso' : 'Devolver acesso'}</button>`
     : '';
+  const senha = souAdmin && !souEu && p.ativo
+    ? `<button class="btn" data-senha-temp="${esc(p.id)}" data-nome="${esc(p.nome || '')}" title="Gera uma senha provisória para entregar em mãos">Senha temporária</button>` : '';
+  const acesso = p.ultimo_acesso_em
+    ? `último acesso ${esc(dataCurtaBR(p.ultimo_acesso_em))}${p.ultimo_app ? ' (' + esc(p.ultimo_app) + ')' : ''}` : 'ainda não entrou';
   return `
     <div class="equipe-item${p.ativo ? '' : ' inativo'}">
       <span class="equipe-avatar">${esc(iniciais(p.nome) || '?')}</span>
       <div class="equipe-txt">
         <strong>${esc(p.nome || 'Sem nome')}</strong>${souEu ? ' <em class="voce">(você)</em>' : ''}
-        <small>${esc(p.email || '—')}${p.ativo ? '' : ' · sem acesso'}</small>
+        <small>${esc(p.email || '—')}${p.ativo ? '' : ' · sem acesso'}${p.precisa_trocar_senha ? ' · vai criar a senha no 1º login' : ''}</small>
+        <small class="equipe-meta">${acesso}</small>
       </div>
-      ${funcao}${botao}
+      ${funcao}${senha}${botao}
+      ${souAdmin ? chipsDeApps(p) : ''}
     </div>`;
 }
 
@@ -1306,9 +1351,9 @@ async function cfgEquipe(box) {
         </div>
         <div class="panel-body">
           <small class="muted">${souAdmin
-            ? 'Administrador mexe em tudo, inclusive nesta lista; atendente usa o dia a dia e não '
-              + 'cadastra ninguém. Tirar o acesso não apaga nada — a pessoa só deixa de entrar, e '
-              + 'você pode devolver depois.'
+            ? 'Administrador mexe em tudo; gestor também apaga, exporta e mexe na configuração; atendente usa o dia a dia; '
+              + '"só presença" marca se o cliente veio. Os quadradinhos dizem em quais apps a pessoa entra. '
+              + 'Tirar o acesso não apaga nada — você pode devolver depois.'
             : 'Só o administrador vê a equipe inteira e mexe nos acessos. Abaixo está o seu cadastro.'}
           </small>
           <div class="equipe">${equipe.length
@@ -1322,22 +1367,24 @@ async function cfgEquipe(box) {
       <div class="panel">
         <div class="panel-head"><h2>${svg(I.chave)} Dar acesso a alguém</h2></div>
         <div class="panel-body">
-          <small class="muted">Você escolhe a senha e entrega para a pessoa — ela entra na hora e
-            troca depois em Minha conta. O e-mail não precisa existir de verdade, mas não pode
-            repetir o de outra pessoa.</small>
-          <div class="field"><label>Nome</label>
+          <small class="muted">Você escolhe uma senha provisória e entrega para a pessoa — no primeiro login ela cria
+            a dela. O e-mail não precisa existir de verdade, mas não pode repetir o de outra pessoa.</small>
+          <div class="field"><label for="eq_nome">Nome</label>
             <input id="eq_nome" maxlength="80" placeholder="Ex.: Maria Souza" autocomplete="off"></div>
-          <div class="field"><label>E-mail</label>
+          <div class="field"><label for="eq_email">E-mail</label>
             <input id="eq_email" type="email" placeholder="maria@indycartaubate.com" autocomplete="off"></div>
-          <div class="field"><label>Senha provisória</label>
+          <div class="field"><label for="eq_senha">Senha provisória</label>
             <input id="eq_senha" type="password" minlength="8" autocomplete="new-password"
                    placeholder="pelo menos 8 caracteres"></div>
-          <div class="field"><label>Função</label>
+          <div class="field"><label for="eq_papel">Função</label>
             <select id="eq_papel">
               <option value="atendente" selected>Atendente</option>
+              <option value="gestor">Gestor</option>
               <option value="agenda">Só presença (agenda)</option>
               <option value="admin">Administrador</option>
             </select></div>
+          <label class="pref"><input type="checkbox" id="eq_trocar" checked>
+            <span><b>Pedir para criar a senha no primeiro login</b><small>recomendado: a senha provisória deixa de valer</small></span></label>
           <div><button class="btn primary" id="eq_criar">${svg(I.plus)} Criar acesso</button></div>
           <p class="form-msg" id="eq_msg2" hidden></p>
         </div>
@@ -1353,7 +1400,7 @@ async function cfgEquipe(box) {
       sel.disabled = true;
       try {
         await api('POST', '/equipe/papel', { id: sel.dataset.papel, papel: sel.value });
-        toast(sel.value === 'admin' ? 'Agora é administrador' : 'Agora é atendente');
+        toast(`Agora é ${(PAPEL_LABEL[sel.value] || sel.value).toLowerCase()}`);
         // mudar a PRÓPRIA função muda o que você enxerga: recarrega tudo
         if (sel.dataset.papel === meuId) { location.reload(); return; }
         await cfgEquipe(box);
@@ -1364,6 +1411,37 @@ async function cfgEquipe(box) {
       }
     });
   });
+
+  // Apps de cada pessoa: grava ao marcar/desmarcar
+  $$('[data-apps]', box).forEach(grupo => grupo.addEventListener('change', async () => {
+    const apps = $$('input:checked', grupo).map(i => i.value);
+    $$('input', grupo).forEach(i => { i.disabled = true; });
+    try {
+      await api('POST', '/equipe/apps', { id: grupo.dataset.apps, apps });
+      toast(apps.includes('agenda') ? 'Apps atualizados' : 'Apps atualizados — sem a Agenda, a pessoa não entra aqui');
+    } catch (e) { recado('#eq_msg', e.message, false); await cfgEquipe(box); return; }
+    $$('input', grupo).forEach(i => { i.disabled = false; });
+  }));
+
+  // Senha temporária: aparece UMA vez para entregar em mãos
+  $$('button[data-senha-temp]', box).forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm(`Gerar uma senha temporária para ${btn.dataset.nome || 'esta pessoa'}? A senha atual dela deixa de valer.`)) return;
+    btn.disabled = true;
+    try {
+      const r = await api('POST', '/equipe/senha-temporaria', { id: btn.dataset.senhaTemp });
+      openModal(`
+        <div class="modal-head"><h3>${svg(I.chave)} Senha temporária</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+        <div class="modal-body">
+          <p class="info-campo">Entregue esta senha para <b>${esc(btn.dataset.nome || 'a pessoa')}</b>. No primeiro login ela cria a dela.
+            <b>Ela não aparece de novo</b> depois que você fechar.</p>
+          <div class="senha-temp" id="st_senha">${esc(r.senha)}</div>
+        </div>
+        <div class="modal-foot"><button class="btn" id="st_copiar">${svg(I.copiar)} Copiar</button>
+          <button class="btn primary" onclick="closeModal()">Pronto</button></div>`);
+      $('#st_copiar').addEventListener('click', () => copiarTexto(r.senha));
+      await cfgEquipe(box);
+    } catch (e) { btn.disabled = false; recado('#eq_msg', e.message, false); }
+  }));
 
   // Tirar / devolver o acesso de alguém
   $$('button[data-membro]', box).forEach(btn => btn.addEventListener('click', async () => {
@@ -1387,7 +1465,7 @@ async function cfgEquipe(box) {
     if (senha.length < 8) return recado('#eq_msg2', 'A senha precisa ter pelo menos 8 caracteres.', false);
     const btn = $('#eq_criar', box); btn.disabled = true;
     try {
-      const r = await api('POST', '/equipe', { nome, email, senha, papel: $('#eq_papel', box).value });
+      const r = await api('POST', '/equipe', { nome, email, senha, papel: $('#eq_papel', box).value, trocar_senha: $('#eq_trocar', box).checked });
       toast('Acesso criado');
       // Redesenha ANTES do recado: o redesenho limpa o formulário e levaria a
       // mensagem junto. E é ela que diz o que o administrador tem de entregar.
@@ -1402,7 +1480,26 @@ async function cfgEquipe(box) {
 // ============================================================================
 // CONECTORES (instalar app, Google Agenda, webhook, exportações)
 // ============================================================================
+/* Baixa um arquivo da API com o token do login (um <a href> comum iria sem ele). */
+async function baixarComLogin(caminho, nome, botao) {
+  if (botao) botao.disabled = true;
+  try {
+    const r = await fetch('/api' + caminho, { headers: await authCabecalhos() });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.erro || 'Não consegui baixar.'); }
+    const url = URL.createObjectURL(await r.blob());
+    const a = Object.assign(document.createElement('a'), { href: url, download: nome });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('Arquivo baixado');
+  } catch (e) { toast(e.message, 'err'); }
+  finally { if (botao) botao.disabled = false; }
+}
+
 async function renderConectores() {
+  if (!document.body.classList.contains('gestor')) {
+    view.innerHTML = vazio(I.cadeado, 'Só para gestor', 'Conectores, Google Agenda e exportações ficam com o gestor ou o administrador.');
+    return;
+  }
   const it = await api('GET', '/integracoes');
   const icsUrl = location.origin + '/api/agenda.ics?t=' + encodeURIComponent(it.ics_token || '');
   view.innerHTML = `
@@ -1444,13 +1541,14 @@ Todos os agendamentos aparecem na sua agenda Google e <b>se atualizam sozinhos</
         <div class="panel-body">
           <div class="tpl"><div class="tpl-body">Baixe seus dados em <b>CSV</b> (abre direto no Excel/Planilhas Google).</div></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <a class="btn primary" href="/api/export/agendamentos.csv" download>📥 Agendamentos (CSV)</a>
-            <a class="btn" href="/api/export/clientes.csv" download>📥 Clientes (CSV)</a>
+            <button type="button" class="btn primary" data-baixar="agendamentos">📥 Agendamentos (CSV)</button>
+            <button type="button" class="btn" data-baixar="clientes">📥 Clientes (CSV)</button>
           </div>
           <small class="muted">Outros conectores já ativos: <b>WhatsApp + IA Carlos</b> (CodeWords) na aba WHATSAPP, e importação automática de agendamentos.</small>
         </div></div>
     </div>`;
 
+  $$('[data-baixar]', view).forEach(b => b.addEventListener('click', () => baixarComLogin(`/export/${b.dataset.baixar}.csv`, `${b.dataset.baixar}.csv`, b)));
   $('#cn_copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(icsUrl); toast('URL copiada ✅'); }
     catch { $('#cn_ics').select(); document.execCommand('copy'); toast('URL copiada ✅'); }
@@ -1615,7 +1713,7 @@ async function waConfig(box, cfg) {
           </div>
           <div class="field"><label>Número exibido</label><input id="cfg_num" value="${esc(cfg.numero_exibicao||'')}" placeholder="+55 12 99999-0000"></div>
           <div style="display:flex;gap:10px;margin-top:4px">
-            <button class="btn primary" id="cfg_save">${svg(I.check)} Salvar</button>
+            <button class="btn primary so-gestor" id="cfg_save">${svg(I.check)} Salvar</button>
             <button class="btn green" id="cfg_test">${svg(I.send)} Testar conexão</button>
           </div>
           <div id="cfg_result"></div>
@@ -1678,7 +1776,7 @@ async function waModelos(box) {
           <div style="display:flex;gap:8px;margin-top:10px">
             <button class="btn" data-act="usar">${svg(I.send)} Usar</button>
             <button class="icon-btn" data-act="edit" title="Editar" aria-label="Editar modelo ${esc(t.nome)}">${svg(I.edit)}</button>
-            <button class="icon-btn red" data-act="del" title="Excluir" aria-label="Excluir modelo ${esc(t.nome)}">${svg(I.trash)}</button>
+            <button class="icon-btn red so-gestor" data-act="del" title="Excluir" aria-label="Excluir modelo ${esc(t.nome)}">${svg(I.trash)}</button>
           </div></div>`).join('')}
       </div></div>`;
   $$('.tpl[data-id]', box).forEach(el => {
@@ -1726,7 +1824,7 @@ Lembrete, aniversário e revisão são do <b>Comunicar</b>.</div></div>
           <div class="field"><label>Workflow do banco de agendamentos (importação)</label><input id="cw_db" value="${esc(cfg.cw_db_service_id||'')}" placeholder="indycar_agendamentos_db_..."></div>
           <div class="field"><label>Workflow de follow-up de ausência (IA)</label><input id="cw_noshow" value="${esc(cfg.cw_noshow_service_id||'')}" placeholder="indycar_noshow_notifier_..."></div>
           <div class="field"><label>Base URL</label><input id="cw_base" value="${esc(cfg.cw_base_url||'https://runtime.codewords.ai')}"></div>
-          <button class="btn primary" id="ia_save">${svg(I.check)} Salvar</button>
+          <button class="btn primary so-gestor" id="ia_save">${svg(I.check)} Salvar</button>
         </div></div>
       <div class="panel"><div class="panel-head"><h2>${svg(I.calendar)} Agendamentos da IA</h2></div>
         <div class="panel-body">
@@ -2194,6 +2292,9 @@ window.openAgendamentoModal = async function(id, pre = {}){
         <div class="field"><label for="f_hora">Hora *</label><input id="f_hora" type="time" value="${esc(a.hora)}" min="08:00" max="17:30" step="900"></div>
         <div class="field"><label for="f_cons">Consultor</label><select id="f_cons"><option value="">—</option>${fieldsConsultorOptions(a.consultor_id)}</select></div>
       </div>
+      <!-- consultor de menor carga no horário: sugere, nunca bloqueia -->
+      <div class="dica-consultor" id="f_cons_dica" aria-live="polite" hidden></div>
+      <p class="aviso-campo" id="f_semcons" hidden>${svg(I.alerta)} <span>Sem consultor ninguém recebe a tarefa de confirmar nem o aviso de atraso deste carro.</span></p>
       <p class="aviso-campo" id="f_expediente" hidden>${svg(I.alerta)} <span></span> Pode salvar mesmo assim.</p>
       <!-- Duração estimada (do cadastro de serviços), conflito de horário e as
            sugestões de horário livre. Tudo aviso: nada bloqueia o salvar. -->
@@ -2213,8 +2314,16 @@ window.openAgendamentoModal = async function(id, pre = {}){
       </div>
       <div class="field"><label for="f_obs">Observações</label><textarea id="f_obs">${esc(a.observacoes)}</textarea></div>
       <div id="f_contexto" class="contexto-cliente"></div>
+      <!-- "Não veio" pela edição: o cliente recebe o WhatsApp de falta? Pergunta antes de salvar -->
+      <div class="aviso-falta" id="f_aviso_falta" role="alertdialog" aria-labelledby="f_af_tit" hidden>
+        <b id="f_af_tit">Avisar o cliente pelo WhatsApp?</b>
+        <p>Marcar "Não veio" manda a mensagem "sentimos sua falta" para o cliente. Quer mandar agora?</p>
+        <div class="linha"><button type="button" class="btn primary" id="f_af_sim">${svg(I.wa)} Avisar o cliente</button>
+          <button type="button" class="btn" id="f_af_nao">Não avisar</button></div>
+      </div>
     </div>
     <div class="modal-foot">
+      ${id ? `<button class="btn so-equipe" id="f_tarefa" title="Criar uma tarefa ligada a este agendamento">${svg(I.check)} Tarefa</button>` : ''}
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn primary" id="f_save">${svg(I.check)} Salvar</button>
     </div>`);
@@ -2277,6 +2386,38 @@ window.openAgendamentoModal = async function(id, pre = {}){
   $('#f_hora').addEventListener('input', conferirExpediente);
   conferirExpediente();
   ligarPlanejamentoNoModal(id, servicos);
+  /* Consultor sugerido (menor carga, livre naquela meia hora). Agendamento novo
+     sem consultor escolhido já vem com o sugerido marcado; a pessoa troca à vontade. */
+  let consTocado = !!a.consultor_id || !!id;
+  $('#f_cons').addEventListener('change', () => { consTocado = true; $('#f_semcons').hidden = true; });
+  let vezCons = 0;
+  const sugerirConsultor = async () => {
+    const dica = $('#f_cons_dica'); if (!dica) return;
+    const data = $('#f_data').value, hora = $('#f_hora').value;
+    if (!data || !(state.consultores || []).some(c => c.ativo)) { dica.hidden = true; return; }
+    const minha = ++vezCons;
+    try {
+      const qs = new URLSearchParams({ data }); if (hora) qs.set('hora', hora); if (id) qs.set('ignorar', id);
+      const r = await api('GET', '/consultores/sugerir?' + qs);
+      if (minha !== vezCons || !dica.isConnected) return;
+      const cargas = (r.carga || []).map(c => `${esc(c.nome)} ${c.total}`).join(' · ');
+      if (!r.sugestao) { dica.hidden = false; dica.innerHTML = `Todos os consultores já têm carro nessa meia hora. ${cargas ? '<span class="muted">(' + cargas + ' no dia)</span>' : ''}`; return; }
+      if (!consTocado && !$('#f_cons').value) $('#f_cons').value = r.sugestao.id;
+      const jaE = $('#f_cons').value === r.sugestao.id;
+      dica.hidden = false;
+      dica.innerHTML = `Sugerido: <b>${esc(r.sugestao.nome)}</b> (${esc(r.sugestao.motivo)})${jaE ? '' : ' <button type="button" class="btn mini" id="f_cons_usar">Usar</button>'}
+        ${cargas ? `<span class="muted">· no dia: ${cargas}</span>` : ''}`;
+      $('#f_cons_usar')?.addEventListener('click', () => { $('#f_cons').value = r.sugestao.id; consTocado = true; $('#f_semcons').hidden = true; sugerirConsultor(); });
+    } catch { if (minha === vezCons) dica.hidden = true; }
+  };
+  $('#f_data').addEventListener('change', sugerirConsultor);
+  $('#f_hora').addEventListener('change', sugerirConsultor);
+  sugerirConsultor();
+  $('#f_tarefa')?.addEventListener('click', () => {
+    const rotulo = `${$('#f_nome').value.trim() || 'cliente'} — ${dataBR($('#f_data').value)} ${$('#f_hora').value}`;
+    contaNovaTarefa({ agendamento_id: id, cliente_id: $('#f_cli').value || a.cliente_id || null, rotulo,
+      titulo: 'Falar com ' + ($('#f_nome').value.trim() || 'o cliente') });
+  });
   // histórico do cliente + mensagens do Comunicar + links para os outros apps
   const contexto = () => contextoDoCliente($('#f_contexto'), {
     cliente_id: $('#f_cli').value, telefone: $('#f_tel').value, excluir: id, nome: $('#f_nome').value });
@@ -2284,7 +2425,15 @@ window.openAgendamentoModal = async function(id, pre = {}){
   $('#f_tel').addEventListener('change', contexto);
   // mini-ficha de quem já é cliente (última visita, próxima revisão, aniversário)
   if (a.cliente_id) mostrarFicha(a.cliente_id);
-  let confirmouSemTelefone = false;
+  let confirmouSemTelefone = false, confirmouSemConsultor = false, avisarFalta;
+  const perguntarAvisoDeFalta = () => {
+    const box = $('#f_aviso_falta'); box.hidden = false;
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    $('#f_af_sim').focus();
+  };
+  $('#f_af_sim').addEventListener('click', () => { avisarFalta = true; $('#f_aviso_falta').hidden = true; $('#f_save').click(); });
+  $('#f_af_nao').addEventListener('click', () => { avisarFalta = false; $('#f_aviso_falta').hidden = true; $('#f_save').click(); });
+  $('#f_status').addEventListener('change', () => { avisarFalta = undefined; $('#f_aviso_falta').hidden = true; });
   $('#f_save').addEventListener('click', async () => {
     const payload = {
       cliente_nome:$('#f_nome').value.trim(), telefone:$('#f_tel').value.trim(),
@@ -2307,12 +2456,30 @@ window.openAgendamentoModal = async function(id, pre = {}){
       $('#f_tel').focus();
       return;
     }
+    /* Sem consultor: avisa UMA vez (não bloqueia). Só quando existe consultor ativo. */
+    if (!payload.consultor_id && !confirmouSemConsultor && (state.consultores || []).some(c => c.ativo)) {
+      confirmouSemConsultor = true;
+      $('#f_semcons').hidden = false;
+      $('#f_save').innerHTML = `${svg(I.alerta)} Salvar sem consultor`;
+      $('#f_cons').focus();
+      return;
+    }
+    /* "Não veio" pela edição manda o WhatsApp de falta: pergunta antes (o servidor também exige a resposta). */
+    if (id && payload.status === 'nao_veio' && a.status !== 'nao_veio' && !a.no_show_notificado_em && avisarFalta === undefined) {
+      return perguntarAvisoDeFalta();
+    }
+    if (avisarFalta !== undefined && payload.status === 'nao_veio') payload.avisar_cliente = avisarFalta;
     const btn = $('#f_save'); btn.disabled = true;
     try {
-      if (id) await api('PUT', `/agendamentos/${id}`, payload);
-      else await api('POST', '/agendamentos', payload);
-      toast('Agendamento salvo'); closeModal(); route();
-    } catch(e){ toast(e.message,'err'); }
+      const r = id ? await api('PUT', `/agendamentos/${id}`, payload) : await api('POST', '/agendamentos', payload);
+      esquecerDias();
+      const aviso = r?.aviso_ausencia;
+      toast(aviso ? recadoDeAusencia(aviso) : 'Agendamento salvo', aviso && !aviso.ok ? 'err' : 'ok');
+      closeModal(); route();
+    } catch(e){
+      if (e.codigo === 'confirmar_aviso') perguntarAvisoDeFalta();
+      else toast(e.message,'err');
+    }
     finally { btn.disabled = false; }
   });
 };
@@ -2401,23 +2568,34 @@ window.openClienteModal = async function(id, opts = {}){
 };
 
 window.openConsultorModal = async function(id){
-  let c = {nome:'',telefone:'',cor:'#e6192e',ativo:1};
+  let c = {nome:'',telefone:'',cor:'#e6192e',ativo:1,perfil_id:null};
   if (id) c = state.consultores.find(x=>x.id===id) || await api('GET','/consultores').then(l=>l.find(x=>x.id===id)) || c;
+  // logins da equipe (só nome e função) para ligar este consultor a uma pessoa
+  const nomes = await api('GET', '/equipe/nomes').catch(() => []);
+  const usados = new Set((state.consultores || []).filter(x => x.id !== id && x.perfil_id).map(x => x.perfil_id));
   openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} consultor</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} consultor</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
     <div class="modal-body">
-      <div class="field"><label>Nome *</label><input id="k_nome" value="${esc(c.nome)}"></div>
+      <div class="field"><label for="k_nome">Nome *</label><input id="k_nome" maxlength="80" value="${esc(c.nome)}"></div>
       <div class="grid2">
-        <div class="field"><label>Telefone</label><input id="k_tel" value="${esc(c.telefone)}"></div>
-        <div class="field"><label>Cor</label><input id="k_cor" type="color" value="${c.cor||'#e6192e'}" style="height:44px;padding:4px"></div>
+        <div class="field"><label for="k_tel">Telefone</label><input id="k_tel" type="tel" value="${esc(mascaraTelefone(c.telefone || ''))}"></div>
+        <div class="field"><label for="k_cor">Cor</label><input id="k_cor" type="color" value="${esc(c.cor||'#e6192e')}" style="height:44px;padding:4px"></div>
       </div>
-      <div class="field"><label><input id="k_ativo" type="checkbox" ${c.ativo?'checked':''}> Ativo</label></div>
+      <div class="field"><label for="k_perfil">Login desta pessoa (opcional)</label>
+        <select id="k_perfil"><option value="">— sem login ligado —</option>
+          ${nomes.map(n => `<option value="${esc(n.id)}"${n.id === c.perfil_id ? ' selected' : ''}${usados.has(n.id) ? ' disabled' : ''}>${esc(n.nome)} · ${esc(PAPEL_LABEL[n.papel] || n.papel)}${usados.has(n.id) ? ' (já ligado a outro consultor)' : ''}</option>`).join('')}
+        </select>
+        <small class="muted">Ligado, a pessoa vê "Minha agenda", recebe as tarefas de confirmar/reagendar e o aviso de atraso dos carros dela.</small></div>
+      <div class="field"><label><input id="k_ativo" type="checkbox" ${c.ativo?'checked':''}> Ativo (aparece nas sugestões e conta na capacidade da recepção)</label></div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn primary" id="k_save">${svg(I.check)} Salvar</button></div>`);
+  ligarMascaraTelefone($('#k_tel'));
   $('#k_save').addEventListener('click', async () => {
-    const p={nome:$('#k_nome').value.trim(),telefone:$('#k_tel').value.trim(),cor:$('#k_cor').value,ativo:$('#k_ativo').checked?1:0};
+    const p={nome:$('#k_nome').value.trim(),telefone:$('#k_tel').value.trim(),cor:$('#k_cor').value,ativo:$('#k_ativo').checked?1:0,
+      perfil_id:$('#k_perfil').value || null};
     if(!p.nome) return toast('Informe o nome','err');
+    if(!telefoneOk(p.telefone)) return toast('Telefone incompleto: use DDD + número','err');
     try{ if(id) await api('PUT',`/consultores/${id}`,p); else await api('POST','/consultores',p);
       await loadConsultores(); toast('Consultor salvo'); closeModal(); renderEquipe(); }catch(e){toast(e.message,'err');}
   });
@@ -2687,12 +2865,16 @@ async function loadEmpresa(){
    Falhar aqui não pode impedir o app de abrir: por isso o catch silencioso. */
 async function loadPerfil(){
   try { state.perfil = await api('GET','/perfil'); aplicarPerfilNaTela(); }
-  catch { /* segue com as iniciais padrão */ }
+  catch (e) { if (e.parar) throw e; /* segue com as iniciais padrão */ }
 }
 function aplicarPerfilNaTela(){
   const el = $('#avatarPerfil'), p = state.perfil;
   if (!el || !p) return;
   el.textContent = iniciais(p.nome) || 'IC';               // textContent: sem HTML
+  if (/^#[0-9a-fA-F]{6}$/.test(p.avatar_cor || '')) { el.style.background = p.avatar_cor; el.style.borderColor = 'transparent'; }
+  // o que só gestor/admin pode fazer some da tela de quem não é (o servidor recusa de qualquer jeito)
+  document.body.classList.toggle('gestor', p.papel === 'admin' || p.papel === 'gestor');
+  document.body.classList.toggle('admin', p.papel === 'admin');
   el.title = p.nome ? `${p.nome} · ${PAPEL_LABEL[p.papel] || p.papel || ''}`.replace(/ · $/, '')
                     : 'Sua conta';
 }
@@ -2831,6 +3013,8 @@ window.addEventListener('resize', debounce(() => { if ($('#ecoPop') && !$('#ecoP
 function mostrarLogin(mensagem){
   document.body.classList.add('deslogado');
   $('#telaLogin').hidden = false;
+  // esconde as outras telas da capa (esqueci, nova senha, código, sem acesso)
+  if (typeof contaMostrarForm === 'function') contaMostrarForm('formLogin');
   // Um recado (sessão expirada, servidor fora do ar) é sobre o LOGIN. Se a tela
   // de primeiro acesso estivesse aberta, o aviso ficaria escondido atrás dela.
   if (mensagem) mostrarFormPrimeiro(false);
@@ -2916,9 +3100,16 @@ $('#formPrimeiro').addEventListener('submit', async e => {
 });
 
 async function abrirApp(){
+  // sessão antiga de quem tem duas etapas: o código vem antes de qualquer dado
+  if (typeof contaExigirMfa === 'function' && !(await contaExigirMfa())) return;
   // o perfil vem PRIMEIRO: é ele que diz o que esta pessoa pode ver
-  await loadPerfil();
+  // (desativado / sem acesso / falta o código: a própria api() já mostrou a tela certa)
+  try { await loadPerfil(); } catch (e) { if (e.parar) return; throw e; }
+  // sem a Agenda nos apps → "você não tem acesso"; senha provisória → troca antes de entrar
+  if (typeof contaPortaoDoPerfil === 'function' && !(await contaPortaoDoPerfil(state.perfil))) return;
+  esconderLogin();
   carregarSaude();                           // faixa no topo, sem segurar a abertura
+  if (typeof contaIniciarTopo === 'function') contaIniciarTopo();   // sino, minhas tarefas, menu do perfil
   if (emPresenca()) {
     // papel 'agenda' (só presença): menu e botão de novo agendamento somem;
     // o servidor recusaria tudo isso de qualquer jeito.
@@ -2940,15 +3131,26 @@ async function abrirApp(){
 $('#formLogin').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, btn = $('#btnEntrar');
+  /* Espera progressiva NESTE aparelho: 5 erros seguidos → 15 s, depois dobra
+     (até 5 min). O Supabase também limita do lado dele. */
+  const espera = typeof contaEsperaAgora === 'function' ? contaEsperaAgora() : 0;
+  if (espera > 0) return mostrarLogin(`Muitas tentativas erradas. Espere ${Math.ceil(espera / 1000)} s e tente de novo — ou use "Esqueci a senha".`);
+  if (!navigator.onLine) return mostrarLogin('Sem internet. Confira a conexão e tente de novo.');
   btn.disabled = true; btn.textContent = 'ENTRANDO…';
   try {
     if (!sb) throw new Error('Conexão com o Supabase não configurada.');
-    const { error } = await sb.auth.signInWithPassword({
-      email: f.loginEmail.value.trim(), password: f.loginSenha.value,
-    });
-    if (error) throw new Error(/invalid login/i.test(error.message)
-      ? 'E-mail ou senha incorretos.' : error.message);
+    const email = f.loginEmail.value.trim().toLowerCase();
+    const { error } = await sb.auth.signInWithPassword({ email, password: f.loginSenha.value });
+    if (error) {
+      if (/invalid login|invalid credentials/i.test(error.message)) contaRegistrarErroLogin?.();
+      throw new Error(typeof contaMensagemLogin === 'function' ? contaMensagemLogin(error, navigator.onLine)
+        : (/invalid login/i.test(error.message) ? 'E-mail ou senha incorretos.' : error.message));
+    }
+    contaZerarErrosLogin?.();
+    contaLembrarEmail?.(email);
     f.loginSenha.value = '';
+    // duas etapas: quem ligou o código no celular digita antes de entrar
+    if (typeof contaExigirMfa === 'function' && !(await contaExigirMfa())) return;
     esconderLogin();
     await abrirApp();
   } catch (err) { mostrarLogin(err.message); }
@@ -3014,10 +3216,16 @@ aplicarTema(temaAtual());
     return mostrarLogin('A biblioteca do Supabase não carregou. Verifique sua conexão.');
   }
   sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey);
+  /* Voltou do e-mail de "esqueci a senha": o Supabase avisa com PASSWORD_RECOVERY
+     e a tela de senha nova abre antes de qualquer outra coisa. */
+  const voltaDeRecuperacao = /type=recovery/.test(location.hash);
+  sb.auth.onAuthStateChange((evento) => {
+    if (evento === 'PASSWORD_RECOVERY' && typeof contaRecuperacao === 'function') contaRecuperacao();
+  });
+  if (voltaDeRecuperacao) return;
 
   const { data } = await sb.auth.getSession();
   if (data?.session) {
-    esconderLogin();
     try { await abrirApp(); } catch (err) { mostrarLogin(err.message); }
   } else {
     // Sem sessão: pode ser que ninguém tenha sido cadastrado ainda neste sistema.
