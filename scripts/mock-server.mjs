@@ -17,7 +17,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional, casaBusca, cargaDoDia, sugerirConsultor } from '../dados.js';
-import { decidirAcesso, decidirNaoVeioNaEdicao } from '../regras.js';
+import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../regras.js';
+import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3011);
@@ -57,8 +58,12 @@ const fichaDe = (c) => {
     proxima_revisao:{ data: d.toISOString().slice(0, 10), meses: oleo ? 6 : 12, rotulo: oleo ? 'Troca de óleo' : 'Revisão geral' }, total_agendamentos: total };
 };
 
-let AGENDA = [
-  ag({ cliente_nome:'Maria Aparecida', cliente_id:CLIENTES[0].id, telefone:'12991110001', veiculo:'HB20', placa:'FHR6F16', servico:'Montagem de pneus e alinhamento', data:dia(0), hora:hm(40),  status:'confirmado', confirmado:1, origem:'Google', lembrete:{ status:'enviado', resposta:'positiva' } }),
+/* semearAgenda(): os horários de mentira — POST /api/__reset volta a este estado
+   (o roteiro de navegador usa entre um papel e outro). */
+let AGENDA = [];
+function semearAgenda() {
+AGENDA = [
+  ag({ cliente_nome:'Maria Aparecida', cliente_id:CLIENTES[0].id, telefone:'12991110001', veiculo:'HB20', placa:'FHR6F16', servico:'Montagem de pneus e alinhamento', data:dia(0), hora:hm(40),  status:'confirmado', confirmado:1, origem:'Google', lembrete:{ status:'enviado', resposta:'positiva' }, orcamento:{ status:'aprovado', numero:42, total:1990, total_a_vista:1890, decidido_em:'2026-10-10T12:00:00Z' } }),
   ag({ cliente_nome:'Carlos Eduardo Nogueira', cliente_id:CLIENTES[1].id, telefone:'12991110002', veiculo:'Corolla', placa:'GFK3H26', servico:'Troca de óleo de câmbio (diálise)', data:dia(0), hora:hm(180), status:'aguardando', lembrete:{ status:'enviado', resposta:null } }),
   ag({ cliente_nome:'Carlos Eduardo Nogueira', cliente_id:CLIENTES[1].id, telefone:'12991110002', veiculo:'Corolla', placa:'GFK3H26', servico:'Troca de óleo de motor', data:dia(-120), hora:'09:00', status:'concluido', compareceu:1, confirmado:1 }),
   ag({ cliente_nome:'Donizetti', veiculo:'ix35', servico:'Pastilha de freio', data:dia(0), hora:hm(-50), status:'confirmado', confirmado:1, origem:'Indicação' }),
@@ -74,6 +79,8 @@ let AGENDA = [
   ag({ cliente_nome:'Cliente Antigo', veiculo:'Palio', servico:'Revisão de motor', data:dia(-20), hora:'11:00', status:'confirmado', confirmado:1 }),
   ag({ cliente_nome:'Rogério (chegou ontem, sem desfecho)', veiculo:'Hilux', servico:'Revisão de motor', data:dia(-1), hora:'08:00', status:'compareceu', compareceu:1, confirmado:1 }),
   ag({ cliente_nome:'Sem Telefone', telefone:null, lead_id:null, servico:'Troca de óleo de motor', data:dia(0), hora:hm(90), status:'aguardando' }),
+  ag({ cliente_nome:'Otávio (já pago)', veiculo:'Uno', servico:'Troca de óleo de motor', data:dia(-30), hora:'10:30', status:'concluido', compareceu:1, confirmado:1, valor:280 }),
+  ag({ cliente_nome:'Helena (pago)', veiculo:'Kwid', servico:'Troca de óleo de motor', data:dia(-12), hora:'15:00', status:'concluido', compareceu:1, confirmado:1, valor:320 }),
   ag({ cliente_nome:'Bruno (não fechou)', veiculo:'Tracker', servico:'Orçamento de suspensão', data:dia(-2), hora:'16:00', status:'nao_fechou', compareceu:1 }),
 ];
 
@@ -82,6 +89,8 @@ AGENDA[0].consultor_id = '20000000-0000-4000-8000-000000000101'; AGENDA[0].consu
 AGENDA[1].consultor_id = '20000000-0000-4000-8000-000000000102'; AGENDA[1].consultor_nome = 'Gabriel';
 AGENDA[7].consultor_id = '20000000-0000-4000-8000-000000000102'; AGENDA[7].consultor_nome = 'Gabriel';
 for (const a of AGENDA) if (!a.consultor_id) a.consultor_nome = null;
+}
+semearAgenda();
 
 const MAPA = {
   confirmado:{ status:'confirmado', confirmado:1, compareceu:null }, compareceu:{ status:'compareceu', compareceu:1 },
@@ -127,6 +136,8 @@ const CONS = [
   { id: U(101), nome:'Leonardo', cor:'#e6192e', ativo:1, telefone:'12991234567', perfil_id: U(1) },
   { id: U(102), nome:'Gabriel', cor:'#3b82f6', ativo:1, telefone:null, perfil_id: U(3) },
   { id: U(103), nome:'Antigo', cor:'#64748b', ativo:0, telefone:null, perfil_id: null },
+  // rodada 4: igual ao banco real ("Consultor Prensencial Gabriel" sem login) — aqui o login reconhecido é o do Franklin
+  { id: U(104), nome:'Consultor Presencial Franklin', cor:'#22c55e', ativo:1, telefone:null, perfil_id: null },
 ];
 const PERFIS = {
   admin:       { id: U(1), nome:'João Pedro Famelli', papel:'admin', apps:['atendimento','crm','agenda','comunicar','orcador','ads'], cargo:'Dono' },
@@ -190,6 +201,7 @@ const DUBLE_SUPABASE = (papel, semSessao = false) => `<script>window.__PAPEL_MOC
 })();</script>`;
 
 let PAPEL = 'admin';
+let FALHA = { status: 503, vezes: 0 };
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = url.pathname, m = req.method;
@@ -199,7 +211,7 @@ http.createServer(async (req, res) => {
       PAPEL = PAPEIS_MOCK.includes(pedido) ? pedido : 'admin';
       SENHA_TROCADA = false; semearRodada3();
       const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8')
-        .replace(/<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase[^"]*"><\/script>/, DUBLE_SUPABASE(PAPEL, url.searchParams.get('semsessao') === '1'));
+        .replace(/<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase[^"]*"[^>]*><\/script>/, DUBLE_SUPABASE(PAPEL, url.searchParams.get('semsessao') === '1'));
       res.writeHead(200, { 'Content-Type': MIME['.html'] }); return res.end(html);
     }
     if (p === '/sw.js') { res.writeHead(200, { 'Content-Type': MIME['.js'] }); return res.end('/* sem service worker no modo de teste */'); }
@@ -212,6 +224,12 @@ http.createServer(async (req, res) => {
   let body = {};
   if (m !== 'GET') { let b = ''; for await (const c of req) b += c; try { body = JSON.parse(b || '{}'); } catch {} }
   await new Promise(r => setTimeout(r, 220));            // latência de verdade, para ver o "ocupado" e o esqueleto
+  /* RODADA 4 — simular o Render fora do ar: POST /api/__falha { status:503, vezes:N }
+     faz os próximos N pedidos da API responderem esse status (o roteiro de
+     navegador usa para testar a faixa "acordando" e a fila do desfecho). */
+  if (p === '/api/__reset') { semearAgenda(); for (const c of CONS) if (c.id === U(104)) c.perfil_id = null; FALHA = { status: 503, vezes: 0 }; return json(res, 200, { ok: true, total: AGENDA.length }); }
+  if (p === '/api/__falha') { FALHA = { status: Number(body.status) || 503, vezes: Number(body.vezes) || 0 }; return json(res, 200, FALHA); }
+  if (FALHA.vezes > 0) { FALHA.vezes--; res.writeHead(FALHA.status, { 'Content-Type':'text/html' }); return res.end('<h1>Service Unavailable (mock)</h1>'); }
   const soPresenca = PAPEL === 'agenda';
   let mm;
 
@@ -243,6 +261,41 @@ http.createServer(async (req, res) => {
   if ((mm = p.match(/^\/api\/tarefas\/([0-9a-f-]{36})$/)) && m === 'PATCH') {
     const t = TAREFAS.find((x) => x.id === mm[1]); if (!t) return json(res, 404, { erro:'Não encontrado' });
     t.status = body.status; return json(res, 200, t);
+  }
+  // ---- RODADA 4: valor ao concluir, pendências, contagens, consultor ↔ login
+  const antigasMock = () => AGENDA.filter(a => ['compareceu', 'em_atendimento', 'aguardando', 'confirmado'].includes(a.status) && a.data < dia(-7));
+  if (p === '/api/contagens') {
+    const gestor = ['admin', 'gestor'].includes(perfilMock().papel);
+    return json(res, 200, { followup: AGENDA.filter(a => ['nao_veio', 'nao_fechou'].includes(a.status)).length,
+      semValor: gestor ? AGENDA.filter(a => a.status === 'concluido' && !(a.valor > 0)).length : null,
+      antigas: gestor ? antigasMock().length : null });
+  }
+  if (p === '/api/valores/pendentes') return json(res, 200, { dias: 120, itens: AGENDA.filter(a => a.status === 'concluido' && !(a.valor > 0)).sort((x, y) => y.data.localeCompare(x.data)) });
+  if (p === '/api/pendencias-antigas') return json(res, 200, antigasMock());
+  if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/valor-sugerido$/))) {
+    const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro:'Não encontrado' });
+    const hist = AGENDA.filter(x => x.status === 'concluido' && x.valor > 0).map(x => ({ id: x.id, servico: x.servico, valor: x.valor }));
+    return json(res, 200, { ...sugerirValor({ agendamento: a, orcamentos: a.orcamento ? [a.orcamento] : [], lead: null, historico: hist }), atual: a.valor || 0 });
+  }
+  if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/valor$/)) && m === 'PUT') {
+    const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro:'Não encontrado' });
+    const v = valorDeEntrada(body.valor);
+    if (v === null || !valorValido(v) || v <= 0) return json(res, 400, { erro:'Valor inválido: use só números, ex.: 350 ou 1.250,00.' });
+    if (a.status !== 'concluido') return json(res, 409, { erro:'Só dá para preencher o valor de quem "veio e fechou".' });
+    a.valor = v; console.log('VALOR PREENCHIDO', a.cliente_nome, v);
+    return json(res, 200, { ok:true, valor: v, lead_atualizado: !!a.lead_id });
+  }
+  if (p === '/api/consultores/sugestoes-login') {
+    const usados = new Set(CONS.map(c => c.perfil_id).filter(Boolean));
+    const perfis = Object.values(PERFIS).filter(x => x.ativo !== false).map(x => ({ id: x.id, nome: x.nome, papel: x.papel, ativo: true }));
+    return json(res, 200, CONS.filter(c => !c.perfil_id).map(c => ({ consultor_id: c.id, consultor: c.nome, ...sugerirLoginDoConsultor(c, perfis, usados) })).filter(s => s.perfil_id));
+  }
+  if (p === '/api/consultores/distribuir' && m === 'POST') {
+    const doDia = AGENDA.filter(a => a.data === body.data);
+    const plano = distribuirSemConsultor({ consultores: CONS, agendamentos: doDia });
+    for (const x of plano) { const a = AGENDA.find(y => y.id === x.id); a.consultor_id = x.consultor_id; a.consultor_nome = x.consultor_nome; }
+    const sobra = doDia.filter(a => !a.consultor_id && ['aguardando', 'confirmado', 'compareceu', 'em_atendimento'].includes(a.status)).length;
+    return json(res, 200, { ok:true, data: body.data, atribuidos: plano.length, sem_vaga: sobra, itens: plano });
   }
   if (p === '/api/consultores' && m === 'GET') return json(res, 200, CONS);
   if (p === '/api/consultores/carga') {
@@ -395,10 +448,13 @@ http.createServer(async (req, res) => {
     const a = AGENDA.find(x => x.id === mm[1]), ch = MAPA[body.status];
     if (!a) return json(res, 404, { erro:'Agendamento não encontrado.' });
     if (!ch) return json(res, 400, { erro:'Status inválido.' });
-    if (soPresenca && !['compareceu', 'nao_veio'].includes(body.status))
-      return json(res, 403, { erro:'Seu acesso só permite marcar se o cliente veio ou não.' });
-    if (soPresenca && ['concluido', 'nao_fechou'].includes(a.status))
-      return json(res, 403, { erro:'Este cliente já tem o desfecho registrado pelo atendimento — só o painel principal pode mudar.' });
+    if (soPresenca) { const r = presencaPodeMarcar(a.status, body.status); if (r) return json(res, 403, { erro: r }); }
+    // rodada 4: valor junto com "Veio e fechou" (as MESMAS regras do servidor)
+    if (body.valor !== undefined && body.valor !== null && body.valor !== '') {
+      const v = valorDeEntrada(body.valor);
+      if (body.status !== 'concluido' || soPresenca || v === null || !valorValido(v)) return json(res, 400, { erro:'Valor inválido: use só números, ex.: 350 ou 1.250,00.' });
+      a.valor = v; console.log('VALOR', a.cliente_nome, v);
+    }
     Object.assign(a, { status: ch.status, confirmado: ch.confirmado ?? a.confirmado,
       compareceu: ch.compareceu !== undefined ? ch.compareceu : a.compareceu });
     return json(res, 200, { ...a, ...(body.status === 'nao_veio' ? { aviso_ausencia:{ ok:true } } : {}) });

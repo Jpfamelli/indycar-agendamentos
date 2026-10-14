@@ -28,14 +28,18 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="IndyCar" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/planejamento.css" />
   <link rel="stylesheet" href="/conta.css" />
+  <link rel="stylesheet" href="/rodada4.css" />
 </head>
 <body>
+  <!-- teclado/leitor de tela: pula o menu e vai direto ao conteúdo -->
+  <a class="pular-conteudo" href="#view">Pular para o conteúdo</a>
   <div class="app">
     <!-- ===================== SIDEBAR ===================== -->
     <aside class="sidebar">
@@ -84,6 +88,11 @@
             <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>
             <span>CRM</span>
           </a>
+          <a class="nav-item so-gestor" data-route="pendencias" tabindex="0" role="button" title="Concluídos sem valor e horários antigos sem desfecho">
+            <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>PENDÊNCIAS</span>
+            <em class="badge" id="badgePendencias">0</em>
+          </a>
           <a class="nav-item" data-route="historico" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
             <span>HISTÓRICO</span>
@@ -103,6 +112,10 @@
           <a class="nav-item" data-route="configuracoes" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
             <span>CONFIG.</span>
+          </a>
+          <a class="nav-item" data-route="ajuda" tabindex="0" role="button" title="Ajuda, atalhos e o tour de novo (tecla ?)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg>
+            <span>AJUDA</span>
           </a>
         </div>
       </nav>
@@ -141,7 +154,7 @@
     <div class="pop-conta pop-perfil" id="popPerfil" role="menu" aria-label="Sua conta" hidden></div>
 
     <!-- ===================== CONTEÚDO ===================== -->
-    <main class="main">
+    <main class="main" id="principal">
       <!-- Faixas discretas no topo: saúde do sistema (vigia) e sem internet.
            Só aparecem quando há algo errado; o texto vem do app.js. -->
       <div class="faixa faixa-saude" id="faixaSaude" role="status" aria-live="polite" hidden></div>
@@ -149,6 +162,10 @@
         Sem internet — o que você marcar agora fica guardado no aparelho e é enviado quando a conexão voltar.
       </div>
       <div class="faixa faixa-fila" id="faixaFila" role="status" aria-live="polite" hidden></div>
+      <!-- servidor fora/acordando (Render): os pedidos de leitura tentam de novo sozinhos -->
+      <div class="faixa faixa-acordando" id="faixaAcordando" role="status" aria-live="polite" hidden>
+        <span class="faixa-ico girando" aria-hidden="true"></span><span class="faixa-txt">O sistema está acordando, tentando de novo…</span>
+      </div>
       <header class="topbar">
         <div class="company">
           <div class="company-logo">IC</div>
@@ -195,6 +212,8 @@
 
   <!-- Toast -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <!-- só para leitor de tela: anuncia a troca de tela -->
+  <div id="anuncioTela" class="so-leitor" aria-live="polite"></div>
 
   <!-- ============ LOGIN ============
        A Agenda guarda nome, telefone, placa e histórico dos clientes.
@@ -308,7 +327,7 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
   <!-- qrcode.min.js saiu junto com a tela de QR: o CodeWords passou a usar
        código de pareamento, e a conexão agora é feita no painel de atendimento. -->
   <script src="/planejamento.js"></script>

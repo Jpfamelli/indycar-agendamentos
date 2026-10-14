@@ -58,6 +58,10 @@ const ROTAS_DE_GESTOR = [
   ['POST', '/api/servicos'], ['PUT', '/api/servicos/:id'],
   ['GET', '/api/equipe/nomes'],
   ['GET', '/api/auditoria'],
+  // rodada 4: painel de valores, pendências antigas e consultor ↔ login
+  ['GET', '/api/valores/pendentes'], ['PUT', '/api/agendamentos/:id/valor'],
+  ['GET', '/api/pendencias-antigas'],
+  ['GET', '/api/consultores/sugestoes-login'], ['POST', '/api/consultores/distribuir'],
 ].map(([m, p]) => [m, casa(p)]);
 
 export function rotaDeGestor(metodo, rota) {
@@ -106,6 +110,24 @@ export function decidirNaoVeioNaEdicao(antes, corpo) {
   return { acao: 'perguntar' };
 }
 
+/* ---------------------------------------------------------------------------
+   PRESENÇA (papel 'agenda', o Franklin na recepção) — o que ele pode marcar:
+     · "Chegou" (compareceu) e "Não veio" — se o cliente ainda não tem desfecho
+       comercial (Veio e fechou / Veio e não fechou são do atendimento);
+     · DESFAZER uma chegada marcada por engano: de "compareceu" de volta para
+       "aguardando"/"confirmado" (só isso — "Não veio" já mandou o WhatsApp de
+       falta e não tem volta por aqui).
+   Devolve null (pode) ou o recado da recusa.
+   --------------------------------------------------------------------------- */
+export function presencaPodeMarcar(statusAntes, statusNovo) {
+  if (['concluido', 'nao_fechou'].includes(statusAntes)) {
+    return 'Este cliente já tem o desfecho registrado pelo atendimento — só o painel principal pode mudar.';
+  }
+  if (['compareceu', 'nao_veio'].includes(statusNovo)) return null;
+  if (['aguardando', 'confirmado'].includes(statusNovo) && statusAntes === 'compareceu') return null;
+  return 'Seu acesso só permite marcar se o cliente veio ou não.';
+}
+
 export const DESFECHOS = new Set(['concluido', 'nao_fechou', 'nao_veio']);
 /** Mudar um desfecho JÁ registrado (Veio e fechou / não fechou / Não veio) é ação sensível: vai para a auditoria. */
 export function mudaDesfechoRegistrado(statusAntes, statusNovo) {
@@ -139,6 +161,9 @@ export function mensagemSegura(e, rid = '') {
   if (e && e.name === 'Error' && e.constructor === Error && !e.status) return { status: 400, erro: String(e.message) };
   // configuração faltando (SUPABASE_URL…) é recado para quem instala, não detalhe interno
   if (e?.name === 'ErroSupabase' && e.status === 0 && /não configurado/.test(String(e.message))) return { status: 500, erro: e.message };
+  if (e?.name === 'ErroSupabase' && /consultores_perfil_uk/i.test(String(e.detalhe || e.message))) {
+    return { status: 409, erro: 'Esse login já está ligado a outro consultor. Desligue lá primeiro (Equipe › editar o outro consultor).' };
+  }
   if (e?.name === 'ErroSupabase' && /23505|duplicate key|slot_uk/i.test(String(e.detalhe || e.message))) {
     return { status: 409, erro: 'Esse consultor já tem um carro nesse horário. Escolha outro consultor ou outro horário.' };
   }

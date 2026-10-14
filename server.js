@@ -1,7 +1,9 @@
 // IndyCar Agendamentos — servidor HTTP (somente módulos nativos do Node)
 // Persistência: Supabase (PostgREST) via dados.js / supabase.js — não há mais SQLite.
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import zlib from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, resolve } from 'node:path';
 import * as dadosReal from './dados.js';
@@ -9,6 +11,7 @@ import { selecionarUm } from './supabase.js';
 import { conferirConfiguracao } from './supabase.js';
 import {
   decidirAcesso, decidirNaoVeioNaEdicao, mudaDesfechoRegistrado, origemPermitida, mensagemSegura, ehGestor,
+  presencaPodeMarcar,
 } from './regras.js';
 import { rodarAutomacoes } from './automacoes.js';
 
@@ -35,7 +38,7 @@ const UUID = '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a
 
 /* Marca da versão no ar — aparece em /api/versao e no app.js (VERSAO_APP).
    Serve para conferir, depois do deploy, que o Render subiu ESTE código. */
-const VERSAO = '2026-10-13-r3';
+const VERSAO = '2026-10-14-r4';
 
 /* Cache curtinho na memória do servidor para as leituras mais pesadas (painel,
    serviços). Qualquer gravação (POST/PUT/PATCH/DELETE) ou importação do
@@ -64,8 +67,28 @@ const MIME = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+/* Compressão (rodada 4, velocidade): resposta acima de 1,5 KB vai em brotli
+   (nível 4: rápido) ou gzip quando o navegador aceita. O painel do Início tem
+   ~30 KB de JSON — no 4G da oficina isso pesa. Abaixo disso não compensa. */
+const MIN_COMPRIMIR = 1500;
+function codificacaoAceita(req) {
+  const ae = String(req?.headers?.['accept-encoding'] || '');
+  if (/\bbr\b/.test(ae)) return 'br';
+  if (/\bgzip\b/.test(ae)) return 'gzip';
+  return null;
+}
+function comprimir(buf, cod) {
+  if (cod === 'br') return zlib.brotliCompressSync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } });
+  return zlib.gzipSync(buf, { level: 6 });
+}
 function send(res, status, data, headers = {}) {
   const body = typeof data === 'string' ? data : JSON.stringify(data);
+  const cod = Buffer.byteLength(body) >= MIN_COMPRIMIR ? codificacaoAceita(res.req) : null;
+  if (cod) {
+    const vary = [res.getHeader('Vary'), 'Accept-Encoding'].filter(Boolean).join(', ');
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': cod, Vary: vary, ...headers });
+    return res.end(comprimir(Buffer.from(body), cod));
+  }
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
   res.end(body);
 }
@@ -670,7 +693,7 @@ const MAPA_STATUS = {
   cancelado:       { status: 'cancelado', compareceu: null },
 };
 
-async function mudarStatus({ antes: a, status, usuario }) {
+async function mudarStatus({ antes: a, status, usuario, valor }) {
   const ch = MAPA_STATUS[status];
   /* "Não veio" manda o aviso de ausência NA HORA — uma vez só. Clique repetido não reenvia. */
   const avisar = status === 'nao_veio' && !a.no_show_notificado_em && !!dados.soDigitos(a.telefone);
@@ -678,6 +701,7 @@ async function mudarStatus({ antes: a, status, usuario }) {
     status: ch.status,
     confirmado: ch.confirmado !== undefined ? ch.confirmado : a.confirmado,
     compareceu: ch.compareceu !== undefined ? ch.compareceu : a.compareceu,
+    ...(status === 'concluido' && valor !== undefined ? { valor } : {}),
     ...(avisar ? { no_show_notificado_em: new Date().toISOString() } : {}),
   });
   let avisoAusencia = null;
@@ -852,8 +876,10 @@ async function api(req, res, url) {
     if (body.preferencias !== undefined) {
       const p = body.preferencias && typeof body.preferencias === 'object' && !Array.isArray(body.preferencias) ? body.preferencias : {};
       // só chaves conhecidas, só booleano: nada de JSON arbitrário no perfil
-      campos.preferencias = Object.fromEntries(['notif_atraso', 'notif_tarefas', 'notif_som']
+      // agenda_tour = já viu o tour de boas-vindas; agenda_letra = tamanho da letra no modo recepção
+      campos.preferencias = Object.fromEntries(['notif_atraso', 'notif_tarefas', 'notif_som', 'agenda_tour']
         .filter((k) => typeof p[k] === 'boolean').map((k) => [k, p[k]]));
+      if (['normal', 'grande', 'enorme'].includes(p.agenda_letra)) campos.preferencias.agenda_letra = p.agenda_letra;
     }
     if (!Object.keys(campos).length) return bad(res, 'Nada para salvar.');
     return ok(res, await dados.atualizarMeuPerfil(usuario.id, campos, usuario.email));
@@ -1055,12 +1081,15 @@ async function api(req, res, url) {
   if (pathname === '/api/dashboard' && m === 'GET') {
     // Ao abrir o painel, puxa os agendamentos do CodeWords (no máx 1x/min).
     // Essencial no Render free, que "dorme" e não roda o timer de importação.
+    /* RODADA 4 (velocidade): a importação roda POR FORA — antes o Início
+       esperava até 8 s pelo CodeWords (que hoje responde 401) antes de mostrar
+       qualquer número. Agora o painel sai na hora com o que está no banco; o
+       que a importação trouxer aparece na próxima atualização (o cache é
+       invalidado quando ela termina). Ainda no máximo 1x/min. */
     if (Date.now() - _ultimaImportacao > 60000) {
       _ultimaImportacao = Date.now();
-      try {
-        await Promise.race([importarAgendamentosCW(), new Promise((r) => setTimeout(r, 8000))]);
-      } catch {}
-      invalidarCache();          // a importação pode ter trazido agendamento novo
+      importarAgendamentosCW().then((r) => { if (r?.importados) invalidarCache(); })
+        .catch(aviso('Importação CodeWords (painel)'));
     }
     // 10 s de cache: várias abas/pessoas abrindo o Início não viram 7 consultas cada
     return ok(res, await lembrar('dashboard', 10_000, () => dados.estatisticas()));
@@ -1187,23 +1216,75 @@ async function api(req, res, url) {
     }
   }
 
+  /* ---- RODADA 4: valor ao concluir ----
+     Sugestão (orçamento aprovado > valor do horário > orçado no CRM > média do
+     serviço). Só sugere: a pessoa confirma, troca ou deixa em branco. */
+  if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/valor-sugerido$`))) && m === 'GET') {
+    const s = await dados.valorSugerido(mm[1]);
+    return s ? send(res, 200, s, { 'Cache-Control': 'no-store' }) : notFound(res);
+  }
+  // Painel do gestor: concluídos sem valor (o faturamento do CRM nasce zerado sem isto)
+  if (pathname === '/api/valores/pendentes' && m === 'GET') {
+    const dias = Math.min(365, Math.max(7, Number(searchParams.get('dias')) || 120));
+    return send(res, 200, { itens: await dados.concluidosSemValor({ dias }), dias }, { 'Cache-Control': 'no-store' });
+  }
+  if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/valor$`))) && m === 'PUT') {
+    const valor = dados.valorDeEntrada(typeof body.valor === 'number' ? body.valor : texto1(body.valor, 20));
+    if (valor === null || !dados.valorValido(valor) || valor <= 0) {
+      return bad(res, `Valor inválido: use só números, ex.: 350 ou 1.250,00 (até R$ ${dados.VALOR_MAXIMO.toLocaleString('pt-BR')}).`);
+    }
+    const a = await dados.obterAgendamento(mm[1]);
+    if (!a) return notFound(res);
+    if (a.status !== 'concluido') return send(res, 409, { erro: 'Só dá para preencher o valor de quem "veio e fechou".' });
+    const r = await dados.preencherValor(a.id, valor);
+    await dados.auditar(usuario.id, 'preencheu_valor', 'agendamentos', a.id, { de: r.antes, para: valor, cliente: a.cliente_nome, lead: r.lead_atualizado });
+    return ok(res, { ok: true, valor, lead_atualizado: r.lead_atualizado });
+  }
+  /* Contagens baratas para o Início e o menu (HEAD + count, sem trazer linha):
+     follow-up para todo mundo; concluídos sem valor e pendências antigas só
+     para o gestor (é ele quem resolve). Uma chamada no lugar da lista inteira
+     do follow-up a cada troca de tela. */
+  if (pathname === '/api/contagens' && m === 'GET') {
+    const [followup, semValor, antigas] = await Promise.all([
+      dados.contarFollowup().catch(() => null),
+      souGestor ? dados.contarConcluidosSemValor().catch(() => null) : null,
+      souGestor ? dados.contarPendenciasAntigas().catch(() => null) : null,
+    ]);
+    return send(res, 200, { followup, semValor, antigas }, { 'Cache-Control': 'no-store' });
+  }
+  // Pendências antigas: passou há mais de 7 dias sem desfecho (só lista; resolve pelos botões)
+  if (pathname === '/api/pendencias-antigas' && m === 'GET') {
+    return send(res, 200, await dados.pendenciasAntigas(), { 'Cache-Control': 'no-store' });
+  }
+
   // mudança rápida de status (botões do card)
   if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/status$`))) && m === 'PATCH') {
     const id = mm[1];
     if (!MAPA_STATUS[body.status]) return bad(res, 'Status inválido.');
     // Quem só marca presença aperta Compareceu ou Não veio — nada além disso.
     // (Fechar ou não a venda é desfecho comercial: fica com quem usa o Início.)
-    if (soPresenca && !['compareceu', 'nao_veio'].includes(body.status)) {
+    if (soPresenca && !['compareceu', 'nao_veio', 'aguardando', 'confirmado'].includes(body.status)) {
       return send(res, 403, { erro: 'Seu acesso só permite marcar se o cliente veio ou não.' });
+    }
+    /* "Veio e fechou" com o VALOR do serviço (opcional): vai no MESMO update do
+       status, e o gatilho do banco copia para leads.valor_pago — o faturamento
+       do CRM deixa de nascer zerado. Vazio = fecha sem valor (não bloqueia). */
+    let valor;
+    if (body.valor !== undefined && body.valor !== null && body.valor !== '') {
+      if (body.status !== 'concluido' || soPresenca) return bad(res, 'O valor só vai junto com "Veio e fechou".');
+      valor = dados.valorDeEntrada(typeof body.valor === 'number' ? body.valor : texto1(body.valor, 20));
+      if (!dados.valorValido(valor) || valor === null) return bad(res, `Valor inválido: use só números, ex.: 350 ou 1.250,00 (até R$ ${dados.VALOR_MAXIMO.toLocaleString('pt-BR')}).`);
     }
     const a = await dados.obterAgendamento(id);
     if (!a) return notFound(res);
     // Presença não mexe em quem JÁ tem desfecho comercial: um "Compareceu" aqui
     // desfaria o "Veio e fechou" do atendimento e reabriria a venda no CRM.
-    if (soPresenca && ['concluido', 'nao_fechou'].includes(a.status)) {
-      return send(res, 403, { erro: 'Este cliente já tem o desfecho registrado pelo atendimento — só o painel principal pode mudar.' });
+    // E só desfaz a PRÓPRIA chegada (compareceu → aguardando/confirmado).
+    if (soPresenca) {
+      const recusa = presencaPodeMarcar(a.status, body.status);
+      if (recusa) return send(res, 403, { erro: recusa });
     }
-    const { atualizado, avisoAusencia } = await mudarStatus({ antes: a, status: body.status, usuario });
+    const { atualizado, avisoAusencia } = await mudarStatus({ antes: a, status: body.status, usuario, valor });
     return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia });
   }
 
@@ -1300,6 +1381,35 @@ async function api(req, res, url) {
     return send(res, 200, await dados.consultorSugerido({ data, hora,
       ignorar: dados.ehUuid(searchParams.get('ignorar') || '') ? searchParams.get('ignorar') : undefined }),
       { 'Cache-Control': 'no-store' });
+  }
+  /* RODADA 4 — consultor ligado ao login com UM clique: para cada consultor sem
+     login, o login que provavelmente é a mesma pessoa (nomes sem acento e sem
+     palavras de cargo; empate não sugere). Só sugere; quem liga é o gestor. */
+  if (pathname === '/api/consultores/sugestoes-login' && m === 'GET') {
+    const [consultores, equipe] = await Promise.all([dados.listarConsultores(), dados.listarEquipe(null)]);
+    const usados = new Set(consultores.map((c) => c.perfil_id).filter(Boolean));
+    const ativos = equipe.filter((p) => p.ativo).map((p) => ({ id: p.id, nome: p.nome, papel: p.papel, ativo: true }));
+    const sugestoes = consultores.filter((c) => !c.perfil_id)
+      .map((c) => ({ consultor_id: c.id, consultor: c.nome, ...dados.sugerirLoginDoConsultor(c, ativos, usados) }))
+      .filter((s) => s.perfil_id);
+    return send(res, 200, sugestoes, { 'Cache-Control': 'no-store' });
+  }
+  /* Distribui os horários SEM consultor de um dia (menor carga primeiro, sem
+     dois carros do mesmo consultor na mesma meia hora). Gestor. */
+  if (pathname === '/api/consultores/distribuir' && m === 'POST') {
+    const data = dados.dataBanco(texto1(body.data, 10));
+    if (!data) return bad(res, 'Data inválida.');
+    const [consultores, ags] = await Promise.all([dados.listarConsultores(), dados.agendamentosVivosDoDia(data)]);
+    const plano = dados.distribuirSemConsultor({ consultores, agendamentos: ags });
+    const semConsultorAntes = ags.filter((x) => !x.consultor_id).length;
+    const feitos = [];
+    for (const p of plano) {
+      try { await dados.atualizarAgendamento(p.id, { consultor_id: p.consultor_id }); feitos.push(p); }
+      catch (e) { console.warn('Distribuir consultor:', e?.message || e); }
+    }
+    if (feitos.length) await dados.auditar(usuario.id, 'distribuiu_consultores', 'agendamentos', null, { data, total: feitos.length });
+    const sobra = semConsultorAntes - feitos.length;
+    return ok(res, { ok: true, data, atribuidos: feitos.length, sem_vaga: Math.max(0, sobra), itens: feitos });
   }
   if (pathname === '/api/consultores' && m === 'POST') {
     const nome = texto1(body.nome, 80).trim();
@@ -1634,6 +1744,8 @@ async function api(req, res, url) {
 // ---------------------------------------------------------------------------
 // Arquivos estáticos
 // ---------------------------------------------------------------------------
+const _estaticos = new Map();   // caminho -> { chave, bruto, etag, comp:{br,gzip} }
+const TEXTUAIS = new Set(['.html', '.css', '.js', '.json', '.svg']);
 async function serveStatic(req, res, pathname) {
   let rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
   const filePath = normalize(join(PUBLIC, rel));
@@ -1641,12 +1753,40 @@ async function serveStatic(req, res, pathname) {
   // chamada "publicX" passaria no teste (e o %2e%2e escapa do new URL)
   if (filePath !== PUBLIC && !filePath.startsWith(PUBLIC + sep)) return notFound(res);
   try {
-    const data = await readFile(filePath);
-    res.writeHead(200, {
-      'Content-Type': MIME[extname(filePath)] || 'application/octet-stream',
-      'Cache-Control': 'no-cache, must-revalidate',  // evita servir front-end desatualizado
-    });
-    res.end(data);
+    /* RODADA 4 (velocidade): ETag + 304 e compressão guardada na memória.
+       HTML/JS/CSS continuam "no-cache" (sempre conferem a versão), mas a
+       conferência agora custa um 304 vazio em vez do arquivo inteiro de novo;
+       ícones e logo ficam um dia no cache do navegador. */
+    const info = await stat(filePath);
+    if (!info.isFile()) throw new Error('não é arquivo');
+    const ext = extname(filePath);
+    const chave = `${filePath}|${info.mtimeMs}|${info.size}`;
+    let item = _estaticos.get(filePath);
+    if (!item || item.chave !== chave) {
+      const bruto = await readFile(filePath);
+      item = { chave, bruto, etag: `"${createHash('sha1').update(bruto).digest('base64url').slice(0, 20)}"`, comp: {} };
+      _estaticos.set(filePath, item);
+    }
+    const cabecalho = {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': ['.png', '.ico', '.svg'].includes(ext) ? 'public, max-age=86400' : 'no-cache, must-revalidate',
+      ETag: item.etag,
+      Vary: 'Accept-Encoding',
+    };
+    if (String(req.headers['if-none-match'] || '').split(/\s*,\s*/).includes(item.etag)) {
+      res.writeHead(304, cabecalho);
+      return res.end();
+    }
+    const cod = TEXTUAIS.has(ext) && item.bruto.length >= MIN_COMPRIMIR ? codificacaoAceita(req) : null;
+    if (cod) {
+      item.comp[cod] ||= cod === 'br'
+        ? zlib.brotliCompressSync(item.bruto, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } })
+        : zlib.gzipSync(item.bruto, { level: 9 });
+      res.writeHead(200, { ...cabecalho, 'Content-Encoding': cod });
+      return res.end(req.method === 'HEAD' ? undefined : item.comp[cod]);
+    }
+    res.writeHead(200, cabecalho);
+    res.end(req.method === 'HEAD' ? undefined : item.bruto);
   } catch {
     // SPA fallback
     try {
@@ -1668,7 +1808,8 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  // jsdelivr: o service worker guarda a biblioteca do login (versão fixa) para a casca abrir sem rede
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

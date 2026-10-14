@@ -209,8 +209,97 @@
     return u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash;
   }
 
+  /* ==========================================================================
+     RODADA 4 (14/10/2026)
+     ========================================================================== */
+
+  /**
+   * Valor digitado → número (o MESMO critério do servidor, dados.js ›
+   * valorDeEntrada; o teste confere que os dois concordam). Vazio → null.
+   */
+  function valorDeTela(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v * 100) / 100 : NaN;
+    let t = String(v).replace(/R\$|\s/gi, '').trim();
+    if (!t) return null;
+    if (!/^[\d.,]+$/.test(t)) return NaN;
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+    if ((t.match(/\./g) || []).length > 1) return NaN;
+    const n = Number(t);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+  }
+  /** 1234.5 → "R$ 1.234,50" (sem depender do Intl do aparelho para os testes). */
+  function reais(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return '';
+    const [int, dec] = Math.abs(v).toFixed(2).split('.');
+    return (v < 0 ? '-' : '') + 'R$ ' + int.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + dec;
+  }
+  /** Máscara leve do campo de valor: só dígitos, vírgula e ponto; no máximo 2 casas depois da vírgula. */
+  function mascaraValor(v) {
+    let t = String(v ?? '').replace(/[^\d,.]/g, '');
+    const i = t.indexOf(',');
+    if (i >= 0) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/[,.]/g, '').slice(0, 2);
+    return t.slice(0, 12);
+  }
+
+  /**
+   * Carga dos próximos dias por consultor (Equipe): { [consultor_id]: [n0, n1, …] }
+   * mais a linha 'sem' (sem consultor). Só horários ATIVOS contam.
+   */
+  function cargaSemana(lista, inicio, dias = 7) {
+    const datas = Array.from({ length: dias }, (_, i) => dia(inicio, i));
+    const idx = new Map(datas.map((d, i) => [d, i]));
+    const out = { datas, sem: Array(dias).fill(0) };
+    for (const a of lista || []) {
+      if (!ATIVO(a) || !idx.has(a.data)) continue;
+      const k = a.consultor_id || 'sem';
+      if (!out[k]) out[k] = Array(dias).fill(0);
+      out[k][idx.get(a.data)]++;
+    }
+    return out;
+  }
+
+  /**
+   * Resiliência: espera antes da próxima tentativa (ms) — cresce até 30 s e o
+   * total passa de ~3 min em 9 tentativas: 1, 2, 4, 8, 15, 30, 30, 30, 30 s
+   * (+ até 20% de sorteio, para dez abas não baterem todas juntas).
+   * null = desistir.
+   */
+  const ESPERAS = [1000, 2000, 4000, 8000, 15000, 30000, 30000, 30000, 30000];
+  function proximaEspera(tentativa, sorteio = 0) {
+    const base = ESPERAS[tentativa];
+    if (base === undefined) return null;
+    return Math.round(base * (1 + Math.max(0, Math.min(1, sorteio)) * 0.2));
+  }
+  /** Repetir sozinho? Só leitura (GET) e só quando o servidor está fora/acordando ou a rede caiu. */
+  function deveRepetir(metodo, status, erroDeRede) {
+    if (String(metodo).toUpperCase() !== 'GET') return false;
+    return !!erroDeRede || [502, 503, 504].includes(Number(status));
+  }
+  /** O servidor está fora (Render acordando / caiu)? Vale para decidir a fila do desfecho. */
+  const servidorFora = (status) => [502, 503, 504].includes(Number(status));
+
+  /**
+   * Filtro rápido do modo recepção: nome, placa ou carro, sem acento; a placa
+   * casa sem o hífen ("abc1d23" acha "ABC-1D23").
+   */
+  function casaRecepcao(a, termo) {
+    const q = normalizar(termo);
+    if (!q) return true;
+    return [a?.cliente_nome, a?.placa, a?.veiculo, a?.servico].some((v) => normalizar(v).includes(q));
+  }
+
+  /** Linhas da folha do dia: em ordem de hora, numeradas. */
+  function linhasDaFolha(lista) {
+    return (lista || []).slice().sort((x, y) => String(x.hora || '').localeCompare(String(y.hora || '')))
+      .map((a, i) => ({ n: i + 1, ...a }));
+  }
+
   root.Planejamento = Object.freeze({
     FINAIS, JANELA_MIN, normalizar, telefone, ehUuid, dia, periodo, andar, tabelaDuracoes, duracao, minutos, hhmm,
     conflitos, ocupacao, filtrar, resumo, grupos, csv, links, lerEntrada, semEntrada,
+    valorDeTela, reais, mascaraValor, cargaSemana, proximaEspera, deveRepetir, servidorFora, casaRecepcao, linhasDaFolha,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

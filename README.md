@@ -261,13 +261,36 @@ Mudar para "Não veio" pelo modal de **edição** pergunta "Avisar o cliente?". 
 devolve 409; `avisar_cliente:false` carimba `no_show_notificado_em` junto (o gatilho do banco não dispara);
 `true` usa o mesmo fluxo do cartão (envia uma vez).
 
+### 💰 Valor ao concluir e Pendências (rodada 4)
+"Veio e fechou" pergunta o **valor do serviço (opcional)** com uma sugestão (orçamento aprovado do Orçador ›
+valor do horário › valor orçado do lead › mediana do mesmo serviço) e manda junto com o status — o gatilho do
+banco copia para `leads.valor_pago`. Quem fechou sem valor aparece em **PENDÊNCIAS** (só gestor), onde o valor
+é preenchido em linha (Enter salva e pula) e grava no horário e no lead; ali também ficam os horários de mais
+de 7 dias sem desfecho, com "Não veio (sem avisar)". A aba CRM mostra o faturamento registrado.
+
+### 🛎️ Modo recepção (papel "só presença")
+Relógio grande, cartões grandes, botões de 64 px "Chegou" / "Não veio" (este pede confirmação no cartão),
+desfazer a chegada, busca por nome/placa, letra A/A+/A++, tela cheia, "tela acesa", folha do dia e ajuda.
+Atualiza sozinha a cada 2 min.
+
+### 🔌 Resiliência (Render fora ou acordando)
+Leitura com 502/503/504 ou rede caída tenta de novo sozinha (1 s → 30 s, ~3 min) com a faixa "O sistema está
+acordando…"; gravação nunca é repetida às cegas. Desfecho sem conexão ou com o servidor fora vai para a fila do
+aparelho (faixa laranja com "Ver"/Cancelar), que tenta a cada 30 s. O service worker serve a casca e a
+biblioteca do login quando a rede demora mais de 3 s. O formulário de agendamento guarda rascunho na aba.
+Para testar sem derrubar nada: `POST /api/__falha {"status":503,"vezes":3}` no mock (`POST /api/__reset` volta a agenda de mentira).
+
+### ❓ Ajuda e tour
+Tour de boas-vindas por papel na primeira vez (fica em `perfis.preferencias.agenda_tour`), tela AJUDA (tecla ?)
+com o "como faço…" de cada papel. `?tour=0` na URL pula o tour.
+
 ### 🔎 Busca sem acento
 "oleo" acha "Óleo", "jose" acha "José" — ilike na forma digitada e numa forma larga (curinga no lugar das
 vogais/ç), conferida em JS (`dados.js › casaBusca`). Sem extensão nova no banco.
 
 ### 🧪 Testes
 ```bash
-npm test          # node --test: dados.js, app.js, planejamento.js, regras.js, automacoes.js, conta.js e o server.js por HTTP
+npm test          # node --test: dados.js, app.js, planejamento.js, regras.js, automacoes.js, conta.js, rodada 4 e o server.js por HTTP
 npm run segredos  # varre os arquivos versionados atrás de chave/senha
 npm run mock      # http://localhost:3011/?papel=admin|gestor|atendente|agenda|desativado|semacesso|trocarsenha|mfa (&semsessao=1 = tela de login)
 npm run check     # node --check no servidor, no mock e nos JS do public/
@@ -277,6 +300,11 @@ npm run check     # node --check no servidor, no mock e nos JS do public/
 
 ```
 GET    /api/versao              { versao }  (sem login: confere o deploy)
+GET    /api/contagens           { followup, semValor, antigas }  (só COUNT; semValor/antigas só gestor)
+GET    /api/agendamentos/:id/valor-sugerido   { valor, fonte, rotulo }
+PATCH  /api/agendamentos/:id/status  { status:'concluido', valor? }   PUT /api/agendamentos/:id/valor { valor } (gestor)
+GET    /api/valores/pendentes   GET /api/pendencias-antigas   (gestor)
+GET    /api/consultores/sugestoes-login   POST /api/consultores/distribuir { data }   (gestor)
 GET    /api/notificacoes        POST /api/notificacoes/lidas  { ids } | { todas:true }   (só as minhas)
 GET    /api/tarefas             POST /api/tarefas   PATCH /api/tarefas/:id { status }   (minhas)
 PUT    /api/perfil              { nome, cargo, telefone, avatar_cor, preferencias }   POST /api/perfil/senha-trocada

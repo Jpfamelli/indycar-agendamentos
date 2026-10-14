@@ -36,7 +36,7 @@ const svg = (p, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24">${p}</svg>
 
 // ---- estado -----------------------------------------------------------------
 /* Marca da versão (igual à de /api/versao no server.js): confere o deploy. */
-const VERSAO_APP = '2026-10-13-r3';
+const VERSAO_APP = '2026-10-14-r4';
 const state = { route:'inicio', empresa:{}, consultores:[] };
 /* LINK DE ENTRADA do ecossistema: o Atendimento, o CRM e o Comunicar abrem a
    Agenda com ?tel=<dígitos> (às vezes &cliente=<uuid>). Lido UMA vez aqui e
@@ -63,10 +63,67 @@ async function authCabecalhos() {
   return cab;
 }
 
-async function api(method, path, body) {
-  const opt = { method, headers: await authCabecalhos() };
-  if (body) opt.body = JSON.stringify(body);
-  const r = await fetch('/api' + path, opt);
+/* ---------------------------------------------------------------------------
+   RESILIÊNCIA (rodada 4) — o servidor fora do ar não vira erro cru na tela.
+   · GET que esbarra em 502/503/504 (o Render reiniciando ou acordando) ou na
+     rede caindo é REPETIDO sozinho, com espera crescente (1 s, 2 s, 4 s… até
+     ~3 min no total — planejamento.js › proximaEspera), e a faixa "O sistema
+     está acordando, tentando de novo…" aparece enquanto isso. Voltou → recado.
+   · Gravação (POST/PUT/PATCH/DELETE) NÃO é repetida às cegas: devolve um erro
+     claro, e o desfecho do cartão vai para a fila do aparelho (enviarFila).
+   · Cada pedido tem teto de 25 s: conexão pendurada vira "sem resposta". */
+const TEMPO_MAX_PEDIDO = 25_000;
+let _esperandoServidor = 0;
+function faixaAcordando(tentativa) {
+  const f = $('#faixaAcordando'); if (!f) return;
+  f.hidden = _esperandoServidor <= 0;
+  if (!f.hidden) $('.faixa-txt', f).textContent = navigator.onLine === false
+    ? 'Sem internet — assim que a conexão voltar eu continuo de onde parou…'
+    : `O sistema está acordando, tentando de novo… (tentativa ${tentativa})`;
+}
+/** Espera `ms`, mas acorda antes se a internet voltar (não faz ninguém esperar à toa). */
+function dormir(ms) {
+  return new Promise((ok) => {
+    const fim = () => { clearTimeout(t); window.removeEventListener('online', fim); ok(); };
+    const t = setTimeout(fim, ms);
+    window.addEventListener('online', fim);
+  });
+}
+async function pedirComTempo(url, opt) {
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  const t = ctl ? setTimeout(() => ctl.abort(), TEMPO_MAX_PEDIDO) : null;
+  try { return await fetch(url, ctl ? { ...opt, signal: ctl.signal } : opt); }
+  finally { if (t) clearTimeout(t); }
+}
+const ERRO_SEM_REDE = 'Sem conexão com o servidor. Confira a internet e tente de novo.';
+const ERRO_FORA = 'O sistema está reiniciando e não conseguiu salvar agora. Nada se perdeu — tente de novo em alguns segundos.';
+
+async function api(method, path, body, o = {}) {
+  let tentativa = 0, esperou = false, r;
+  try {
+    for (;;) {
+      const opt = { method, headers: await authCabecalhos() };     // token novo a cada volta (pode ter renovado)
+      if (body) opt.body = JSON.stringify(body);
+      let caiu = false;
+      try { r = await pedirComTempo('/api' + path, opt); } catch { caiu = true; r = null; }
+      if (o.repetir !== false && P.deveRepetir(method, r?.status, caiu)) {
+        const espera = P.proximaEspera(tentativa, Math.random());
+        if (espera !== null) {
+          tentativa++;
+          if (!esperou) { esperou = true; _esperandoServidor++; }
+          faixaAcordando(tentativa);
+          await dormir(espera);
+          continue;
+        }
+      }
+      if (caiu) throw new TypeError(ERRO_SEM_REDE);              // TypeError = "sem rede" para a fila do desfecho
+      break;
+    }
+  } finally {
+    if (esperou) { _esperandoServidor--; faixaAcordando(tentativa); }
+  }
+  if (esperou && r?.ok && _esperandoServidor === 0) toast('O sistema voltou — tudo certo de novo ✅');
+  if (P.servidorFora(r.status)) throw Object.assign(new Error(ERRO_FORA), { status: r.status, fora: true });
   const data = await r.json().catch(() => ({}));
   /* Sessão (padrão comum, item 9): desativado no meio do uso → volta ao login
      com o aviso; falta o código das duas etapas → pede o código; sem a Agenda
@@ -75,7 +132,7 @@ async function api(method, path, body) {
     contaExigirMfa().then((ok) => { if (ok) location.reload(); });
     throw Object.assign(new Error(data.erro), { parar: true, codigo: data.codigo });
   }
-  if (r.status === 401) { mostrarLogin('Sua sessão expirou. Entre de novo.'); throw new Error('Sessão expirada'); }
+  if (r.status === 401) { mostrarLogin('Sua sessão expirou. Entre de novo — o que você estava digitando ficou guardado.'); throw Object.assign(new Error('Sessão expirada'), { parar: true }); }
   if (r.status === 403 && data.codigo === 'desativado') {
     try { await sb?.auth?.signOut(); } catch { /* sai mesmo assim */ }
     mostrarLogin(data.erro || 'Seu acesso foi desativado.');
@@ -86,6 +143,8 @@ async function api(method, path, body) {
     throw Object.assign(new Error(data.erro), { parar: true, codigo: data.codigo });
   }
   if (!r.ok) { const e = new Error(data.erro || 'Erro na requisição'); e.status = r.status; e.codigo = data.codigo; throw e; }
+  // gravou alguma coisa: o painel guardado do Início deixa de valer
+  if (method !== 'GET') { esquecerCacheInicio(); _contagensEm = 0; }
   return data;
 }
 
@@ -105,6 +164,9 @@ function toast(msg, type = 'ok', opts = {}) {
   clearTimeout(_toastTimer);
   t.className = 'toast';
   t.textContent = '';
+  // erro é anunciado na hora pelo leitor de tela (alert); recado comum espera a vez (status)
+  t.setAttribute('role', type === 'err' ? 'alert' : 'status');
+  t.setAttribute('aria-live', type === 'err' ? 'assertive' : 'polite');
   const ico = document.createElement('span');
   ico.className = 'toast-ico'; ico.textContent = type === 'err' ? '✕' : '✓';
   const txt = document.createElement('span');
@@ -433,28 +495,99 @@ function sairDoCartao(card) {
 }
 
 const RECADO_DESFECHO = {
-  concluido:  (n) => `${n}: veio e fechou — foi para o CRM como Concluído`,
+  concluido:  (n, v) => `${n}: veio e fechou${v ? ' — ' + P.reais(v) : ''} — foi para o CRM como Concluído`,
   nao_fechou: (n) => `${n}: veio e não fechou — registrado no CRM`,
 };
+
+/* ---------------------------------------------------------------------------
+   VALOR AO CONCLUIR (rodada 4) — "Veio e fechou" pergunta o valor do serviço,
+   OPCIONAL, com uma sugestão (orçamento aprovado, valor do horário, orçado no
+   CRM ou a média do mesmo serviço). Vai junto com o status: o gatilho do banco
+   copia para leads.valor_pago e o faturamento do CRM deixa de nascer zerado.
+   Fechar sem valor continua valendo: o gestor completa depois em Pendências.
+   Resolve { valor } (número ou null) ou null se a pessoa desistiu.
+   --------------------------------------------------------------------------- */
+function pedirValorAoFechar(id, nome, servico) {
+  return new Promise((resolver) => {
+    let feito = false;
+    const fim = (v) => { if (feito) return; feito = true; resolver(v); };
+    openModal(`
+      <div class="modal-head"><h3>${svg(I.check)} Veio e fechou</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+      <div class="modal-body">
+        <p class="remarcar-quem"><b>${esc(nome)}</b>${servico ? ` · ${esc(servico)}` : ''}</p>
+        <div class="field"><label for="vf_valor">Valor do serviço <small class="muted">(opcional)</small></label>
+          <div class="campo-valor"><span aria-hidden="true">R$</span>
+            <input id="vf_valor" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-describedby="vf_dica vf_erro"></div></div>
+        <p class="aviso-campo" id="vf_erro" role="alert" hidden>${svg(I.alerta)} <span></span></p>
+        <div class="sugestoes" id="vf_sug" aria-live="polite"><span class="muted">Procurando uma sugestão…</span></div>
+        <small class="muted" id="vf_dica">Vai para o faturamento do CRM. Sem valor, o gestor completa depois em Pendências.</small>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="vf_sem">Fechar sem valor</button>
+        <button class="btn primary" id="vf_ok">${svg(I.check)} Confirmar</button>
+      </div>`);
+    _aoFecharModal = () => fim(null);                          // Esc, ×, clique fora: desistiu
+    const campo = $('#vf_valor'), ok = $('#vf_ok');
+    const rotular = () => {
+      const v = P.valorDeTela(campo.value);
+      ok.innerHTML = `${svg(I.check)} ${Number.isFinite(v) && v > 0 ? 'Fechar com ' + esc(P.reais(v)) : 'Confirmar'}`;
+      $('#vf_erro').hidden = true;
+    };
+    campo.addEventListener('input', () => { const c = campo.value, m = P.mascaraValor(c); if (m !== c) campo.value = m; rotular(); });
+    const confirmar = () => {
+      const v = P.valorDeTela(campo.value);
+      if (Number.isNaN(v) || (v !== null && (v < 0 || v > 200000))) {
+        const e = $('#vf_erro'); e.hidden = false; $('span', e).textContent = 'Valor inválido: use só números, ex.: 350 ou 1.250,00.';
+        return campo.focus();
+      }
+      _aoFecharModal = null; closeModal(); fim({ valor: v && v > 0 ? v : null });
+    };
+    campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmar(); } });
+    ok.addEventListener('click', confirmar);
+    $('#vf_sem').addEventListener('click', () => { _aoFecharModal = null; closeModal(); fim({ valor: null }); });
+    setTimeout(() => campo.focus(), 40);
+    // sugestão: não segura nada — sem rede, a caixa só some
+    api('GET', `/agendamentos/${id}/valor-sugerido`, null, { repetir: false }).then((s) => {
+      const box = $('#vf_sug'); if (!box || feito) return;
+      if (!s || !(s.valor > 0)) { box.innerHTML = '<span class="muted">Sem sugestão para este serviço.</span>'; return; }
+      // orçamento aprovado e valor já anotado são confiáveis: entram no campo; os outros ficam como botão
+      if (['orcamento', 'agendamento'].includes(s.fonte) && !campo.value) {
+        campo.value = String(s.valor.toFixed(2)).replace('.', ','); rotular(); campo.select();
+      }
+      box.innerHTML = `<button type="button" class="chip-sugestao" id="vf_usar" aria-label="Usar a sugestão ${esc(P.reais(s.valor))}">✨ ${esc(P.reais(s.valor))}</button>
+        <small class="muted">${esc(s.rotulo || 'sugestão')}</small>`;
+      $('#vf_usar').addEventListener('click', () => { campo.value = String(s.valor.toFixed(2)).replace('.', ','); rotular(); campo.focus(); });
+    }).catch(() => { const box = $('#vf_sug'); if (box) box.innerHTML = ''; });
+  });
+}
+
 async function marcarDesfecho(card, id, act) {
   const anterior = card.dataset.status;
   const nome = card.dataset.nome || 'Cliente';
+  let valor = null;
+  if (act === 'concluido') {
+    const escolha = await pedirValorAoFechar(id, nome, $('.appt-servico', card)?.textContent || '');
+    if (!escolha) return;                                      // desistiu: nada muda
+    valor = escolha.valor;
+  }
   const botoes = $$('.act', card);
   botoes.forEach(b => { b.disabled = true; });
   card.classList.add('ocupado');
   let r;
-  /* Sem internet (ou a rede caiu no meio): o desfecho vai para a fila do
-     aparelho e sai sozinho quando a conexão voltar — nada de marcar de novo. */
-  const semRede = (e) => navigator.onLine === false || e instanceof TypeError;
+  /* Sem internet, a rede caiu no meio ou o servidor está fora (502/503/504):
+     o desfecho vai para a fila do aparelho e sai sozinho quando o servidor
+     voltar — nada de marcar de novo. Repetir é seguro: o status é o mesmo, e o
+     "Não veio" tem o carimbo que impede um segundo WhatsApp. */
+  const semRede = (e) => navigator.onLine === false || e instanceof TypeError || e?.fora === true;
   try {
     if (navigator.onLine === false) throw new TypeError('offline');
-    r = await api('PATCH', `/agendamentos/${id}/status`, { status: act });
+    r = await api('PATCH', `/agendamentos/${id}/status`, valor ? { status: act, valor } : { status: act });
   }
   catch (e) {
     if (semRede(e)) {
-      enfileirar(id, act, nome);
+      enfileirar(id, act, nome, valor);
       card.classList.remove('ocupado'); card.classList.add('na-fila');
-      return toast(`Sem internet: guardei "${act === 'concluido' ? 'Veio e fechou' : act === 'nao_veio' ? 'Não veio' : 'Veio e não fechou'}" de ${nome}. Envio sozinho quando a conexão voltar.`);
+      return toast(`Sem conexão: guardei "${act === 'concluido' ? 'Veio e fechou' : act === 'nao_veio' ? 'Não veio' : 'Veio e não fechou'}" de ${nome}${valor ? ' (' + P.reais(valor) + ')' : ''}. Envio sozinho quando o sistema voltar.`);
     }
     botoes.forEach(b => { b.disabled = false; });
     card.classList.remove('ocupado');
@@ -473,7 +606,7 @@ async function marcarDesfecho(card, id, act) {
        cliente. Para voltar a "Não veio", o botão do cartão continua lá (na busca). */
     const podeDesfazer = anterior && anterior !== act && anterior !== 'nao_veio' && STATUS_LABEL[anterior];
     // sem lead_id (agendamento sem telefone → sem cliente → sem lead) nada foi para o CRM
-    const recado = r.lead_id ? RECADO_DESFECHO[act](nome)
+    const recado = r.lead_id ? RECADO_DESFECHO[act](nome, valor)
       : `${nome}: ${act === 'concluido' ? 'veio e fechou' : 'veio e não fechou'} — marcado aqui (sem ficha no CRM: agendamento sem telefone)`;
     toast(recado, 'ok', podeDesfazer ? { acao: { rotulo:'Desfazer', fn: async () => {
       await api('PATCH', `/agendamentos/${id}/status`, { status: anterior });
@@ -561,8 +694,8 @@ const VAZIO_HOJE = {                       // Início (quem fecha a venda)
   faltaram:  [I.check, 'Nenhuma falta marcada hoje', 'Quem for marcado como "Não veio" fica aqui, para remarcar.'],
 };
 const VAZIO_DIA = {                        // modo presença (quem só marca a chegada)
-  agendados: [I.relogio, 'Ninguém esperando', 'Quando o cliente chegar, toque em "Compareceu" no cartão dele.'],
-  chegaram:  [I.check, 'Ninguém chegou ainda', 'Ao tocar em "Compareceu", o cliente vem para cá.'],
+  agendados: [I.relogio, 'Ninguém esperando', 'Quando o cliente chegar, toque em "Chegou" no cartão dele.'],
+  chegaram:  [I.check, 'Ninguém chegou ainda', 'Ao tocar em "Chegou", o cliente vem para cá.'],
   faltaram:  [I.check, 'Nenhuma falta marcada hoje', 'Quem for marcado como "Não veio" fica aqui.'],
 };
 
@@ -638,11 +771,38 @@ document.addEventListener('visibilitychange', repintarSePuder);
 
 const CHAVES_CARDS = ['totalHoje', 'compareceram', 'naoVieram', 'naoFechou'];
 
+/* VELOCIDADE DO INÍCIO (rodada 4): o último painel carregado fica guardado
+   nesta ABA (sessionStorage — some ao fechar a aba e ao sair da conta) por até
+   15 min. Abrir o Início pinta isso NA HORA, com a marca "atualizando…", e o
+   painel novo entra por cima em silêncio quando chega. */
+const CACHE_INICIO = 'indycar_inicio_v1';
+function lerCacheInicio() {
+  try {
+    const c = JSON.parse(sessionStorage.getItem(CACHE_INICIO) || 'null');
+    if (!c || c.uid !== state.perfil?.id || c.dia !== agoraSP().data || Date.now() - c.em > 15 * 60_000) return null;
+    return c.d;
+  } catch { return null; }
+}
+function gravarCacheInicio(d) {
+  try { sessionStorage.setItem(CACHE_INICIO, JSON.stringify({ uid: state.perfil?.id, dia: d.data, em: Date.now(), d })); } catch { /* cheio/bloqueado: segue sem */ }
+}
+const esquecerCacheInicio = () => { try { sessionStorage.removeItem(CACHE_INICIO); } catch { /* ok */ } };
+
 async function renderInicio(opts = {}) {
+  const guardado = !opts.quieto ? lerCacheInicio() : null;
+  if (guardado) {
+    state._inicio = guardado;
+    pintarInicio(guardado, { ...opts, doCache: true });
+    state._repintar = () => { if (state.route === 'inicio' && state._inicio) pintarInicio(state._inicio, { quieto: true }); };
+  }
   const d = await api('GET', '/dashboard');
   if (opts.vez && opts.vez !== state._vez) return;        // o usuário já foi para outra tela
+  gravarCacheInicio(d);
   state._inicio = d;
-  pintarInicio(d, opts);
+  // não troca a tela debaixo de quem já está mexendo nela (modal aberto, cartão ocupado):
+  // o relógio da tela repinta com o dado novo no próximo minuto
+  if (guardado && ($('#modalOverlay.open') || $('.appt.ocupado, .appt.saindo'))) return;
+  pintarInicio(d, guardado ? { quieto: true } : opts);
   state._repintar = () => { if (state.route === 'inicio' && state._inicio) pintarInicio(state._inicio, { quieto: true }); };
 }
 
@@ -693,6 +853,8 @@ function pintarInicio(d, opts = {}) {
         ${c.semTelefone30d > 0 ? `<button type="button" class="chip-aviso" id="chipSemTel"
             title="Sem telefone o cliente não recebe lembrete nem pós-venda. Toque para ver e corrigir.">
             ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
+        <span class="chips-gestor" id="chipsGestor"></span>
+        ${opts.doCache ? '<small class="marca-cache" aria-live="polite">mostrando o último painel · atualizando…</small>' : ''}
       </div>
       ${prox ? `<div class="hero-prox">
         <span class="h">${esc(prox.hora)}</span>
@@ -716,12 +878,13 @@ function pintarInicio(d, opts = {}) {
           <button type="button" class="icon-btn so-tela" id="btnImprimir" title="Imprimir a folha do dia"
                   aria-label="Imprimir a folha do dia">${svg(I.imprimir)}</button>
         </div>
-        <div class="tabs tabs-hoje" id="tabsHoje">
+        <div class="tabs tabs-hoje" id="tabsHoje" role="tablist" aria-label="Agenda de hoje">
           ${abas.map(([chave, rotulo, ico]) =>
-            `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
+            `<button type="button" role="tab" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}"
+               aria-selected="${state.hojeTab === chave}" aria-controls="agendaHoje" tabindex="${state.hojeTab === chave ? 0 : -1}">
                ${svg(ico)} ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`).join('')}
         </div>
-        <div class="panel-body lista" id="agendaHoje" data-saida="tudo"></div>
+        <div class="panel-body lista" id="agendaHoje" data-saida="tudo" role="tabpanel"></div>
       </div>
       <div class="panel">
         <div class="panel-head">
@@ -734,26 +897,25 @@ function pintarInicio(d, opts = {}) {
 
   // Pinta só o corpo do painel ao trocar de aba — sem voltar ao servidor.
   const pintarHoje = (animar) => {
-    $$('#tabsHoje .tab').forEach(b => b.classList.toggle('active', b.dataset.hojeTab === state.hojeTab));
+    $$('#tabsHoje .tab').forEach(b => {
+      const at = b.dataset.hojeTab === state.hojeTab;
+      b.classList.toggle('active', at); b.setAttribute('aria-selected', String(at)); b.tabIndex = at ? 0 : -1;
+    });
     const lista = grupos[state.hojeTab] || [];
     const box = $('#agendaHoje');
     pintarLista(box, lista.length ? lista.map(a => appointmentCard(a, { agora })).join('')
       : vazio(...VAZIO_HOJE[state.hojeTab]), animar);
     bindApptActions(box);
   };
-  $$('#tabsHoje .tab').forEach(b => b.addEventListener('click', () => {
-    if (state.hojeTab === b.dataset.hojeTab) return;
-    state.hojeTab = b.dataset.hojeTab;
-    pintarHoje(true);
-    moverTinta($('#tabsHoje'));
-  }));
+  // clique e setas do teclado (abas acessíveis)
+  ligarAbas($('#tabsHoje'), (k) => { state.hojeTab = k; pintarHoje(true); moverTinta($('#tabsHoje')); });
   pintarHoje(!opts.quieto);
   moverTinta($('#tabsHoje'), true);
   pintarLista($('#ultimos'), htmlUltimos, !opts.quieto);
   bindApptActions($('#ultimos'));
   // Folha do dia: a impressão (styles.css › @media print) mostra só a agenda de hoje,
   // em ordem de horário, com os três grupos — sem botões, sem menu, sem números.
-  $('#btnImprimir')?.addEventListener('click', () => imprimirFolhaDoDia(d));
+  $('#btnImprimir')?.addEventListener('click', () => abrirImpressao(d));
   // o chip leva para a Agenda já filtrada em "só sem telefone"
   $('#chipSemTel')?.addEventListener('click', () => { state.agendaQ = ''; state.agendaSemTel = true; route('agenda'); });
 
@@ -764,28 +926,62 @@ function pintarInicio(d, opts = {}) {
     });
   } else if (!opts.quieto) animarNumeros(view);
   state._cards = c;
+  if (state.contagens) pintarContagens(state.contagens);   // chips do gestor sem esperar outra chamada
 }
-/* Folha do dia imprimível: monta uma lista limpa de TODOS os horários de hoje
-   (agendados, na oficina, não vieram), em ordem, e chama a impressão. A folha
-   fica numa <div class="folha"> escondida na tela e visível só no @media print. */
-function imprimirFolhaDoDia(d) {
-  // TODOS os horários de hoje, inclusive quem já teve desfecho — no papel, o dia inteiro conta
-  const todos = (d.agendaHoje || []).slice().sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
+/* FOLHA DO DIA (rodada 4): escolhe o dia (hoje, amanhã ou outra data) e se vai
+   telefone; a folha sai numerada, em ordem de hora, com consultor, observação
+   curta e as colunas "Chegou?" e "Fechou?" para marcar à mão. Cabeçalho da
+   tabela repete em cada página e linha não quebra no meio. */
+function abrirImpressao(d) {
+  const hoje = agoraSP().data, amanha = P.dia(hoje, 1);
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.imprimir)} Imprimir a folha do dia</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-body">
+      <fieldset class="escolha-dia"><legend>Qual dia?</legend>
+        <label><input type="radio" name="fd_dia" value="${hoje}" checked> Hoje</label>
+        <label><input type="radio" name="fd_dia" value="${amanha}"> Amanhã (${esc(rotuloDia(amanha, hoje))})</label>
+        <label><input type="radio" name="fd_dia" value="outro"> Outro dia <input type="date" id="fd_data" value="${amanha}" aria-label="Escolher a data"></label>
+      </fieldset>
+      <label class="pref"><input type="checkbox" id="fd_tel" checked><span><b>Incluir o telefone</b><small>desmarque se a folha fica à vista no balcão</small></span></label>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" id="fd_ok">${svg(I.imprimir)} Imprimir</button></div>`);
+  $('#fd_data').addEventListener('focus', () => { $('input[name="fd_dia"][value="outro"]').checked = true; });
+  $('#fd_ok').addEventListener('click', async () => {
+    const esc1 = $('input[name="fd_dia"]:checked').value;
+    const data = esc1 === 'outro' ? $('#fd_data').value : esc1;
+    if (!data) return toast('Escolha a data', 'err');
+    const b = $('#fd_ok'); b.disabled = true;
+    try {
+      const lista = data === hoje && d?.agendaHoje ? d.agendaHoje : await api('GET', '/agendamentos?data=' + encodeURIComponent(data));
+      const tel = $('#fd_tel').checked;
+      closeModal();
+      imprimirFolha(lista, data, { telefone: tel });
+    } catch (e) { toast(e.message, 'err'); b.disabled = false; }
+  });
+}
+function imprimirFolha(listaDia, data, o = {}) {
+  // TODOS os horários do dia, inclusive quem já teve desfecho — no papel, o dia inteiro conta
+  const todos = P.linhasDaFolha((listaDia || []).filter(a => a.status !== 'cancelado'));
+  const comTel = o.telefone !== false && todos.some(a => a.telefone);
   let folha = $('#folhaDia');
   if (!folha) { folha = document.createElement('div'); folha.id = 'folhaDia'; folha.className = 'folha'; document.body.append(folha); }
   const sit = (a) => seloDoCartao(a)[1];
+  const obs = (a) => String(a.observacoes || '').replace(/\s+/g, ' ').slice(0, 60);
   folha.innerHTML = `
     <h1>${esc(state.empresa?.nome || 'IndyCar')} — Agenda do dia</h1>
-    <p class="folha-sub">${esc(dataExtenso(d.data))} · ${todos.length} ${todos.length === 1 ? 'horário' : 'horários'} · impresso às ${esc(agoraSP().hm)}</p>
+    <p class="folha-sub">${esc(dataExtenso(data))} · ${todos.length} ${todos.length === 1 ? 'horário' : 'horários'} · impresso às ${esc(agoraSP().hm)}</p>
     ${todos.length ? `<table>
-      <thead><tr><th>Hora</th><th>Cliente</th><th>Carro / placa</th><th>Serviço</th><th>Telefone</th><th>Situação</th><th>Veio?</th></tr></thead>
+      <thead><tr><th>#</th><th>Hora</th><th>Cliente</th><th>Carro / placa</th><th>Serviço</th><th>Consultor</th>${comTel ? '<th>Telefone</th>' : ''}<th>Situação</th><th>Chegou?</th><th>Fechou?</th></tr></thead>
       <tbody>${todos.map(a => `<tr>
-        <td class="h">${esc(a.hora)}</td><td><b>${esc(a.cliente_nome)}</b></td>
+        <td class="n">${a.n}</td><td class="h">${esc(a.hora)}</td><td><b>${esc(a.cliente_nome)}</b>${obs(a) ? `<br><small>${esc(obs(a))}</small>` : ''}</td>
         <td>${esc([a.veiculo, a.placa].filter(Boolean).join(' · ') || '—')}</td>
-        <td>${esc(a.servico)}</td><td>${esc(mascaraTelefone(a.telefone) || '—')}</td>
-        <td>${esc(sit(a))}</td><td class="caixa">☐</td></tr>`).join('')}</tbody>
-    </table>` : '<p>Nenhum horário marcado para hoje.</p>'}
-    ${todos.length ? (() => { const r = P.resumo(todos); return `<p class="folha-resumo"><b>Resumo do dia:</b> ${r.total} marcados · ${r.veio} vieram · ${r.fechou} fecharam · ${r.naoFechou} não fecharam · ${r.faltou} faltaram · ${r.pendentes} ainda sem desfecho</p>`; })() : ''}
+        <td>${esc(a.servico)}</td><td>${esc(a.consultor_nome || '—')}</td>
+        ${comTel ? `<td>${esc(mascaraTelefone(a.telefone) || '—')}</td>` : ''}
+        <td>${esc(sit(a))}</td><td class="caixa">☐</td><td class="caixa">☐</td></tr>`).join('')}</tbody>
+    </table>` : '<p>Nenhum horário marcado para este dia.</p>'}
+    ${todos.length ? (() => { const r = P.resumo(todos); return `<p class="folha-resumo"><b>Resumo:</b> ${r.total} marcados · ${r.veio} vieram · ${r.fechou} fecharam · ${r.naoFechou} não fecharam · ${r.faltou} faltaram · ${r.pendentes} ainda sem desfecho</p>`; })() : ''}
+    <p class="folha-assina">Conferido por: ________________________________ &nbsp; Horário: ________</p>
     <p class="folha-pe">Quem conhece, Indyca! 🏎</p>`;
   document.body.classList.add('imprimindo-folha');
   const limpar = () => { document.body.classList.remove('imprimindo-folha'); window.removeEventListener('afterprint', limpar); };
@@ -955,38 +1151,53 @@ function bindCliRows() {
 async function renderEquipe() {
   /* Consultores = quem atende o carro na recepção. Cada um pode ser ligado a
      um LOGIN (perfis): é isso que liga "Minha agenda", a tarefa automática para
-     a pessoa certa e o aviso de atraso. Carga de hoje e de amanhã ao lado. */
-  const amanha = (() => { const d = new Date(`${agoraSP().data}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
-  const [list, cargaHoje, cargaAmanha, nomes] = await Promise.all([
+     a pessoa certa e o aviso de atraso.
+     RODADA 4: "Ligar a …" com UM clique quando o sistema reconhece a pessoa
+     pelo nome; carga dos próximos 7 dias em barrinhas; "Distribuir" os
+     horários de hoje/amanhã sem consultor para quem tem menos carros. */
+  const hoje = agoraSP().data, amanha = P.dia(hoje, 1);
+  const gestor = document.body.classList.contains('gestor');
+  const [list, semana, nomes, sugestoes] = await Promise.all([
     api('GET', '/consultores'),
-    api('GET', '/consultores/carga?data=' + agoraSP().data).catch(() => null),
-    api('GET', '/consultores/carga?data=' + amanha).catch(() => null),
-    api('GET', '/equipe/nomes').catch(() => []),
+    api('GET', `/agendamentos?de=${hoje}&ate=${P.dia(hoje, 6)}`).catch(() => []),
+    gestor ? api('GET', '/equipe/nomes').catch(() => []) : [],
+    gestor ? api('GET', '/consultores/sugestoes-login').catch(() => []) : [],
   ]);
   state.consultores = list;
-  const de = (c, carga) => carga?.consultores?.find(x => x.id === c.id)?.total ?? 0;
+  const carga = P.cargaSemana(semana, hoje, 7);
+  const de = (id, i) => (carga[id] || [])[i] || 0;
   const login = (c) => nomes.find(n => n.id === c.perfil_id)?.nome;
-  const semCons = (cargaHoje?.sem_consultor || 0);
+  const sug = (c) => sugestoes.find(s => s.consultor_id === c.id);
+  const semHoje = carga.sem[0], semAmanha = carga.sem[1];
+  const maxDia = Math.max(1, ...Object.entries(carga).filter(([k]) => k !== 'datas').flatMap(([, v]) => v));
+  const barras = (id) => `<span class="carga-semana" role="img" aria-label="Próximos 7 dias: ${carga.datas.map((d, i) => `${rotuloDia(d, hoje)} ${de(id, i)}`).join(', ')}">
+      ${carga.datas.map((d, i) => `<i style="--h:${Math.round(de(id, i) / maxDia * 100)}%" title="${esc(rotuloDia(d, hoje))}: ${de(id, i)}"></i>`).join('')}</span>`;
   view.innerHTML = `
     <div class="toolbar"><div class="left"><h2 style="font-size:18px">Equipe / Consultores</h2>
-      ${semCons ? `<span class="badge-pill bp-orange" title="Horários de hoje sem consultor">${semCons} hoje sem consultor</span>` : ''}</div>
-      <button class="btn primary so-gestor" onclick="openConsultorModal()">${svg(I.plus)} Novo consultor</button></div>
+      ${semHoje ? `<span class="badge-pill bp-orange" title="Horários de hoje sem consultor">${semHoje} hoje sem consultor</span>` : ''}</div>
+      <div class="left">
+        ${gestor && (semHoje || semAmanha) ? `<button class="btn" id="btnDistribuir" title="Dá os horários sem consultor para quem tem menos carros (sem dois no mesmo horário)">${svg(I.user)} Distribuir ${semHoje + semAmanha} sem consultor</button>` : ''}
+        <button class="btn primary so-gestor" onclick="openConsultorModal()">${svg(I.plus)} Novo consultor</button></div></div>
     <div class="panel"><div class="tabela-rolagem"><table class="table"><thead><tr>
-      <th>Consultor</th><th>Login</th><th>Hoje</th><th>Amanhã</th><th>Status</th><th></th></tr></thead>
+      <th scope="col">Consultor</th><th scope="col">Login</th><th scope="col">Hoje</th><th scope="col">Amanhã</th><th scope="col">Próx. 7 dias</th><th scope="col">Status</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
       <tbody>${list.length ? list.map(c => `<tr data-id="${esc(c.id)}">
         <td><span style="display:inline-flex;align-items:center;gap:9px">
-          <i style="width:12px;height:12px;border-radius:50%;background:${esc(c.cor)};display:inline-block"></i>
+          <i style="width:12px;height:12px;border-radius:50%;background:${esc(c.cor)};display:inline-block" aria-hidden="true"></i>
           <b>${esc(c.nome)}</b></span>${c.telefone ? `<br><small class="muted">${esc(mascaraTelefone(c.telefone))}</small>` : ''}</td>
         <td>${login(c) ? `<span class="badge-pill bp-green" title="Ligado ao login: Minha agenda, tarefas e avisos vão para esta pessoa">${esc(login(c))}</span>`
+          : sug(c) ? `<button type="button" class="btn mini primary" data-ligar="${esc(c.id)}" data-perfil="${esc(sug(c).perfil_id)}" data-nome="${esc(sug(c).nome)}"
+              title="O sistema reconheceu a pessoa pelo nome — confira e ligue com um clique">${svg(I.chave)} Ligar a ${esc(sug(c).nome)}</button>`
           : '<span class="muted" title="Sem login ligado: tarefas automáticas vão para o gestor">—</span>'}</td>
-        <td><span class="carga-chip">${de(c, cargaHoje)} ${de(c, cargaHoje) === 1 ? 'carro' : 'carros'}</span></td>
-        <td><span class="carga-chip">${de(c, cargaAmanha)}</span></td>
-        <td><span class="badge-pill ${c.ativo?'bp-green':'bp-gray'}">${c.ativo?'Ativo':'Inativo'}</span></td>
+        <td><span class="carga-chip">${de(c.id, 0)} ${de(c.id, 0) === 1 ? 'carro' : 'carros'}</span></td>
+        <td><span class="carga-chip">${de(c.id, 1)}</span></td>
+        <td>${barras(c.id)}</td>
+        <td><span class="badge-pill ${c.ativo ? 'bp-green' : 'bp-gray'}">${c.ativo ? 'Ativo' : 'Inativo'}</span></td>
         <td><div class="actions">
           <button class="icon-btn so-gestor" data-act="edit" title="Editar" aria-label="Editar ${esc(c.nome)}">${svg(I.edit)}</button>
           <button class="icon-btn red so-gestor" data-act="del" title="Excluir" aria-label="Excluir ${esc(c.nome)}">${svg(I.trash)}</button>
         </div></td></tr>`).join('')
-        : `<tr><td colspan="6">${vazio(I.user, 'Nenhum consultor', 'Cadastre quem atende no balcão para ligar cada agendamento a uma pessoa.')}</td></tr>`}
+        : `<tr><td colspan="7">${vazio(I.user, 'Nenhum consultor', 'Cadastre quem atende no balcão para ligar cada agendamento a uma pessoa.')}</td></tr>`}
+      ${carga.sem.some(Boolean) ? `<tr class="muted"><td><b>Sem consultor</b></td><td>—</td><td>${semHoje}</td><td>${semAmanha}</td><td>${barras('sem')}</td><td></td><td></td></tr>` : ''}
       </tbody></table></div></div>
     <small class="muted">Ligue cada consultor ao login dele: o modal de agendamento já sugere o de menor carga no horário,
       e quem é consultor ganha o botão "Minha agenda".</small>`;
@@ -998,6 +1209,30 @@ async function renderEquipe() {
       try { await api('DELETE', `/consultores/${id}`); toast('Consultor excluído'); await loadConsultores(); renderEquipe(); }
       catch (e) { toast(e.message, 'err'); }
     });
+  });
+  // um clique liga consultor ↔ login (com Desfazer)
+  $$('[data-ligar]', view).forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      await api('PUT', `/consultores/${b.dataset.ligar}`, { perfil_id: b.dataset.perfil });
+      await loadConsultores();
+      toast(`Ligado a ${b.dataset.nome}: "Minha agenda", tarefas e avisos vão para essa pessoa`, 'ok', { acao: { rotulo: 'Desfazer', fn: async () => {
+        await api('PUT', `/consultores/${b.dataset.ligar}`, { perfil_id: null }); await loadConsultores(); toast('Desfeito — consultor sem login'); renderEquipe();
+      } } });
+      renderEquipe();
+    } catch (e) { b.disabled = false; toast(e.message, 'err'); }
+  }));
+  $('#btnDistribuir')?.addEventListener('click', async (ev) => {
+    const b = ev.currentTarget;
+    if (!confirm(`Distribuir ${semHoje + semAmanha} horários de hoje e amanhã sem consultor? Cada um vai para quem tem menos carros naquele dia.`)) return;
+    b.disabled = true;
+    try {
+      const [r1, r2] = await Promise.all([hoje, amanha].map(d => api('POST', '/consultores/distribuir', { data: d })));
+      const feitos = r1.atribuidos + r2.atribuidos, sobra = r1.sem_vaga + r2.sem_vaga;
+      toast(feitos ? `${feitos} ${feitos === 1 ? 'horário ganhou' : 'horários ganharam'} consultor${sobra ? ` · ${sobra} sem vaga (todos ocupados naquela hora)` : ''}`
+        : 'Nenhum horário coube: todos os consultores já têm carro naqueles horários', feitos ? 'ok' : 'err');
+      esquecerDias(); renderEquipe();
+    } catch (e) { b.disabled = false; toast(e.message, 'err'); }
   });
 }
 
@@ -1011,6 +1246,14 @@ async function renderCrm() {
       ${statCard('purple', d.taxaConversao+'%',    'Taxa de conversão', I.flag)}
       ${statCard('orange', d.concluidos,          'Concluídos', I.flag)}
     </div>
+    ${d.faturamento ? `<div class="panel faixa-faturamento">
+      <div class="panel-body fat-linha">
+        <div><small>Faturamento registrado na Agenda</small><b>${esc(P.reais(d.faturamento.soma))}</b>
+          <span class="muted">${d.faturamento.comValor} ${d.faturamento.comValor === 1 ? 'serviço' : 'serviços'} com valor · ticket médio ${esc(P.reais(d.faturamento.ticketMedio))}</span></div>
+        ${d.faturamento.semValor ? `<div class="fat-buraco"><b>${d.faturamento.semValor}</b> ${d.faturamento.semValor === 1 ? 'concluído sem valor' : 'concluídos sem valor'}
+          ${document.body.classList.contains('gestor') ? '<button type="button" class="btn mini primary" id="btnPreencherValores">Preencher</button>'
+            : '<small class="muted">o gestor completa em Pendências</small>'}</div>` : '<div class="fat-buraco ok">Todo concluído tem valor 🏁</div>'}
+      </div></div>` : ''}
     <div class="cols">
       <div class="panel"><div class="panel-head"><h2>${svg(I.pin)} Origem dos clientes</h2></div>
         <div class="panel-body">${d.porOrigem.length ? d.porOrigem.map(o => `
@@ -1021,11 +1264,265 @@ async function renderCrm() {
           </div>`).join('')
           : '<div class="empty">Sem dados.</div>'}</div></div>
       <div class="panel"><div class="panel-head"><h2>${svg(I.user)} Desempenho por consultor</h2></div>
-        <div class="panel-body tabela-rola"><table class="table"><thead><tr><th scope="col">Consultor</th><th scope="col">Agend.</th><th scope="col">Vieram</th><th scope="col">Faltas</th><th scope="col">Fecharam</th><th scope="col">Fechamento</th></tr></thead>
-        <tbody>${d.porConsultor.map(c => `<tr><th scope="row">${esc(c.nome)}${c.ativo === 0 ? ' <small class="muted">(inativo)</small>' : ''}</th><td>${c.total}</td><td>${c.vieram ?? '—'}</td><td>${c.faltas ?? '—'}</td><td>${c.concluidos||0}</td><td>${c.taxaFechamento ?? 0}%</td></tr>`).join('')}
-        ${d.semConsultor ? `<tr class="muted"><th scope="row">Sem consultor</th><td>${d.semConsultor}</td><td colspan="4">escolha o consultor no agendamento para contar aqui</td></tr>` : ''}
+        <div class="panel-body tabela-rola"><table class="table"><thead><tr><th scope="col">Consultor</th><th scope="col">Agend.</th><th scope="col">Vieram</th><th scope="col">Faltas</th><th scope="col">Fecharam</th><th scope="col">Fechamento</th><th scope="col">Faturado</th></tr></thead>
+        <tbody>${d.porConsultor.map(c => `<tr><th scope="row">${esc(c.nome)}${c.ativo === 0 ? ' <small class="muted">(inativo)</small>' : ''}</th><td>${c.total}</td><td>${c.vieram ?? '—'}</td><td>${c.faltas ?? '—'}</td><td>${c.concluidos||0}</td><td>${c.taxaFechamento ?? 0}%</td><td>${c.faturamento ? esc(P.reais(c.faturamento)) : '—'}</td></tr>`).join('')}
+        ${d.semConsultor ? `<tr class="muted"><th scope="row">Sem consultor</th><td>${d.semConsultor}</td><td colspan="5">escolha o consultor no agendamento para contar aqui</td></tr>` : ''}
         </tbody></table></div></div>
     </div>`;
+  $('#btnPreencherValores')?.addEventListener('click', () => route('pendencias'));
+}
+
+/* ============================================================================
+   PENDÊNCIAS (rodada 4, só gestor) — o que deixa o CRM incompleto:
+   1. Concluídos SEM VALOR: preenche ali mesmo (Enter salva); o servidor grava
+      no horário e no lead do CRM (valor_pago), que é o faturamento.
+   2. Horários de MAIS DE 7 DIAS sem desfecho: somem do Início e prendem o lead.
+      Aqui ganham os desfechos de sempre — e "Não veio" SEM avisar o cliente
+      (mandar "sentimos sua falta" semanas depois seria estranho).
+   Nada é migrado sozinho: quem decide cada um é a pessoa.
+   ============================================================================ */
+async function renderPendencias(opts = {}) {
+  if (!document.body.classList.contains('gestor')) {
+    view.innerHTML = vazio(I.cadeado, 'Só para o gestor', 'Esta tela é do gestor ou do administrador. Se precisar, peça para alguém com esse acesso.');
+    return;
+  }
+  const [vals, antigas] = await Promise.all([api('GET', '/valores/pendentes'), api('GET', '/pendencias-antigas')]);
+  if (opts.vez && opts.vez !== state._vez) return;
+  const itens = vals.itens || [];
+  state._preenchidoSessao = state._preenchidoSessao || 0;
+  const linhaValor = (a) => `<tr data-id="${esc(a.id)}">
+      <td>${esc(dataBR(a.data))}<br><small class="muted">${esc(a.hora)}</small></td>
+      <td><b>${esc(a.cliente_nome)}</b>${a.veiculo || a.placa ? `<br><small class="muted">${esc([a.veiculo, a.placa].filter(Boolean).join(' · '))}</small>` : ''}</td>
+      <td>${esc(a.servico)}${a.consultor_nome ? `<br><small class="muted">${esc(a.consultor_nome)}</small>` : ''}</td>
+      <td><div class="campo-valor mini"><span aria-hidden="true">R$</span>
+        <input inputmode="decimal" autocomplete="off" placeholder="0,00" data-valor="${esc(a.id)}" aria-label="Valor do serviço de ${esc(a.cliente_nome)} em ${esc(dataBR(a.data))}"></div></td>
+      <td><div class="actions">
+        <button type="button" class="icon-btn" data-sugerir="${esc(a.id)}" title="Sugerir valor" aria-label="Sugerir valor para ${esc(a.cliente_nome)}">✨</button>
+        <button type="button" class="btn mini primary" data-salvar="${esc(a.id)}">Salvar</button></div></td></tr>`;
+  const cartaoAntigo = (a, agora) => corpoDoCartao(a, agora, `
+      <button class="act green solido" data-act="concluido">${svg(I.check)} Veio e fechou</button>
+      <button class="act orange" data-act="nao_fechou">${svg(I.flag)} Veio e não fechou</button>
+      <button class="act red" data-antigo="nao_veio" title="Marca que não veio SEM mandar o WhatsApp de falta (o horário já passou faz tempo)">${svg(I.x)} Não veio (sem avisar)</button>
+      <span class="act-fim"><button class="act ico" data-act="editar" title="Editar" aria-label="Editar agendamento">${svg(I.edit)}</button></span>`);
+  const agora = agoraSP();
+  view.innerHTML = `
+    <div class="toolbar"><div class="left"><h2>Pendências</h2>
+      <span class="badge-pill bp-orange">${itens.length} sem valor</span>
+      <span class="badge-pill bp-gray">${antigas.length} antigos sem desfecho</span></div></div>
+    <div class="panel">
+      <div class="panel-head"><h2>${svg(I.money)} Concluídos sem valor</h2>
+        <span class="panel-sub">últimos ${esc(vals.dias)} dias · o valor vai para o faturamento do CRM</span>
+        <span class="panel-sub" id="pdTotal" aria-live="polite">${state._preenchidoSessao ? 'preenchido agora: ' + esc(P.reais(state._preenchidoSessao)) : ''}</span></div>
+      ${itens.length ? `<div class="tabela-rolagem"><table class="table tabela-valores"><thead><tr>
+          <th scope="col">Quando</th><th scope="col">Cliente</th><th scope="col">Serviço</th><th scope="col">Valor</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
+        <tbody id="pdValores">${itens.map(linhaValor).join('')}</tbody></table></div>`
+      : `<div class="panel-body">${vazio(I.check, 'Todo serviço concluído tem valor 🏁', 'Quando alguém fechar sem valor, ele aparece aqui para você completar.')}</div>`}
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>${svg(I.relogio)} Sem desfecho há mais de 7 dias</h2>
+        <span class="panel-sub">somem do Início e prendem o lead no CRM — marque o que aconteceu</span></div>
+      <div class="panel-body lista" id="pdAntigas" data-saida="tudo">${antigas.length ? antigas.map(a => cartaoAntigo(a, agora)).join('')
+        : vazio(I.check, 'Nada antigo pendente', 'Todo horário com mais de uma semana já tem desfecho.')}</div>
+    </div>`;
+
+  // ---- valores
+  $$('[data-valor]', view).forEach(inp => {
+    inp.addEventListener('input', () => { const m = P.mascaraValor(inp.value); if (m !== inp.value) inp.value = m; });
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); salvarValor(inp.dataset.valor); } });
+  });
+  $$('[data-salvar]', view).forEach(b => b.addEventListener('click', () => salvarValor(b.dataset.salvar)));
+  $$('[data-sugerir]', view).forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      const s = await api('GET', `/agendamentos/${b.dataset.sugerir}/valor-sugerido`);
+      const inp = $(`[data-valor="${b.dataset.sugerir}"]`);
+      if (s?.valor > 0 && inp) { inp.value = s.valor.toFixed(2).replace('.', ','); inp.focus(); toast(`Sugestão: ${P.reais(s.valor)} (${s.rotulo})`); }
+      else toast('Sem sugestão para este serviço — digite o valor', 'err');
+    } catch (e) { toast(e.message, 'err'); }
+    finally { b.disabled = false; }
+  }));
+  async function salvarValor(id) {
+    const inp = $(`[data-valor="${id}"]`), tr = inp?.closest('tr');
+    const v = P.valorDeTela(inp?.value);
+    if (!(v > 0)) { inp?.focus(); return toast('Digite o valor do serviço, ex.: 350 ou 1.250,00', 'err'); }
+    const b = $(`[data-salvar="${id}"]`); if (b) b.disabled = true;
+    try {
+      const r = await api('PUT', `/agendamentos/${id}/valor`, { valor: v });
+      state._preenchidoSessao += v;
+      $('#pdTotal').textContent = 'preenchido agora: ' + P.reais(state._preenchidoSessao);
+      toast(`${P.reais(v)} salvo${r.lead_atualizado ? ' — o CRM já conta no faturamento' : ''}`);
+      // vai para o próximo campo sem precisar de mouse
+      const prox = tr?.nextElementSibling?.querySelector('[data-valor]');
+      if (tr) { tr.classList.add('saindo-linha'); setTimeout(() => tr.remove(), 300); }
+      prox?.focus();
+      refreshBadge(true);
+    } catch (e) { toast(e.message, 'err'); if (b) b.disabled = false; }
+  }
+
+  // ---- antigos: desfechos de sempre + "Não veio" sem WhatsApp
+  const box = $('#pdAntigas');
+  bindApptActions(box);
+  $$('[data-antigo]', box).forEach(b => b.addEventListener('click', async () => {
+    const card = b.closest('.appt');
+    if (!confirm(`Marcar ${card.dataset.nome || 'o cliente'} como "Não veio"? Nenhuma mensagem é enviada.`)) return;
+    b.disabled = true;
+    try {
+      await api('PUT', `/agendamentos/${card.dataset.id}`, { status: 'nao_veio', avisar_cliente: false });
+      await sairDoCartao(card);
+      toast(`${card.dataset.nome || 'Cliente'}: marcado "Não veio" (sem mensagem)`);
+      refreshBadge(true);
+    } catch (e) { b.disabled = false; toast(e.message, 'err'); }
+  }));
+}
+
+/* ============================================================================
+   AJUDA E TOUR (rodada 4) — mais gente usando no dia a dia.
+   · Tour de boas-vindas curto, POR PAPEL, na primeira vez que a pessoa entra
+     (recepção: 4 passos; equipe: 5; gestor: +1). Fica marcado no perfil
+     (preferencias.agenda_tour) e no aparelho; a Ajuda abre de novo.
+   · Página de Ajuda: "como faço…" do papel, atalhos e o que pedir ao gestor.
+   ============================================================================ */
+const TOURS = {
+  presenca: [
+    { alvo: '#tabsHoje', titulo: 'Esta é a agenda de hoje', texto: 'Quem vai chegar fica em "Agendados". Quem chegou vai para "Já chegaram".' },
+    { alvo: '#agendaHoje [data-marca="compareceu"]', titulo: 'O cliente chegou?', texto: 'Toque em "Chegou". Errou? O recado embaixo tem "Desfazer".' },
+    { alvo: '#agendaHoje [data-marca="nao_veio"]', titulo: 'Não veio?', texto: 'Toque em "Não veio" e confirme. O cliente recebe uma mensagem de WhatsApp — por isso pede confirmação.' },
+    { alvo: '#recBusca', titulo: 'Procurar alguém', texto: 'Digite o nome ou a placa para achar o cliente rápido.' },
+    { alvo: '#recLetra', titulo: 'Letra maior', texto: 'Aumente a letra se estiver longe da tela. A escolha fica guardada.' },
+  ],
+  equipe: [
+    { alvo: '#btnNovo', titulo: 'Novo agendamento', texto: 'Marque um horário por aqui (ou tecla N). O sistema sugere horário livre e consultor.' },
+    { alvo: '#agendaHoje', titulo: 'Agenda de hoje', texto: 'Cada cartão tem os 3 desfechos: Veio e fechou, Não veio, Veio e não fechou. Quem tem desfecho sai daqui e vai para o CRM.' },
+    { alvo: '#agendaHoje [data-act="concluido"]', titulo: 'Veio e fechou', texto: 'Pede o valor do serviço (opcional) com uma sugestão. É ele que alimenta o faturamento do CRM.' },
+    { alvo: '#btnBusca', titulo: 'Buscar em tudo', texto: 'Ctrl+K acha agendamentos e clientes pelo nome, telefone, placa ou serviço.' },
+    { alvo: '#btnTarefas', titulo: 'Suas tarefas', texto: '"Confirmar com o cliente" e "Reagendar" chegam aqui sozinhas. O sino avisa atrasos.' },
+  ],
+  gestor: [
+    { alvo: '[data-route="pendencias"]', titulo: 'Pendências (só gestor)', texto: 'Concluídos sem valor e horários antigos sem desfecho. Complete por aqui para o CRM fechar a conta.' },
+  ],
+};
+const chaveTour = () => `indycar_tour_${state.perfil?.id || 'x'}`;
+function tourVisto() {
+  if (state.perfil?.preferencias?.agenda_tour) return true;
+  try { return localStorage.getItem(chaveTour()) === '1'; } catch { return false; }
+}
+function marcarTourVisto() {
+  try { localStorage.setItem(chaveTour(), '1'); } catch { /* ok */ }
+  if (state.perfil) state.perfil.preferencias = { ...(state.perfil.preferencias || {}), agenda_tour: true };
+  api('PUT', '/perfil', { preferencias: { agenda_tour: true } }, { repetir: false }).catch(() => { /* fica só no aparelho */ });
+}
+function passosDoTour() {
+  if (emPresenca()) return TOURS.presenca;
+  return [...TOURS.equipe, ...(document.body.classList.contains('gestor') ? TOURS.gestor : [])];
+}
+function talvezMostrarTour() {
+  if (tourVisto() || new URLSearchParams(location.search).get('tour') === '0') return;
+  setTimeout(() => { if (!modalAberto() && !document.body.classList.contains('deslogado')) abrirTour(); }, 900);
+}
+window.abrirTour = function abrirTour() {
+  fecharTour();
+  const passos = passosDoTour();
+  let i = 0;
+  const caixa = document.createElement('div');
+  caixa.className = 'tour'; caixa.id = 'tour';
+  caixa.setAttribute('role', 'dialog'); caixa.setAttribute('aria-labelledby', 'tourTitulo'); caixa.setAttribute('aria-describedby', 'tourTexto');
+  document.body.append(caixa);
+  const visivel = (el) => el && el.offsetParent !== null && el.getBoundingClientRect().width > 0;
+  const pintar = () => {
+    $$('.tour-alvo').forEach(x => x.classList.remove('tour-alvo'));
+    const p = passos[i];
+    const alvo = $(p.alvo);
+    const temAlvo = visivel(alvo);
+    if (temAlvo) { alvo.classList.add('tour-alvo'); alvo.scrollIntoView({ block: 'nearest', behavior: 'auto' }); }
+    caixa.innerHTML = `<div class="tour-passo">${i + 1} de ${passos.length}</div>
+      <h3 id="tourTitulo">${esc(p.titulo)}</h3><p id="tourTexto">${esc(p.texto)}</p>
+      <div class="tour-botoes"><button type="button" class="btn" id="tourPular">Pular</button>
+        ${i ? '<button type="button" class="btn" id="tourVoltar">Voltar</button>' : ''}
+        <button type="button" class="btn primary" id="tourProx">${i === passos.length - 1 ? 'Entendi 🏁' : 'Próximo'}</button></div>`;
+    // posiciona perto do alvo (embaixo, ou em cima se não couber); sem alvo, no centro
+    caixa.classList.toggle('centro', !temAlvo);
+    caixa.style.left = caixa.style.top = '';
+    if (temAlvo) {
+      const r = alvo.getBoundingClientRect(), w = Math.min(340, innerWidth - 24);
+      const x = Math.max(12, Math.min(innerWidth - w - 12, r.left + r.width / 2 - w / 2));
+      const embaixo = r.bottom + 12 + 190 < innerHeight;
+      caixa.style.width = w + 'px';
+      caixa.style.left = x + 'px';
+      caixa.style.top = (embaixo ? r.bottom + 12 : Math.max(12, r.top - 12 - (caixa.offsetHeight || 180))) + 'px';
+    }
+    $('#tourPular').addEventListener('click', () => { marcarTourVisto(); fecharTour(); });
+    $('#tourVoltar')?.addEventListener('click', () => { i--; pintar(); });
+    $('#tourProx').addEventListener('click', () => {
+      if (i === passos.length - 1) { marcarTourVisto(); fecharTour(); toast('Pronto! A Ajuda (tecla ?) mostra isso de novo.'); return; }
+      i++; pintar();
+    });
+    $('#tourProx').focus({ preventScroll: true });
+  };
+  caixa.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.stopPropagation(); marcarTourVisto(); fecharTour(); }
+    if (e.key === 'Tab') {                                     // foco preso na caixa do tour
+      const itens = $$('button', caixa); const k = itens.indexOf(document.activeElement);
+      if (e.shiftKey && k <= 0) { e.preventDefault(); itens[itens.length - 1].focus(); }
+      else if (!e.shiftKey && k === itens.length - 1) { e.preventDefault(); itens[0].focus(); }
+    }
+  });
+  pintar();
+};
+function fecharTour() {
+  $$('.tour-alvo').forEach(x => x.classList.remove('tour-alvo'));
+  $('#tour')?.remove();
+}
+
+const AJUDA = {
+  presenca: [
+    ['O cliente chegou', 'Toque em "Chegou" no cartão dele. Ele vai para "Já chegaram".'],
+    ['Marquei "Chegou" errado', 'Toque em "Desfazer" no recado que aparece embaixo, logo depois de marcar.'],
+    ['O cliente não veio', 'Toque em "Não veio" e confirme. Ele recebe uma mensagem de WhatsApp da oficina.'],
+    ['Não acho o cliente', 'Digite o nome ou a placa na busca do topo. Se não estiver na agenda de hoje, chame o atendimento.'],
+    ['A letra está pequena', 'Use os botões A / A+ / A++ no topo da tela.'],
+    ['Imprimir a folha do dia', 'Toque no ícone de impressora. Sai a lista do dia com a coluna "Chegou?" para marcar à mão.'],
+    ['Apareceu "sem conexão"', 'Pode continuar marcando: fica guardado no aparelho e é enviado quando o sistema voltar.'],
+  ],
+  equipe: [
+    ['Marcar um horário', 'Botão "Novo agendamento" (ou tecla N). Use "✨ Sugerir horário" e "Achar" para o telefone pelo nome.'],
+    ['Registrar o que aconteceu', 'No cartão: "Veio e fechou" (pede o valor, opcional), "Não veio" ou "Veio e não fechou". Quem tem desfecho sai do Início e vai para o CRM.'],
+    ['Fechei sem o valor', 'Tudo bem: o gestor completa em Pendências. Se souber depois, peça para ele.'],
+    ['Remarcar', 'Ícone de calendário no cartão, ou arraste o cartão para outro dia na Semana.'],
+    ['Ver a semana e a ocupação', 'Menu SEMANA (tecla S): Dia · Semana · Mês, com relatório e CSV.'],
+    ['Imprimir a folha do dia', 'Ícone de impressora em "Agenda de hoje": escolha hoje ou amanhã.'],
+    ['Apagar, exportar ou mudar configuração', 'Só o gestor ou o administrador. Se precisar, peça ao gestor.'],
+    ['Sem conexão no meio do uso', 'Os desfechos ficam guardados no aparelho (faixa laranja) e saem sozinhos quando o sistema voltar.'],
+  ],
+  gestor: [
+    ['Completar valores e horários antigos', 'Menu PENDÊNCIAS: valor dos concluídos (Enter salva e pula para o próximo) e "Não veio (sem avisar)" para os antigos.'],
+    ['Ligar consultor ao login', 'Menu EQUIPE: o botão "Ligar a …" aparece quando o sistema reconhece a pessoa. Assim "Minha agenda", tarefas e avisos vão para ela.'],
+    ['Distribuir horários sem consultor', 'Menu EQUIPE › "Distribuir": dá os horários do dia sem consultor para quem tem menos carros.'],
+  ],
+};
+const ATALHOS = [['N', 'novo agendamento'], ['S', 'semana'], ['Ctrl + K', 'buscar em tudo'], ['/', 'ir para a busca da tela'], ['?', 'esta ajuda'], ['Esc', 'fechar janela']];
+
+async function renderAjuda() {
+  const lista = emPresenca() ? AJUDA.presenca : [...AJUDA.equipe, ...(document.body.classList.contains('gestor') ? AJUDA.gestor : [])];
+  const papel = PAPEL_LABEL[state.perfil?.papel] || state.perfil?.papel || '';
+  view.innerHTML = `
+    <div class="toolbar"><div class="left"><h2>Ajuda</h2>${papel ? `<span class="badge-pill bp-gray">${esc(papel)}</span>` : ''}</div>
+      <div class="left">${emPresenca() ? `<button type="button" class="btn" id="btnVoltarRecepcao">← Voltar para a recepção</button>` : ''}
+      <button type="button" class="btn primary" id="btnRefazerTour">▶ Ver o tour de novo</button></div></div>
+    <div class="cols">
+      <div class="panel"><div class="panel-head"><h2>${svg(I.flag)} Como faço…</h2></div>
+        <div class="panel-body ajuda-lista">${lista.map(([p, r]) => `<details class="ajuda-item"><summary>${esc(p)}</summary><p>${esc(r)}</p></details>`).join('')}</div></div>
+      <div class="panel"><div class="panel-head"><h2>${svg(I.relogio)} ${emPresenca() ? 'Dicas' : 'Atalhos do teclado'}</h2></div>
+        <div class="panel-body">
+          ${emPresenca() ? '<p>A tela se atualiza sozinha a cada 2 minutos. Para ver um agendamento novo na hora, toque em "Atualizar".</p>'
+            : `<table class="table atalhos"><tbody>${ATALHOS.map(([k, d]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(d)}</td></tr>`).join('')}</tbody></table>`}
+          <p class="muted">Não achou o que precisava? ${document.body.classList.contains('gestor') ? 'Fale com o administrador.' : 'Peça ao gestor: algumas coisas (apagar, exportar, configurar) são só dele.'}</p>
+        </div></div>
+    </div>`;
+  $('#btnVoltarRecepcao')?.addEventListener('click', () => route('dia'));
+  $('#btnRefazerTour').addEventListener('click', () => {
+    // o tour mostra a tela de uso diário: volta para ela e começa
+    route(emPresenca() ? 'dia' : 'inicio').then(() => setTimeout(() => window.abrirTour(), 300));
+  });
 }
 
 async function renderFollowup() {
@@ -1043,15 +1540,15 @@ async function renderFollowup() {
 async function renderHistorico() {
   const list = await api('GET', '/historico');
   view.innerHTML = `
-    <div class="panel"><table class="table"><thead><tr>
-      <th>Data</th><th>Hora</th><th>Cliente</th><th>Serviço</th><th>Consultor</th><th>Status</th>
+    <div class="panel"><div class="tabela-rolagem"><table class="table"><thead><tr>
+      <th scope="col">Data</th><th scope="col">Hora</th><th scope="col">Cliente</th><th scope="col">Serviço</th><th scope="col">Consultor</th><th scope="col">Status</th>
     </tr></thead><tbody>
       ${list.length ? list.map(a => `<tr>
         <td>${dataBR(a.data)}</td><td>${esc(a.hora)}</td><td><b>${esc(a.cliente_nome)}</b></td>
         <td>${esc(a.servico)}</td><td>${esc(a.consultor_nome||'—')}</td>
         <td><span class="badge-pill ${statusClass(a.status)}">${esc(STATUS_LABEL[a.status]||a.status)}</span></td>
       </tr>`).join('') : `<tr><td colspan="6">${vazio(I.relogio, 'Sem histórico ainda', 'Cada agendamento marcado aparece aqui, do mais recente para o mais antigo.')}</td></tr>`}
-    </tbody></table></div>`;
+    </tbody></table></div></div>`;
 }
 function statusClass(s){return {concluido:'bp-purple',compareceu:'bp-green',confirmado:'bp-green',
   nao_veio:'bp-red',nao_fechou:'bp-orange',em_atendimento:'bp-blue',aguardando:'bp-orange'}[s]||'bp-gray';}
@@ -1861,10 +2358,15 @@ Lembrete, aniversário e revisão são do <b>Comunicar</b>.</div></div>
 const overlay = $('#modalOverlay'), modal = $('#modal');
 const FOCAVEIS = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 let _focoAntes = null;
+/* Quem abriu um modal que ESPERA resposta (ex.: o valor do "Veio e fechou")
+   é avisado quando ele fecha sem resposta — Esc, ×, clique fora ou outro modal. */
+let _aoFecharModal = null;
+const avisarFechamento = () => { const cb = _aoFecharModal; _aoFecharModal = null; try { cb?.(); } catch { /* segue */ } };
 /* Abre o modal, leva o foco para o primeiro campo e devolve o foco a quem o
    abriu quando fechar. O Tab fica PRESO dentro do modal (ver tecla abaixo). */
 function openModal(html){
-  _focoAntes = document.activeElement;
+  avisarFechamento();
+  if (!overlay.classList.contains('open')) _focoAntes = document.activeElement;
   modal.innerHTML = html;
   overlay.classList.add('open');
   const titulo = $('.modal-head h3', modal);
@@ -1878,6 +2380,7 @@ function openModal(html){
 function closeModal(){
   if (!overlay.classList.contains('open')) return;
   overlay.classList.remove('open');
+  avisarFechamento();
   if (_focoAntes && _focoAntes.isConnected && typeof _focoAntes.focus === 'function') _focoAntes.focus({ preventScroll: true });
   _focoAntes = null;
 }
@@ -2219,31 +2722,111 @@ window.abrirBuscaGlobal = function() {
 const FILA_KEY = 'indycar_fila_desfechos';
 function lerFila() { try { return JSON.parse(localStorage.getItem(FILA_KEY) || '[]').filter(x => x && x.id && x.status); } catch { return []; } }
 function gravarFila(f) { try { localStorage.setItem(FILA_KEY, JSON.stringify(f)); } catch { /* sem armazenamento: segue sem fila */ } desenharFila(); }
-function enfileirar(id, status, nome) {
+function enfileirar(id, status, nome, valor = null) {
   const f = lerFila().filter(x => x.id !== id);      // o último clique vale
-  f.push({ id, status, nome: String(nome || '').slice(0, 40), em: Date.now() });
+  f.push({ id, status, nome: String(nome || '').slice(0, 40), em: Date.now(), ...(valor > 0 ? { valor } : {}) });
   gravarFila(f);
+  agendarFila();
 }
+/* A faixa da fila diz quantas faltam e deixa VER e CANCELAR cada uma (uma
+   marcação errada feita sem internet não precisa sair). */
 function desenharFila() {
   const f = lerFila(), el = $('#faixaFila'); if (!el) return;
   el.hidden = !f.length;
-  if (f.length) el.textContent = `${f.length} ${f.length === 1 ? 'marcação esperando' : 'marcações esperando'} a internet voltar para ser ${f.length === 1 ? 'enviada' : 'enviadas'}.`;
+  if (!f.length) return;
+  el.textContent = '';
+  const txt = document.createElement('span');
+  txt.textContent = `${f.length} ${f.length === 1 ? 'marcação esperando' : 'marcações esperando'} a conexão voltar para ser ${f.length === 1 ? 'enviada' : 'enviadas'}.`;
+  const ver = document.createElement('button');
+  ver.type = 'button'; ver.className = 'faixa-link faixa-botao'; ver.textContent = 'Ver';
+  ver.addEventListener('click', abrirFila);
+  el.append(txt, ver);
+}
+const ROTULO_FILA = { concluido: 'Veio e fechou', nao_fechou: 'Veio e não fechou', nao_veio: 'Não veio', compareceu: 'Chegou' };
+function abrirFila() {
+  const f = lerFila();
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.relogio)} Esperando a conexão</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-body">
+      <p class="info-campo">Estas marcações foram feitas sem conexão e saem sozinhas quando o sistema voltar. Cancele a que foi engano.</p>
+      ${f.length ? `<ul class="ctx-lista">${f.map((x, i) => `<li><span><b>${esc(x.nome || 'Cliente')}</b> — ${esc(ROTULO_FILA[x.status] || x.status)}${x.valor ? ' · ' + esc(P.reais(x.valor)) : ''}
+          <small class="muted">${esc(dataHoraBR(x.em))}</small></span>
+          <button type="button" class="btn mini" data-cancelar-fila="${i}">Cancelar</button></li>`).join('')}</ul>` : '<p class="muted">Nada na fila.</p>'}
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Fechar</button>
+      <button class="btn primary" id="fila_enviar"${f.length ? '' : ' disabled'}>Tentar enviar agora</button></div>`);
+  $$('[data-cancelar-fila]', modal).forEach(b => b.addEventListener('click', () => {
+    const atual = lerFila(); const item = f[+b.dataset.cancelarFila];
+    gravarFila(atual.filter(x => !(x.id === item.id && x.em === item.em)));
+    toast(`Cancelado: ${ROTULO_FILA[item.status] || item.status} de ${item.nome || 'cliente'}`);
+    abrirFila(); route();
+  }));
+  $('#fila_enviar')?.addEventListener('click', () => { closeModal(); enviarFila(true); });
+}
+/* A fila também tenta sozinha de 30 em 30 s enquanto tiver algo (o evento
+   "online" do navegador não dispara quando o problema é o servidor, não a rede). */
+let _filaTimer = null;
+function agendarFila() {
+  clearInterval(_filaTimer); _filaTimer = null;
+  if (lerFila().length) _filaTimer = setInterval(() => { if (!document.hidden) enviarFila(); }, 30_000);
 }
 let _enviandoFila = false;
-async function enviarFila() {
-  if (_enviandoFila || navigator.onLine === false) return;
-  let f = lerFila(); if (!f.length) return;
+async function enviarFila(avisarSeFalhar = false) {
+  if (_enviandoFila || navigator.onLine === false || document.body.classList.contains('deslogado')) return;
+  let f = lerFila(); if (!f.length) { agendarFila(); return; }
   _enviandoFila = true;
-  let ok = 0, falhas = 0;
+  let ok = 0, falhas = 0, parou = false;
   try {
     for (const item of f) {
-      try { await api('PATCH', `/agendamentos/${item.id}/status`, { status: item.status }); ok++; f = f.filter(x => x !== item); }
-      catch (e) { if (e instanceof TypeError) break; falhas++; f = f.filter(x => x !== item); console.warn('Fila: recusado', item.status, e.message); }
+      try {
+        await api('PATCH', `/agendamentos/${item.id}/status`, item.valor ? { status: item.status, valor: item.valor } : { status: item.status }, { repetir: false });
+        ok++; f = f.filter(x => x !== item);
+      } catch (e) {
+        // ainda sem conexão/servidor fora: para e tenta no próximo ciclo (a fila fica)
+        if (e instanceof TypeError || e?.fora) { parou = true; break; }
+        if (e?.parar) { parou = true; break; }                // sessão/acesso: a tela de login já apareceu
+        falhas++; f = f.filter(x => x !== item); console.warn('Fila: recusado', item.status, e.message);
+      }
     }
-  } finally { gravarFila(f); _enviandoFila = false; }
-  if (ok) toast(`${ok} ${ok === 1 ? 'marcação feita sem internet foi enviada' : 'marcações feitas sem internet foram enviadas'} ✅`);
+  } finally { gravarFila(f); _enviandoFila = false; agendarFila(); }
+  if (ok) toast(`${ok} ${ok === 1 ? 'marcação feita sem conexão foi enviada' : 'marcações feitas sem conexão foram enviadas'} ✅`);
   if (falhas) toast(`${falhas} ${falhas === 1 ? 'marcação da fila foi recusada' : 'marcações da fila foram recusadas'} — confira na Agenda`, 'err');
+  if (parou && avisarSeFalhar && !ok) toast('O sistema ainda não respondeu — a fila continua guardada e tenta de novo sozinha.', 'err');
   if (ok || falhas) route();
+}
+
+/* RASCUNHO (rodada 4): nada de perder o que a pessoa digitou. O formulário do
+   agendamento é guardado nesta aba (sessionStorage) enquanto ela digita; se o
+   modal fechar sem salvar (clique fora, sessão caiu, sistema fora, recarregou
+   a página), na próxima vez que abrir o MESMO agendamento (ou um novo) os
+   campos voltam, com "Descartar". Salvar ou Cancelar apagam o rascunho. */
+const CAMPOS_RASCUNHO = ['f_nome', 'f_tel', 'f_veic', 'f_placa', 'f_serv', 'f_data', 'f_hora', 'f_cons', 'f_ori', 'f_status', 'f_obs', 'f_cli'];
+function ligarRascunho(id, pre) {
+  const chave = 'indycar_rascunho_ag_' + (id || 'novo');
+  const ler = () => Object.fromEntries(CAMPOS_RASCUNHO.map(k => [k, $('#' + k)?.value ?? '']));
+  const original = JSON.stringify(ler());
+  const apagar = () => { try { sessionStorage.removeItem(chave); } catch { /* ok */ } };
+  const gravar = debounce(() => {
+    if (!modalAberto() || !$('#f_save')) return;
+    const atual = ler();
+    try { if (JSON.stringify(atual) === original) sessionStorage.removeItem(chave); else sessionStorage.setItem(chave, JSON.stringify({ em: Date.now(), campos: atual })); } catch { /* ok */ }
+  }, 300);
+  // um link de entrada (?tel=) ou "Agendar de novo" traz dados novos: não mistura com rascunho velho
+  const temPre = pre && Object.values(pre).some(Boolean);
+  let salvo = null;
+  try { salvo = JSON.parse(sessionStorage.getItem(chave) || 'null'); } catch { salvo = null; }
+  if (salvo && !temPre && Date.now() - salvo.em < 12 * 3600_000 && JSON.stringify(salvo.campos) !== original) {
+    for (const [k, v] of Object.entries(salvo.campos || {})) { const el = $('#' + k); if (el && v !== undefined) el.value = v; }
+    toast('Rascunho recuperado — continue de onde parou', 'ok', { acao: { rotulo: 'Descartar', fn: () => {
+      apagar();
+      for (const [k, v] of Object.entries(JSON.parse(original))) { const el = $('#' + k); if (el) el.value = v; }
+    } } });
+  }
+  // no CORPO do modal (que nasce de novo a cada abertura): ouvinte velho não grava no rascunho errado
+  const corpo = $('#modal .modal-body');
+  corpo?.addEventListener('input', gravar);
+  corpo?.addEventListener('change', gravar);
+  return { apagar };
 }
 
 /* pre = campos já preenchidos num agendamento NOVO (link de entrada com ?tel=,
@@ -2324,10 +2907,12 @@ window.openAgendamentoModal = async function(id, pre = {}){
     </div>
     <div class="modal-foot">
       ${id ? `<button class="btn so-equipe" id="f_tarefa" title="Criar uma tarefa ligada a este agendamento">${svg(I.check)} Tarefa</button>` : ''}
-      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn" id="f_cancelar">Cancelar</button>
       <button class="btn primary" id="f_save">${svg(I.check)} Salvar</button>
     </div>`);
   ligarMascaraTelefone($('#f_tel'));
+  const rascunho = ligarRascunho(id, pre);
+  $('#f_cancelar').addEventListener('click', () => { rascunho.apagar(); closeModal(); });
   /* "Achar pelo nome": procura nas conversas do WhatsApp e nos clientes e
      preenche telefone (+ ficha) com um clique. Enter no campo do nome também busca. */
   const mostrarFicha = (cid) => {
@@ -2472,7 +3057,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
     const btn = $('#f_save'); btn.disabled = true;
     try {
       const r = id ? await api('PUT', `/agendamentos/${id}`, payload) : await api('POST', '/agendamentos', payload);
-      esquecerDias();
+      esquecerDias(); rascunho.apagar();
       const aviso = r?.aviso_ausencia;
       toast(aviso ? recadoDeAusencia(aviso) : 'Agendamento salvo', aviso && !aviso.ok ? 'err' : 'ok');
       closeModal(); route();
@@ -2608,10 +3193,10 @@ window.openTemplateModal = async function(id){
     <div class="modal-head"><h3>${svg(I.wa)} ${id?'Editar':'Novo'} modelo</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="grid2">
-        <div class="field"><label>Nome *</label><input id="t_nome" value="${esc(t.nome)}"></div>
-        <div class="field"><label>Gatilho</label><select id="t_gat">${['manual','confirmacao','lembrete','followup','pos_servico'].map(g=>`<option ${g==t.gatilho?'selected':''}>${g}</option>`).join('')}</select></div>
+        <div class="field"><label for="t_nome">Nome *</label><input id="t_nome" value="${esc(t.nome)}"></div>
+        <div class="field"><label for="t_gat">Gatilho</label><select id="t_gat">${['manual','confirmacao','lembrete','followup','pos_servico'].map(g=>`<option ${g==t.gatilho?'selected':''}>${g}</option>`).join('')}</select></div>
       </div>
-      <div class="field"><label>Mensagem *</label><textarea id="t_corpo" style="min-height:120px">${esc(t.corpo)}</textarea>
+      <div class="field"><label for="t_corpo">Mensagem *</label><textarea id="t_corpo" style="min-height:120px">${esc(t.corpo)}</textarea>
         <small class="muted">Variáveis: {nome} {servico} {data} {hora} {veiculo} {placa}</small></div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
@@ -2629,8 +3214,9 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
   const [templates, cfg] = await Promise.all([ api('GET','/whatsapp/templates'), api('GET','/whatsapp/config') ]);
   const enviaCloud = !!(cfg.ativo && cfg.phone_number_id && cfg.tem_token);
   let nome='', telefone='', agId=agendamentoId||'';
-  if (agendamentoId){ const a=await api('GET','/agendamentos').then(l=>l.find(x=>x.id===agendamentoId)); if(a){nome=a.cliente_nome;telefone=a.telefone;} }
-  else if (clienteId){ const c=await api('GET','/clientes').then(l=>l.find(x=>x.id===clienteId)); if(c){nome=c.nome;telefone=c.telefone;} }
+  // rodada 4: busca SÓ o registro (antes baixava a agenda inteira / todos os clientes para achar um)
+  if (agendamentoId){ const a=await api('GET',`/agendamentos/${agendamentoId}`).catch(()=>null); if(a){nome=a.cliente_nome;telefone=a.telefone;} }
+  else if (clienteId){ const c=await api('GET',`/clientes/${clienteId}/ficha`).catch(()=>null); if(c){nome=c.nome;telefone=c.telefone;} }
   openModal(`
     <div class="modal-head"><h3 style="color:#25d366">${svg(I.wa)} Enviar WhatsApp</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
@@ -2638,9 +3224,9 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
         <div class="field"><label for="w_nome">Nome</label><input id="w_nome" value="${esc(nome)}"></div>
         <div class="field"><label for="w_tel">Telefone *</label><input id="w_tel" type="tel" inputmode="tel" value="${esc(telefone)}" placeholder="(12) 99999-9999"></div>
       </div>
-      <div class="field"><label>Usar modelo</label><select id="w_tpl"><option value="">— Mensagem livre —</option>
+      <div class="field"><label for="w_tpl">Usar modelo</label><select id="w_tpl"><option value="">— Mensagem livre —</option>
         ${templates.map(t=>`<option value="${t.id}" ${t.id==templateId?'selected':''}>${esc(t.nome)}</option>`).join('')}</select></div>
-      <div class="field"><label>Mensagem *</label><textarea id="w_corpo" style="min-height:120px"></textarea></div>
+      <div class="field"><label for="w_corpo">Mensagem *</label><textarea id="w_corpo" style="min-height:120px"></textarea></div>
       <input type="hidden" id="w_ag" value="${agId}">
       <small class="muted">${enviaCloud
         ? '⚡ A Cloud API está ativa: a mensagem será <b>enviada automaticamente</b>.'
@@ -2686,83 +3272,225 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
 // ============================================================================
 const emPresenca = () => state.perfil?.papel === 'agenda';
 
-/* Cartão do modo presença: o mesmo desenho do painel, só com presença. Fechar
-   ou não a venda é desfecho comercial — fica com quem usa o Início.
-   Só aparece o botão que MUDA alguma coisa, e quem já tem desfecho não tem botão
-   nenhum: o papel 'agenda' não pode desfazer um "Veio e fechou" do atendimento
-   (o servidor recusa também — aqui a tela só não oferece o que não funcionaria). */
-function cartaoPresenca(a, agora) {
+/* ============================================================================
+   MODO RECEPÇÃO (rodada 4) — a tela do Franklin: grande, simples, de tocar.
+   · Relógio e data grandes; três números (agendados · chegaram · não vieram)
+     que são as próprias abas; busca por nome ou placa.
+   · Cartão grande: hora, nome, carro e placa em letra grande; dois botões de
+     64 px: "Chegou" e "Não veio". "Não veio" pede CONFIRMAÇÃO no próprio
+     cartão (manda WhatsApp para o cliente — toque sem querer não pode).
+   · "Chegou" errado → "Desfazer" no recado (o servidor só deixa desfazer a
+     chegada, regras.js › presencaPodeMarcar).
+   · Letra A / A+ / A++ (guardada no perfil e no aparelho), tela cheia e
+     "manter a tela acesa" para o tablet do balcão; imprime a folha do dia.
+   · Atualiza sozinha a cada 2 min (sem mexer no que a pessoa está tocando) e
+     guarda a marcação na fila do aparelho se a conexão cair.
+   Quem tem desfecho comercial (veio e fechou / não fechou) não tem botão.
+   ============================================================================ */
+const LETRAS = ['normal', 'grande', 'enorme'];
+function letraAtual() {
+  const doPerfil = state.perfil?.preferencias?.agenda_letra;
+  if (LETRAS.includes(doPerfil)) return doPerfil;
+  try { const l = localStorage.getItem('indycar_letra'); if (LETRAS.includes(l)) return l; } catch { /* ok */ }
+  return 'normal';
+}
+function aplicarLetraRecepcao(l = letraAtual()) { document.body.dataset.letra = l; }
+function trocarLetra(l) {
+  aplicarLetraRecepcao(l);
+  try { localStorage.setItem('indycar_letra', l); } catch { /* ok */ }
+  if (state.perfil) state.perfil.preferencias = { ...(state.perfil.preferencias || {}), agenda_letra: l };
+  api('PUT', '/perfil', { preferencias: { agenda_letra: l } }, { repetir: false }).catch(() => { /* fica no aparelho */ });
+  $$('[data-letra]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.letra === l)));
+}
+/* "Manter a tela acesa" (tablet no balcão). O navegador solta a trava quando a
+   aba some — ela é pedida de novo ao voltar. */
+let _travaTela = null;
+async function manterTelaAcesa(ligar) {
+  try {
+    if (ligar && 'wakeLock' in navigator) { _travaTela = await navigator.wakeLock.request('screen'); return true; }
+    if (!ligar && _travaTela) { await _travaTela.release(); _travaTela = null; }
+  } catch { return false; }
+  return !!_travaTela;
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.telaAcesa && !_travaTela) manterTelaAcesa(true);
+});
+
+function cartaoRecepcao(a, agora) {
   const g = grupoDoDia(a);
-  const bt = (marca, cls, ico, txt) => `<button class="act ${cls}" data-marca="${marca}">${svg(ico)} ${txt}</button>`;
-  const botoes = g === 'resolvidos'
-    ? `<span class="act-nota">${svg(I.cadeado)} Desfecho já registrado pelo atendimento</span>`
-    : (g !== 'oficina' ? bt('compareceu', 'green solido', I.check, 'Compareceu') : '')
-    + (g !== 'faltaram' ? bt('nao_veio', 'red', I.x, 'Não veio') : '');
-  return corpoDoCartao(a, agora || agoraSP(), botoes);
+  const rel = quandoRel(a, agora);
+  const carro = [a.veiculo, a.placa].filter(Boolean).map(esc).join(' · ');
+  let botoes;
+  if (g === 'resolvidos') botoes = `<span class="rec-nota">${svg(I.cadeado)} Atendimento já registrou o desfecho</span>`;
+  else if (g === 'oficina') botoes = `<span class="rec-nota ok">${svg(I.check)} Chegou</span>`
+    + (a.status === 'compareceu' ? `<button type="button" class="rec-btn rec-desfazer" data-marca="desfazer" data-antes="${a.confirmado ? 'confirmado' : 'aguardando'}">Desfazer chegada</button>` : '');
+  else if (g === 'faltaram') botoes = `<span class="rec-nota falta">${svg(I.x)} Não veio</span>`
+    + `<button type="button" class="rec-btn rec-chegou" data-marca="compareceu">${svg(I.check)} Chegou mesmo assim</button>`;
+  else botoes = `<button type="button" class="rec-btn rec-chegou" data-marca="compareceu">${svg(I.check)} Chegou</button>
+    <button type="button" class="rec-btn rec-faltou" data-marca="nao_veio">${svg(I.x)} Não veio</button>`;
+  return `<article class="appt rec-cartao s-${esc(a.status)}${rel && rel.tom === 'atrasado' ? ' is-atrasado' : ''}"
+      data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}" aria-label="${esc(a.hora)}, ${esc(a.cliente_nome)}">
+    <div class="rec-hora"><b>${esc(a.hora)}</b>${rel ? `<span class="quando ${rel.tom}">${esc(rel.txt)}</span>` : ''}</div>
+    <div class="rec-quem"><h3>${esc(a.cliente_nome)}</h3>
+      ${carro ? `<p class="rec-carro">${svg(I.car)} ${carro}</p>` : ''}
+      <p class="rec-servico">${esc(a.servico)}${a.consultor_nome ? ` · <span>${esc(a.consultor_nome)}</span>` : ''}</p></div>
+    <div class="rec-acoes">${botoes}</div>
+  </article>`;
 }
 
 async function renderDia(opts = {}) {
-  const list = await api('GET', '/agendamentos');   // o servidor já limita a hoje
+  const list = await api('GET', '/agendamentos');   // o servidor já limita a hoje (e tira o telefone)
   if (opts.vez && opts.vez !== state._vez) return;
-  // para quem marca presença, "chegou" é chegou — tenha a venda fechado ou não
-  const grupos = { agendados: [], chegaram: [], faltaram: [] };
-  for (const a of list) {
-    const g = grupoDoDia(a);
-    grupos[g === 'oficina' || g === 'resolvidos' ? 'chegaram' : g].push(a);
-  }
-  for (const k of Object.keys(grupos)) grupos[k].sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
-  const abas = [['agendados', 'Agendados', I.relogio], ['chegaram', 'Já chegaram', I.check], ['faltaram', 'Não vieram', I.x]];
-  if (!abas.some(([k]) => k === state.hojeTab)) state.hojeTab = 'agendados';
-
+  state._recLista = list;
+  state._recAssinatura = JSON.stringify(list.map(a => [a.id, a.status, a.hora]));
+  const letra = letraAtual();
   view.innerHTML = `
-    <div class="panel">
-      <div class="panel-head">
-        <h2>${svg(I.calendar)} Agenda de hoje</h2>
-        <span class="date">${dataExtenso(agoraSP().data)}</span>
+    <div class="rec-topo">
+      <div class="rec-relogio"><b id="recHora">${esc(agoraSP().hm)}</b><span>${esc(dataExtenso(agoraSP().data))}</span></div>
+      <div class="rec-ferramentas" role="toolbar" aria-label="Ferramentas da recepção">
+        <div class="rec-letras" id="recLetra" role="group" aria-label="Tamanho da letra">
+          ${LETRAS.map((l, i) => `<button type="button" class="rec-ferr" data-letra="${l}" aria-pressed="${l === letra}" title="Letra ${['normal', 'grande', 'enorme'][i]}">A${'+'.repeat(i)}</button>`).join('')}
+        </div>
+        <button type="button" class="rec-ferr" id="recAtualizar" title="Atualizar agora">${svg(I.relogio)} <span>Atualizar</span></button>
+        <button type="button" class="rec-ferr" id="recImprimir" title="Imprimir a folha do dia" aria-label="Imprimir a folha do dia">${svg(I.imprimir)}</button>
+        ${'wakeLock' in navigator ? `<button type="button" class="rec-ferr" id="recAcesa" aria-pressed="${!!state.telaAcesa}" title="Não deixa a tela apagar (tablet do balcão)">☀ <span>Tela acesa</span></button>` : ''}
+        ${document.fullscreenEnabled ? '<button type="button" class="rec-ferr" id="recCheia" title="Tela cheia" aria-label="Tela cheia">⛶</button>' : ''}
+        <button type="button" class="rec-ferr" id="recAjuda" title="Ajuda" aria-label="Ajuda">?</button>
       </div>
-      <div class="tabs tabs-hoje" id="tabsHoje">
-        ${abas.map(([chave, rotulo, ico]) =>
-          `<button type="button" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}">
-             ${svg(ico)} ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`).join('')}
-      </div>
-      <div class="panel-body lista" id="agendaHoje"></div>
-    </div>`;
+    </div>
+    <div class="rec-busca search larga">${svg(I.search)}
+      <input id="recBusca" type="search" placeholder="Procurar pelo nome ou pela placa" autocomplete="off" aria-label="Procurar cliente pelo nome ou pela placa" value="${esc(state.recQ || '')}"></div>
+    <div class="tabs tabs-hoje rec-abas" id="tabsHoje" role="tablist" aria-label="Agenda de hoje"></div>
+    <div class="lista rec-lista" id="agendaHoje" role="tabpanel" aria-live="polite"></div>`;
+
+  const grupos = () => {
+    const g = { agendados: [], chegaram: [], faltaram: [] };
+    for (const a of state._recLista || []) {
+      if (!P.casaRecepcao(a, state.recQ)) continue;
+      const k = grupoDoDia(a);
+      g[k === 'oficina' || k === 'resolvidos' ? 'chegaram' : k].push(a);
+    }
+    for (const k of Object.keys(g)) g[k].sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
+    return g;
+  };
+  const ABAS = [['agendados', 'Agendados', I.relogio], ['chegaram', 'Já chegaram', I.check], ['faltaram', 'Não vieram', I.x]];
+  if (!ABAS.some(([k]) => k === state.hojeTab)) state.hojeTab = 'agendados';
 
   const pintar = (animar) => {
-    const agora = agoraSP();                         // dentro: o relógio da tela repinta com a hora certa
-    $$('#tabsHoje .tab').forEach(b => b.classList.toggle('active', b.dataset.hojeTab === state.hojeTab));
-    const lista = grupos[state.hojeTab];
-    const box = $('#agendaHoje');
-    if (!box) return;
-    pintarLista(box, lista.length ? lista.map(a => cartaoPresenca(a, agora)).join('')
-      : vazio(...VAZIO_DIA[state.hojeTab]), animar);
-    $$('[data-marca]', box).forEach(btn => btn.addEventListener('click', async () => {
-      const card = btn.closest('.appt'), id = card.dataset.id, marca = btn.dataset.marca;
-      const botoes = $$('.act', card);
-      botoes.forEach(b => { b.disabled = true; });
-      card.classList.add('ocupado');
-      try {
-        const r = await api('PATCH', `/agendamentos/${id}/status`, { status: marca });
-        await sairDoCartao(card);                    // o botão só existe quando o cartão muda de aba
-        toast(marca === 'compareceu' ? 'Cliente chegou ✅ — foi para "Já chegaram"'
-          : recadoDeAusencia(r), marca === 'nao_veio' && r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
-        route();
-      } catch (e) {
-        botoes.forEach(b => { b.disabled = false; });
-        card.classList.remove('ocupado');
-        toast(e.message, 'err');
-      }
-    }));
+    const agora = agoraSP();
+    const gr = grupos();
+    const tabs = $('#tabsHoje'); if (!tabs) return;
+    tabs.innerHTML = ABAS.map(([k, rot, ico]) => `<button type="button" role="tab" class="tab ${state.hojeTab === k ? 'active' : ''}" data-hoje-tab="${k}"
+        aria-selected="${state.hojeTab === k}" aria-controls="agendaHoje" tabindex="${state.hojeTab === k ? 0 : -1}">
+        ${svg(ico)} <span>${rot}</span> <em class="tab-num">${gr[k].length}</em></button>`).join('');
+    ligarAbas(tabs, (k) => { state.hojeTab = k; pintar(true); });
+    moverTinta(tabs, !animar);
+    const lista = gr[state.hojeTab], box = $('#agendaHoje');
+    pintarLista(box, lista.length ? lista.map(a => cartaoRecepcao(a, agora)).join('')
+      : (state.recQ ? vazio(I.search, 'Ninguém com esse nome ou placa', 'Confira a escrita — ou o cliente pode não estar na agenda de hoje.')
+        : vazio(...VAZIO_DIA[state.hojeTab])), animar);
+    ligarCartoesRecepcao(box);
   };
-  $$('#tabsHoje .tab').forEach(b => b.addEventListener('click', () => {
-    if (state.hojeTab === b.dataset.hojeTab) return;
-    state.hojeTab = b.dataset.hojeTab;
-    pintar(true);
-    moverTinta($('#tabsHoje'));
-  }));
+  state._recPintar = pintar;
   pintar(!opts.quieto);
-  moverTinta($('#tabsHoje'), true);
+
+  $('#recBusca').addEventListener('input', debounce((e) => { state.recQ = e.target.value.trim(); pintar(false); }, 120));
+  $$('[data-letra]', view).forEach(b => b.addEventListener('click', () => { trocarLetra(b.dataset.letra); pintar(false); }));
+  $('#recAtualizar').addEventListener('click', () => route());
+  $('#recImprimir').addEventListener('click', () => imprimirFolha(state._recLista || [], agoraSP().data, { telefone: false }));
+  $('#recAjuda').addEventListener('click', () => route('ajuda'));
+  $('#recAcesa')?.addEventListener('click', async (e) => {
+    state.telaAcesa = !state.telaAcesa;
+    const ok = await manterTelaAcesa(state.telaAcesa);
+    if (state.telaAcesa && !ok) { state.telaAcesa = false; toast('Este aparelho não deixou manter a tela acesa', 'err'); }
+    e.currentTarget.setAttribute('aria-pressed', String(!!state.telaAcesa));
+    if (state.telaAcesa) toast('A tela vai ficar acesa enquanto a Agenda estiver aberta');
+  });
+  $('#recCheia')?.addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen?.(); else document.documentElement.requestFullscreen?.().catch(() => {});
+  });
+
+  /* Relógio a cada 20 s; a lista é conferida a cada 2 min — e só repinta se
+     algo mudou e ninguém está no meio de um toque (cartão ocupado/confirmando). */
+  let voltas = 0;
+  state._cxTimer = setInterval(async () => {
+    const h = $('#recHora'); if (h) { _agoraMemo = null; h.textContent = agoraSP().hm; }
+    if (++voltas % 6 || document.hidden || modalAberto()) return;
+    if ($('.rec-cartao.ocupado, .rec-cartao.confirmando, .rec-cartao.saindo') || document.activeElement?.id === 'recBusca' && state.recQ) return;
+    try {
+      const nova = await api('GET', '/agendamentos', null, { repetir: false });
+      const ass = JSON.stringify(nova.map(a => [a.id, a.status, a.hora]));
+      if (state.route !== 'dia' || ass === state._recAssinatura) return;
+      state._recLista = nova; state._recAssinatura = ass; pintar(false);
+    } catch { /* sem conexão: tenta na próxima volta */ }
+  }, 20_000);
   state._repintar = () => { if (state.route === 'dia') pintar(false); };
+}
+
+/* Abas acessíveis: setas esquerda/direita andam, Home/End vão às pontas. */
+function ligarAbas(tabs, aoEscolher) {
+  const lista = $$('[role="tab"]', tabs);
+  lista.forEach((b, i) => {
+    b.addEventListener('click', () => { if (!b.classList.contains('active')) aoEscolher(b.dataset.hojeTab); });
+    b.addEventListener('keydown', (e) => {
+      const n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? lista.length - 1 : null;
+      if (n === null) return;
+      e.preventDefault();
+      const alvo = lista[(n + lista.length) % lista.length];
+      aoEscolher(alvo.dataset.hojeTab);
+      setTimeout(() => $(`[data-hoje-tab="${alvo.dataset.hojeTab}"]`, tabs)?.focus(), 0);
+    });
+  });
+}
+
+function ligarCartoesRecepcao(box) {
+  $$('[data-marca]', box).forEach(btn => btn.addEventListener('click', () => {
+    const card = btn.closest('.appt'), marca = btn.dataset.marca;
+    if (marca === 'nao_veio') return confirmarFaltaNoCartao(card);
+    if (marca === 'desfazer') return marcarNaRecepcao(card, btn.dataset.antes || 'aguardando', { desfazendo: true });
+    marcarNaRecepcao(card, marca);
+  }));
+}
+/* "Não veio" na recepção: o cartão vira a pergunta (dois botões grandes). */
+function confirmarFaltaNoCartao(card) {
+  const acoes = $('.rec-acoes', card); if (!acoes) return;
+  const antes = acoes.innerHTML;
+  card.classList.add('confirmando');
+  acoes.innerHTML = `<p class="rec-pergunta" role="alert">${esc(card.dataset.nome)} não veio? O cliente recebe uma mensagem no WhatsApp.</p>
+    <button type="button" class="rec-btn rec-faltou solido" data-sim>${svg(I.x)} Sim, não veio</button>
+    <button type="button" class="rec-btn" data-volta>Voltar</button>`;
+  $('[data-sim]', acoes).focus();
+  $('[data-volta]', acoes).addEventListener('click', () => { card.classList.remove('confirmando'); acoes.innerHTML = antes; ligarCartoesRecepcao(card); });
+  $('[data-sim]', acoes).addEventListener('click', () => { card.classList.remove('confirmando'); marcarNaRecepcao(card, 'nao_veio'); });
+}
+async function marcarNaRecepcao(card, marca, o = {}) {
+  const id = card.dataset.id, nome = card.dataset.nome || 'Cliente', antes = card.dataset.status;
+  const botoes = $$('button', card);
+  botoes.forEach(b => { b.disabled = true; });
+  card.classList.add('ocupado');
+  try {
+    if (navigator.onLine === false) throw new TypeError('offline');
+    const r = await api('PATCH', `/agendamentos/${id}/status`, { status: marca });
+    const item = (state._recLista || []).find(a => a.id === id);
+    if (item) Object.assign(item, { status: r.status, compareceu: r.compareceu, confirmado: r.confirmado });
+    await sairDoCartao(card);
+    if (o.desfazendo) toast(`${nome}: chegada desfeita — voltou para "Agendados"`);
+    else if (marca === 'compareceu') toast(`${nome} chegou ✅`, 'ok', antes === 'compareceu' ? {} : { acao: { rotulo: 'Desfazer', fn: async () => {
+      await api('PATCH', `/agendamentos/${id}/status`, { status: ['aguardando', 'confirmado'].includes(antes) ? antes : 'aguardando' });
+      toast(`Desfeito — ${nome} voltou para "Agendados"`); route();
+    } } });
+    else toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
+    state._recPintar?.(false);
+  } catch (e) {
+    if (navigator.onLine === false || e instanceof TypeError || e?.fora) {
+      enfileirar(id, marca, nome);
+      card.classList.remove('ocupado'); card.classList.add('na-fila');
+      return toast(`Sem conexão: guardei "${ROTULO_FILA[marca] || marca}" de ${nome}. Envio sozinho quando o sistema voltar.`);
+    }
+    botoes.forEach(b => { b.disabled = false; });
+    card.classList.remove('ocupado');
+    toast(e.message, 'err');
+  }
 }
 
 // ============================================================================
@@ -2771,11 +3499,15 @@ async function renderDia(opts = {}) {
 const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, clientes:renderClientes,
   servicos:renderServicos, whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe,
   historico:renderHistorico, conectores:renderConectores, configuracoes:renderConfiguracoes,
-  dia:renderDia, semana:(o) => renderSemana(o) };
+  dia:renderDia, semana:(o) => renderSemana(o), pendencias:renderPendencias, ajuda:renderAjuda };
 const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
   servicos:'SERVIÇOS', whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE',
   historico:'HISTÓRICO', conectores:'CONECTORES', configuracoes:'CONFIGURAÇÕES',
-  dia:'AGENDA DO DIA', semana:'SEMANA' };
+  dia:'RECEPÇÃO', semana:'SEMANA', pendencias:'PENDÊNCIAS', ajuda:'AJUDA' };
+/* Título da aba do navegador (e o que o leitor de tela anuncia ao trocar de tela). */
+const TITULOS = { inicio:'Início', agenda:'Agenda', crm:'CRM', clientes:'Clientes', servicos:'Serviços', whatsapp:'WhatsApp',
+  followup:'Follow-up', equipe:'Equipe', historico:'Histórico', conectores:'Conectores', configuracoes:'Configurações',
+  dia:'Recepção', semana:'Semana', pendencias:'Pendências', ajuda:'Ajuda' };
 
 /* Enquanto os dados não chegam, a tela mostra o próprio FORMATO (esqueleto) em
    vez de um "Carregando…" solto: nada pula de lugar quando o conteúdo entra.
@@ -2819,10 +3551,17 @@ async function route(r, opts = {}){
   if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
   const quieto = !r && opts.quieto !== false && state._pintou === true;
   if (r) state.route = r;
-  if (emPresenca()) state.route = 'dia';     // papel 'agenda' só tem uma tela
+  if (emPresenca() && state.route !== 'ajuda') state.route = 'dia';     // papel 'agenda': a recepção (e a ajuda)
   const vez = state._vez = (state._vez || 0) + 1;
-  $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.route === state.route));
+  $$('.nav-item').forEach(n => {
+    const ativa = n.dataset.route === state.route;
+    n.classList.toggle('active', ativa);
+    if (ativa) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current');
+  });
   $('#pageTag').textContent = TAGS[state.route] || 'DASHBOARD';
+  document.title = `${TITULOS[state.route] || 'Início'} · IndyCar Agenda`;
+  // troca de tela anunciada para quem usa leitor de tela (a região é invisível)
+  if (!quieto) { const av = $('#anuncioTela'); if (av) av.textContent = `Tela ${TITULOS[state.route] || 'Início'}`; }
   if (!quieto) {
     state._repintar = null;                  // o relógio da tela não repinta uma tela que está saindo
     view.classList.add('entrando');
@@ -2840,16 +3579,44 @@ async function route(r, opts = {}){
   } catch(e){
     if (vez === state._vez) {
       state._pintou = false; state._repintar = null;
-      view.innerHTML = `<div class="empty">Erro ao carregar: ${esc(e.message)}</div>`;
+      if (e?.parar) return;                  // login/acesso: a própria api() já mostrou a tela certa
+      // erro claro e um botão para tentar de novo (antes: "Erro ao carregar: Failed to fetch")
+      view.innerHTML = `<div class="erro-tela" role="alert">${svg(I.alerta)}
+        <b>Não consegui carregar esta tela.</b><p>${esc(e.message)}</p>
+        <button type="button" class="btn primary" id="btnTentarDeNovo">Tentar de novo</button></div>`;
+      $('#btnTentarDeNovo')?.addEventListener('click', () => route(state.route));
     }
   }
-  refreshBadge();
+  refreshBadge(quieto);
 }
 
-async function refreshBadge(){
+/* Selos do menu (follow-up; pendências do gestor) e os chips do Início.
+   RODADA 4: UMA chamada barata (/api/contagens = só COUNT no banco) no lugar da
+   lista inteira do follow-up a cada troca de tela — e no máximo a cada 30 s,
+   a não ser que alguém tenha acabado de gravar algo (forcar). */
+let _contagensEm = 0, _contagensVez = null;
+async function refreshBadge(forcar = false){
   if (emPresenca()) return;                  // follow-up não existe para esse papel
-  try{ const f = await api('GET','/followup'); $('#badgeFollowup').textContent = f.length;
-    $('#badgeFollowup').style.display = f.length ? 'flex':'none'; }catch{}
+  if (!forcar && state.contagens && Date.now() - _contagensEm < 30_000) return pintarContagens(state.contagens);
+  if (_contagensVez) return _contagensVez;
+  _contagensVez = api('GET', '/contagens', null, { repetir: false }).then((c) => {
+    state.contagens = c; _contagensEm = Date.now(); pintarContagens(c);
+  }).catch(() => { /* sem número: o selo fica como estava */ }).finally(() => { _contagensVez = null; });
+  return _contagensVez;
+}
+function pintarContagens(c) {
+  const selo = (el, n) => { if (!el) return; el.textContent = n > 99 ? '99+' : String(n || 0); el.style.display = n ? 'flex' : 'none'; };
+  selo($('#badgeFollowup'), c?.followup);
+  selo($('#badgePendencias'), (c?.semValor || 0) + (c?.antigas || 0));
+  // chips do Início (só o gestor recebe esses números do servidor)
+  const box = $('#chipsGestor'); if (!box) return;
+  const chips = [];
+  if (c?.semValor) chips.push(`<button type="button" class="chip-aviso chip-valor" data-ir="pendencias" title="Serviços concluídos sem o valor: o faturamento do CRM fica zerado. Toque para preencher.">
+    ${svg(I.money)} ${c.semValor} ${c.semValor === 1 ? 'concluído sem valor' : 'concluídos sem valor'}</button>`);
+  if (c?.antigas) chips.push(`<button type="button" class="chip-aviso" data-ir="pendencias" title="Horários de mais de 7 dias que nunca tiveram desfecho — prendem o lead no CRM.">
+    ${svg(I.relogio)} ${c.antigas} ${c.antigas === 1 ? 'horário antigo sem desfecho' : 'horários antigos sem desfecho'}</button>`);
+  box.innerHTML = chips.join('');
+  $$('[data-ir]', box).forEach(b => b.addEventListener('click', () => route(b.dataset.ir)));
 }
 
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
@@ -2900,6 +3667,7 @@ $('#btnBusca')?.addEventListener('click', () => abrirBuscaGlobal());
 const digitando = (el) => el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    if ($('#tour')) { marcarTourVisto(); return fecharTour(); }
     if ($('#ecoPop') && !$('#ecoPop').hidden) return fecharEco();
     return closeModal();
   }
@@ -2907,7 +3675,8 @@ document.addEventListener('keydown', e => {
       && !document.body.classList.contains('deslogado')) { e.preventDefault(); return abrirBuscaGlobal(); }
   if (e.ctrlKey || e.metaKey || e.altKey || modalAberto() || document.body.classList.contains('deslogado')) return;
   if (digitando(e.target)) return;
-  if ((e.key === 'n' || e.key === 'N') && !emPresenca()) { e.preventDefault(); openAgendamentoModal(); }
+  if (e.key === '?') { e.preventDefault(); route('ajuda'); }
+  else if ((e.key === 'n' || e.key === 'N') && !emPresenca()) { e.preventDefault(); openAgendamentoModal(); }
   else if ((e.key === 's' || e.key === 'S') && !emPresenca()) { e.preventDefault(); route('semana'); }
   else if (e.key === '/') {
     const busca = $('.view .search input');
@@ -3012,6 +3781,7 @@ window.addEventListener('resize', debounce(() => { if ($('#ecoPop') && !$('#ecoP
    ============================================================ */
 function mostrarLogin(mensagem){
   document.body.classList.add('deslogado');
+  if (mensagem) esquecerCacheInicio();   // sessão caiu/desativado: dado de cliente não fica na aba
   $('#telaLogin').hidden = false;
   // esconde as outras telas da capa (esqueci, nova senha, código, sem acesso)
   if (typeof contaMostrarForm === 'function') contaMostrarForm('formLogin');
@@ -3113,17 +3883,26 @@ async function abrirApp(){
   if (emPresenca()) {
     // papel 'agenda' (só presença): menu e botão de novo agendamento somem;
     // o servidor recusaria tudo isso de qualquer jeito.
-    document.body.classList.add('portaria');
+    document.body.classList.add('portaria', 'recepcao');
+    aplicarLetraRecepcao();
     state.entrada = null;                    // link de cliente não vale para quem só marca presença
-    await loadEmpresa().catch(() => { /* segue com o nome padrão */ });
+    // RODADA 4: o nome da oficina vem junto com a tela, não antes dela
+    const pEmpresa = loadEmpresa().catch(() => { /* segue com o nome padrão */ });
     await route('dia');
+    await pEmpresa;
+    desenharFila(); enviarFila();
+    talvezMostrarTour();
     return;
   }
-  await Promise.all([ loadEmpresa(), loadConsultores() ]);
+  /* RODADA 4 (velocidade): o Início é pedido JUNTO com a oficina e os
+     consultores — antes ele esperava os dois terminarem para começar. */
+  const pBase = Promise.all([ loadEmpresa(), loadConsultores() ]).catch((e) => { if (e?.parar) throw e; });
   const qs = new URLSearchParams(location.search);
   const r0 = qs.get('r');
   await route(r0 && ROUTES[r0] ? r0 : 'inicio');
+  await pBase;
   desenharFila(); enviarFila();               // marcações feitas sem internet numa visita anterior
+  talvezMostrarTour();
   if (state.entrada) { const e = state.entrada; state.entrada = null; await abrirEntrada(e); }
   else if (qs.get('novo') === '1') openAgendamentoModal();
 }

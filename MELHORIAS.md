@@ -251,3 +251,128 @@ leitura real do Supabase (só SELECT) das funções novas de `dados.js` e o `ser
 175. `tests/regras.test.mjs`, `tests/automacoes.test.mjs`, `tests/conta.test.mjs` e 6 testes novos em `dados.test.mjs`.
 176. Mock com os 8 papéis (`?papel=admin|gestor|atendente|agenda|desativado|semacesso|trocarsenha|mfa`, `&semsessao=1` = tela de login), usando as MESMAS regras do servidor.
 177. `server.js` importável sem abrir porta nem ligar timers (`EH_PRINCIPAL`); service worker `indycar-v13` com conta.js/conta.css.
+
+## Rodada 4 (14/10/2026)
+Foco: valor ao concluir, consultor ligado ao login, modo recepção para o Franklin, velocidade do Início,
+resiliência (Render fora/acordando, rede caindo no meio), tour e ajuda por papel, folha do dia, acessibilidade.
+Verificado com `npm test` (100 testes, 25 novos em `tests/rodada4.test.mjs` e `tests/rodada4-servidor.test.mjs`),
+`npm run check`, roteiro puppeteer contra o mock (`npm run mock`, admin/gestor/atendente/agenda, 1440 e 375 px,
+tema claro e escuro, servidor fora simulado com `POST /api/__falha` e rede cortada no meio do PATCH: **100/100**),
+leitura real do Supabase (só SELECT) das funções novas de `dados.js` e o `server.js` de verdade na porta 3010
+(401 sem login, brotli, ETag/304, service worker abrindo a casca e a biblioteca do login SEM rede).
+Sem DDL nesta rodada (nada novo no banco).
+
+### Valor ao concluir ("Veio e fechou")
+178. "Veio e fechou" abre uma janelinha com o **valor do serviço (opcional)** antes de fechar.
+179. **Sugestão de valor** em 4 níveis: orçamento aprovado do Orçador › valor já anotado no horário › valor orçado do lead no CRM › mediana dos últimos serviços com o mesmo nome (`dados.sugerirValor`, pura e testada).
+180. Orçamento aprovado e valor anotado já entram no campo; as sugestões menos firmes ficam num botão ✨ com a origem escrita ("média de 2 serviços iguais").
+181. O botão principal diz o que vai acontecer: "Fechar com R$ 1.890,00".
+182. **"Fechar sem valor"** continua valendo — ninguém fica travado.
+183. Esc, × ou clique fora **desistem**: nada é enviado (`_aoFecharModal`, avisado também quando outro modal abre por cima).
+184. Máscara do campo (uma vírgula, 2 casas) e erro claro para valor inválido, sem fechar a janela.
+185. O servidor grava o valor **no mesmo update do status** — o gatilho do banco copia para `leads.valor_pago` e o faturamento do CRM deixa de nascer zerado.
+186. Validação no servidor: formatos do Brasil ("1.250,50", "R$ 350"), teto de R$ 200 mil, só junto com "Veio e fechou", presença não manda valor (400/403 claros).
+187. A tela e o servidor leem o valor do **mesmo jeito** (`planejamento.valorDeTela` × `dados.valorDeEntrada`, conferido em teste).
+188. O recado depois de fechar mostra o valor ("Maria: veio e fechou — R$ 1.890,00 — foi para o CRM").
+189. Sem conexão, o valor vai junto na fila do aparelho.
+190. `GET /api/agendamentos/:id/valor-sugerido` (equipe; o papel presença não vê).
+
+### Pendências do gestor (menu PENDÊNCIAS)
+191. Tela **Pendências** (só gestor/admin): concluídos **sem valor** dos últimos 120 dias (hoje 60 no banco real) com o campo de valor em cada linha.
+192. **Enter salva e pula para o próximo** campo; ✨ por linha traz a sugestão.
+193. `PUT /api/agendamentos/:id/valor` grava no horário **e** no lead do CRM (só lead Concluído sem valor, ou com o valor antigo deste horário — o gatilho não roda quando a situação não muda) e vai para a auditoria (`preencheu_valor`).
+194. Preencher valor de quem não fechou → 409 claro; valor zero ou inválido → 400.
+195. Total preenchido na sessão aparece no topo do painel.
+196. **Horários de mais de 7 dias sem desfecho** (hoje 47 no banco real) listados com os desfechos de sempre — sumiam do Início e prendiam o lead. Nada é migrado sozinho: cada um é decidido pela pessoa.
+197. Para esses antigos, **"Não veio (sem avisar)"**: marca sem mandar o WhatsApp de falta semanas depois.
+198. Selo no menu PENDÊNCIAS (sem valor + antigos) e chips no Início do gestor ("60 concluídos sem valor", "47 horários antigos sem desfecho").
+199. Atendente não vê o menu nem os chips; pelo endereço vê "Só para o gestor" (o servidor recusa com 403 de qualquer jeito).
+200. No celular cada linha de valor vira um cartãozinho (sem tabela para rolar de lado).
+201. Aba CRM: **faturamento registrado na Agenda**, ticket médio e quantos concluídos estão sem valor, com o botão "Preencher".
+202. Desempenho por consultor ganhou a coluna **Faturado**.
+
+### Consultor
+203. **Ligar o consultor ao login com UM clique**: a Equipe mostra "Ligar a Gabriel" quando o sistema reconhece a pessoa pelo nome (no banco real: "Consultor Prensencial Gabriel" → login "Gabriel").
+204. Reconhecimento sem acento e sem palavras de cargo ("consultor", "presencial", até o erro "prensencial"); empate não sugere; login já ligado e inativo ficam de fora (`dados.sugerirLoginDoConsultor`, testada).
+205. Ligar tem **Desfazer** no recado.
+206. Login já ligado a outro consultor → recado claro (409) em vez do recado do horário disputado.
+207. **Carga dos próximos 7 dias** em barrinhas por consultor (e a linha "Sem consultor").
+208. **Distribuir** os horários de hoje e amanhã sem consultor: menor carga primeiro, nunca dois carros do mesmo consultor na mesma meia hora (índice `agendamentos_slot_uk`), auditado; quem não coube é contado.
+
+### Modo recepção (Franklin, papel "só presença")
+209. Tela nova de recepção: **relógio e data grandes**; as três abas são os números do dia.
+210. Cartão grande: hora, nome, carro e placa em letra grande; serviço e consultor embaixo.
+211. Dois botões de **64 px** para o dedo: "Chegou" (verde cheio) e "Não veio".
+212. "Não veio" **pede confirmação no próprio cartão** ("o cliente recebe uma mensagem no WhatsApp") — toque sem querer não manda nada.
+213. **Desfazer a chegada** (no recado e no cartão em "Já chegaram"): o servidor deixa a presença voltar só de "compareceu" para aguardando/confirmado (`regras.presencaPodeMarcar`, testada).
+214. "Chegou mesmo assim" para quem foi marcado como "Não veio" e apareceu.
+215. Tamanho da letra **A / A+ / A++**, guardado no perfil (`preferencias.agenda_letra`) e no aparelho.
+216. Busca por **nome ou placa** (sem acento, placa sem hífen).
+217. Atualiza sozinha a cada 2 min — só repinta se algo mudou e nunca debaixo do dedo (cartão ocupado ou confirmando).
+218. Botões de **tela cheia** e **"Tela acesa"** (Wake Lock, pedido de novo quando a aba volta) para o tablet do balcão.
+219. Imprime a folha do dia (sem telefone) direto da recepção.
+220. A recepção abre a **Ajuda** (botão ?) com o "como faço" dela e volta com "← Voltar para a recepção".
+221. Marcação da recepção também vai para a **fila** quando a conexão ou o servidor cai.
+222. Textos da recepção falam "Chegou" (não "Compareceu"); 375 px sem rolagem lateral.
+
+### Velocidade do Início
+223. `/api/dashboard` **não espera mais a importação do CodeWords** (até 8 s por abertura): ela roda por fora e invalida o cache quando traz algo.
+224. `GET /api/contagens` (só COUNT no banco) no lugar da lista inteira do follow-up a cada troca de tela; no máximo a cada 30 s.
+225. O Início **pinta na hora o último painel** guardado na aba (sessionStorage, até 15 min, marca "atualizando…") e o novo entra por cima em silêncio.
+226. O painel guardado some ao gravar qualquer coisa, ao sair da conta e quando a sessão cai; não troca a tela debaixo de modal aberto.
+227. O Início é pedido **junto** com a oficina e os consultores (antes esperava os dois).
+228. Respostas JSON acima de 1,5 KB vão em **brotli/gzip** (o painel tem ~30 KB).
+229. Arquivos da tela com **ETag → 304** (conferir a versão não baixa o arquivo de novo).
+230. Compressão dos arquivos guardada na memória: `app.js` 254 KB → 67 KB em brotli (medido no servidor real local).
+231. Ícones e logo com cache de 1 dia.
+232. Biblioteca do login com **versão fixa** (2.117.2: sem redirecionamento, cache "immutable") e `preconnect` ao CDN.
+233. Janela de WhatsApp busca **só o registro** (antes baixava a agenda inteira ou todos os clientes para achar um).
+
+### Resiliência (Render fora / acordando / rede caindo)
+234. Leitura que esbarra em 502/503/504 ou na rede caindo **tenta de novo sozinha** com espera crescente (1, 2, 4, 8, 15, 30… s, ~3 min no total, com sorteio).
+235. Faixa azul **"O sistema está acordando, tentando de novo… (tentativa N)"** enquanto isso; some sozinha.
+236. Recado **"O sistema voltou"** quando volta.
+237. Gravação nunca é repetida às cegas: 502/503/504 vira o recado "O sistema está reiniciando e não conseguiu salvar agora…".
+238. Desfecho marcado com o **servidor fora** também vai para a fila (antes só sem internet).
+239. Teto de 25 s por pedido: conexão pendurada vira "sem resposta" e não trava a tela.
+240. A espera acorda na hora quando a internet volta.
+241. Faixa da fila com **"Ver"**: lista as marcações guardadas com **Cancelar** e "Tentar enviar agora".
+242. A fila tenta sozinha a cada 30 s enquanto tiver algo (o evento "online" não dispara quando o problema é o servidor).
+243. A fila para em erro de sessão/acesso (não descarta a marcação) e só descarta o que o servidor recusou de verdade.
+244. Testado o **pedido cortado no meio** (rede abortada no PATCH): vai para a fila e sai quando a rede volta.
+245. Service worker `indycar-v14`: rede primeiro, mas com **3 s de paciência** — passou disso (ou 502/503 do Render), serve a casca guardada.
+246. O service worker guarda a **biblioteca do login**: sem rede a tela abre de verdade (testado offline: capa e supabase-js carregam; a CSP ganhou o CDN em `connect-src` para isso).
+247. **Rascunho do agendamento**: o formulário fica guardado na aba enquanto se digita; fechou sem salvar (clique fora, sessão caiu, recarregou) → volta ao abrir de novo, com "Descartar". Salvar ou Cancelar apagam.
+248. Tela que não carregou mostra **"Tentar de novo"** (antes: "Erro ao carregar: Failed to fetch").
+249. Sessão vencida não pinta erro por baixo da tela de login.
+
+### Mais funcionários: tour e ajuda
+250. **Tour de boas-vindas** na primeira vez, por papel: recepção (5 passos), equipe (5) e gestor (+ Pendências).
+251. O tour destaca o botão de cada passo, prende o foco, fecha com Esc e fica marcado no perfil (`preferencias.agenda_tour`) e no aparelho.
+252. Preferências do perfil agora são **mescladas**: gravar as da Agenda não apaga as que os outros apps guardam na mesma coluna (`juntarPreferencias`, testada).
+253. Tela **AJUDA** (menu e tecla **?**): "como faço…" do papel, atalhos de teclado e o que pedir ao gestor.
+254. "Ver o tour de novo" na Ajuda.
+
+### Folha do dia
+255. Imprimir abre a escolha do dia: **hoje, amanhã ou outra data**.
+256. Telefone **opcional** na folha (desmarcar quando ela fica à vista no balcão).
+257. Colunas novas: **#**, **Consultor**, observação curta, **"Chegou?"** e **"Fechou?"** para marcar à mão; cancelados fora.
+258. A folha sai **deitada** (página com nome só para ela — a Semana continua em pé), cabeçalho repetido em cada página e linha "Conferido por".
+
+### Acessibilidade
+259. Link **"Pular para o conteúdo"** no topo.
+260. Menu com `aria-current="page"` e **título da aba por tela** ("Pendências · IndyCar Agenda").
+261. Troca de tela **anunciada** ao leitor de tela (região invisível).
+262. Recado de erro com `role=alert` (anunciado na hora); os comuns com `status`.
+263. Abas do dia com `role=tablist/tab`, `aria-selected` e **setas / Home / End** no teclado (Início e recepção).
+264. `label for` nos campos das janelas de modelo e de WhatsApp; Histórico com rolagem própria e `scope` nos títulos.
+265. Foco visível nas abas, chips, botões da recepção e itens da Ajuda.
+266. Texto só para leitor de tela não empurra mais a página para o lado no celular (achado no 375 px da Equipe e das Pendências).
+267. Rótulo "RELACIONAMENTO" do menu não corta mais; o menu esmaece no pé quando ainda tem item para rolar.
+268. Contraste do texto secundário no tema claro conferido (≥ 4,5:1).
+
+### Testes e ferramentas
+269. `tests/rodada4.test.mjs` (14): valor, sugestão, consultor ↔ login, distribuição, preferências, presença, rotas de gestor, resiliência, recepção, carga da semana.
+270. `tests/rodada4-servidor.test.mjs` (11): o server.js por HTTP — valor no PATCH, painel de valores, contagens por papel, desfazer chegada, sugestão de login, distribuir, brotli/gzip, ETag/304, versão e service worker.
+271. Mock: `POST /api/__falha {status, vezes}` (simula o Render fora), `POST /api/__reset`, rotas novas e um consultor sem login para testar o "Ligar a …".
+272. Versão `2026-10-14-r4` em `/api/versao` e no app.

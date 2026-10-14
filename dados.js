@@ -1107,6 +1107,12 @@ export async function atualizarPerfilNome(id, nome, emailDoLogin = '') {
 export async function atualizarMeuPerfil(id, campos, emailDoLogin = '') {
   const permitido = {};
   for (const k of ['nome', 'cargo', 'telefone', 'avatar_cor', 'preferencias']) if (campos[k] !== undefined) permitido[k] = campos[k];
+  /* preferências: junta com as que já estão no perfil (os outros apps guardam
+     as deles na MESMA coluna — substituir apagaria as escolhas feitas lá) */
+  if (permitido.preferencias) {
+    const atual = await selecionarUm(T.perfis, `select=preferencias&id=eq.${encodeURIComponent(id)}`).catch(() => null);
+    permitido.preferencias = juntarPreferencias(atual?.preferencias, permitido.preferencias);
+  }
   await atualizarUm(T.perfis, `id=eq.${encodeURIComponent(id)}`, { ...permitido, updated_at: new Date().toISOString() });
   return obterPerfil(id, emailDoLogin);
 }
@@ -1580,7 +1586,7 @@ export async function metricasCrm() {
   const [linhas, consultores] = await Promise.all([
     // ordem fixa: LIMIT/OFFSET sem ORDER BY no Postgres pode repetir e pular
     // linhas entre páginas, e as métricas sairiam erradas sem nenhum erro
-    selecionarTudo(T.agendamentos, 'select=origem,status,compareceu,consultor_id&order=id.asc'),
+    selecionarTudo(T.agendamentos, 'select=origem,status,compareceu,consultor_id,valor&order=id.asc'),
     listarConsultores(),
   ]);
 
@@ -1615,6 +1621,7 @@ export async function metricasCrm() {
     const concluidos = meus.filter((a) => a.status === 'concluido').length;
     return {
       nome: c.nome, ativo: c.ativo,
+      faturamento: Math.round(meus.filter((a) => a.status === 'concluido').reduce((s, a) => s + (Number(a.valor) || 0), 0) * 100) / 100,
       total: meus.length, vieram, faltas, concluidos,
       naoFechou: meus.filter((a) => a.status === 'nao_fechou').length,
       taxaFechamento: taxa(concluidos, vieram),
@@ -1624,8 +1631,15 @@ export async function metricasCrm() {
   // agendamento sem consultor também conta: é o buraco que o dono quer ver
   const semConsultor = linhas.filter((a) => !a.consultor_id).length;
 
+  /* Rodada 4: o faturamento que a Agenda registrou (valor dos concluídos) e
+     quantos concluídos ainda estão SEM valor — o buraco do CRM. */
+  const fechados = linhas.filter((a) => a.status === 'concluido');
+  const comValor = fechados.filter((a) => Number(a.valor) > 0);
+  const somaValor = Math.round(comValor.reduce((s, a) => s + Number(a.valor), 0) * 100) / 100;
+  const faturamento = { soma: somaValor, comValor: comValor.length, semValor: fechados.length - comValor.length,
+    ticketMedio: comValor.length ? Math.round(somaValor / comValor.length * 100) / 100 : 0 };
   return {
-    total, compareceram, naoVieram, concluidos,
+    total, compareceram, naoVieram, concluidos, faturamento,
     taxaComparecimento: total ? Math.round((compareceram / total) * 100) : 0,
     taxaConversao: compareceram ? Math.round((concluidos / compareceram) * 100) : 0,
     porOrigem, porConsultor, semConsultor,
@@ -2036,4 +2050,228 @@ export async function gestoresAtivos() {
 export async function ultimasAuditorias(limite = 50) {
   return selecionar('auditoria', `select=id,perfil_id,app,acao,tabela,registro_id,detalhes,created_at&app=eq.agenda&order=created_at.desc&limit=${limite}`)
     .catch(() => []);
+}
+
+// ============================================================================
+// RODADA 4 (14/10/2026) — valor ao concluir, consultor ligado ao login,
+// pendências antigas e contagens baratas para o Início.
+// ============================================================================
+
+/* Teto de um valor de serviço digitado na tela: acima disso é erro de digitação
+   (um zero a mais), não um serviço de verdade numa oficina. */
+export const VALOR_MAXIMO = 200000;
+
+/**
+ * Função PURA (testada): o que a pessoa digitou no campo "Valor do serviço"
+ * vira número. Aceita 350 · "350" · "350,50" · "1.234,56" · "R$ 1.234" ·
+ * "1234.5". Vazio → null (concluir sem valor é permitido). Inválido → NaN.
+ */
+export function valorDeEntrada(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v * 100) / 100 : NaN;
+  if (typeof v !== 'string') return NaN;
+  let t = v.replace(/R\$|\s/gi, '').trim();
+  if (!t) return null;
+  if (!/^[\d.,]+$/.test(t)) return NaN;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');           // padrão BR: 1.234,56
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');          // 1.234 (milhar sem centavos)
+  if ((t.match(/\./g) || []).length > 1) return NaN;
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
+}
+
+/** Valor aceito pelo servidor? null = sem valor (ok); número entre 0 e o teto. */
+export function valorValido(n) {
+  return n === null || (Number.isFinite(n) && n >= 0 && n <= VALOR_MAXIMO);
+}
+
+/** Mediana (ignora zero e lixo). */
+function mediana(nums) {
+  const l = nums.map(Number).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b);
+  if (!l.length) return null;
+  const m = Math.floor(l.length / 2);
+  return Math.round((l.length % 2 ? l[m] : (l[m - 1] + l[m]) / 2) * 100) / 100;
+}
+
+/**
+ * Função PURA (testada): a SUGESTÃO de valor quando alguém marca "Veio e
+ * fechou". Só sugere — a pessoa confirma, troca ou deixa em branco.
+ * Ordem (do mais confiável ao menos):
+ *   1. orçamento do Orçador aprovado ligado a este horário/lead/cliente
+ *   2. o valor que já está no agendamento
+ *   3. o valor orçado do lead no CRM
+ *   4. a mediana do que a oficina cobrou nos últimos serviços com o mesmo nome
+ */
+export function sugerirValor({ agendamento = {}, orcamentos = [], lead = null, historico = [] } = {}) {
+  const totalOrc = (o) => (Number(o?.total_a_vista) > 0 ? Number(o.total_a_vista) : Number(o?.total) || 0);
+  const orc = orcamentos.filter((o) => o && ['aprovado', 'fechado'].includes(o.status) && totalOrc(o) > 0)
+    .sort((x, y) => String(y.decidido_em || y.updated_at || '').localeCompare(String(x.decidido_em || x.updated_at || '')))[0];
+  if (orc) return { valor: Math.round(totalOrc(orc) * 100) / 100, fonte: 'orcamento', rotulo: orc.numero ? `orçamento nº ${orc.numero} aprovado` : 'orçamento aprovado' };
+  if (Number(agendamento.valor) > 0) return { valor: Number(agendamento.valor), fonte: 'agendamento', rotulo: 'valor já anotado no horário' };
+  if (Number(lead?.valor_orcado) > 0) return { valor: Number(lead.valor_orcado), fonte: 'lead', rotulo: 'valor orçado no CRM' };
+  const alvo = semAcento(agendamento.servico);
+  const parecidos = alvo ? historico.filter((h) => semAcento(h.servico) === alvo && h.id !== agendamento.id) : [];
+  const med = mediana(parecidos.map((h) => h.valor));
+  if (med) return { valor: med, fonte: 'historico', rotulo: `média de ${parecidos.length} ${parecidos.length === 1 ? 'serviço igual' : 'serviços iguais'}` };
+  return { valor: null, fonte: null, rotulo: null };
+}
+
+/** Sugestão de valor lida do banco (orçamentos, lead, histórico do serviço). */
+export async function valorSugerido(id) {
+  const a = await obterAgendamento(id);
+  if (!a) return null;
+  const filtrosOrc = [`agendamento_id.eq.${a.id}`];
+  if (ehUuid(a.lead_id)) filtrosOrc.push(`lead_id.eq.${a.lead_id}`);
+  if (ehUuid(a.cliente_id)) filtrosOrc.push(`cliente_id.eq.${a.cliente_id}`);
+  const p = new URLSearchParams('select=id,numero,status,total,total_a_vista,decidido_em,updated_at');
+  p.set('or', `(${filtrosOrc.join(',')})`);
+  p.set('order', 'updated_at.desc');
+  p.set('limit', '5');
+  const h = new URLSearchParams('select=id,servico,valor');
+  h.set('status', 'eq.concluido'); h.set('valor', 'gt.0');
+  h.set('servico', `ilike.${String(a.servico || '').replace(/[%*,()]/g, ' ').trim()}`);
+  h.set('order', 'data.desc'); h.set('limit', '20');
+  const [orcamentos, lead, historico] = await Promise.all([
+    selecionar('orc_orcamentos', p).catch(() => []),
+    ehUuid(a.lead_id) ? selecionarUm('leads', `select=id,valor_orcado,valor_pago,status&id=eq.${a.lead_id}`).catch(() => null) : null,
+    a.servico ? selecionar(T.agendamentos, h).catch(() => []) : [],
+  ]);
+  return { ...sugerirValor({ agendamento: a, orcamentos, lead, historico }), atual: a.valor || 0 };
+}
+
+const SEL_SEM_VALOR = 'select=id,cliente_nome,telefone,servico,data,hora,status,valor,lead_id,cliente_id,consultor_id,veiculo,placa,origem,confirmado,compareceu,consultores(nome,cor)';
+
+/** Concluídos sem valor (painel do gestor): os mais recentes primeiro. */
+export async function concluidosSemValor({ dias = 120, limite = 200 } = {}) {
+  const p = new URLSearchParams(SEL_SEM_VALOR);
+  p.set('status', 'eq.concluido');
+  p.set('valor', 'lte.0');
+  p.set('data', `gte.${diasAntes(hoje(), dias)}`);
+  p.set('order', 'data.desc,hora.desc');
+  p.set('limit', String(Math.min(500, limite)));
+  return (await selecionar(T.agendamentos, p)).map(lerAgendamento);
+}
+
+/** Só o número (chip do Início): HEAD + count, sem trazer linha nenhuma. */
+export const contarConcluidosSemValor = (dias = 120) =>
+  contar(T.agendamentos, `status=eq.concluido&valor=lte.0&data=gte.${diasAntes(hoje(), dias)}`);
+
+/** Follow-up só contado (o selo do menu não precisa da lista inteira). */
+export const contarFollowup = () => contar(T.agendamentos, 'or=(status.in.(nao_veio,nao_fechou),compareceu.is.false)');
+
+/**
+ * Preenche o valor de um serviço JÁ concluído (painel do gestor). O gatilho do
+ * banco só copia agendamentos.valor para leads.valor_pago quando a SITUAÇÃO
+ * muda; aqui a situação não muda — então o lead é atualizado junto, mas só se
+ * ele está Concluído e ainda sem valor (ou com o valor antigo deste horário).
+ */
+export async function preencherValor(id, valor) {
+  const a = await obterAgendamento(id);
+  if (!a) return null;
+  const antigo = Number(a.valor) || 0;
+  const atualizado = await atualizarAgendamento(id, { valor });
+  let lead = false;
+  if (ehUuid(a.lead_id) && a.status === 'concluido') {
+    const filtro = `id=eq.${a.lead_id}&status=eq.concluido&or=(valor_pago.is.null,valor_pago.eq.0${antigo > 0 ? `,valor_pago.eq.${antigo}` : ''})`;
+    const linhas = await atualizar('leads', filtro, { valor_pago: valor }).catch(() => []);
+    lead = linhas.length > 0;
+  }
+  return { agendamento: atualizado, lead_atualizado: lead, antes: antigo };
+}
+
+/**
+ * Pendências antigas (gestor): horário que passou há mais de 7 dias e nunca
+ * teve desfecho — chegou e ficou em "Compareceu"/"Em atendimento", ou ficou
+ * "Aguardando"/"Confirmado". Some do Início (que olha 7 dias) e prende o lead
+ * do CRM. Só LISTA: quem resolve é a pessoa, pelos botões de sempre.
+ */
+export async function pendenciasAntigas({ limite = 100 } = {}) {
+  const p = new URLSearchParams(SEL_AGENDAMENTO);
+  p.set('status', 'in.(compareceu,em_atendimento,aguardando,confirmado)');
+  p.set('data', `lt.${diasAntes(hoje(), 7)}`);
+  p.set('order', 'data.desc,hora.desc');
+  p.set('limit', String(Math.min(300, limite)));
+  return (await selecionar(T.agendamentos, p)).map(lerAgendamento);
+}
+export const contarPendenciasAntigas = () =>
+  contar(T.agendamentos, `status=in.(compareceu,em_atendimento,aguardando,confirmado)&data=lt.${diasAntes(hoje(), 7)}`);
+
+/* Palavras que não ajudam a achar quem é a pessoa ("Consultor Presencial Gabriel"). */
+const PALAVRAS_DE_CARGO = new Set(['consultor', 'consultora', 'presencial', 'prensencial', 'atendente', 'recepcao', 'recepcionista',
+  'vendedor', 'vendedora', 'gestor', 'gerente', 'tecnico', 'mecanico', 'de', 'da', 'do', 'dos', 'das']);
+const nomesDe = (s) => semAcento(s).split(/[^a-z0-9]+/).filter((p) => p.length >= 3 && !PALAVRAS_DE_CARGO.has(p));
+
+/**
+ * Função PURA (testada): qual login provavelmente É este consultor. Compara os
+ * nomes sem acento e sem as palavras de cargo; precisa de pelo menos um nome
+ * em comum, e o primeiro nome do login vale um ponto a mais. Fica de fora só
+ * quem já está ligado a outro consultor (o banco recusaria: índice único).
+ * Empate de pontos → nenhuma sugestão (melhor não chutar).
+ */
+export function sugerirLoginDoConsultor(consultor, perfis = [], usados = new Set()) {
+  if (!consultor || consultor.perfil_id) return null;
+  const alvo = new Set(nomesDe(consultor.nome));
+  if (!alvo.size) return null;
+  const notas = perfis
+    .filter((p) => p && p.id && !usados.has(p.id) && p.ativo !== false && p.ativo !== 0)
+    .map((p) => {
+      const nomes = nomesDe(p.nome);
+      const comuns = nomes.filter((n) => alvo.has(n));
+      const pontos = comuns.length * 2 + (nomes[0] && alvo.has(nomes[0]) ? 1 : 0);
+      return { id: p.id, nome: p.nome, papel: p.papel, pontos };
+    })
+    .filter((p) => p.pontos > 0)
+    .sort((x, y) => y.pontos - x.pontos);
+  if (!notas.length || (notas[1] && notas[1].pontos === notas[0].pontos)) return null;
+  return { perfil_id: notas[0].id, nome: notas[0].nome, papel: notas[0].papel };
+}
+
+/**
+ * Função PURA (testada): distribui os horários SEM consultor de um dia entre
+ * os consultores ativos — o de menor carga primeiro, sem pôr dois carros do
+ * mesmo consultor na mesma meia hora (o índice agendamentos_slot_uk recusaria).
+ * Devolve [{ id, consultor_id, consultor_nome }]; quem não coube fica de fora.
+ */
+export function distribuirSemConsultor({ consultores = [], agendamentos = [] } = {}) {
+  const ativos = consultores.filter((c) => c.ativo !== 0 && c.ativo !== false);
+  if (!ativos.length) return [];
+  const janela = (hr) => { const m = minDe(hr); return m === null ? null : Math.floor(m / EXPEDIENTE.passo) * EXPEDIENTE.passo; };
+  const vivos = agendamentos.filter((a) => a && STATUS_OCUPA.has(a.status));
+  const carga = new Map(ativos.map((c) => [c.id, 0]));
+  const ocupado = new Set();
+  for (const a of vivos) {
+    if (!a.consultor_id) continue;
+    if (carga.has(a.consultor_id)) carga.set(a.consultor_id, carga.get(a.consultor_id) + 1);
+    ocupado.add(`${a.consultor_id}|${a.data}|${janela(a.hora)}`);
+  }
+  const saida = [];
+  const semCons = vivos.filter((a) => !a.consultor_id)
+    .sort((x, y) => `${x.data} ${x.hora}`.localeCompare(`${y.data} ${y.hora}`));
+  for (const a of semCons) {
+    const livre = ativos
+      .filter((c) => !ocupado.has(`${c.id}|${a.data}|${janela(a.hora)}`))
+      .sort((x, y) => carga.get(x.id) - carga.get(y.id) || String(x.nome).localeCompare(String(y.nome), 'pt-BR'))[0];
+    if (!livre) continue;
+    carga.set(livre.id, carga.get(livre.id) + 1);
+    ocupado.add(`${livre.id}|${a.data}|${janela(a.hora)}`);
+    saida.push({ id: a.id, consultor_id: livre.id, consultor_nome: livre.nome });
+  }
+  return saida;
+}
+
+/** Horários vivos de uma data (para distribuir consultor). */
+export async function agendamentosVivosDoDia(data) {
+  const d = dataBanco(data);
+  if (!d) return [];
+  return (await selecionar(T.agendamentos,
+    `select=id,data,hora,status,consultor_id,cliente_nome&data=eq.${d}&status=in.(aguardando,confirmado,compareceu,em_atendimento)&limit=500`))
+    .map((r) => ({ ...r, hora: horaCurta(r.hora) }));
+}
+
+/* Preferências do perfil são COMPARTILHADAS pelos apps (mesma linha de `perfis`):
+   grava as chaves da Agenda por cima das que já existem, sem apagar as dos
+   outros apps. Função pura, testada. */
+export function juntarPreferencias(atuais, novas) {
+  const base = atuais && typeof atuais === 'object' && !Array.isArray(atuais) ? atuais : {};
+  return { ...base, ...(novas && typeof novas === 'object' && !Array.isArray(novas) ? novas : {}) };
 }
