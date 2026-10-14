@@ -189,6 +189,8 @@ test('velocidade: arquivos da tela com ETag → 304 sem corpo; brotli guardado; 
   const r2 = await fetch(base + '/app.js', { headers: { 'If-None-Match': etag } });
   assert.equal(r2.status, 304);
   assert.equal((await r2.text()).length, 0);
+  // o proxy do Render "enfraquece" o ETag (W/"…") quando ele mesmo comprime: também vale
+  assert.equal((await fetch(base + '/app.js', { headers: { 'If-None-Match': 'W/' + etag } })).status, 304);
   const ico = await fetch(base + '/icon-192.png');
   assert.match(ico.headers.get('cache-control') || '', /max-age=86400/);
   // compressão confere byte a byte com o arquivo

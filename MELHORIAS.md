@@ -376,3 +376,4 @@ Sem DDL nesta rodada (nada novo no banco).
 270. `tests/rodada4-servidor.test.mjs` (11): o server.js por HTTP — valor no PATCH, painel de valores, contagens por papel, desfazer chegada, sugestão de login, distribuir, brotli/gzip, ETag/304, versão e service worker.
 271. Mock: `POST /api/__falha {status, vezes}` (simula o Render fora), `POST /api/__reset`, rotas novas e um consultor sem login para testar o "Ligar a …".
 272. Versão `2026-10-14-r4` em `/api/versao` e no app.
+273. ETag aceito também na forma fraca (W/"…") que o proxy do Render devolve quando ele mesmo comprime — achado conferindo em produção (antes o 304 virava 200).

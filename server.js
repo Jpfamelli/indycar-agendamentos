@@ -1773,7 +1773,8 @@ async function serveStatic(req, res, pathname) {
       ETag: item.etag,
       Vary: 'Accept-Encoding',
     };
-    if (String(req.headers['if-none-match'] || '').split(/\s*,\s*/).includes(item.etag)) {
+    // comparação fraca: o proxy do Render devolve W/"…" quando ele mesmo comprime
+    if (String(req.headers['if-none-match'] || '').split(/\s*,\s*/).map((e) => e.replace(/^W\//, '')).includes(item.etag)) {
       res.writeHead(304, cabecalho);
       return res.end();
     }
