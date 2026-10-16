@@ -1,0 +1,5 @@
+# Central (16/10): HTML com hash de script na CSP — o navegador calcula o hash com LF;
+# CRLF no arquivo servido quebra a CSP. Texto sempre LF no repositório e na cópia local.
+* text=auto eol=lf
+*.png binary
+*.ico binary

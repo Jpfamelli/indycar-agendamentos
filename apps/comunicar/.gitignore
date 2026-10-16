@@ -1,0 +1,7 @@
+.env
+node_modules/
+backups/
+*.log
+capturas-r3/
+capturas-r4/
+capturas-r5/

@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0a0a0b" />
+<title>IndyCar CRM · Centro Automotivo Taubaté</title>
+
+<!-- Tema (claro/escuro) aplicado ANTES de pintar a tela, para não piscar.
+     Padrão: escuro. A escolha de quem usa persiste em localStorage. -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('indycar_tema');
+      if (t === 'claro') {
+        document.documentElement.setAttribute('data-tema', 'claro');
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', '#eaecf0');
+      }
+    } catch (e) {}
+  })();
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,700;1,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="crm-ia.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0a0a'/><text y='.85em' x='8' font-size='78' font-family='sans-serif' font-weight='bold' fill='%23e50914'>I</text></svg>" />
+  <!-- Instalável: com isto o Chrome/Edge oferece "Instalar CRM" e o app
+       abre em janela própria, sem barra de endereço. -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CRM" />
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+<!-- Rodada 4: faixa "o sistema está acordando" (Render gratuito dorme) -->
+<div id="acordando" class="acordando" role="status" aria-live="polite" hidden>
+  <span class="acordando-ico" aria-hidden="true"></span>
+  <span id="acordandoTxt">O sistema está acordando…</span>
+  <button type="button" class="btn btn-ghost sm" id="acordandoJa">Tentar agora</button>
+</div>
+
+<!-- ================= SIDEBAR ================= -->
+<aside class="sidebar">
+  <div class="brand">
+    <span class="brand-mark"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
+    <span class="brand-sub">CRM · CENTRO AUTOMOTIVO</span>
+    <span class="brand-slogan">Quem conhece, Indyca! 🏎</span>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-item active" data-view="dashboard">
+      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="currentColor"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button class="nav-item" data-view="leads">
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/></svg>
+      <span>Leads</span>
+    </button>
+    <button class="nav-item" data-view="clientes">
+      <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2zM9 7a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm4.5 10h-9v-.75c0-1.5 3-2.32 4.5-2.32s4.5.82 4.5 2.32V17zM19 15h-3v-2h3v2zm0-4h-4V9h4v2z" fill="currentColor"/></svg>
+      <span>Clientes</span>
+    </button>
+    <button class="nav-item" data-view="pipeline">
+      <svg viewBox="0 0 24 24"><path d="M3 5h18v3H3V5zm2 5h14v3H5v-3zm2 5h10v3H7v-3z" fill="currentColor"/></svg>
+      <span>Funil</span>
+    </button>
+    <button class="nav-item" data-view="origem">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 17.93V16h-2v3.93A8.01 8.01 0 014.07 13H8v-2H4.07A8.01 8.01 0 0111 4.07V8h2V4.07A8.01 8.01 0 0119.93 11H16v2h3.93A8.01 8.01 0 0113 19.93z" fill="currentColor"/></svg>
+      <span>Origem dos Leads</span>
+    </button>
+    <button class="nav-item" data-view="equipe" hidden>
+      <svg viewBox="0 0 24 24"><path d="M7 21H3v-8h4v8zm7 0h-4V3h4v18zm7 0h-4V9h4v12z" fill="currentColor"/></svg>
+      <span>Equipe e metas</span>
+    </button>
+    <button class="nav-item" data-view="distribuir" hidden>
+      <svg viewBox="0 0 24 24"><path d="M12 2l4 4h-3v5h5V8l4 4-4 4v-3h-5v5h3l-4 4-4-4h3v-5H6v3l-4-4 4-4v3h5V6H8l4-4z" fill="currentColor"/></svg>
+      <span>Leads sem dono</span>
+    </button>
+    <button class="nav-item" data-view="relatorios" hidden>
+      <svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5V3zm9 1.5V8h3.5L14 4.5zM8 17h2v-5H8v5zm3 0h2V10h-2v7zm3 0h2v-3h-2v3z" fill="currentColor"/></svg>
+      <span>Relatórios</span>
+    </button>
+    <button class="nav-item" data-view="servicos">
+      <svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1a5.5 5.5 0 00-7.1-7.1l3.9 3.9-2.8 2.8-3.9-3.9a5.5 5.5 0 007.1 7.1l9.1 9.1a1 1 0 001.4 0l1.4-1.4a1 1 0 000-1.4z" fill="currentColor"/></svg>
+      <span>Serviços</span>
+    </button>
+    <button class="nav-item" data-view="integracoes">
+      <svg viewBox="0 0 24 24"><path d="M10.6 13.4a1 1 0 001.4 0l4.9-4.9a3 3 0 10-4.2-4.2l-1.4 1.4 1.4 1.4L14.1 5.7a1 1 0 011.4 1.4l-4.9 4.9a1 1 0 000 1.4zM8.5 10.6a1 1 0 00-1.4 0l-4.9 4.9a3 3 0 004.2 4.2l1.4-1.4-1.4-1.4-1.4 1.4a1 1 0 01-1.4-1.4l4.9-4.9a1 1 0 000-1.4z" fill="currentColor"/><path d="M8.8 15.2l6.4-6.4 1.4 1.4-6.4 6.4z" fill="currentColor"/></svg>
+      <span>Integrações</span>
+    </button>
+    <button class="nav-item" data-view="ia">
+      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 6.2L21 9.3l-4.8 4.3 1.3 6.4L12 16.8 6.5 20l1.3-6.4L3 9.3l6.6-1.1L12 2z" fill="currentColor"/></svg>
+      <span>IA</span>
+    </button>
+    <button class="nav-item" data-view="configuracoes">
+      <svg viewBox="0 0 24 24"><path d="M19.4 13a7.8 7.8 0 000-2l2.1-1.6a.5.5 0 00.1-.6l-2-3.4a.5.5 0 00-.6-.2l-2.5 1a7.3 7.3 0 00-1.7-1l-.4-2.6a.5.5 0 00-.5-.4h-4a.5.5 0 00-.5.4l-.4 2.6a7.3 7.3 0 00-1.7 1l-2.5-1a.5.5 0 00-.6.2l-2 3.4a.5.5 0 00.1.6L4.6 11a7.8 7.8 0 000 2l-2.1 1.6a.5.5 0 00-.1.6l2 3.4a.5.5 0 00.6.2l2.5-1a7.3 7.3 0 001.7 1l.4 2.6a.5.5 0 00.5.4h4a.5.5 0 00.5-.4l.4-2.6a7.3 7.3 0 001.7-1l2.5 1a.5.5 0 00.6-.2l2-3.4a.5.5 0 00-.1-.6L19.4 13zM12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z" fill="currentColor"/></svg>
+      <span>Configurações</span>
+    </button>
+  </nav>
+
+  <label class="ecossistema">Ecossistema IndyCar<select id="ecossistema" aria-label="Abrir outro sistema"><option value="">CRM · atual</option></select></label>
+  <div class="side-foot">
+    <button class="tema-toggle" id="btnTema" type="button"
+            title="Alternar tema claro e escuro" aria-label="Alternar tema claro e escuro">
+      <span class="tema-ico" id="temaIco">🌙</span>
+      <span class="tema-txt" id="temaTxt">Tema escuro</span>
+    </button>
+    <button type="button" class="ajuda-btn" id="btnAjuda" aria-label="Ajuda: como faço, atalhos e tour" title="Ajuda (?)"><span aria-hidden="true">?</span><span class="ajuda-txt">Ajuda</span></button>
+    <button type="button" class="atalhos-btn" id="btnAtalhos" aria-label="Atalhos de teclado" title="Atalhos de teclado" hidden>⌨</button>
+    <span class="side-note">Av. Bandeirantes, 875 · Taubaté-SP</span>
+  </div>
+</aside>
+
+<!-- ================= MAIN ================= -->
+<main id="conteudo" class="main">
+  <header class="topbar">
+    <div>
+      <h1 id="viewTitle">Dashboard</h1>
+      <p id="viewSub">Visão geral da operação comercial</p>
+    </div>
+    <div class="topbar-actions">
+      <div class="search">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
+        <input aria-label="Buscar leads" id="search" type="search" placeholder="Filtrar leads (Ctrl+K busca tudo)…" />
+      </div>
+      <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Busca global: nome, telefone ou placa (Ctrl+K)" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd>Ctrl K</kbd></button>
+      <button type="button" class="fila-chip" id="filaChip" hidden aria-live="polite"></button>
+      <button class="btn btn-primary" id="btnNovo">+ Novo Lead</button>
+      <div class="topo-icones">
+        <div class="ancora">
+          <button type="button" class="icone-btn" id="btnSino" aria-label="Notificações" aria-expanded="false" aria-controls="painelSino">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 002.45-2h-4.9A2.5 2.5 0 0012 22zm7-6V11a7 7 0 00-5.5-6.84V3.5a1.5 1.5 0 00-3 0v.66A7 7 0 005 11v5l-2 2v1h18v-1l-2-2z" fill="currentColor"/></svg>
+            <span class="sino-qtd" id="sinoQtd" hidden></span>
+          </button>
+          <div class="pop pop-direita sino-pop" id="painelSino" role="region" aria-label="Notificações" hidden>
+            <div class="sino-topo"><strong>Notificações</strong><button type="button" class="btn btn-ghost sm" id="sinoTodas">Marcar todas como lidas</button></div>
+            <ul class="sino-lista" id="sinoLista" aria-live="polite"></ul>
+            <p class="sino-pe" id="sinoPe"></p>
+          </div>
+        </div>
+        <div class="ancora">
+          <button type="button" class="avatar-btn" id="btnPerfil" aria-haspopup="menu" aria-expanded="false" aria-controls="menuPerfil" aria-label="Menu do perfil">
+            <span class="avatar mini" id="perfilAvatar" aria-hidden="true">?</span>
+          </button>
+          <div class="pop pop-direita menu-perfil" id="menuPerfil" role="menu" aria-label="Perfil" hidden>
+            <div class="mp-topo" role="presentation"><span class="avatar" id="mpAvatar" aria-hidden="true">?</span>
+              <div><strong id="mpNome">—</strong><small id="mpEmail"></small><small id="mpPapel"></small></div></div>
+            <button type="button" role="menuitem" data-mp="perfil"><span aria-hidden="true">👤</span>Meu perfil</button>
+            <button type="button" role="menuitem" data-mp="senha"><span aria-hidden="true">🔑</span>Trocar senha</button>
+            <button type="button" role="menuitem" data-mp="mfa"><span aria-hidden="true">🛡️</span>Verificação em duas etapas</button>
+            <button type="button" role="menuitem" data-mp="notif"><span aria-hidden="true">🔔</span>Preferências de notificação</button>
+            <button type="button" role="menuitem" data-mp="tarefas"><span aria-hidden="true">✅</span>Minhas tarefas</button>
+            <button type="button" role="menuitem" data-mp="tema"><span aria-hidden="true">🌓</span>Trocar tema</button>
+            <button type="button" role="menuitem" data-mp="ajuda"><span aria-hidden="true">❓</span>Ajuda e tour</button>
+            <hr role="separator" />
+            <button type="button" role="menuitem" data-mp="sair"><span aria-hidden="true">↩</span>Sair</button>
+            <button type="button" role="menuitem" data-mp="sairTodos" class="mp-perigo"><span aria-hidden="true">⏏</span>Sair de todos os aparelhos</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ---------- DASHBOARD ---------- -->
+  <div id="saudeSistema" role="status" hidden></div>
+  <section class="view active" id="view-dashboard">
+    <div class="periodo-barra">
+      <div class="pilulas" id="periodoPilulas" role="group" aria-label="Período do painel">
+        <button type="button" class="filtro-pill" data-periodo="hoje" aria-pressed="false">Hoje</button>
+        <button type="button" class="filtro-pill ativo" data-periodo="7" aria-pressed="true">7 dias</button>
+        <button type="button" class="filtro-pill" data-periodo="30" aria-pressed="false">30 dias</button>
+        <button type="button" class="filtro-pill" data-periodo="mes" aria-pressed="false">Este mês</button>
+        <button type="button" class="filtro-pill" data-periodo="personalizado" aria-pressed="false">Personalizado</button>
+      </div>
+      <form class="periodo-datas" id="periodoDatas" hidden>
+        <label>De <input type="date" id="perIni" required /></label>
+        <label>Até <input type="date" id="perFim" required /></label>
+        <button class="btn btn-ghost sm" type="submit">Aplicar</button>
+      </form>
+      <span class="filter-count" id="periodoTxt" aria-live="polite"></span>
+    </div>
+    <section id="iaSlotPainel" class="ia-slot" aria-label="IA"></section>
+    <div class="voce-hoje" id="voceHoje" role="group" aria-label="Seus números de agora"></div>
+    <div class="card card-sem-valor" id="cardSemValor" hidden>
+      <div class="sv-txt"><span class="sv-ico" aria-hidden="true">💰</span>
+        <div><h3 id="svTitulo">Vendas sem valor pago</h3><p class="card-sub" id="svSub"></p></div></div>
+      <div class="sv-acoes"><button type="button" class="btn btn-ghost sm" id="svVer">Ver na lista</button><button type="button" class="btn btn-primary sm" id="svPreencher" hidden>Preencher agora</button></div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="card card-previsao" id="cardPrevisao" hidden>
+      <div class="card-topo"><h3>Previsão pelo funil</h3><span class="filter-count" id="pvTxt"></span></div>
+      <div id="previsaoFunil" aria-live="polite"></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-topo"><h3>Metas do mês</h3><button type="button" class="btn btn-ghost sm" id="btnMetas" hidden>Definir metas</button></div>
+        <div id="metasMes" aria-live="polite"></div>
+      </div>
+      <div class="card">
+        <div class="card-topo"><h3>Precisam de atenção</h3><span class="filter-count" id="paradosCount"></span></div>
+        <div id="listaParados" class="lista-curta"></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card" id="cardTarefas">
+        <div class="card-topo"><h3>Minhas tarefas</h3><span class="filter-count" id="tarefasResumo" aria-live="polite"></span></div>
+        <div class="importar-lembretes" id="importarLembretes" role="region" aria-label="Lembretes antigos" hidden>
+          <p id="importarTxt"></p>
+          <div><button type="button" class="btn btn-primary sm" id="btnImportar">Importar</button>
+            <button type="button" class="btn btn-ghost sm" id="btnImportarNao">Agora não</button></div>
+        </div>
+        <form class="tarefa-form" id="formTarefaPainel">
+          <input id="tarefaTexto" maxlength="200" placeholder="Ex.: ligar para o João" aria-label="Nova tarefa" required />
+          <input id="tarefaData" type="date" aria-label="Dia" />
+          <input id="tarefaHora" type="time" aria-label="Hora" step="900" />
+          <select id="tarefaPrioridade" aria-label="Prioridade"><option value="2">Normal</option><option value="3">Urgente</option><option value="1">Baixa</option></select>
+          <select id="tarefaPara" aria-label="Para quem" hidden></select>
+          <button class="btn btn-primary sm" type="submit">Adicionar</button>
+        </form>
+        <div class="tarefa-filtro pilulas" id="tarefaFiltro" role="group" aria-label="Mostrar">
+          <button type="button" class="filtro-pill ativo" data-tf="minhas" aria-pressed="true">Minhas</button>
+          <button type="button" class="filtro-pill" data-tf="criei" aria-pressed="false">Que passei</button>
+          <button type="button" class="filtro-pill" data-tf="equipe" aria-pressed="false" hidden>Equipe</button>
+        </div>
+        <div id="tarefasPainel" class="tarefas"></div>
+      </div>
+      <div class="card">
+        <h3>Funil por etapa</h3>
+        <div id="funnelMini" class="funnel-mini"></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Conversão por origem</h3>
+        <div class="table-wrap"><table class="table" id="tblOrigemPainel"></table></div>
+      </div>
+      <div class="card">
+        <h3>Motivos de perda</h3>
+        <div id="motivosPerda"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Últimos leads</h3>
+      <div class="table-wrap"><table class="table" id="tblRecent"></table></div>
+    </div>
+  </section>
+
+  <!-- ---------- LEADS ---------- -->
+  <section class="view" id="view-leads">
+    <div class="filters">
+      <select id="fStatus" aria-label="Filtrar por etapa"><option value="">Todos os status</option></select>
+      <select id="fOrigem" aria-label="Filtrar por origem"><option value="">Todas as origens</option></select>
+      <select id="fResp" class="f-resp" aria-label="Filtrar por responsável"><option value="">Todos os responsáveis</option></select>
+      <label>Ordenar <select id="ordemLeads"><option value="recente">Mais recentes</option><option value="nome">Nome A–Z</option><option value="valor">Maior valor</option><option value="antigo">Mais antigos</option><option value="parado">Mais tempo parado</option></select></label>
+      <label class="chk-pill"><input type="checkbox" id="soParados" /> Só parados</label>
+      <label class="chk-pill"><input type="checkbox" id="soSemValor" /> Concluídos sem valor</label>
+      <label class="filtros-salvos">Filtros salvos <select id="filtrosSalvos" aria-label="Aplicar um filtro salvo"><option value="">—</option></select></label><button class="btn btn-ghost sm" id="btnSalvarFiltro" type="button" title="Guardar os filtros de agora com um nome">Salvar filtro</button>
+      <button class="btn btn-ghost sm" id="limparFiltros" type="button">Limpar filtros</button><button class="btn btn-ghost sm" id="exportarLeads" type="button" title="Exporta só o que está filtrado">Exportar CSV</button>
+      <div class="colunas-menu">
+        <button class="btn btn-ghost sm" id="btnColunas" type="button" aria-expanded="false" aria-controls="painelColunas">Colunas</button>
+        <div id="painelColunas" class="pop" role="group" aria-label="Colunas visíveis" hidden></div>
+      </div>
+      <span class="filter-count" id="leadCount" aria-live="polite"></span>
+    </div>
+    <div class="lote" id="barraLote" role="region" aria-label="Ações nos leads selecionados" hidden>
+      <strong id="loteQtd"></strong>
+      <select id="loteStatus" aria-label="Mudar etapa dos selecionados"><option value="">Mudar etapa…</option></select>
+      <select id="loteOrigem" aria-label="Atribuir origem aos selecionados"><option value="">Atribuir origem…</option></select>
+      <select id="loteResp" aria-label="Passar os selecionados para"><option value="">Passar para…</option></select>
+      <button class="btn btn-ghost sm" id="loteCampanha" type="button" title="Monta uma campanha no Comunicar com os selecionados; o gestor aprova lá">✉️ Campanha no Comunicar</button>
+      <button class="btn btn-ghost sm" id="loteExportar" type="button">Exportar seleção</button>
+      <button class="btn btn-ghost sm" id="loteLimpar" type="button">Limpar seleção</button>
+      <small class="lote-nota" id="loteNota" hidden>Passar em lote e distribuir é do gestor.</small>
+    </div>
+    <div class="card"><div class="table-wrap"><table class="table" id="tblLeads"></table></div>
+      <nav class="paginacao" id="pagLeads" aria-label="Páginas de leads"></nav></div>
+  </section>
+
+  <!-- ---------- CLIENTES ---------- -->
+  <section class="view" id="view-clientes">
+    <div class="kpis" id="cliKpis"></div>
+    <div class="card">
+      <h3>Base de clientes</h3>
+      <p class="card-sub">Mesma base da Agenda e do Atendimento, reconhecida pelo telefone.</p>
+      <div class="barra-busca">
+        <div class="busca-local">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
+          <input id="buscaCliente" type="search" aria-label="Buscar cliente" placeholder="Buscar por nome, telefone, placa ou carro…" />
+        </div>
+        <label class="ordem-cli">Ordenar <select id="ordemClientes"><option value="gasto">Quem mais gastou</option><option value="recente">Contato recente</option><option value="sumido">Sumidos há mais tempo</option><option value="nome">Nome A–Z</option></select></label>
+        <span class="filter-count" id="cliCount" aria-live="polite"></span>
+      </div>
+      <div class="table-wrap"><table class="table" id="tblClientes"></table></div>
+      <nav class="paginacao" id="pagClientes" aria-label="Páginas de clientes"></nav>
+    </div>
+  </section>
+
+  <!-- ---------- PIPELINE ---------- -->
+  <section class="view" id="view-pipeline">
+    <div class="kb-barra">
+      <p class="kb-dica">Arraste os cartões entre as etapas. No teclado: foco no cartão e <kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd>.</p>
+      <select id="fRespFunil" class="f-resp" aria-label="Funil de qual responsável"><option value="">Todos os responsáveis</option></select>
+      <span class="filter-count" id="kbResumo" aria-live="polite"></span>
+    </div>
+    <div class="kanban" id="kanban"></div>
+    <p class="sr" id="kbAnuncio" aria-live="assertive"></p>
+  </section>
+
+  <!-- ---------- ORIGEM ---------- -->
+  <section class="view" id="view-origem">
+    <div class="card">
+      <h3>Performance por canal (últimos 7 dias)</h3>
+      <p class="card-sub">De onde vieram os clientes e quanto cada canal realmente faturou.</p>
+      <div class="table-wrap"><table class="table" id="tblOrigem"></table></div>
+    </div>
+    <div class="card">
+      <h3>Como rastrear Meta e Google automaticamente</h3>
+      <div class="howto" id="howto"></div>
+    </div>
+  </section>
+
+  <!-- ---------- EQUIPE E METAS (gestor/admin) ---------- -->
+  <section class="view" id="view-equipe">
+    <div class="periodo-barra">
+      <label class="eq-mes">Mês <input type="month" id="eqMes" /></label>
+      <div class="pilulas" id="eqPeriodo" role="group" aria-label="Período do ranking">
+        <button type="button" class="filtro-pill ativo" data-eqp="mes" aria-pressed="true">Mês escolhido</button>
+        <button type="button" class="filtro-pill" data-eqp="30" aria-pressed="false">30 dias</button>
+        <button type="button" class="filtro-pill" data-eqp="7" aria-pressed="false">7 dias</button>
+      </div>
+      <span class="filter-count" id="eqTxt" aria-live="polite"></span>
+    </div>
+    <div class="card">
+      <div class="card-topo"><h3>Meta da loja</h3><span class="filter-count" id="eqLojaTxt"></span></div>
+      <div class="metas-grade" id="eqMetaLoja"></div>
+    </div>
+    <div class="card">
+      <div class="card-topo"><h3>Ranking da equipe</h3>
+        <label class="eq-criterio">Ordenar por <select id="eqCriterio">
+          <option value="faturamento">Faturamento</option><option value="vendas">Vendas</option><option value="conversao">Conversão</option>
+          <option value="agendados">Agendados</option><option value="leads">Leads</option><option value="tempo_resposta_min">Tempo de resposta</option>
+        </select></label></div>
+      <figure class="ranking" id="eqRanking" aria-labelledby="eqRankingT"><figcaption class="sr" id="eqRankingT">Ranking por faturamento</figcaption><div id="eqBarras"></div></figure>
+      <div class="table-wrap"><table class="table" id="tblDesempenho"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-topo"><h3>Metas por pessoa</h3><button type="button" class="btn btn-primary sm" id="eqSalvar">Salvar metas do mês</button></div>
+      <p class="card-sub">Deixe zero para não cobrar aquele número. A meta da loja fica na primeira linha.</p>
+      <form id="formMetasEquipe"><div class="table-wrap"><table class="table metas-tabela" id="tblMetasEquipe"></table></div></form>
+      <p class="form-msg" id="eqMsg" role="status" hidden></p>
+    </div>
+    <div class="card">
+      <div class="card-topo"><h3>Funil por responsável</h3><span class="filter-count">leads de agora, por etapa</span></div>
+      <div class="table-wrap"><table class="table" id="tblFunilResp"></table></div>
+    </div>
+  </section>
+
+  <!-- ---------- DISTRIBUIR (gestor) — rodada 4 ---------- -->
+  <section class="view" id="view-distribuir">
+    <div class="card card-sem-dono" id="cardSemDono">
+      <div class="card-topo"><h3 id="sdTitulo">Leads sem dono</h3><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
+      <div class="sd-resumo" id="sdResumo"></div>
+      <div class="sd-rodizio" id="sdRodizio"></div>
+      <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="sdRecarregar">Recalcular</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="sdAplicar" disabled>Aplicar o rodízio sugerido</button></div>
+      <p class="muted mini-nota">Nada muda sozinho: a sugestão só vale quando o gestor clicar em aplicar. Fica na auditoria e dá para desfazer. Abaixo, a distribuição manual com filtros.</p>
+    </div>
+    <div class="dist-grade">
+      <div class="card">
+        <div class="card-topo"><h3>1. Quais leads</h3><span class="filter-count" id="dsQtd" aria-live="polite"></span></div>
+        <fieldset class="ds-grupo"><legend>Etapa</legend><div class="pilulas" id="dsStatus"></div></fieldset>
+        <fieldset class="ds-grupo"><legend>Origem</legend><div class="pilulas" id="dsOrigem"></div></fieldset>
+        <label class="ds-idade">Entrou há
+          <select id="dsIdade"><option value="">qualquer tempo</option><option value="0-7">até 7 dias</option><option value="7-30">7 a 30 dias</option><option value="30-90">30 a 90 dias</option><option value="7">mais de 7 dias</option><option value="30">mais de 30 dias</option><option value="90">mais de 90 dias</option></select></label>
+        <p class="muted mini-nota">Só entram leads <strong>sem responsável</strong>. Quem já tem dono continua com ele.</p>
+      </div>
+      <div class="card">
+        <div class="card-topo"><h3>2. Quem recebe</h3><span class="filter-count" id="dsGenteQtd"></span></div>
+        <div id="dsGente" class="ds-gente" role="group" aria-label="Pessoas que recebem"></div>
+        <fieldset class="ds-grupo"><legend>Como dividir</legend>
+          <label class="chk"><input type="radio" name="dsModo" value="igual" checked /> Partes iguais</label>
+          <label class="chk"><input type="radio" name="dsModo" value="carga" /> Igualar a carga (quem tem menos leads abertos recebe mais)</label>
+        </fieldset>
+        <button type="button" class="btn btn-primary" id="dsPrevia">Ver prévia</button>
+      </div>
+    </div>
+    <div class="card" id="dsResultado" hidden>
+      <div class="card-topo"><h3>3. Prévia</h3><span class="filter-count" id="dsPreviaTxt" aria-live="polite"></span></div>
+      <div class="table-wrap"><table class="table" id="tblDsResumo"></table></div>
+      <details class="ds-detalhe"><summary>Ver lead por lead</summary><div class="table-wrap"><table class="table" id="tblDsLeads"></table></div></details>
+      <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="dsRefazer">Refazer</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="dsGravar">Gravar distribuição</button></div>
+    </div>
+    <div class="card">
+      <div class="card-topo"><h3>Últimas distribuições</h3></div>
+      <div id="dsHistorico" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- ---------- RELATÓRIOS (gestor) — rodada 4 ---------- -->
+  <section class="view" id="view-relatorios">
+    <div class="periodo-barra rel-barra">
+      <div class="pilulas" id="relPeriodo" role="group" aria-label="Período do relatório">
+        <button type="button" class="filtro-pill ativo" data-rel="mes" aria-pressed="true">Este mês</button>
+        <button type="button" class="filtro-pill" data-rel="mes_passado" aria-pressed="false">Mês passado</button>
+        <button type="button" class="filtro-pill" data-rel="30" aria-pressed="false">30 dias</button>
+        <button type="button" class="filtro-pill" data-rel="90" aria-pressed="false">90 dias</button>
+      </div>
+      <form class="periodo-datas" id="relDatas">
+        <label>De <input type="date" id="relIni" required /></label>
+        <label>Até <input type="date" id="relFim" required /></label>
+        <button class="btn btn-ghost sm" type="submit">Aplicar</button>
+      </form>
+      <div class="rel-acoes"><button type="button" class="btn btn-ghost sm" id="relCsv">Exportar CSV</button><button type="button" class="btn btn-ghost sm" id="relImprimir">Imprimir / PDF</button></div>
+    </div>
+    <p class="filter-count" id="relTxt" aria-live="polite"></p>
+    <div class="kpis" id="relKpis"></div>
+    <div class="grid-2">
+      <div class="card"><h3>Funil do período</h3><p class="card-sub">Leads que entraram no período e até onde chegaram.</p><div id="relFunil" class="funnel-mini"></div></div>
+      <div class="card"><h3>Motivos de perda</h3><p class="card-sub">Perdas fechadas no período.</p><div id="relMotivos"></div></div>
+    </div>
+    <div class="card"><h3>Conversão por origem</h3><div class="table-wrap"><table class="table" id="tblRelOrigem"></table></div></div>
+    <div class="card"><h3>Conversão e tempo de resposta por vendedor</h3><p class="card-sub">Tempo de resposta = mediana da primeira resposta no WhatsApp, nas conversas de cada pessoa.</p><div class="table-wrap"><table class="table" id="tblRelVendedor"></table></div></div>
+  </section>
+
+  <!-- ---------- SERVIÇOS (catálogo que alimenta a IA) ---------- -->
+  <section class="view" id="view-servicos">
+    <div class="destaque-ia">
+      <span class="ico" aria-hidden="true">🤖</span>
+      <p><strong>Esta lista é o que a IA usa para responder o cliente no WhatsApp.</strong>
+        O que estiver marcado como <strong>FAZEMOS</strong> ela oferece e orça. O que estiver como
+        <strong>NÃO FAZEMOS</strong> ela recusa educadamente, sem inventar. Mudou aqui, muda no atendimento.</p>
+    </div>
+
+    <div class="card">
+      <div class="barra-busca">
+        <div class="busca-local">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
+          <input id="buscaServico" type="search" placeholder="Buscar serviço ou categoria…" />
+        </div>
+        <div class="filters" style="margin:0" id="filtrosServico">
+          <button type="button" class="filtro-pill ativo" data-faz="">Todos</button>
+          <button type="button" class="filtro-pill" data-faz="1">Fazemos</button>
+          <button type="button" class="filtro-pill" data-faz="0">Não fazemos</button>
+        </div>
+        <span class="filter-count" id="srvCount"></span>
+      </div>
+      <p class="aviso" id="srvAviso" hidden>Só o administrador altera o catálogo. Você pode consultar à vontade.</p>
+      <div id="listaServicos"></div>
+    </div>
+  </section>
+
+  <!-- ---------- INTEGRAÇÕES ---------- -->
+  <section class="view" id="view-integracoes">
+    <div class="int-grid">
+
+      <!-- META ADS -->
+      <div class="card int-card">
+        <div class="int-head">
+          <div>
+            <h3><span class="int-dot" style="background:#3b82f6"></span>Meta Ads</h3>
+            <p class="card-sub">Facebook e Instagram</p>
+          </div>
+          <span class="int-status" id="stMeta">—</span>
+        </div>
+        <form class="int-form" data-canal="meta">
+          <label>Apelido da conta
+            <input name="conta_nome" placeholder="IndyCar Taubaté — Meta" autocomplete="off" />
+          </label>
+          <label>ID da Conta de Anúncios *
+            <input name="meta_ad_account_id" placeholder="act_1234567890" autocomplete="off" />
+            <small>No Gerenciador de Anúncios, começa com <code>act_</code>.</small>
+          </label>
+          <label>Access Token *
+            <input name="meta_access_token" type="password" autocomplete="off" data-secreto="1"
+                   placeholder="EAAB..." />
+            <small class="int-mask" data-for="meta_access_token"></small>
+          </label>
+          <div class="row">
+            <label>ID do Pixel
+              <input name="meta_pixel_id" placeholder="998877665544" autocomplete="off" />
+            </label>
+            <label>Token expira em
+              <input name="meta_token_expira_em" type="date" />
+            </label>
+          </div>
+          <label class="int-toggle">
+            <input name="ativo" type="checkbox" /> Ativar coleta deste canal
+          </label>
+          <div class="int-actions">
+            <button type="button" class="btn btn-ghost sm" data-acao="limpar">Limpar credenciais</button>
+            <div class="spacer"></div>
+            <button type="submit" class="btn btn-primary sm">Salvar</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- GOOGLE ADS -->
+      <div class="card int-card">
+        <div class="int-head">
+          <div>
+            <h3><span class="int-dot" style="background:#e50914"></span>Google Ads</h3>
+            <p class="card-sub">Pesquisa e Performance Max</p>
+          </div>
+          <span class="int-status" id="stGoogle">—</span>
+        </div>
+        <form class="int-form" data-canal="google">
+          <label>Apelido da conta
+            <input name="conta_nome" placeholder="IndyCar Taubaté — Google" autocomplete="off" />
+          </label>
+          <div class="row">
+            <label>Customer ID *
+              <input name="google_customer_id" placeholder="123-456-7890" autocomplete="off" />
+            </label>
+            <label>Login Customer ID
+              <input name="google_login_customer_id" placeholder="MCC (opcional)" autocomplete="off" />
+            </label>
+          </div>
+          <label>Developer Token *
+            <input name="google_developer_token" type="password" autocomplete="off" data-secreto="1" />
+            <small class="int-mask" data-for="google_developer_token"></small>
+          </label>
+          <label>Client ID *
+            <input name="google_client_id" placeholder="123-abc.apps.googleusercontent.com" autocomplete="off" />
+          </label>
+          <label>Client Secret *
+            <input name="google_client_secret" type="password" placeholder="GOCSPX-…" autocomplete="off" data-secreto="1" />
+            <small class="int-mask" data-for="google_client_secret"></small>
+          </label>
+          <label>Refresh Token *
+            <input name="google_refresh_token" type="password" placeholder="1//0g…" autocomplete="off" data-secreto="1" />
+            <small class="int-mask" data-for="google_refresh_token"></small>
+          </label>
+          <label class="int-toggle">
+            <input name="ativo" type="checkbox" /> Ativar coleta deste canal
+          </label>
+          <div class="int-actions">
+            <button type="button" class="btn btn-ghost sm" data-acao="limpar">Limpar credenciais</button>
+            <div class="spacer"></div>
+            <button type="submit" class="btn btn-primary sm">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- INVESTIMENTO + ROI -->
+    <div class="card">
+      <div class="int-head">
+        <div>
+          <h3>Investimento e retorno por canal</h3>
+          <p class="card-sub">Digite quanto gastou no mês. O CRM cruza com o faturamento real
+            dos leads e calcula o retorno — sem depender da API.</p>
+        </div>
+        <input type="month" id="mesROI" class="int-month" />
+      </div>
+
+      <form class="int-invest" id="formMetrica">
+        <label>Canal
+          <select name="canal" id="mCanal"></select>
+        </label>
+        <label>Investimento no mês (R$)
+          <input name="investimento" type="number" min="0" step="0.01" placeholder="1500,00" />
+        </label>
+        <label>Cliques
+          <input name="cliques" type="number" min="0" step="1" placeholder="820" />
+        </label>
+        <label>Impressões
+          <input name="impressoes" type="number" min="0" step="1" placeholder="41000" />
+        </label>
+        <button type="submit" class="btn btn-primary sm">Salvar investimento</button>
+      </form>
+
+      <div class="kpis" id="roiKpis" style="margin:20px 0"></div>
+      <div class="table-wrap"><table class="table" id="tblROI"></table></div>
+      <p class="muted" style="font-size:.8rem;margin-top:12px">
+        Retorno = faturamento do canal ÷ investimento do mês. Não desconta peças nem mão de obra.
+      </p>
+    </div>
+  </section>
+
+  <!-- ---------- IA ---------- -->
+  <section class="view" id="view-ia">
+    <section id="iaSlotTela" class="ia-slot" aria-label="IA"></section>
+    <div class="card ia-card">
+      <div class="ia-head">
+        <div>
+          <h3>Resumo semanal inteligente</h3>
+          <p class="card-sub">A IA analisa a semana: de onde vieram os leads, como foi e como terminaram.</p>
+        </div>
+        <button class="btn btn-primary" id="btnIA">✨ Gerar resumo da semana</button>
+      </div>
+      <div id="iaOut" class="ia-out"><p class="muted">Clique em <strong>Gerar resumo</strong> para a IA analisar os dados da semana.</p></div>
+    </div>
+  </section>
+
+  <!-- ---------- CONFIGURAÇÕES ---------- -->
+  <section class="view" id="view-configuracoes">
+    <div class="config-tabs" id="configTabs">
+      <button type="button" class="config-pilula ativo" data-secao="conta">Minha conta</button>
+      <button type="button" class="config-pilula" data-secao="sistema">Equipe e sistema</button>
+    </div>
+
+    <!-- ---------- Minha conta ---------- -->
+    <div class="config-secao ativa" id="config-conta">
+      <div class="cartoes">
+        <div class="card">
+          <h3>Meu perfil</h3>
+          <p class="card-sub">Seu nome aparece nos relatórios e no atendimento. O e-mail e a
+            função só o administrador altera.</p>
+          <form id="formPerfil" class="form-vertical">
+            <label>Nome<input id="perfilNome" maxlength="80" placeholder="Seu nome" autocomplete="name" /></label>
+            <label>Cargo<input id="perfilCargo" maxlength="60" placeholder="Ex.: consultor de vendas" autocomplete="organization-title" /></label>
+            <label>Telefone<input id="perfilTelefone" type="tel" inputmode="tel" maxlength="20" placeholder="(12) 9 9999-9999" autocomplete="tel" /></label>
+            <fieldset class="cores-avatar" id="perfilCores"><legend>Cor do avatar</legend></fieldset>
+            <label>E-mail<input id="perfilEmail" disabled /></label>
+            <label>Função<input id="perfilPapel" disabled /></label>
+            <p class="muted mini-nota" id="perfilAcesso"></p>
+            <div class="int-actions">
+              <div class="spacer"></div>
+              <button type="submit" class="btn btn-primary sm" id="btnSalvarPerfil">Salvar</button>
+            </div>
+            <p class="form-msg" id="perfilMsg" hidden></p>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Trocar minha senha</h3>
+          <p class="card-sub">Escolha uma senha nova de pelo menos 8 caracteres. Vale só para o
+            seu acesso — e ela serve para o CRM, a Agenda e o Atendimento.</p>
+          <form id="formSenha" class="form-vertical">
+            <label>Nova senha
+              <span class="senha-campo"><input id="senhaNova" type="password" minlength="8" autocomplete="new-password"
+                     placeholder="pelo menos 8 caracteres" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
+            </label>
+            <label>Repetir a nova senha
+              <span class="senha-campo"><input id="senhaNova2" type="password" minlength="8" autocomplete="new-password"
+                     placeholder="digite a mesma senha" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
+            </label>
+            <div class="int-actions">
+              <div class="spacer"></div>
+              <button type="submit" class="btn btn-primary sm" id="btnTrocarSenha">Trocar senha</button>
+            </div>
+            <p class="form-msg" id="senhaMsg" hidden></p>
+          </form>
+        </div>
+
+        <div class="card" id="cardMfa">
+          <h3>Verificação em duas etapas</h3>
+          <p class="card-sub">Além da senha, pede um código de 6 números do app autenticador do celular
+            (Google Authenticator, Microsoft Authenticator, Authy…). Opcional, e vale para todos os apps da IndyCar.</p>
+          <div id="mfaBox" aria-live="polite"></div>
+        </div>
+
+        <div class="card" id="cardNotif">
+          <h3>Notificações</h3>
+          <p class="card-sub">O sino no topo mostra o que chegou para você: tarefas, leads e conversas passadas, cliente esperando.</p>
+          <form id="formNotif" class="form-vertical">
+            <label class="chk"><input type="checkbox" id="notifToast" checked /> Mostrar aviso na tela quando chegar uma nova</label>
+            <label class="chk"><input type="checkbox" id="notifSom" /> Tocar um bipe curto</label>
+            <label class="chk"><input type="checkbox" id="notifTitulo" checked /> Mostrar o número de não lidas na aba do navegador</label>
+            <div class="int-actions"><div class="spacer"></div><button type="submit" class="btn btn-primary sm">Salvar preferências</button></div>
+            <p class="form-msg" id="notifMsg" role="status" hidden></p>
+          </form>
+        </div>
+
+        <div class="card" id="cardSessao">
+          <h3>Sessão</h3>
+          <p class="card-sub" id="sessaoTxt">Você está conectado neste aparelho.</p>
+          <div class="int-actions">
+            <button type="button" class="btn btn-ghost sm" id="btnSair">Sair</button>
+            <div class="spacer"></div>
+            <button type="button" class="btn btn-ghost sm mp-perigo" id="btnSairTodos">Sair de todos os aparelhos</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- Equipe e sistema ---------- -->
+    <div class="config-secao" id="config-sistema">
+      <div class="cartoes">
+        <div class="card">
+          <h3>Equipe</h3>
+          <p class="card-sub">Quem tem acesso ao CRM, ao atendimento e à agenda —
+            é o mesmo login nos três.</p>
+          <div id="listaEquipe" class="equipe"></div>
+
+          <div id="blocoCadastro" hidden>
+            <h4 class="sub-titulo">Cadastrar funcionário</h4>
+            <p class="aviso">Você cria a conta e entrega o e-mail e a senha para a pessoa.
+              Ela já entra funcionando, sem e-mail de confirmação. Peça para trocar a senha depois.</p>
+            <form id="formNovoMembro" class="form-vertical">
+              <label>Nome
+                <input name="nome" required maxlength="80" placeholder="Ex.: Leonardo Alves" autocomplete="off" />
+              </label>
+              <label>E-mail
+                <input name="email" type="email" required maxlength="160"
+                       placeholder="leonardo@indycartaubate.com" autocomplete="off" />
+              </label>
+              <label>Senha provisória
+                <input name="senha" type="password" required minlength="8" maxlength="200"
+                       placeholder="pelo menos 8 caracteres" autocomplete="new-password" />
+                <small>Entregue essa senha para a pessoa e peça para trocar.</small>
+              </label>
+              <label>Função
+                <select name="papel">
+                  <option value="atendente">Atendente — vê leads, funil, clientes e agenda</option>
+                  <option value="gestor">Gestor — também vê a equipe, define metas e apaga leads</option>
+                  <option value="admin">Administrador — também mexe no catálogo, nas integrações e na equipe</option>
+                </select>
+              </label>
+              <div class="int-actions">
+                <div class="spacer"></div>
+                <button type="submit" class="btn btn-primary sm" id="btnNovoMembro">Cadastrar</button>
+              </div>
+            </form>
+          </div>
+
+          <p class="aviso" id="avisoCadastro" hidden>Só o administrador cadastra novos funcionários,
+            muda a função de cada um e liga ou desliga acessos.</p>
+        </div>
+
+        <div class="card">
+          <h3>Sistema</h3>
+          <p class="card-sub">Onde cada coisa mora. Os três apps usam o mesmo banco e o mesmo login.</p>
+          <div class="howto" id="sistemaInfo"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ================= GAVETA DO LEAD (ficha + edição) ================= -->
+<div class="modal-bg gaveta-bg" id="modalBg">
+  <div class="modal gaveta">
+    <button class="modal-x" id="modalX" aria-label="Fechar lead" type="button">×</button>
+    <h3 id="modalTitle">Novo Lead</h3>
+    <div id="leadFicha" hidden>
+      <div class="lf-topo" id="lfTopo"></div>
+      <div class="lf-resp" id="lfResp"></div>
+      <div class="lf-acoes" id="lfAcoes"></div>
+      <section id="iaSlotLead" class="ia-slot" aria-label="IA"></section>
+      <div class="lf-etapas" id="lfEtapas" role="group" aria-label="Mudar etapa"></div>
+      <div class="lf-abas" role="tablist" aria-label="Partes da ficha">
+        <button type="button" role="tab" id="abaTl" aria-controls="painelTl" aria-selected="true">Linha do tempo</button>
+        <button type="button" role="tab" id="abaDados" aria-controls="painelDados" aria-selected="false" tabindex="-1">Dados</button>
+        <button type="button" role="tab" id="abaLembretes" aria-controls="painelLembretes" aria-selected="false" tabindex="-1">Tarefas <span id="lfQtdLembretes" class="aba-qtd"></span></button>
+      </div>
+      <div role="tabpanel" id="painelTl" aria-labelledby="abaTl" class="lf-painel"><ol class="linha-tempo" id="linhaTempo"></ol></div>
+      <div role="tabpanel" id="painelLembretes" aria-labelledby="abaLembretes" class="lf-painel" hidden>
+        <form class="tarefa-form" id="formTarefaLead">
+          <input id="tarefaLeadTexto" maxlength="200" placeholder="Ex.: retornar com o orçamento" aria-label="Nova tarefa para este lead" required />
+          <input id="tarefaLeadData" type="date" aria-label="Dia" />
+          <input id="tarefaLeadHora" type="time" aria-label="Hora" step="900" />
+          <select id="tarefaLeadPara" aria-label="Para quem"></select>
+          <button class="btn btn-primary sm" type="submit">Criar tarefa</button>
+        </form>
+        <div class="atalhos-tarefa" id="atalhosTarefa" role="group" aria-label="Tarefas rápidas">
+          <button type="button" class="filtro-pill" data-rapida="Ligar para o cliente" data-dias="0">📞 Ligar hoje</button>
+          <button type="button" class="filtro-pill" data-rapida="Cobrar resposta do orçamento" data-dias="1">🧾 Cobrar orçamento amanhã</button>
+          <button type="button" class="filtro-pill" data-rapida="Confirmar o horário com o cliente" data-dias="1">📅 Confirmar horário</button>
+          <button type="button" class="filtro-pill" data-rapida="Pós-venda: perguntar como ficou o carro" data-dias="3">⭐ Pós-venda em 3 dias</button>
+        </div>
+        <div id="tarefasLead" class="tarefas"></div>
+      </div>
+    </div>
+    <div role="tabpanel" id="painelDados" aria-labelledby="abaDados" class="lf-painel">
+    <form id="leadForm" novalidate>
+      <input type="hidden" id="fId" />
+      <div class="row">
+        <label>Nome *<input id="fNome" maxlength="120" autocomplete="name" required placeholder="João da Silva" aria-describedby="erro-fNome" /><small class="campo-erro" id="erro-fNome"></small></label>
+        <label>Telefone *<input id="fTelefone" type="tel" inputmode="tel" maxlength="20" required placeholder="(12) 9 9999-9999" aria-describedby="erro-fTelefone" /><small class="campo-erro" id="erro-fTelefone"></small></label>
+      </div>
+      <div class="row">
+        <label>Carro<input id="fCarro" maxlength="200" placeholder="Corolla 2018" /></label>
+        <label>Placa<input id="fPlaca" maxlength="8" placeholder="ABC1D23" autocapitalize="characters" aria-describedby="erro-fPlaca" /><small class="campo-erro" id="erro-fPlaca"></small></label>
+      </div>
+      <div class="row">
+        <label>Serviço<select id="fServico"></select></label>
+        <label>Origem<select id="fOrigemForm"></select></label>
+      </div>
+      <div class="row">
+        <label>Valor orçado (R$)<input id="fOrcado" type="number" step="0.01" min="0" max="10000000" inputmode="decimal" placeholder="0,00" aria-describedby="erro-fOrcado" /><small class="campo-erro" id="erro-fOrcado"></small></label>
+        <label>Valor pago (R$)<input id="fPago" type="number" step="0.01" min="0" max="10000000" inputmode="decimal" placeholder="0,00" aria-describedby="erro-fPago" /><small class="campo-erro" id="erro-fPago"></small></label>
+      </div>
+      <div class="row">
+        <label>Status<select id="fStatusForm"></select></label>
+        <label>Campanha (UTM)<input id="fCampanha" maxlength="200" placeholder="ex: trafego-cambio" /></label>
+      </div>
+      <div class="row">
+        <label>Fonte (utm_source)<input id="fUtmSource" maxlength="200" placeholder="ex: instagram, site, area_cliente" /></label>
+        <label>Mídia (utm_medium)<input id="fUtmMedium" maxlength="200" placeholder="ex: cpc, story, indicacao" /></label>
+      </div>
+      <label>Observações<textarea id="fObs" maxlength="4000" rows="3" placeholder="Detalhes do atendimento…"></textarea></label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnExcluir">Excluir</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-ghost" id="btnCancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL FICHA 360 DO CLIENTE ================= -->
+<div class="modal-bg" id="modalCliBg">
+  <div class="modal largo">
+    <button class="modal-x" id="modalCliX" type="button" aria-label="Fechar ficha">×</button>
+    <div id="fichaCliente"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastTxt"></span><button type="button" id="toastAcao" hidden></button></div>
+
+<dialog class="dlg" id="dlgPerda" aria-labelledby="dlgPerdaT">
+  <form method="dialog" id="formPerda">
+    <h3 id="dlgPerdaT">Por que perdemos?</h3>
+    <p class="muted" id="dlgPerdaNome"></p>
+    <fieldset class="motivos" id="motivosPerdaOpcoes"><legend class="sr">Motivo da perda</legend></fieldset>
+    <label id="perdaOutroL" hidden>Qual foi o motivo?<input id="perdaOutro" maxlength="140" /></label>
+    <p class="form-erro" id="perdaErro" role="alert"></p>
+    <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button><div class="spacer"></div><button type="submit" class="btn btn-primary">Marcar como perdido</button></div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="dlgPago" aria-labelledby="dlgPagoT">
+  <form method="dialog" id="formPago">
+    <h3 id="dlgPagoT">Quanto o cliente pagou?</h3>
+    <p class="muted" id="dlgPagoNome"></p>
+    <label>Valor pago (R$)<input id="pagoValor" type="number" min="0" max="10000000" step="0.01" inputmode="decimal" required /></label>
+    <div class="pago-sugestoes" id="pagoSugestoes" role="group" aria-label="Sugestões de valor" hidden></div>
+    <p class="muted mini-nota" id="pagoDica"></p>
+    <p class="form-erro" id="pagoErro" role="alert"></p>
+    <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button><button type="button" class="btn btn-ghost" id="pagoCortesia">Foi cortesia</button><div class="spacer"></div><button type="submit" class="btn btn-primary">Concluir</button></div>
+  </form>
+</dialog>
+
+
+<!-- Rodada 4: preencher valor pago em lote (gestor) -->
+<dialog class="dlg dlg-largo" id="dlgValores" aria-labelledby="dlgValoresT">
+  <form method="dialog" id="formValores">
+    <h3 id="dlgValoresT">Preencher valores pagos</h3>
+    <p class="muted" id="dvTxt">Concluídos sem valor deixam o faturamento e o retorno dos anúncios vazios.</p>
+    <div class="dv-barra"><button type="button" class="btn btn-ghost sm" id="dvSugestoes">Usar as sugestões nos vazios</button><span class="filter-count" id="dvConta" aria-live="polite"></span></div>
+    <div class="table-wrap dv-lista"><table class="table" id="tblValores"></table></div>
+    <p class="form-erro" id="dvErro" role="alert"></p>
+    <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Fechar</button><div class="spacer"></div><button type="submit" class="btn btn-primary" id="dvSalvar">Salvar valores</button></div>
+  </form>
+</dialog>
+
+<!-- Rodada 4: ajuda curta -->
+<dialog class="dlg dlg-largo" id="dlgAjuda" aria-labelledby="dlgAjudaT">
+  <h3 id="dlgAjudaT">Ajuda</h3>
+  <p class="muted" id="ajudaPapel"></p>
+  <div id="ajudaLista" class="ajuda-lista"></div>
+  <div class="modal-actions"><button type="button" class="btn btn-ghost" id="ajudaAtalhos">Atalhos de teclado</button><button type="button" class="btn btn-ghost" id="ajudaTour">Rever o tour</button><div class="spacer"></div><button type="button" class="btn btn-primary" data-fechar>Fechar</button></div>
+</dialog>
+
+<!-- Rodada 4: tour de boas-vindas -->
+<div id="tour" class="tour" hidden>
+  <div class="tour-luz" id="tourLuz" aria-hidden="true"></div>
+  <div class="tour-caixa" id="tourCaixa" role="dialog" aria-modal="true" aria-labelledby="tourTitulo" aria-describedby="tourTexto">
+    <small class="tour-passo" id="tourPasso"></small>
+    <h3 id="tourTitulo"></h3>
+    <p id="tourTexto"></p>
+    <div class="tour-acoes"><button type="button" class="btn btn-ghost sm" id="tourPular">Pular</button><div class="spacer"></div><button type="button" class="btn btn-ghost sm" id="tourVoltar">Voltar</button><button type="button" class="btn btn-primary sm" id="tourProximo">Próximo</button></div>
+  </div>
+</div>
+
+<!-- Rodada 5: busca global (Ctrl+K) -->
+<dialog class="dlg dlg-busca" id="dlgBusca" aria-labelledby="dlgBuscaT">
+  <h3 id="dlgBuscaT" class="sr">Busca global</h3>
+  <div class="bg-campo"><span aria-hidden="true">⌕</span><input id="buscaGlobal" type="text" inputmode="search" enterkeyhint="go" autocomplete="off" placeholder="Nome, telefone ou placa…" aria-label="Buscar em leads e clientes" aria-controls="buscaResultados" aria-expanded="true" role="combobox" /><kbd>Esc</kbd></div>
+  <div id="buscaResultados" class="bg-resultados" role="listbox" aria-label="Resultados"><p class="vazio-curto">Digite 2 letras do nome, 4 números do telefone ou a placa. <kbd>↑</kbd> <kbd>↓</kbd> escolhem, <kbd>Enter</kbd> abre.</p></div>
+</dialog>
+
+<dialog class="dlg" id="dlgFiltro" aria-labelledby="dlgFiltroT">
+  <form method="dialog" id="formFiltro">
+    <h3 id="dlgFiltroT">Salvar este filtro</h3>
+    <p class="muted" id="dlgFiltroResumo"></p>
+    <label>Nome do filtro<input id="filtroNome" maxlength="40" required placeholder="ex.: Orçamentos parados do Google" /></label>
+    <p class="form-erro" id="filtroErro" role="alert"></p>
+    <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button><div class="spacer"></div><button type="submit" class="btn btn-primary">Salvar</button></div>
+  </form>
+</dialog>
+
+<dialog class="dlg dlg-largo" id="dlgCampanha" aria-labelledby="dlgCampanhaT">
+  <form method="dialog" id="formCampanha">
+    <h3 id="dlgCampanhaT">Campanha no Comunicar</h3>
+    <p class="muted" id="campTxt"></p>
+    <label>Mensagem<textarea id="campCorpo" maxlength="2000" rows="4" required placeholder="Oi {nome}! Aqui é da IndyCar. …"></textarea><small>Use {nome}, {carro} e {placa}. Sem preço e sem "prezado/efetuar/comparecer/veículo".</small></label>
+    <div class="row"><label>Enviar a partir de<input id="campQuando" type="datetime-local" /></label><label>Detalhe interno<input id="campDetalhe" maxlength="200" placeholder="ex.: reativação de orçamentos de setembro" /></label></div>
+    <p class="muted mini-nota">A campanha nasce como proposta: o gestor aprova no Comunicar antes de sair. Quem pediu para não receber mensagens fica de fora lá.</p>
+    <p class="form-erro" id="campErro" role="alert"></p>
+    <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button><div class="spacer"></div><button type="submit" class="btn btn-primary" id="campEnviar">Mandar para o Comunicar</button></div>
+  </form>
+</dialog>
+
+<dialog class="dlg" id="dlgAtalhos" aria-labelledby="dlgAtalhosT">
+  <h3 id="dlgAtalhosT">Atalhos de teclado</h3>
+  <dl class="atalhos">
+    <dt><kbd>Ctrl</kbd> <kbd>K</kbd></dt><dd>Busca global: nome, telefone ou placa (leads e clientes)</dd>
+    <dt><kbd>N</kbd></dt><dd>Novo lead</dd>
+    <dt><kbd>/</kbd></dt><dd>Buscar leads</dd>
+    <dt><kbd>G</kbd> <kbd>D</kbd></dt><dd>Dashboard</dd>
+    <dt><kbd>G</kbd> <kbd>L</kbd></dt><dd>Leads</dd>
+    <dt><kbd>G</kbd> <kbd>F</kbd></dt><dd>Funil</dd>
+    <dt><kbd>G</kbd> <kbd>C</kbd></dt><dd>Clientes</dd>
+    <dt><kbd>G</kbd> <kbd>I</kbd></dt><dd>IA</dd>
+    <dt><kbd>G</kbd> <kbd>E</kbd></dt><dd>Equipe e metas (gestor)</dd>
+    <dt><kbd>G</kbd> <kbd>B</kbd></dt><dd>Leads sem dono (gestor)</dd>
+    <dt><kbd>G</kbd> <kbd>R</kbd></dt><dd>Relatórios (gestor)</dd>
+    <dt><kbd>G</kbd> <kbd>T</kbd></dt><dd>Minhas tarefas</dd>
+    <dt><kbd>Shift</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Mover o cartão do funil de etapa</dd>
+    <dt><kbd>M</kbd></dt><dd>No cartão do funil: abrir a lista de etapas para mover</dd>
+    <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Na lista de leads: andar pelas linhas</dd>
+    <dt><kbd>X</kbd></dt><dd>Na lista de leads: marcar/desmarcar a linha em foco</dd>
+    <dt><kbd>Enter</kbd></dt><dd>Abrir o lead em foco</dd>
+    <dt><kbd>Esc</kbd></dt><dd>Fechar janela</dd>
+    <dt><kbd>?</kbd></dt><dd>Ajuda</dd>
+  </dl>
+  <div class="modal-actions"><div class="spacer"></div><button type="button" class="btn btn-primary" data-fechar>Entendi</button></div>
+</dialog>
+
+<!-- ================= LOGIN =================
+     O CRM guarda dados de clientes e credenciais de Meta/Google.
+     Publicado na internet, tudo passa por aqui primeiro. -->
+<div id="telaLogin" class="login-capa">
+  <form id="formLogin" class="login-caixa" autocomplete="on">
+    <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
+    <h1>CRM</h1>
+    <p class="login-sub">Entre com o mesmo e-mail e senha do atendimento.</p>
+    <label>E-mail
+      <input name="loginEmail" id="loginEmail" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" />
+    </label>
+    <label>Senha
+      <span class="senha-campo"><input name="loginSenha" id="loginSenha" type="password" required autocomplete="current-password" placeholder="••••••••" aria-describedby="capsLogin" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
+    </label>
+    <p class="caps-aviso" id="capsLogin" role="status" hidden>⇪ Caps Lock está ligado</p>
+    <label class="chk login-lembrar"><input type="checkbox" id="lembrarEmail" /> Lembrar meu e-mail neste aparelho</label>
+    <button type="submit" class="btn-entrar" id="btnEntrar">ENTRAR</button>
+    <p class="login-erro" id="erroLogin" role="alert" hidden></p>
+    <p class="login-ok" id="okLogin" role="status" hidden></p>
+    <button type="button" class="login-link" id="btnEsqueci">Esqueci a senha</button>
+    <button type="button" class="login-link" id="btnCriarConta" hidden>Primeiro acesso? Criar minha conta</button>
+  </form>
+
+  <!-- Esqueci a senha: o Supabase manda um link; ao voltar, abre a tela de senha nova. -->
+  <form id="formEsqueci" class="login-caixa" novalidate hidden>
+    <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
+    <h1 class="login-titulo-2">Esqueci a senha</h1>
+    <p class="login-sub">Digite o seu e-mail. Mandamos um link para você criar uma senha nova.</p>
+    <label>E-mail<input id="esqEmail" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" /></label>
+    <button type="submit" class="btn-entrar" id="btnEsqEnviar">ENVIAR LINK</button>
+    <p class="login-erro" id="esqErro" role="alert" hidden></p>
+    <p class="login-ok" id="esqOk" role="status" hidden></p>
+    <p class="login-nota">O plano gratuito do servidor de e-mail envia poucos e-mails por hora. Se não chegar em alguns minutos
+      (olhe também o spam), peça ao administrador uma <strong>senha temporária</strong>.</p>
+    <button type="button" class="login-link" data-voltar-login>Voltar para entrar</button>
+  </form>
+
+  <!-- Senha nova: depois do link do e-mail ou quando a senha é provisória -->
+  <form id="formNovaSenha" class="login-caixa" novalidate hidden>
+    <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
+    <h1 class="login-titulo-2" id="nsTitulo">Crie uma senha nova</h1>
+    <p class="login-sub" id="nsSub">Pelo menos 8 caracteres, diferente do seu e-mail.</p>
+    <label>Senha nova<span class="senha-campo"><input id="nsSenha" type="password" required minlength="8" autocomplete="new-password" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span></label>
+    <label>Repita a senha<span class="senha-campo"><input id="nsSenha2" type="password" required minlength="8" autocomplete="new-password" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span></label>
+    <p class="caps-aviso" id="capsNs" role="status" hidden>⇪ Caps Lock está ligado</p>
+    <button type="submit" class="btn-entrar" id="btnNsSalvar">SALVAR SENHA</button>
+    <p class="login-erro" id="nsErro" role="alert" hidden></p>
+    <button type="button" class="login-link" data-sair-login>Sair</button>
+  </form>
+
+  <!-- Duas etapas: código do app autenticador depois da senha -->
+  <form id="formMfa" class="login-caixa" novalidate hidden>
+    <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
+    <h1 class="login-titulo-2">Código de verificação</h1>
+    <p class="login-sub">Abra o app autenticador do celular e digite o código de 6 números da IndyCar.</p>
+    <label>Código<input id="mfaCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required placeholder="000 000" class="codigo-mfa" /></label>
+    <button type="submit" class="btn-entrar" id="btnMfaEntrar">CONFIRMAR</button>
+    <p class="login-erro" id="mfaErro" role="alert" hidden></p>
+    <button type="button" class="login-link" data-sair-login>Entrar com outra conta</button>
+  </form>
+
+  <!-- Sem acesso a este app -->
+  <div id="caixaSemAcesso" class="login-caixa" role="region" aria-labelledby="saTitulo" hidden>
+    <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
+    <h1 class="login-titulo-2" id="saTitulo">Você não tem acesso ao CRM</h1>
+    <p class="login-sub" id="saTexto">Se precisar, peça ao administrador para liberar.</p>
+    <ul class="sa-apps" id="saApps"></ul>
+    <button type="button" class="btn-entrar" data-sair-login>SAIR</button>
+  </div>
+
+  <!-- Primeiro acesso: só aparece enquanto NÃO existir ninguém cadastrado.
+       Quem criar esta conta vira o administrador dos três sistemas. -->
+  <form id="formPrimeiro" class="login-caixa" novalidate hidden>
+    <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
+    <h1 class="login-titulo-2">Vamos começar!</h1>
+    <p class="login-sub">Ninguém foi cadastrado ainda. Crie a sua conta de administrador —
+      ela vale para o CRM, a agenda e o atendimento.</p>
+    <label>Seu nome
+      <input id="pnNome" maxlength="80" required placeholder="Ex.: João Pedro" autocomplete="name" />
+    </label>
+    <label>Seu e-mail
+      <input id="pnEmail" type="email" required maxlength="160"
+             placeholder="voce@indycartaubate.com" autocomplete="email" />
+    </label>
+    <label>Crie uma senha
+      <input id="pnSenha" type="password" required minlength="8" maxlength="200"
+             placeholder="pelo menos 8 caracteres" autocomplete="new-password" />
+    </label>
+    <label>Repita a senha
+      <input id="pnSenha2" type="password" required minlength="8" maxlength="200"
+             placeholder="digite a mesma senha" autocomplete="new-password" />
+    </label>
+    <button type="submit" class="btn-entrar" id="btnPrimeiro">CRIAR MINHA CONTA</button>
+    <p class="login-erro" id="pnErro" hidden></p>
+    <button type="button" class="login-link" id="btnVoltarLogin">Já tenho conta — entrar</button>
+  </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/dist/umd/supabase.min.js"></script>
+<script src="apps.js"></script>
+<script src="crm-utils.js"></script>
+<script src="crm-r4.js"></script>
+<script src="app.js"></script>
+<script src="melhorias.js"></script>
+<script src="acesso.js"></script>
+<script src="equipe.js"></script>
+<script src="rodada4.js"></script>
+<script src="crm-ia.js"></script>
+<script src="rodada5.js"></script>
+<script>
+  /* Registra o service worker — é o que torna o app instalável.
+     Falha silenciosa de propósito: sem ele o app funciona igual, só deixa
+     de aparecer o botão de instalar. */
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

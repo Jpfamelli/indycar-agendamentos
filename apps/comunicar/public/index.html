@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IndyCar Comunicar</title>
+  <meta name="description" content="IndyCar Comunicar — central de comunicação com o cliente: lembretes, pós-venda, revisão, aniversário, campanhas e satisfação pelo WhatsApp da oficina." />
+  <meta name="theme-color" content="#070a14" />
+
+  <!-- Tema (claro/escuro) aplicado ANTES de pintar a tela, para não piscar.
+       Padrão: escuro. A escolha fica no localStorage, igual aos outros painéis. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('indycar_tema');
+        if (t === 'claro') {
+          document.documentElement.setAttribute('data-tema', 'claro');
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', '#eef0f4');
+        }
+      } catch (e) { /* sem localStorage: segue no escuro */ }
+    })();
+  </script>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="IndyCar Comunicar" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" href="styles.css?v=5.0.0" />
+</head>
+<body>
+  <a class="pular" href="#view">Pular para o conteúdo</a>
+  <p class="sr-only" id="anuncioTela" aria-live="polite"></p>
+  <div class="app">
+    <!-- ===================== SIDEBAR ===================== -->
+    <aside class="sidebar">
+      <div class="logo"><span>INDY</span><span>CAR</span></div>
+      <nav class="nav" id="nav" aria-label="Telas do Comunicar">
+        <div class="nav-grupo">
+          <p class="nav-rotulo">Comunicar</p>
+          <a class="nav-item active" data-route="inicio" tabindex="0" role="button" aria-label="Início" aria-current="page">
+            <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/></svg>
+            <span>INÍCIO</span>
+          </a>
+          <a class="nav-item" data-route="reguas" tabindex="0" role="button" aria-label="Réguas">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/><path d="M18 14.5v1.5l1 1"/></svg>
+            <span>RÉGUAS</span>
+          </a>
+          <a class="nav-item" data-route="mensagens" tabindex="0" role="button" aria-label="Mensagens">
+            <svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.2-5.6A8.4 8.4 0 1 1 21 11.5z"/></svg>
+            <span>MENSAGENS</span>
+            <em class="badge" id="badgeFila" hidden>0</em>
+          </a>
+          <a class="nav-item" data-route="campanhas" tabindex="0" role="button" aria-label="Campanhas">
+            <svg viewBox="0 0 24 24"><path d="M3 11l18-7-7 18-2.5-7.5z"/></svg>
+            <span>CAMPANHAS</span>
+          </a>
+          <a class="nav-item" data-route="clientes" tabindex="0" role="button" aria-label="Clientes">
+            <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+            <span>CLIENTES</span>
+          </a>
+          <a class="nav-item" data-route="satisfacao" tabindex="0" role="button" aria-label="Satisfação">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg>
+            <span>SATISFAÇÃO</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="rodape-lateral">
+        <!-- Ecossistema IndyCar: os outros apps da oficina, com este marcado. -->
+        <button type="button" class="tema-toggle eco-toggle" id="btnEco"
+                aria-label="Abrir os outros apps do ecossistema IndyCar"
+                aria-haspopup="true" aria-expanded="false" aria-controls="ecoPop">
+          <span class="tema-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          </span>
+          <span class="tema-txt">Apps</span>
+        </button>
+        <button type="button" class="tema-toggle" id="btnTema"
+                aria-label="Alternar entre tema claro e escuro">
+          <span class="tema-ico" id="temaIco" aria-hidden="true">🌙</span>
+          <span class="tema-txt" id="temaTxt">Escuro</span>
+        </button>
+        <button type="button" class="avatar-bottom" id="avatarPerfil" title="Sua conta" aria-label="Abrir o menu da sua conta" aria-haspopup="true" aria-expanded="false" aria-controls="contaPop">IC</button>
+      </div>
+    </aside>
+    <div class="eco-pop" id="ecoPop" role="menu" aria-label="Ecossistema IndyCar" hidden></div>
+    <!-- Menu da conta (avatar): perfil, senha, duas etapas, tema, sair -->
+    <div class="eco-pop conta-pop" id="contaPop" role="menu" aria-label="Sua conta" hidden></div>
+
+    <!-- ===================== CONTEÚDO ===================== -->
+    <main class="main">
+      <!-- Faixas discretas no topo: saúde do sistema (vigia) e sem internet.
+           Só aparecem quando há algo errado; o texto vem do app.js. -->
+      <div class="faixa faixa-saude" id="faixaSaude" role="status" aria-live="polite" hidden></div>
+      <div class="faixa faixa-offline" id="faixaOffline" role="status" aria-live="polite" hidden>
+        Sem internet — o que você mudar agora não vai ser salvo até a conexão voltar.
+      </div>
+      <header class="topbar">
+        <div class="company">
+          <div class="company-logo">IC</div>
+          <div>
+            <div class="company-title">
+              <h1>IndyCar Centro Automotivo</h1>
+              <span class="tag-dashboard" id="pageTag">COMUNICAR</span>
+            </div>
+            <div class="company-sub">
+              <span>Central de comunicação com o cliente</span>
+              <em>Quem conhece, Indyca! 🏎</em>
+            </div>
+          </div>
+        </div>
+        <div class="topo-acoes">
+        <button class="icon-btn topo-ico" id="btnTarefas" type="button" aria-label="Minhas tarefas" title="Minhas tarefas" aria-haspopup="dialog" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
+          <em class="topo-cont" id="contTarefas" hidden>0</em></button>
+        <button class="icon-btn topo-ico" id="btnSino" type="button" aria-label="Notificações" title="Notificações" aria-haspopup="true" aria-expanded="false" aria-controls="sinoPop" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <em class="topo-cont" id="contSino" hidden>0</em></button>
+        <button class="icon-btn topo-ajuda" id="btnAjuda" type="button" aria-label="Ajuda: como o Comunicar funciona" title="Ajuda (tecla ?)">?</button>
+        <button class="btn-novo" id="btnNova" type="button" title="Atalho: tecla N">
+          <svg viewBox="0 0 24 24"><path d="M3 11l18-7-7 18-2.5-7.5z"/></svg>
+          Nova campanha
+        </button>
+        </div>
+      </header>
+
+      <div class="sino-pop" id="sinoPop" role="dialog" aria-label="Notificações" hidden></div>
+      <section class="view" id="view" tabindex="-1" aria-label="Conteúdo da tela"><!-- preenchido por app.js --></section>
+    </main>
+  </div>
+
+  <!-- ===================== MODAL ===================== -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal" role="dialog" aria-modal="true"><!-- preenchido por app.js --></div>
+  </div>
+
+  <!-- ===================== GAVETA (ficha do cliente) ===================== -->
+  <div class="gaveta-overlay" id="gavetaOverlay" hidden>
+    <aside class="gaveta" id="gaveta" role="dialog" aria-modal="true" aria-labelledby="gavetaTitulo"><!-- preenchido por app.js --></aside>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- ============ LOGIN ============
+       O Comunicar guarda nome, telefone e histórico de mensagens dos clientes.
+       Publicado na internet, tudo passa por aqui primeiro. Um painel por vez:
+       entrar · esqueci a senha · nova senha · código de duas etapas · sem acesso.
+       A lógica mora em conta.js. -->
+  <div id="telaLogin" class="login-capa">
+    <form id="formLogin" class="login-caixa" autocomplete="on" data-painel novalidate>
+      <img src="logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <h1>Comunicar</h1>
+      <p class="login-sub">Central de comunicação com o cliente. Entre com o mesmo e-mail e senha da Agenda, do CRM e do Atendimento.</p>
+      <label>E-mail
+        <input name="loginEmail" id="loginEmail" type="email" required autocomplete="username"
+               placeholder="voce@indycartaubate.com" />
+      </label>
+      <label>Senha
+        <span class="senha-campo">
+          <input name="loginSenha" id="loginSenha" type="password" required autocomplete="current-password" placeholder="••••••••" />
+          <button type="button" class="olho" data-olho="loginSenha" aria-label="Mostrar senha" aria-pressed="false">👁</button>
+        </span>
+      </label>
+      <p class="login-caps" id="capsLogin" role="status" hidden>⇪ Caps Lock ligado</p>
+      <div class="login-linha">
+        <label class="lembrar"><input type="checkbox" id="lembrarEmail" /> Lembrar meu e-mail</label>
+        <button type="button" class="login-link" id="linkEsqueci">Esqueci a senha</button>
+      </div>
+      <button type="submit" class="btn-entrar" id="btnEntrar">ENTRAR</button>
+      <p class="login-erro" id="erroLogin" role="alert" hidden></p>
+    </form>
+
+    <form id="formEsqueci" class="login-caixa" data-painel hidden novalidate>
+      <h1>Esqueci a senha</h1>
+      <p class="login-sub">Mandamos um link para o seu e-mail. Abra o link neste aparelho e escolha a senha nova.</p>
+      <label>E-mail
+        <input id="esqueciEmail" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" />
+      </label>
+      <button type="submit" class="btn-entrar" id="btnEsqueci">MANDAR O LINK</button>
+      <p class="login-ok" id="okEsqueci" role="status" hidden></p>
+      <p class="login-erro" id="erroEsqueci" role="alert" hidden></p>
+      <p class="login-nota">O envio de e-mail do plano gratuito é limitado (poucos por hora). Se não chegar, peça ao administrador uma <b>senha temporária</b>.</p>
+      <button type="button" class="login-link" data-voltar-login>← Voltar para o login</button>
+    </form>
+
+    <form id="formNovaSenha" class="login-caixa" data-painel hidden novalidate>
+      <h1 id="novaSenhaTitulo">Escolha uma senha nova</h1>
+      <p class="login-sub" id="novaSenhaSub">Mínimo de 8 caracteres e diferente do seu e-mail.</p>
+      <label>Senha nova
+        <span class="senha-campo">
+          <input id="novaSenha" type="password" required minlength="8" autocomplete="new-password" />
+          <button type="button" class="olho" data-olho="novaSenha" aria-label="Mostrar senha" aria-pressed="false">👁</button>
+        </span>
+      </label>
+      <label>Repita a senha
+        <input id="novaSenha2" type="password" required minlength="8" autocomplete="new-password" />
+      </label>
+      <p class="login-caps" id="capsNova" role="status" hidden>⇪ Caps Lock ligado</p>
+      <div class="forca" id="forcaSenha" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <button type="submit" class="btn-entrar" id="btnNovaSenha">SALVAR SENHA</button>
+      <p class="login-erro" id="erroNovaSenha" role="alert" hidden></p>
+      <button type="button" class="login-link" data-sair>Sair</button>
+    </form>
+
+    <form id="formMfa" class="login-caixa" data-painel hidden novalidate>
+      <h1>Verificação em duas etapas</h1>
+      <p class="login-sub">Digite o código de 6 números do seu app autenticador (Google Authenticator, Microsoft Authenticator…).</p>
+      <label>Código
+        <input id="mfaCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" class="codigo" />
+      </label>
+      <button type="submit" class="btn-entrar" id="btnMfa">CONFIRMAR</button>
+      <p class="login-erro" id="erroMfa" role="alert" hidden></p>
+      <button type="button" class="login-link" data-sair>Sair</button>
+    </form>
+
+    <div id="painelSemAcesso" class="login-caixa" data-painel hidden role="alert">
+      <img src="logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <h1>Você não tem acesso a este app</h1>
+      <p class="login-sub" id="semAcessoTxt">Peça ao administrador para liberar o Comunicar no seu perfil.</p>
+      <div class="sem-acesso-apps" id="semAcessoApps"></div>
+      <button type="button" class="login-link" data-sair>Entrar com outra conta</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <!-- Rodada 5: caminhos RELATIVOS — o app funciona em / e dentro da IndyCar Central (/comunicar/) -->
+  <script src="apps.js?v=5.0.0"></script>
+  <script src="acordar.js?v=5.0.0"></script>
+  <script src="conta.js?v=5.0.0"></script>
+  <script src="app.js?v=5.0.0"></script>
+  <script src="rodada4.js?v=5.0.0"></script>
+  <script src="rodada5.js?v=5.0.0"></script>
+</body>
+</html>

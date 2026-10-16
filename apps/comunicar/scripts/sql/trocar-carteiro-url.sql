@@ -1,0 +1,24 @@
+-- MODELO (não executado) — quando o Comunicar passar a viver dentro da IndyCar Central.
+--
+-- Quem acorda o carteiro é o pg_cron do Supabase:
+--   job `comunicar-carteiro`         ('5,20,35,50 11-23 * * *' UTC = 8h–20h SP) → comunicar_carteiro_chamar('cron')
+--   job `comunicar-carteiro-reforco` ('2-59/5 11-23 * * *')                     → comunicar_carteiro_reforco()
+-- As duas funções leem a URL de posvenda_config.carteiro_url e o token de
+-- posvenda_config.runner_token e fazem POST <carteiro_url>?origem=… com o cabeçalho
+-- X-Runner-Token. HOJE: https://indycar-posvenda.onrender.com/api/rodar
+--
+-- Para trocar (um UPDATE só; jobs e funções continuam iguais):
+--   update public.posvenda_config
+--      set carteiro_url = 'https://indycar-agendamentos.onrender.com/comunicar/api/rodar'
+--    where id = true;
+--
+-- O RUNNER_TOKEN do servidor da Central precisa ser o MESMO valor de runner_token
+-- (variável de ambiente RUNNER_TOKEN no Render da Central). Nunca cole o valor aqui.
+--
+-- Conferir depois (só leitura): a próxima chamada aparece com status 200/202 em
+--   select * from public.comunicar_chamadas_recentes(2);
+-- e o Início › "carteiro rodou há…" do Comunicar mostra a rodada com origem `cron`.
+--
+-- Voltar atrás: o mesmo UPDATE com a URL antiga. O GitHub Actions
+-- (.github/workflows/carteiro.yml) tem a URL fixa no YAML — troque lá também.
+select 'modelo: nada foi executado' as aviso;

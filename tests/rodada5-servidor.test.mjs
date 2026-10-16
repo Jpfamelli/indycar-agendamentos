@@ -183,7 +183,7 @@ test('estáticos: /confirmar/ serve a página do cliente; a casca não tem camin
   assert.doesNotMatch(html, /(href|src)="\/[a-z]/, 'index.html só com caminhos relativos');
   assert.match(html, /apps\.js/); assert.match(html, /rodada5\.css/);
   const sw = await (await fetch(base + '/sw.js')).text();
-  assert.match(sw, /self\.registration\.scope/); assert.match(sw, /indycar-v16/); assert.doesNotMatch(sw, /'\/api\/'/);
+  assert.match(sw, /self\.registration\.scope/); assert.match(sw, /indycar-agenda-v17/); assert.doesNotMatch(sw, /'\/api\/'/);
   const man = JSON.parse(readFileSync(new URL('../public/manifest.json', import.meta.url), 'utf8'));
   assert.equal(man.start_url, './'); assert.equal(man.scope, './');
   const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');

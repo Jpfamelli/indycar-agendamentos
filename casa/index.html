@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>IndyCar Central</title>
+  <meta name="description" content="A casa da equipe IndyCar: todos os apps com um login só." />
+  <meta name="theme-color" content="#070a14" />
+  <script src="/casa/tema.js"></script>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/casa/icon-192.png" />
+  <link rel="apple-touch-icon" href="/casa/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/casa/casa.css" />
+</head>
+<body>
+  <!-- ======================= ENTRADA (login único) ======================= -->
+  <main id="entrada" class="entrada" hidden>
+    <div class="entrada-marca">
+      <img src="/casa/logo.png" alt="IndyCar Centro Automotivo" class="entrada-logo" />
+      <p class="entrada-slogan">Quem conhece, Indyca! 🏎</p>
+    </div>
+
+    <form id="fLogin" class="cartao entrada-cartao" novalidate>
+      <h1 class="entrada-titulo">Entrar na <em>Central</em></h1>
+      <p class="entrada-sub">Um login só para Agenda, Atendimento, CRM e Comunicar.</p>
+      <label class="campo"><span>E-mail</span>
+        <input id="lEmail" type="email" autocomplete="username" inputmode="email" required />
+      </label>
+      <label class="campo"><span>Senha</span>
+        <span class="senha-linha">
+          <input id="lSenha" type="password" autocomplete="current-password" required />
+          <button type="button" class="btn-olho" data-olho="lSenha" aria-label="Mostrar senha">👁</button>
+        </span>
+      </label>
+      <p id="lCaps" class="aviso-caps" hidden>Caps Lock ligado</p>
+      <label class="marcar"><input id="lLembrar" type="checkbox" checked /> Lembrar meu e-mail</label>
+      <p id="lErro" class="erro" role="alert" hidden></p>
+      <button id="lEntrar" class="btn btn-forte" type="submit">Entrar</button>
+      <button id="lEsqueci" class="btn-link" type="button">Esqueci a senha</button>
+    </form>
+
+    <form id="fMfa" class="cartao entrada-cartao" novalidate hidden>
+      <h1 class="entrada-titulo">Código de <em>verificação</em></h1>
+      <p class="entrada-sub">Abra o app autenticador e digite os 6 números.</p>
+      <label class="campo"><span>Código</span>
+        <input id="mCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required />
+      </label>
+      <p id="mErro" class="erro" role="alert" hidden></p>
+      <button class="btn btn-forte" type="submit">Confirmar</button>
+      <button class="btn-link" type="button" data-acao="sair">Voltar</button>
+    </form>
+
+    <form id="fSenha" class="cartao entrada-cartao" novalidate hidden>
+      <h1 class="entrada-titulo">Nova <em>senha</em></h1>
+      <p id="sMotivo" class="entrada-sub">Escolha uma senha nova para continuar.</p>
+      <label class="campo"><span>Nova senha (mínimo 8)</span>
+        <span class="senha-linha">
+          <input id="sNova" type="password" autocomplete="new-password" minlength="8" required />
+          <button type="button" class="btn-olho" data-olho="sNova" aria-label="Mostrar senha">👁</button>
+        </span>
+      </label>
+      <label class="campo"><span>Repita a senha</span>
+        <input id="sRepete" type="password" autocomplete="new-password" minlength="8" required />
+      </label>
+      <p id="sErro" class="erro" role="alert" hidden></p>
+      <button class="btn btn-forte" type="submit">Gravar senha</button>
+      <button class="btn-link" type="button" data-acao="sair">Sair</button>
+    </form>
+
+    <div id="semAcesso" class="cartao entrada-cartao" hidden>
+      <h1 class="entrada-titulo">Sem <em>acesso</em></h1>
+      <p id="saMotivo" class="entrada-sub"></p>
+      <button class="btn" type="button" data-acao="sair">Sair</button>
+    </div>
+    <p class="entrada-rodape">seg–sáb · 8h às 17h30 · Taubaté</p>
+  </main>
+
+  <!-- ======================= CASA ======================= -->
+  <div id="casa" class="casa" hidden>
+    <header class="topo">
+      <a class="topo-marca" href="/" aria-label="IndyCar Central">
+        <img src="/casa/logo.png" alt="" class="topo-logo" />
+        <span class="topo-nome">Central</span>
+      </a>
+      <div class="topo-acoes">
+        <button id="bTema" class="btn-ico" type="button" aria-label="Trocar tema claro/escuro" title="Tema">◐</button>
+        <button id="bSino" class="btn-ico sino" type="button" aria-label="Notificações" aria-expanded="false" aria-controls="painelSino">
+          <span aria-hidden="true">🔔</span><span id="sinoNum" class="sino-num" hidden>0</span>
+        </button>
+        <button id="bPerfil" class="avatar" type="button" aria-label="Meu perfil" aria-expanded="false" aria-controls="menuPerfil">?</button>
+      </div>
+      <div id="menuPerfil" class="menu" role="menu" hidden>
+        <div class="menu-quem"><strong id="mpNome">—</strong><span id="mpEmail"></span><span id="mpPapel" class="selo"></span></div>
+        <button type="button" role="menuitem" data-acao="trocar-senha">Trocar senha</button>
+        <button type="button" role="menuitem" data-acao="sair">Sair</button>
+        <button type="button" role="menuitem" data-acao="sair-todos">Sair de todos os aparelhos</button>
+      </div>
+    </header>
+
+    <aside id="painelSino" class="painel-sino" hidden aria-label="Notificações">
+      <div class="painel-topo">
+        <strong>Notificações</strong>
+        <button id="bLerTodas" class="btn-link" type="button">Marcar todas como lidas</button>
+      </div>
+      <ul id="listaNotif" class="lista-notif"></ul>
+    </aside>
+
+    <main class="miolo">
+      <section class="saudacao">
+        <p id="hoje" class="saudacao-data"></p>
+        <h1 class="saudacao-titulo"><span id="ola">Olá</span>, <em id="nomeCurto">equipe</em>.</h1>
+        <p class="saudacao-sub">Quem conhece, Indyca! 🏎</p>
+      </section>
+
+      <section id="agora" class="agora" aria-label="Agora na oficina">
+        <a id="aConversas" class="agora-cartao c-conversas" href="/atendimento/" hidden>
+          <span class="agora-rotulo">Conversas esperando</span>
+          <span class="agora-num" data-num>—</span>
+          <span class="agora-det" data-det>carregando…</span>
+          <ul class="agora-lista" data-lista></ul>
+        </a>
+        <a id="aPatio" class="agora-cartao c-patio" href="https://indycar-patio.netlify.app/" hidden>
+          <span class="agora-rotulo">Carros no pátio</span>
+          <span class="agora-num" data-num>—</span>
+          <span class="agora-det" data-det>carregando…</span>
+          <ul class="agora-lista" data-lista></ul>
+        </a>
+        <a id="aHoje" class="agora-cartao c-hoje" href="/agenda/" hidden>
+          <span class="agora-rotulo">Horários de hoje</span>
+          <span class="agora-num" data-num>—</span>
+          <span class="agora-det" data-det>carregando…</span>
+          <ul class="agora-lista" data-lista></ul>
+        </a>
+      </section>
+
+      <section class="bloco" aria-labelledby="tApps">
+        <h2 id="tApps" class="bloco-titulo">Seus apps</h2>
+        <div id="gradeApps" class="grade-apps"></div>
+      </section>
+
+      <section class="bloco" aria-labelledby="tTarefas">
+        <div class="bloco-cab">
+          <h2 id="tTarefas" class="bloco-titulo">Minhas tarefas</h2>
+          <span id="tarefasNum" class="selo"></span>
+        </div>
+        <form id="fTarefa" class="nova-tarefa">
+          <input id="tTitulo" maxlength="200" placeholder="Nova tarefa para mim… (Enter grava)" aria-label="Nova tarefa" />
+          <button class="btn" type="submit">Criar</button>
+        </form>
+        <ul id="listaTarefas" class="lista-tarefas"></ul>
+      </section>
+    </main>
+    <footer class="rodape">IndyCar Central · <span id="versao"></span> · tudo em um endereço só</footer>
+  </div>
+
+  <div id="carregando" class="carregando" role="status"><span class="giro" aria-hidden="true"></span> Abrindo a Central…</div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
+  <script src="/casa/casa.js"></script>
+</body>
+</html>

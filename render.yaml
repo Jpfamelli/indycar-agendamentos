@@ -5,8 +5,10 @@ services:
     runtime: node
     # Os dados agora ficam no Supabase: não é mais preciso disco persistente.
     plan: starter
-    buildCommand: npm install # não há dependências; roda rápido
-    startCommand: node server.js
+    buildCommand: npm install # supabase-js e o SDK da Anthropic (CRM e Atendimento)
+    # IndyCar Central (16/10): Agenda + CRM + Comunicar + Atendimento num servidor só.
+    # Rollback: voltar para "node server.js" (só a Agenda) no painel ou pela API do Render.
+    startCommand: node central.js
     envVars:
       - key: NODE_VERSION
         value: "22"
@@ -35,3 +37,6 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false           # opcional, só se usar o motor Claude
     # (bloco "disk" removido: o banco saiu do arquivo SQLite e foi para o Supabase)
+# Central: além do env group "Indycar" (SUPABASE_*, ANTHROPIC_API_KEY, CW_*), o serviço tem
+# RUNNER_TOKEN (carteiro do Comunicar; igual a posvenda_config.runner_token), ICS_TOKEN,
+# IMPORT_INTERVALO_MIN e WHATSAPP_VERIFY_TOKEN — valores só no painel do Render.

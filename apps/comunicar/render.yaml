@@ -1,0 +1,24 @@
+# Deploy no Render (https://render.com) — conecte este repositório e o Render lê este arquivo.
+services:
+  - type: web
+    name: indycar-posvenda
+    runtime: node
+    # Plano free: o servidor dorme quando ninguém usa. Quem garante o envio na
+    # hora certa é o GitHub Actions (.github/workflows/carteiro.yml), que acorda
+    # o servidor e chama /api/rodar de 15 em 15 minutos.
+    plan: free
+    buildCommand: npm install # não há dependências; roda rápido
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # ---- Banco: Supabase (o MESMO do CRM, Agenda e Atendimento) ----
+      - key: SUPABASE_URL
+        value: https://nppfqhavqahapmugnyng.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false           # cole a chave publicável no painel
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false           # cole a chave service_role no painel (SEGREDO)
+      # ---- Carteiro externo (GitHub Actions chama /api/rodar com este token) ----
+      - key: RUNNER_TOKEN
+        sync: false           # o mesmo token do secret RUNNER_TOKEN no GitHub

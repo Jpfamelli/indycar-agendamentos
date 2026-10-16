@@ -1,4 +1,29 @@
-# 🏁 IndyCar Agendamentos
+# 🏁 IndyCar Central (e a Agenda)
+
+> **Desde 16/10/2026 este repositório é a IndyCar Central**: um servidor só (Render Starter
+> `srv-d8hca5i8qa3s73bhnl90`, `node central.js`) serve tudo em **https://indycar-agendamentos.onrender.com**:
+>
+> | Caminho | O quê | Código |
+> |---|---|---|
+> | `/` | **Casa**: login único, atalhos por papel, sino, minhas tarefas, o "agora" do dia | `casa/` + `central.js` |
+> | `/agenda/` | Agenda | raiz (`server.js`, `public/`) |
+> | `/atendimento/` | Atendimento (WhatsApp + IA do funil) | `apps/atendimento/` |
+> | `/crm/` | CRM | `apps/crm/` |
+> | `/comunicar/` | Comunicar (réguas + carteiro) | `apps/comunicar/` |
+> | `/api/ping` | saúde da Central (versão de cada app, memória) | `central.js` |
+>
+> **Login único**: todos usam a mesma sessão do Supabase no mesmo domínio — entrou na Casa, entrou em tudo.
+> **Links antigos**: `/?agendamento=x` (e qualquer `/` com consulta) → 308 `/agenda/?…`; `/confirmar/`, `/api/*`
+> da raiz e o feed ICS continuam sendo a Agenda. Os endereços antigos (indycar-crm, indycar-atendimento,
+> indycar-posvenda .onrender.com) redirecionam (308) para o caminho novo.
+>
+> - Rodar local: `npm install` e `npm start` (= `node central.js`, porta 3000). Só a Agenda: `npm run start:agenda`.
+> - Testes: `npm test` (Agenda + Central) e `npm run test:apps` (CRM, Comunicar e Atendimento, cada um na sua pasta).
+> - Publicar: `node ../indycar-ferramentas/publicar.mjs central`. Rollback: start command `node server.js`.
+> - Cada `apps/<app>/ORIGEM.md` diz de qual commit veio e o que mudou na cópia. **Mexa em `apps/<app>/`**, não no repositório antigo.
+> - Testes locais com o banco real: desligue o que roda sozinho — `CRM_AUTOMACOES=0 CARTEIRO_DESLIGADO=1 SINCRONIA=0 AUTOMACOES=0 IA_FUNIL=0 IMPORT_DISABLED=1`.
+
+---
 
 Sistema web de gestão de agendamentos automotivos — réplica fiel do dashboard
 **IndyCar Centro Automotivo**, com banco de dados e integração WhatsApp.

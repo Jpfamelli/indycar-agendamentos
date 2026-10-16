@@ -1,0 +1,154 @@
+/* IndyCar Central — Casa. Mesma paleta da Agenda (preto azulado + vermelho IndyCar). */
+[hidden] { display: none !important; }
+:root {
+  --bg: #070a14; --bg2: #0b1020; --panel: #0d1220; --panel-2: #121a2d;
+  --borda: rgba(255,255,255,.08); --borda-2: rgba(255,255,255,.14);
+  --texto: #e9ecf4; --forte: #fff; --muted: #8a92a7;
+  --red: #e6192e; --red-2: #ff2d40; --red-soft: rgba(230,25,46,.14);
+  --green: #22c55e; --orange: #f59e0b; --blue: #3b82f6; --cyan: #06b6d4; --purple: #a855f7;
+  --sombra: 0 18px 40px -22px rgba(0,0,0,.8);
+  --r: 18px;
+  --f-num: 'Barlow Condensed', 'Inter', system-ui, sans-serif;
+  --f: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+:root[data-tema="claro"] {
+  --bg: #eef0f4; --bg2: #e4e7ee; --panel: #fff; --panel-2: #f6f7fa;
+  --borda: rgba(17,19,25,.10); --borda-2: rgba(17,19,25,.18);
+  --texto: #191a20; --forte: #0c0d11; --muted: #575b65;
+  --red-soft: rgba(230,25,46,.09);
+  --sombra: 0 18px 36px -24px rgba(20,24,40,.35);
+  color-scheme: light;
+}
+:root[data-trocando-tema] * { transition: none !important; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background:
+    radial-gradient(900px 420px at 12% -10%, var(--red-soft), transparent 60%),
+    linear-gradient(180deg, var(--bg2), var(--bg) 420px);
+  background-color: var(--bg);
+  color: var(--texto); font: 15px/1.5 var(--f); min-height: 100vh; overflow-x: hidden;
+}
+a { color: inherit; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--red-2); outline-offset: 2px; border-radius: 8px; }
+em { font-style: italic; color: var(--red-2); }
+
+.cartao { background: var(--panel); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sombra); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px;
+  border-radius: 12px; border: 1px solid var(--borda-2); background: var(--panel-2); cursor: pointer; font-weight: 600; }
+.btn:hover { border-color: var(--red); }
+.btn-forte { background: var(--red); border-color: var(--red); color: #fff; width: 100%; font-weight: 700; letter-spacing: .02em; }
+.btn-forte:hover { background: var(--red-2); }
+.btn-forte[disabled] { opacity: .6; cursor: progress; }
+.btn-link { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 8px 4px; text-decoration: underline; text-underline-offset: 3px; }
+.btn-link:hover { color: var(--texto); }
+.btn-ico { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--borda); background: var(--panel); cursor: pointer; font-size: 18px; position: relative; }
+.selo { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--red-soft); color: var(--red-2); }
+.erro { margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(230,25,46,.12); color: #ffb4b8; font-size: 14px; }
+:root[data-tema="claro"] .erro { color: #9b0f1d; }
+
+/* ---------- Entrada ---------- */
+.entrada { min-height: 100vh; display: grid; place-content: center; gap: 22px; padding: 32px 16px; }
+.entrada-marca { text-align: center; }
+.entrada-logo { width: 150px; height: auto; }
+.entrada-slogan { margin: 6px 0 0; color: var(--muted); font-family: var(--f-num); font-size: 18px; letter-spacing: .04em; }
+.entrada-cartao { width: min(400px, calc(100vw - 32px)); padding: 26px 22px; display: grid; gap: 14px; }
+.entrada-titulo { margin: 0; font: 800 38px/1 var(--f-num); text-transform: uppercase; letter-spacing: .01em; color: var(--forte); }
+.entrada-sub { margin: -6px 0 4px; color: var(--muted); font-size: 14px; }
+.entrada-rodape { text-align: center; color: var(--muted); font-size: 12px; margin: 0; }
+.campo { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.campo input { height: 46px; border-radius: 12px; border: 1px solid var(--borda-2); background: var(--bg); padding: 0 14px; color: var(--texto); font-size: 16px; width: 100%; }
+.campo input:focus { border-color: var(--red); outline: none; }
+.senha-linha { position: relative; display: block; }
+.senha-linha input { padding-right: 50px; }
+.btn-olho { position: absolute; right: 4px; top: 3px; width: 40px; height: 40px; border: 0; background: none; cursor: pointer; opacity: .7; }
+.aviso-caps { margin: -6px 0 0; font-size: 12px; color: var(--orange); font-weight: 600; }
+.marcar { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+.marcar input { width: 18px; height: 18px; accent-color: var(--red); }
+
+/* ---------- Topo ---------- */
+.topo { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px max(16px, calc((100vw - 1180px) / 2)); background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--borda); }
+.topo-marca { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.topo-logo { height: 30px; width: auto; }
+.topo-nome { font: 800 22px/1 var(--f-num); text-transform: uppercase; letter-spacing: .06em; color: var(--forte); border-left: 2px solid var(--red); padding-left: 10px; }
+.topo-acoes { display: flex; gap: 8px; align-items: center; }
+.sino-num { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--red); color: #fff; font: 700 12px/20px var(--f); }
+.avatar { width: 42px; height: 42px; border-radius: 50%; border: 2px solid var(--borda-2); background: var(--red); color: #fff; font-weight: 800; cursor: pointer; }
+.menu { position: absolute; right: max(16px, calc((100vw - 1180px) / 2)); top: 64px; width: 260px; background: var(--panel); border: 1px solid var(--borda-2); border-radius: 14px; box-shadow: var(--sombra); padding: 8px; display: grid; }
+.menu-quem { display: grid; gap: 2px; padding: 8px 10px 10px; border-bottom: 1px solid var(--borda); margin-bottom: 6px; }
+.menu-quem span { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.menu-quem .selo { justify-self: start; margin-top: 4px; }
+.menu button { text-align: left; background: none; border: 0; padding: 10px; border-radius: 10px; cursor: pointer; }
+.menu button:hover { background: var(--panel-2); }
+
+.painel-sino { position: fixed; z-index: 30; top: 66px; right: max(16px, calc((100vw - 1180px) / 2)); width: min(380px, calc(100vw - 32px));
+  max-height: calc(100vh - 90px); overflow: auto; background: var(--panel); border: 1px solid var(--borda-2); border-radius: 16px; box-shadow: var(--sombra); }
+.painel-topo { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--borda); position: sticky; top: 0; background: var(--panel); }
+.lista-notif { list-style: none; margin: 0; padding: 6px; }
+.lista-notif li button { display: grid; gap: 2px; width: 100%; text-align: left; background: none; border: 0; padding: 10px 12px; border-radius: 12px; cursor: pointer; }
+.lista-notif li button:hover { background: var(--panel-2); }
+.lista-notif li.nova button { border-left: 3px solid var(--red); }
+.lista-notif .n-tit { font-weight: 700; }
+.lista-notif .n-corpo, .lista-notif .n-quando { color: var(--muted); font-size: 13px; }
+.vazio { color: var(--muted); padding: 14px; text-align: center; font-size: 14px; }
+
+/* ---------- Miolo ---------- */
+.miolo { max-width: 1180px; margin: 0 auto; padding: 26px 16px 40px; display: grid; gap: 30px; }
+.saudacao-data { margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: .14em; font-size: 12px; font-weight: 700; }
+.saudacao-titulo { margin: 4px 0 0; font: 800 clamp(44px, 9vw, 92px)/.92 var(--f-num); text-transform: uppercase; color: var(--forte); letter-spacing: -.005em; }
+.saudacao-sub { margin: 10px 0 0; color: var(--muted); font-family: var(--f-num); font-size: 18px; letter-spacing: .04em; }
+
+.agora { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.agora-cartao { position: relative; overflow: hidden; display: grid; gap: 2px; align-content: start; padding: 18px 18px 14px; min-height: 168px;
+  background: var(--panel); border: 1px solid var(--borda); border-radius: var(--r); text-decoration: none; box-shadow: var(--sombra); transition: transform .18s, border-color .18s; }
+.agora-cartao::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--cor, var(--red)); }
+.agora-cartao:hover { transform: translateY(-2px); border-color: var(--cor, var(--red)); }
+.c-conversas { --cor: #25d366; } .c-patio { --cor: var(--orange); } .c-hoje { --cor: var(--blue); }
+.agora-rotulo { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; color: var(--muted); }
+.agora-num { font: 800 64px/1 var(--f-num); color: var(--forte); }
+.agora-det { color: var(--muted); font-size: 13px; }
+.agora-lista { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.agora-lista li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px dashed var(--borda); }
+.agora-lista li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agora-lista li span:last-child { color: var(--muted); white-space: nowrap; }
+
+.bloco { display: grid; gap: 14px; }
+.bloco-cab { display: flex; align-items: center; gap: 10px; }
+.bloco-titulo { margin: 0; font: 800 28px/1 var(--f-num); text-transform: uppercase; letter-spacing: .02em; color: var(--forte); }
+.grade-apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.app { display: grid; grid-template-columns: 48px 1fr; gap: 4px 12px; align-items: center; padding: 16px; border-radius: var(--r); background: var(--panel);
+  border: 1px solid var(--borda); text-decoration: none; transition: transform .18s, border-color .18s; }
+.app:hover { transform: translateY(-2px); border-color: var(--red); }
+.app-ico { grid-row: span 2; width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 24px; background: var(--red-soft); }
+.app-nome { font: 700 22px/1 var(--f-num); text-transform: uppercase; letter-spacing: .03em; color: var(--forte); }
+.app-desc { color: var(--muted); font-size: 13px; }
+.app-fora .app-nome::after { content: '↗'; margin-left: 6px; color: var(--muted); font-size: 14px; }
+
+.nova-tarefa { display: flex; gap: 8px; }
+.nova-tarefa input { flex: 1; min-width: 0; height: 46px; border-radius: 12px; border: 1px solid var(--borda-2); background: var(--panel); padding: 0 14px; font-size: 16px; }
+.lista-tarefas { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tarefa { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--borda); border-radius: 14px; }
+.tarefa input { width: 22px; height: 22px; accent-color: var(--green); cursor: pointer; }
+.tarefa .t-tit { font-weight: 600; overflow-wrap: anywhere; }
+.tarefa .t-quando { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.tarefa.vencida .t-quando { color: var(--red-2); font-weight: 700; }
+.tarefa.p1 { border-left: 3px solid var(--red); }
+
+.rodape { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 16px 30px; }
+.carregando { position: fixed; inset: 0; display: grid; place-content: center; grid-auto-flow: column; gap: 10px; align-items: center; color: var(--muted); background: var(--bg); z-index: 50; }
+.giro { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--borda-2); border-top-color: var(--red); animation: giro .8s linear infinite; }
+@keyframes giro { to { transform: rotate(360deg); } }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--forte); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-weight: 600; z-index: 60; max-width: calc(100vw - 32px); }
+
+@media (max-width: 520px) {
+  .topo-nome { display: none; }
+  .agora-num { font-size: 54px; }
+  .grade-apps { grid-template-columns: 1fr 1fr; }
+  .app { grid-template-columns: 1fr; text-align: left; }
+  .app-ico { grid-row: auto; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

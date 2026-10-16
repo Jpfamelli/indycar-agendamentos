@@ -27,7 +27,9 @@ const arquivos = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('
   .filter((a) => !/\.(png|jpg|jpeg|ico|sqlite|woff2?)$/i.test(a));
 const achados = [];
 if (arquivos.some((a) => /(^|\/)\.env$/.test(a))) achados.push({ arquivo: '.env', linha: 0, tipo: '.env versionado', trecho: '' });
-for (const arq of arquivos) {
+// Central (16/10): apps/<app>/ tem o scanner DELE (com os exemplos falsos dos testes marcados) —
+// `npm run segredos` roda os três depois deste. Aqui só se confere que nenhum .env foi versionado lá.
+for (const arq of arquivos.filter((a) => !a.startsWith('apps/'))) {
   let txt; try { txt = readFileSync(arq, 'utf8'); } catch { continue; }
   const linhas = txt.split('\n');
   linhas.forEach((l, i) => {
@@ -41,7 +43,7 @@ for (const arq of arquivos) {
     }
   });
 }
-if (!achados.length) { console.log(`Nenhum segredo nos ${arquivos.length} arquivos versionados. ✔`); process.exit(0); }
+if (!achados.length) { console.log(`Nenhum segredo nos ${arquivos.filter((a) => !a.startsWith('apps/')).length} arquivos da Agenda/Central (e nenhum .env versionado em apps/). ✔`); process.exit(0); }
 for (const a of achados) console.log(`✖ ${a.arquivo}:${a.linha}  ${a.tipo}  ${a.trecho}`);
 console.log(`\n${achados.length} achado(s). Tire do arquivo, troque a chave e use o .env (fora do git).`);
 process.exit(1);

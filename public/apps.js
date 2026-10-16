@@ -25,6 +25,14 @@
   const apps = {};
   for (const k of Object.keys(PADRAO)) apps[k] = Object.assign({}, PADRAO[k], extra[k] || {});
   for (const k of Object.keys(extra)) if (!apps[k]) apps[k] = Object.assign({ nome: k, desc: '' }, extra[k]);
+  /* IndyCar Central (16/10): a página está sob /agenda/ (ou outro irmão) — os quatro apps
+     que moram juntos usam a origem ATUAL (mesmo domínio = mesmo login), salvo se a
+     Central já mandou outro endereço em INDYCAR_APPS. */
+  try {
+    if (root.location && /^\/(agenda|crm|atendimento|comunicar)(\/|$)/.test(root.location.pathname) && /^https?:/.test(root.location.origin)) {
+      for (const k of ['agenda', 'crm', 'atendimento', 'comunicar']) if (!(extra[k] && extra[k].url)) apps[k].url = root.location.origin + '/' + k;
+    }
+  } catch { /* fora do navegador */ }
 
   /** Raiz deste app na barra de endereço: "/" sozinho, "/agenda/" na Central. Sempre termina com "/". */
   function raiz() {

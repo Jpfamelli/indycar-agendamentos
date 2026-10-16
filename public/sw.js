@@ -1,7 +1,9 @@
 // Service Worker do IndyCar Agendamentos — torna o site instalável (PWA)
 // e mantém a casca do app em cache para abrir rápido (e abrir mesmo com o
 // servidor fora do ar: a tela aparece, avisa e tenta de novo sozinha).
-const CACHE = 'indycar-v16';
+/* Central (16/10): nome com o app — no mesmo domínio moram 5 service workers e cada um só
+   apaga o que é SEU (antes apagava o cache dos outros apps ao ativar). */
+const CACHE = 'indycar-agenda-v17';
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala — o app deixa de ser instalável sem dizer por quê. Foi o que
    quase aconteceu quando o qrcode.min.js saiu junto com a tela de QR e
@@ -29,6 +31,7 @@ function passaDireto(req) {
   const url = new URL(req.url);
   if (req.url === LIB_LOGIN) return false;
   if (url.origin !== self.location.origin) return true;
+  if (!url.pathname.startsWith(RAIZ)) return true;   // Central: outro app no mesmo domínio não é nosso
   if (url.pathname.startsWith(RAIZ + 'api/') || url.pathname === RAIZ + 'api') return true;
   // a página do cliente (/confirmar/) muda de resposta a cada toque: sempre rede
   if (url.pathname.startsWith(RAIZ + 'confirmar')) return true;
@@ -45,7 +48,7 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && (k.startsWith('indycar-agenda-') || /^indycar-v[0-9]+$/.test(k))).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
