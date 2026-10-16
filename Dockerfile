@@ -1,7 +1,10 @@
-# IndyCar Agendamentos — imagem de produção (sem dependências externas)
+# IndyCar Central — imagem de produção (Agenda + CRM + Comunicar + Atendimento + Casa num servidor só).
+# (O Render usa runtime node pelo render.yaml; esta imagem é para quem rodar com Docker.)
 FROM node:22-alpine
 
 WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm install --omit=dev
 COPY . .
 
 # Os dados ficam no Supabase (PostgREST) — não há mais arquivo de banco local,
@@ -11,4 +14,4 @@ COPY . .
 ENV PORT=3000
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "central.js"]

@@ -105,7 +105,7 @@
     if (qual === 'fMfa') setTimeout(() => $('#mCodigo').focus(), 30);
     if (qual === 'fSenha') setTimeout(() => $('#sNova').focus(), 30);
   }
-  function semAcesso(msg) { $('#saMotivo').textContent = msg; mostrar('semAcesso'); }
+  function semAcesso(msg, podeTentar = false) { $('#saMotivo').textContent = msg; $('#saTentar').hidden = !podeTentar; mostrar('semAcesso'); }
 
   function esperaPorErros() {
     const n = Number(ler(LS_ERROS)) || 0;
@@ -194,7 +194,8 @@
   async function sair(global) {
     try { if (canal) await sb.removeChannel(canal); } catch { /* segue */ }
     canal = null; clearInterval(timerAgora);
-    try { await sb.auth.signOut(global ? { scope: 'global' } : undefined); } catch { /* sessão já tinha ido */ }
+    // sem "scope" o supabase-js sai de TODOS os aparelhos (inclusive o celular do mecânico)
+    try { await sb.auth.signOut({ scope: global ? 'global' : 'local' }); } catch { /* sessão já tinha ido */ }
     perfil = null; sessao = null;
     $('#menuPerfil').hidden = true; $('#painelSino').hidden = true;
     mostrar('fLogin');
@@ -214,7 +215,7 @@
     } catch { /* sem MFA */ }
     const { data: p, error } = await sb.from('perfis')
       .select('id,nome,email,papel,apps,ativo,avatar_cor,precisa_trocar_senha').eq('id', sessao.user.id).maybeSingle();
-    if (error) return semAcesso('Não consegui ler o seu perfil agora. Tente de novo em instantes.');
+    if (error) return semAcesso('Não consegui ler o seu perfil agora (internet ou servidor). Tente de novo.', true);
     if (!p) return semAcesso('Seu login existe, mas ainda não tem perfil na equipe. Peça ao administrador para liberar.');
     if (p.ativo === false) { await sb.auth.signOut(); return semAcesso('Seu acesso foi desativado. Fale com o administrador.'); }
     perfil = p;
@@ -429,6 +430,7 @@
       const acao = e.target.closest('[data-acao]')?.dataset.acao;
       if (acao === 'sair') return sair(false);
       if (acao === 'sair-todos') return sair(true);
+      if (acao === 'tentar') { $('#carregando').hidden = false; return depoisDoLogin().catch(() => semAcesso('Ainda sem conexão. Tente de novo em instantes.', true)); }
       if (acao === 'trocar-senha') { $('#menuPerfil').hidden = true; return pedirSenha('troca'); }
       const nb = e.target.closest('[data-notif]');
       if (nb) return abrirNotificacao(nb.dataset.notif);
@@ -459,7 +461,12 @@
     sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
     sb.auth.onAuthStateChange((evento, s) => {
       if (evento === 'PASSWORD_RECOVERY') { sessao = s; emRecuperacao = true; return pedirSenha('recuperar'); }
-      if (evento === 'SIGNED_OUT' && perfil) { perfil = null; mostrar('fLogin'); }
+      if (evento === 'SIGNED_OUT' && perfil) {      // saiu em outro app/aba (a sessão é uma só neste domínio)
+        try { if (canal) sb.removeChannel(canal); } catch { /* segue */ }
+        canal = null; clearInterval(timerAgora); timerAgora = null;
+        perfil = null; sessao = null; $('#menuPerfil').hidden = true; $('#painelSino').hidden = true;
+        mostrar('fLogin');
+      }
     });
     await depoisDoLogin();
   }

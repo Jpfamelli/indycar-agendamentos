@@ -321,7 +321,7 @@ async function contaRecuperacao() {
 /** Sair (só aqui) ou de todos os aparelhos. */
 async function contaSair(todos) {
   if (typeof esquecerCacheInicio === 'function') esquecerCacheInicio();   // o painel guardado na aba sai junto
-  try { await sb?.auth?.signOut(todos ? { scope: 'global' } : undefined); } catch { /* sai mesmo assim */ }
+  try { await sb?.auth?.signOut({ scope: todos ? 'global' : 'local' }); } catch { /* sai mesmo assim */ }
   location.replace(typeof RAIZ === 'string' ? RAIZ : location.pathname);
 }
 

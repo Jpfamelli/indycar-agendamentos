@@ -175,12 +175,14 @@ export async function handler(req, res) {
   catch { res.writeHead(400); return res.end(); }
   const caminho = url.pathname;
   const busca = url.search || '';
+  // "%" solto / UTF-8 inválido no caminho: 400 aqui, igual para todos (a Agenda respondia 500 por decodeURIComponent)
+  try { decodeURIComponent(caminho); } catch { return json(res, 400, { erro: 'Endereço inválido.' }); }
 
   // 1) saúde e configuração da Central
   if (caminho === '/api/ping') {
     const m = process.memoryUsage();
     return json(res, 200, {
-      ok: ORDEM.every((n) => APPS[n]?.handler), app: 'central', versao: VERSAO_CENTRAL, noArDesde: NO_AR_DESDE,
+      ok: ORDEM.every((n) => APPS[n]?.handler), app: 'central', configurado: !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY), versao: VERSAO_CENTRAL, noArDesde: NO_AR_DESDE,
       apps: Object.fromEntries(ORDEM.map((n) => [n, APPS[n]?.handler ? { ok: true, versao: APPS[n].versao || null, prefixo: APPS[n].prefixo + '/' } : { ok: false }])),
       memoria: { rss_mb: mb(m.rss), heap_mb: mb(m.heapUsed) },
     });
@@ -207,6 +209,7 @@ export async function handler(req, res) {
   // 4) o resto da raiz continua sendo a Agenda sem prefixo (/confirmar/, /api/*, feed ICS, webhook…)
   const ag = APPS.agenda;
   if (!ag?.handler) return json(res, 503, { erro: 'A Agenda não subiu nesta Central.' });
+  req.url = caminho + busca;           // normalizado ('//x' e '/a/../b' não chegam crus à Agenda)
   req.prefixo = '';
   return ag.handler(req, res);
 }
@@ -236,6 +239,14 @@ export async function iniciarCentral({ porta = PORT, ouvir = true } = {}) {
   return { handler, APPS, server };
 }
 
+/** Janela deslizante de 1 minuto: true enquanto o número de exceções soltas ainda é tolerável. */
+const EXCECOES = [];
+export function registrarExcecao(agora = Date.now(), limite = 25) {
+  EXCECOES.push(agora);
+  while (EXCECOES.length && agora - EXCECOES[0] > 60_000) EXCECOES.shift();
+  return EXCECOES.length < limite;
+}
+
 let desligando = false;
 function desligar(sinal) {
   if (desligando) return;
@@ -246,10 +257,20 @@ function desligar(sinal) {
   setTimeout(() => process.exit(0), 10_000).unref();
 }
 
+/** Guardas do processo: SIGTERM/SIGINT com cuidado, rejeição solta só registra, exceção solta de UM app
+ *  (timer, evento) não derruba os outros três; enxurrada (>= 25 em 1 minuto) reinicia pelo Render. */
+export function instalarGuardas(proc = process) {
+  proc.on('SIGTERM', () => desligar('SIGTERM'));
+  proc.on('SIGINT', () => desligar('SIGINT'));
+  proc.on('unhandledRejection', (e) => console.error('Promessa sem tratamento:', e?.message || e));
+  proc.on('uncaughtException', (e) => {
+    if (registrarExcecao()) console.error('Exceção sem tratamento (a Central segue no ar):', e?.stack || e);
+    else { console.error('Exceções demais em 1 minuto — reiniciando:', e?.stack || e); proc.exit(1); }
+  });
+}
+
 const EH_PRINCIPAL = !!process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
 if (EH_PRINCIPAL) {
-  process.on('SIGTERM', () => desligar('SIGTERM'));
-  process.on('SIGINT', () => desligar('SIGINT'));
-  process.on('unhandledRejection', (e) => console.error('Promessa sem tratamento:', e?.message || e));
+  instalarGuardas();
   iniciarCentral();
 }

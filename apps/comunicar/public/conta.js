@@ -277,7 +277,7 @@
   // ---- sair ----------------------------------------------------------------------
   async function sair(todos = false) {
     pararSino();
-    try { await sb?.auth?.signOut(todos ? { scope: 'global' } : undefined); } catch { /* segue */ }
+    try { await sb?.auth?.signOut({ scope: todos ? 'global' : 'local' }); } catch { /* segue */ }
     state.perfil = null;
     location.replace(RAIZ_APP());
   }
