@@ -370,9 +370,11 @@ Deno.serve(async (req: Request) => {
   }
 
   /* ---------- AGENDAMENTO INSTANTÂNEO ----------
-     Só para mensagem NOVA — se já existia (23505), a agenda já foi tratada. */
+     Só para mensagem NOVA — se já existia (23505), a agenda já foi tratada.
+     E só quando a mensagem SAIU da oficina (deMim): um cliente digitando
+     "Agendamento: ..." não pode criar horário confirmado sozinho. */
   let agendamentoCriado: string | null = null;
-  const ag = jaExistia ? null : texto.match(/^\s*agendamento:\s*(.+?)\s*-\s*(.+)\s*-\s*(\d{4}-\d{2}-\d{2})[T ]+(\d{1,2}:\d{2})/i);
+  const ag = (jaExistia || !deMim) ? null : texto.match(/^\s*agendamento:\s*(.+?)\s*-\s*(.+)\s*-\s*(\d{4}-\d{2}-\d{2})[T ]+(\d{1,2}:\d{2})/i);
   if (ag) {
     try {
       const servico = ag[1].trim(), nomeAg = ag[2].trim(), dataAg = ag[3];
