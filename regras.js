@@ -177,3 +177,19 @@ export function mensagemSegura(e, rid = '') {
   }
   return { status: e?.name === 'ErroSupabase' || status >= 500 ? 500 : status, erro: `Algo deu errado do nosso lado. Tente de novo em instantes${rid ? ` (código ${rid})` : ''}.` };
 }
+
+// -----------------------------------------------------------------------------
+// 16/10 (decisão do João): WhatsApp — timeout ou conexão caída DEPOIS de mandar o
+// pedido ao CodeWords = "não sabemos se chegou". O aviso de falta NÃO fica liberado
+// para sair de novo no próximo clique (o cliente receberia dois); recusa ANTES de
+// enviar (DNS, conexão recusada, TLS) continua liberando como antes.
+// -----------------------------------------------------------------------------
+const RE_ANTES_DE_ENVIAR = /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT|ERR_TLS|CERT_|ERR_INVALID_URL/i;
+const RE_CAIU_NO_MEIO = /ECONNRESET|EPIPE|ECONNABORTED|UND_ERR_SOCKET|UND_ERR_CLOSED|other side closed|socket hang up|terminated/i;
+export function semConfirmacaoDoErro(e) {
+  if (!e) return false;
+  if (e.name === 'TimeoutError' || e.name === 'AbortError' || e?.cause?.name === 'TimeoutError') return true;
+  const t = [e.code, e.message, e.cause?.code, e.cause?.message].filter(Boolean).join(' ');
+  if (RE_ANTES_DE_ENVIAR.test(t)) return false;
+  return RE_CAIU_NO_MEIO.test(t);
+}

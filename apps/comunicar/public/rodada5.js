@@ -25,7 +25,7 @@
     const cls = COR[s.cor] || 'neutro';
     const acao = s.acao ? (s.acao.tipo === 'link'
       ? `<a class="btn btn-mini primary" href="${esc(s.acao.alvo)}" target="_blank" rel="noopener">${esc(s.acao.rotulo)} ↗</a>`
-      : `<button type="button" class="btn btn-mini" data-sw-rota="${esc(s.acao.alvo)}">${esc(s.acao.rotulo)}</button>`) : '';
+      : `<button type="button" class="btn btn-mini" data-sw-rota="${esc(s.acao.alvo)}"${s.acao.filtro ? ` data-sw-filtro="${esc(s.acao.filtro)}"` : ''}>${esc(s.acao.rotulo)}</button>`) : '';
     const classes = (s.classes || []).length ? `<div class="sw-classes">${s.classes.map(c => `<span class="badge-pill ${c.classe === 'numero_invalido' ? 'bp-gray' : c.classe === 'chave_recusada' ? 'bp-red' : 'bp-orange'}" title="${esc(c.ultimoErro || '')}">${esc(c.rotulo)} · <b>${c.total}</b></span>`).join('')}</div>` : '';
     const cad = s.cadencia ? `<small class="sw-cad">cadência: até <b>${s.cadencia.porMinuto}/min</b>, <b>${s.cadencia.porHora}/h</b>, <b>${s.cadencia.porDia}/dia</b> · ${s.cadencia.mesmoCliente} min entre avisos ao mesmo cliente · ${s.cadencia.janela?.inicio}h–${s.cadencia.janela?.fim}h${s.cadencia.soHorarioComercial ? ' · só horário da loja' : ''}</small>` : '';
     return `<div class="sw-topo"><span class="sw-dot ${cls}" aria-hidden="true"></span>
@@ -52,7 +52,7 @@
     $('#painelSaudeWA').dataset.estado = s.estado;
     $('#painelSaudeWA').classList.toggle('alerta', s.cor === 'vermelho');
     $('#swReconferir')?.addEventListener('click', async (e) => { e.currentTarget.disabled = true; await R5.atualizarSaude(true); toast('WhatsApp conferido de novo.'); });
-    $$('[data-sw-rota]', corpo).forEach(b => b.addEventListener('click', () => { if (b.dataset.swRota === 'mensagens') state.msg.status = 'falhou'; route(b.dataset.swRota); }));
+    $$('[data-sw-rota]', corpo).forEach(b => b.addEventListener('click', () => { if (b.dataset.swRota === 'mensagens') state.msg.status = b.dataset.swFiltro || 'falhou'; route(b.dataset.swRota); }));
   };
 
   // ======================================================================

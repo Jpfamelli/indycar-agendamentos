@@ -264,15 +264,16 @@ export function criarApi(deps) {
   /* Rodada 5: "Saúde do WhatsApp" — estado, motivo em português e o botão para o lugar certo. */
   async function saudeDoWhatsapp(forcar = false) {
     const desde = new Date(relogio() - 24 * 3600000).toISOString();
-    const [status, falhas, fila, cart, cfg] = await Promise.all([
+    const [status, falhas, fila, cart, cfg, duvida] = await Promise.all([
       Promise.resolve(forcar ? whatsapp.status?.(true) : whatsapp.status?.()).catch(() => ({ ok: false, classe: 'instabilidade', erro: 'sem resposta' })),
       Promise.resolve(dados.falhasPorClasse?.(desde)).catch(() => ({})),
       Promise.resolve(dados.resumoDaFila?.()).catch(() => ({})),
       resumoDoCarteiro().catch(() => ({})),
       dados.obterConfig().catch(() => ({})),
+      Promise.resolve(dados.contarSemConfirmacao?.()).catch(() => 0),
     ]);
-    const s = montarSaude({ status, falhas24h: falhas || {}, fila: fila || {}, carteiro: { ultimaEm: cart.ultimaEm, falhas24h: cart.falhas24h }, estadoGravado: cfg.whatsapp || null, agora: relogio() });
-    return { ...s, cadencia: { porMinuto: cfg.limite_por_minuto, porHora: cfg.limite_por_hora, porDia: cfg.limite_por_dia, mesmoCliente: cfg.intervalo_mesmo_cliente_min, janela: { inicio: cfg.janela_inicio, fim: cfg.janela_fim }, soHorarioComercial: !!cfg.so_horario_comercial }, conferidoEm: new Date(relogio()).toISOString() };
+    const s = montarSaude({ status, falhas24h: falhas || {}, fila: fila || {}, carteiro: { ultimaEm: cart.ultimaEm, falhas24h: cart.falhas24h }, estadoGravado: cfg.whatsapp || null, agora: relogio(), semConfirmacao: Number(duvida) || 0 });
+    return { ...s, semConfirmacao: Number(duvida) || 0, cadencia: { porMinuto: cfg.limite_por_minuto, porHora: cfg.limite_por_hora, porDia: cfg.limite_por_dia, mesmoCliente: cfg.intervalo_mesmo_cliente_min, janela: { inicio: cfg.janela_inicio, fim: cfg.janela_fim }, soHorarioComercial: !!cfg.so_horario_comercial }, conferidoEm: new Date(relogio()).toISOString() };
   }
   rota('GET', '/api/whatsapp/saude', async ({ res }) => ok(res, await emCache('wa-saude', 20_000, () => saudeDoWhatsapp(false))));
   rota('POST', '/api/whatsapp/reconferir', async ({ res, usuario }) => {
@@ -462,7 +463,8 @@ export function criarApi(deps) {
     await dados.enfileirar({
       telefone, nome: `Teste (${usuario.nome || 'equipe'})`, tipo: 'avulsa', corpo, criado_por: usuario.nome || usuario.email,
       criado_por_id: usuario.id, status: r.ok ? 'enviado' : 'falhou',
-    }).then((e) => e && r.ok && dados.marcarEnvio(e.id, 'enviado', null, 1)).catch(() => {});
+    }).then((e) => e && (r.ok ? dados.marcarEnvio(e.id, 'enviado', null, 1)
+      : dados.marcarEnvio(e.id, 'falhou', r.erro || null, 1, r.classe === 'sem_confirmacao' ? { erro_classe: 'sem_confirmacao' } : {}))).catch(() => {});
     auditar(usuario, 'envio_teste_proprio', 'posvenda_envios', null, { telefone: mascararTel(telefone), ok: !!r.ok, classe: r.classe || null });
     return r.ok ? ok(res, { ok: true, telefone: mascararTel(telefone) }) : send(res, 502, { erro: r.erro, classe: r.classe || null, fazer: r.fazer || null });
   });
@@ -485,6 +487,12 @@ export function criarApi(deps) {
   });
   rota('POST', `/api/envios/${U}/cancelar`, mexerNoEnvio((id) => dados.cancelarEnvio(id), 'Só dá para cancelar mensagem que ainda não saiu.', 'envio_cancelado'));
   rota('POST', `/api/envios/${U}/reenviar`, mexerNoEnvio((id) => dados.reenfileirar(id), 'Só dá para reenviar mensagem que falhou, foi cancelada ou pulada.', 'envio_reenviado'));
+  /* 16/10: "Chegou" — a equipe conferiu no WhatsApp que a mensagem sem confirmação saiu. */
+  rota('POST', `/api/envios/${U}/chegou`, async (ctx) => {
+    const r = await mexerNoEnvio((id) => dados.confirmarChegou(id), 'Só dá para marcar "Chegou" em mensagem sem confirmação.', 'envio_chegou_confirmado')(ctx);
+    esquecerCache('wa-saude', 'resumo');
+    return r;
+  });
   rota('POST', `/api/envios/${U}/desfazer-cancelamento`, mexerNoEnvio((id) => dados.desfazerCancelamento(id), 'Essa mensagem não está cancelada.', null));
   rota('POST', `/api/envios/${U}/encaminhar`, async ({ res, usuario, url }) => {
     const r = await dados.encaminharEnvio(idDe(url.pathname), usuario);
@@ -503,7 +511,8 @@ export function criarApi(deps) {
     await dados.enfileirar({
       telefone, nome: `Teste (${usuario.nome || 'gestor'})`, tipo: 'avulsa', corpo, criado_por: usuario.nome || usuario.email,
       criado_por_id: usuario.id, status: r.ok ? 'enviado' : 'falhou',
-    }).then((e) => e && r.ok && dados.marcarEnvio(e.id, 'enviado', null, 1)).catch(() => {});
+    }).then((e) => e && (r.ok ? dados.marcarEnvio(e.id, 'enviado', null, 1)
+      : dados.marcarEnvio(e.id, 'falhou', r.erro || null, 1, r.classe === 'sem_confirmacao' ? { erro_classe: 'sem_confirmacao' } : {}))).catch(() => {});
     auditar(usuario, 'envio_teste', 'posvenda_envios', null, { telefone: mascararTel(telefone), ok: !!r.ok });
     return r.ok ? ok(res, { ok: true }) : send(res, 502, { erro: r.erro });
   });

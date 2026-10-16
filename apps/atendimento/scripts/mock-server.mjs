@@ -161,10 +161,14 @@ const DB = {
     { id: 'm6', conversa_id: CONV.jose, corpo: 'Ok, obrigado', direcao: 'entrada', status: 'recebido', created_at: h(5) },
     { id: 'm7', conversa_id: CONV.renata, corpo: '🖼 Foto', direcao: 'entrada', status: 'recebido', created_at: h(26) },
     { id: 'm8', conversa_id: CONV.semcad, corpo: 'Vocês fazem alinhamento?', direcao: 'entrada', status: 'recebido', created_at: h(1) },
+    // 16/10: o CodeWords não respondeu a tempo depois do pedido — não sabemos se chegou
+    { id: 'm9', conversa_id: CONV.camila, corpo: 'Pode sim! Te espero às 9h.', direcao: 'saida', status: 'falhou', erro: 'Sem confirmação: o CodeWords não respondeu em 60 s — não sabemos se a mensagem chegou. Confira na conversa do WhatsApp antes de mandar de novo.', enviado_por: U.atendente, created_at: h(0.1) },
   ],
   leads: [
     { id: 'l1', cliente_id: CLI.camila, servico: 'Troca de óleo do motor', valor_orcado: 320, valor_pago: 340, status: 'concluido', created_at: d(200), closed_at: d(190), origem: 'whatsapp' },
     { id: 'l2', cliente_id: CLI.camila, servico: 'Alinhamento 3D', valor_orcado: 180, valor_pago: 0, status: 'orcamento', created_at: d(1), origem: 'whatsapp' },
+    // 16/10: lead de colega (gestor) — atendente vê, mas não edita
+    { id: 'l4', cliente_id: CLI.camila, servico: 'Revisão dos 60 mil', valor_orcado: 900, valor_pago: 0, status: 'contato', created_at: d(2), origem: 'whatsapp', responsavel_id: U.gestor },
     { id: 'l3', cliente_id: CLI.jose, servico: 'Pastilha de freio', valor_orcado: 450, valor_pago: 450, status: 'concluido', created_at: d(400), closed_at: d(395), origem: 'google' },
   ],
   agendamentos: [
@@ -512,6 +516,8 @@ function consultar(op, quem) {
       const proibidos = ['papel', 'apps', 'ativo', 'equipe_id'].filter(k => k in op.corpo);
       if (proibidos.length && quem.papel !== 'admin') return { data: null, error: { message: 'Você não pode alterar ' + proibidos.join(', ') } };
     }
+    // 16/10: RLS "leads: atendente so edita o dele" (RESTRICTIVE) — barra em silêncio (0 linhas)
+    if (op.tabela === 'leads' && !ehGestor(quem)) linhas = linhas.filter(l => !l.responsavel_id || l.responsavel_id === quem.id);
     if (op.tabela === 'tarefas' && op.corpo.status === 'feita') op.corpo = { concluida_em: new Date().toISOString(), concluida_por: quem.id, ...op.corpo };
     linhas.forEach(l => Object.assign(l, op.corpo));
     // v_cliente_360 é uma VIEW no banco real: o que muda em clientes aparece nela

@@ -13,7 +13,9 @@
 //   4. quem pediu para parar (aceita_mensagens = false) NÃO recebe — nem o que já estava na fila;
 //   5. o mesmo cliente: 1 aviso por intervalo (também entre rodadas) e no máximo N por dia;
 //   6. lembrete/pátio conferem a situação de AGORA; reserva antes de enviar;
-//   7. erro estrutural ou 429 para a rodada sem gastar tentativa.
+//   7. erro estrutural ou 429 para a rodada sem gastar tentativa;
+//   8. timeout/conexão caída DEPOIS do pedido = "sem confirmação": NUNCA tenta de novo sozinho
+//      (o cliente receberia duas) — fica para a equipe conferir (Chegou / Reenviar) e a rodada para.
 // -----------------------------------------------------------------------------
 
 export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms) => new Promise((r) => setTimeout(r, ms)), agora = new Date(), log = console }) {
@@ -72,7 +74,7 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   // avisos do Pátio: confere a ordem de AGORA (carro já entregue não recebe "está pronto")
   const ordensPatio = await dados.ordensDoPatio(fila.map((e) => patio.osIdDaChave(e.chave_unica)).filter(Boolean)).catch(() => null);
 
-  let enviados = 0, falhas = 0, adiados = sep.adiados.length, reagendados = 0, parouPor = null, classeParou = null;
+  let enviados = 0, falhas = 0, semConfirmacao = 0, adiados = sep.adiados.length, reagendados = 0, parouPor = null, classeParou = null;
   const porClasse = {};
   for (const envio of fila) {
     if (enviados >= vagas) break;
@@ -123,6 +125,16 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     } else {
       log.error(`Envio ${envio.id} falhou [${r.classe}]: ${r.erro}`);
       porClasse[r.classe] = (porClasse[r.classe] || 0) + 1;
+      if (r.classe === 'sem_confirmacao') {
+        /* Pode ter saído: marca como falhou/sem_confirmacao (sai da fila, nada de nova tentativa) e
+           para a rodada — o CodeWords está lento e o resto da fila espera a próxima sem risco. */
+        await carteiro.comTentativas(() => dados.marcarEnvio(envio.id, 'falhou', r.erro, tentativas, { erro_classe: 'sem_confirmacao' }))
+          .catch((e) => log.error(`Envio ${envio.id} sem confirmação e não consegui marcar:`, e?.message || e));
+        semConfirmacao++; falhas++;
+        parouPor = 'O CodeWords não confirmou um envio a tempo: a rodada parou para não arriscar mensagem duplicada. Confira em Mensagens › Sem confirmação.';
+        classeParou = r.classe;
+        break;
+      }
       if (r.estrutural || r.classe === 'limite') {
         /* Sem aparelho/chave TODOS falhariam igual; 429 = o CodeWords pediu calma: a mensagem
            volta para a fila SEM gastar tentativa (antes cada 429 gastava uma das 4 e a rajada
@@ -145,6 +157,6 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     }
     await dormir(pausaMs); // cadência: respeita o limite por minuto, com variação (sem rajada)
   }
-  return { enviados, falhas, adiados, reagendados, pulados, porClasse, cadencia: { vagas, pausaMs, enviadasHoje },
+  return { enviados, falhas, semConfirmacao, adiados, reagendados, pulados, porClasse, cadencia: { vagas, pausaMs, enviadasHoje },
     feriado: nomeFeriado || undefined, aviso: parouPor || undefined, classe: classeParou || undefined };
 }

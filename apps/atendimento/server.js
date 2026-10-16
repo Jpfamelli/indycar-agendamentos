@@ -29,7 +29,7 @@ const TAR  = require('./lib/tarefas.js');
 const AUT  = require('./lib/automacoes.js');
 const { criarRotasEquipe } = require('./lib/rotas-equipe.js');
 // Rodada 4: entrega que não duplica quando a tela tenta de novo (servidor acordando)
-const { criarEntregador } = require('./lib/entrega.js');
+const { criarEntregador, semConfirmacaoDoErro, PREFIXO_SEM_CONFIRMACAO } = require('./lib/entrega.js');
 
 // Configuração via .env (sem depender do Registro do Windows)
 try {
@@ -1339,6 +1339,16 @@ async function enviarPeloCodeWords({ telefone, corpo, nome, conversaId }) {
     await registrarEvento(sb, { direcao:'saida', sucesso:true, telefone, resumo: corpo.slice(0,120) });
     return { ok:true, resposta: txt.slice(0, 500) };
   } catch (err) {
+    /* 16/10: timeout ou conexão caída DEPOIS do pedido = não sabemos se saiu. Não volta
+       como falha comum (a retomada automática reenviaria e o cliente receberia duas). */
+    if (semConfirmacaoDoErro(err)) {
+      const msg = PREFIXO_SEM_CONFIRMACAO + (err.name === 'TimeoutError'
+        ? ': o CodeWords não respondeu em 60 s — não sabemos se a mensagem chegou. Confira na conversa do WhatsApp antes de mandar de novo.'
+        : ': a conexão com o CodeWords caiu depois do pedido — não sabemos se a mensagem chegou. Confira na conversa do WhatsApp antes de mandar de novo.');
+      await sb.from('codewords_config').update({ ultimo_erro: msg }).eq('id', true);
+      await registrarEvento(sb, { direcao:'saida', sucesso:false, telefone, resumo: corpo.slice(0,120), erro: msg });
+      return { ok:false, erro: msg, semConfirmacao: true, codigo: 'sem_confirmacao' };
+    }
     const msg = err.name === 'TimeoutError' ? 'CodeWords não respondeu a tempo (60s)' : err.message;
     await sb.from('codewords_config').update({ ultimo_erro: msg }).eq('id', true);
     await registrarEvento(sb, { direcao:'saida', sucesso:false, telefone,
@@ -2553,6 +2563,7 @@ const handler = async (req, res) => {
         corpo:      texto1(bruto.corpo, 4000),
         nome:       texto1(bruto.nome, 120) || null,
         conversaId: texto1(bruto.conversaId, 60) || null,
+        reenviar:   bruto.reenviar === true,   // "Reenviar" de uma mensagem sem confirmação (clique da pessoa)
       };
       if (!dados.telefone || !dados.corpo.trim()) {
         return json(res, 400, { ok: false, erro: !dados.telefone ? 'Faltou o telefone do cliente.' : 'A mensagem está vazia.' });

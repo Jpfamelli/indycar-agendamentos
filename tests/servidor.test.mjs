@@ -16,7 +16,7 @@ const PESSOAS = {
   semapp:     { id: ID(905), email: 'semapp@teste', papel: 'atendente', ativo: true, apps: ['crm'] },
 };
 
-let banco, auditoria, enviosWhats, base;
+let banco, auditoria, enviosWhats, base, modoWhats = 'ok';
 function novoBanco() {
   banco = {
     ags: new Map([
@@ -64,7 +64,15 @@ const fetchOriginal = globalThis.fetch;
 before(async () => {
   // o aviso de falta sai pelo CodeWords: aqui o dublê só anota e diz "success"
   globalThis.fetch = async (url, opt) => {
-    if (String(url).includes('/proxy/send/message')) { enviosWhats.push({ url: String(url), corpo: String(opt?.body || '') }); return new Response('{"code":"SUCCESS","message":"success"}', { status: 200 }); }
+    if (String(url).includes('/proxy/send/message')) {
+      // 16/10: 'timeout' e 'caiu' = o pedido chegou ao CodeWords e a resposta não voltou; 'recusou' = nada saiu
+      if (modoWhats === 'recusou') throw new TypeError('fetch failed', { cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) });
+      enviosWhats.push({ url: String(url), corpo: String(opt?.body || '') });
+      if (modoWhats === 'timeout') throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+      if (modoWhats === 'caiu') throw new TypeError('fetch failed', { cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }) });
+      if (modoWhats === '500') return new Response('{"detail":"internal"}', { status: 500 });
+      return new Response('{"code":"SUCCESS","message":"success"}', { status: 200 });
+    }
     if (String(url).startsWith(base)) return fetchOriginal(url, opt);
     throw new Error('rede proibida no teste: ' + url);
   };
@@ -167,6 +175,35 @@ test('"Não veio" pela edição com avisar_cliente=true → mesmo fluxo do cart�
   await chamar('atendente', 'PATCH', `/api/agendamentos/${ID(1)}/status`, { status: 'nao_veio' });
   assert.equal(enviosWhats.length, 1);
 });
+
+for (const modo of ['timeout', 'caiu']) {
+  test(`"Não veio" com o WhatsApp sem resposta (${modo}): avisa "não sabemos se chegou" e o próximo clique NÃO reenvia`, async () => {
+    modoWhats = modo;
+    try {
+      const r = await chamar('atendente', 'PATCH', `/api/agendamentos/${ID(1)}/status`, { status: 'nao_veio' });
+      assert.equal(r.status, 200);
+      assert.equal(r.j.aviso_ausencia?.ok, false); assert.equal(r.j.aviso_ausencia?.semConfirmacao, true);
+      assert.match(r.j.aviso_ausencia.erro, /não sabemos se chegou/);
+      assert.ok(banco.ags.get(ID(1)).no_show_notificado_em, 'o carimbo fica: pode ter chegado');
+      modoWhats = 'ok';
+      await chamar('atendente', 'PATCH', `/api/agendamentos/${ID(1)}/status`, { status: 'nao_veio' });
+      assert.equal(enviosWhats.length, 1, 'nada de segundo aviso');
+    } finally { modoWhats = 'ok'; }
+  });
+}
+for (const modo of ['recusou', '500']) {
+  test(`"Não veio" com falha que garantidamente não enviou (${modo}): solta o carimbo e o próximo clique tenta de novo`, async () => {
+    modoWhats = modo;
+    try {
+      const r = await chamar('atendente', 'PATCH', `/api/agendamentos/${ID(1)}/status`, { status: 'nao_veio' });
+      assert.equal(r.j.aviso_ausencia?.ok, false); assert.ok(!r.j.aviso_ausencia?.semConfirmacao);
+      assert.equal(banco.ags.get(ID(1)).no_show_notificado_em, null);
+      modoWhats = 'ok';
+      const r2 = await chamar('atendente', 'PATCH', `/api/agendamentos/${ID(1)}/status`, { status: 'nao_veio' });
+      assert.equal(r2.j.aviso_ausencia?.ok, true);
+    } finally { modoWhats = 'ok'; }
+  });
+}
 
 test('mudar um desfecho já registrado vai para a auditoria', async () => {
   await chamar('atendente', 'PATCH', `/api/agendamentos/${ID(2)}/status`, { status: 'nao_fechou' });

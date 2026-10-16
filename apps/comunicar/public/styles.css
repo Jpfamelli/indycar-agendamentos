@@ -1533,3 +1533,7 @@ button.avatar-bottom:focus-visible{outline:2px solid var(--red);outline-offset:2
   .sw-acoes{width:100%} .sw-acoes .btn{flex:1}
 }
 .seg-pul.aviso{color:var(--orange-txt);margin-top:6px}
+
+/* 16/10: mensagem sem confirmação — o CodeWords não respondeu a tempo depois do pedido */
+.envio-duvida{color:var(--orange-txt);font-weight:600;background:var(--orange-soft);border-radius:8px;padding:3px 8px}
+.envio-duvida small{font-weight:400;color:var(--text-2,inherit)}

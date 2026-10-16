@@ -10,7 +10,7 @@
 //    (arquivos); demorou, deu 5xx/4xx ou caiu → cópia do cache.
 // As conversas vêm direto do Supabase (que não dorme), então com a casca de pé
 // o atendente segue lendo e respondendo enquanto o servidor acorda.
-const CACHE = 'indycar-atendimento-v16';
+const CACHE = 'indycar-atendimento-v17';
 
 /* Rodada 5 (Central): o service worker pode estar servido em /atendimento/sw.js. Tudo é
    relativo à pasta dele (RAIZ): a casca, os arquivos e a fronteira do /api/. */

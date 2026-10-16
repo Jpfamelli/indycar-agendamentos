@@ -653,12 +653,14 @@ export async function listarModelos() {
 // ============================================================================
 
 /* rodada 4: colunas explícitas (antes select=*) — é o que a tela e o CSV usam */
-const CAMPOS_ENVIO = 'id,cliente_id,agendamento_id,lead_id,telefone,nome,tipo,corpo,enviar_em,enviado_em,status,erro,tentativas,motivo_pulado,chave_unica,criado_por,criado_por_id,campanha_id,lote,resposta,resposta_tipo,respondido_em,agendou_depois_id,intencao,intencao_em,intencao_resumo,encaminhado_em,tarefa_id,expira_em,conversa_id,mensagem_id,created_at';
+const CAMPOS_ENVIO = 'id,cliente_id,agendamento_id,lead_id,telefone,nome,tipo,corpo,enviar_em,enviado_em,status,erro,erro_classe,tentativas,motivo_pulado,chave_unica,criado_por,criado_por_id,campanha_id,lote,resposta,resposta_tipo,respondido_em,agendou_depois_id,intencao,intencao_em,intencao_resumo,encaminhado_em,tarefa_id,expira_em,conversa_id,mensagem_id,created_at';
 export async function listarEnvios({ status, tipo, q, de, ate, intencao, limite = 300, offset = 0 } = {}) {
   const p = new URLSearchParams(`select=${CAMPOS_ENVIO}`);
   const desloc = Math.max(0, Math.min(Number(offset) || 0, 100000));
   if (desloc) p.set('offset', String(desloc));
-  if (status && status !== 'todas') p.set('status', `eq.${status}`);
+  // 16/10: "sem confirmação" = falhou por timeout/conexão caída depois do pedido (não sabemos se chegou)
+  if (status === 'sem_confirmacao') { p.set('status', 'eq.falhou'); p.set('erro_classe', 'eq.sem_confirmacao'); }
+  else if (status && status !== 'todas') p.set('status', `eq.${status}`);
   if (intencao && intencao !== 'todas') p.set('intencao', intencao === 'qualquer' ? 'not.is.null' : `eq.${intencao}`);
   // período no fuso da oficina (de/até inclusivos, 'YYYY-MM-DD')
   const dIni = dataBanco(de), dFim = dataBanco(ate);
@@ -741,8 +743,21 @@ export async function desfazerCancelamento(id) {
 export async function reenfileirar(id) {
   if (!ehUuid(id)) return null;
   return atualizarUm(T.envios, `id=eq.${id}&status=in.(falhou,cancelado,pulado)`, {
-    status: 'pendente', erro: null, motivo_pulado: null, enviar_em: new Date().toISOString(), tentativas: 0,
+    status: 'pendente', erro: null, erro_classe: null, motivo_pulado: null, enviar_em: new Date().toISOString(), tentativas: 0,
   });
+}
+
+/** "Chegou": a equipe conferiu no WhatsApp que a mensagem sem confirmação saiu. Só vale para elas. */
+export async function confirmarChegou(id) {
+  if (!ehUuid(id)) return null;
+  return atualizarUm(T.envios, `id=eq.${id}&status=eq.falhou&erro_classe=eq.sem_confirmacao`, {
+    status: 'enviado', erro: null, erro_classe: null, enviado_em: new Date().toISOString(), enviando_em: null,
+  });
+}
+
+/** Quantas estão "sem confirmação" agora (Saúde do WhatsApp e selo). */
+export async function contarSemConfirmacao() {
+  return contar(T.envios, 'status=eq.falhou&erro_classe=eq.sem_confirmacao');
 }
 
 /** Pendentes que já venceram — o carteiro do server.js chama isto. */
@@ -2166,7 +2181,8 @@ export async function contatosDoDia(minutos = 60, agora = Date.now()) {
 /** Reservas de mais de 15 min ainda pendentes = o servidor caiu no meio: 'falhou' (NUNCA reenvia sozinho). */
 export async function soltarReservasPresas(erro, minutos = 15) {
   const limite = new Date(Date.now() - minutos * 60000).toISOString();
-  const linhas = await atualizar(T.envios, `status=eq.pendente&enviando_em=lt.${limite}&select=id`, { status: 'falhou', erro, enviando_em: null });
+  // servidor caiu no meio do envio = também "sem confirmação" (Chegou / Reenviar na tela)
+  const linhas = await atualizar(T.envios, `status=eq.pendente&enviando_em=lt.${limite}&select=id`, { status: 'falhou', erro, enviando_em: null, erro_classe: 'sem_confirmacao' });
   return linhas.length;
 }
 

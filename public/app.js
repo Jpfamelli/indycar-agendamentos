@@ -321,6 +321,8 @@ function recadoDeAusencia(r) {
   if (!av) return 'Marcado como "Não veio" (sem telefone — nenhum aviso enviado)';
   if (av.repetido) return 'Já estava marcado — o aviso automático foi enviado antes, não reenviei';
   if (av.ok) return 'Não veio — aviso automático enviado no WhatsApp do cliente ✅';
+  // 16/10: o WhatsApp não respondeu a tempo depois do pedido — pode ter chegado; não reenviar no escuro
+  if (av.semConfirmacao) return 'Marquei "Não veio". O WhatsApp não respondeu a tempo: não sabemos se o aviso chegou — confira na conversa do cliente antes de mandar de novo.';
   return 'Marquei "Não veio", mas o aviso NÃO saiu: ' + (av.erro || 'falha no envio') + '. Toque de novo para tentar outra vez.';
 }
 // Origens aceitas pelo banco compartilhado. Faltar uma aqui fazia o formulário
@@ -3427,7 +3429,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
       const r = id ? await api('PUT', `/agendamentos/${id}`, P.soMudancas(payload, a)) : await api('POST', '/agendamentos', payload);
       esquecerDias(); rascunho.apagar();
       const aviso = r?.aviso_ausencia;
-      toast(aviso ? recadoDeAusencia(aviso) : 'Agendamento salvo', aviso && !aviso.ok ? 'err' : 'ok');
+      toast(aviso ? recadoDeAusencia(r) : 'Agendamento salvo', aviso && !aviso.ok ? 'err' : 'ok');
       // rodada 5: aniversário digitado vai para a ficha (sem bloquear o agendamento se falhar)
       if (nasc && r?.cliente_id) api('PUT', `/clientes/${r.cliente_id}`, { nascimento: nasc }, { repetir: false }).then(() => toast('Aniversário guardado na ficha 🎂')).catch(() => toast('O agendamento foi salvo, mas o aniversário não entrou na ficha — abra a ficha e tente de novo', 'err'));
       // veio da lista de espera ("Encaixar"): a espera vira "agendada"

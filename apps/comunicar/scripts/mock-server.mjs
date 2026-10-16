@@ -220,6 +220,8 @@ const ENVIOS_SEMENTE = [
   env(C(0), 'aniversario', { corpo: renderTemplate(CFG.msg_aniversario, { nome:C(0).nome, carro:C(0).carro }), enviar_em: hojeAs('09:30') }),
   env(C(6), 'aniversario', { status:'pulado', motivo_pulado:'cliente pediu para não receber mensagens' }),
   env(C(9), 'reativacao', { status:'falhou', erro:'O CodeWords respondeu 500: device offline', tentativas:2, enviar_em: diasAtras(1), created_at: diasAtras(1) }),
+  // 16/10: o CodeWords não respondeu a tempo depois do pedido — não sabemos se chegou
+  env(C(5), 'posvenda', { status:'falhou', erro_classe:'sem_confirmacao', erro:'Não sabemos se chegou: o CodeWords não respondeu em 20 s depois do pedido. Confira no WhatsApp antes de reenviar.', tentativas:1, enviar_em: horasAtras(3), created_at: horasAtras(3) }),
   env(C(4), 'campanha', { corpo: renderTemplate(MODELOS[2].corpo, { nome:C(4).nome, carro:C(4).carro }), criado_por:'João Pedro', ...enviado(120) }),
   env(C(7), 'campanha', { corpo: renderTemplate(MODELOS[2].corpo, { nome:C(7).nome, carro:C(7).carro }), criado_por:'João Pedro', ...enviado(120, { resposta:'Quero sim, pode ser sábado?', respondido_em: horasAtras(118), agendou_depois_id: uuid(), intencao:'quer_agendar', intencao_resumo:'quer horário no sábado', intencao_em: horasAtras(117.8), encaminhado_em: horasAtras(117.8) }) }),
   env(C(10), 'campanha', { corpo: renderTemplate(MODELOS[2].corpo, { nome:C(10).nome, carro:C(10).carro }), criado_por:'João Pedro', ...enviado(120, { resposta:'PARAR', respondido_em: horasAtras(119) }) }),
@@ -603,7 +605,8 @@ http.createServer(async (req, res) => {
     const falhas = {};
     for (const e of ENVIOS) if (e.erro && ['falhou', 'pendente'].includes(e.status)) { const cl = e.erro_classe || classificarErro({ texto: e.erro }).classe; const x = (falhas[cl] ||= { total:0, ultimoErro:null, ultimoEm:null }); x.total++; if (!x.ultimoErro) { x.ultimoErro = e.erro; x.ultimoEm = e.enviar_em; } }
     const pend = ENVIOS.filter((e) => e.status === 'pendente');
-    const s = montarSaude({ status: statusWA(), falhas24h: falhas, fila: { pendentes: pend.length, atrasados: pend.filter((e) => e.enviar_em <= horasAtras(2)).length }, carteiro: { ultimaEm: ultimaRodada.em, falhas24h: 3 }, estadoGravado: CFG.whatsapp });
+    const duvida = ENVIOS.filter((e) => e.status === 'falhou' && e.erro_classe === 'sem_confirmacao').length;
+    const s = montarSaude({ status: statusWA(), falhas24h: falhas, fila: { pendentes: pend.length, atrasados: pend.filter((e) => e.enviar_em <= horasAtras(2)).length }, carteiro: { ultimaEm: ultimaRodada.em, falhas24h: 3 }, estadoGravado: CFG.whatsapp, semConfirmacao: duvida });
     return json(res, 200, { ...s, cadencia: { porMinuto: CFG.limite_por_minuto, porHora: CFG.limite_por_hora, porDia: CFG.limite_por_dia, mesmoCliente: CFG.intervalo_mesmo_cliente_min, janela: { inicio: CFG.janela_inicio, fim: CFG.janela_fim }, soHorarioComercial: !!CFG.so_horario_comercial }, conferidoEm: agora() });
   }
   if (p === '/api/segmentos/salvos' && m === 'GET') return json(res, 200, SEGMENTOS_SALVOS.slice().sort((a, b) => String(b.usado_em || '').localeCompare(String(a.usado_em || '')) || (a.created_at < b.created_at ? 1 : -1)));
@@ -677,7 +680,8 @@ http.createServer(async (req, res) => {
   if (p === '/api/envios' && m === 'GET') {
     const st = url.searchParams.get('status'), tipo = url.searchParams.get('tipo'), q = (url.searchParams.get('q') || '').toLowerCase();
     let l = ENVIOS.slice();
-    if (st && st !== 'todas') l = l.filter((e) => e.status === st);
+    if (st === 'sem_confirmacao') l = l.filter((e) => e.status === 'falhou' && e.erro_classe === 'sem_confirmacao');
+    else if (st && st !== 'todas') l = l.filter((e) => e.status === st);
     if (tipo && tipo !== 'todos') l = l.filter((e) => e.tipo === tipo);
     if (q) l = l.filter((e) => [e.nome, e.corpo, e.telefone].some((x) => String(x || '').toLowerCase().includes(q)));
     l = filtrarExtra(l, url.searchParams);
@@ -833,7 +837,7 @@ http.createServer(async (req, res) => {
     if (!SAUDE_OK) return json(res, 502, { erro:'A chave do CodeWords foi recusada (401). Gere uma nova em runtime.codewords.ai e cole em Atendimento › Configurações › Integrações.' });
     return json(res, 200, { ok:true });
   }
-  if ((mm = p.match(/^\/api\/envios\/([0-9a-f-]+)\/(cancelar|reenviar|desfazer-cancelamento)$/)) && m === 'POST' && !ehGestor()
+  if ((mm = p.match(/^\/api\/envios\/([0-9a-f-]+)\/(cancelar|reenviar|desfazer-cancelamento|chegou)$/)) && m === 'POST' && !ehGestor()
       && ENVIOS.find((x) => x.id === mm[1])?.criado_por_id !== eu.id) return json(res, 403, { erro: A.motivo403('cancelar_qualquer'), codigo:'sem_permissao' });
   if ((mm = p.match(/^\/api\/envios\/([0-9a-f-]+)\/cancelar$/)) && m === 'POST') {
     const e = ENVIOS.find((x) => x.id === mm[1]);
@@ -843,7 +847,12 @@ http.createServer(async (req, res) => {
   if ((mm = p.match(/^\/api\/envios\/([0-9a-f-]+)\/reenviar$/)) && m === 'POST') {
     const e = ENVIOS.find((x) => x.id === mm[1]);
     if (!e || !['falhou', 'cancelado', 'pulado'].includes(e.status)) return json(res, 400, { erro:'Só dá para reenviar mensagem que falhou, foi cancelada ou pulada.' });
-    Object.assign(e, { status:'pendente', erro:null, motivo_pulado:null, enviar_em: agora() }); return json(res, 200, e);
+    Object.assign(e, { status:'pendente', erro:null, erro_classe:null, motivo_pulado:null, enviar_em: agora() }); return json(res, 200, e);
+  }
+  if ((mm = p.match(/^[/]api[/]envios[/]([0-9a-f-]+)[/]chegou$/)) && m === 'POST') {
+    const e = ENVIOS.find((x) => x.id === mm[1]);
+    if (!e || e.status !== 'falhou' || e.erro_classe !== 'sem_confirmacao') return json(res, 400, { erro:'Só dá para marcar "Chegou" em mensagem sem confirmação.' });
+    Object.assign(e, { status:'enviado', erro:null, erro_classe:null, enviado_em: agora() }); return json(res, 200, e);
   }
 
   // ---- segmentos, modelos, regras

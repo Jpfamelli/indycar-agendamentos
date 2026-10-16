@@ -338,6 +338,11 @@ function clienteSupabase() { return sb; }
 const ROTULO_PAPEL = { admin: 'Administrador', gestor: 'Gestor', atendente: 'Atendente', agenda: 'Agenda' };
 function rotuloPapel(p) { return ROTULO_PAPEL[p] || 'Atendente'; }
 const ehGestorAqui = () => perfil?.papel === 'admin' || perfil?.papel === 'gestor';
+/* 16/10 (mesma regra do CRM e da RLS de leads): atendente só edita lead dele ou sem responsável. */
+const leadDeColega = l => !!(l && l.responsavel_id && perfil && !ehGestorAqui() && l.responsavel_id !== perfil.id);
+const primeiroNomeDe = id => String(EQUIPE.get(id)?.nome || '').trim().split(/\s+/)[0] || 'colega';
+const avisoLeadDeColega = l => { const n = String(EQUIPE.get(l?.responsavel_id)?.nome || '').trim().split(/\s+/)[0];
+  return n ? `Este lead é do ${n}. Peça para ele ou para o gestor.` : 'Este lead é de um colega. Peça para ele ou para o gestor.'; };
 
 /* Cartão da Claude na aba Integrações. A chave nunca vem para cá —
    o servidor só conta SE existe uma configurada e qual é o modelo. */
@@ -1102,6 +1107,13 @@ function statusDaMensagem(m) {
     : '<span class="msg-st st-enviando" title="Enviando…">⏳</span>';
   if (st === 'na_fila') return '<span class="msg-st st-fila" title="Sem internet — sai sozinha quando a conexão voltar">🕓 na fila</span>';
   if (st === 'enviado') return '<span class="msg-st st-ok" title="Entregue ao WhatsApp">✓</span>';
+  /* 16/10: o WhatsApp não respondeu a tempo depois do pedido — pode ter chegado. Nada sai
+     de novo sozinho: a pessoa confere na conversa e escolhe "Chegou" ou "Reenviar". */
+  if (st === 'falhou' && /^Sem confirmação/.test(m.erro || '')) {
+    return `<span class="msg-st st-falhou st-duvida" title="${esc(m.erro)}">❓ não sabemos se chegou — confira no WhatsApp</span>
+      <button type="button" class="msg-reenviar" data-chegou="${esc(m.id)}">Chegou</button>
+      <button type="button" class="msg-reenviar" data-reenviar="${esc(m.id)}" data-forcar="1">Reenviar</button>`;
+  }
   if (st === 'falhou') {
     return `<span class="msg-st st-falhou" title="${esc(m.erro || 'Não saiu no WhatsApp')}">⚠ não saiu</span>
       <button type="button" class="msg-reenviar" data-reenviar="${esc(m.id || m._idLocal)}">Tentar de novo</button>`;
@@ -1274,8 +1286,13 @@ $('#mensagens').addEventListener('click', (ev) => {
     if (m) copiarTexto(m.corpo, '📋 Texto copiado');
     return;
   }
+  const chegou = alvo.closest('[data-chegou]');
+  if (chegou) return marcarQueChegou(chegou.dataset.chegou);
   const reenviar = alvo.closest('[data-reenviar]');
-  if (reenviar) return tentarDeNovo(reenviar.dataset.reenviar);
+  if (reenviar) {
+    if (reenviar.dataset.forcar && !confirm('Reenviar esta mensagem? Se a primeira tiver chegado, o cliente recebe duas.')) return;
+    return tentarDeNovo(reenviar.dataset.reenviar, { reenviar: !!reenviar.dataset.forcar });
+  }
   const acao = alvo.closest('[data-acao]')?.dataset.acao;
   if (acao === 'msgs-anteriores') return carregarMensagens({ anteriores: true });
   if (acao === 'recarregar-msgs') return carregarMensagens();
@@ -1651,7 +1668,7 @@ async function enviarMensagem() {
 
 /** Grava no banco e entrega pelo CodeWords. Serve ao envio normal, à fila e ao "tentar de novo". */
 let COLUNA_ENVIADO_POR = true;
-async function entregarMensagem(conv, texto, { linhaExistente = null } = {}) {
+async function entregarMensagem(conv, texto, { linhaExistente = null, reenviar = false } = {}) {
   const local = linhaExistente ? null : {
     _idLocal: 'l' + Date.now() + Math.random().toString(16).slice(2, 6), _local: 'enviando',
     conversa_id: conv.id, corpo: texto, direcao: 'saida', created_at: new Date().toISOString(),
@@ -1717,7 +1734,7 @@ async function entregarMensagem(conv, texto, { linhaExistente = null } = {}) {
   try {
     const resp = await fetch('/api/enviar', {
       method: 'POST', headers: { ...(await authCabecalhos()), 'X-Idempotente': '1' },
-      body: JSON.stringify({ telefone: conv.telefone, corpo: texto, nome: conv.nome, conversaId: conv.id, mensagemId: linha.id }),
+      body: JSON.stringify({ telefone: conv.telefone, corpo: texto, nome: conv.nome, conversaId: conv.id, mensagemId: linha.id, ...(reenviar ? { reenviar: true } : {}) }),
     });
     const r = await resp.json();
     ok = !!r.ok;
@@ -1727,7 +1744,7 @@ async function entregarMensagem(conv, texto, { linhaExistente = null } = {}) {
     if (r.codigo === 'ja_saindo') { linha._local = 'enviando'; if (conversaAtual?.id === conv.id) renderMensagens(); return false; }
     if (!ok) {
       erro = r.erro || 'o WhatsApp não confirmou';
-      toast('⚠️ Registrado aqui, mas não saiu no WhatsApp: ' + erro);
+      toast(r.codigo === 'sem_confirmacao' ? '❓ ' + erro : '⚠️ Registrado aqui, mas não saiu no WhatsApp: ' + erro);
       // chave recusada: a faixa de saúde acende na hora, sem esperar o vigia
       if (r.codigo === 'codewords-401') mostrarSaude({ problema: 'codewords-fora', texto: r.erro, desde: null });
     }
@@ -1752,7 +1769,14 @@ async function entregarMensagem(conv, texto, { linhaExistente = null } = {}) {
 }
 
 /** "Tentar de novo" de uma mensagem que não saiu. */
-async function tentarDeNovo(id) {
+/* "Chegou": a pessoa conferiu no WhatsApp que a mensagem sem confirmação saiu. */
+async function marcarQueChegou(id) {
+  const m = MENSAGENS.find(x => x.id === id); if (!m) return;
+  const { error } = await sb.from('whatsapp_mensagens').update({ status: 'enviado', erro: null }).eq('id', id);
+  if (error) return toast('⚠️ Não consegui marcar: ' + error.message);
+  m.status = 'enviado'; m.erro = null; renderMensagens(); toast('✓ Marcada como entregue');
+}
+async function tentarDeNovo(id, { reenviar = false } = {}) {
   if (!conversaAtual) return;
   const conv = conversaAtual;
   const local = (ENVIOS_LOCAIS.get(conv.id) || []).find(x => x._idLocal === id);
@@ -1764,7 +1788,7 @@ async function tentarDeNovo(id) {
   const linha = MENSAGENS.find(m => m.id === id);
   if (!linha) return;
   renderMensagens();
-  const ok = await entregarMensagem(conv, linha.corpo, { linhaExistente: linha });
+  const ok = await entregarMensagem(conv, linha.corpo, { linhaExistente: linha, reenviar });
   if (ok) toast('✅ Agora foi');
 }
 
@@ -2053,9 +2077,9 @@ async function carregarFicha(conv) {
             <div class="item-rodape">
               <small>${esc(new Date(l.created_at).toLocaleDateString('pt-BR'))} ·
                 ${l.status === 'concluido' ? brl(l.valor_pago) : brl(l.valor_orcado) + ' orçado'}</small>
-              <button type="button" class="btn-editar-item" data-editar-lead="${esc(l.id)}">
+              ${leadDeColega(l) ? `<span class="tag pendente" title="${esc(avisoLeadDeColega(l))}">🔒 de ${esc(primeiroNomeDe(l.responsavel_id))}</span>` : `<button type="button" class="btn-editar-item" data-editar-lead="${esc(l.id)}">
                 ✎ Editar
-              </button>
+              </button>`}
             </div>
           </div>`).join('') : '<div class="vazio" style="padding:14px">Nenhum serviço ainda. Quando a Agenda concluir um, ele aparece aqui com o valor.</div>'}
       </div>
@@ -2355,6 +2379,7 @@ function ligarEdicaoDaFicha(conv, f, leads, cli = {}) {
 let leadEmEdicao = null;
 
 function abrirEdicaoDeLead(conv, lead) {
+  if (leadDeColega(lead)) return toast('🔒 ' + avisoLeadDeColega(lead));
   leadEmEdicao = { conv, lead };
   $('#mlServico').value = lead.servico || '';
   $('#mlOrcado').value  = lead.valor_orcado != null ? String(lead.valor_orcado).replace('.', ',') : '';
@@ -2372,14 +2397,16 @@ $('#formLead')?.addEventListener('submit', async (ev) => {
   const botao = ev.currentTarget.querySelector('[type="submit"]');
   botao.disabled = true;
   try {
-    const { error } = await sb.from('leads').update({
+    const { data: gravou, error } = await sb.from('leads').update({
       servico: $('#mlServico').value.trim() || null,
       valor_orcado: lerDinheiro($('#mlOrcado').value) ?? 0,   // colunas NOT NULL
       valor_pago:   lerDinheiro($('#mlPago').value)   ?? 0,
       status:       $('#mlStatus').value,
       observacoes:  $('#mlObs').value.trim() || null,
-    }).eq('id', lead.id);
+    }).eq('id', lead.id).select('id');
     if (error) throw error;
+    // a RLS barra em silêncio (0 linhas) quando o lead é de colega
+    if (!gravou?.length) throw new Error(avisoLeadDeColega({ responsavel_id: lead.responsavel_id }));
     $('#modalLeadBg').classList.remove('aberto');
     toast('✅ Serviço atualizado');
     await carregarFicha(conv);
@@ -6263,6 +6290,8 @@ const Entregas = (() => {
           if (agora - criada > JANELA_MS) { this.tirar(it.mensagemId); continue; }
           const { data: linha } = await sb.from('whatsapp_mensagens').select('*').eq('id', it.mensagemId).maybeSingle();
           if (!linha || ['enviado', 'entregue', 'lido'].includes(linha.status)) { this.tirar(it.mensagemId); continue; }
+          // sem confirmação: pode ter chegado — nunca reenvia sozinha (fica com "Chegou" / "Reenviar")
+          if (linha.status === 'falhou' && /^Sem confirmação/.test(linha.erro || '')) { this.tirar(it.mensagemId); continue; }
           const daTela = conversaAtual?.id === linha.conversa_id ? MENSAGENS.find(m => m.id === linha.id) : null;
           const ok = await entregarMensagem({ id: linha.conversa_id, telefone: it.telefone || linha.telefone, nome: it.nome || linha.nome,
             cliente_id: linha.cliente_id }, linha.corpo, { linhaExistente: daTela || linha });

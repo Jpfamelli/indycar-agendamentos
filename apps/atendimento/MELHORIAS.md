@@ -877,3 +877,11 @@ os horários no formato esperado) e `get_advisors` (nenhum aviso para os objetos
 - Simulador (`indycar-ferramentas/simulador/cliente.mjs`): quando a IA agenda sozinha, o passo "IA propôs agendar" do copiloto não acha a proposta (o horário já foi marcado) — vale ajustar o cenário para pular `executarProposta` quando o agendamento já existe.
 - Edge Function `codewords-webhook` não foi alterada (a fila nasce no gatilho do banco, que vale para qualquer caminho de entrada).
 - A lista de horários livres mostrada à IA (`lib/horarios.js`) continua a nossa; a função da Agenda entra como dupla checagem no `agendar`. Trocar a lista inteira pela função SQL fica para a onda C/Central.
+
+## Decisões do João (16/10/2026)
+### Timeout do WhatsApp não duplica
+- **Achado**: o envio manual tinha o mesmo risco. Com o CodeWords lento, a linha ficava `falhou` e a retomada automática da tela (`Entregas.retomar`, quando o servidor/internet voltava) ou um pedido repetido mandava de novo — o cliente recebia duas.
+- **Agora**: timeout ou conexão caída depois do pedido (`lib/entrega.js#semConfirmacaoDoErro`) devolve `codigo: 'sem_confirmacao'` e grava a linha como `falhou` com o erro começando por "Sem confirmação". O entregador recusa (409) qualquer nova tentativa dessa linha que não venha do clique "Reenviar" (`reenviar: true`); a retomada automática pula essas linhas. A bolha mostra "❓ não sabemos se chegou — confira no WhatsApp" com **Chegou** (marca enviado) e **Reenviar** (pede confirmação). Falhas que garantidamente não enviaram (conexão recusada, 4xx, 5xx com resposta) continuam com "Tentar de novo" como antes. Mensagens da IA usam o mesmo entregador. SW `indycar-atendimento-v17`.
+### Lead de colega
+- O modal "editar serviço" da ficha grava `leads` direto pelo supabase-js: com a policy nova do banco (`r5c_crm_lead_de_colega`), o atendente só edita lead dele ou sem responsável. A ficha mostra "🔒 de <nome>" no lugar do "✎ Editar" nos leads de colega, e se o banco barrar (0 linhas) a tela avisa em vez de dizer "Serviço atualizado".
+- Testes: `test/sem-confirmacao.test.js` (fetch de verdade contra um CodeWords falso: timeout, conexão derrubada, porta fechada, 500, 401; entregador não reenvia sem o clique); roteiro `scripts/roteiro-r5c-dono-confirmacao.cjs` (atendente e gestor, 1440 e 375). O mock emula a policy de `leads`.

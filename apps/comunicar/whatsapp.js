@@ -68,6 +68,13 @@ export const CLASSES = {
     motivo: 'O CodeWords demorou demais ou respondeu com erro (5xx/rede).',
     fazer: 'O carteiro tenta de novo com espera crescente (5, 15 e 45 min); se persistir, confira o status do CodeWords.', acao: null,
   },
+  sem_confirmacao: {
+    estrutural: false, definitivo: false, semConfirmacao: true, cor: 'laranja',
+    titulo: 'Não sabemos se chegou',
+    motivo: 'O CodeWords recebeu o pedido, mas não respondeu a tempo (ou a conexão caiu no meio): a mensagem pode ter saído.',
+    fazer: 'Confira na conversa do WhatsApp: se chegou, clique em "Chegou"; se não, em "Reenviar". O carteiro não reenvia sozinho para o cliente não receber duas.',
+    acao: 'sem_confirmacao',
+  },
   desconhecido: {
     estrutural: false, definitivo: false, cor: 'laranja',
     titulo: 'Erro não reconhecido',
@@ -80,6 +87,19 @@ export const ERRO_CHAVE_RECUSADA = `A chave do CodeWords foi recusada (401). Ger
 const RE_NUMERO = /inv[aá]lid|not.*(registered|on whatsapp|exist)|n[aã]o (tem|possui|est[aá] no) whatsapp|n[aã]o existe|unknown (number|recipient)|recipient.*not found|phone number.*(invalid|not)/i;
 const RE_DESCON = /device (is )?(offline|not connected|disconnected|not logged)|logged ?out|not logged in|no (active )?(device|session|connection)|desconectad|session (closed|expired)|not connected/i;
 const RE_REDE = /timeout|timed ?out|abort|ECONN|ENOTFOUND|EAI_AGAIN|fetch failed|network|socket hang up|UND_ERR/i;
+
+/* 16/10 (decisão do João): timeout ou conexão caída DEPOIS de mandar o pedido = "não sabemos
+   se chegou" (classe sem_confirmacao): NÃO tenta de novo sozinho. Recusa antes de enviar
+   (DNS, conexão recusada, TLS) segue como instabilidade e tenta de novo como sempre. */
+const RE_ANTES_DE_ENVIAR = /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT|ERR_TLS|CERT_|ERR_INVALID_URL/i;
+const RE_CAIU_NO_MEIO = /ECONNRESET|EPIPE|ECONNABORTED|UND_ERR_SOCKET|UND_ERR_CLOSED|other side closed|socket hang up|terminated/i;
+export function semConfirmacaoDoErro(e) {
+  if (!e) return false;
+  if (e.name === 'TimeoutError' || e.name === 'AbortError' || e?.cause?.name === 'TimeoutError') return true;
+  const t = [e.code, e.message, e.cause?.code, e.cause?.message].filter(Boolean).join(' ');
+  if (RE_ANTES_DE_ENVIAR.test(t)) return false;
+  return RE_CAIU_NO_MEIO.test(t);
+}
 
 /**
  * Classifica o que o CodeWords (ou a rede) devolveu.
@@ -145,6 +165,13 @@ export function criarWhatsApp({ configWhatsapp, fetchFn = (...a) => fetch(...a),
         : (data?.message || data?.detail || data?.error || `O CodeWords respondeu ${r.status}: ${texto.slice(0, 120)}`);
       return { ok: false, status: r.status, ...c, erro: String(erro) };
     } catch (e) {
+      if (semConfirmacaoDoErro(e)) {
+        const c = CLASSES.sem_confirmacao;
+        return { ok: false, status: 0, classe: 'sem_confirmacao', estrutural: false, definitivo: false, semConfirmacao: true, titulo: c.titulo, fazer: c.fazer, acao: c.acao, motivo: c.motivo,
+          erro: e?.name === 'TimeoutError' || e?.name === 'AbortError'
+            ? `Não sabemos se chegou: o CodeWords não respondeu em ${Math.round(timeoutEnvioMs / 1000)} s depois do pedido. Confira no WhatsApp antes de reenviar.`
+            : 'Não sabemos se chegou: a conexão com o CodeWords caiu depois do pedido. Confira no WhatsApp antes de reenviar.' };
+      }
       const c = classificarErro({ erro: String(e?.name === 'TimeoutError' ? 'timeout' : (e?.message || e)) });
       return { ok: false, status: 0, ...c, erro: e?.name === 'TimeoutError' ? 'O CodeWords demorou mais de 20 s para responder (timeout).' : String(e?.message || e) };
     }
@@ -191,7 +218,7 @@ export const ROTULO_CLASSE = Object.fromEntries(Object.entries(CLASSES).map(([k,
  *   estadoGravado = { estado, em, motivo } (posvenda_config.whatsapp_*) — vale quando o status não foi lido
  * Devolve { estado, cor, titulo, motivo, fazer, acao, numero, detalhes[], classes[] }.
  */
-export function montarSaude({ status = null, falhas24h = {}, fila = {}, carteiro = {}, estadoGravado = null, agora = Date.now() } = {}) {
+export function montarSaude({ status = null, falhas24h = {}, fila = {}, carteiro = {}, estadoGravado = null, agora = Date.now(), semConfirmacao = 0 } = {}) {
   const classes = Object.entries(falhas24h || {}).map(([classe, v]) => ({ classe, rotulo: ROTULO_CLASSE[classe] || classe, total: Number(v?.total) || 0, ultimoErro: v?.ultimoErro || null, ultimoEm: v?.ultimoEm || null }))
     .filter((x) => x.total > 0).sort((a, b) => b.total - a.total);
   const detalhes = [];
@@ -201,12 +228,15 @@ export function montarSaude({ status = null, falhas24h = {}, fila = {}, carteiro
     const min = Math.round((agora - new Date(carteiro.ultimaEm).getTime()) / 60000);
     detalhes.push(min < 1 ? 'carteiro rodou agora' : `carteiro rodou há ${min} min`);
   }
+  const duvida = Number(semConfirmacao) || 0;
+  if (duvida) detalhes.push(`${duvida} mensage${duvida === 1 ? 'm' : 'ns'} sem confirmação: não sabemos se chegou — confira no WhatsApp`);
   if (Number(carteiro.falhas24h) > 0) detalhes.push(`${carteiro.falhas24h} chamada(s) do banco encontraram o servidor dormindo nas últimas 24 h`);
 
   const comPlano = (estado, classe, extra = {}) => {
     const c = CLASSES[classe] || CLASSES.desconhecido;
     const acao = c.acao === 'integracoes' ? { tipo: 'link', alvo: LINKS.integracoes(), rotulo: 'Colar a chave no Atendimento' }
-      : c.acao === 'ficha' ? { tipo: 'rota', alvo: 'mensagens', rotulo: 'Ver as que falharam' } : null;
+      : c.acao === 'ficha' ? { tipo: 'rota', alvo: 'mensagens', rotulo: 'Ver as que falharam' }
+      : c.acao === 'sem_confirmacao' ? { tipo: 'rota', alvo: 'mensagens', filtro: 'sem_confirmacao', rotulo: 'Conferir as sem confirmação' } : null;
     return { estado, cor: c.cor, titulo: c.titulo, motivo: extra.motivo || c.motivo, fazer: c.fazer, acao, numero: status?.numero || null, detalhes, classes, classe, ...extra };
   };
 
@@ -215,9 +245,11 @@ export function montarSaude({ status = null, falhas24h = {}, fila = {}, carteiro
   if (status?.classe === 'sem_chave') return comPlano('sem_chave', 'sem_chave');
   if (status?.ok && status.conectado) {
     // conectado, mas a fila está travando? (instabilidade recente)
-    const inst = classes.find((x) => ['instabilidade', 'nao_entregue', 'limite', 'desconectado'].includes(x.classe));
+    const inst = classes.find((x) => ['instabilidade', 'nao_entregue', 'limite', 'desconectado', 'sem_confirmacao'].includes(x.classe));
     if (inst && inst.total >= 3) return comPlano('instavel', inst.classe, { titulo: 'WhatsApp conectado, mas com falhas', motivo: `${inst.total} envios falharam nas últimas 24 h (${inst.rotulo.toLowerCase()}). Último erro: ${inst.ultimoErro || '—'}`, cor: 'laranja' });
     const inv = classes.find((x) => x.classe === 'numero_invalido');
+    if (duvida) return { estado: 'ok', cor: 'laranja', titulo: 'WhatsApp conectado — confira as sem confirmação', motivo: `O número da oficina${status.numero ? ` (${status.numero})` : ''} está conectado. ${duvida} mensage${duvida === 1 ? 'm ficou' : 'ns ficaram'} sem confirmação: não sabemos se chegou.`,
+      fazer: CLASSES.sem_confirmacao.fazer, acao: { tipo: 'rota', alvo: 'mensagens', filtro: 'sem_confirmacao', rotulo: 'Conferir as sem confirmação' }, numero: status.numero || null, detalhes, classes, classe: null, semConfirmacao: duvida };
     return { estado: 'ok', cor: 'verde', titulo: 'WhatsApp conectado', motivo: `O número da oficina${status.numero ? ` (${status.numero})` : ''} está conectado e a chave foi aceita.`,
       fazer: inv ? `${inv.total} mensagem(ns) falharam por número sem WhatsApp — confira os telefones em Mensagens › Falharam.` : (pend ? 'A fila sai na cadência configurada (limite por minuto e por hora).' : 'Nada pendente.'),
       acao: inv ? { tipo: 'rota', alvo: 'mensagens', rotulo: 'Ver as que falharam' } : null, numero: status.numero || null, detalhes, classes, classe: null };

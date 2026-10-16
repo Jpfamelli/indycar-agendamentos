@@ -13,6 +13,25 @@
    ============================================================ */
 
 const JA_SAIU = new Set(['enviado', 'entregue', 'lido']);
+
+/* 16/10 (decisão do João): timeout ou conexão caída DEPOIS de mandar o pedido ao
+   CodeWords = "não sabemos se chegou". Não tenta de novo sozinho (o cliente receberia
+   duas); a linha fica 'falhou' com o erro começando por PREFIXO_SEM_CONFIRMACAO e a tela
+   mostra "Chegou" / "Reenviar". Recusa antes de enviar (DNS, conexão recusada) segue
+   como falha comum. */
+const PREFIXO_SEM_CONFIRMACAO = 'Sem confirmação';
+const RE_ANTES_DE_ENVIAR = /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|UND_ERR_CONNECT_TIMEOUT|ERR_TLS|CERT_|ERR_INVALID_URL/i;
+const RE_CAIU_NO_MEIO = /ECONNRESET|EPIPE|ECONNABORTED|UND_ERR_SOCKET|UND_ERR_CLOSED|other side closed|socket hang up|terminated/i;
+/** O erro do fetch deixa dúvida se a mensagem saiu? (timeout ou conexão caída depois do pedido) */
+function semConfirmacaoDoErro(e) {
+  if (!e) return false;
+  if (e.name === 'TimeoutError' || e.name === 'AbortError' || e?.cause?.name === 'TimeoutError') return true;
+  const t = [e.code, e.message, e.cause?.code, e.cause?.message].filter(Boolean).join(' ');
+  if (RE_ANTES_DE_ENVIAR.test(t)) return false;
+  return RE_CAIU_NO_MEIO.test(t);
+}
+const ehSemConfirmacao = erro => String(erro || '').startsWith(PREFIXO_SEM_CONFIRMACAO);
+const ERRO_JA_SEM_CONFIRMACAO = PREFIXO_SEM_CONFIRMACAO + ': não sabemos se esta mensagem chegou. Confira na conversa do WhatsApp; se não chegou, use "Reenviar".';
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 120_000 } = {}) {
@@ -29,10 +48,14 @@ function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 12
     const sb = banco();
     let linha = null;
     if (sb) {
-      const { data } = await sb.from('whatsapp_mensagens').select('id,status,direcao,conversa_id').eq('id', mensagemId).maybeSingle();
+      const { data } = await sb.from('whatsapp_mensagens').select('id,status,direcao,conversa_id,erro').eq('id', mensagemId).maybeSingle();
       linha = data || null;
       if (linha && linha.direcao !== 'saida') return { ok: false, status: 400, erro: 'Só mensagem de saída pode ser enviada.', codigo: 'mensagem_invalida' };
       if (linha && JA_SAIU.has(linha.status)) return { ok: true, jaEnviada: true };
+      // ficou sem confirmação: só sai de novo quando alguém clicar em "Reenviar" (nunca numa retomada automática)
+      if (linha && linha.status === 'falhou' && ehSemConfirmacao(linha.erro) && dados?.reenviar !== true) {
+        return { ok: false, status: 409, codigo: 'sem_confirmacao', semConfirmacao: true, erro: ERRO_JA_SEM_CONFIRMACAO };
+      }
     }
     emAndamento.set(mensagemId, agora());
     try {
@@ -51,4 +74,4 @@ function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 12
   return { entregar, emAndamento };
 }
 
-module.exports = { criarEntregador, JA_SAIU };
+module.exports = { criarEntregador, JA_SAIU, PREFIXO_SEM_CONFIRMACAO, semConfirmacaoDoErro, ehSemConfirmacao };

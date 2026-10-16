@@ -80,6 +80,7 @@ async function codewordsFalso() {
     if (estado.modo === 'offline') return j(200, { message: 'device offline' });
     if (estado.modo === 'erro') return j(500, { detail: 'internal error' });
     if (estado.modo === 'limite') return j(429, { detail: 'Too Many Requests' });
+    if (estado.modo === 'cai') return req.socket.destroy();
     if (estado.modo === 'lento') { await new Promise((r) => setTimeout(r, 400)); return j(200, { success: true }); }
     return j(200, { success: true });
   });
@@ -114,7 +115,15 @@ test('CodeWords falso: sucesso só com "success"; 401 = chave recusada (estrutur
     cw.modo = 'limite'; r = await wa.enviar('12999990001', 'Oi!');
     assert.equal(r.classe, 'limite');
     cw.modo = 'lento'; r = await wa.enviar('12999990001', 'Oi!');
-    assert.equal(r.classe, 'instabilidade', 'timeout = instabilidade'); assert.match(r.erro, /timeout|demorou/i);
+    // 16/10: timeout DEPOIS do pedido = não sabemos se chegou (não re-tenta sozinho)
+    assert.equal(r.classe, 'sem_confirmacao', 'timeout = sem confirmação'); assert.equal(r.semConfirmacao, true); assert.match(r.erro, /Não sabemos se chegou/);
+    assert.equal(r.estrutural, false); assert.equal(r.definitivo, false);
+    cw.modo = 'cai'; r = await wa.enviar('12999990001', 'Oi!');
+    assert.equal(r.classe, 'sem_confirmacao', 'conexão derrubada depois do pedido = sem confirmação'); assert.match(r.erro, /caiu/);
+    // porta fechada (nada foi enviado) segue instabilidade: re-tenta como sempre
+    const fechado = criarWhatsApp({ configWhatsapp: async () => ({ ...cfg, base: 'http://127.0.0.1:1' }), timeoutEnvioMs: 3000 });
+    r = await fechado.enviar('12999990001', 'Oi!');
+    assert.equal(r.classe, 'instabilidade', JSON.stringify(r));
 
     // chave trocada → 401 → estrutural, texto da casa
     const ruim = criarWhatsApp({ configWhatsapp: async () => ({ ...cfg, api_key: 'chave-velha' }) });
@@ -231,6 +240,11 @@ test('montarSaude: chave recusada → vermelho com o botão para Integrações; 
   const grav = montarSaude({ status: null, estadoGravado: { estado: 'chave_recusada', em: '2026-10-16T10:00:00Z', motivo: 'recusou' } });
   assert.equal(grav.estado, 'chave_recusada'); assert.equal(grav.motivo, 'recusou');
   assert.equal(montarSaude({}).estado, 'desconhecido');
+  // 16/10: mensagens sem confirmação acendem o aviso e o botão leva ao filtro certo
+  const duv = montarSaude({ status: { ok: true, conectado: true, numero: '5512' }, semConfirmacao: 2, agora: AGORA });
+  assert.equal(duv.cor, 'laranja'); assert.match(duv.titulo, /sem confirmação/); assert.match(duv.motivo, /2 mensagens ficaram sem confirmação/);
+  assert.deepEqual([duv.acao.alvo, duv.acao.filtro], ['mensagens', 'sem_confirmacao']); assert.ok(duv.detalhes.some((d) => /sem confirmação/.test(d)));
+  assert.equal(montarSaude({ status: { ok: true, conectado: true }, semConfirmacao: 0, agora: AGORA }).cor, 'verde');
 });
 
 // ============================================================================
@@ -342,7 +356,7 @@ test('frontend: nenhum caminho absoluto para o próprio app (api, sw, manifest, 
   assert.ok(man.icons.every((i) => i.src.startsWith('./'))); assert.ok(man.shortcuts.every((s) => s.url.startsWith('./')));
   const sw = pub('sw.js');
   assert.match(sw, /const BASE = new URL\('\.\/', self\.location\.href\)\.pathname/);
-  assert.doesNotMatch(sw, /'\/api\//); assert.match(sw, /VERSAO = '5\.0\.0'/); assert.match(sw, /rodada5\.js/);
+  assert.doesNotMatch(sw, /'\/api\//); assert.match(sw, /VERSAO = '5\.0\.1'/); assert.match(sw, /rodada5\.js/);
 });
 
 test('server.js: exporta handler/iniciar sem dar listen; o handler tira o prefixo (/comunicar) e /api/config devolve o prefixo', async () => {

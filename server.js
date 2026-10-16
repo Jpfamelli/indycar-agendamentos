@@ -12,7 +12,7 @@ import { selecionarUm } from './supabase.js';
 import { conferirConfiguracao } from './supabase.js';
 import {
   decidirAcesso, decidirNaoVeioNaEdicao, mudaDesfechoRegistrado, origemPermitida, mensagemSegura, ehGestor,
-  presencaPodeMarcar,
+  presencaPodeMarcar, semConfirmacaoDoErro,
 } from './regras.js';
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento } from './patio.js';
@@ -393,7 +393,7 @@ async function enviarAvisoDeAusencia(ag) {
     corpo: corpoLimpo, direcao: 'saida', status: r.ok ? 'enviado' : 'falhou',
     erro: r.ok ? null : (r.erro || 'envio falhou'),
   }).catch((e) => console.error('Registro do aviso de ausência:', e?.message || e));
-  return { ok: r.ok, erro: r.ok ? null : (r.erro || 'envio falhou') };
+  return { ok: r.ok, erro: r.ok ? null : (r.erro || 'envio falhou'), ...(r.semConfirmacao ? { semConfirmacao: true } : {}) };
 }
 
 /* Qual aparelho de WhatsApp é o da empresa.
@@ -432,12 +432,18 @@ async function enviarViaGowa(telefone, mensagem) {
   try {
     const r = await fetch(url, { method: 'POST', headers: { Authorization: cfg.cw_api_key, 'Content-Type': 'application/x-www-form-urlencoded' }, body,
       signal: AbortSignal.timeout(30000) });
-    const data = await r.json().catch(() => ({}));
+    const txt = await r.text();   // conexão caindo AQUI (cabeçalho já veio) também é "sem confirmação" (catch abaixo)
+    let data = {}; try { data = JSON.parse(txt); } catch { /* sem JSON */ }
     // HTTP 200 não é entrega: o GOWA responde 200 com {code:'ERROR'} — confere o conteúdo
     if (r.ok && /success/i.test(JSON.stringify(data))) return { ok: true, data };
     if (!r.ok) return { ok: false, status: r.status, erro: erroCodeWords(r.status, data?.message || data?.detail) };
     return { ok: false, erro: 'O WhatsApp não confirmou o envio: ' + (data?.message || data?.detail || data?.code || 'resposta sem sucesso') };
-  } catch (e) { return { ok: false, erro: String(e?.message || e) }; }
+  } catch (e) {
+    // 16/10: o pedido saiu e a resposta não voltou (timeout / conexão caída) — pode ter chegado ao cliente
+    if (semConfirmacaoDoErro(e)) return { ok: false, semConfirmacao: true,
+      erro: 'não sabemos se chegou: o WhatsApp não respondeu a tempo depois do pedido. Confira na conversa antes de mandar de novo' };
+    return { ok: false, erro: String(e?.message || e) };
+  }
 }
 
 // ============================= INTEGRAÇÕES =============================
@@ -750,8 +756,9 @@ async function mudarStatus({ antes: a, status, usuario, valor }) {
     try {
       avisoAusencia = await enviarAvisoDeAusencia(atualizado);
     } catch (e) { avisoAusencia = { ok: false, erro: String(e?.message || e) }; }
-    if (!avisoAusencia.ok) {
+    if (!avisoAusencia.ok && !avisoAusencia.semConfirmacao) {
       // solta o carimbo: o próximo clique em "Não veio" tenta enviar de novo
+      // (sem confirmação NÃO solta: pode ter chegado — clicar de novo mandaria dois)
       await dados.atualizarAgendamento(a.id, { no_show_notificado_em: null })
         .catch((e) => console.error('Liberar reenvio do aviso:', e?.message || e));
     }

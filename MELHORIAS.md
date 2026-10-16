@@ -600,3 +600,8 @@ Bugs achados e corrigidos (cada um com teste em `tests/r5c-agenda.test.mjs`):
 8. Valor/CSV: `Number()` puro virava "1.250,50" em 0 e 1,25; agora `valorDeEntrada`; CSV sai com vírgula decimal. Nome/serviço em branco ou objeto → 400.
 9. Cache dos horários era esquecido ANTES de gravar serviço/consultor (e não ao apagar); automação das 16h não pede "confirme" a quem já respondeu remarcar/não vem; segundo encaixe da espera dá 409; SIGNED_OUT em outro app volta ao login; toast com 2 botões no celular não vira coluna de 80 px; trocar consultor atualiza a grade.
 Pendências: script inline do index.html ainda exige 'unsafe-inline' na CSP; cancelar a OS do Pátio ao desfazer o Chegou é do Pátio (gatilho patio_da_agenda).
+
+## Decisão do João (16/10/2026) — aviso de falta sem confirmação não sai duas vezes
+- O aviso de "Não veio" (`enviarViaGowa`) soltava o carimbo `no_show_notificado_em` em QUALQUER falha, inclusive timeout — o próximo clique em "Não veio" mandava de novo, mesmo se o primeiro tivesse chegado. Agora timeout/conexão caída depois do pedido (`regras.js#semConfirmacaoDoErro`) devolve `semConfirmacao` e o carimbo **fica**; a tela diz "não sabemos se o aviso chegou — confira na conversa do cliente antes de mandar de novo". Recusa antes de enviar e 5xx com resposta continuam soltando o carimbo (próximo clique tenta de novo). A leitura do corpo agora também cai no mesmo tratamento.
+- Bug achado no caminho: salvar um agendamento pela edição com "Não veio" mostrava sempre "sem telefone — nenhum aviso enviado" (passava o aviso em vez da resposta para `recadoDeAusencia`). Corrigido.
+- Testes em `tests/servidor.test.mjs` (timeout e conexão caída não reenviam; conexão recusada e 500 liberam o novo clique).

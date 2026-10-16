@@ -69,6 +69,10 @@ function mundo({ clientes = [], agendas = [], ordens = [], enviados = [], modo =
       if (m.modo === '401') return new Response('{"detail":"Unauthorized"}', { status: 401 });
       if (m.modo === '429') return new Response('{"detail":"Too Many Requests"}', { status: 429 });
       if (m.modo === 'skip') return new Response('{"status":"skip"}', { status: 200 });
+      // 16/10: o pedido chegou ao CodeWords, mas a resposta não voltou (pode ter saído)
+      if (m.modo === 'timeout') { m.enviadasWa.push(phone); throw new DOMException('The operation was aborted due to timeout', 'TimeoutError'); }
+      if (m.modo === 'caiu') { m.enviadasWa.push(phone); throw new TypeError('fetch failed', { cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }) }); }
+      if (m.modo === 'recusou') throw new TypeError('fetch failed', { cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:443'), { code: 'ECONNREFUSED' }) });
       return new Response('{}', { status: 500 });
     },
   });
@@ -219,6 +223,33 @@ test('falha passageira (CodeWords 500/skip): re-tenta com 5, 15, 45 min e só de
   assert.equal(w.por(e.id).status, 'falhou'); assert.equal(w.por(e.id).enviando_em, null);
 });
 
+for (const modo of ['timeout', 'caiu']) {
+  test(`sem confirmação (${modo}): NÃO retenta sozinho — falhou/sem_confirmacao, a rodada para e a próxima rodada não manda de novo`, async () => {
+    const w = mundo({ modo });
+    const a = w.m.add({ tipo: 'posvenda', telefone: tel(1) }), b = w.m.add({ tipo: 'posvenda', telefone: tel(2) });
+    const r = await w.rodar();
+    assert.equal(r.semConfirmacao, 1); assert.equal(r.enviados, 0); assert.match(r.aviso, /Sem confirmação/); assert.equal(r.classe, 'sem_confirmacao');
+    const x = w.por(a.id);
+    assert.equal(x.status, 'falhou'); assert.equal(x.erro_classe, 'sem_confirmacao'); assert.equal(x.enviando_em, null); assert.equal(x.tentativas, 1);
+    assert.match(x.erro, /Não sabemos se chegou/);
+    assert.equal(w.por(b.id).status, 'pendente', 'a rodada parou: o resto espera, sem risco');
+    assert.equal(w.por(b.id).tentativas, 0);
+    // rodadas seguintes, com o CodeWords bom de novo: a primeira NÃO sai outra vez
+    w.m.modo = 'ok'; w.m.enviadasWa.length = 0;
+    await w.rodar(); await w.rodar();
+    assert.deepEqual(w.m.enviadasWa, ['55' + tel(2)], 'só a segunda saiu; a sem confirmação ficou para a equipe');
+    assert.equal(w.por(a.id).status, 'falhou');
+  });
+}
+test('recusa ANTES de enviar (conexão recusada) e 500 continuam re-tentando como antes', async () => {
+  for (const modo of ['recusou', '500']) {
+    const w = mundo({ modo });
+    const e = w.m.add({ tipo: 'posvenda', telefone: tel(1) });
+    await w.rodar();
+    assert.equal(w.por(e.id).status, 'pendente', modo); assert.equal(w.por(e.id).erro_classe, 'instabilidade', modo); assert.equal(w.por(e.id).tentativas, 1);
+  }
+});
+
 test('horário: "só horário comercial" usa São Paulo — 17h30 em SP (20:30Z) fecha, 17h29 abre; domingo e fora da janela seguram', async () => {
   const w = mundo(); w.m.add({ tipo: 'posvenda', telefone: tel(1) });
   const com = (iso) => enviarFila({ cfg: { ...CFG, so_horario_comercial: true }, dados: { ...w.dados, agoraSP: (i) => real.agoraSP(new Date(iso)) }, wa: w.wa, patio, carteiro, dormir: async () => {}, agora: new Date(iso), log: { error() {} } });
@@ -280,6 +311,23 @@ test('dados: enviosDevidos separa urgentes (in) dos demais (not.in) e clientesFo
     const us = chamadas.map((c) => decodeURIComponent(c.url));
     assert.ok(us.some((u) => u.includes('aceita_mensagens=is.false') && u.includes(`id=in.(${ID(9)})`)));
     assert.ok(us.some((u) => u.includes('telefone_e164=in.(12999990001,12999990002)')), 'DDI 55 sai antes de consultar a coluna normalizada');
+  });
+});
+
+test('dados: Chegou só vale para falhou/sem_confirmacao; Reenviar limpa a classe; filtro "sem confirmação"; reserva presa vira sem confirmação', async () => {
+  await comFetchFalso(async (chamadas) => {
+    assert.equal(await real.confirmarChegou('lixo'), null); assert.equal(chamadas.length, 0);
+    await real.confirmarChegou(ID(7));
+    let u = decodeURIComponent(chamadas.at(-1).url);
+    assert.match(u, new RegExp(`id=eq.${ID(7)}`)); assert.match(u, /status=eq.falhou/); assert.match(u, /erro_classe=eq.sem_confirmacao/);
+    assert.match(chamadas.at(-1).corpo, /"status":"enviado"/); assert.match(chamadas.at(-1).corpo, /"erro_classe":null/);
+    await real.reenfileirar(ID(7));
+    assert.match(chamadas.at(-1).corpo, /"status":"pendente"/); assert.match(chamadas.at(-1).corpo, /"erro_classe":null/);
+    await real.listarEnvios({ status: 'sem_confirmacao' });
+    u = decodeURIComponent(chamadas.at(-1).url);
+    assert.match(u, /status=eq.falhou/); assert.match(u, /erro_classe=eq.sem_confirmacao/);
+    await real.soltarReservasPresas('caiu', 15);
+    assert.match(chamadas.at(-1).corpo, /"erro_classe":"sem_confirmacao"/);
   });
 });
 

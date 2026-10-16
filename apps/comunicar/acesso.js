@@ -120,6 +120,7 @@ export const ROTAS = [
   ['POST',   '/api/envios',                              { perm: 'avulsa', caro: true }],
   ['POST',   `/api/envios/${U}/cancelar`,                { perm: 'cancelar_proprio' }],
   ['POST',   `/api/envios/${U}/reenviar`,                { perm: 'cancelar_proprio' }],
+  ['POST',   `/api/envios/${U}/chegou`,                  { perm: 'cancelar_proprio' }],   // 16/10: confirmou no WhatsApp que a sem confirmação saiu
   ['POST',   `/api/envios/${U}/desfazer-cancelamento`,   { perm: 'cancelar_proprio' }],
   ['POST',   `/api/envios/${U}/encaminhar`,              { perm: 'ver' }],
   ['POST',   '/api/envios/teste',                        { perm: 'teste', caro: true }],

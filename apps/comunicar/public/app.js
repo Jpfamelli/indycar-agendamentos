@@ -830,7 +830,7 @@ async function renderMensagens({ quieto } = {}) {
       ${pode('exportar') ? `<button type="button" class="btn btn-mini" id="btnCSV" style="margin-left:auto">${svg(I.upload)} Exportar CSV</button>` : ''}
     </div>
     <div class="pilulas" role="tablist">
-      ${pilula('todas', 'Todas')}${pilula('pendente', '🕒 Na fila')}${pilula('enviado', '✅ Enviadas')}${pilula('falhou', '❌ Falharam')}${pilula('cancelado', 'Canceladas')}${pilula('pulado', '⏭ Puladas')}
+      ${pilula('todas', 'Todas')}${pilula('pendente', '🕒 Na fila')}${pilula('enviado', '✅ Enviadas')}${pilula('falhou', '❌ Falharam')}${pilula('sem_confirmacao', '❓ Sem confirmação')}${pilula('cancelado', 'Canceladas')}${pilula('pulado', '⏭ Puladas')}
     </div>
     <div class="panel"><div class="panel-body lista lista-anim" id="listaEnvios">${htmlLista()}</div>
       <div class="mais-linha"><button type="button" class="btn" id="maisMsg" ${state._msgFim ? 'hidden' : ''}>Carregar mais 100</button></div></div>`;
@@ -884,25 +884,29 @@ function cartaoEnvio(e) {
       <span class="r-tag">${e.resposta_tipo === 'positiva' ? 'gostou' : e.resposta_tipo === 'negativa' ? 'reclamou' : e.resposta_tipo === 'parar' ? 'pediu para parar' : 'respondeu'}${e.respondido_em ? ` · ${esc(horaBR(e.respondido_em))}` : ''}</span></div>` : '';
   const meu = pode('cancelar_qualquer') || (e.criado_por_id && e.criado_por_id === state.perfil?.id);
   const podeCancelar = meu && e.status === 'pendente', podeReenviar = meu && ['falhou', 'cancelado', 'pulado'].includes(e.status);
+  // 16/10: timeout/conexão caída depois do pedido — pode ter chegado; nada sai de novo sozinho
+  const duvida = e.status === 'falhou' && e.erro_classe === 'sem_confirmacao';
   return `<article class="envio s-${esc(e.status)}" data-id="${esc(e.id)}">
     <div class="envio-topo">
       <div class="envio-quem"><span class="linha" style="gap:8px"><span class="tipo-ico" aria-hidden="true">${t.emoji}</span>
         ${e.cliente_id ? `<button type="button" class="cli-nome" data-ficha="${esc(e.cliente_id)}"><b>${esc(e.nome || e.telefone)}</b></button>` : `<b>${esc(e.nome || e.telefone)}</b>`}</span>
         <small>${esc(telBR(e.telefone))}${quemMandou(e)}</small></div>
-      <div class="envio-chips">${pillTipo(e.tipo)}${pillStatus(e.status)}${e.intencao ? pillIntencao(e.intencao, e.intencao_resumo) : ''}${e.agendou_depois_id ? `<span class="selo-agendou">${svg(I.calendar)} agendou depois</span>` : ''}${e.mensagem_id ? '<span class="selo-hist" title="Aparece no histórico da conversa do Atendimento">💬 no histórico</span>' : ''}</div>
+      <div class="envio-chips">${pillTipo(e.tipo)}${duvida ? `<span class="badge-pill bp-orange" title="Não sabemos se chegou">❓ Sem confirmação</span>` : pillStatus(e.status)}${e.intencao ? pillIntencao(e.intencao, e.intencao_resumo) : ''}${e.agendou_depois_id ? `<span class="selo-agendou">${svg(I.calendar)} agendou depois</span>` : ''}${e.mensagem_id ? '<span class="selo-hist" title="Aparece no histórico da conversa do Atendimento">💬 no histórico</span>' : ''}</div>
     </div>
     <div class="envio-corpo">${esc(e.corpo)}</div>
     ${resposta}
     <div class="envio-rodape">
       <div class="meta"><span>${svg(I.clock)} ${quando}</span>
         ${e.tentativas > 1 ? `<span>${e.tentativas} tentativas</span>` : ''}
-        ${e.erro ? `<span class="envio-erro">${svg(I.alerta)} ${esc(e.erro)}</span>` : ''}
+        ${duvida ? `<span class="envio-duvida" role="note">❓ <b>Não sabemos se chegou</b> — confira no WhatsApp${e.erro ? ` <small>(${esc(String(e.erro).replace(/^Não sabemos se chegou:\s*/, '').replace(/\s*Confira no WhatsApp antes de reenviar\.?$/, ''))})</small>` : ''}</span>`
+          : e.erro ? `<span class="envio-erro">${svg(I.alerta)} ${esc(e.erro)}</span>` : ''}
         ${e.motivo_pulado ? `<span class="envio-pulado">⏭ ${esc(e.motivo_pulado)}</span>` : ''}</div>
       <div class="envio-acoes">
         ${podeCancelar ? `<button type="button" class="btn btn-mini" data-cancelar="${esc(e.id)}">${svg(I.x)} Cancelar</button>` : ''}
-        ${podeReenviar ? `<button type="button" class="btn btn-mini" data-reenviar="${esc(e.id)}">${svg(I.refresh)} Reenviar</button>` : ''}
+        ${duvida && meu ? `<button type="button" class="btn btn-mini primary" data-chegou="${esc(e.id)}">✓ Chegou</button>` : ''}
+        ${podeReenviar ? `<button type="button" class="btn btn-mini" data-reenviar="${esc(e.id)}"${duvida ? ' data-duvida="1"' : ''}>${svg(I.refresh)} Reenviar</button>` : ''}
         ${e.intencao && CHAMA_CONSULTOR.has(e.intencao) ? (e.encaminhado_em ? '<span class="badge-pill bp-green">✓ no Atendimento</span>' : `<button type="button" class="btn btn-mini primary" data-encaminhar="${esc(e.id)}">${svg(I.wa)} Passar ao Atendimento</button>`) : ''}
-        ${e.status === 'enviado' || e.resposta ? `<a class="btn btn-mini ghost" href="${esc(linkConversa(e.telefone))}" target="_blank" rel="noopener">${svg(I.externo)} Abrir conversa</a>` : ''}
+        ${e.status === 'enviado' || e.resposta || duvida ? `<a class="btn btn-mini ghost" href="${esc(linkConversa(e.telefone))}" target="_blank" rel="noopener">${svg(I.externo)} Abrir conversa</a>` : ''}
         ${window.R5 ? window.R5.botaoLigacoes(e.id) : ''}
       </div>
     </div>
@@ -926,7 +930,15 @@ function ligarAcoesEnvio(root) {
       }
       catch (err) { toast(err.message, 'err'); c.disabled = false; }
     }
+    const ch = e.target.closest('[data-chegou]');
+    if (ch) {
+      ch.disabled = true;
+      try { await api('POST', `/envios/${ch.dataset.chegou}/chegou`); toast('Marcada como entregue.'); route(null, { quieto:true }); }
+      catch (err) { toast(err.message, 'err'); ch.disabled = false; }
+      return;
+    }
     if (r) {
+      if (r.dataset.duvida && !confirm('Reenviar? Se a primeira tiver chegado, o cliente recebe duas. Confira no WhatsApp antes.')) return;
       r.disabled = true;
       try { await api('POST', `/envios/${r.dataset.reenviar}/reenviar`); toast('De volta à fila — sai na próxima rodada.'); route(null, { quieto:true }); }
       catch (err) { toast(err.message, 'err'); r.disabled = false; }
