@@ -173,6 +173,8 @@ abrirFichaCliente = async function (id, opcoes = {}) {
   document.body.style.overflow = 'hidden';
   // aceita o id do cliente OU { tel } (lead ainda sem cliente_id: a rpc acha pelo telefone)
   const porTel = id && typeof id === 'object' ? id.tel : null;
+  // lead sem telefone e sem cliente ligado: não há ficha para abrir (antes mandava "[object Object]" ao servidor)
+  if (id && typeof id === 'object' && !porTel) { alvo.innerHTML = '<div class="alert">Esse lead não tem telefone nem cliente cadastrado, então ainda não há ficha. Preencha o telefone no lead.</div>'; return; }
   let f;
   try { f = await api('/api/clientes/360?' + (porTel ? 'tel=' + encodeURIComponent(porTel) : 'cliente=' + encodeURIComponent(id)), undefined, false, { tentativas: 2 }); }
   catch (e) {

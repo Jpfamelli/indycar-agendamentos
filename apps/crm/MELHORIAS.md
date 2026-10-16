@@ -835,3 +835,12 @@ Conectar tudo (ficha 360 em uma chamada, telefone normalizado), operação profi
 - **Central (B2)**: o CRM aceita `req.prefixo` (a Central tira o prefixo do `req.url`) e `PREFIXO`; os redirecionamentos 308 do host antigo (indycar-crm.onrender.com → …/crm/) são da Central, não deste repositório.
 - Os 442 leads abertos sem dono continuam sem dono de propósito: o gestor aplica o rodízio sugerido em "Leads sem dono" (auditado, com desfazer).
 - Previsão: sem 10 fechamentos nos últimos 90 dias a conta usa as chances padrão; com `valor_pago` e `valor_orcado` preenchidos ela fica honesta — a tela avisa quantos leads abertos estão sem valor.
+
+## Verificação C6 (16/10/2026, onda C)
+1. Salvar preferências de notificação e marcar o tour como visto passaram a ir pelo servidor (`PATCH /api/perfil`), que soma às preferências de agora; antes a tela regravava a coluna inteira com a cópia do login e apagava chaves que outro app gravou depois.
+2. `POST /api/leads/campanha` devolve a campanha já existente (mesma pessoa, mesma mensagem, mesmos telefones, 10 min) em vez de criar outra; `pulados` agora conta só telefone inválido.
+3. `/api/leads/:id` com id que não é uuid responde 404 (era 500).
+4. `PATCH /api/clientes/:id` (religar/desligar mensagens, nascimento) entra na auditoria como `cliente_preferencias`.
+5. Distribuição em lote guarda o dono anterior de cada lead na auditoria.
+6. Ficha 360 de lead sem telefone e sem cliente explica o motivo (antes mandava "[object Object]" ao servidor).
+7. `testes/r5-navegador.mjs` acha o puppeteer-core também a partir de `apps/crm` na Central. Testes novos em `testes/r5-c6.test.cjs`.

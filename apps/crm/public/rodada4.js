@@ -427,8 +427,8 @@ function tourVisto() { return !!(PERFIL?.preferencias?.crm_tour?.visto) || !!ler
 async function marcarTourVisto() {
   gravarLS(LS_TOUR(), new Date().toISOString());
   if (!PERFIL?.id || !sb) return;
-  const preferencias = U.mesclarPreferencias(PERFIL.preferencias, {crm_tour: {visto: new Date().toISOString(), papel: PERFIL.papel}});
-  try { const {error} = await sb.from('perfis').update({preferencias}).eq('id', PERFIL.id); if (!error) PERFIL.preferencias = preferencias; } catch { /* fica no aparelho */ }
+  // pelo servidor, que soma às preferências de agora (a cópia do login pode estar velha)
+  try { const r = await api('/api/perfil', {method: 'PATCH', body: JSON.stringify({preferencias: {crm_tour: {visto: new Date().toISOString(), papel: PERFIL.papel}}})}); if (r?.preferencias) PERFIL.preferencias = r.preferencias; } catch { /* fica no aparelho */ }
 }
 const visivel = el => !!el && el.offsetParent !== null && !el.hidden && el.getClientRects().length > 0;
 function iniciarTour(forcar = false) {

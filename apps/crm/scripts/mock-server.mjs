@@ -386,7 +386,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
       if (me.ativo === false) return json({erro: 'Seu acesso foi desativado.', codigo: 'desativado'}, 401);
       if (me.papel === 'agenda' || (me.papel !== 'admin' && !(me.apps || []).includes('crm'))) return json({erro: 'Você não tem acesso ao CRM.', codigo: 'sem_acesso_app'}, 403);
       if (p === '/api/perfil' && req.method === 'GET') { const {apps, cargo, telefone, precisa_trocar_senha, preferencias, ...b} = me; return json({...b, apps, cargo, telefone, precisa_trocar_senha, avatar_cor: preferencias?.avatar_cor || null}); }
-      if (p === '/api/perfil' && req.method === 'PATCH') { for (const k of ['nome','cargo','telefone']) if (k in d) me[k] = d[k]; if (d.avatar_cor) me.preferencias = {...me.preferencias, avatar_cor: d.avatar_cor}; return json({ok: true, nome: me.nome}); }
+      if (p === '/api/perfil' && req.method === 'PATCH') { for (const k of ['nome','cargo','telefone']) if (k in d) me[k] = d[k]; if (d.avatar_cor) me.preferencias = {...me.preferencias, avatar_cor: d.avatar_cor}; if (d.preferencias && typeof d.preferencias === 'object') me.preferencias = {...(me.preferencias || {}), ...d.preferencias}; return json({ok: true, nome: me.nome, ...(d.preferencias ? {preferencias: me.preferencias} : {})}); }
       if (me.precisa_trocar_senha) return json({erro: 'Troque a senha provisória antes de continuar.', codigo: 'precisa_trocar_senha'}, 403);
       if (p === '/api/equipe/nomes') return json(equipe(pp).filter(x => x.ativo !== false).map(x => ({id: x.id, nome: x.nome, avatar_cor: x.avatar_cor || null, papel: x.papel})));
       // formato do servidor real: só quem pode usar o CRM (sem o papel agenda), com a carga de leads abertos

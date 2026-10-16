@@ -170,10 +170,13 @@ function criarEquipe({ sb, agora = () => Date.now(), auditar = async () => null,
     if (novo !== null && !ehUuid(novo)) throw falha(400, 'Escolha quem vai cuidar dos leads.');
     let alvo = null;
     if (novo) { alvo = await vendedor(novo); if (!alvo) throw falha(400, 'Essa pessoa não pode receber leads do CRM.'); }
+    // quem era o dono de cada um fica na auditoria (sem isso o lote não tem como ser desfeito)
+    const { data: antesLote } = await sb.from('leads').select('id,responsavel_id').in('id', lista);
+    const donoAntes = new Map((antesLote || []).map(x => [x.id, x.responsavel_id || null]));
     const { data, error } = await sb.from('leads').update({ responsavel_id: novo }).in('id', lista).select('id');
     if (error) throw falha(503, 'Não consegui distribuir os leads.');
     const feitos = (data || []).map(x => x.id);
-    await auditar(quem, 'atribuir_lote', { tabela: 'leads', registro: null, detalhes: { para: novo, quantidade: feitos.length, ids: feitos } });
+    await auditar(quem, 'atribuir_lote', { tabela: 'leads', registro: null, detalhes: { para: novo, quantidade: feitos.length, ids: feitos, antes: Object.fromEntries(feitos.map(id => [id, donoAntes.get(id) ?? null])) } });
     return { ok: true, atualizados: feitos.length, ids: feitos, responsavel: alvo ? publico(alvo) : null };
   }
 

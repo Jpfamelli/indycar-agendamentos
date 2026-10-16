@@ -170,7 +170,7 @@ test('campanha do Comunicar a partir de leads: proposta aguardando, gestores avi
     assert.equal((await s.req('atendente', '/api/leads/campanha', { body: { ids, corpo: 'Oi {nome}! Tudo bem com o carro?', enviar_em: 'ontem' } })).status, 400);
     const r = await s.req('atendente', '/api/leads/campanha', { body: { ids, corpo: 'Oi {nome}! Tudo bem com o carro? Posso ajudar?', detalhe: 'reativação' } });
     assert.equal(r.status, 201);
-    assert.equal(r.corpo.destinos, 2, 'telefones iguais (com e sem 55) contam uma vez; telefone inválido fica fora'); assert.equal(r.corpo.pulados, 2);
+    assert.equal(r.corpo.destinos, 2, 'telefones iguais (com e sem 55) contam uma vez; telefone inválido fica fora'); assert.equal(r.corpo.pulados, 1, 'só o telefone inválido é "sem telefone válido"');
     assert.equal(r.corpo.campanha.status, 'aguardando'); assert.match(r.corpo.abrir, /indycar-posvenda\.onrender\.com\/\?campanha=/);
     const camp = s.db.comunicar_campanhas[0];
     assert.equal(camp.status, 'aguardando'); assert.equal(camp.total_previsto, 2); assert.equal(camp.criado_por, PESSOAS.atendente.id); assert.equal(camp.destinos.find(d => d.telefone === '12991000001').cliente_id, C(1), 'telefone repetido fica com o cliente_id de quem tinha'); assert.equal(camp.segmento, null);

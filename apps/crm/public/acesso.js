@@ -344,10 +344,10 @@ const prefsNotif = () => ({toast: true, som: false, titulo: true, ...(PERFIL?.pr
 $('#formNotif').addEventListener('submit', async e => {
   e.preventDefault();
   const msg = $('#notifMsg'), novas = {notificacoes: {toast: $('#notifToast').checked, som: $('#notifSom').checked, titulo: $('#notifTitulo').checked}};
-  const preferencias = CrmUtils.mesclarPreferencias(PERFIL?.preferencias, novas);
   try {
-    const {error} = await sb.from('perfis').update({preferencias}).eq('id', PERFIL.id); if (error) throw error;
-    PERFIL.preferencias = preferencias; renderSino();
+    // o servidor lê as preferências de agora e soma: salvar aqui nunca apaga o que outro app gravou depois do login
+    const r = await api('/api/perfil', {method: 'PATCH', body: JSON.stringify({preferencias: novas})});
+    PERFIL.preferencias = r.preferencias || CrmUtils.mesclarPreferencias(PERFIL?.preferencias, novas); renderSino();
     msg.textContent = '✅ Preferências salvas (valem em qualquer aparelho).'; msg.className = 'form-msg ok';
     if (novas.notificacoes.som) bipe();
   } catch (err) { msg.textContent = '⚠️ Não consegui salvar: ' + (err.message || 'erro'); msg.className = 'form-msg erro'; }

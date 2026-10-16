@@ -638,6 +638,8 @@ async function handler(req, res) {
       // aceita id numérico (SQLite) OU uuid (Supabase)
       const m = pathname.match(/^\/api\/leads\/([0-9a-fA-F-]{1,36})$/);
       if (m) {
+        // no banco compartilhado o id é uuid: id solto (ex.: /api/leads/abc) é "não encontrado", não erro 500
+        if (USA_SUPABASE && !ehUuid(m[1])) return json(res, 404, { erro: 'lead não encontrado' });
         const id = /^\d+$/.test(m[1]) ? Number(m[1]) : m[1];
         if (req.method === 'GET') {
           const lead = await store.getLead(id);
@@ -1039,8 +1041,13 @@ async function handler(req, res) {
       if (mc && req.method === 'PATCH') {
         if (!ehUuid(mc[1])) return json(res,400,{erro:'Cliente inválido.'});
         if (!store.atualizarPreferenciasCliente) return json(res,503,{erro:'Disponível no banco compartilhado.'});
-        const cliente = await store.atualizarPreferenciasCliente(mc[1], await readBody(req));
-        return cliente ? json(res,200,{cliente}) : json(res,404,{erro:'Cliente não encontrado.'});
+        const corpoPref = await readBody(req);
+        const cliente = await store.atualizarPreferenciasCliente(mc[1], corpoPref);
+        if (!cliente) return json(res,404,{erro:'Cliente não encontrado.'});
+        // religar mensagens de quem pediu para parar é decisão sensível: fica registrado quem fez
+        await auditar(quem, 'cliente_preferencias', { tabela: 'clientes', registro: mc[1], detalhes: {
+          ...('aceita_mensagens' in corpoPref ? { aceita_mensagens: corpoPref.aceita_mensagens === true } : {}), ...('nascimento' in corpoPref ? { nascimento: true } : {}) } });
+        return json(res,200,{cliente});
       }
       if (mc && req.method === 'GET') {
         if (!ehUuid(mc[1])) return json(res, 400, { erro: 'cliente inválido' });

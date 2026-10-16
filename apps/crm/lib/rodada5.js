@@ -296,8 +296,20 @@ async function rotasR5(c) {
     const todos = await c.store.todosOsLeads();
     const escolhidos = todos.filter(l => ids.includes(String(l.id)));
     const destinos = destinosDeLeads(escolhidos);
+    const semTelefone = escolhidos.filter(l => !normalizarTelefone(l.telefone)).length;
     if (!destinos.length) throw falha(400, 'Nenhum lead com telefone válido na seleção.');
     const detalhe = texto(b.detalhe, 200).trim() || null;
+    /* Duplo clique / duas abas: a mesma proposta (mesma pessoa, mesma mensagem, mesmos telefones) em 10 min
+       devolve a que já existe em vez de criar outra para o gestor aprovar. */
+    const assinatura = destinos.map(d => d.telefone).sort().join(',');
+    const jaFeitas = await sb.from('comunicar_campanhas').select('id,status,total_previsto,destinos').eq('criado_por', quem.id).eq('corpo', corpo)
+      .eq('status', 'aguardando').gte('created_at', new Date(Date.now() - 10 * 60_000).toISOString()).order('created_at', { ascending: false }).limit(5);
+    const igual = (jaFeitas.data || []).find(x => Array.isArray(x.destinos) && x.destinos.map(d => d.telefone).sort().join(',') === assinatura);
+    if (igual) {
+      json(res, 200, { ok: true, repetida: true, campanha: { id: igual.id, status: igual.status, total: destinos.length }, destinos: destinos.length, pulados: semTelefone, avisados: 0,
+        abrir: APPS.linkApp('comunicar', `/?campanha=${igual.id}`, { prefixo }) });
+      return true;
+    }
     const { data: camp, error } = await sb.from('comunicar_campanhas').insert({
       status: 'aguardando', corpo, detalhe, segmento: null, destinos, total_previsto: destinos.length, enviar_em: enviarEm,
       criado_por: quem.id, criado_por_nome: quem.nome || quem.email || 'CRM',
@@ -314,7 +326,7 @@ async function rotasR5(c) {
       }
     } catch { /* sem aviso não atrapalha */ }
     await c.auditar(quem, 'campanha_comunicar', { tabela: 'comunicar_campanhas', registro: camp.id, detalhes: { leads: ids.length, destinos: destinos.length, enviar_em: enviarEm, avisados } });
-    json(res, 201, { ok: true, campanha: { id: camp.id, status: camp.status, total: destinos.length }, destinos: destinos.length, pulados: ids.length - destinos.length, avisados,
+    json(res, 201, { ok: true, campanha: { id: camp.id, status: camp.status, total: destinos.length }, destinos: destinos.length, pulados: semTelefone, avisados,
       abrir: APPS.linkApp('comunicar', `/?campanha=${camp.id}`, { prefixo }) });
     return true;
   }

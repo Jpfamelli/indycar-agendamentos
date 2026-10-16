@@ -20,7 +20,10 @@ const SAIDA = process.env.RELATORIO_DIR || join(process.env.TEMP || RAIZ, 'r5-na
 mkdirSync(SAIDA, { recursive: true });
 const requerer = createRequire(import.meta.url);
 let puppeteer;
-try { puppeteer = requerer('puppeteer-core'); } catch { puppeteer = createRequire(join(RAIZ, '..', 'indycar-ferramentas', 'package.json'))('puppeteer-core'); }
+for (const base of [null, join(RAIZ, '..', '..', '..', 'indycar-ferramentas'), join(RAIZ, '..', 'indycar-ferramentas'), process.env.FERRAMENTAS].filter((x, i) => i === 0 || x)) {
+  try { puppeteer = base === null ? requerer('puppeteer-core') : createRequire(join(base, 'package.json'))('puppeteer-core'); break; } catch { /* tenta o próximo */ }
+}
+if (!puppeteer) throw new Error('puppeteer-core não encontrado (rode npm i em indycar-ferramentas ou defina FERRAMENTAS).');
 
 const portaLivre = p => new Promise(ok => { const s = net.createServer().once('error', () => ok(false)).once('listening', () => s.close(() => ok(true))).listen(p, '127.0.0.1'); });
 async function subirMock(env = {}) {
