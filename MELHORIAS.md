@@ -587,3 +587,16 @@ em `tests/horarios.test.mjs` e `tests/rodada5-servidor.test.mjs`), `npm run chec
 - O aviso de remarcação entra como mensagem **avulsa** na fila do Comunicar (não há tipo `remarcacao` no CHECK de `posvenda_envios`); pedido ao coordenador: tipo próprio com rótulo e ícone no Comunicar.
 - A Central (onda B2) precisa: montar `handler` sob `/agenda/` com `req.prefixo`, definir `window.INDYCAR_APPS` antes do `apps.js`, e manter `/confirmar/` acessível sem login no prefixo (o link do cliente já sai com o prefixo).
 - Arrastar na Semana continua só com mouse (o celular usa o Remarcar com a grade).
+
+## Rodada 5 · Onda C · C7 — verificação da Agenda e da recepção (16/10/2026)
+Bugs achados e corrigidos (cada um com teste em `tests/r5c-agenda.test.mjs`):
+1. Editar um agendamento mandava TODOS os campos do modal aberto (situação, hora, confirmação): o "Chegou" da recepção voltava a Aguardando. Agora só vai o que mudou (`Planejamento.soMudancas`).
+2. Horários livres (JS e função SQL `agenda_horarios_livres`) ignoravam que o índice `agendamentos_slot_uk` segura a casa de quem já foi concluído/não fechou: oferecia hora que o banco recusava (migração `r5c_agenda_horarios_livres_indice`).
+3. Balcão: marcar de novo quem foi cancelado/faltou na mesma hora devolvia o cancelado ("salvo" sem agendar); dois clientes com o mesmo nome e telefones diferentes viravam um só.
+4. Link de confirmação: resposta repetida refazia tarefa e sino; link de horário já atendido/de dia que passou ainda aceitava resposta (409 agora).
+5. Aviso de remarcação: 3 remarcações seguidas deixavam 3 mensagens contraditórias na fila; agora só vale a do horário atual; usa o tipo `remarcacao` do Comunicar; voltar a um horário antigo reativa o aviso.
+6. Desfazer "Chegou" deixava a OS aberta no Pátio sem avisar (carro-fantasma): o servidor devolve `patio_aberta` e a tela avisa.
+7. Recepção não pode marcar "Não veio" em quem já chegou (mandaria WhatsApp de falta a quem está na oficina).
+8. Valor/CSV: `Number()` puro virava "1.250,50" em 0 e 1,25; agora `valorDeEntrada`; CSV sai com vírgula decimal. Nome/serviço em branco ou objeto → 400.
+9. Cache dos horários era esquecido ANTES de gravar serviço/consultor (e não ao apagar); automação das 16h não pede "confirme" a quem já respondeu remarcar/não vem; segundo encaixe da espera dá 409; SIGNED_OUT em outro app volta ao login; toast com 2 botões no celular não vira coluna de 80 px; trocar consultor atualiza a grade.
+Pendências: script inline do index.html ainda exige 'unsafe-inline' na CSP; cancelar a OS do Pátio ao desfazer o Chegou é do Pátio (gatilho patio_da_agenda).

@@ -128,6 +128,7 @@ export const ROTAS = [
   ['POST',   `/api/campanhas/${U}/aprovar`,              { perm: 'campanha_aprovar', caro: true }],
   ['POST',   `/api/campanhas/${U}/recusar`,              { perm: 'campanha_aprovar' }],
   ['POST',   `/api/campanhas/${U}/cancelar`,             { perm: 'campanha_propor' }],
+  ['POST',   `/api/lotes/${U}/cancelar`,                 { perm: 'cancelar_qualquer' }],
   ['POST',   '/api/rodar-agora',                         { perm: 'rodar', caro: true }],
   ['GET',    '/api/previa',                              { perm: 'ver' }],
   ['GET',    '/api/comunicar/config',                    { perm: 'ver' }],

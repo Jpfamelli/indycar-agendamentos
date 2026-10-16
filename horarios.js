@@ -20,6 +20,8 @@
 
 export const EXPEDIENTE = Object.freeze({ abre: 8 * 60, fecha: 17 * 60 + 30, passo: 30, dias: [1, 2, 3, 4, 5, 6] });
 export const STATUS_OCUPA = new Set(['aguardando', 'confirmado', 'compareceu', 'em_atendimento']);
+// o índice agendamentos_slot_uk também segura a casa de quem já teve desfecho (só cancelado e nao_veio liberam)
+export const STATUS_INDICE = new Set([...STATUS_OCUPA, 'concluido', 'nao_fechou']);
 const ANTECEDENCIA_MIN = 30;
 const DURACAO_PADRAO = 60;
 
@@ -118,10 +120,10 @@ export function livresDoDia({ data, agora = null, agendamentos = [], consultores
   const ocupacao = new Map();          // janela(min) -> quantos
   const doConsultor = new Map();       // janela(min) -> Set(consultor_id)
   for (const a of agendamentos || []) {
-    if (!a || a.data !== data || !STATUS_OCUPA.has(a.status) || (ignorar && a.id === ignorar)) continue;
+    if (!a || a.data !== data || !STATUS_INDICE.has(a.status) || (ignorar && a.id === ignorar)) continue;
     const m = minutos(a.hora); if (m === null) continue;
     const jan = Math.floor(m / EXPEDIENTE.passo) * EXPEDIENTE.passo;
-    ocupacao.set(jan, (ocupacao.get(jan) || 0) + 1);
+    if (STATUS_OCUPA.has(a.status)) ocupacao.set(jan, (ocupacao.get(jan) || 0) + 1);
     if (a.consultor_id) { if (!doConsultor.has(jan)) doConsultor.set(jan, new Set()); doConsultor.get(jan).add(a.consultor_id); }
   }
   const corte = agora?.data === data ? agora.min + ANTECEDENCIA_MIN : -1;

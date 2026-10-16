@@ -74,6 +74,8 @@ export function planejar({ agora = new Date(), agendamentos = [], tarefas = [], 
     for (const a of agendamentos) {
       if (a.data !== alvo || a.status !== 'aguardando' || a.confirmado === true || a.confirmado === 1) continue;
       if (jaTem.has(`${a.id}|${TITULO_CONFIRMAR}`)) continue;
+      // o cliente JÁ respondeu pelo link (remarcar / não vem) e a equipe tem essa tarefa: pedir "confirme" de novo seria contraditório
+      if (jaTem.has(`${a.id}|Remarcar`) || jaTem.has(`${a.id}|Cliente avisou que não vem`)) continue;
       const responsavel = quem(a) || gestor;
       saida.tarefas.push({
         titulo: TITULO_CONFIRMAR, origem: 'automacao', prioridade: 2,

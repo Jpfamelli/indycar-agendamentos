@@ -230,6 +230,11 @@ const ENVIOS_SEMENTE = [
   env(C(11), 'avulsa', { corpo:'Oi Bruno! Sua peça chegou, pode trazer o carro amanhã de manhã. 🏁', criado_por:'Leonardo', ...enviado(5) }),
   env(null, 'avulsa', { telefone:'12988887777', nome:'Teste (João Pedro)', corpo:'Teste do IndyCar Comunicar: se você recebeu isto, o WhatsApp está saindo. 🏁', criado_por:'João Pedro', ...enviado(30) }),
   env(C(10), 'orcamento', { status:'pendente', enviar_em: horasAtras(3), created_at: horasAtras(4) }),
+  // C8: campanha no meio — 1 já saiu, 3 esperando (lote conhecido para o botão "Cancelar o que falta")
+  env(C(2), 'campanha', { lote:'c8c8c8c8-0000-4000-8000-00000000c801', corpo:'Oi! Check-up grátis esta semana. 🏁', criado_por:'Gisele', ...enviado(1) }),
+  env(C(4), 'campanha', { lote:'c8c8c8c8-0000-4000-8000-00000000c801', corpo:'Oi! Check-up grátis esta semana. 🏁', criado_por:'Gisele', enviar_em: horasAtras(-1) }),
+  env(C(5), 'campanha', { lote:'c8c8c8c8-0000-4000-8000-00000000c801', corpo:'Oi! Check-up grátis esta semana. 🏁', criado_por:'Gisele', enviar_em: horasAtras(-1) }),
+  env(C(6), 'campanha', { lote:'c8c8c8c8-0000-4000-8000-00000000c801', corpo:'Oi! Check-up grátis esta semana. 🏁', criado_por:'Gisele', enviar_em: horasAtras(-1) }),
 ];
 
 const PERFIS_BASE = JSON.parse(JSON.stringify(PERFIS));
@@ -553,6 +558,13 @@ http.createServer(async (req, res) => {
     if (!ehGestor() && t.responsavel_id !== eu.id && t.criado_por !== eu.id) return json(res, 403, { erro:'Essa tarefa é de outra pessoa.', codigo:'sem_permissao' });
     if (t.status !== 'aberta') return json(res, 400, { erro:'Essa tarefa já foi concluída.' });
     t.status = 'feita'; return json(res, 200, t);
+  }
+
+  // ---- cancelar o que falta de uma campanha (lote) — só gestor (C8)
+  if ((mm = p.match(/^\/api\/lotes\/([0-9a-f-]+)\/cancelar$/)) && m === 'POST') {
+    if (!ehGestor()) return json(res, 403, { erro:'Só gestor mexe em mensagem de régua ou de outra pessoa.', codigo:'sem_permissao' });
+    let n = 0; for (const e of ENVIOS) if (e.lote === mm[1] && e.status === 'pendente') { e.status = 'cancelado'; n++; }
+    return json(res, 200, { ok:true, cancelados:n });
   }
 
   // ---- campanhas com aprovação

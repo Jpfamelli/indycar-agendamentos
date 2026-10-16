@@ -25,7 +25,7 @@ const TOKEN_RE = /^[0-9a-f]{16,128}$/i;
 
 /** 'patio_extra:<os_id>:2026101610' → '<os_id>' (null se não for do Pátio). */
 export function osIdDaChave(chave) {
-  const m = /^patio_(entrada|extra|pronto):([0-9a-f-]{36})/i.exec(String(chave || ''));
+  const m = /^patio_(entrada|extra|pronto(?:_lembrete)?):([0-9a-f-]{36})/i.exec(String(chave || ''));
   return m && UUID.test(m[2]) ? m[2].toLowerCase() : null;
 }
 

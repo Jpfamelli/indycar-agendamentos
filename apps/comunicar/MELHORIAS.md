@@ -625,3 +625,18 @@ Avisos do coordenador (fim da rodada)
 - O Atendimento ainda não abre a aba Integrações por `?aba=integracoes` — o link do Comunicar já manda assim (o botão abre o Atendimento e o João clica em Integrações até o agente do Atendimento ler o parâmetro).
 - O limite diário escalona campanhas, mas as **réguas** não são escalonadas (param no limite do dia e saem no dia seguinte, como antes).
 - Quando a Central nascer: trocar `posvenda_config.carteiro_url` (modelo em `scripts/sql/trocar-carteiro-url.sql`) e a URL do `carteiro.yml`; abrir o app sempre como `/comunicar/` (com a barra).
+
+## Verificação C8 (16/10/2026) — bugs achados e corrigidos
+
+1. **A prioridade da fila só valia dentro das 40 mensagens mais antigas**: uma fila velha de campanha escondia o "seu carro está pronto" novo. Agora os avisos urgentes (pátio, lembrete, pós-venda, avaliação) são buscados à parte (`enviosDevidos` com `tipos`/`exceto`).
+2. **O intervalo "mesmo cliente" só valia dentro de UMA rodada** e não havia teto por dia: o cliente podia receber 5 mensagens no dia (uma por rodada). Agora lê o que já saiu hoje (`contatosDoDia`): intervalo vale entre rodadas e o teto é 3 mensagens não operacionais por cliente por dia (as sobras vão para o próximo dia útil); aviso de pátio e lembrete nunca esperam, mas contam.
+3. **Campanha/avulsa/avaliação/convite da Área do Cliente nunca venciam**: com o WhatsApp fora por dias, tudo saía de uma vez quando a chave voltasse. `expirarAtrasados` pula campanha/convite > 72 h, avulsa/avaliação > 48 h, remarcação > 24 h e avisos do pátio por idade (24/48/72 h) direto no banco, antes de montar a fila.
+4. **Quem pediu PARAR depois de a mensagem entrar na fila ainda recebia**: o carteiro não conferia `aceita_mensagens` na hora de enviar. Agora confere (por cliente e por telefone, com ou sem 55) e pula com o motivo.
+5. **429 do CodeWords gastava uma das 4 tentativas de CADA mensagem** (a rajada inteira falhava de vez). Agora para a rodada, devolve a mensagem sem gastar tentativa e adia 10 min.
+6. **"Preciso cancelar meu horário" tirava o cliente de TODAS as mensagens** (o gatilho `comunicar_registrar_resposta` tratava "cancelar", "sair" e "remover" em qualquer lugar da frase como PARAR). Migração `r5c_c8_parar_sem_falso_positivo`: PARAR é a palavra sozinha ou frase clara; vale mesmo sem envio nas últimas 72 h e para número sem cadastro ligado (acha pelo telefone). Espelho em `ehPedidoDeParar`.
+7. **Campanha com o mesmo telefone em dois cadastros mandava duas vezes**, e telefone curto entrava na fila. `executarCampanha` deduplica pelo telefone normalizado e pula número < 10 dígitos.
+8. **Faltava "cancelar a campanha no meio"**: só dava para cancelar mensagem por mensagem. Nova rota `POST /api/lotes/:id/cancelar` (gestor) e botão "Cancelar o que falta (N)" na tela Campanhas.
+9. **Duplo clique em "Enviar campanha" enfileirava tudo de novo**: pedido idêntico (2+ clientes) em 30 s volta 409.
+10. A parte da rodada que fala com o cliente saiu do `server.js` para `rodada.js` (injeção de dependências) e ganhou 21 testes de ponta a ponta com banco e CodeWords de mentira (`scripts/testes-rodada5-c8.mjs`); o teste intermitente do CodeWords falso (timeout de 150 ms na 1ª conexão) foi aquecido.
+
+Como verifiquei: `npm test` 148 verdes; `navegador-rodada3/4/5` e `navegador-c8` contra o mock em 1440 e 375 px; consultas novas rodadas em modo leitura no banco real; gatilho novo testado em DO-block revertido.

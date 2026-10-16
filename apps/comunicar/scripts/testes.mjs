@@ -62,6 +62,11 @@ test('classificarResposta espelha o gatilho do banco', () => {
   assert.equal(classificarResposta('PARAR'), 'parar');
   assert.equal(classificarResposta('não quero mais receber mensagens'), 'parar');
   assert.equal(classificarResposta('Que horas abre amanhã?'), 'neutra');
+  // C8: palavras soltas dentro de uma frase comum NÃO são pedido para parar
+  assert.notEqual(classificarResposta('Preciso cancelar meu horário de amanhã'), 'parar');
+  assert.notEqual(classificarResposta('tenho que sair mais cedo, posso remarcar?'), 'parar');
+  assert.notEqual(classificarResposta('quero cancelar o orçamento'), 'parar');
+  for (const p of ['parar', 'PARAR!', 'pára 🙏', 'Stop', 'cancelar', 'sair', 'descadastrar', 'pare de me mandar mensagem', 'me tire da lista', 'não quero receber mais mensagens']) assert.equal(classificarResposta(p), 'parar', p);
   assert.equal(classificarResposta(''), 'neutra');
 });
 

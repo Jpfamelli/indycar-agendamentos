@@ -2752,6 +2752,8 @@ function ligarPlanejamentoNoModal(id, servicos) {
   });
   $('#f_data').addEventListener('change', () => { if (gradeLigada) grade(); });
   $('#f_serv').addEventListener('change', () => { if (gradeLigada) grade(); });
+  // trocou o consultor: a grade mostra os horários livres DELE, não os do consultor de antes
+  $('#f_cons')?.addEventListener('change', () => { if (gradeLigada) grade(); });
 }
 
 /* Rótulo e cor do que aconteceu com uma mensagem do Comunicar. */
@@ -3420,14 +3422,16 @@ window.openAgendamentoModal = async function(id, pre = {}){
     if (nasc && !/^\d{2}\/\d{2}(\/\d{4})?$/.test(nasc)) { $('#f_nasc').focus(); return toast('Aniversário: use DD/MM ou DD/MM/AAAA (ou deixe em branco)', 'err'); }
     const btn = $('#f_save'); btn.disabled = true;
     try {
-      const r = id ? await api('PUT', `/agendamentos/${id}`, payload) : await api('POST', '/agendamentos', payload);
+      // edição: só vai o que a pessoa MUDOU — o modal pode estar aberto há minutos e o resto (situação,
+      // hora, confirmação) pode ter mudado por outra pessoa; mandar tudo desfaria a chegada marcada na recepção
+      const r = id ? await api('PUT', `/agendamentos/${id}`, P.soMudancas(payload, a)) : await api('POST', '/agendamentos', payload);
       esquecerDias(); rascunho.apagar();
       const aviso = r?.aviso_ausencia;
       toast(aviso ? recadoDeAusencia(aviso) : 'Agendamento salvo', aviso && !aviso.ok ? 'err' : 'ok');
       // rodada 5: aniversário digitado vai para a ficha (sem bloquear o agendamento se falhar)
       if (nasc && r?.cliente_id) api('PUT', `/clientes/${r.cliente_id}`, { nascimento: nasc }, { repetir: false }).then(() => toast('Aniversário guardado na ficha 🎂')).catch(() => toast('O agendamento foi salvo, mas o aniversário não entrou na ficha — abra a ficha e tente de novo', 'err'));
       // veio da lista de espera ("Encaixar"): a espera vira "agendada"
-      if (pre?.espera_id && r?.id) api('PATCH', `/espera/${pre.espera_id}`, { status: 'agendada', agendamento_id: r.id }, { repetir: false }).then(() => { refreshBadge(true); toast(`${payload.cliente_nome} saiu da lista de espera — encaixado ✅`); }).catch(() => {});
+      if (pre?.espera_id && r?.id) api('PATCH', `/espera/${pre.espera_id}`, { status: 'agendada', agendamento_id: r.id }, { repetir: false }).then(() => { refreshBadge(true); toast(`${payload.cliente_nome} saiu da lista de espera — encaixado ✅`); }).catch((e) => toast(e?.message || 'O agendamento foi salvo, mas a lista de espera não atualizou.', 'err'));
       closeModal(); route();
     } catch(e){
       if (e.codigo === 'confirmar_aviso') perguntarAvisoDeFalta();
@@ -3856,13 +3860,13 @@ async function marcarNaRecepcao(card, marca, o = {}) {
     const item = (state._recLista || []).find(a => a.id === id);
     if (item) Object.assign(item, { status: r.status, compareceu: r.compareceu, confirmado: r.confirmado });
     await sairDoCartao(card);
-    if (o.desfazendo) toast(`${nome}: chegada desfeita — voltou para "Agendados"`);
+    if (o.desfazendo) toast(`${nome}: chegada desfeita — voltou para "Agendados"${r.patio_aberta ? `. A OS nº ${r.patio_aberta.numero ?? '?'} continua aberta no Pátio: se foi engano, cancele lá` : ''}`, 'ok', r.patio_aberta ? { duracao: 12000, acoes: [{ rotulo: 'Abrir no Pátio', fn: () => window.open(r.patio_aberta.abrir, '_blank', 'noopener') }] } : {});
     else if (marca === 'compareceu') {
       // rodada 5: o nº da OS que o Pátio abriu + "Abrir no Pátio", junto com o Desfazer
       const os = recadoDaOs(nome, r);
       toast(os.msg, 'ok', { duracao: 9000, acoes: [os.acao, antes === 'compareceu' ? null : { rotulo: 'Desfazer', fn: async () => {
-        await api('PATCH', `/agendamentos/${id}/status`, { status: ['aguardando', 'confirmado'].includes(antes) ? antes : 'aguardando' });
-        toast(`Desfeito — ${nome} voltou para "Agendados"`); route();
+        const des = await api('PATCH', `/agendamentos/${id}/status`, { status: ['aguardando', 'confirmado'].includes(antes) ? antes : 'aguardando' });
+        toast(`Desfeito — ${nome} voltou para "Agendados"${des?.patio_aberta ? `. A OS nº ${des.patio_aberta.numero ?? '?'} continua aberta no Pátio: se foi engano, cancele lá` : ''}`, 'ok', des?.patio_aberta ? { duracao: 12000, acoes: [{ rotulo: 'Abrir no Pátio', fn: () => window.open(des.patio_aberta.abrir, '_blank', 'noopener') }] } : {}); route();
       } }] });
     }
     else toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
@@ -4524,6 +4528,15 @@ aplicarTema(temaAtual());
   const voltaDeRecuperacao = /type=recovery/.test(location.hash);
   sb.auth.onAuthStateChange((evento) => {
     if (evento === 'PASSWORD_RECOVERY' && typeof contaRecuperacao === 'function') contaRecuperacao();
+    /* Saiu em OUTRO app da Central (mesma sessão do navegador): esta aba não pode continuar
+       mostrando dado de cliente nem tentando a API com token morto. Volta ao login, para os
+       relógios da tela e fecha o que estiver aberto. (Sair aqui mesmo já fazia isso; repetir é inofensivo.) */
+    if (evento === 'SIGNED_OUT' && !document.body.classList.contains('deslogado')) {
+      if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
+      state._repintar = null; state._pintou = false;
+      try { if (typeof closeModal === 'function') closeModal(); } catch { /* sem modal */ }
+      mostrarLogin('Você saiu em outro app. Entre de novo para continuar.');
+    }
   });
   if (voltaDeRecuperacao) return;
 

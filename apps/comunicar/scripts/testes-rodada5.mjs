@@ -93,6 +93,8 @@ test('CodeWords falso: sucesso só com "success"; 401 = chave recusada (estrutur
   const cw = await codewordsFalso();
   try {
     const cfg = { api_key: 'chave-boa', servico: 'whatsapp_device_manager', base: cw.base, device_id: 'dev1' };
+    await fetch(`${cw.base}/aquecer`); // a 1ª conexão local pode passar de 150 ms com a máquina ocupada (teste intermitente)
+    cw.chamadas.length = 0;
     const wa = criarWhatsApp({ configWhatsapp: async () => cfg, timeoutEnvioMs: 150 });
     let r = await wa.enviar('12999990001', 'Oi!');
     assert.equal(r.ok, true);

@@ -129,6 +129,8 @@ export function presencaPodeMarcar(statusAntes, statusNovo) {
   if (['concluido', 'nao_fechou'].includes(statusAntes)) {
     return 'Este cliente já tem o desfecho registrado pelo atendimento — só o painel principal pode mudar.';
   }
+  // quem já chegou não vira "Não veio" por aqui: o aviso de falta sairia no WhatsApp de um cliente que está na oficina
+  if (statusNovo === 'nao_veio' && ['compareceu', 'em_atendimento'].includes(statusAntes)) return 'Esse cliente já chegou. Para corrigir, use "Desfazer chegada" no cartão dele.';
   if (['compareceu', 'nao_veio'].includes(statusNovo)) return null;
   if (['aguardando', 'confirmado'].includes(statusNovo) && statusAntes === 'compareceu') return null;
   return 'Seu acesso só permite marcar se o cliente veio ou não.';

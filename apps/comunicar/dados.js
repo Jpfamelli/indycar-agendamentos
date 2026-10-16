@@ -17,8 +17,8 @@ import {
   selecionar, selecionarUm, selecionarTudo,
   inserir, inserirUm, atualizar, atualizarUm, remover, contar, rpc,
 } from './supabase.js';
-import { validadeDoEnvio, esperaDaTentativa } from './carteiro.js';
-import { TIPOS_PATIO, ROTULO_PATIO, linkArea, linkOs, usaLinkArea, usaLinkOs, PATIO_URL } from './patio.js';
+import { validadeDoEnvio, esperaDaTentativa, LIMITE_ATRASO_H } from './carteiro.js';
+import { TIPOS_PATIO, ROTULO_PATIO, VALIDADE_PATIO_H, linkArea, linkOs, usaLinkArea, usaLinkOs, PATIO_URL } from './patio.js';
 import { mesclarPreferencias, LINKS } from './acesso.js';
 import { classificarErro } from './whatsapp.js';
 
@@ -175,12 +175,29 @@ export function renderTemplate(corpo, ctx = {}) {
     .replace(/[ \t]{2,}/g, ' ').trim();
 }
 
+/**
+ * PARAR de verdade (espelho do gatilho comunicar_registrar_resposta): a mensagem é só a palavra
+ * (parar, stop, sair, cancelar…) ou uma frase clara ("não quero mais receber", "pare de me mandar",
+ * "me tire da lista"). "Preciso cancelar meu horário" NÃO é pedido para parar — antes tirava o
+ * cliente de todas as mensagens da oficina.
+ */
+export function ehPedidoDeParar(texto) {
+  const t = String(texto || '').trim().toLowerCase();
+  const fora = '[^\\p{L}\\p{N}]';
+  const R = (re) => new RegExp(re, 'u').test(t);
+  return R(`^${fora}*(parar|pare|p[aá]ra|stop|sair|remover|cancelar|descadastrar|descadastre)${fora}*$`)
+    || R('descadastr')
+    || R(`(^|${fora})n[aã]o quero (mais )?(receber|mensag)`)
+    || R(`(^|${fora})(parar|pare|p[aá]ra) (de )?(me )?(mandar|enviar|receber)`)
+    || R(`(^|${fora})(sair|me (tire|tira|remov[ae]|exclu[ai]))[^.!?]{0,15}(lista|contato|n[uú]mero)`);
+}
+
 /** Espelho em JS da classificação feita pelo gatilho do banco (para prévia e testes). */
 export function classificarResposta(texto) {
   const t = String(texto || '').trim().toLowerCase();
   if (!t) return 'neutra';
   const b = (re) => new RegExp(`(^|[^\\p{L}\\p{N}])(${re})([^\\p{L}\\p{N}]|$)`, 'u').test(t);
-  if (b('parar|sair|remover|cancelar|descadastr|n[aã]o quero (mais )?(receber|mensag)|stop')) return 'parar';
+  if (ehPedidoDeParar(t)) return 'parar';
   if (b('n[aã]o|nao ficou|ruim|p[eé]ssim|problema|reclama|insatisf|piorou|voltou|barulho|defeito|👎|😞|😡|😠')) return 'negativa';
   if (b('sim|ok|certo|tudo certo|tudo bem|[oó]tim|excelente|perfeito|show|top|maravilh|obrigad|valeu|gostei|ficou bom|confirm|pode ser|quero|vamos|bora|beleza|👍|🙏|😀|😊|❤|🏁')) return 'positiva';
   return 'neutra';
@@ -704,6 +721,16 @@ export async function cancelarEnvio(id) {
   return atualizarUm(T.envios, `id=eq.${id}&status=eq.pendente`, { status: 'cancelado' });
 }
 
+/**
+ * Cancela o que FALTA de uma campanha (todas as pendentes do lote que ninguém reservou).
+ * O que já saiu é história e não muda. Devolve quantas foram canceladas.
+ */
+export async function cancelarLote(lote) {
+  if (!ehUuid(lote)) return 0;
+  const linhas = await atualizar(T.envios, `lote=eq.${lote}&status=eq.pendente&enviando_em=is.null&select=id`, { status: 'cancelado', motivo_pulado: 'campanha cancelada' });
+  return linhas.length;
+}
+
 /** Desfaz um cancelamento: a mensagem volta à fila no MESMO horário (se já passou, sai na próxima rodada). */
 export async function desfazerCancelamento(id) {
   if (!ehUuid(id)) return null;
@@ -720,8 +747,10 @@ export async function reenfileirar(id) {
 
 /** Pendentes que já venceram — o carteiro do server.js chama isto. */
 export const CAMPOS_FILA = 'id,cliente_id,agendamento_id,lead_id,telefone,nome,tipo,corpo,enviar_em,tentativas,status,enviando_em,expira_em,mensagem_id,criado_por_id,chave_unica,created_at';
-export async function enviosDevidos(limite = 25) {
+export async function enviosDevidos(limite = 25, { tipos = null, exceto = null } = {}) {
   const p = new URLSearchParams(`select=${CAMPOS_FILA}`);
+  if (tipos?.length) p.set('tipo', `in.(${tipos.join(',')})`);
+  else if (exceto?.length) p.set('tipo', `not.in.(${exceto.join(',')})`);
   p.set('status', 'eq.pendente');
   p.set('enviando_em', 'is.null'); // reservado = outro carteiro está mandando agora
   p.set('enviar_em', `lte.${new Date().toISOString()}`);
@@ -2073,6 +2102,65 @@ export async function atualizarEnvio(id, campos) {
 export async function expirarVencidos(motivo, agoraIso = new Date().toISOString()) {
   const linhas = await atualizar(T.envios, `status=eq.pendente&expira_em=lt.${agoraIso}&select=id,tipo`, { status: 'pulado', motivo_pulado: motivo, enviando_em: null });
   return linhas.length;
+}
+
+/**
+ * Pendentes sem validade própria (campanha, avulsa, avaliação…) que esperam há mais
+ * que o limite do tipo → 'pulado'. Evita que, quando o WhatsApp voltar depois de dias,
+ * saia uma campanha velha ou um "avalie a gente" de semana passada.
+ */
+export async function expirarAtrasados(motivo, limites = LIMITE_ATRASO_H, agora = Date.now()) {
+  let total = 0;
+  for (const [tipo, horas] of Object.entries(limites)) {
+    const corte = new Date(agora - horas * 3600000).toISOString();
+    const linhas = await atualizar(T.envios, `status=eq.pendente&enviando_em=is.null&tipo=eq.${tipo}&enviar_em=lt.${corte}&select=id`, { status: 'pulado', motivo_pulado: motivo });
+    total += linhas.length;
+  }
+  // avisos do Pátio e o convite da Área do Cliente: validade contada desde que foram criados
+  for (const [tipo, horas] of Object.entries(VALIDADE_PATIO_H)) {
+    const corte = new Date(agora - horas * 3600000).toISOString();
+    const linhas = await atualizar(T.envios, `status=eq.pendente&enviando_em=is.null&tipo=eq.${tipo}&created_at=lt.${corte}&select=id`, { status: 'pulado', motivo_pulado: `aviso do Pátio com mais de ${horas} h: perdeu o sentido` });
+    total += linhas.length;
+  }
+  return total;
+}
+
+/** Quem pediu para parar (aceita_mensagens = false) entre os da fila: { ids, tels } — a fila NÃO pode furar o opt-out. */
+export async function clientesFora(fila = []) {
+  const ids = [...new Set(fila.map((e) => e.cliente_id).filter(ehUuid))];
+  const tels = [...new Set(fila.map((e) => telefoneNacional(e.telefone)).filter((t) => t && t.length >= 10))];
+  const fora = { ids: new Set(), tels: new Set() };
+  const juntar = (linhas) => { for (const c of linhas) { fora.ids.add(c.id); if (c.telefone_e164) fora.tels.add(c.telefone_e164); } };
+  for (let i = 0; i < ids.length; i += 80) {
+    juntar(await selecionar(T.clientes, `select=id,telefone_e164&aceita_mensagens=is.false&id=in.(${ids.slice(i, i + 80).join(',')})`));
+  }
+  for (let i = 0; i < tels.length; i += 80) {
+    juntar(await selecionar(T.clientes, `select=id,telefone_e164&aceita_mensagens=is.false&telefone_e164=in.(${tels.slice(i, i + 80).join(',')})`));
+  }
+  return fora;
+}
+
+/**
+ * O que já saiu para cada telefone hoje (fuso da oficina) ou nos últimos `minutos`, o que for mais longo:
+ * { ultimos: Map(tel → instante do último), contagem: Map(tel → quantas hoje) }.
+ */
+export async function contatosDoDia(minutos = 60, agora = Date.now()) {
+  const inicioDia = instanteSP(agoraSP(new Date(agora)).data, '00:00').getTime();
+  const desde = Math.min(inicioDia, agora - Math.max(0, minutos) * 60000);
+  const p = new URLSearchParams('select=telefone,enviado_em');
+  p.set('status', 'eq.enviado');
+  p.set('enviado_em', `gte.${new Date(desde).toISOString()}`);
+  p.set('order', 'enviado_em.desc');
+  const linhas = await selecionarTudo(T.envios, p);
+  const ultimos = new Map(), contagem = new Map();
+  for (const l of linhas) {
+    const t = telefoneNacional(l.telefone);
+    const ms = Date.parse(l.enviado_em);
+    if (!t || !Number.isFinite(ms)) continue;
+    if (!ultimos.has(t) || ultimos.get(t) < ms) ultimos.set(t, ms);
+    if (ms >= inicioDia) contagem.set(t, (contagem.get(t) || 0) + 1);
+  }
+  return { ultimos, contagem };
 }
 
 /** Reservas de mais de 15 min ainda pendentes = o servidor caiu no meio: 'falhou' (NUNCA reenvia sozinho). */

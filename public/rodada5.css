@@ -115,3 +115,10 @@ kbd.mini{min-width:20px;padding:1px 5px;font-size:10.5px}
 .sem-espera:hover{filter:brightness(1.1)}
 /* recepção: "atualizado às" dentro do botão Atualizar */
 #recAtualizadoEm{font-weight:600;font-size:12px;margin-left:2px}
+
+/* ---- C7: toast com 2 botões no celular — o texto não pode virar uma coluna de 80 px ("Aparecid-a"); os botões descem para a linha de baixo ---- */
+@media (max-width:640px){
+  .toast{flex-wrap:wrap;row-gap:8px}
+  .toast .toast-msg{flex:1 1 calc(100% - 40px)}
+  .toast .toast-acao{flex:1 1 auto;margin-left:0;min-height:40px}
+}

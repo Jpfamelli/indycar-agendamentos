@@ -169,29 +169,53 @@ export function vagasPorCadencia({ limitePorMinuto = 10, limitePorDia = 300, env
   return Math.max(0, Math.min(Number(vagasHora) || 0, porDia, Math.max(1, Number(limitePorMinuto) || 10) * 15));
 }
 
-const telDe = (t) => String(t ?? '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+export const telDe = (t) => String(t ?? '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+
+/** Avisos que o cliente está esperando agora: buscados à parte para nunca ficarem atrás de uma fila velha de campanha. */
+export const TIPOS_URGENTES = ['patio_pronto', 'patio_extra', 'lembrete', 'remarcacao', 'patio_entrada', 'avaliacao', 'posvenda'];
+/** Aviso operacional (tem hora, o cliente espera): nunca é adiado pelo intervalo nem pelo teto por dia. */
+export const ehOperacional = (tipo) => tipo === 'lembrete' || tipo === 'remarcacao' || String(tipo || '').startsWith('patio_');
+/** Teto de mensagens (não operacionais) por cliente no mesmo dia: ninguém recebe 5 mensagens num dia. */
+export const MAX_MENSAGENS_CLIENTE_DIA = 3;
+
 /**
- * Dois avisos para o MESMO cliente na mesma rodada: o segundo espera N minutos
- * (o cliente não recebe duas mensagens da oficina em sequência).
- * Devolve { agora: [...], adiados: [{ envio, enviar_em }] }. Avisos do Pátio e
- * lembrete nunca são adiados por isto (são operacionais e têm hora).
+ * Dois avisos para o MESMO cliente: o segundo espera N minutos (o cliente não
+ * recebe duas mensagens da oficina em sequência) e, no dia, só MAX_MENSAGENS_CLIENTE_DIA.
+ * Vale também ENTRE rodadas: `recentes` = Map(telefone → instante do último envio) e
+ * `contagemHoje` = Map(telefone → quantas já saíram hoje), lidos do banco.
+ * Devolve { agora: [...], adiados: [{ envio, enviar_em, motivo }] }. Avisos do Pátio e
+ * lembrete nunca são adiados por isto (são operacionais e têm hora), mas contam.
  */
-export function separarMesmoCliente(fila = [], { minutos = 60, agora = Date.now(), recentes = new Map() } = {}) {
+export function separarMesmoCliente(fila = [], { minutos = 60, agora = Date.now(), recentes = new Map(), contagemHoje = new Map(), maxPorDia = MAX_MENSAGENS_CLIENTE_DIA, proximoDia = null } = {}) {
   const vistos = new Map(recentes); // tel → último instante em que saiu algo
+  const contagem = new Map(contagemHoje);
   const saem = [], adiados = [];
   for (const e of ordenarFila(fila)) {
     const tel = telDe(e.telefone);
     const ultimo = tel ? vistos.get(tel) : null;
-    const operacional = e.tipo === 'lembrete' || e.tipo === 'remarcacao' || String(e.tipo || '').startsWith('patio_');
-    if (tel && ultimo !== undefined && ultimo !== null && !operacional && agora - ultimo < minutos * 60000) {
-      adiados.push({ envio: e, enviar_em: new Date(ultimo + minutos * 60000).toISOString() });
-      continue;
+    if (tel && !ehOperacional(e.tipo)) {
+      if (maxPorDia > 0 && (contagem.get(tel) || 0) >= maxPorDia) {
+        adiados.push({ envio: e, enviar_em: proximoDia ? proximoDia() : new Date(agora + 24 * 3600000).toISOString(), motivo: `o cliente já recebeu ${maxPorDia} mensagens hoje: espera o próximo dia` });
+        continue;
+      }
+      if (ultimo !== undefined && ultimo !== null && agora - ultimo < minutos * 60000) {
+        adiados.push({ envio: e, enviar_em: new Date(ultimo + minutos * 60000).toISOString(), motivo: 'outra mensagem para o mesmo cliente saiu há pouco: espera um pouco' });
+        continue;
+      }
     }
     saem.push(e);
-    if (tel) vistos.set(tel, agora);
+    if (tel) { vistos.set(tel, agora); contagem.set(tel, (contagem.get(tel) || 0) + 1); }
   }
   return { agora: saem, adiados };
 }
+
+/**
+ * Mensagens que ficaram na fila por dias (servidor/CodeWords fora do ar) perdem o
+ * sentido: depois deste atraso, contado desde a hora marcada, viram 'pulado'.
+ * Réguas com validade própria (expira_em) já cuidam de si; isto cobre as que não têm.
+ */
+export const LIMITE_ATRASO_H = { campanha: 72, area_cliente: 72, avulsa: 48, avaliacao: 48, remarcacao: 24 };
+export const MOTIVO_ATRASADO = 'ficou na fila por tempo demais (o WhatsApp esteve fora do ar) e perdeu o sentido';
 
 /** Horário comercial da oficina (seg–sáb 8h–17h30) — quem quiser "só no horário da loja" liga isto. */
 export function dentroDoHorarioComercial({ diaSemana, hora, minuto = 0 }) {

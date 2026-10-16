@@ -304,9 +304,37 @@
       .map((a, i) => ({ n: i + 1, ...a }));
   }
 
+  /**
+   * Edição de um agendamento: devolve só os campos que a pessoa MUDOU em relação ao que abriu.
+   * O modal fica aberto minutos; se mandasse tudo, um campo velho (situação, hora, confirmação)
+   * desfaria o que outra pessoa fez no meio — ex.: o "Chegou" da recepção voltando a "Aguardando".
+   * `confirmado` só vai se for diferente do que a pessoa abriu; `avisar_cliente` e `cliente_id` seguem a regra deles.
+   */
+  function soMudancas(payload, antes) {
+    const dig = (t) => String(t ?? '').replace(/[^0-9]/g, '');
+    const placa = (t) => String(t ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const txt = (t) => String(t ?? '').trim();
+    const igual = {
+      telefone: (x, y) => dig(x) === dig(y),
+      placa: (x, y) => placa(x) === placa(y),
+      consultor_id: (x, y) => (x || null) === (y || null),
+      hora: (x, y) => txt(x).slice(0, 5) === txt(y).slice(0, 5),
+      data: (x, y) => txt(x).slice(0, 10) === txt(y).slice(0, 10),
+    };
+    const mudou = (k) => !(igual[k] || ((x, y) => txt(x) === txt(y)))(payload[k], antes?.[k]);
+    const saida = {};
+    for (const k of ['cliente_nome', 'telefone', 'veiculo', 'placa', 'servico', 'data', 'hora', 'consultor_id', 'origem', 'status', 'observacoes']) {
+      if (payload[k] !== undefined && mudou(k)) saida[k] = payload[k];
+    }
+    if (payload.confirmado !== undefined && Number(payload.confirmado) !== Number(antes?.confirmado || 0)) saida.confirmado = payload.confirmado;
+    if (payload.cliente_id && payload.cliente_id !== antes?.cliente_id) saida.cliente_id = payload.cliente_id;
+    if (payload.avisar_cliente !== undefined && saida.status !== undefined) saida.avisar_cliente = payload.avisar_cliente;
+    return saida;
+  }
+
   root.Planejamento = Object.freeze({
     FINAIS, JANELA_MIN, normalizar, telefone, ehUuid, dia, periodo, andar, tabelaDuracoes, duracao, minutos, hhmm,
     conflitos, ocupacao, filtrar, resumo, grupos, csv, links, lerEntrada, semEntrada,
-    valorDeTela, reais, mascaraValor, cargaSemana, proximaEspera, deveRepetir, servidorFora, casaRecepcao, linhasDaFolha,
+    valorDeTela, reais, mascaraValor, cargaSemana, proximaEspera, deveRepetir, servidorFora, casaRecepcao, linhasDaFolha, soMudancas,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

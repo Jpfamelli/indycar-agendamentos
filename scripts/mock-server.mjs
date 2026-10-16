@@ -598,6 +598,7 @@ http.createServer(async (req, res) => {
       if (body.status !== 'concluido' || soPresenca || v === null || !valorValido(v)) return json(res, 400, { erro:'Valor inválido: use só números, ex.: 350 ou 1.250,00.' });
       a.valor = v; console.log('VALOR', a.cliente_nome, v);
     }
+    const statusAntes = a.status;
     Object.assign(a, { status: ch.status, confirmado: ch.confirmado ?? a.confirmado,
       compareceu: ch.compareceu !== undefined ? ch.compareceu : a.compareceu });
     // rodada 5: "Chegou" abre a OS no Pátio (aqui, de mentira) e devolve o resumo; "Não veio" diz quem da espera cabe
@@ -608,7 +609,13 @@ http.createServer(async (req, res) => {
       patio = resumoDaOs(os, EXTRAS, 'https://indycar-patio.netlify.app');
     }
     if (['nao_veio', 'cancelado'].includes(body.status) && !soPresenca) espera = esperaQueCabe(ESPERA, a.data, a.servico).slice(0, 3);
-    return json(res, 200, { ...a, ...(body.status === 'nao_veio' ? { aviso_ausencia:{ ok:true } } : {}), ...(patio ? { patio } : {}), ...(espera?.length ? { espera } : {}) });
+    // desfez a chegada e a OS do Pátio continua aberta (o banco não cancela): o servidor devolve para a tela avisar
+    let patioAberta = null;
+    if (['compareceu', 'em_atendimento'].includes(statusAntes) && ['aguardando', 'confirmado', 'cancelado', 'nao_veio'].includes(body.status)) {
+      const os = PATIO.find(o => o.agendamento_id === a.id && o.etapa !== 'cancelado' && o.etapa !== 'entregue');
+      if (os) patioAberta = resumoDaOs(os, EXTRAS, 'https://indycar-patio.netlify.app');
+    }
+    return json(res, 200, { ...a, ...(body.status === 'nao_veio' ? { aviso_ausencia:{ ok:true } } : {}), ...(patio ? { patio } : {}), ...(patioAberta ? { patio_aberta: patioAberta } : {}), ...(espera?.length ? { espera } : {}) });
   }
   if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]+)$/))) {
     const i = AGENDA.findIndex(x => x.id === mm[1]);

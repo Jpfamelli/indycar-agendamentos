@@ -37,6 +37,9 @@ test('pós-venda continua igual: patio_pronto não muda a validade nem substitui
 test('chave única do Pátio → id da ordem', () => {
   assert.equal(osIdDaChave(`patio_pronto:${OS}`), OS);
   assert.equal(osIdDaChave(`patio_extra:${OS}:2026101610`), OS);
+  assert.equal(osIdDaChave(`patio_pronto_lembrete:${OS}`), OS, 'lembrete de carro pronto também confere a ordem');
+  assert.equal(osIdDaChave(`patio_pronto_lembrete:${OS}:ciclo2`), OS);
+  assert.equal(osIdDaChave(`patio_pronto:${OS}:ciclo3`), OS);
   assert.equal(osIdDaChave(`posvenda:${OS}`), null);
   assert.equal(osIdDaChave(null), null);
 });

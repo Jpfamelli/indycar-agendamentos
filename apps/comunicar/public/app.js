@@ -944,7 +944,7 @@ async function renderCampanhas() {
   const grupos = new Map();
   for (const e of envios) {
     const chave = assinaturaCampanha(e);
-    const g = grupos.get(chave) || { dia: diaSP(e.enviar_em), corpo: e.corpo, total:0, enviadas:0, pendentes:0, respondidas:0, agendaram:0, falhas:0, por: e.criado_por };
+    const g = grupos.get(chave) || { lote: e.lote || null, dia: diaSP(e.enviar_em), corpo: e.corpo, total:0, enviadas:0, pendentes:0, respondidas:0, agendaram:0, falhas:0, por: e.criado_por };
     g.total++;
     if (e.status === 'enviado') g.enviadas++;
     if (e.status === 'pendente') g.pendentes++;
@@ -965,7 +965,7 @@ async function renderCampanhas() {
       <div class="panel-body lista lista-anim">
         ${lista.length ? lista.map(g => `<article class="camp">
             <div class="camp-txt"><span class="d">${esc(rotuloDia(g.dia))}${g.pendentes ? ` · <span style="color:var(--orange-txt)">${g.pendentes} na fila</span>` : ''}${g.falhas ? ` · <span style="color:var(--red-txt)">${g.falhas} falharam</span>` : ''}${g.por ? ` · por ${esc(g.por)}` : ''}</span>
-              <span class="c">${esc(g.corpo)}</span></div>
+              <span class="c">${esc(g.corpo)}</span>${g.pendentes && g.lote && pode('cancelar_qualquer') ? `<button type="button" class="btn btn-mini" data-cancelar-lote="${esc(g.lote)}" data-n="${g.pendentes}">Cancelar o que falta (${g.pendentes})</button>` : ''}</div>
             <div class="camp-nums">
               <div><b>${g.enviadas}</b><small>enviadas</small></div>
               <div class="g"><b>${g.respondidas}</b><small>responderam</small></div>
@@ -974,6 +974,12 @@ async function renderCampanhas() {
           : vazio(I.megafone, 'Nenhuma campanha ainda', 'Escolha um segmento (ou um cliente), escreva a mensagem e coloque na fila. Quem pediu para parar fica fora sozinho.')}
       </div></div>`;
   $('#btnNovaCamp').addEventListener('click', () => openCampanhaModal());
+  $$('[data-cancelar-lote]', view).forEach(b => b.addEventListener('click', async () => {
+    if (!confirm(`Cancelar as ${b.dataset.n} mensagens dessa campanha que ainda não saíram? As que já saíram não mudam.`)) return;
+    b.disabled = true;
+    try { const r = await api('POST', `/lotes/${b.dataset.cancelarLote}/cancelar`, {}); toast(`${plural(r.cancelados, 'mensagem cancelada', 'mensagens canceladas')}.`); renderCampanhas(); }
+    catch (e) { toast(e.message || 'Não consegui cancelar agora.'); b.disabled = false; }
+  }));
   pintarAprovacoes();
 }
 

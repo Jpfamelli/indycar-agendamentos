@@ -96,12 +96,18 @@ export function criarApi(deps) {
     const area = patio.usaLinkArea(corpo);
     const tipo = area ? 'area_cliente' : 'campanha';
     const links = area ? await linksDaArea(destinos) : null;
+    const vistosTel = new Set();
     for (const d of destinos) {
       const clienteId = d.cliente_id ?? d.id ?? null;
+      const digs = String(d.telefone ?? '').replace(/\D/g, '');
+      const telN = digs.length >= 12 && digs.startsWith('55') ? digs.slice(2) : digs;
+      // telefone repetido (dois cadastros do mesmo número, lista com duplicata) recebe UMA vez só; número curto demais não é WhatsApp
+      if (!telN || telN.length < 10 || vistosTel.has(telN)) { pulados.total++; pulados.invalido = (pulados.invalido || 0) + 1; continue; }
       const v = porteiro.podeReceber({ cliente_id: clienteId, telefone: d.telefone, tipo });
       if (!v.ok) { pulados.total++; pulados.nao_quer++; continue; }
       const linkArea = area ? links.get(clienteId) : '';
       if (area && !linkArea) { pulados.total++; pulados.sem_link++; continue; }   // sem cadastro de cliente não dá para gerar o link
+      vistosTel.add(telN);
       linhas.push({
         cliente_id: clienteId, telefone: d.telefone, nome: d.nome ?? null, tipo,
         corpo: dados.renderTemplate(corpo, { nome: d.nome, carro: d.carro, placa: d.placa, detalhe: detalhe || '', link_area: linkArea }),
@@ -132,6 +138,7 @@ export function criarApi(deps) {
     return mapa;
   }
 
+  const pedidosRecentes = new Map(); // assinatura do pedido → instante (anti duplo clique)
   const segmentoValido = (f) => (dados.SEGMENTOS || []).some((s) => s.id === f);
 
   async function resolverDestinos(body) {
@@ -396,6 +403,14 @@ export function criarApi(deps) {
     }
     const caminho = auto.destinoDoPedido(usuario, destinos.length);
 
+    /* Duplo clique / reenvio do navegador: o MESMO pedido para 2+ clientes (mesma pessoa, texto, hora e destinos) em 30 s é recusado
+       — antes cada clique enfileirava a campanha inteira de novo e os clientes recebiam em dobro. */
+    const assinatura = [usuario.id, corpo, body.enviar_em || '', destinos.length, (destinos.map((d) => String(d.telefone ?? '').replace(/\D/g, '')).sort().join(',')), body.segmento ? JSON.stringify(body.segmento) : ''].join('|');
+    const agora0 = relogio();
+    for (const [k, t] of pedidosRecentes) if (agora0 - t > 30_000) pedidosRecentes.delete(k);
+    if (destinos.length > 1 && pedidosRecentes.has(assinatura)) return send(res, 409, { erro: 'Esse mesmo pedido acabou de ser enviado. Confira na fila antes de repetir.', codigo: 'pedido_repetido' });
+    if (destinos.length > 1) pedidosRecentes.set(assinatura, agora0);
+
     if (caminho === 'proposta') {
       const segmento = !Array.isArray(body.destinos) || !body.destinos.length ? { filtro: String(body.segmento.filtro), valor: body.segmento.valor ?? null } : null;
       const camp = await dados.criarPropostaCampanha({
@@ -460,6 +475,14 @@ export function criarApi(deps) {
     if (acao) auditar(usuario, acao, 'posvenda_envios', id, null);
     return ok(res, r);
   };
+  /* Cancelar a campanha NO MEIO: o que ainda não saiu do lote é cancelado de uma vez (só gestor). */
+  rota('POST', `/api/lotes/${U}/cancelar`, async ({ res, usuario, url }) => {
+    const lote = idDe(url.pathname);
+    const cancelados = await dados.cancelarLote(lote);
+    esquecerCache('resumo', 'fila');
+    auditar(usuario, 'campanha_lote_cancelado', 'posvenda_envios', lote, { cancelados });
+    return ok(res, { ok: true, cancelados });
+  });
   rota('POST', `/api/envios/${U}/cancelar`, mexerNoEnvio((id) => dados.cancelarEnvio(id), 'Só dá para cancelar mensagem que ainda não saiu.', 'envio_cancelado'));
   rota('POST', `/api/envios/${U}/reenviar`, mexerNoEnvio((id) => dados.reenfileirar(id), 'Só dá para reenviar mensagem que falhou, foi cancelada ou pulada.', 'envio_reenviado'));
   rota('POST', `/api/envios/${U}/desfazer-cancelamento`, mexerNoEnvio((id) => dados.desfazerCancelamento(id), 'Essa mensagem não está cancelada.', null));

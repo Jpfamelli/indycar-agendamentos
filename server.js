@@ -493,6 +493,9 @@ async function gerarICS() {
   return linhas.join('\r\n');
 }
 
+// valor na planilha BR: vírgula decimal (350,50), inteiro sem casas, zero/vazio em branco — com ponto o Excel lê 1250.5 como texto ou data
+const valorParaPlanilha = (n) => { const v = Number(n); return Number.isFinite(v) && v > 0 ? (Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ',')) : ''; };
+
 // Gera CSV (separador ; — abre direto no Excel BR)
 function gerarCSV(colunas, rows) {
   // célula que começa com = + - @ vira texto (o Excel executaria como fórmula)
@@ -670,6 +673,28 @@ function texto1(v, max) {
   return String(v).slice(0, max);
 }
 
+/* Campos de texto de um agendamento vindos de fora (tela, IA, integração): objeto/lista no lugar de
+   texto virava "[object Object]" no banco; nome ou serviço só com espaços virava cartão em branco; e
+   valor digitado "350,50" ou "1.250,00" virava 0 ou 1,25 por causa do Number() puro. Corrige o corpo
+   no lugar e devolve o recado de erro (ou null). */
+const LIMITES_TEXTO = { cliente_nome: 160, servico: 200, veiculo: 120, placa: 20, observacoes: 4000 };
+function conferirCamposDoAgendamento(body, { criando = false } = {}) {
+  for (const [k, max] of Object.entries(LIMITES_TEXTO)) {
+    if (body[k] === undefined || body[k] === null) continue;
+    if (typeof body[k] === 'object') return `Campo inválido: ${k}.`;
+    body[k] = String(body[k]).slice(0, max);
+    if (k === 'cliente_nome' || k === 'servico') body[k] = body[k].trim();
+  }
+  if (criando || body.cliente_nome !== undefined) if (!body.cliente_nome) return 'Informe o nome do cliente.';
+  if (criando || body.servico !== undefined) if (!body.servico) return 'Informe o serviço.';
+  if (body.valor !== undefined && body.valor !== null && body.valor !== '') {
+    const n = dados.valorDeEntrada(typeof body.valor === 'number' ? body.valor : texto1(body.valor, 20));
+    if (n === null || !dados.valorValido(n)) return `Valor inválido: use só números, ex.: 350 ou 1.250,00 (até R$ ${dados.VALOR_MAXIMO.toLocaleString('pt-BR')}).`;
+    body.valor = n;
+  } else if (body.valor === '') delete body.valor;
+  return null;
+}
+
 const PAPEIS_EQUIPE = ['admin', 'gestor', 'atendente', 'agenda'];
 const EMAIL_PARECE_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -807,6 +832,10 @@ async function api(req, res, url) {
       if (!['confirmou', 'nao_vem', 'remarcar'].includes(resposta)) return bad(res, 'Resposta inválida.');
       const r = await dados.responderConfirmacao(texto1(corpo.t, 80), resposta, texto1(corpo.observacao, 300).trim() || null);
       if (!r) return send(res, 404, { erro: 'Este link não vale mais. Fale com a oficina pelo WhatsApp.' }, { 'Cache-Control': 'no-store' });
+      // horário que já passou / já teve desfecho: não aceita (a página já avisa; aqui é contra link velho e script)
+      if (r.encerrado) return send(res, 409, { erro: 'Esse horário já passou ou já foi atendido. Fale com a oficina pelo WhatsApp.' }, { 'Cache-Control': 'no-store' });
+      // mesma resposta de novo (toque duplo, duas abas): confirma de novo ao cliente, sem tarefa nem sino repetidos
+      if (r.repetido) return send(res, 200, { ok: true, resposta: r.resposta, respondido_em: r.respondido_em, repetido: true }, { 'Cache-Control': 'no-store' });
       invalidarCache();
       /* "Não vem" / "quer remarcar" vira TAREFA para a equipe (quem atende a conversa, o consultor ou um gestor —
          a mesma regra das automações). "Confirmou" não precisa de ninguém. */
@@ -1196,6 +1225,7 @@ async function api(req, res, url) {
   if (pathname === '/api/agendamentos' && m === 'POST') {
     if (!body.cliente_nome || !body.servico || !body.data || !body.hora)
       return bad(res, 'Informe cliente, serviço, data e hora.');
+    { const erroCampos = conferirCamposDoAgendamento(body, { criando: true }); if (erroCampos) return bad(res, erroCampos); }
     if (!dados.dataBanco(body.data) || !dados.horaBanco(body.hora))
       return bad(res, 'Data ou hora em formato inválido.');
     if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
@@ -1206,7 +1236,7 @@ async function api(req, res, url) {
     if (body.status === 'nao_veio') body.status = 'aguardando';
     // dedupe: mesmo horário + mesmo telefone (ou mesmo nome) = mesmo agendamento
     const dup = await dados.agendamentoDuplicado(
-      body.data, body.hora, soDigitos(body.telefone || ''), body.cliente_nome);
+      body.data, body.hora, soDigitos(body.telefone || ''), body.cliente_nome, { soVivos: true });
     if (dup) return ok(res, dup);
     // vincula/cria cliente pelo telefone
     let clienteId = body.cliente_id ?? null;
@@ -1234,6 +1264,7 @@ async function api(req, res, url) {
       if (!a) return notFound(res);
       if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
       if (body.consultor_id && !dados.ehUuid(texto1(body.consultor_id, 40))) return bad(res, 'Consultor inválido.');
+      { const erroCampos = conferirCamposDoAgendamento(body); if (erroCampos) return bad(res, erroCampos); }
       /* "Não veio" pela EDIÇÃO: o gatilho do banco mandaria o WhatsApp de falta
          sem ninguém pedir. Só passa com resposta explícita (regras.js):
          avisar_cliente true → mesmo fluxo do cartão; false → carimba junto. */
@@ -1381,12 +1412,20 @@ async function api(req, res, url) {
     if (['compareceu', 'em_atendimento'].includes(body.status) && atualizado && dados.patioDosAgendamentos) {
       patio = await dados.patioDosAgendamentos([a.id]).then((r) => r?.[a.id] || null).catch(() => null);
     }
+    /* Desfez a chegada (ou virou falta/cancelado) e o Pátio já tinha aberto a ordem: o banco NÃO cancela a OS
+       sozinho — um "Chegou" no cartão errado deixaria um carro-fantasma no quadro do mecânico. Devolve a OS
+       para a tela avisar quem mexeu (cancelar a ordem é no Pátio). */
+    let patioAberta = null;
+    if (['compareceu', 'em_atendimento'].includes(a.status) && ['aguardando', 'confirmado', 'cancelado', 'nao_veio'].includes(body.status) && atualizado && dados.patioDosAgendamentos) {
+      const os = await dados.patioDosAgendamentos([a.id]).then((r) => r?.[a.id] || null).catch(() => null);
+      if (os && os.etapa !== 'entregue') patioAberta = os;
+    }
     // um horário vagou (não veio / cancelado): quem está na lista de espera serviria?
     let espera = null;
     if (['nao_veio', 'cancelado'].includes(body.status) && atualizado && dados.listarEspera && !soPresenca) {
       espera = await dados.listarEspera({ status: 'aberta', limite: 100 }).then((l) => dados.esperaQueCabe(l, a.data, a.servico).slice(0, 3)).catch(() => null);
     }
-    return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia, ...(patio ? { patio } : {}), ...(espera?.length ? { espera } : {}) });
+    return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia, ...(patio ? { patio } : {}), ...(patioAberta ? { patio_aberta: patioAberta } : {}), ...(espera?.length ? { espera } : {}) });
   }
 
   /* ---- link de entrada do ecossistema (?tel=&cliente=) ----
@@ -1452,6 +1491,10 @@ async function api(req, res, url) {
     if (m === 'PATCH') {
       if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
       if (body.agendamento_id && !dados.ehUuid(texto1(body.agendamento_id, 40))) return bad(res, 'Identificador inválido.');
+      // dois encaixes do mesmo cliente (duas telas): o segundo não pode trocar o horário do primeiro em silêncio
+      if (body.status === 'agendada' && atual.status === 'agendada' && atual.agendamento_id && body.agendamento_id && atual.agendamento_id !== body.agendamento_id) {
+        return send(res, 409, { erro: 'Essa pessoa já foi encaixada em outro horário. Confira na Agenda antes de marcar de novo.' });
+      }
       const statusAntes = atual.status, nomeAntes = atual.cliente_nome;
       const e = await dados.atualizarEspera(mm[1], body, usuario.id);
       if (body.status && body.status !== statusAntes) await dados.auditar(usuario.id, 'espera_' + body.status, 'ag_lista_espera', mm[1], { cliente: nomeAntes, agendamento: body.agendamento_id || null });
@@ -1652,6 +1695,7 @@ async function api(req, res, url) {
     }
     if (m === 'DELETE') {
       await dados.removerConsultor(id);
+      dados.esquecerBaseDosHorarios?.();
       await dados.auditar(usuario.id, 'apagou_consultor', 'consultores', id, null);
       return ok(res, { ok: true });
     }
@@ -1664,17 +1708,18 @@ async function api(req, res, url) {
   }
   if (pathname === '/api/servicos' && m === 'POST') {
     if (!body.nome) return bad(res, 'Informe o nome do serviço.');
-    dados.esquecerBaseDosHorarios?.();
-    return ok(res, await dados.criarServico(body));
+    const novo = await dados.criarServico(body);
+    dados.esquecerBaseDosHorarios?.();   // DEPOIS de gravar: esquecer antes deixava um pedido no meio guardar a base velha por 60 s
+    return ok(res, novo);
   }
   if ((mm = pathname.match(new RegExp(`^/api/servicos/${UUID}$`)))) {
     const id = mm[1];
     if (m === 'PUT') {
-      dados.esquecerBaseDosHorarios?.();
       const s = await dados.atualizarServico(id, body);
+      dados.esquecerBaseDosHorarios?.();
       return s ? ok(res, s) : notFound(res);
     }
-    if (m === 'DELETE') { await dados.removerServico(id); return ok(res, { ok: true }); }
+    if (m === 'DELETE') { await dados.removerServico(id); dados.esquecerBaseDosHorarios?.(); return ok(res, { ok: true }); }
   }
 
   // ---- CRM (métricas)
@@ -1723,7 +1768,7 @@ async function api(req, res, url) {
     await dados.auditar(usuario.id, 'exportou_csv', 'agendamentos', null, { linhas: lista.length });
     const rows = lista.map((a) => ({
       id: a.id, cliente: a.cliente_nome, telefone: a.telefone, veiculo: a.veiculo, placa: a.placa,
-      servico: a.servico, data: a.data, hora: a.hora, status: a.status, confirmado: a.confirmado ? 'sim' : 'não', valor: a.valor || '',
+      servico: a.servico, data: a.data, hora: a.hora, status: a.status, confirmado: a.confirmado ? 'sim' : 'não', valor: valorParaPlanilha(a.valor),
       origem: a.origem, consultor: a.consultor_nome, criado_em: a.created_at,
     }));
     return send(res, 200, gerarCSV(['id','cliente','telefone','veiculo','placa','servico','data','hora','status','confirmado','valor','origem','consultor','criado_em'], rows),

@@ -428,7 +428,7 @@ export async function obterAgendamento(id) {
  * exato não casaria e o importador duplicaria os agendamentos a cada ciclo.
  * Buscar só por data+hora é barato (poucas linhas por horário).
  */
-export async function agendamentoDuplicado(data, hora, telefone, nome) {
+export async function agendamentoDuplicado(data, hora, telefone, nome, { soVivos = false } = {}) {
   const d = dataBanco(data), h = horaBanco(hora);
   if (!d || !h) return null;
   const tel = telefoneNacional(telefone);
@@ -442,8 +442,17 @@ export async function agendamentoDuplicado(data, hora, telefone, nome) {
   const candidatos = await selecionar(T.agendamentos, p);
 
   const achado = candidatos.find((r) => {
-    if (tel && telefoneNacional(r.telefone) === tel) return true;
-    if (alvoNome && String(r.cliente_nome || '').trim().toLowerCase() === alvoNome) return true;
+    /* Digitação pelo balcão (soVivos): quem foi cancelado ou faltou LIBEROU o horário — marcar a
+       mesma pessoa de novo nessa hora é um agendamento novo, não "o mesmo" (antes devolvia o
+       cancelado e a tela dizia "salvo" sem agendar nada). E duas pessoas com o mesmo nome e
+       telefones diferentes não são a mesma. O importador do CodeWords mantém a regra antiga. */
+    if (soVivos && ['cancelado', 'nao_veio'].includes(r.status)) return false;
+    const telR = telefoneNacional(r.telefone);
+    if (tel && telR === tel) return true;
+    if (alvoNome && String(r.cliente_nome || '').trim().toLowerCase() === alvoNome) {
+      if (soVivos && tel && telR && telR !== tel) return false;
+      return true;
+    }
     return false;
   });
   return lerAgendamento(achado);
@@ -948,9 +957,10 @@ export function sugerirConsultor({ consultores = [], agendamentos = [], data, ho
   const ativos = consultores.filter((c) => c.ativo !== 0 && c.ativo !== false);
   if (!ativos.length || !data) return null;
   const doDia = agendamentos.filter((a) => a && a.data === data && STATUS_OCUPA.has(a.status) && (!ignorar || a.id !== ignorar));
+  const doDiaIndice = agendamentos.filter((a) => a && a.data === data && STATUS_INDICE.has(a.status) && (!ignorar || a.id !== ignorar));
   const janela = (h) => { const m = minDe(h); return m === null ? null : Math.floor(m / EXPEDIENTE.passo) * EXPEDIENTE.passo; };
   const jan = hora ? janela(hora) : null;
-  const ocupados = new Set(jan === null ? [] : doDia.filter((a) => a.consultor_id && janela(a.hora) === jan).map((a) => a.consultor_id));
+  const ocupados = new Set(jan === null ? [] : doDiaIndice.filter((a) => a.consultor_id && janela(a.hora) === jan).map((a) => a.consultor_id));
   const carga = cargaDoDia(ativos, doDia, data).consultores.filter((c) => !ocupados.has(c.id));
   if (!carga.length) return null;
   const melhor = carga[0];
@@ -1798,6 +1808,11 @@ export async function abrirPeloLink({ cliente, tel } = {}) {
    quantos consultores ativos houver (a recepção é quem limita). */
 export const EXPEDIENTE = { abre: 8 * 60, ultimoInicio: 17 * 60, passo: 30, dias: [1, 2, 3, 4, 5, 6] };
 const STATUS_OCUPA = new Set(['aguardando', 'confirmado', 'compareceu', 'em_atendimento']);
+/* O índice agendamentos_slot_uk (consultor+dia+hora) só libera cancelado e nao_veio: quem já foi
+   "Veio e fechou"/"Veio e não fechou" cedo AINDA segura a casa do consultor naquela hora. Para
+   decidir "esse consultor está livre?" vale o conjunto do índice; para a lotação da recepção, o físico. */
+const STATUS_INDICE = new Set([...STATUS_OCUPA, 'concluido', 'nao_fechou']);
+const SQL_STATUS_INDICE = 'aguardando,confirmado,compareceu,em_atendimento,concluido,nao_fechou';
 
 const minDe = (h) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(h || '')); return m ? +m[1] * 60 + +m[2] : null; };
 const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
@@ -1828,11 +1843,11 @@ export function horariosLivres({ desde, agora, agendamentos = [], capacidade = 1
   const ocupacao = new Map();               // 'data|janela' -> quantos (todos)
   const doConsultor = new Map();            // 'data|janela' -> Set(consultor_id)
   for (const a of agendamentos) {
-    if (!a || !STATUS_OCUPA.has(a.status) || (ignorar && a.id === ignorar)) continue;
+    if (!a || !STATUS_INDICE.has(a.status) || (ignorar && a.id === ignorar)) continue;
     const m = minDe(a.hora); if (m === null) continue;
     const jan = Math.floor(m / EXPEDIENTE.passo) * EXPEDIENTE.passo;
     const k = `${a.data}|${jan}`;
-    ocupacao.set(k, (ocupacao.get(k) || 0) + 1);
+    if (STATUS_OCUPA.has(a.status)) ocupacao.set(k, (ocupacao.get(k) || 0) + 1);
     if (a.consultor_id) { if (!doConsultor.has(k)) doConsultor.set(k, new Set()); doConsultor.get(k).add(a.consultor_id); }
   }
   const ativos = (consultores || []).filter(Boolean);
@@ -1868,7 +1883,7 @@ export async function sugerirHorarios({ data, consultor_id, ignorar } = {}) {
   const ate = somaDias(desde, 15);
   const p = new URLSearchParams('select=id,data,hora,status,consultor_id');
   p.set('and', `(data.gte.${desde},data.lte.${ate})`);
-  p.set('status', 'in.(aguardando,confirmado,compareceu,em_atendimento)');
+  p.set('status', `in.(${SQL_STATUS_INDICE})`);
   p.set('order', 'data.asc,hora.asc');
   p.set('limit', '1000');
   const [linhas, ativos] = await Promise.all([
@@ -2250,6 +2265,7 @@ export function distribuirSemConsultor({ consultores = [], agendamentos = [] } =
   const vivos = agendamentos.filter((a) => a && STATUS_OCUPA.has(a.status));
   const carga = new Map(ativos.map((c) => [c.id, 0]));
   const ocupado = new Set();
+  for (const a of agendamentos) if (a && a.consultor_id && STATUS_INDICE.has(a.status) && !STATUS_OCUPA.has(a.status)) ocupado.add(`${a.consultor_id}|${a.data}|${janela(a.hora)}`);
   for (const a of vivos) {
     if (!a.consultor_id) continue;
     if (carga.has(a.consultor_id)) carga.set(a.consultor_id, carga.get(a.consultor_id) + 1);
@@ -2275,7 +2291,7 @@ export async function agendamentosVivosDoDia(data) {
   const d = dataBanco(data);
   if (!d) return [];
   return (await selecionar(T.agendamentos,
-    `select=id,data,hora,status,consultor_id,cliente_nome&data=eq.${d}&status=in.(aguardando,confirmado,compareceu,em_atendimento)&limit=500`))
+    `select=id,data,hora,status,consultor_id,cliente_nome&data=eq.${d}&status=in.(${SQL_STATUS_INDICE})&limit=500`))
     .map((r) => ({ ...r, hora: horaCurta(r.hora) }));
 }
 
@@ -2367,7 +2383,7 @@ export const esquecerBaseDosHorarios = () => { _memoLivres.em = 0; };
 async function vivosEntre(de, ate) {
   const p = new URLSearchParams(SEL_LIVRES);
   p.set('and', `(data.gte.${de},data.lte.${ate})`);
-  p.set('status', 'in.(aguardando,confirmado,compareceu,em_atendimento)');
+  p.set('status', `in.(${SQL_STATUS_INDICE})`);
   p.set('order', 'data.asc,hora.asc');
   return (await selecionarTudo(T.agendamentos, p)).map((r) => ({ ...r, hora: horaCurta(r.hora) }));
 }
@@ -2520,6 +2536,14 @@ export async function confirmacaoPorToken(token) {
 export async function responderConfirmacao(token, resposta, observacao = null) {
   if (!TOKEN_CONF.test(String(token || ''))) return null;
   if (!['confirmou', 'nao_vem', 'remarcar'].includes(resposta)) throw new Error('Resposta inválida.');
+  /* Link velho / toque repetido: (1) horário que já teve desfecho ou de outro dia que passou
+     não aceita resposta (senão nasceria tarefa "Cliente avisou que não vem" de um carro que
+     já está dentro da oficina); (2) a MESMA resposta de novo não regrava nem refaz tarefa. */
+  const atual = await selecionarUm(T_CONF, `${SEL_CONF}&token=eq.${token}`);
+  if (!atual) return null;
+  const ag = await selecionarUm(T.agendamentos, `select=id,status,data&id=eq.${atual.agendamento_id}`).catch(() => null);
+  if (ag && (!['aguardando', 'confirmado'].includes(ag.status) || String(ag.data).slice(0, 10) < hoje())) return { ...atual, encerrado: true };
+  if (atual.resposta === resposta) return { ...atual, repetido: true };
   const r = await atualizarUm(T_CONF, `token=eq.${token}&${SEL_CONF}`, { resposta, respondido_em: new Date().toISOString(), observacao: observacao ? String(observacao).slice(0, 300) : null });
   if (!r) return null;
   if (resposta === 'confirmou') {
@@ -2603,12 +2627,27 @@ export async function enfileirarAvisoDeRemarcacao(a, texto, usuario = null) {
     const c = await selecionarUm(T.clientes, `select=aceita_mensagens&id=eq.${a.cliente_id}`).catch(() => null);
     if (c && c.aceita_mensagens === false) return { ok: false, motivo: 'O cliente pediu para não receber mensagem automática — abri o WhatsApp para você mandar à mão.' };
   }
-  const chave = `agenda:remarcado:${a.id}:${a.data}:${horaCurta(a.hora)}`;
+  const prefixo = `agenda:remarcado:${a.id}:`;
+  const chave = `${prefixo}${a.data}:${horaCurta(a.hora)}`;
+  /* Remarcou 3 vezes seguidas (arrastando na Semana)? Os avisos anteriores ainda
+     estão na fila falando de horários que já não valem: o cliente receberia três
+     mensagens contraditórias. Só vale o do horário de AGORA — os pendentes dos
+     outros horários deste agendamento são cancelados antes de enfileirar. */
+  await atualizar(T.envios, `chave_unica=like.${prefixo}*&chave_unica=neq.${encodeURIComponent(chave)}&status=eq.pendente&enviando_em=is.null`,
+    { status: 'cancelado', motivo_pulado: 'o horário foi remarcado de novo' }).catch(() => []);
   const repetido = await selecionarUm(T.envios, `select=id,status&chave_unica=eq.${encodeURIComponent(chave)}`).catch(() => null);
-  if (repetido) return { ok: true, repetido: true };
+  if (repetido) {
+    // voltou para um horário que já teve aviso: se aquele aviso foi cancelado/falhou, ele renasce com o texto de agora
+    if (['cancelado', 'falhou', 'pulado'].includes(repetido.status)) {
+      await atualizar(T.envios, `id=eq.${repetido.id}`, { status: 'pendente', corpo: texto, enviar_em: new Date().toISOString(), erro: null,
+        motivo_pulado: null, tentativas: 0, expira_em: new Date(Date.now() + 24 * 3600_000).toISOString() });
+      return { ok: true, reativado: true };
+    }
+    return { ok: true, repetido: true };
+  }
   const linha = {
     cliente_id: uuidOuNulo(a.cliente_id), agendamento_id: a.id, lead_id: uuidOuNulo(a.lead_id),
-    telefone: soDigitos(a.telefone), nome: a.cliente_nome || null, tipo: 'avulsa', corpo: texto, status: 'pendente',
+    telefone: soDigitos(a.telefone), nome: a.cliente_nome || null, tipo: 'remarcacao', corpo: texto, status: 'pendente',
     enviar_em: new Date().toISOString(), chave_unica: chave, criado_por: 'agenda' + (usuario?.email ? ` (${usuario.email})` : ''),
     criado_por_id: uuidOuNulo(usuario?.id), expira_em: new Date(Date.now() + 24 * 3600_000).toISOString(),
   };
