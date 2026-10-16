@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional, casaBusca, cargaDoDia, sugerirConsultor } from '../dados.js';
 import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../regras.js';
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
+import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento } from '../patio.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3011);
@@ -61,6 +62,7 @@ const fichaDe = (c) => {
 /* semearAgenda(): os horários de mentira — POST /api/__reset volta a este estado
    (o roteiro de navegador usa entre um papel e outro). */
 let AGENDA = [];
+let PATIO = [], EXTRAS = [];
 function semearAgenda() {
 AGENDA = [
   ag({ cliente_nome:'Maria Aparecida', cliente_id:CLIENTES[0].id, telefone:'12991110001', veiculo:'HB20', placa:'FHR6F16', servico:'Montagem de pneus e alinhamento', data:dia(0), hora:hm(40),  status:'confirmado', confirmado:1, origem:'Google', lembrete:{ status:'enviado', resposta:'positiva' }, orcamento:{ status:'aprovado', numero:42, total:1990, total_a_vista:1890, decidido_em:'2026-10-10T12:00:00Z' } }),
@@ -89,7 +91,21 @@ AGENDA[0].consultor_id = '20000000-0000-4000-8000-000000000101'; AGENDA[0].consu
 AGENDA[1].consultor_id = '20000000-0000-4000-8000-000000000102'; AGENDA[1].consultor_nome = 'Gabriel';
 AGENDA[7].consultor_id = '20000000-0000-4000-8000-000000000102'; AGENDA[7].consultor_nome = 'Gabriel';
 for (const a of AGENDA) if (!a.consultor_id) a.consultor_nome = null;
+// Pátio de mentira: Patrícia está em execução (1 extra aprovado, 1 esperando); Rogério já foi ENTREGUE sem desfecho
+const patricia = AGENDA.find(a => a.cliente_nome === 'Patrícia Lemos'), rogerio = AGENDA.find(a => a.cliente_nome.startsWith('Rogério'));
+PATIO = [
+  { id:'30000000-0000-4000-8000-000000000001', numero:101, etapa:'em_execucao', etapa_em:new Date(Date.now() - 50 * 60e3).toISOString(),
+    agendamento_id: patricia.id, token_publico:'a1b2c3d4e5f60718293a4b5c', entregue_em:null },
+  { id:'30000000-0000-4000-8000-000000000002', numero:98, etapa:'entregue', etapa_em:new Date(Date.now() - 3 * 3600e3).toISOString(),
+    agendamento_id: rogerio.id, token_publico:'ffeeddccbbaa009988776655', entregue_em:new Date(Date.now() - 3 * 3600e3).toISOString() },
+];
+EXTRAS = [
+  { os_id: PATIO[0].id, status:'aprovado', valor:450 },
+  { os_id: PATIO[0].id, status:'pendente', valor:180 },
+  { os_id: PATIO[0].id, status:'recusado', valor:900 },
+];
 }
+
 semearAgenda();
 
 const MAPA = {
@@ -268,14 +284,26 @@ http.createServer(async (req, res) => {
     const gestor = ['admin', 'gestor'].includes(perfilMock().papel);
     return json(res, 200, { followup: AGENDA.filter(a => ['nao_veio', 'nao_fechou'].includes(a.status)).length,
       semValor: gestor ? AGENDA.filter(a => a.status === 'concluido' && !(a.valor > 0)).length : null,
-      antigas: gestor ? antigasMock().length : null });
+      antigas: gestor ? antigasMock().length : null, entregues: gestor ? entreguesSemDesfecho(PATIO, AGENDA).length : null });
   }
   if (p === '/api/valores/pendentes') return json(res, 200, { dias: 120, itens: AGENDA.filter(a => a.status === 'concluido' && !(a.valor > 0)).sort((x, y) => y.data.localeCompare(x.data)) });
   if (p === '/api/pendencias-antigas') return json(res, 200, antigasMock());
+  // ---- Pátio (16/10): selo da etapa, link do cliente e entregues sem desfecho
+  if (p === '/api/patio/agendamentos') {
+    const ids = idsDeAgendamento(url.searchParams.get('ids'));
+    const itens = {};
+    for (const o of PATIO) if (ids.includes(o.agendamento_id)) itens[o.agendamento_id] = resumoDaOs(o, EXTRAS, 'https://indycar-patio.netlify.app');
+    return json(res, 200, { itens });
+  }
+  if (p === '/api/patio/entregues') {
+    if (!['admin', 'gestor'].includes(perfilMock().papel)) return json(res, 403, { erro:'Só o gestor ou o administrador pode fazer isso.' });
+    return json(res, 200, entreguesSemDesfecho(PATIO, AGENDA).map(({ os, agendamento }) => ({ ...agendamento, patio: resumoDaOs(os, EXTRAS) })));
+  }
   if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/valor-sugerido$/))) {
     const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro:'Não encontrado' });
     const hist = AGENDA.filter(x => x.status === 'concluido' && x.valor > 0).map(x => ({ id: x.id, servico: x.servico, valor: x.valor }));
-    return json(res, 200, { ...sugerirValor({ agendamento: a, orcamentos: a.orcamento ? [a.orcamento] : [], lead: null, historico: hist }), atual: a.valor || 0 });
+    const os = PATIO.find(o => o.agendamento_id === a.id);
+    return json(res, 200, { ...juntarSugestaoComExtras(sugerirValor({ agendamento: a, orcamentos: a.orcamento ? [a.orcamento] : [], lead: null, historico: hist }), os ? EXTRAS.filter(e => e.os_id === os.id) : []), atual: a.valor || 0 });
   }
   if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/valor$/)) && m === 'PUT') {
     const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro:'Não encontrado' });

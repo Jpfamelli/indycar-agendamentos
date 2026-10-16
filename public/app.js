@@ -36,7 +36,7 @@ const svg = (p, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24">${p}</svg>
 
 // ---- estado -----------------------------------------------------------------
 /* Marca da versão (igual à de /api/versao no server.js): confere o deploy. */
-const VERSAO_APP = '2026-10-14-r4';
+const VERSAO_APP = '2026-10-16-patio';
 const state = { route:'inicio', empresa:{}, consultores:[] };
 /* LINK DE ENTRADA do ecossistema: o Atendimento, o CRM e o Comunicar abrem a
    Agenda com ?tel=<dígitos> (às vezes &cliente=<uuid>). Lido UMA vez aqui e
@@ -657,6 +657,75 @@ function bindApptActions(root) {
         if (RECADO_DESFECHO[act] || act === 'nao_veio') return marcarDesfecho(card, id, act);
       } catch (e) { toast(e.message, 'err'); }
     }));
+  });
+  decorarPatio(root).catch(() => { /* sem Pátio: cartão como sempre */ });
+}
+
+/* ============================================================================
+   PÁTIO (16/10/2026) — o "Chegou" já abre a ordem no IndyCar Pátio (o banco faz
+   isso sozinho). Aqui a Agenda só MOSTRA: selo da etapa no cartão de quem chegou
+   + "Abrir no Pátio", e o link de acompanhamento do cliente na ficha.
+   Uma chamada por tela (ids juntos), guardada 30 s. Sem o Pátio, nada aparece.
+   ============================================================================ */
+const PATIO_ST_CHEGOU = new Set(['compareceu', 'em_atendimento', 'concluido', 'nao_fechou']);
+const _patioCache = new Map();          // agendamento_id → { em, os|null }
+async function patioDe(ids, forcar = false) {
+  const agora = Date.now();
+  const faltam = ids.filter(id => forcar || !_patioCache.has(id) || agora - _patioCache.get(id).em > 30_000);
+  if (faltam.length) {
+    const r = await api('GET', '/patio/agendamentos?ids=' + encodeURIComponent(faltam.slice(0, 60).join(',')), null, { repetir: false })
+      .catch(() => null);
+    if (r && r.itens) for (const id of faltam) _patioCache.set(id, { em: agora, os: r.itens[id] || null });
+  }
+  const saida = {};
+  for (const id of ids) { const c = _patioCache.get(id); if (c?.os) saida[id] = c.os; }
+  return saida;
+}
+const ICO_PATIO = '<path d="M3 21V9l9-6 9 6v12"/><path d="M7 21v-6h10v6"/><path d="M9 18h6"/>';
+function seloPatioHtml(os) {
+  const pend = os.extras_pendentes ? ` · ${os.extras_pendentes} p/ aprovar` : '';
+  return `<a class="badge-pill ${esc(os.etapa_tom)} selo-patio" href="${esc(os.abrir)}" target="_blank" rel="noopener"
+      title="Ordem nº ${esc(os.numero ?? '')} no Pátio — toque para abrir" aria-label="No Pátio: ${esc(os.etapa_rotulo)}${esc(pend)}. Abrir no Pátio">
+      ${svg(ICO_PATIO)} ${esc(os.etapa_rotulo)}${esc(pend)}</a>`;
+}
+async function decorarPatio(root) {
+  if (!root) return;
+  const cards = $$('.appt[data-id]', root).filter(c => PATIO_ST_CHEGOU.has(c.dataset.status));
+  if (!cards.length) return;
+  const mapa = await patioDe([...new Set(cards.map(c => c.dataset.id))]);
+  for (const card of cards) {
+    const os = mapa[card.dataset.id];
+    if (!os || !card.isConnected || $('.selo-patio', card)) continue;
+    const alvo = $('.appt-badges', card) || $('.rec-quem', card);
+    if (alvo) alvo.insertAdjacentHTML(alvo.classList.contains('appt-badges') ? 'afterbegin' : 'beforeend', seloPatioHtml(os));
+    const fim = $('.act-fim', card);
+    if (fim) fim.insertAdjacentHTML('afterbegin', `<a class="act ico abrir-patio" href="${esc(os.abrir)}" target="_blank" rel="noopener"
+        title="Abrir no Pátio" aria-label="Abrir ${esc(card.dataset.nome || 'o carro')} no Pátio">${svg(ICO_PATIO)}</a>`);
+  }
+}
+/* Ficha do agendamento: etapa, "Abrir no Pátio" e o link do cliente (copiar / WhatsApp). */
+async function blocoPatioNaFicha(box, a) {
+  if (!box || !a?.id) return;
+  const os = (await patioDe([a.id], true))[a.id];
+  if (!box.isConnected) return;
+  if (!os) { box.innerHTML = ''; box.hidden = true; return; }
+  const link = os.link_cliente;
+  const tel = String(a.telefone || '').replace(/\D/g, '');
+  const primeiro = String(a.cliente_nome || '').trim().split(/s+/)[0] || 'tudo bem';
+  const texto = link ? `Oi ${primeiro}! Você acompanha o ${String(a.veiculo || '').trim() || 'seu carro'} aqui na IndyCar por este link, etapa por etapa: ${link} 🏁` : '';
+  const wa = link && tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : '';
+  box.hidden = false;
+  box.innerHTML = `<div class="patio-ficha">
+      <div class="patio-ficha-topo">${seloPatioHtml(os)}
+        <small class="muted">Ordem nº ${esc(os.numero ?? '')}${os.valor_aprovado > 0 ? ` · extras aprovados ${esc(P.reais(os.valor_aprovado))}` : ''}</small></div>
+      <div class="eco-links">
+        <a class="btn mini" href="${esc(os.abrir)}" target="_blank" rel="noopener">${svg(ICO_PATIO)} Abrir no Pátio</a>
+        ${link ? `<button type="button" class="btn mini" id="f_patio_copiar">${svg(I.copiar)} Link de acompanhamento</button>` : ''}
+        ${wa ? `<a class="btn mini" href="${esc(wa)}" target="_blank" rel="noopener">${svg(I.wa)} Enviar pelo WhatsApp</a>` : ''}
+      </div></div>`;
+  $('#f_patio_copiar', box)?.addEventListener('click', async () => {
+    await copiarTexto(link);
+    toast('Link de acompanhamento copiado — cole no WhatsApp do cliente');
   });
 }
 
@@ -1286,7 +1355,8 @@ async function renderPendencias(opts = {}) {
     view.innerHTML = vazio(I.cadeado, 'Só para o gestor', 'Esta tela é do gestor ou do administrador. Se precisar, peça para alguém com esse acesso.');
     return;
   }
-  const [vals, antigas] = await Promise.all([api('GET', '/valores/pendentes'), api('GET', '/pendencias-antigas')]);
+  const [vals, antigas, entregues] = await Promise.all([api('GET', '/valores/pendentes'), api('GET', '/pendencias-antigas'),
+    api('GET', '/patio/entregues', null, { repetir: false }).catch(() => [])]);
   if (opts.vez && opts.vez !== state._vez) return;
   const itens = vals.itens || [];
   state._preenchidoSessao = state._preenchidoSessao || 0;
@@ -1304,11 +1374,21 @@ async function renderPendencias(opts = {}) {
       <button class="act orange" data-act="nao_fechou">${svg(I.flag)} Veio e não fechou</button>
       <button class="act red" data-antigo="nao_veio" title="Marca que não veio SEM mandar o WhatsApp de falta (o horário já passou faz tempo)">${svg(I.x)} Não veio (sem avisar)</button>
       <span class="act-fim"><button class="act ico" data-act="editar" title="Editar" aria-label="Editar agendamento">${svg(I.edit)}</button></span>`);
+  const cartaoEntregue = (a, agora) => corpoDoCartao(a, agora, `
+      <button class="act green solido" data-act="concluido">${svg(I.check)} Veio e fechou</button>
+      <button class="act orange" data-act="nao_fechou">${svg(I.flag)} Veio e não fechou</button>
+      <span class="act-fim"><button class="act ico" data-act="editar" title="Editar" aria-label="Editar agendamento">${svg(I.edit)}</button></span>`);
   const agora = agoraSP();
   view.innerHTML = `
     <div class="toolbar"><div class="left"><h2>Pendências</h2>
       <span class="badge-pill bp-orange">${itens.length} sem valor</span>
-      <span class="badge-pill bp-gray">${antigas.length} antigos sem desfecho</span></div></div>
+      <span class="badge-pill bp-gray">${antigas.length} antigos sem desfecho</span>
+      ${entregues.length ? `<span class="badge-pill bp-purple">${entregues.length} entregues no Pátio</span>` : ''}</div></div>
+    ${entregues.length ? `<div class="panel">
+      <div class="panel-head"><h2>${svg(ICO_PATIO)} Entregues no Pátio sem desfecho</h2>
+        <span class="panel-sub">o carro já saiu da oficina — marque o desfecho com o valor</span></div>
+      <div class="panel-body lista" id="pdEntregues" data-saida="tudo">${entregues.map(a => cartaoEntregue(a, agora)).join('')}</div>
+    </div>` : ''}
     <div class="panel">
       <div class="panel-head"><h2>${svg(I.money)} Concluídos sem valor</h2>
         <span class="panel-sub">últimos ${esc(vals.dias)} dias · o valor vai para o faturamento do CRM</span>
@@ -1359,6 +1439,8 @@ async function renderPendencias(opts = {}) {
     } catch (e) { toast(e.message, 'err'); if (b) b.disabled = false; }
   }
 
+  // ---- entregues no Pátio: os dois desfechos de visita (o selo da etapa entra sozinho)
+  if ($('#pdEntregues')) bindApptActions($('#pdEntregues'));
   // ---- antigos: desfechos de sempre + "Não veio" sem WhatsApp
   const box = $('#pdAntigas');
   bindApptActions(box);
@@ -2896,6 +2978,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
         </select></div>
       </div>
       <div class="field"><label for="f_obs">Observações</label><textarea id="f_obs">${esc(a.observacoes)}</textarea></div>
+      <div id="f_patio" class="contexto-cliente" hidden></div>
       <div id="f_contexto" class="contexto-cliente"></div>
       <!-- "Não veio" pela edição: o cliente recebe o WhatsApp de falta? Pergunta antes de salvar -->
       <div class="aviso-falta" id="f_aviso_falta" role="alertdialog" aria-labelledby="f_af_tit" hidden>
@@ -3008,6 +3091,8 @@ window.openAgendamentoModal = async function(id, pre = {}){
     cliente_id: $('#f_cli').value, telefone: $('#f_tel').value, excluir: id, nome: $('#f_nome').value });
   contexto();
   $('#f_tel').addEventListener('change', contexto);
+  // Pátio: etapa, "Abrir no Pátio" e o link de acompanhamento do cliente
+  if (id && PATIO_ST_CHEGOU.has(a.status)) blocoPatioNaFicha($('#f_patio'), { ...a, id }).catch(() => {});
   // mini-ficha de quem já é cliente (última visita, próxima revisão, aniversário)
   if (a.cliente_id) mostrarFicha(a.cliente_id);
   let confirmouSemTelefone = false, confirmouSemConsultor = false, avisarFalta;
@@ -3450,6 +3535,7 @@ function ligarCartoesRecepcao(box) {
     if (marca === 'desfazer') return marcarNaRecepcao(card, btn.dataset.antes || 'aguardando', { desfazendo: true });
     marcarNaRecepcao(card, marca);
   }));
+  decorarPatio(box).catch(() => { /* sem Pátio: cartão como sempre */ });
 }
 /* "Não veio" na recepção: o cartão vira a pergunta (dois botões grandes). */
 function confirmarFaltaNoCartao(card) {
@@ -3607,7 +3693,7 @@ async function refreshBadge(forcar = false){
 function pintarContagens(c) {
   const selo = (el, n) => { if (!el) return; el.textContent = n > 99 ? '99+' : String(n || 0); el.style.display = n ? 'flex' : 'none'; };
   selo($('#badgeFollowup'), c?.followup);
-  selo($('#badgePendencias'), (c?.semValor || 0) + (c?.antigas || 0));
+  selo($('#badgePendencias'), (c?.semValor || 0) + (c?.antigas || 0) + (c?.entregues || 0));
   // chips do Início (só o gestor recebe esses números do servidor)
   const box = $('#chipsGestor'); if (!box) return;
   const chips = [];
@@ -3615,6 +3701,8 @@ function pintarContagens(c) {
     ${svg(I.money)} ${c.semValor} ${c.semValor === 1 ? 'concluído sem valor' : 'concluídos sem valor'}</button>`);
   if (c?.antigas) chips.push(`<button type="button" class="chip-aviso" data-ir="pendencias" title="Horários de mais de 7 dias que nunca tiveram desfecho — prendem o lead no CRM.">
     ${svg(I.relogio)} ${c.antigas} ${c.antigas === 1 ? 'horário antigo sem desfecho' : 'horários antigos sem desfecho'}</button>`);
+  if (c?.entregues) chips.push(`<button type="button" class="chip-aviso" data-ir="pendencias" title="O Pátio entregou o carro, mas a Agenda ainda não tem o desfecho com o valor.">
+    ${svg(ICO_PATIO)} ${c.entregues} ${c.entregues === 1 ? 'entregue no Pátio sem desfecho' : 'entregues no Pátio sem desfecho'}</button>`);
   box.innerHTML = chips.join('');
   $$('[data-ir]', box).forEach(b => b.addEventListener('click', () => route(b.dataset.ir)));
 }

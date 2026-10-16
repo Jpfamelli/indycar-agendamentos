@@ -47,6 +47,7 @@ const falso = {
   contarConcluidosSemValor: async () => 3,
   contarPendenciasAntigas: async () => 27,
   pendenciasAntigas: async () => [],
+  entreguesNoPatioSemDesfecho: async () => [{}, {}],
   listarConsultores: async () => [{ id: ID(101), nome: 'Consultor Prensencial Gabriel', ativo: 1, perfil_id: null }, { id: ID(102), nome: 'Ana', ativo: 1, perfil_id: ID(901) }],
   listarEquipe: async () => [{ id: ID(901), nome: 'Ana', papel: 'admin', ativo: 1 }, { id: ID(903), nome: 'Gabriel', papel: 'atendente', ativo: 1 },
     { id: ID(905), nome: 'Saiu', papel: 'atendente', ativo: 0 }],
@@ -131,9 +132,9 @@ test('painel de valores: só gestor; preencher grava, audita e recusa quem não 
 
 test('contagens: follow-up para todos; sem valor e antigos só para o gestor', async () => {
   const at = await chamar('atendente', 'GET', '/api/contagens');
-  assert.deepEqual(at.j, { followup: 7, semValor: null, antigas: null });
+  assert.deepEqual(at.j, { followup: 7, semValor: null, antigas: null, entregues: null });
   const ge = await chamar('gestor', 'GET', '/api/contagens');
-  assert.deepEqual(ge.j, { followup: 7, semValor: 3, antigas: 27 });
+  assert.deepEqual(ge.j, { followup: 7, semValor: 3, antigas: 27, entregues: 2 });
   assert.equal((await chamar('agenda', 'GET', '/api/contagens')).status, 403);
 });
 
@@ -201,8 +202,8 @@ test('velocidade: arquivos da tela com ETag → 304 sem corpo; brotli guardado; 
 
 test('versão nova no ar e a casca nova no service worker', async () => {
   const v = await chamar(null, 'GET', '/api/versao');
-  assert.equal(v.j.versao, '2026-10-14-r4');
+  assert.equal(v.j.versao, '2026-10-16-patio');
   const sw = await (await fetch(base + '/sw.js')).text();
-  assert.match(sw, /indycar-v14/);
+  assert.match(sw, /indycar-v15/);
   assert.match(sw, /rodada4\.css/);
 });

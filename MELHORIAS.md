@@ -377,3 +377,19 @@ Sem DDL nesta rodada (nada novo no banco).
 271. Mock: `POST /api/__falha {status, vezes}` (simula o Render fora), `POST /api/__reset`, rotas novas e um consultor sem login para testar o "Ligar a …".
 272. Versão `2026-10-14-r4` em `/api/versao` e no app.
 273. ETag aceito também na forma fraca (W/"…") que o proxy do Render devolve quando ele mesmo comprime — achado conferindo em produção (antes o 304 virava 200).
+
+## Pátio (16/10/2026)
+O "Chegou" da Agenda já abre a ordem no IndyCar Pátio (gatilho do banco). A Agenda passa a mostrar o que acontece lá dentro.
+274. **Selo da etapa do Pátio** no cartão de quem chegou (Início, Agenda, Pendências e modo recepção): "Em execução · 1 p/ aprovar", "Pronto", "Entregue"… com a cor da etapa.
+275. O selo é um link: toca e abre a ordem no Pátio (`https://indycar-patio.netlify.app/?os=<id>`); no cartão do painel há também o botão "Abrir no Pátio".
+276. Uma chamada só por tela (`GET /api/patio/agendamentos?ids=…`, até 60 ids, só uuid), guardada 30 s no aparelho; sem o Pátio o cartão fica como sempre.
+277. Na ficha do agendamento: bloco do Pátio com etapa, nº da ordem, extras aprovados, **"Link de acompanhamento"** (copia) e **"Enviar pelo WhatsApp"** (texto pronto, "carro", sem "prezado").
+278. O link do cliente segue `patio_config.link_base` (lido do banco, cache 60 s) + `/acompanhar/?t=<token>`; ordem cancelada não tem link; o token cru nunca sai fora do link.
+279. **"Veio e fechou" soma os extras APROVADOS** pelo cliente no Pátio à sugestão que já existia (orçamento > valor do horário > CRM > média); recusados e pendentes não entram.
+280. A soma não troca a fonte da sugestão: só orçamento/valor anotado preenchem o campo; extras sozinhos viram o botão ✨; o que a pessoa digitou nunca é sobrescrito.
+281. **Pendências: "Entregues no Pátio sem desfecho"** — o carro saiu da oficina e a Agenda ainda não tem Veio e fechou/não fechou; cartão com os dois desfechos (só gestor, `GET /api/patio/entregues`).
+282. Contagem nova `entregues` em `/api/contagens` (só gestor): entra no selo do menu Pendências e vira chip no Início.
+283. Recepção (papel agenda) vê o selo do pátio (rota liberada só para leitura); a lista de entregues continua só do gestor.
+284. `patio.js` com as regras puras (links, soma em centavos, entregues sem desfecho, ids) e `tests/patio.test.mjs` (11 testes, inclusive as rotas por HTTP e os papéis).
+285. Mock com ordens de mentira (Patrícia em execução com extras; Rogério entregue sem desfecho) e roteiro de navegador em 1440/375 px sem rolagem lateral.
+286. Versão `2026-10-16-patio`, service worker `indycar-v15`.

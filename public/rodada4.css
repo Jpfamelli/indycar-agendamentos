@@ -189,3 +189,14 @@ body.recepcao .vazio p{font-size:calc(15px * var(--rec,1))}
 .nav-rotulo{letter-spacing:.5px}
 /* o menu ganhou Pendências e Ajuda: um fio no pé avisa que ainda tem item rolando para baixo */
 .nav{mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent)}
+
+/* ---- Pátio (16/10/2026): selo da etapa no cartão e bloco na ficha ---- */
+.selo-patio { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; cursor: pointer; }
+.selo-patio svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; flex: none; }
+.selo-patio:hover, .selo-patio:focus-visible { filter: brightness(1.08); text-decoration: underline; }
+.selo-patio:focus-visible { outline: 2px solid var(--accent, #e10600); outline-offset: 2px; }
+.rec-quem .selo-patio { margin-top: 6px; }
+.patio-ficha { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--border, rgba(127,127,127,.25)); border-radius: 12px; margin-bottom: 10px; }
+.patio-ficha-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.patio-ficha .eco-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.patio-ficha .btn svg, .abrir-patio svg { fill: none; stroke: currentColor; stroke-width: 2; }

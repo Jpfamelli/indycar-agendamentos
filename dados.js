@@ -17,6 +17,7 @@ import {
   inserirUm, atualizar, atualizarUm, remover, contar, criarUsuarioAuth, rpc, trocarSenhaAuth,
 } from './supabase.js';
 import { randomBytes } from 'node:crypto';
+import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, PATIO_URL } from './patio.js';
 
 // Tabelas de configuração ganharam o prefixo agenda_ no banco compartilhado.
 const T = {
@@ -2136,7 +2137,9 @@ export async function valorSugerido(id) {
     ehUuid(a.lead_id) ? selecionarUm('leads', `select=id,valor_orcado,valor_pago,status&id=eq.${a.lead_id}`).catch(() => null) : null,
     a.servico ? selecionar(T.agendamentos, h).catch(() => []) : [],
   ]);
-  return { ...sugerirValor({ agendamento: a, orcamentos, lead, historico }), atual: a.valor || 0 };
+  // Pátio: os extras que o cliente APROVOU entram somados (a sugestão de antes continua a base)
+  const extras = await extrasDoAgendamento(a.id).catch(() => []);
+  return { ...juntarSugestaoComExtras(sugerirValor({ agendamento: a, orcamentos, lead, historico }), extras), atual: a.valor || 0 };
 }
 
 const SEL_SEM_VALOR = 'select=id,cliente_nome,telefone,servico,data,hora,status,valor,lead_id,cliente_id,consultor_id,veiculo,placa,origem,confirmado,compareceu,consultores(nome,cor)';
@@ -2274,4 +2277,57 @@ export async function agendamentosVivosDoDia(data) {
 export function juntarPreferencias(atuais, novas) {
   const base = atuais && typeof atuais === 'object' && !Array.isArray(atuais) ? atuais : {};
   return { ...base, ...(novas && typeof novas === 'object' && !Array.isArray(novas) ? novas : {}) };
+}
+
+// ============================================================================
+// PÁTIO (16/10/2026): a Agenda só LÊ a ordem que o banco abriu no "Chegou".
+// ============================================================================
+let _linkBase = { valor: null, em: 0 };
+/** patio_config.link_base (cache de 60 s; sem a tabela, o endereço padrão). */
+export async function linkBaseDoPatio() {
+  if (_linkBase.valor && Date.now() - _linkBase.em < 60_000) return _linkBase.valor;
+  const c = await selecionarUm('patio_config', 'select=link_base&id=is.true').catch(() => null);
+  _linkBase = { valor: c?.link_base || PATIO_URL, em: Date.now() };
+  return _linkBase.valor;
+}
+
+const SEL_OS = 'select=id,numero,etapa,etapa_em,agendamento_id,token_publico,previsao_entrega,entregue_em,created_at';
+
+/** Ordens do pátio (a mais nova, sem as canceladas) dos horários pedidos → { [agendamento_id]: resumo }. */
+export async function patioDosAgendamentos(ids = []) {
+  const lista = ids.filter(ehUuid);
+  if (!lista.length) return {};
+  const ordens = await selecionar('patio_os', `${SEL_OS}&agendamento_id=in.(${lista.join(',')})&etapa=neq.cancelado&order=created_at.desc&limit=200`);
+  if (!ordens.length) return {};
+  const [extras, base] = await Promise.all([
+    selecionar('patio_extras', `select=os_id,status,valor&os_id=in.(${ordens.map((o) => o.id).join(',')})&limit=1000`).catch(() => []),
+    linkBaseDoPatio(),
+  ]);
+  const saida = {};
+  for (const o of ordens) if (!saida[o.agendamento_id]) saida[o.agendamento_id] = resumoDaOs(o, extras, base);
+  return saida;
+}
+
+/** Extras (com status e valor) da ordem viva deste horário — para somar à sugestão de valor. */
+export async function extrasDoAgendamento(id) {
+  if (!ehUuid(id)) return [];
+  const ordens = await selecionar('patio_os', `select=id&agendamento_id=eq.${id}&etapa=neq.cancelado&limit=5`);
+  if (!ordens.length) return [];
+  return selecionar('patio_extras', `select=os_id,status,valor&os_id=in.(${ordens.map((o) => o.id).join(',')})&limit=200`);
+}
+
+/** Pendências: carros ENTREGUES no Pátio cujo horário na Agenda não tem desfecho. */
+export async function entreguesNoPatioSemDesfecho({ dias = 60, limite = 100 } = {}) {
+  const desde = new Date(Date.now() - dias * 86400_000).toISOString();
+  const ordens = await selecionar('patio_os',
+    `select=id,numero,etapa,etapa_em,agendamento_id,token_publico,previsao_entrega,entregue_em,cliente_nome,veiculo,placa&etapa=eq.entregue&agendamento_id=not.is.null&entregue_em=gte.${desde}&order=entregue_em.desc&limit=300`);
+  if (!ordens.length) return [];
+  const ags = (await selecionar(T.agendamentos,
+    `${SEL_AGENDAMENTO}&id=in.(${[...new Set(ordens.map((o) => o.agendamento_id))].join(',')})`)).map(lerAgendamento);
+  const [extras, base] = await Promise.all([
+    selecionar('patio_extras', `select=os_id,status,valor&os_id=in.(${ordens.map((o) => o.id).join(',')})&limit=1000`).catch(() => []),
+    linkBaseDoPatio(),
+  ]);
+  return entreguesSemDesfecho(ordens, ags).slice(0, limite)
+    .map(({ os, agendamento }) => ({ ...agendamento, patio: resumoDaOs(os, extras, base) }));
 }

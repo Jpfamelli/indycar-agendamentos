@@ -30,6 +30,8 @@ const ROTAS_DA_PRESENCA = [
   ['GET', '/api/agendamentos'], ['PATCH', '/api/agendamentos/:id/status'],
   ['GET', '/api/notificacoes'], ['POST', '/api/notificacoes/lidas'],
   ['GET', '/api/tarefas'], ['PATCH', '/api/tarefas/:id'],
+  // Pátio (16/10): o selo da etapa no cartão de quem chegou (só leitura)
+  ['GET', '/api/patio/agendamentos'],
 ].map(([m, p]) => [m, casa(p)]);
 
 export function rotaDaPresenca(metodo, rota) {
@@ -62,6 +64,8 @@ const ROTAS_DE_GESTOR = [
   ['GET', '/api/valores/pendentes'], ['PUT', '/api/agendamentos/:id/valor'],
   ['GET', '/api/pendencias-antigas'],
   ['GET', '/api/consultores/sugestoes-login'], ['POST', '/api/consultores/distribuir'],
+  // Pátio (16/10): carros entregues sem desfecho na Agenda (Pendências)
+  ['GET', '/api/patio/entregues'],
 ].map(([m, p]) => [m, casa(p)]);
 
 export function rotaDeGestor(metodo, rota) {

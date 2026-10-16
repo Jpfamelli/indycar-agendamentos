@@ -14,6 +14,7 @@ import {
   presencaPodeMarcar,
 } from './regras.js';
 import { rodarAutomacoes } from './automacoes.js';
+import { idsDeAgendamento } from './patio.js';
 
 /* A camada de dados é trocável SÓ nos testes (tests/servidor.test.mjs injeta
    um banco de mentira com _injetar). Em produção é sempre o dados.js. */
@@ -38,7 +39,7 @@ const UUID = '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a
 
 /* Marca da versão no ar — aparece em /api/versao e no app.js (VERSAO_APP).
    Serve para conferir, depois do deploy, que o Render subiu ESTE código. */
-const VERSAO = '2026-10-14-r4';
+const VERSAO = '2026-10-16-patio';
 
 /* Cache curtinho na memória do servidor para as leituras mais pesadas (painel,
    serviços). Qualquer gravação (POST/PUT/PATCH/DELETE) ou importação do
@@ -1245,12 +1246,25 @@ async function api(req, res, url) {
      para o gestor (é ele quem resolve). Uma chamada no lugar da lista inteira
      do follow-up a cada troca de tela. */
   if (pathname === '/api/contagens' && m === 'GET') {
-    const [followup, semValor, antigas] = await Promise.all([
+    const [followup, semValor, antigas, entregues] = await Promise.all([
       dados.contarFollowup().catch(() => null),
       souGestor ? dados.contarConcluidosSemValor().catch(() => null) : null,
       souGestor ? dados.contarPendenciasAntigas().catch(() => null) : null,
+      souGestor ? dados.entreguesNoPatioSemDesfecho().then((l) => l.length).catch(() => null) : null,
     ]);
-    return send(res, 200, { followup, semValor, antigas }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, { followup, semValor, antigas, entregues }, { 'Cache-Control': 'no-store' });
+  }
+  /* ---- PÁTIO (16/10/2026): o banco abre a ordem no "Chegou"; aqui só leitura ----
+     ?ids=<uuid,uuid…> (até 60) → { itens: { [agendamento_id]: resumo da ordem } } */
+  if (pathname === '/api/patio/agendamentos' && m === 'GET') {
+    const ids = idsDeAgendamento(searchParams.get('ids'));
+    const itens = ids.length ? await dados.patioDosAgendamentos(ids).catch(() => null) : {};
+    if (itens === null) return send(res, 200, { itens: {}, erro: 'Pátio indisponível agora.' }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, { itens }, { 'Cache-Control': 'no-store' });
+  }
+  // Pendências: entregue no Pátio e sem "Veio e fechou / Veio e não fechou" na Agenda
+  if (pathname === '/api/patio/entregues' && m === 'GET') {
+    return send(res, 200, await dados.entreguesNoPatioSemDesfecho().catch(() => []), { 'Cache-Control': 'no-store' });
   }
   // Pendências antigas: passou há mais de 7 dias sem desfecho (só lista; resolve pelos botões)
   if (pathname === '/api/pendencias-antigas' && m === 'GET') {
