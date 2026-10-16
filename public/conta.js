@@ -19,14 +19,24 @@
 
 const CONTA_LS_EMAIL = 'indycar_agenda_email';
 const CONTA_LS_ERROS = 'indycar_agenda_erros_login';
-const CONTA_APPS = {
-  atendimento: { nome: 'Atendimento', desc: 'Conversas do WhatsApp', url: 'https://indycar-atendimento.onrender.com' },
-  crm:         { nome: 'CRM', desc: 'Leads e funil de vendas', url: 'https://indycar-crm.onrender.com' },
-  agenda:      { nome: 'Agenda', desc: 'Horários da oficina', url: 'https://indycar-agendamentos.onrender.com' },
-  comunicar:   { nome: 'Comunicar', desc: 'Lembretes e pós-venda', url: 'https://indycar-posvenda.onrender.com' },
-  orcador:     { nome: 'Orçador', desc: 'Orçamentos', url: 'https://indycar-orcador.netlify.app' },
-  ads:         { nome: 'Tráfego pago', desc: 'Meta e Google', url: null },
-};
+/* Endereços dos apps: UM lugar só (apps.js › IndyCarApps; a Central redefine). Sem ele, a reserva abaixo. */
+const CONTA_APPS = (() => {
+  const base = {
+    atendimento: { nome: 'Atendimento', desc: 'Conversas do WhatsApp', url: 'https://indycar-atendimento.onrender.com' },
+    crm:         { nome: 'CRM', desc: 'Leads e funil de vendas', url: 'https://indycar-crm.onrender.com' },
+    agenda:      { nome: 'Agenda', desc: 'Horários da oficina', url: 'https://indycar-agendamentos.onrender.com' },
+    comunicar:   { nome: 'Comunicar', desc: 'Lembretes e pós-venda', url: 'https://indycar-posvenda.onrender.com' },
+    orcador:     { nome: 'Orçador', desc: 'Orçamentos', url: 'https://indycar-orcador.netlify.app' },
+    patio:       { nome: 'Pátio', desc: 'Carro dentro da oficina', url: 'https://indycar-patio.netlify.app' },
+    ads:         { nome: 'Tráfego pago', desc: 'Meta e Google', url: null },
+  };
+  const A = (typeof globalThis !== 'undefined' && globalThis.IndyCarApps) || null;
+  if (!A) return base;
+  for (const k of Object.keys(base)) base[k] = { ...base[k], url: A.url(k) };
+  return base;
+})();
+/** Raiz absoluta deste app (link do e-mail de senha, base dos links relativos das notificações). */
+const contaRaiz = () => ((typeof globalThis !== 'undefined' && globalThis.IndyCarApps) ? globalThis.IndyCarApps.raizAbsoluta() : location.origin + '/');
 const CONTA_CORES = ['#e50914', '#f59e0b', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899', '#64748b'];
 
 function contaLer(chave) { try { return localStorage.getItem(chave); } catch { return null; } }
@@ -193,7 +203,7 @@ function contaPrepararLogin() {
     if (!navigator.onLine) return contaErro('erroEsqueci', contaMensagemLogin(null, false));
     btn.disabled = true;
     try {
-      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/' });
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: contaRaiz() });
       if (error) throw error;
       contaErro('erroEsqueci', 'Pronto. Se o e-mail estiver cadastrado, o link chega em alguns minutos — olhe também o spam. '
         + 'Não chegou? Peça ao administrador uma senha temporária.', true);
@@ -312,7 +322,7 @@ async function contaRecuperacao() {
 async function contaSair(todos) {
   if (typeof esquecerCacheInicio === 'function') esquecerCacheInicio();   // o painel guardado na aba sai junto
   try { await sb?.auth?.signOut(todos ? { scope: 'global' } : undefined); } catch { /* sai mesmo assim */ }
-  location.replace(location.pathname);
+  location.replace(typeof RAIZ === 'string' ? RAIZ : location.pathname);
 }
 
 /* -------------------------- topo: sino, tarefas, perfil -------------------------- */
@@ -399,7 +409,7 @@ async function contaAbrirNotificacao(id) {
     if (typeof emPresenca === 'function' && emPresenca()) return route('dia');
     return openAgendamentoModal(ag[1]);
   }
-  const url = contaLinkNotificacao(n, location.origin);
+  const url = contaLinkNotificacao(n, contaRaiz().replace(/\/+$/, ''));
   if (url) window.open(url, '_blank', 'noopener');
 }
 

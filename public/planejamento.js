@@ -8,9 +8,15 @@
   /* Status que já tiveram desfecho (ou não vão acontecer): não ocupam horário. */
   const FINAIS = new Set(['concluido', 'nao_fechou', 'nao_veio', 'cancelado']);
   const ATIVO = (a) => a && !FINAIS.has(a.status);
-  const ORIGEM_ATENDIMENTO = 'https://indycar-atendimento.onrender.com/';
-  const ORIGEM_CRM = 'https://indycar-crm.onrender.com/';
-  const ORIGEM_COMUNICAR = 'https://indycar-posvenda.onrender.com/';
+  /* Endereços dos apps: apps.js (IndyCarApps) manda; sem ele (testes no Node), a produção. */
+  const origemDe = (app, reserva) => {
+    const A = root.IndyCarApps;
+    const u = A && typeof A.url === 'function' ? A.url(app) : null;
+    return (u || reserva).replace(/\/+$/, '') + '/';
+  };
+  const ORIGEM_ATENDIMENTO = origemDe('atendimento', 'https://indycar-atendimento.onrender.com');
+  const ORIGEM_CRM = origemDe('crm', 'https://indycar-crm.onrender.com');
+  const ORIGEM_COMUNICAR = origemDe('comunicar', 'https://indycar-posvenda.onrender.com');
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   /* Janela de recepção: um consultor recebe um carro a cada 30 min. Dois
      horários que começam a menos de 30 min um do outro disputam a mesma pessoa. */
@@ -123,6 +129,7 @@
     return (lista || []).filter((a) => (!f.inicio || a.data >= f.inicio) && (!f.fim || a.data <= f.fim)
       && (!f.status || a.status === f.status) && (!f.consultor || a.consultor_id === f.consultor)
       && (!f.origem || a.origem === f.origem) && (!f.semTelefone || !telefone(a.telefone))
+      && (!f.semConfirmacao || (a.status === 'aguardando' && !a.confirmado && (!a.confirmacao || a.confirmacao.resposta !== 'confirmou')))
       && (!q || [a.cliente_nome, a.placa, a.veiculo, a.servico, a.consultor_nome].some((v) => normalizar(v).includes(q))
         || (tq.length >= 3 && telefone(a.telefone).includes(tq))));
   }

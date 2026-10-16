@@ -36,8 +36,12 @@ const svg = (p, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24">${p}</svg>
 
 // ---- estado -----------------------------------------------------------------
 /* Marca da versão (igual à de /api/versao no server.js): confere o deploy. */
-const VERSAO_APP = '2026-10-16-patio';
+const VERSAO_APP = '2026-10-16-r5';
 const state = { route:'inicio', empresa:{}, consultores:[] };
+/* RODADA 5 (preparação da Central): a raiz DESTE app ("/" sozinho, "/agenda/" sob a
+   Central). Todo fetch e todo link interno sai daqui — nada mais começa com "/". */
+const RAIZ = window.IndyCarApps ? IndyCarApps.raiz() : '/';
+const urlDoApp = (app, caminho) => (window.IndyCarApps ? IndyCarApps.url(app, caminho) : null);
 /* LINK DE ENTRADA do ecossistema: o Atendimento, o CRM e o Comunicar abrem a
    Agenda com ?tel=<dígitos> (às vezes &cliente=<uuid>). Lido UMA vez aqui e
    tirado da barra de endereço na hora — o telefone não fica no histórico do
@@ -105,7 +109,7 @@ async function api(method, path, body, o = {}) {
       const opt = { method, headers: await authCabecalhos() };     // token novo a cada volta (pode ter renovado)
       if (body) opt.body = JSON.stringify(body);
       let caiu = false;
-      try { r = await pedirComTempo('/api' + path, opt); } catch { caiu = true; r = null; }
+      try { r = await pedirComTempo(RAIZ + 'api' + path, opt); } catch { caiu = true; r = null; }
       if (o.repetir !== false && P.deveRepetir(method, r?.status, caiu)) {
         const espera = P.proximaEspera(tentativa, Math.random());
         if (espera !== null) {
@@ -159,8 +163,11 @@ function toast(msg, type = 'ok', opts = {}) {
      sem isto, um Tab + Enter desfazia um desfecho antigo sem ninguém ver. */
   const fechar = () => {
     clearTimeout(_toastTimer); t.classList.remove('show');
-    const b = $('.toast-acao', t); if (b) b.disabled = true;
+    $$('.toast-acao', t).forEach((b) => { b.disabled = true; });
   };
+  // rodada 5: mais de uma ação no mesmo recado (ex.: "Remarcar" e "Ver espera")
+  const acoes = Array.isArray(opts.acoes) ? opts.acoes.filter(Boolean) : (opts.acao ? [opts.acao] : []);
+  if (acoes.length) opts = { ...opts, acao: acoes[0] };
   clearTimeout(_toastTimer);
   t.className = 'toast';
   t.textContent = '';
@@ -172,14 +179,14 @@ function toast(msg, type = 'ok', opts = {}) {
   const txt = document.createElement('span');
   txt.className = 'toast-msg'; txt.textContent = msg;        // textContent: nome de cliente nunca vira HTML
   t.append(ico, txt);
-  if (opts.acao) {
+  for (const [i, acao] of acoes.entries()) {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'toast-acao'; b.textContent = opts.acao.rotulo;
+    b.type = 'button'; b.className = 'toast-acao' + (i ? ' secundaria' : ''); b.textContent = acao.rotulo;
     let usada = false;
     b.addEventListener('click', async () => {
       if (usada) return;                                       // clique duplo não desfaz duas vezes
       usada = true; fechar();
-      try { await opts.acao.fn(); } catch (e) { toast(e.message, 'err'); }
+      try { await acao.fn(); } catch (e) { toast(e.message, 'err'); }
     });
     t.append(b);
   }
@@ -219,14 +226,11 @@ const STATUS_LABEL = { aguardando:'Aguardando', confirmado:'Confirmado', em_aten
    ECOSSISTEMA INDYCAR — os apps da oficina. O seletor da barra lateral marca
    este (a Agenda) e abre os outros numa aba nova.
    --------------------------------------------------------------------------- */
-const ECOSSISTEMA = [
-  { chave:'agenda',      nome:'Agenda',      desc:'horários e presença',        url:'https://indycar-agendamentos.onrender.com', ico:I.calendar },
-  { chave:'crm',         nome:'CRM',         desc:'leads e funil',              url:'https://indycar-crm.onrender.com',          ico:I.flag },
-  { chave:'atendimento', nome:'Atendimento', desc:'conversas do WhatsApp',      url:'https://indycar-atendimento.onrender.com',  ico:I.wa },
-  { chave:'comunicar',   nome:'Comunicar',   desc:'lembretes e réguas',         url:'https://indycar-posvenda.onrender.com',     ico:I.send },
-  { chave:'orcador',     nome:'Orçador',     desc:'orçamentos com IA',          url:'https://indycar-orcador.netlify.app',       ico:I.money },
-  { chave:'site',        nome:'Site',        desc:'indycar-taubate',            url:'https://indycar-taubate.netlify.app',       ico:I.loja },
-];
+/* Os endereços moram em apps.js (IndyCarApps) — a Central troca por caminhos relativos. */
+const ICO_PATIO_APP = '<path d="M3 21V9l9-6 9 6v12"/><path d="M7 21v-6h10v6"/><path d="M9 18h6"/>';
+const ECOSSISTEMA = [['agenda', I.calendar], ['crm', I.flag], ['atendimento', I.wa], ['comunicar', I.send], ['patio', ICO_PATIO_APP], ['orcador', I.money], ['site', I.loja]]
+  .map(([chave, ico]) => ({ chave, ico, ...(window.IndyCarApps?.apps?.[chave] || {}), url: urlDoApp(chave) }))
+  .filter(a => a.url);
 const APP_ATUAL = 'agenda';
 
 /* Horário real da oficina: seg–sáb, 8h às 17h30. Fora disso a tela AVISA ao
@@ -296,6 +300,18 @@ function seloLembrete(a) {
   if (['pendente', 'agendado', 'fila'].includes(l.status)) return `<span class="badge-pill bp-gray" title="Lembrete na fila do Comunicar">lembrete na fila</span>`;
   if (l.status === 'falhou') return `<span class="badge-pill bp-red" title="O Comunicar não conseguiu enviar">lembrete falhou</span>`;
   return '';
+}
+
+/* RODADA 5: o que o cliente respondeu pelo LINK de confirmação (ag_confirmacoes). O
+   servidor anexa `confirmacao` {resposta, respondido_em, enviado_em} a quem ainda não tem desfecho. */
+function seloConfirmacao(a) {
+  const c = a?.confirmacao;
+  if (!c) return '';
+  const quando = c.respondido_em ? ' em ' + dataHoraBR(c.respondido_em) : '';
+  if (c.resposta === 'confirmou') return `<span class="badge-pill bp-ok-link" title="O cliente confirmou pelo link${esc(quando)}">✓ confirmou pelo link</span>`;
+  if (c.resposta === 'remarcar') return `<span class="badge-pill bp-orange" title="O cliente pediu para remarcar${esc(quando)} — já virou tarefa">quer remarcar</span>`;
+  if (c.resposta === 'nao_vem') return `<span class="badge-pill bp-red" title="O cliente avisou que não vem${esc(quando)} — já virou tarefa">avisou que não vem</span>`;
+  return `<span class="badge-pill bp-gray" title="Link de confirmação enviado em ${esc(dataHoraBR(c.enviado_em))}, sem resposta ainda">pedido de confirmação enviado</span>`;
 }
 
 /* O que dizer depois de marcar "Não veio" — a VERDADE sobre o aviso automático.
@@ -420,6 +436,7 @@ function corpoDoCartao(a, agora, botoes) {
         </div>
         <div class="appt-badges">
           ${rel ? `<span class="quando ${rel.tom}">${esc(rel.txt)}</span>` : ''}
+          ${seloConfirmacao(a)}
           ${seloLembrete(a)}
           ${!a.telefone && !emPresenca() ? '<span class="badge-pill bp-gray sem-tel" title="Sem telefone não recebe lembrete nem pós-venda — edite e use “Achar pelo nome”">sem telefone</span>' : ''}
           <span class="badge-pill ${seloCls}">${esc(seloTxt)}</span>
@@ -463,12 +480,41 @@ function appointmentCard(a, opts) {
                 title="Veio, mas não fechou o serviço: vai para o CRM como Não fechou">${svg(I.flag)} Veio e não fechou</button>
         <span class="act-fim">
         ${o.comWhatsapp === true ? `<button class="act wa" data-act="whatsapp">${svg(I.wa)} WhatsApp</button>` : ''}
+        ${podePedirConfirmacao(a) ? `<button class="act ico pedir-conf" data-act="confirmar" title="Pedir confirmação ao cliente (link pelo WhatsApp)" aria-label="Pedir confirmação de ${esc(a.cliente_nome)}">${svg(I.check)}</button>` : ''}
         ${linkConversa(a)}
         <button class="act ico" data-act="remarcar" title="Remarcar (outro dia ou hora)" aria-label="Remarcar ${esc(a.cliente_nome)}">${svg(I.calendar)}</button>
         <button class="act ico" data-act="editar" title="Editar" aria-label="Editar agendamento">${svg(I.edit)}</button>
         <button class="act red ico so-gestor" data-act="excluir" title="Excluir" aria-label="Excluir agendamento">${svg(I.trash)}</button>
         </span>`);
 }
+
+/* Pedir confirmação: só faz sentido para quem ainda vai vir, tem telefone e ainda não confirmou pelo link. */
+function podePedirConfirmacao(a) {
+  return ['aguardando', 'confirmado'].includes(a.status) && a.compareceu !== 1 && !!a.telefone
+    && a.confirmacao?.resposta !== 'confirmou' && a.data >= agoraSP().data;
+}
+
+/* RODADA 5 — PEDIR CONFIRMAÇÃO: o servidor gera o link (token) e o texto; a pessoa
+   manda pelo WhatsApp (abre com o texto pronto) ou copia. O cliente responde na
+   página pública /confirmar/ e o cartão ganha o selo "confirmou pelo link". */
+window.pedirConfirmacao = async function (id) {
+  let r;
+  try { r = await api('POST', `/agendamentos/${id}/confirmacao`, { canal: 'whatsapp' }); }
+  catch (e) { return toast(e.message, 'err'); }
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.check)} Pedir confirmação</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-body link-conf">
+      <p class="info-campo">O cliente abre o link e toca em <b>Confirmo</b>, <b>Preciso remarcar</b> ou <b>Não vou conseguir</b>. A resposta aparece no cartão${r.resposta ? ` — ele já respondeu: <b>${esc(r.resposta)}</b>` : ''}.</p>
+      <div class="texto" id="pc_texto">${esc(r.texto)}</div>
+      <code id="pc_link">${esc(r.link)}</code>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="pc_copiar">${svg(I.copiar)} Copiar texto</button>
+      ${r.whatsapp ? `<a class="btn green" id="pc_wa" href="${esc(r.whatsapp)}" target="_blank" rel="noopener">${svg(I.wa)} Mandar pelo WhatsApp</a>` : '<span class="muted">sem telefone: copie e mande por onde der</span>'}
+    </div>`);
+  $('#pc_copiar').addEventListener('click', async () => { toast((await copiarTexto(r.texto)) ? 'Texto copiado — cole no WhatsApp do cliente' : 'Não consegui copiar', 'ok'); });
+  $('#pc_wa')?.addEventListener('click', () => { setTimeout(() => { closeModal(); toast('Pedido de confirmação enviado — o cartão mostra a resposta'); route(); }, 300); });
+};
 
 /* O cartão some desta lista depois do desfecho? Depende de ONDE ele está:
    data-saida="tudo"      → agenda de hoje: qualquer desfecho tira o cartão da aba
@@ -597,7 +643,11 @@ async function marcarDesfecho(card, id, act) {
   if (cartaoVaiSair(card, act)) await sairDoCartao(card);
 
   if (act === 'nao_veio') {
-    toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
+    /* rodada 5: remarcar com UM clique no próprio recado; e se alguém da lista de
+       espera serve para o dia que vagou, o recado diz. */
+    const acoes = [{ rotulo: 'Remarcar', fn: () => abrirRemarcar(id) }];
+    if (r.espera?.length) acoes.push({ rotulo: `${r.espera.length} na espera`, fn: () => { state.esperaFoco = r.espera[0]?.id; route('espera'); } });
+    toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok', { acoes, duracao: 9000 });
   } else {
     /* Desfazer devolve o horário ao status de antes; o gatilho do banco reabre o
        lead no CRM (só quando foi a própria Agenda que o fechou). */
@@ -646,6 +696,7 @@ function bindApptActions(root) {
       try {
         if (act === 'editar')   return openAgendamentoModal(id);
         if (act === 'remarcar') return abrirRemarcar(id);
+        if (act === 'confirmar') return pedirConfirmacao(id);
         if (act === 'whatsapp') return openWhatsappModal(id);
         if (act === 'excluir') {
           if (!confirm('Excluir este agendamento?')) return;
@@ -684,9 +735,17 @@ async function patioDe(ids, forcar = false) {
 const ICO_PATIO = '<path d="M3 21V9l9-6 9 6v12"/><path d="M7 21v-6h10v6"/><path d="M9 18h6"/>';
 function seloPatioHtml(os) {
   const pend = os.extras_pendentes ? ` · ${os.extras_pendentes} p/ aprovar` : '';
+  const num = os.numero ? `OS ${os.numero} · ` : '';
   return `<a class="badge-pill ${esc(os.etapa_tom)} selo-patio" href="${esc(os.abrir)}" target="_blank" rel="noopener"
-      title="Ordem nº ${esc(os.numero ?? '')} no Pátio — toque para abrir" aria-label="No Pátio: ${esc(os.etapa_rotulo)}${esc(pend)}. Abrir no Pátio">
-      ${svg(ICO_PATIO)} ${esc(os.etapa_rotulo)}${esc(pend)}</a>`;
+      title="Ordem nº ${esc(os.numero ?? '')} no Pátio — toque para abrir" aria-label="No Pátio: ordem ${esc(os.numero ?? '')}, ${esc(os.etapa_rotulo)}${esc(pend)}. Abrir no Pátio">
+      ${svg(ICO_PATIO)} ${esc(num)}${esc(os.etapa_rotulo)}${esc(pend)}</a>`;
+}
+/* Recado depois do "Chegou": o nº da OS que o Pátio abriu e o botão para abrir lá. */
+function recadoDaOs(nome, r) {
+  const os = r?.patio;
+  if (!os?.os_id) return { msg: `${nome} chegou ✅`, acao: null };
+  _patioCache.set(r.id, { em: Date.now(), os });
+  return { msg: `${nome} chegou ✅ — OS nº ${os.numero ?? '?'} aberta no Pátio`, acao: { rotulo: 'Abrir no Pátio', fn: () => window.open(os.abrir, '_blank', 'noopener') } };
 }
 async function decorarPatio(root) {
   if (!root) return;
@@ -711,7 +770,7 @@ async function blocoPatioNaFicha(box, a) {
   if (!os) { box.innerHTML = ''; box.hidden = true; return; }
   const link = os.link_cliente;
   const tel = String(a.telefone || '').replace(/\D/g, '');
-  const primeiro = String(a.cliente_nome || '').trim().split(/s+/)[0] || 'tudo bem';
+  const primeiro = String(a.cliente_nome || '').trim().split(/\s+/)[0] || 'tudo bem';
   const texto = link ? `Oi ${primeiro}! Você acompanha o ${String(a.veiculo || '').trim() || 'seu carro'} aqui na IndyCar por este link, etapa por etapa: ${link} 🏁` : '';
   const wa = link && tel.length >= 10 ? `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(texto)}` : '';
   box.hidden = false;
@@ -923,6 +982,7 @@ function pintarInicio(d, opts = {}) {
             title="Sem telefone o cliente não recebe lembrete nem pós-venda. Toque para ver e corrigir.">
             ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
         <span class="chips-gestor" id="chipsGestor"></span>
+        <span class="chips-gestor" id="chipsEquipe"></span>
         ${opts.doCache ? '<small class="marca-cache" aria-live="polite">mostrando o último painel · atualizando…</small>' : ''}
       </div>
       ${prox ? `<div class="hero-prox">
@@ -996,6 +1056,43 @@ function pintarInicio(d, opts = {}) {
   } else if (!opts.quieto) animarNumeros(view);
   state._cards = c;
   if (state.contagens) pintarContagens(state.contagens);   // chips do gestor sem esperar outra chamada
+  pintarAniversarios();                                     // 🎂 da semana (equipe toda)
+}
+
+/* RODADA 5 — ANIVERSÁRIOS da semana (clientes.nascimento): um chip no Início; toque
+   abre a lista com o WhatsApp pronto ("Parabéns"). Quem manda a mensagem
+   automática é o Comunicar — aqui é o lembrete humano, para quem quiser ligar. */
+let _anivEm = 0;
+async function pintarAniversarios() {
+  const box = $('#chipsEquipe'); if (!box || emPresenca()) return;
+  if (!state.aniversarios || Date.now() - _anivEm > 10 * 60_000) {
+    try { state.aniversarios = (await api('GET', '/aniversarios?dias=7', null, { repetir: false })).itens || []; _anivEm = Date.now(); }
+    catch { return; }
+  }
+  const l = state.aniversarios, hoje = l.filter(x => x.em === 0).length;
+  if (!$('#chipsEquipe')) return;
+  $('#chipsEquipe').innerHTML = l.length ? `<button type="button" class="chip-aviso chip-aniv" id="chipAniv" title="Clientes que fazem aniversário nos próximos 7 dias">
+    ${svg(I.bolo)} ${hoje ? `${hoje} ${hoje === 1 ? 'aniversário hoje' : 'aniversários hoje'}` : `${l.length} ${l.length === 1 ? 'aniversário' : 'aniversários'} esta semana`}</button>` : '';
+  $('#chipAniv')?.addEventListener('click', abrirAniversarios);
+}
+function abrirAniversarios() {
+  const l = state.aniversarios || [];
+  const parabens = (c) => {
+    const tel = String(c.telefone || '').replace(/\D/g, ''); if (tel.length < 10) return '';
+    const txt = `Oi ${String(c.nome || '').trim().split(/\s+/)[0]}! Aqui é da IndyCar 🏁 Passando para desejar um feliz aniversário! Que o seu dia seja ótimo. 🎉`;
+    return `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(txt)}`;
+  };
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.bolo)} Aniversários da semana</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-body">
+      ${l.length ? `<ul class="aniv-lista">${l.map(c => `<li class="${c.em === 0 ? 'hoje' : ''}"><div><b>${esc(c.nome)}</b>
+          <small>${c.em === 0 ? 'hoje' : c.em === 1 ? 'amanhã' : `em ${c.em} dias`} · ${esc(dataBR(c.data))}${c.idade ? ` · ${c.idade} anos` : ''}${c.veiculo ? ' · ' + esc(c.veiculo) : ''}${c.aceita_mensagens === 0 ? ' · 🔕 não recebe mensagem automática' : ''}</small></div>
+          <div class="actions">${parabens(c) ? `<a class="icon-btn wa" href="${esc(parabens(c))}" target="_blank" rel="noopener" title="Mandar parabéns pelo WhatsApp" aria-label="Parabéns para ${esc(c.nome)}">${svg(I.wa)}</a>` : ''}
+            <button type="button" class="icon-btn" data-cli="${esc(c.id)}" title="Abrir ficha" aria-label="Abrir ficha de ${esc(c.nome)}">${svg(I.user)}</button></div></li>`).join('')}</ul>`
+        : '<p class="muted">Nenhum aniversário nos próximos 7 dias.</p>'}
+      <small class="muted">A mensagem automática de aniversário é do Comunicar. Aqui é para quem quiser ligar ou mandar um parabéns pessoal.</small>
+    </div>`);
+  $$('[data-cli]', modal).forEach(b => b.addEventListener('click', () => openClienteModal(b.dataset.cli)));
 }
 /* FOLHA DO DIA (rodada 4): escolhe o dia (hoje, amanhã ou outra data) e se vai
    telefone; a folha sai numerada, em ordem de hora, com consultor, observação
@@ -1041,13 +1138,13 @@ function imprimirFolha(listaDia, data, o = {}) {
     <h1>${esc(state.empresa?.nome || 'IndyCar')} — Agenda do dia</h1>
     <p class="folha-sub">${esc(dataExtenso(data))} · ${todos.length} ${todos.length === 1 ? 'horário' : 'horários'} · impresso às ${esc(agoraSP().hm)}</p>
     ${todos.length ? `<table>
-      <thead><tr><th>#</th><th>Hora</th><th>Cliente</th><th>Carro / placa</th><th>Serviço</th><th>Consultor</th>${comTel ? '<th>Telefone</th>' : ''}<th>Situação</th><th>Chegou?</th><th>Fechou?</th></tr></thead>
+      <thead><tr><th>#</th><th>Hora</th><th>Cliente</th><th>Carro / placa</th><th>Serviço</th><th>Consultor</th>${comTel ? '<th>Telefone</th>' : ''}<th>Situação</th><th>Confirmou?</th><th>Chegou?</th><th>Fechou?</th></tr></thead>
       <tbody>${todos.map(a => `<tr>
         <td class="n">${a.n}</td><td class="h">${esc(a.hora)}</td><td><b>${esc(a.cliente_nome)}</b>${obs(a) ? `<br><small>${esc(obs(a))}</small>` : ''}</td>
         <td>${esc([a.veiculo, a.placa].filter(Boolean).join(' · ') || '—')}</td>
         <td>${esc(a.servico)}</td><td>${esc(a.consultor_nome || '—')}</td>
         ${comTel ? `<td>${esc(mascaraTelefone(a.telefone) || '—')}</td>` : ''}
-        <td>${esc(sit(a))}</td><td class="caixa">☐</td><td class="caixa">☐</td></tr>`).join('')}</tbody>
+        <td>${esc(sit(a))}</td><td class="caixa">${a.confirmado || a.status === 'confirmado' || a.confirmacao?.resposta === 'confirmou' ? '☑' : '☐'}</td><td class="caixa">☐</td><td class="caixa">☐</td></tr>`).join('')}</tbody>
     </table>` : '<p>Nenhum horário marcado para este dia.</p>'}
     ${todos.length ? (() => { const r = P.resumo(todos); return `<p class="folha-resumo"><b>Resumo:</b> ${r.total} marcados · ${r.veio} vieram · ${r.fechou} fecharam · ${r.naoFechou} não fecharam · ${r.faltou} faltaram · ${r.pendentes} ainda sem desfecho</p>`; })() : ''}
     <p class="folha-assina">Conferido por: ________________________________ &nbsp; Horário: ________</p>
@@ -1096,22 +1193,26 @@ async function renderAgenda(opts = {}) {
     const todos = await api('GET', '/agendamentos' + (qs.toString() ? '?' + qs : ''));
     return q ? todos : todos.filter(a => !['oficina', 'resolvidos'].includes(grupoDoDia(a)));
   };
-  // filtro "só sem telefone" (vem do chip do Início ou do botão da barra)
-  const semTel = (l) => state.agendaSemTel ? l.filter(a => !a.telefone) : l;
+  // filtros "só sem telefone" e "sem confirmação" (vêm do chip do Início ou dos botões da barra)
+  const semConf = (a) => a.status === 'aguardando' && !a.confirmado && a.confirmacao?.resposta !== 'confirmou' && a.data >= agoraSP().data;
+  const semTel = (l) => { let r = state.agendaSemTel ? l.filter(a => !a.telefone) : l; if (state.agendaSemConf) r = r.filter(semConf); return r; };
   const pintar = (itens, q, animar) => {
     const box = $('#agendaList');
     if (!box) return;
     // na busca nada "sai": ela mostra todo mundo, inclusive quem já foi para o CRM
     if (q) box.removeAttribute('data-saida'); else box.dataset.saida = 'desfecho';
     const vis = semTel(itens);
-    pintarLista(box, (state.agendaSemTel && !vis.length)
-      ? vazio(I.check, 'Todo mundo com telefone', 'Nenhum agendamento pendente sem telefone. 🏁')
+    pintarLista(box, ((state.agendaSemTel || state.agendaSemConf) && !vis.length)
+      ? vazio(I.check, state.agendaSemConf ? 'Todo mundo confirmado' : 'Todo mundo com telefone', state.agendaSemConf ? 'Nenhum horário à frente esperando confirmação. 🏁' : 'Nenhum agendamento pendente sem telefone. 🏁')
       : htmlDaAgenda(vis, agoraSP(), !!q), animar);
     bindApptActions(box);
     const n = itens.filter(a => !a.telefone).length;
     const b = $('#btnSemTel');
-    if (b) { b.hidden = !n && !state.agendaSemTel; b.classList.toggle('ativo', !!state.agendaSemTel);
+    if (b) { b.hidden = !n && !state.agendaSemTel; b.classList.toggle('ativo', !!state.agendaSemTel); b.setAttribute('aria-pressed', String(!!state.agendaSemTel));
       b.innerHTML = `${svg(I.alerta)} Sem telefone <em class="tab-num">${n}</em>`; }
+    const nc = itens.filter(semConf).length, bc = $('#btnSemConf');
+    if (bc) { bc.hidden = !nc && !state.agendaSemConf; bc.classList.toggle('ativo', !!state.agendaSemConf); bc.setAttribute('aria-pressed', String(!!state.agendaSemConf));
+      bc.innerHTML = `${svg(I.check)} Sem confirmação <em class="tab-num">${nc}</em>`; }
     state._repintar = () => { if (state.route === 'agenda') pintar(itens, q, false); };
   };
 
@@ -1129,15 +1230,22 @@ async function renderAgenda(opts = {}) {
       <!-- sem botão "Novo agendamento" aqui: o do topo da página já faz isso -->
       <div class="search larga">${svg(I.search)}<input id="qAgenda" placeholder="Buscar por cliente, placa ou telefone — a busca acha também quem já foi para o CRM" value="${esc(q0)}" aria-label="Buscar agendamento"></div>
       <button type="button" class="btn" id="btnVerSemana" title="Ver a semana em grade, com ocupação por dia (tecla S)">${svg(I.calendar)} Semana</button>
+      <button type="button" class="btn" id="btnEsperaAgenda" title="Quem quer um horário e ainda não achou (tecla E)">${svg(I.relogio)} Espera${state.contagens?.espera ? ` <em class="tab-num">${state.contagens.espera}</em>` : ''}</button>
+      <button type="button" class="icon-btn so-tela" id="btnImprimirAgenda" title="Imprimir a folha de um dia" aria-label="Imprimir a folha de um dia">${svg(I.imprimir)}</button>
       ${meuConsultor ? `<button type="button" class="btn filtro-meus${state.minhaAgenda ? ' ativo' : ''}" id="btnMinhaAgenda" aria-pressed="${!!state.minhaAgenda}"
         title="Só os horários em que você é o consultor">${svg(I.user)} Minha agenda</button>` : ''}
       <button type="button" class="btn filtro-semtel" id="btnSemTel" hidden
               title="Mostrar só quem está sem telefone (não recebe lembrete nem pós-venda)"></button>
+      <button type="button" class="btn filtro-semtel" id="btnSemConf" hidden
+              title="Só os horários à frente que ainda não foram confirmados — peça pelo link (✓ no cartão)"></button>
     </div>
     <div class="panel"><div class="panel-body lista" id="agendaList"></div></div>`;
   pintar(lista, q0, !opts.quieto);
   $('#btnSemTel').addEventListener('click', () => { state.agendaSemTel = !state.agendaSemTel; route(); });
+  $('#btnSemConf').addEventListener('click', () => { state.agendaSemConf = !state.agendaSemConf; route(); });
   $('#btnVerSemana').addEventListener('click', () => route('semana'));
+  $('#btnEsperaAgenda').addEventListener('click', () => route('espera'));
+  $('#btnImprimirAgenda').addEventListener('click', () => abrirImpressao(null));
   $('#btnMinhaAgenda')?.addEventListener('click', () => {
     state.minhaAgenda = !state.minhaAgenda;
     try { localStorage.setItem('indycar_minha_agenda', state.minhaAgenda ? '1' : '0'); } catch { /* ok */ }
@@ -1226,12 +1334,14 @@ async function renderEquipe() {
      horários de hoje/amanhã sem consultor para quem tem menos carros. */
   const hoje = agoraSP().data, amanha = P.dia(hoje, 1);
   const gestor = document.body.classList.contains('gestor');
-  const [list, semana, nomes, sugestoes] = await Promise.all([
+  const [list, semana, nomes, sugestoes, livresHoje] = await Promise.all([
     api('GET', '/consultores'),
     api('GET', `/agendamentos?de=${hoje}&ate=${P.dia(hoje, 6)}`).catch(() => []),
     gestor ? api('GET', '/equipe/nomes').catch(() => []) : [],
     gestor ? api('GET', '/consultores/sugestoes-login').catch(() => []) : [],
+    api('GET', `/horarios-livres/dia?data=${hoje}`, null, { repetir: false }).catch(() => null),   // rodada 5: próximo horário livre de cada um hoje
   ]);
+  const proximoLivre = (id) => (livresHoje?.horarios || []).find(h => (h.consultores_livres || []).includes(id))?.hora || null;
   state.consultores = list;
   const carga = P.cargaSemana(semana, hoje, 7);
   const de = (id, i) => (carga[id] || [])[i] || 0;
@@ -1257,7 +1367,7 @@ async function renderEquipe() {
           : sug(c) ? `<button type="button" class="btn mini primary" data-ligar="${esc(c.id)}" data-perfil="${esc(sug(c).perfil_id)}" data-nome="${esc(sug(c).nome)}"
               title="O sistema reconheceu a pessoa pelo nome — confira e ligue com um clique">${svg(I.chave)} Ligar a ${esc(sug(c).nome)}</button>`
           : '<span class="muted" title="Sem login ligado: tarefas automáticas vão para o gestor">—</span>'}</td>
-        <td><span class="carga-chip">${de(c.id, 0)} ${de(c.id, 0) === 1 ? 'carro' : 'carros'}</span></td>
+        <td><span class="carga-chip">${de(c.id, 0)} ${de(c.id, 0) === 1 ? 'carro' : 'carros'}</span>${c.ativo && livresHoje?.aberto ? `<br><small class="muted" title="Primeira meia hora livre dele hoje">${proximoLivre(c.id) ? 'livre às ' + esc(proximoLivre(c.id)) : 'sem vaga hoje'}</small>` : ''}</td>
         <td><span class="carga-chip">${de(c.id, 1)}</span></td>
         <td>${barras(c.id)}</td>
         <td><span class="badge-pill ${c.ativo ? 'bp-green' : 'bp-gray'}">${c.ativo ? 'Ativo' : 'Inativo'}</span></td>
@@ -1306,9 +1416,15 @@ async function renderEquipe() {
 }
 
 async function renderCrm() {
-  const d = await api('GET', '/crm');
+  const gestor = document.body.classList.contains('gestor');
+  const [d, conf] = await Promise.all([api('GET', '/crm'), gestor ? api('GET', '/confirmacoes/resumo?dias=30', null, { repetir: false }).catch(() => null) : null]);
   const maxOri = Math.max(1, ...d.porOrigem.map(o => o.total));
   view.innerHTML = `
+    ${conf && conf.enviadas ? `<div class="panel faixa-faturamento"><div class="panel-body fat-linha">
+      <div><small>Confirmação pelo link · ${esc(conf.dias)} dias</small><b>${conf.taxa_resposta}%</b>
+        <span class="muted">${conf.enviadas} ${conf.enviadas === 1 ? 'pedido' : 'pedidos'} · ${conf.confirmaram} confirmaram · ${conf.remarcar} pediram remarcar · ${conf.nao_vem} avisaram que não vêm · ${conf.sem_resposta} sem resposta</span></div>
+      <div class="fat-buraco ${conf.sem_resposta ? '' : 'ok'}"><b>${conf.abertas}</b> ${conf.abertas === 1 ? 'abriu o link' : 'abriram o link'}</div>
+    </div></div>` : ''}
     <div class="kpi-row">
       ${statCard('blue',   d.total,               'Total de agendamentos', I.calendar)}
       ${statCard('green',  d.taxaComparecimento+'%','Taxa de comparecimento', I.check)}
@@ -1471,11 +1587,13 @@ const TOURS = {
     { alvo: '#agendaHoje [data-marca="nao_veio"]', titulo: 'Não veio?', texto: 'Toque em "Não veio" e confirme. O cliente recebe uma mensagem de WhatsApp — por isso pede confirmação.' },
     { alvo: '#recBusca', titulo: 'Procurar alguém', texto: 'Digite o nome ou a placa para achar o cliente rápido.' },
     { alvo: '#recLetra', titulo: 'Letra maior', texto: 'Aumente a letra se estiver longe da tela. A escolha fica guardada.' },
+    { alvo: '#recResumo', titulo: 'Quem está na casa', texto: '"Na casa" conta os carros dentro da oficina agora; "chegam hoje" é quem ainda vai aparecer; e o próximo a chegar.' },
   ],
   equipe: [
     { alvo: '#btnNovo', titulo: 'Novo agendamento', texto: 'Marque um horário por aqui (ou tecla N). O sistema sugere horário livre e consultor.' },
     { alvo: '#agendaHoje', titulo: 'Agenda de hoje', texto: 'Cada cartão tem os 3 desfechos: Veio e fechou, Não veio, Veio e não fechou. Quem tem desfecho sai daqui e vai para o CRM.' },
     { alvo: '#agendaHoje [data-act="concluido"]', titulo: 'Veio e fechou', texto: 'Pede o valor do serviço (opcional) com uma sugestão. É ele que alimenta o faturamento do CRM.' },
+    { alvo: '[data-route="espera"]', titulo: 'Lista de espera', texto: 'Não achou horário? Guarde o pedido aqui. Quando vagar, o recado avisa e "Encaixar" marca com um toque.' },
     { alvo: '#btnBusca', titulo: 'Buscar em tudo', texto: 'Ctrl+K acha agendamentos e clientes pelo nome, telefone, placa ou serviço.' },
     { alvo: '#btnTarefas', titulo: 'Suas tarefas', texto: '"Confirmar com o cliente" e "Reagendar" chegam aqui sozinhas. O sino avisa atrasos.' },
   ],
@@ -1557,7 +1675,8 @@ function fecharTour() {
 
 const AJUDA = {
   presenca: [
-    ['O cliente chegou', 'Toque em "Chegou" no cartão dele. Ele vai para "Já chegaram".'],
+    ['O cliente chegou', 'Toque em "Chegou" no cartão dele. Ele vai para "Já chegaram" e o Pátio abre a ordem (o recado mostra o nº da OS e "Abrir no Pátio").'],
+    ['Quem está na casa agora', 'O número "Na casa" no topo conta os carros dentro da oficina, inclusive os que chegaram outro dia. A aba "Já chegaram" lista todos.'],
     ['Marquei "Chegou" errado', 'Toque em "Desfazer" no recado que aparece embaixo, logo depois de marcar.'],
     ['O cliente não veio', 'Toque em "Não veio" e confirme. Ele recebe uma mensagem de WhatsApp da oficina.'],
     ['Não acho o cliente', 'Digite o nome ou a placa na busca do topo. Se não estiver na agenda de hoje, chame o atendimento.'],
@@ -1569,7 +1688,10 @@ const AJUDA = {
     ['Marcar um horário', 'Botão "Novo agendamento" (ou tecla N). Use "✨ Sugerir horário" e "Achar" para o telefone pelo nome.'],
     ['Registrar o que aconteceu', 'No cartão: "Veio e fechou" (pede o valor, opcional), "Não veio" ou "Veio e não fechou". Quem tem desfecho sai do Início e vai para o CRM.'],
     ['Fechei sem o valor', 'Tudo bem: o gestor completa em Pendências. Se souber depois, peça para ele.'],
-    ['Remarcar', 'Ícone de calendário no cartão, ou arraste o cartão para outro dia na Semana.'],
+    ['Remarcar', 'Ícone de calendário no cartão (mostra todos os horários livres do dia), ou arraste o cartão para outro dia na Semana — no modo Dia, arraste para a hora. Depois, "Avisar o cliente" manda o aviso pela fila do Comunicar.'],
+    ['Pedir confirmação ao cliente', 'Ícone ✓ verde no cartão (ou "Pedir confirmação" no horário aberto): manda um link pelo WhatsApp; ele toca em Confirmo / Remarcar / Não vou e o cartão mostra a resposta.'],
+    ['Não achei horário para o cliente', 'Lista de espera (tecla E, ou o botão no Novo agendamento). Quando alguém não vem ou cancela, o recado diz quem da lista serve para o dia; "Encaixar" marca com um toque.'],
+    ['Ver tudo de um cliente', 'Na ficha (ou no agendamento), "Visão 360": conversa, carro no pátio, leads, orçamentos, mensagens do Comunicar, tarefas e indicações — tudo pelo telefone.'],
     ['Ver a semana e a ocupação', 'Menu SEMANA (tecla S): Dia · Semana · Mês, com relatório e CSV.'],
     ['Imprimir a folha do dia', 'Ícone de impressora em "Agenda de hoje": escolha hoje ou amanhã.'],
     ['Apagar, exportar ou mudar configuração', 'Só o gestor ou o administrador. Se precisar, peça ao gestor.'],
@@ -1581,7 +1703,9 @@ const AJUDA = {
     ['Distribuir horários sem consultor', 'Menu EQUIPE › "Distribuir": dá os horários do dia sem consultor para quem tem menos carros.'],
   ],
 };
-const ATALHOS = [['N', 'novo agendamento'], ['S', 'semana'], ['Ctrl + K', 'buscar em tudo'], ['/', 'ir para a busca da tela'], ['?', 'esta ajuda'], ['Esc', 'fechar janela']];
+const ATALHOS_TELA = { i: 'inicio', a: 'agenda', e: 'espera', c: 'clientes', f: 'followup', h: 'historico', p: 'pendencias' };
+const ATALHOS = [['N', 'novo agendamento'], ['Ctrl + K', 'buscar em tudo (↑ ↓ e Enter nos resultados)'], ['I', 'início'], ['A', 'agenda'], ['S', 'semana'], ['E', 'lista de espera'],
+  ['C', 'clientes'], ['F', 'follow-up'], ['H', 'histórico'], ['P', 'pendências (gestor)'], ['/', 'ir para a busca da tela'], ['?', 'esta ajuda'], ['Esc', 'fechar janela']];
 
 async function renderAjuda() {
   const lista = emPresenca() ? AJUDA.presenca : [...AJUDA.equipe, ...(document.body.classList.contains('gestor') ? AJUDA.gestor : [])];
@@ -2063,7 +2187,7 @@ async function cfgEquipe(box) {
 async function baixarComLogin(caminho, nome, botao) {
   if (botao) botao.disabled = true;
   try {
-    const r = await fetch('/api' + caminho, { headers: await authCabecalhos() });
+    const r = await fetch(RAIZ + 'api' + caminho, { headers: await authCabecalhos() });
     if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.erro || 'Não consegui baixar.'); }
     const url = URL.createObjectURL(await r.blob());
     const a = Object.assign(document.createElement('a'), { href: url, download: nome });
@@ -2080,7 +2204,7 @@ async function renderConectores() {
     return;
   }
   const it = await api('GET', '/integracoes');
-  const icsUrl = location.origin + '/api/agenda.ics?t=' + encodeURIComponent(it.ics_token || '');
+  const icsUrl = new URL(RAIZ + 'api/agenda.ics?t=' + encodeURIComponent(it.ics_token || ''), location.origin).href;
   view.innerHTML = `
     <div class="cols">
       <div class="panel"><div class="panel-head"><h2>📱 Instalar como aplicativo</h2></div>
@@ -2216,7 +2340,7 @@ async function waConexao(box) {
             o botão <b>Reconectar WhatsApp</b> gera um código de 8 letras para
             digitar no celular da oficina.
           </p>
-          <a class="btn primary" href="https://indycar-atendimento.onrender.com" target="_blank" rel="noopener">
+          <a class="btn primary" href="${esc(urlDoApp('atendimento') || '#')}" target="_blank" rel="noopener">
             ${svg(I.wa)} Abrir o painel de atendimento
           </a>
           <div class="tpl" style="margin-top:14px"><div class="tpl-body"><b>Status:</b> <span id="cx_status2">—</span></div></div>
@@ -2275,7 +2399,7 @@ async function waConexao(box) {
 }
 
 async function waConfig(box, cfg) {
-  const webhook = location.origin + '/api/whatsapp/webhook';
+  const webhook = new URL(RAIZ + 'api/whatsapp/webhook', location.origin).href;
   box.innerHTML = `
     <div class="cols">
       <div class="panel">
@@ -2310,7 +2434,7 @@ async function waConfig(box, cfg) {
             <div><b>Lembretes de agendamento são do Comunicar.</b> A régua (quando avisar, o
             texto, quem pediu para não receber) fica lá — aqui o cartão só mostra
             "lembrete enviado" e "respondeu 👍".
-            <a href="https://indycar-posvenda.onrender.com" target="_blank" rel="noopener">Abrir o Comunicar</a></div></div>
+            <a href="${esc(urlDoApp('comunicar') || '#')}" target="_blank" rel="noopener">Abrir o Comunicar</a></div></div>
           <div class="tpl"><div class="tpl-body"><b>Como conectar em 5 passos:</b>
 1. Crie um app no <b>Meta for Developers</b> e ative o produto <b>WhatsApp</b>.
 2. Copie o <b>Phone Number ID</b> e gere um <b>Access Token</b> permanente.
@@ -2545,6 +2669,48 @@ async function desenharSugestoes(box, { data, consultor_id, ignorar, aoEscolher 
   } catch (e) { if (box.isConnected) box.innerHTML = `<span class="muted">${esc(e.message)}</span>`; }
 }
 
+/* RODADA 5 — GRADE DE HORÁRIOS LIVRES DO DIA (/api/horarios-livres/dia): todos os
+   horários que cabem naquele dia para aquele serviço (duração, janelas, consultores).
+   É o mesmo serviço que a IA do Atendimento usa para oferecer horário ao cliente.
+   Clicar num horário preenche data/hora; ‹ › andam o dia. */
+const MOTIVO_DIA = { domingo: 'Domingo a oficina não abre.', passou: 'Esse dia já passou.', encerrado: 'O expediente desse dia já encerrou.',
+  lotado: 'Esse dia está lotado para esse serviço.', fora_da_janela: 'Esse serviço não entra nesse dia (janela de agendamento).', consultor_inativo: 'Esse consultor está inativo.' };
+async function desenharGradeDoDia(box, o) {
+  if (!box) return;
+  const data = o.data || agoraSP().data;
+  box.dataset.data = data;
+  box.innerHTML = '<span class="muted">Procurando os horários livres…</span>';
+  const qs = new URLSearchParams({ data });
+  if (o.servico) qs.set('servico', o.servico);
+  if (o.consultor_id) qs.set('consultor_id', o.consultor_id);
+  if (o.ignorar) qs.set('ignorar', o.ignorar);
+  let r;
+  try { r = await api('GET', '/horarios-livres/dia?' + qs); }
+  catch (e) { if (box.isConnected) box.innerHTML = `<span class="muted">${esc(e.message)}</span>`; return; }
+  if (!box.isConnected || box.dataset.data !== data) return;
+  const hoje = agoraSP().data;
+  const cab = `<div class="livres-cab"><span>${svg(I.calendar)} <b>${esc(cap(rotuloDia(data, hoje)))}</b> · ${esc(dataBR(data))}${r.duracao_min ? ` · ~${r.duracao_min} min` : ''}${r.janelas?.length ? ` · janela ${r.janelas.map(j => j.inicio + '–' + j.fim).join(', ')}` : ''}</span>
+      <span class="livres-nav"><button type="button" class="btn mini" data-dia="-1" aria-label="Dia anterior">‹</button><button type="button" class="btn mini" data-dia="1" aria-label="Próximo dia">›</button></span></div>`;
+  let miolo;
+  if (!r.aberto) miolo = `<span class="muted">${esc(MOTIVO_DIA[r.motivo] || 'Sem horário nesse dia.')}</span>`;
+  else if (!r.horarios?.length) miolo = `<span class="muted">${esc(MOTIVO_DIA[r.motivo] || 'Nenhum horário livre nesse dia.')} Tente › o próximo dia.</span>`;
+  else miolo = `<div class="grade-horas">${r.horarios.map(h => `<button type="button" class="chip-sugestao${o.escolhido && o.escolhido.data === data && o.escolhido.hora === h.hora ? ' escolhido' : ''}" data-hora="${esc(h.hora)}"
+      title="${esc(h.hora)}–${esc(h.fim)} · ${h.consultores?.length ? 'livre: ' + h.consultores.map(c => c.nome).filter(Boolean).join(', ') : h.livres + ' vaga(s)'}" aria-label="${esc(h.hora)} livre">${esc(h.hora)}</button>`).join('')}</div>
+    <small class="muted">${r.horarios.length} ${r.horarios.length === 1 ? 'horário livre' : 'horários livres'} · ${r.capacidade} ${r.capacidade === 1 ? 'carro' : 'carros'} por meia hora</small>`;
+  box.innerHTML = cab + miolo;
+  $$('[data-dia]', box).forEach(b => b.addEventListener('click', () => {
+    let d = P.dia(data, +b.dataset.dia);
+    if (d < hoje) d = hoje;
+    if (new Date(d + 'T12:00:00Z').getUTCDay() === 0) d = P.dia(d, +b.dataset.dia > 0 ? 1 : -1);
+    if (d < hoje) d = hoje;
+    desenharGradeDoDia(box, { ...o, data: d });
+  }));
+  $$('[data-hora]', box).forEach(b => b.addEventListener('click', () => {
+    $$('[data-hora]', box).forEach(x => x.classList.toggle('escolhido', x === b));
+    o.aoEscolher({ data, hora: b.dataset.hora });
+  }));
+}
+
 /* No modal de agendamento: duração estimada, aviso de conflito e "✨ Sugerir horário". */
 function ligarPlanejamentoNoModal(id, servicos) {
   const tabela = P.tabelaDuracoes(servicos);
@@ -2570,14 +2736,22 @@ function ligarPlanejamentoNoModal(id, servicos) {
   $('#f_hora').addEventListener('input', deb);
   $('#f_serv').addEventListener('input', deb);
   conferir();
-  $('#f_sugerir').addEventListener('click', () => desenharSugestoes($('#f_sugestoes'), {
-    data: $('#f_data').value, consultor_id: $('#f_cons').value, ignorar: id,
-    aoEscolher: (s) => {
-      $('#f_data').value = s.data; $('#f_hora').value = s.hora;
-      $('#f_data').dispatchEvent(new Event('change')); $('#f_hora').dispatchEvent(new Event('input'));
-      toast(`Horário escolhido: ${dataBR(s.data)} às ${s.hora}`);
-    },
-  }));
+  /* rodada 5: o ✨ mostra TODOS os horários livres do dia escolhido (duração do serviço,
+     janelas, consultores) com ‹ › para andar o dia; os 3 "próximos" de sempre vêm embaixo. */
+  const escolher = (s) => {
+    $('#f_data').value = s.data; $('#f_hora').value = s.hora;
+    $('#f_data').dispatchEvent(new Event('change')); $('#f_hora').dispatchEvent(new Event('input'));
+    toast(`Horário escolhido: ${dataBR(s.data)} às ${s.hora}`);
+  };
+  let gradeLigada = false;
+  const grade = () => desenharGradeDoDia($('#f_grade'), { data: $('#f_data').value || agoraSP().data, servico: $('#f_serv').value.trim(),
+    consultor_id: $('#f_cons').value || null, ignorar: id, escolhido: { data: $('#f_data').value, hora: $('#f_hora').value }, aoEscolher: escolher });
+  $('#f_sugerir').addEventListener('click', () => {
+    gradeLigada = true; $('#f_grade').hidden = false; grade();
+    desenharSugestoes($('#f_sugestoes'), { data: $('#f_data').value, consultor_id: $('#f_cons').value, ignorar: id, aoEscolher: escolher });
+  });
+  $('#f_data').addEventListener('change', () => { if (gradeLigada) grade(); });
+  $('#f_serv').addEventListener('change', () => { if (gradeLigada) grade(); });
 }
 
 /* Rótulo e cor do que aconteceu com uma mensagem do Comunicar. */
@@ -2642,7 +2816,8 @@ async function contextoDoCliente(box, o = {}) {
       ${notas.length ? `<p class="ctx-notas">${notas.map(n => `<span class="badge-pill ${n.satisfeito === false ? 'bp-red' : 'bp-green'}"
           title="${esc(n.comentario || '')}">${n.nota !== null && n.nota !== undefined ? 'nota ' + esc(n.nota) : (n.satisfeito === false ? 'insatisfeito' : 'satisfeito')} · ${esc(dataCurtaBR(n.quando))}</span>`).join(' ')}</p>` : ''}
     </details>`;
-  box.innerHTML = htmlLinks + htmlHist + htmlMsgs;
+  box.innerHTML = htmlLinks + htmlHist + htmlMsgs + (tel.length >= 10 ? '<div id="ctx360" class="ctx-bloco"></div>' : '');
+  if (tel.length >= 10) bloco360($('#ctx360', box), tel, chave, box).catch(() => { $('#ctx360', box)?.remove(); });
   $$('[data-ag]', box).forEach(b => b.addEventListener('click', () => openAgendamentoModal(b.dataset.ag)));
   $('#ctxAgendar', box)?.addEventListener('click', () => {
     const ult = hist[0] || {};
@@ -2650,6 +2825,56 @@ async function contextoDoCliente(box, o = {}) {
       veiculo: o.veiculo || ult.veiculo, placa: o.placa || ult.placa, origem: ult.origem });
   });
 }
+
+/* ---- RODADA 5 — VISÃO 360 (rpc cliente_360 da base, pelo telefone) -----------
+   Tudo que os outros apps sabem do cliente, numa dobra da ficha: conversa (link
+   para o Atendimento), carro no pátio (etapa + link), leads abertos (CRM),
+   orçamentos, mensagens do Comunicar, tarefas abertas, indicações e os totais.
+   Nada aqui segura a ficha: carrega depois; falhou, a dobra some. */
+const ETAPA_PATIO_ROTULO = { recebido: 'Recebido', diagnostico: 'Diagnóstico', aguardando_aprovacao: 'Aguardando aprovação', aguardando_peca: 'Aguardando peça',
+  em_execucao: 'Em execução', teste: 'Em teste', pronto: 'Pronto', entregue: 'Entregue', cancelado: 'Cancelado' };
+async function bloco360(box, tel, chave, pai) {
+  if (!box || emPresenca()) return;
+  box.outerHTML = `<details class="ctx-bloco" id="ctx360"><summary>${svg(I.flag)} Visão 360 <span class="muted">· carregando…</span></summary></details>`;
+  const r = await api('GET', '/clientes/360?tel=' + encodeURIComponent(tel), null, { repetir: false });
+  const det = $('#ctx360', pai);
+  if (!det || (pai && pai.dataset.chave !== chave)) return;
+  if (!r || r.indisponivel) { det.remove(); return; }
+  const s = r.resumo || {};
+  const linkApp = (app, caminho) => urlDoApp(app, caminho);
+  const chips = [];
+  if (r.conversa) chips.push(`<a class="badge-pill bp-blue" href="${esc(linkApp('atendimento', r.conversa.link || `?tel=${tel}`))}" target="_blank" rel="noopener" title="Abrir a conversa no Atendimento">${svg(I.wa)} conversa${r.conversa.aguardando_consultor ? ' · aguardando consultor' : ''}${r.conversa.etapa ? ' · ' + esc(r.conversa.etapa) : ''}</a>`);
+  const naOficina = (r.patio || []).find(o => o.etapa && !['entregue', 'cancelado'].includes(o.etapa));
+  if (naOficina) chips.push(`<a class="badge-pill bp-orange" href="${esc(linkApp('patio', naOficina.link || `?os=${naOficina.id}`))}" target="_blank" rel="noopener" title="Abrir a ordem no Pátio">${svg(ICO_PATIO)} no pátio: ${esc(ETAPA_PATIO_ROTULO[naOficina.etapa] || naOficina.etapa)}${naOficina.numero ? ' · OS ' + esc(naOficina.numero) : ''}${naOficina.extras_pendentes ? ' · ' + naOficina.extras_pendentes + ' p/ aprovar' : ''}</a>`);
+  const leadsAbertos = (r.leads || []).filter(l => !['concluido', 'perdido'].includes(l.status));
+  if (leadsAbertos.length) chips.push(`<a class="badge-pill bp-purple" href="${esc(linkApp('crm', leadsAbertos[0].link || `?tel=${tel}`))}" target="_blank" rel="noopener" title="Abrir no CRM">${svg(I.flag)} ${leadsAbertos.length} ${leadsAbertos.length === 1 ? 'lead aberto' : 'leads abertos'} · ${esc(leadsAbertos[0].status || '')}</a>`);
+  const orcs = r.orcamentos || [];
+  if (orcs.length) chips.push(`<span class="badge-pill bp-gray" title="${esc(orcs.slice(0, 3).map(o => `nº ${o.numero ?? '?'} · ${o.status ?? ''}`).join(' · '))}">${svg(I.money)} ${orcs.length} ${orcs.length === 1 ? 'orçamento' : 'orçamentos'}${orcs[0]?.status ? ' · último ' + esc(orcs[0].status) : ''}</span>`);
+  if (s.tarefas_abertas) chips.push(`<span class="badge-pill bp-orange">${svg(I.check)} ${s.tarefas_abertas} ${s.tarefas_abertas === 1 ? 'tarefa aberta' : 'tarefas abertas'}</span>`);
+  const ind = r.indicacoes || {};
+  if (ind.fez?.length) chips.push(`<span class="badge-pill bp-green" title="${esc(ind.fez.map(x => x.nome || x.telefone || '').join(', '))}">indicou ${ind.fez.length}</span>`);
+  if (ind.foi_indicado_por) chips.push(`<span class="badge-pill bp-green">veio por indicação de ${esc(ind.foi_indicado_por.nome || '')}</span>`);
+  if (r.cliente?.aceita_mensagens === false) chips.push(`<span class="badge-pill bp-red">${svg(I.sino_off)} não recebe mensagem automática</span>`);
+  const ultimoEnvio = (r.comunicar || [])[0];
+  const resumo = `<div class="f360-resumo">
+      <div><small>Gasto total</small><b>${esc(P.reais(s.total_gasto || 0))}</b></div>
+      <div><small>Serviços feitos</small><b>${s.servicos_feitos || 0}</b></div>
+      <div><small>Faltas</small><b class="${s.faltas ? 'alerta' : ''}">${s.faltas || 0}</b></div>
+      <div><small>Última visita</small><b>${s.ultima_visita ? esc(dataCurtaBR(s.ultima_visita)) : '—'}</b></div>
+      <div><small>Próximo horário</small><b>${s.proximo_horario ? esc(dataCurtaBR(s.proximo_horario)) : '—'}</b></div>
+      <div><small>Mensagens</small><b>${s.mensagens_total || 0}</b></div>
+    </div>`;
+  det.innerHTML = `<summary>${svg(I.flag)} Visão 360 <span class="muted">· o que os outros apps sabem</span></summary>
+    <div class="f360">${resumo}
+      ${chips.length ? `<div class="f360-chips">${chips.join('')}</div>` : '<p class="muted">Sem conversa, lead, orçamento ou passagem pelo pátio.</p>'}
+      ${ultimoEnvio ? `<ul class="f360-lista"><li><small>Comunicar:</small> ${esc(rotuloTipoEnvio(ultimoEnvio.tipo))} <small>${esc(dataCurtaBR(ultimoEnvio.enviado_em || ultimoEnvio.enviar_em || ultimoEnvio.created_at))} · ${esc(ultimoEnvio.status || '')}</small>${ultimoEnvio.resposta ? ` <small>· respondeu: “${esc(String(ultimoEnvio.resposta).slice(0, 80))}”</small>` : ''}</li></ul>` : ''}
+      ${s.carro_na_oficina && !naOficina ? '<small class="muted">carro na oficina</small>' : ''}
+    </div>`;
+  det.open = !!(naOficina || leadsAbertos.length || r.conversa?.aguardando_consultor);
+}
+const rotuloTipoEnvio = (t) => ({ lembrete: 'Lembrete do horário', aniversario: 'Feliz aniversário', revisao: 'Lembrete de revisão', retorno: 'Convite de retorno', posvenda: 'Pós-venda',
+  avaliacao: 'Avaliação', avulsa: 'Mensagem avulsa', campanha: 'Campanha', orcamento: 'Orçamento', nao_fechou: 'Não fechou', reativacao: 'Reativação',
+  patio_entrada: 'Pátio: entrada', patio_extra: 'Pátio: extra', patio_pronto: 'Pátio: pronto', area_cliente: 'Área do Cliente' }[t] || t || 'Mensagem');
 
 /* ---- REMARCAR: outro dia/hora com sugestões, e Desfazer -------------------- */
 async function remarcarPara(a, data, hora) {
@@ -2663,7 +2888,17 @@ async function remarcarPara(a, data, hora) {
   }
   await api('PUT', `/agendamentos/${a.id}`, corpo);
   esquecerDias();
-  toast(`${a.cliente_nome}: remarcado para ${rotuloDia(data, agoraSP().data)} às ${hora}`, 'ok', { acao: { rotulo: 'Desfazer', fn: async () => {
+  /* rodada 5: avisar o cliente da remarcação — pela FILA do Comunicar (sai sozinho, respeita o
+     opt-out) ou, se a fila recusar, pelo WhatsApp aberto com o texto pronto. Nunca sem clique. */
+  const avisar = a.telefone ? { rotulo: 'Avisar o cliente', fn: async () => {
+    try {
+      const r = await api('POST', `/agendamentos/${a.id}/avisar-remarcacao`, {});
+      if (r.enfileirado) return toast(`Aviso da remarcação na fila do Comunicar para ${a.cliente_nome} ✅`);
+      if (r.whatsapp) { window.open(r.whatsapp, '_blank', 'noopener'); return toast(r.motivo || 'Abri o WhatsApp com o texto pronto'); }
+      toast(r.motivo || 'Não deu para avisar por aqui', 'err');
+    } catch (e) { toast(e.message, 'err'); }
+  } } : null;
+  toast(`${a.cliente_nome}: remarcado para ${rotuloDia(data, agoraSP().data)} às ${hora}`, 'ok', { duracao: 10000, acoes: [avisar, { rotulo: 'Desfazer', fn: async () => {
     /* Volta tudo como era — inclusive "Não veio". Pelo PUT (edição) isso NÃO
        manda o aviso de ausência de novo: o aviso só sai pelo botão do cartão. */
     await api('PUT', `/agendamentos/${a.id}`, corpo.status
@@ -2675,7 +2910,7 @@ async function remarcarPara(a, data, hora) {
     esquecerDias();
     toast(`Desfeito — ${a.cliente_nome} voltou para ${dataBR(antes.data)} às ${antes.hora}`);
     route();
-  } } });
+  } }] });
   route();
 }
 window.abrirRemarcar = async function(id) {
@@ -2692,7 +2927,9 @@ window.abrirRemarcar = async function(id) {
         <div class="field"><label for="r_hora">Nova hora</label><input id="r_hora" type="time" value="${esc(a.hora)}" min="08:00" max="17:30" step="900"></div>
       </div>
       <p class="aviso-campo" id="r_aviso" hidden>${svg(I.alerta)} <span></span></p>
-      <div class="sugerir"><span class="muted">✨ Horários livres:</span><div class="sugestoes" id="r_sugestoes" aria-live="polite"></div></div>
+      <!-- rodada 5: TODOS os horários livres do dia escolhido (duração do serviço, janelas) -->
+      <div class="sugestoes grade-livres" id="r_grade" aria-live="polite"></div>
+      <div class="sugerir"><span class="muted">✨ Próximos dias:</span><div class="sugestoes" id="r_sugestoes" aria-live="polite"></div></div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn primary" id="r_salvar">${svg(I.check)} Remarcar</button></div>`);
@@ -2708,11 +2945,15 @@ window.abrirRemarcar = async function(id) {
     if (!av.isConnected) return;
     av.hidden = !msg; if (msg) $('span', av).textContent = msg + ' Pode remarcar mesmo assim.';
   };
-  $('#r_data').addEventListener('change', () => { aviso(); desenharSugestoes($('#r_sugestoes'), sug()); });
+  const escolher = (s) => { $('#r_data').value = s.data; $('#r_hora').value = s.hora; aviso(); grade(false); };
+  const grade = (redesenhar = true) => { if (!redesenhar && $('#r_grade')?.dataset.data === $('#r_data').value) return;
+    desenharGradeDoDia($('#r_grade'), { data: $('#r_data').value > agoraSP().data ? $('#r_data').value : agoraSP().data, servico: a.servico,
+      consultor_id: a.consultor_id || null, ignorar: a.id, escolhido: { data: $('#r_data').value, hora: $('#r_hora').value }, aoEscolher: escolher }); };
+  $('#r_data').addEventListener('change', () => { aviso(); grade(); desenharSugestoes($('#r_sugestoes'), sug()); });
   $('#r_hora').addEventListener('input', debounce(aviso, 200));
   const sug = () => ({ data: $('#r_data').value > agoraSP().data ? $('#r_data').value : agoraSP().data,
-    consultor_id: a.consultor_id, ignorar: a.id,
-    aoEscolher: (s) => { $('#r_data').value = s.data; $('#r_hora').value = s.hora; aviso(); } });
+    consultor_id: a.consultor_id, ignorar: a.id, aoEscolher: escolher });
+  grade();
   desenharSugestoes($('#r_sugestoes'), sug());
   aviso();
   $('#r_salvar').addEventListener('click', async () => {
@@ -2767,13 +3008,24 @@ window.abrirBuscaGlobal = function() {
     <div class="modal-body">
       <div class="search larga">${svg(I.search)}<input id="bgQ" type="search" placeholder="Nome, telefone, placa, carro ou serviço" aria-label="Buscar agendamentos e clientes" autocomplete="off"></div>
       <div id="bgRes" class="busca-res" aria-live="polite"><p class="muted">Digite pelo menos 2 letras. Atalho: Ctrl+K.</p></div>
+      <p class="busca-dica"><kbd class="mini">↑</kbd> <kbd class="mini">↓</kbd> escolhe · <kbd class="mini">Enter</kbd> abre · telefone com ou sem DDD, placa com ou sem hífen</p>
     </div>`);
   let vez = 0;
-  // Enter abre o primeiro resultado (agendamento antes de cliente)
+  /* rodada 5: setas andam pelos resultados; Enter abre o marcado (ou o primeiro). */
   $('#bgQ').addEventListener('keydown', (ev) => {
+    const itens = $$('#bgRes .busca-item');
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      if (!itens.length) return;
+      ev.preventDefault();
+      const i = itens.findIndex(x => x.classList.contains('ativo'));
+      const n = ev.key === 'ArrowDown' ? (i + 1) % itens.length : (i - 1 + itens.length) % itens.length;
+      itens.forEach((x, k) => x.classList.toggle('ativo', k === n));
+      itens[n].scrollIntoView({ block: 'nearest' });
+      return;
+    }
     if (ev.key !== 'Enter') return;
-    const primeiro = $('#bgRes .busca-item');
-    if (primeiro) { ev.preventDefault(); primeiro.click(); }
+    const alvo = $('#bgRes .busca-item.ativo') || itens[0];
+    if (alvo) { ev.preventDefault(); alvo.click(); }
   });
   $('#bgQ').addEventListener('input', debounce(async (ev) => {
     const q = ev.target.value.trim(), box = $('#bgRes'); if (!box) return;
@@ -2783,17 +3035,22 @@ window.abrirBuscaGlobal = function() {
     try {
       const r = await api('GET', '/busca?q=' + encodeURIComponent(q));
       if (minha !== vez || !box.isConnected) return;
-      const ag = r.agendamentos || [], cl = r.clientes || [];
-      if (!ag.length && !cl.length) { box.innerHTML = `<p class="muted">Nada com "${esc(q)}".</p>`; return; }
+      const ag = r.agendamentos || [], cl = r.clientes || [], es = r.espera || [];
+      if (!ag.length && !cl.length && !es.length) { box.innerHTML = `<p class="muted">Nada com "${esc(q)}".</p>`; return; }
       box.innerHTML = (ag.length ? `<h4>Agendamentos <em class="tab-num">${ag.length}</em></h4>` + ag.map(a => `
           <button type="button" class="busca-item" data-ag="${esc(a.id)}"><b>${esc(a.cliente_nome)}</b>
             <span>${esc(dataBR(a.data))} ${esc(a.hora)} · ${esc(a.servico)}${a.placa ? ' · ' + esc(a.placa) : ''}</span>
             <span class="badge-pill ${statusClass(a.status)}">${esc(STATUS_LABEL[a.status] || a.status)}</span></button>`).join('') : '')
         + (cl.length ? `<h4>Clientes <em class="tab-num">${cl.length}</em></h4>` + cl.map(c => `
           <button type="button" class="busca-item" data-cli="${esc(c.id)}"><b>${esc(c.nome)}</b>
-            <span>${esc(mascaraTelefone(c.telefone) || 'sem telefone')}${c.veiculo ? ' · ' + esc(c.veiculo) : ''}${c.placa ? ' · ' + esc(c.placa) : ''}</span></button>`).join('') : '');
+            <span>${esc(mascaraTelefone(c.telefone) || 'sem telefone')}${c.veiculo ? ' · ' + esc(c.veiculo) : ''}${c.placa ? ' · ' + esc(c.placa) : ''}</span></button>`).join('') : '')
+        + (es.length ? `<h4>Lista de espera <em class="tab-num">${es.length}</em></h4>` + es.map(e => `
+          <button type="button" class="busca-item" data-esp="${esc(e.id)}"><b>${esc(e.cliente_nome)}</b>
+            <span>${esc(e.servico)} · ${esc(mascaraTelefone(e.telefone) || 'sem telefone')}${e.preferencia ? ' · ' + esc(e.preferencia) : ''}</span>
+            <span class="badge-pill bp-orange">esperando</span></button>`).join('') : '');
       $$('[data-ag]', box).forEach(b => b.addEventListener('click', () => openAgendamentoModal(b.dataset.ag)));
       $$('[data-cli]', box).forEach(b => b.addEventListener('click', () => openClienteModal(b.dataset.cli)));
+      $$('[data-esp]', box).forEach(b => b.addEventListener('click', () => { closeModal(); state.esperaFoco = b.dataset.esp; state.esperaFiltro = 'aberta'; route('espera'); }));
     } catch (e) { if (minha === vez && box.isConnected) box.innerHTML = `<p class="muted">${esc(e.message)}</p>`; }
   }, 250));
 };
@@ -2882,7 +3139,7 @@ async function enviarFila(avisarSeFalhar = false) {
    modal fechar sem salvar (clique fora, sessão caiu, sistema fora, recarregou
    a página), na próxima vez que abrir o MESMO agendamento (ou um novo) os
    campos voltam, com "Descartar". Salvar ou Cancelar apagam o rascunho. */
-const CAMPOS_RASCUNHO = ['f_nome', 'f_tel', 'f_veic', 'f_placa', 'f_serv', 'f_data', 'f_hora', 'f_cons', 'f_ori', 'f_status', 'f_obs', 'f_cli'];
+const CAMPOS_RASCUNHO = ['f_nome', 'f_tel', 'f_veic', 'f_placa', 'f_serv', 'f_data', 'f_hora', 'f_cons', 'f_ori', 'f_status', 'f_obs', 'f_cli', 'f_nasc'];
 function ligarRascunho(id, pre) {
   const chave = 'indycar_rascunho_ag_' + (id || 'novo');
   const ler = () => Object.fromEntries(CAMPOS_RASCUNHO.map(k => [k, $('#' + k)?.value ?? '']));
@@ -2924,6 +3181,12 @@ window.openAgendamentoModal = async function(id, pre = {}){
     for (const k of ['cliente_nome','telefone','veiculo','placa','servico','data','hora','consultor_id','origem','cliente_id'])
       if (pre[k]) a[k] = pre[k];
     if (a.telefone) a.telefone = mascaraTelefone(a.telefone);
+    // encaixe da lista de espera: cai no primeiro horário livre do dia (o servidor sabe a duração do serviço)
+    if (pre.espera_id && pre.data && !pre.hora) {
+      const qs = new URLSearchParams({ data: pre.data }); if (pre.servico) qs.set('servico', pre.servico);
+      const livre = await api('GET', '/horarios-livres/dia?' + qs, null, { repetir: false }).catch(() => null);
+      if (livre?.horarios?.[0]) a.hora = livre.horarios[0].hora;
+    }
   }
   openModal(`
     <div class="modal-head"><h3>${svg(I.calendar)} ${id?'Editar':'Novo'} agendamento</h3>
@@ -2966,18 +3229,23 @@ window.openAgendamentoModal = async function(id, pre = {}){
       <p class="info-campo" id="f_duracao" aria-live="polite" hidden></p>
       <p class="aviso-campo" id="f_conflito" role="status" hidden>${svg(I.alerta)} <span></span></p>
       <div class="sugerir">
-        <button type="button" class="btn mini" id="f_sugerir" title="Mostra 3 horários livres a partir da data escolhida">✨ Sugerir horário</button>
+        <button type="button" class="btn mini" id="f_sugerir" title="Mostra os horários livres do dia (pela duração do serviço) e 3 sugestões dos próximos dias">✨ Horários livres</button>
         <div class="sugestoes" id="f_sugestoes" aria-live="polite"></div>
       </div>
-      <div class="grid2">
+      <div class="sugestoes grade-livres" id="f_grade" aria-live="polite" hidden></div>
+      <div class="grid3">
         <div class="field"><label for="f_ori">Origem</label><select id="f_ori">
           ${ORIGENS.map(o=>`<option ${o==a.origem?'selected':''}>${o}</option>`).join('')}
         </select></div>
         <div class="field"><label for="f_status">Situação</label><select id="f_status">
           ${Object.entries(STATUS_LABEL).map(([k,v])=>`<option value="${k}" ${k==a.status?'selected':''}>${v}</option>`).join('')}
         </select></div>
+        <!-- rodada 5: aniversário do cliente sem sair do agendamento (opcional, vai para a ficha ao salvar) -->
+        <div class="field"><label for="f_nasc">Aniversário <small class="muted">(opcional)</small></label>
+          <input id="f_nasc" inputmode="numeric" maxlength="10" placeholder="DD/MM" autocomplete="off" title="Vai para a ficha do cliente — o Comunicar manda os parabéns"></div>
       </div>
       <div class="field"><label for="f_obs">Observações</label><textarea id="f_obs">${esc(a.observacoes)}</textarea></div>
+      ${id && a.confirmacao ? `<p class="info-campo">${svg(I.check)} ${a.confirmacao.resposta === 'confirmou' ? `Confirmou pelo link em ${esc(dataHoraBR(a.confirmacao.respondido_em))}` : a.confirmacao.resposta === 'remarcar' ? `Pediu para remarcar pelo link em ${esc(dataHoraBR(a.confirmacao.respondido_em))}` : a.confirmacao.resposta === 'nao_vem' ? `Avisou pelo link que não vem (${esc(dataHoraBR(a.confirmacao.respondido_em))})` : `Pedido de confirmação enviado em ${esc(dataHoraBR(a.confirmacao.enviado_em))} — sem resposta ainda`}</p>` : ''}
       <div id="f_patio" class="contexto-cliente" hidden></div>
       <div id="f_contexto" class="contexto-cliente"></div>
       <!-- "Não veio" pela edição: o cliente recebe o WhatsApp de falta? Pergunta antes de salvar -->
@@ -2990,12 +3258,21 @@ window.openAgendamentoModal = async function(id, pre = {}){
     </div>
     <div class="modal-foot">
       ${id ? `<button class="btn so-equipe" id="f_tarefa" title="Criar uma tarefa ligada a este agendamento">${svg(I.check)} Tarefa</button>` : ''}
+      ${!id ? `<button class="btn" id="f_espera" title="Não achou horário? Guarda o pedido na lista de espera com o que já foi digitado">${svg(I.relogio)} Lista de espera</button>` : ''}
+      ${id && podePedirConfirmacao(a) ? `<button class="btn" id="f_confirmar" title="Pedir confirmação ao cliente pelo WhatsApp">${svg(I.check)} Pedir confirmação</button>` : ''}
       <button class="btn" id="f_cancelar">Cancelar</button>
       <button class="btn primary" id="f_save">${svg(I.check)} Salvar</button>
     </div>`);
   ligarMascaraTelefone($('#f_tel'));
+  $('#f_nasc').addEventListener('input', ev => { ev.target.value = mascaraAniversario(ev.target.value); });
   const rascunho = ligarRascunho(id, pre);
   $('#f_cancelar').addEventListener('click', () => { rascunho.apagar(); closeModal(); });
+  $('#f_espera')?.addEventListener('click', () => {
+    rascunho.apagar(); closeModal();
+    openEsperaModal(null, { cliente_nome: $('#f_nome').value.trim(), telefone: $('#f_tel').value.trim(), servico: $('#f_serv').value.trim(),
+      veiculo: $('#f_veic').value.trim(), placa: $('#f_placa').value.trim(), cliente_id: $('#f_cli').value || '', de: $('#f_data').value || '' });
+  });
+  $('#f_confirmar')?.addEventListener('click', () => pedirConfirmacao(id));
   /* "Achar pelo nome": procura nas conversas do WhatsApp e nos clientes e
      preenche telefone (+ ficha) com um clique. Enter no campo do nome também busca. */
   const mostrarFicha = (cid) => {
@@ -3139,12 +3416,18 @@ window.openAgendamentoModal = async function(id, pre = {}){
       return perguntarAvisoDeFalta();
     }
     if (avisarFalta !== undefined && payload.status === 'nao_veio') payload.avisar_cliente = avisarFalta;
+    const nasc = $('#f_nasc').value.trim();
+    if (nasc && !/^\d{2}\/\d{2}(\/\d{4})?$/.test(nasc)) { $('#f_nasc').focus(); return toast('Aniversário: use DD/MM ou DD/MM/AAAA (ou deixe em branco)', 'err'); }
     const btn = $('#f_save'); btn.disabled = true;
     try {
       const r = id ? await api('PUT', `/agendamentos/${id}`, payload) : await api('POST', '/agendamentos', payload);
       esquecerDias(); rascunho.apagar();
       const aviso = r?.aviso_ausencia;
       toast(aviso ? recadoDeAusencia(aviso) : 'Agendamento salvo', aviso && !aviso.ok ? 'err' : 'ok');
+      // rodada 5: aniversário digitado vai para a ficha (sem bloquear o agendamento se falhar)
+      if (nasc && r?.cliente_id) api('PUT', `/clientes/${r.cliente_id}`, { nascimento: nasc }, { repetir: false }).then(() => toast('Aniversário guardado na ficha 🎂')).catch(() => toast('O agendamento foi salvo, mas o aniversário não entrou na ficha — abra a ficha e tente de novo', 'err'));
+      // veio da lista de espera ("Encaixar"): a espera vira "agendada"
+      if (pre?.espera_id && r?.id) api('PATCH', `/espera/${pre.espera_id}`, { status: 'agendada', agendamento_id: r.id }, { repetir: false }).then(() => { refreshBadge(true); toast(`${payload.cliente_nome} saiu da lista de espera — encaixado ✅`); }).catch(() => {});
       closeModal(); route();
     } catch(e){
       if (e.codigo === 'confirmar_aviso') perguntarAvisoDeFalta();
@@ -3413,9 +3696,10 @@ function cartaoRecepcao(a, agora) {
     + `<button type="button" class="rec-btn rec-chegou" data-marca="compareceu">${svg(I.check)} Chegou mesmo assim</button>`;
   else botoes = `<button type="button" class="rec-btn rec-chegou" data-marca="compareceu">${svg(I.check)} Chegou</button>
     <button type="button" class="rec-btn rec-faltou" data-marca="nao_veio">${svg(I.x)} Não veio</button>`;
+  const outroDia = a.data && a.data !== agora.data;   // chegou outro dia e ainda está na casa
   return `<article class="appt rec-cartao s-${esc(a.status)}${rel && rel.tom === 'atrasado' ? ' is-atrasado' : ''}"
-      data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}" aria-label="${esc(a.hora)}, ${esc(a.cliente_nome)}">
-    <div class="rec-hora"><b>${esc(a.hora)}</b>${rel ? `<span class="quando ${rel.tom}">${esc(rel.txt)}</span>` : ''}</div>
+      data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}" aria-label="${esc(a.hora)}, ${esc(a.cliente_nome)}${outroDia ? ', desde ' + esc(rotuloDia(a.data, agora.data)) : ''}">
+    <div class="rec-hora"><b>${esc(a.hora)}</b>${outroDia ? `<span class="appt-dia">desde ${esc(rotuloDia(a.data, agora.data))}</span>` : ''}${rel ? `<span class="quando ${rel.tom}">${esc(rel.txt)}</span>` : ''}</div>
     <div class="rec-quem"><h3>${esc(a.cliente_nome)}</h3>
       ${carro ? `<p class="rec-carro">${svg(I.car)} ${carro}</p>` : ''}
       <p class="rec-servico">${esc(a.servico)}${a.consultor_nome ? ` · <span>${esc(a.consultor_nome)}</span>` : ''}</p></div>
@@ -3436,13 +3720,15 @@ async function renderDia(opts = {}) {
         <div class="rec-letras" id="recLetra" role="group" aria-label="Tamanho da letra">
           ${LETRAS.map((l, i) => `<button type="button" class="rec-ferr" data-letra="${l}" aria-pressed="${l === letra}" title="Letra ${['normal', 'grande', 'enorme'][i]}">A${'+'.repeat(i)}</button>`).join('')}
         </div>
-        <button type="button" class="rec-ferr" id="recAtualizar" title="Atualizar agora">${svg(I.relogio)} <span>Atualizar</span></button>
+        <button type="button" class="rec-ferr" id="recAtualizar" title="Atualizar agora (a tela se atualiza sozinha a cada 2 min)">${svg(I.relogio)} <span>Atualizar</span> <small class="muted" id="recAtualizadoEm">${esc(agoraSP().hm)}</small></button>
         <button type="button" class="rec-ferr" id="recImprimir" title="Imprimir a folha do dia" aria-label="Imprimir a folha do dia">${svg(I.imprimir)}</button>
         ${'wakeLock' in navigator ? `<button type="button" class="rec-ferr" id="recAcesa" aria-pressed="${!!state.telaAcesa}" title="Não deixa a tela apagar (tablet do balcão)">☀ <span>Tela acesa</span></button>` : ''}
         ${document.fullscreenEnabled ? '<button type="button" class="rec-ferr" id="recCheia" title="Tela cheia" aria-label="Tela cheia">⛶</button>' : ''}
         <button type="button" class="rec-ferr" id="recAjuda" title="Ajuda" aria-label="Ajuda">?</button>
       </div>
     </div>
+    <!-- rodada 5: quem está NA CASA agora (inclusive de outros dias) e quem ainda chega hoje -->
+    <div class="rec-resumo" id="recResumo" aria-live="polite"></div>
     <div class="rec-busca search larga">${svg(I.search)}
       <input id="recBusca" type="search" placeholder="Procurar pelo nome ou pela placa" autocomplete="off" aria-label="Procurar cliente pelo nome ou pela placa" value="${esc(state.recQ || '')}"></div>
     <div class="tabs tabs-hoje rec-abas" id="tabsHoje" role="tablist" aria-label="Agenda de hoje"></div>
@@ -3465,6 +3751,15 @@ async function renderDia(opts = {}) {
     const agora = agoraSP();
     const gr = grupos();
     const tabs = $('#tabsHoje'); if (!tabs) return;
+    // resumo do balcão: na casa (chegou e não saiu), ainda chegam hoje, próximo a chegar
+    const todos = state._recLista || [];
+    const naCasa = todos.filter(a => ['compareceu', 'em_atendimento'].includes(a.status)).length;
+    const chegam = todos.filter(a => a.data === agora.data && grupoDoDia(a) === 'agendados');
+    const prox = chegam.filter(a => String(a.hora) >= agora.hm).sort((x, y) => String(x.hora).localeCompare(String(y.hora)))[0];
+    const res = $('#recResumo');
+    if (res) res.innerHTML = `<span class="casa" title="Carros dentro da oficina agora (inclusive os que chegaram outro dia)">${svg(I.chave)} <b>${naCasa}</b> na casa</span>
+      <span title="Horários de hoje que ainda não chegaram">${svg(I.relogio)} <b>${chegam.length}</b> ${chegam.length === 1 ? 'chega hoje' : 'chegam hoje'}</span>
+      ${prox ? `<span class="proximo" title="Próximo cliente a chegar">${svg(I.user)} <b>${esc(prox.hora)}</b> ${esc(String(prox.cliente_nome).split(/\s+/).slice(0, 2).join(' '))}</span>` : ''}`;
     tabs.innerHTML = ABAS.map(([k, rot, ico]) => `<button type="button" role="tab" class="tab ${state.hojeTab === k ? 'active' : ''}" data-hoje-tab="${k}"
         aria-selected="${state.hojeTab === k}" aria-controls="agendaHoje" tabindex="${state.hojeTab === k ? 0 : -1}">
         ${svg(ico)} <span>${rot}</span> <em class="tab-num">${gr[k].length}</em></button>`).join('');
@@ -3505,6 +3800,7 @@ async function renderDia(opts = {}) {
     try {
       const nova = await api('GET', '/agendamentos', null, { repetir: false });
       const ass = JSON.stringify(nova.map(a => [a.id, a.status, a.hora]));
+      const em = $('#recAtualizadoEm'); if (em) em.textContent = agoraSP().hm;   // "atualizado às" — a pessoa sabe que a tela está viva
       if (state.route !== 'dia' || ass === state._recAssinatura) return;
       state._recLista = nova; state._recAssinatura = ass; pintar(false);
     } catch { /* sem conexão: tenta na próxima volta */ }
@@ -3561,10 +3857,14 @@ async function marcarNaRecepcao(card, marca, o = {}) {
     if (item) Object.assign(item, { status: r.status, compareceu: r.compareceu, confirmado: r.confirmado });
     await sairDoCartao(card);
     if (o.desfazendo) toast(`${nome}: chegada desfeita — voltou para "Agendados"`);
-    else if (marca === 'compareceu') toast(`${nome} chegou ✅`, 'ok', antes === 'compareceu' ? {} : { acao: { rotulo: 'Desfazer', fn: async () => {
-      await api('PATCH', `/agendamentos/${id}/status`, { status: ['aguardando', 'confirmado'].includes(antes) ? antes : 'aguardando' });
-      toast(`Desfeito — ${nome} voltou para "Agendados"`); route();
-    } } });
+    else if (marca === 'compareceu') {
+      // rodada 5: o nº da OS que o Pátio abriu + "Abrir no Pátio", junto com o Desfazer
+      const os = recadoDaOs(nome, r);
+      toast(os.msg, 'ok', { duracao: 9000, acoes: [os.acao, antes === 'compareceu' ? null : { rotulo: 'Desfazer', fn: async () => {
+        await api('PATCH', `/agendamentos/${id}/status`, { status: ['aguardando', 'confirmado'].includes(antes) ? antes : 'aguardando' });
+        toast(`Desfeito — ${nome} voltou para "Agendados"`); route();
+      } }] });
+    }
     else toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
     state._recPintar?.(false);
   } catch (e) {
@@ -3579,21 +3879,147 @@ async function marcarNaRecepcao(card, marca, o = {}) {
   }
 }
 
+/* ============================================================================
+   RODADA 5 — LISTA DE ESPERA (encaixe): quem quer um horário e não achou. Quem
+   atende anota nome, telefone, serviço e quando serve; quando um horário vaga
+   ("Não veio"/cancelado/remarcado) o recado avisa quem cabe, e "Encaixar" abre
+   o Novo agendamento já preenchido — ao salvar, a espera vira "agendada".
+   ============================================================================ */
+const PREFERENCIAS_ESPERA = ['Qualquer horário', 'Manhã', 'Tarde', 'Começo do dia', 'Fim do dia', 'Sábado'];
+function itemEspera(e, hoje) {
+  const quando = e.de || e.ate ? `${e.de ? 'de ' + rotuloDia(e.de, hoje) : ''}${e.ate ? ' até ' + rotuloDia(e.ate, hoje) : ''}`.trim() : 'qualquer dia';
+  const dias = Math.max(0, diasEntre(String(e.created_at).slice(0, 10), hoje));
+  return `<div class="espera-item ${esc(e.status)}" data-id="${esc(e.id)}" data-nome="${esc(e.cliente_nome)}">
+    <div class="quem"><span class="espera-desde">${e.status === 'aberta' ? (dias ? `esperando há ${dias} ${dias === 1 ? 'dia' : 'dias'}` : 'entrou hoje') : STATUS_ESPERA[e.status] || e.status}</span><br>
+      <b>${esc(e.cliente_nome)}</b> <span class="muted">· ${esc(e.servico)}</span>
+      <small>${e.telefone ? `<a href="${esc(linkTel(e.telefone))}">${esc(mascaraTelefone(e.telefone))}</a>` : 'sem telefone'}${e.veiculo || e.placa ? ' · ' + esc([e.veiculo, e.placa].filter(Boolean).join(' ')) : ''}</small>
+      <small><span class="espera-pref">${svg(I.relogio)} ${esc(e.preferencia || 'qualquer horário')}</span><span class="espera-pref">${svg(I.calendar)} ${esc(quando)}</span>${e.observacoes ? `<span class="espera-pref" title="${esc(e.observacoes)}">📝 ${esc(e.observacoes.slice(0, 60))}</span>` : ''}</small></div>
+    <div class="acoes">
+      ${e.status === 'aberta' ? `<button type="button" class="btn primary mini" data-encaixar="${esc(e.id)}" title="Abre o novo agendamento já preenchido; ao salvar, sai da espera">${svg(I.plus)} Encaixar</button>
+        ${e.telefone ? `<a class="btn mini" href="https://wa.me/${esc(String(e.telefone).replace(/\D/g, '').length <= 11 ? '55' + String(e.telefone).replace(/\D/g, '') : String(e.telefone).replace(/\D/g, ''))}?text=${encodeURIComponent(`Oi ${String(e.cliente_nome).trim().split(/\s+/)[0]}! Aqui é da IndyCar 🏁 Abriu um horário para ${e.servico}. Quer que eu marque pra você?`)}" target="_blank" rel="noopener" title="Chamar no WhatsApp">${svg(I.wa)}</a>` : ''}
+        ${e.cliente_id ? `<button type="button" class="btn mini" data-ficha-espera="${esc(e.cliente_id)}" title="Abrir a ficha do cliente">${svg(I.user)}</button>` : ''}
+        <button type="button" class="btn mini" data-editar-espera="${esc(e.id)}" title="Editar">${svg(I.edit)}</button>
+        <button type="button" class="btn mini" data-cancelar-espera="${esc(e.id)}" title="Desistiu / não precisa mais">Cancelar</button>`
+        : `<button type="button" class="btn mini" data-reabrir-espera="${esc(e.id)}">Voltar para a lista</button>
+           <button type="button" class="btn mini red so-gestor" data-apagar-espera="${esc(e.id)}" title="Apagar de vez">${svg(I.trash)}</button>`}
+    </div></div>`;
+}
+const STATUS_ESPERA = { aberta: 'Esperando', agendada: 'Agendada ✅', cancelada: 'Cancelada' };
+async function renderEspera(opts = {}) {
+  const filtro = state.esperaFiltro || 'aberta';
+  const lista = await api('GET', '/espera?status=' + filtro);
+  if (opts.vez && opts.vez !== state._vez) return;
+  const hoje = agoraSP().data;
+  const pintarLista_ = () => {
+    const box = $('#esperaLista'); if (!box) return;
+    box.innerHTML = lista.length ? lista.map(e => itemEspera(e, hoje)).join('')
+      : vazio(I.relogio, filtro === 'aberta' ? 'Ninguém esperando' : 'Nada aqui', filtro === 'aberta'
+        ? 'Quando um cliente quiser um horário que não existe, use "Entrar na lista de espera" (aqui ou no Novo agendamento). Quando um horário vagar, o recado avisa.'
+        : 'As esperas agendadas ou canceladas aparecem aqui.');
+    ligarEspera(box);
+    if (state.esperaFoco) { const el = $(`.espera-item[data-id="${state.esperaFoco}"]`, box); if (el) { el.classList.add('tour-alvo'); el.scrollIntoView({ block: 'center' }); setTimeout(() => el.classList.remove('tour-alvo'), 2500); } state.esperaFoco = null; }
+  };
+  if (opts.quieto && $('#esperaLista')) return pintarLista_();
+  view.innerHTML = `
+    <div class="toolbar"><div class="left"><h2>Lista de espera</h2>
+      ${lista.length && filtro === 'aberta' ? `<span class="badge-pill bp-orange">${lista.length} ${lista.length === 1 ? 'pessoa esperando' : 'pessoas esperando'}</span>` : ''}
+      <div class="pilulas-espera" role="group" aria-label="Filtro">${[['aberta', 'Esperando'], ['agendada', 'Agendadas'], ['cancelada', 'Canceladas']].map(([k, r]) =>
+        `<button type="button" class="pilula ${filtro === k ? 'ativa' : ''}" data-filtro-espera="${k}" aria-pressed="${filtro === k}">${r}</button>`).join('')}</div></div>
+      <button class="btn primary" id="btnNovaEspera">${svg(I.plus)} Entrar na lista de espera</button></div>
+    <div class="panel"><div class="panel-body espera-lista" id="esperaLista"></div></div>
+    <small class="muted">Quando alguém marca "Não veio" ou cancela um horário, o recado diz quem da lista serve para aquele dia. "Encaixar" abre o Novo agendamento já preenchido.</small>`;
+  pintarLista_();
+  $$('[data-filtro-espera]', view).forEach(b => b.addEventListener('click', () => { state.esperaFiltro = b.dataset.filtroEspera; route('espera'); }));
+  $('#btnNovaEspera').addEventListener('click', () => openEsperaModal());
+}
+function ligarEspera(box) {
+  $$('[data-encaixar]', box).forEach(b => b.addEventListener('click', async () => {
+    const e = await api('GET', '/espera?status=aberta').then(l => l.find(x => x.id === b.dataset.encaixar)).catch(() => null);
+    if (!e) return toast('Essa espera já saiu da lista', 'err');
+    openAgendamentoModal(null, { cliente_nome: e.cliente_nome, telefone: e.telefone || '', veiculo: e.veiculo || '', placa: e.placa || '', servico: e.servico,
+      cliente_id: e.cliente_id || '', data: e.de && e.de > agoraSP().data ? e.de : agoraSP().data, espera_id: e.id, origem: 'WhatsApp' });
+  }));
+  $$('[data-editar-espera]', box).forEach(b => b.addEventListener('click', () => openEsperaModal(b.dataset.editarEspera)));
+  $$('[data-ficha-espera]', box).forEach(b => b.addEventListener('click', () => openClienteModal(b.dataset.fichaEspera)));
+  $$('[data-cancelar-espera]', box).forEach(b => b.addEventListener('click', async () => {
+    const item = b.closest('.espera-item');
+    try {
+      await api('PATCH', `/espera/${b.dataset.cancelarEspera}`, { status: 'cancelada' });
+      toast(`${item?.dataset.nome || 'Cliente'} saiu da lista de espera`, 'ok', { acao: { rotulo: 'Desfazer', fn: async () => { await api('PATCH', `/espera/${b.dataset.cancelarEspera}`, { status: 'aberta' }); route(); } } });
+      refreshBadge(true); route();
+    } catch (e) { toast(e.message, 'err'); }
+  }));
+  $$('[data-reabrir-espera]', box).forEach(b => b.addEventListener('click', async () => {
+    try { await api('PATCH', `/espera/${b.dataset.reabrirEspera}`, { status: 'aberta' }); toast('De volta à lista de espera'); refreshBadge(true); route(); }
+    catch (e) { toast(e.message, 'err'); }
+  }));
+  $$('[data-apagar-espera]', box).forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Apagar esta espera de vez?')) return;
+    try { await api('DELETE', `/espera/${b.dataset.apagarEspera}`); toast('Espera apagada'); route(); }
+    catch (e) { toast(e.message, 'err'); }
+  }));
+}
+/* Nova/editar espera. `pre` vem do Novo agendamento ("Entrar na lista de espera" com o que já foi digitado). */
+window.openEsperaModal = async function (id, pre = {}) {
+  if (emPresenca()) return;
+  let e = { cliente_nome: '', telefone: '', veiculo: '', placa: '', servico: '', preferencia: 'Qualquer horário', de: '', ate: '', observacoes: '', ...pre };
+  if (id) e = await api('GET', '/espera?status=todas').then(l => l.find(x => x.id === id)).catch(() => null) || e;
+  const servicos = state.servicos || await api('GET', '/servicos').catch(() => []);
+  openModal(`
+    <div class="modal-head"><h3>${svg(I.relogio)} ${id ? 'Editar espera' : 'Entrar na lista de espera'}</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-body">
+      <p class="info-campo">Para quem quer um horário que ainda não existe. Quando vagar, o recado avisa e "Encaixar" marca com um toque.</p>
+      <div class="grid2">
+        <div class="field"><label for="e_nome">Cliente *</label><input id="e_nome" maxlength="120" value="${esc(e.cliente_nome)}" autocomplete="off"></div>
+        <div class="field"><label for="e_tel">Telefone (WhatsApp)</label><input id="e_tel" type="tel" inputmode="tel" value="${esc(e.telefone ? mascaraTelefone(e.telefone) : '')}" placeholder="(12) 99999-9999" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="e_serv">Serviço *</label><input id="e_serv" list="servListEsp" value="${esc(e.servico)}" placeholder="Selecione ou digite o serviço">
+        <datalist id="servListEsp">${servicos.map(s => `<option value="${esc(s.nome)}"></option>`).join('')}</datalist></div>
+      <div class="grid2">
+        <div class="field"><label for="e_veic">Carro</label><input id="e_veic" value="${esc(e.veiculo || '')}" placeholder="Ônix"></div>
+        <div class="field"><label for="e_placa">Placa</label><input id="e_placa" value="${esc(e.placa || '')}" style="text-transform:uppercase"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label for="e_pref">Quando prefere</label><select id="e_pref">${PREFERENCIAS_ESPERA.map(p => `<option ${p === (e.preferencia || 'Qualquer horário') ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
+        <div class="field"><label for="e_de">A partir de</label><input id="e_de" type="date" value="${esc(e.de || '')}"></div>
+        <div class="field"><label for="e_ate">Até</label><input id="e_ate" type="date" value="${esc(e.ate || '')}"></div>
+      </div>
+      <div class="field"><label for="e_obs">Observações</label><textarea id="e_obs" maxlength="500">${esc(e.observacoes || '')}</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn primary" id="e_save">${svg(I.check)} ${id ? 'Salvar' : 'Entrar na lista'}</button></div>`);
+  ligarMascaraTelefone($('#e_tel'));
+  $('#e_save').addEventListener('click', async () => {
+    const p = { cliente_nome: $('#e_nome').value.trim(), telefone: $('#e_tel').value.trim(), servico: $('#e_serv').value.trim(), veiculo: $('#e_veic').value.trim(),
+      placa: $('#e_placa').value.trim().toUpperCase(), preferencia: $('#e_pref').value, de: $('#e_de').value || null, ate: $('#e_ate').value || null, observacoes: $('#e_obs').value.trim() };
+    if (e.cliente_id) p.cliente_id = e.cliente_id;
+    if (!p.cliente_nome || !p.servico) return toast('Preencha o nome e o serviço', 'err');
+    if (!telefoneOk(p.telefone)) { $('#e_tel').focus(); return toast('Telefone incompleto: use DDD + número', 'err'); }
+    if (p.de && p.ate && p.de > p.ate) return toast('"A partir de" não pode ser depois de "Até"', 'err');
+    const btn = $('#e_save'); btn.disabled = true;
+    try {
+      if (id) await api('PATCH', `/espera/${id}`, p); else await api('POST', '/espera', p);
+      closeModal(); toast(id ? 'Espera salva' : `${p.cliente_nome} entrou na lista de espera`); refreshBadge(true);
+      if (state.route === 'espera') route(); else if (!id) toast(`${p.cliente_nome} entrou na lista de espera`, 'ok', { acao: { rotulo: 'Ver lista', fn: () => route('espera') } });
+    } catch (err) { toast(err.message, 'err'); btn.disabled = false; }
+  });
+};
+
 // ============================================================================
 // ROTEAMENTO
 // ============================================================================
 const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, clientes:renderClientes,
   servicos:renderServicos, whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe,
   historico:renderHistorico, conectores:renderConectores, configuracoes:renderConfiguracoes,
-  dia:renderDia, semana:(o) => renderSemana(o), pendencias:renderPendencias, ajuda:renderAjuda };
+  dia:renderDia, semana:(o) => renderSemana(o), pendencias:renderPendencias, ajuda:renderAjuda, espera:renderEspera };
 const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
   servicos:'SERVIÇOS', whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE',
   historico:'HISTÓRICO', conectores:'CONECTORES', configuracoes:'CONFIGURAÇÕES',
-  dia:'RECEPÇÃO', semana:'SEMANA', pendencias:'PENDÊNCIAS', ajuda:'AJUDA' };
+  dia:'RECEPÇÃO', semana:'SEMANA', pendencias:'PENDÊNCIAS', ajuda:'AJUDA', espera:'LISTA DE ESPERA' };
 /* Título da aba do navegador (e o que o leitor de tela anuncia ao trocar de tela). */
 const TITULOS = { inicio:'Início', agenda:'Agenda', crm:'CRM', clientes:'Clientes', servicos:'Serviços', whatsapp:'WhatsApp',
   followup:'Follow-up', equipe:'Equipe', historico:'Histórico', conectores:'Conectores', configuracoes:'Configurações',
-  dia:'Recepção', semana:'Semana', pendencias:'Pendências', ajuda:'Ajuda' };
+  dia:'Recepção', semana:'Semana', pendencias:'Pendências', ajuda:'Ajuda', espera:'Lista de espera' };
 
 /* Enquanto os dados não chegam, a tela mostra o próprio FORMATO (esqueleto) em
    vez de um "Carregando…" solto: nada pula de lugar quando o conteúdo entra.
@@ -3694,6 +4120,7 @@ function pintarContagens(c) {
   const selo = (el, n) => { if (!el) return; el.textContent = n > 99 ? '99+' : String(n || 0); el.style.display = n ? 'flex' : 'none'; };
   selo($('#badgeFollowup'), c?.followup);
   selo($('#badgePendencias'), (c?.semValor || 0) + (c?.antigas || 0) + (c?.entregues || 0));
+  selo($('#badgeEspera'), c?.espera);
   // chips do Início (só o gestor recebe esses números do servidor)
   const box = $('#chipsGestor'); if (!box) return;
   const chips = [];
@@ -3703,8 +4130,14 @@ function pintarContagens(c) {
     ${svg(I.relogio)} ${c.antigas} ${c.antigas === 1 ? 'horário antigo sem desfecho' : 'horários antigos sem desfecho'}</button>`);
   if (c?.entregues) chips.push(`<button type="button" class="chip-aviso" data-ir="pendencias" title="O Pátio entregou o carro, mas a Agenda ainda não tem o desfecho com o valor.">
     ${svg(ICO_PATIO)} ${c.entregues} ${c.entregues === 1 ? 'entregue no Pátio sem desfecho' : 'entregues no Pátio sem desfecho'}</button>`);
+  // rodada 5 (equipe toda): amanhã sem confirmação → Agenda filtrada em "sem confirmação" para pedir pelo link
+  if (c?.semConfirmacao) chips.push(`<button type="button" class="chip-aviso" data-ir="agenda-semconf" title="Horários de ${esc(rotuloDia(c.proximoDia, agoraSP().data))} ainda sem confirmação — peça pelo link (✓ no cartão).">
+    ${svg(I.check)} ${c.semConfirmacao} ${c.semConfirmacao === 1 ? 'horário' : 'horários'} de ${esc(rotuloDia(c.proximoDia, agoraSP().data).toLowerCase())} sem confirmação</button>`);
   box.innerHTML = chips.join('');
-  $$('[data-ir]', box).forEach(b => b.addEventListener('click', () => route(b.dataset.ir)));
+  $$('[data-ir]', box).forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.ir === 'agenda-semconf') { state.agendaQ = ''; state.agendaSemTel = false; state.agendaSemConf = true; return route('agenda'); }
+    route(b.dataset.ir);
+  }));
 }
 
 function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
@@ -3763,9 +4196,12 @@ document.addEventListener('keydown', e => {
       && !document.body.classList.contains('deslogado')) { e.preventDefault(); return abrirBuscaGlobal(); }
   if (e.ctrlKey || e.metaKey || e.altKey || modalAberto() || document.body.classList.contains('deslogado')) return;
   if (digitando(e.target)) return;
+  const k = e.key.toLowerCase();
   if (e.key === '?') { e.preventDefault(); route('ajuda'); }
-  else if ((e.key === 'n' || e.key === 'N') && !emPresenca()) { e.preventDefault(); openAgendamentoModal(); }
-  else if ((e.key === 's' || e.key === 'S') && !emPresenca()) { e.preventDefault(); route('semana'); }
+  else if (k === 'n' && !emPresenca()) { e.preventDefault(); openAgendamentoModal(); }
+  else if (k === 's' && !emPresenca()) { e.preventDefault(); route('semana'); }
+  // rodada 5: uma letra leva à tela (como os apps de e-mail)
+  else if (!emPresenca() && ATALHOS_TELA[k] && (ATALHOS_TELA[k] !== 'pendencias' || document.body.classList.contains('gestor'))) { e.preventDefault(); route(ATALHOS_TELA[k]); }
   else if (e.key === '/') {
     const busca = $('.view .search input');
     if (busca) { e.preventDefault(); busca.focus(); busca.select(); }
@@ -3773,7 +4209,7 @@ document.addEventListener('keydown', e => {
 });
 
 // PWA: service worker + prompt de instalação
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register(RAIZ + 'sw.js').catch(()=>{});
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.installPrompt = e; });
 
 /* ============================================================
@@ -3802,7 +4238,7 @@ async function carregarSaude() {
   txt.textContent = texto + (s.desde ? ` (desde ${dataCurtaBR(s.desde)})` : '');
   faixa.append(ico, txt);
   if (s.problema === 'codewords-fora') {
-    const a = document.createElement('a'); a.href = 'https://indycar-atendimento.onrender.com'; a.target = '_blank'; a.rel = 'noopener';
+    const a = document.createElement('a'); a.href = urlDoApp('atendimento') || '#'; a.target = '_blank'; a.rel = 'noopener';
     a.className = 'faixa-link'; a.textContent = 'Abrir Atendimento';
     faixa.append(a);
   }
@@ -3909,7 +4345,7 @@ function mostrarFormPrimeiro(mostrar){
 
 async function verPrimeiroAcesso(){
   try {
-    const r = await fetch('/api/primeiro-acesso');
+    const r = await fetch(RAIZ + 'api/primeiro-acesso');
     const j = await r.json();
     primeiroAberto = j.aberto === true;
     if (primeiroAberto) mostrarFormPrimeiro(true);
@@ -3935,7 +4371,7 @@ $('#formPrimeiro').addEventListener('submit', async e => {
 
   btn.disabled = true; btn.textContent = 'CRIANDO…';
   try {
-    const r = await fetch('/api/primeiro-acesso', {
+    const r = await fetch(RAIZ + 'api/primeiro-acesso', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nome, email, senha }),
     });
@@ -4072,7 +4508,7 @@ aplicarTema(temaAtual());
 
 (async function init(){
   mostrarLogin();                        // capa primeiro: nada vaza antes da senha
-  try { CONFIG = await (await fetch('/api/config')).json(); }
+  try { CONFIG = await (await fetch(RAIZ + 'api/config')).json(); }
   catch { return mostrarLogin('Não consegui falar com o servidor. Ele está rodando?'); }
 
   if (!CONFIG.configurado) {

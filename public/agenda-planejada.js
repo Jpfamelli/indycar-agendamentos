@@ -28,13 +28,14 @@ async function renderSemana(opts = {}) {
   const u = semanaUI, pl = Planejamento;
   u.data ||= agoraSP().data;
   const dias = pl.periodo(u.data, u.modo);
-  const [lista, servicos] = await Promise.all([
+  const [lista, servicos, espera] = await Promise.all([
     api('GET', `/agendamentos?de=${dias[0]}&ate=${dias.at(-1)}`),
     state.servicos ? Promise.resolve(state.servicos) : api('GET', '/servicos').catch(() => []),
+    api('GET', '/espera?status=aberta', null, { repetir: false }).catch(() => []),   // rodada 5: "+N na espera" por dia
   ]);
   if (opts.vez && opts.vez !== state._vez) return;
   state.servicos = servicos;
-  Object.assign(u, { lista, dias, tabela: pl.tabelaDuracoes(servicos) });
+  Object.assign(u, { lista, dias, tabela: pl.tabelaDuracoes(servicos), espera: Array.isArray(espera) ? espera : [] });
   // atualização silenciosa (depois de remarcar/marcar): só o miolo, a busca fica como está
   if (opts.quieto && $('#semanaCorpo') && $('#sBusca')) return pintarSemana();
 
@@ -66,6 +67,7 @@ async function renderSemana(opts = {}) {
           ${sel('sConsultor', 'Consultor', [...consultores.entries()], f.consultor)}
           ${sel('sOrigem', 'Origem', ORIGENS.map(o => [o, o]), f.origem)}
           <label class="sem-check"><input type="checkbox" id="sSemTel" ${f.semTelefone ? 'checked' : ''}> Só sem telefone</label>
+          <label class="sem-check"><input type="checkbox" id="sSemConf" ${f.semConfirmacao ? 'checked' : ''}> Só sem confirmação</label>
           <button type="button" class="btn mini" id="sLimpar">Limpar filtros</button>
         </div>
       </details>
@@ -83,6 +85,7 @@ async function renderSemana(opts = {}) {
   for (const [id, k] of [['sStatus', 'status'], ['sConsultor', 'consultor'], ['sOrigem', 'origem']])
     $('#' + id).addEventListener('change', e => { u.filtros[k] = e.target.value; pintarSemana(); });
   $('#sSemTel').addEventListener('change', e => { u.filtros.semTelefone = e.target.checked; pintarSemana(); });
+  $('#sSemConf').addEventListener('change', e => { u.filtros.semConfirmacao = e.target.checked; pintarSemana(); });
   $('#sBusca').addEventListener('input', debounce(e => { u.filtros.q = e.target.value.trim(); pintarSemana(); }, 200));
   $('#sLimpar').addEventListener('click', () => { u.filtros = {}; route('semana'); });
   pintarSemana();
@@ -90,6 +93,44 @@ async function renderSemana(opts = {}) {
 
 /* Ordena por hora e separa quem ainda vale (ocupa horário) de quem já teve desfecho. */
 const porHora = (l) => l.slice().sort((a, b) => String(a.hora).localeCompare(String(b.hora)));
+
+/* RODADA 5 — no modo DIA, a grade das meias horas (8h–17h30): cada casa mostra
+   quantos carros já estão nela e aceita ARRASTAR um horário para lá (remarca a
+   HORA no mesmo dia, com confirmação). Casas que já passaram ficam apagadas. */
+function gradeDeHoras(d, itens, hoje, capacidade) {
+  const agora = agoraSP();
+  const casas = [];
+  for (let t = 8 * 60; t <= 17 * 60; t += 30) {
+    const h = Planejamento.hhmm(t);
+    const dentro = itens.filter(a => !Planejamento.FINAIS.has(a.status) && Math.floor((Planejamento.minutos(a.hora) || 0) / 30) * 30 === t);
+    const passou = d === hoje && t < agora.min;
+    casas.push(`<div class="sem-hora-alvo${dentro.length ? ' cheia' : ''}${passou ? ' passou' : ''}" data-dia="${d}" data-hora="${h}" ${passou ? '' : 'data-alvo-hora="1"'}
+        title="${esc(h)} · ${dentro.length} de ${capacidade} ${capacidade === 1 ? 'vaga' : 'vagas'}${dentro.length ? ': ' + esc(dentro.map(a => a.cliente_nome).join(', ')) : ''}">
+        ${esc(h)}${dentro.length ? `<em>${dentro.length}/${capacidade}</em>` : (passou ? '' : '<em>livre</em>')}</div>`);
+  }
+  return `<div class="sem-horas" aria-label="Horas do dia (arraste um horário para remarcar a hora)">${casas.join('')}</div>`;
+}
+
+/* Confirmação da remarcação (arrastar): de → para, e o botão "Remarcar" (o Desfazer vem no recado). */
+function confirmarRemarcacao(a, dia, hora, conflitos) {
+  return new Promise((resolver) => {
+    const hoje = agoraSP().data;
+    openModal(`
+      <div class="modal-head"><h3>${svg(I.calendar)} Remarcar ${esc(a.cliente_nome)}?</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+      <div class="modal-body remarcar-conf">
+        <div class="de-para"><div><small>De</small><b>${esc(a.hora)}</b><small>${esc(rotuloDia(a.data, hoje))}</small></div><span class="seta" aria-hidden="true">→</span>
+          <div><small>Para</small><b>${esc(hora)}</b><small>${esc(rotuloDia(dia, hoje))}</small></div></div>
+        <p class="info-campo">${esc(a.servico)}${a.consultor_nome ? ' · ' + esc(a.consultor_nome) : ''}${['nao_veio', 'cancelado'].includes(a.status) ? ' · volta para Aguardando' : ''}</p>
+        ${conflitos.length ? `<p class="aviso-campo">${svg(I.alerta)} <span>Horário disputado com ${esc(conflitos.map(c => c.hora + ' ' + c.cliente_nome).join('; '))}. Pode remarcar mesmo assim.</span></p>` : ''}
+        <small class="muted">Depois de remarcar, o recado oferece "Avisar o cliente" (pela fila do Comunicar) e "Desfazer".</small>
+      </div>
+      <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" id="rc_ok">${svg(I.check)} Remarcar</button></div>`);
+    let feito = false;
+    const fim = (v) => { if (feito) return; feito = true; resolver(v); };
+    _aoFecharModal = () => fim(false);
+    $('#rc_ok').addEventListener('click', () => { _aoFecharModal = null; closeModal(); fim(true); });
+  });
+}
 
 function itemSemana(a, u) {
   const pl = Planejamento;
@@ -146,13 +187,15 @@ function pintarSemana() {
       const passado = d < hoje;
       return `<section class="sem-dia${d === hoje ? ' hoje' : ''}${passado ? ' passado' : ''}" data-dia="${d}" aria-label="${esc(rotuloDia(d, hoje))}">
         <header class="sem-dia-cab">
-          <h3>${esc(cap(rotuloDia(d, hoje)))}${Math.abs(diasEntre(hoje, d)) <= 1 ? `<small>${esc(dataBR(d).slice(0, 5))}</small>` : ''}</h3>
+          <h3>${esc(cap(rotuloDia(d, hoje)))}${Math.abs(diasEntre(hoje, d)) <= 1 ? `<small>${esc(dataBR(d).slice(0, 5))}</small>` : ''}
+            ${(() => { const n = (u.espera || []).filter(e => (!e.de || e.de <= d) && (!e.ate || e.ate >= d)).length; return n && !passado ? `<button type="button" class="badge-pill bp-orange sem-espera" data-ir-espera="${d}" title="Pessoas na lista de espera que servem para este dia">+${n} na espera</button>` : ''; })()}</h3>
           ${passado ? '' : `<button type="button" class="icon-btn" data-novo-dia="${d}" aria-label="Novo agendamento em ${esc(dataBR(d))}" title="Novo agendamento neste dia">${svg(I.plus)}</button>`}
         </header>
         <div class="ocup-linha" title="${oc.ativos} de ${oc.vagas} vagas de recepção (meia hora × ${vagasPorJanela})">
           <i class="ocup ${oc.pct >= 80 ? 'cheio' : oc.pct >= 50 ? 'medio' : ''}" style="--pct:${oc.pct}%"></i>
           <small>${oc.ativos} ${oc.ativos === 1 ? 'horário' : 'horários'} · ${oc.pct}% ocupado${oc.cargaMin ? ` · ~${Math.round(oc.cargaMin / 6) / 10} h de serviço` : ''}</small>
         </div>
+        ${u.modo === 'dia' && !passado ? gradeDeHoras(d, itens, hoje, vagasPorJanela) : ''}
         ${itens.length ? `<ul class="sem-lista">${itens.map(a => itemSemana(a, u)).join('')}</ul>`
           : `<p class="sem-vazio">${filtrado ? 'Nada com esses filtros' : passado ? 'Sem horários' : 'Livre — arraste um horário para cá'}</p>`}
       </section>`;
@@ -193,6 +236,7 @@ function pintarSemana() {
   $$('[data-remarcar]', corpo).forEach(b => b.addEventListener('click', () => abrirRemarcar(b.dataset.remarcar)));
   $$('[data-novo-dia]', corpo).forEach(b => b.addEventListener('click', () => openAgendamentoModal(null, { data: b.dataset.novoDia })));
   $$('[data-ir-dia]', corpo).forEach(b => b.addEventListener('click', () => { Object.assign(u, { modo: 'dia', data: b.dataset.irDia }); route(); }));
+  $$('[data-ir-espera]', corpo).forEach(b => b.addEventListener('click', () => { state.esperaFiltro = 'aberta'; route('espera'); }));
   $('#sImprimir').addEventListener('click', () => {
     document.body.classList.add('imprimindo-semana');
     const limpar = () => { document.body.classList.remove('imprimindo-semana'); window.removeEventListener('afterprint', limpar); };
@@ -214,18 +258,22 @@ function pintarSemana() {
   }));
   $$('.sem-item', corpo).forEach(li => li.addEventListener('dragend', () => li.classList.remove('arrastando')));
   $$('[data-dia]', corpo).forEach(alvo => {
-    alvo.addEventListener('dragover', e => { e.preventDefault(); alvo.classList.add('alvo'); });
+    alvo.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); alvo.classList.add('alvo'); });
     alvo.addEventListener('dragleave', () => alvo.classList.remove('alvo'));
     alvo.addEventListener('drop', async e => {
-      e.preventDefault(); alvo.classList.remove('alvo');
+      e.preventDefault(); e.stopPropagation(); alvo.classList.remove('alvo');
       const a = u.lista.find(x => x.id === e.dataTransfer.getData('text/plain'));
       const dia = alvo.dataset.dia;
-      if (!a || a.data === dia) return;
+      // rodada 5: soltar numa casa de HORA (modo Dia) remarca a hora; soltar no dia mantém a hora
+      const hora = alvo.dataset.alvoHora ? alvo.dataset.hora : a?.hora;
+      if (!a || (a.data === dia && a.hora === hora)) return;
       if (dia < agoraSP().data) return toast('Não dá para remarcar para um dia que já passou', 'err');
+      if (dia === agoraSP().data && pl.minutos(hora) !== null && pl.minutos(hora) < agoraSP().min) return toast('Essa hora já passou — escolha uma à frente', 'err');
       if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) return toast('Domingo a oficina não abre — escolha outro dia', 'err');
-      const conf = pl.conflitos(u.lista, { ...a, data: dia, status: 'aguardando' }, capacidadeRecepcao());
-      if (conf.length && !confirm(`${dataBR(dia)} às ${a.hora} já tem ${conf.map(c => c.cliente_nome).join(', ')}. Remarcar mesmo assim?`)) return;
-      try { await remarcarPara(a, dia, a.hora); } catch (err) { toast(err.message, 'err'); }
+      const conf = pl.conflitos(u.lista, { ...a, data: dia, hora, status: 'aguardando' }, capacidadeRecepcao());
+      // confirmação sempre (arrastar sem querer acontece): de → para, com o aviso de disputa
+      if (!(await confirmarRemarcacao(a, dia, hora, conf))) return;
+      try { await remarcarPara(a, dia, hora); } catch (err) { toast(err.message, 'err'); }
     });
   });
 }

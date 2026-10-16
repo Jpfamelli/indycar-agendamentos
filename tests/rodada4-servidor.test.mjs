@@ -132,9 +132,9 @@ test('painel de valores: só gestor; preencher grava, audita e recusa quem não 
 
 test('contagens: follow-up para todos; sem valor e antigos só para o gestor', async () => {
   const at = await chamar('atendente', 'GET', '/api/contagens');
-  assert.deepEqual(at.j, { followup: 7, semValor: null, antigas: null, entregues: null });
+  assert.deepEqual(at.j, { followup: 7, semValor: null, antigas: null, entregues: null, espera: null, semConfirmacao: null, proximoDia: at.j.proximoDia });
   const ge = await chamar('gestor', 'GET', '/api/contagens');
-  assert.deepEqual(ge.j, { followup: 7, semValor: 3, antigas: 27, entregues: 2 });
+  assert.deepEqual(ge.j, { followup: 7, semValor: 3, antigas: 27, entregues: 2, espera: null, semConfirmacao: null, proximoDia: ge.j.proximoDia });
   assert.equal((await chamar('agenda', 'GET', '/api/contagens')).status, 403);
 });
 
@@ -202,8 +202,8 @@ test('velocidade: arquivos da tela com ETag → 304 sem corpo; brotli guardado; 
 
 test('versão nova no ar e a casca nova no service worker', async () => {
   const v = await chamar(null, 'GET', '/api/versao');
-  assert.equal(v.j.versao, '2026-10-16-patio');
+  assert.equal(v.j.versao, '2026-10-16-r5');
   const sw = await (await fetch(base + '/sw.js')).text();
-  assert.match(sw, /indycar-v15/);
+  assert.match(sw, /indycar-v16/);
   assert.match(sw, /rodada4\.css/);
 });

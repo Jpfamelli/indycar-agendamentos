@@ -1,12 +1,16 @@
 // Service Worker do IndyCar Agendamentos — torna o site instalável (PWA)
 // e mantém a casca do app em cache para abrir rápido (e abrir mesmo com o
 // servidor fora do ar: a tela aparece, avisa e tenta de novo sozinha).
-const CACHE = 'indycar-v15';
+const CACHE = 'indycar-v16';
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala — o app deixa de ser instalável sem dizer por quê. Foi o que
    quase aconteceu quando o qrcode.min.js saiu junto com a tela de QR e
    continuou listado aqui. Mantenha só o que existe de verdade. */
-const CORE = ['/', '/styles.css', '/planejamento.css', '/app.js', '/planejamento.js', '/agenda-planejada.js', '/conta.js', '/conta.css', '/rodada4.css', '/manifest.json', '/icon-192.png', '/icon-512.png', '/logo.png'];
+/* RODADA 5 (Central): tudo RELATIVO ao escopo do service worker. Sozinho, o escopo
+   é '/'; sob a Central é '/agenda/' — a casca guardada é a certa nos dois casos. */
+const RAIZ = new URL('./', self.registration.scope).pathname;
+const CORE = ['', 'styles.css', 'planejamento.css', 'rodada4.css', 'rodada5.css', 'conta.css', 'apps.js', 'planejamento.js', 'app.js', 'conta.js',
+  'agenda-planejada.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'logo.png'].map((c) => RAIZ + c);
 
 /* A biblioteca do login (supabase-js) com a versão FIXA: o arquivo nunca muda
    (o jsDelivr manda "immutable"), então pode ficar guardado. Sem ela, a casca
@@ -25,7 +29,9 @@ function passaDireto(req) {
   const url = new URL(req.url);
   if (req.url === LIB_LOGIN) return false;
   if (url.origin !== self.location.origin) return true;
-  if (url.pathname.startsWith('/api/') || url.pathname === '/api') return true;
+  if (url.pathname.startsWith(RAIZ + 'api/') || url.pathname === RAIZ + 'api') return true;
+  // a página do cliente (/confirmar/) muda de resposta a cada toque: sempre rede
+  if (url.pathname.startsWith(RAIZ + 'confirmar')) return true;
   return false;
 }
 
@@ -67,7 +73,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(new Promise((responder) => {
     let respondeu = false;
     const doCache = () => caches.match(e.request)
-      .then((m) => m || (e.request.mode === 'navigate' ? caches.match('/') : null));
+      .then((m) => m || (e.request.mode === 'navigate' ? caches.match(RAIZ) : null));
     const timer = setTimeout(() => {
       doCache().then((m) => { if (m && !respondeu) { respondeu = true; responder(m); } });
     }, PACIENCIA_MS);

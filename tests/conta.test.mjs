@@ -14,7 +14,10 @@ function funcao(nome) {
 function constante(nome) {
   const ini = fonte.indexOf(`const ${nome} =`);
   if (ini < 0) throw new Error(`constante ${nome} não achada`);
-  return fonte.slice(ini, fonte.indexOf('};\n', ini) + 2);
+  // rodada 5: CONTA_APPS virou uma função imediata (lê apps.js quando existe) — termina em "})();"
+  const fimIife = fonte.indexOf('})();\n', ini), fimObj = fonte.indexOf('};\n', ini);
+  const fim = fimIife >= 0 && fimIife < fonte.indexOf('\nconst ', ini + 10) ? fimIife + 5 : fimObj + 2;
+  return fonte.slice(ini, fim);
 }
 const ctx = vm.createContext({ URL });
 vm.runInContext([constante('CONTA_APPS'), ...['contaEsperaLogin', 'contaMensagemLogin', 'contaSenhaNovaErro',

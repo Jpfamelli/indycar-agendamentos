@@ -20,6 +20,8 @@ import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional, casaB
 import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../regras.js';
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento } from '../patio.js';
+import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia } from '../horarios.js';
+import { esperaQueCabe, aniversariantes } from '../dados.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3011);
@@ -166,6 +168,23 @@ const PERFIS = {
   mfa:         { id: U(8), nome:'Com Código', papel:'gestor', apps:['agenda','crm'] },
 };
 let NOTIF = [], TAREFAS = [];
+/* RODADA 5: lista de espera, confirmações, serviços com duração e janelas (como no banco real) */
+let ESPERA = [], CONFIRMACOES = [];
+const SERVICOS_MOCK = [{ nome: 'Troca de óleo', duracao_min: 40 }, { nome: 'Alinhamento 3D', duracao_min: 45 }, { nome: 'Revisão de Motor', duracao_min: 360 }, { nome: 'Freios', duracao_min: 90 }, { nome: 'Diagnóstico com Scanner', duracao_min: 30 }, { nome: 'Correia Dentada', duracao_min: 240 }];
+const JANELAS_MOCK = [{ tipo_servico: 'Troca de óleo do motor e filtros', dias: 'seg-sex', inicio: '08:00:00', fim: '11:00:00' }, { tipo_servico: 'Troca de óleo do motor e filtros', dias: 'seg-sex', inicio: '14:00:00', fim: '17:00:00' },
+  { tipo_servico: 'Troca de óleo do motor e filtros', dias: 'sabado', inicio: '08:00:00', fim: '11:00:00' }, { tipo_servico: 'Pneus, alinhamento e balanceamento', dias: 'seg-sex', inicio: '08:00:00', fim: '10:00:00' }];
+function semearRodada5() {
+  const agora = Date.now();
+  ESPERA = [
+    { id: U(601), status: 'aberta', cliente_nome: 'Joana Ribeiro', telefone: '12991110099', servico: 'Troca de óleo', veiculo: 'Creta', placa: 'ABC1D23', preferencia: 'Manhã', de: dia(0), ate: dia(7), observacoes: 'Só até 10h', cliente_id: null, agendamento_id: null, created_at: new Date(agora - 2 * 864e5).toISOString() },
+    { id: U(602), status: 'aberta', cliente_nome: 'Pedro Alcântara', telefone: '12991110098', servico: 'Alinhamento 3D', veiculo: null, placa: null, preferencia: 'Qualquer horário', de: null, ate: null, observacoes: null, cliente_id: null, agendamento_id: null, created_at: new Date(agora - 6 * 3600e3).toISOString() },
+    { id: U(603), status: 'agendada', cliente_nome: 'Marina', telefone: '12991110097', servico: 'Freios', veiculo: 'Polo', placa: null, preferencia: 'Tarde', de: null, ate: null, observacoes: null, cliente_id: null, agendamento_id: null, created_at: new Date(agora - 5 * 864e5).toISOString() },
+  ];
+  CONFIRMACOES = [{ agendamento_id: AGENDA[8]?.id, token: 'a1b2c3d4e5f6a7b8c9d0e1f2ffff', resposta: 'confirmou', respondido_em: new Date(agora - 3600e3).toISOString(), enviado_em: new Date(agora - 7200e3).toISOString(), canal: 'whatsapp' }];
+  if (AGENDA[8]) AGENDA[8].confirmacao = { resposta: 'confirmou', respondido_em: CONFIRMACOES[0].respondido_em, enviado_em: CONFIRMACOES[0].enviado_em, canal: 'whatsapp' };
+  if (AGENDA[7]) AGENDA[7].confirmacao = { resposta: null, respondido_em: null, enviado_em: new Date(agora - 1800e3).toISOString(), canal: 'whatsapp' };
+}
+semearRodada5();
 function semearRodada3() {
   const agora = Date.now();
   NOTIF = [
@@ -231,7 +250,8 @@ http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': MIME['.html'] }); return res.end(html);
     }
     if (p === '/sw.js') { res.writeHead(200, { 'Content-Type': MIME['.js'] }); return res.end('/* sem service worker no modo de teste */'); }
-    const arq = path.join(PUBLIC, path.normalize(p));
+    // rodada 5: a página pública do cliente (/confirmar/)
+    const arq = path.join(PUBLIC, path.normalize(p === '/confirmar/' || p === '/confirmar' ? '/confirmar/index.html' : p));
     if (!arq.startsWith(PUBLIC) || !fs.existsSync(arq) || fs.statSync(arq).isDirectory()) { res.writeHead(404); return res.end('Not Found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(arq)] || 'application/octet-stream', 'Cache-Control':'no-store' });
     return fs.createReadStream(arq).pipe(res);
@@ -243,7 +263,22 @@ http.createServer(async (req, res) => {
   /* RODADA 4 — simular o Render fora do ar: POST /api/__falha { status:503, vezes:N }
      faz os próximos N pedidos da API responderem esse status (o roteiro de
      navegador usa para testar a faixa "acordando" e a fila do desfecho). */
-  if (p === '/api/__reset') { semearAgenda(); for (const c of CONS) if (c.id === U(104)) c.perfil_id = null; FALHA = { status: 503, vezes: 0 }; return json(res, 200, { ok: true, total: AGENDA.length }); }
+  if (p === '/api/__reset') { semearAgenda(); semearRodada5(); for (const c of CONS) if (c.id === U(104)) c.perfil_id = null; FALHA = { status: 503, vezes: 0 }; return json(res, 200, { ok: true, total: AGENDA.length }); }
+  /* ---- RODADA 5: confirmação PÚBLICA (sem login, pelo token) ---- */
+  if (p === '/api/publico/confirmacao') {
+    const t = m === 'GET' ? url.searchParams.get('t') : body.t;
+    const c = CONFIRMACOES.find(x => x.token === t);
+    if (!c) return json(res, 404, { erro: 'Este link não vale mais. Fale com a oficina pelo WhatsApp.' });
+    const a = AGENDA.find(x => x.id === c.agendamento_id);
+    if (m === 'GET') return json(res, 200, { token: c.token, resposta: c.resposta, respondido_em: c.respondido_em, oficina: { nome: 'IndyCar Centro Automotivo', endereco: 'Av. Bandeirantes, 875 — Taubaté/SP', mapa: 'https://www.google.com/maps/search/?api=1&query=Av.+Bandeirantes+875+Taubate', whatsapp: 'https://wa.me/5512996830272' },
+      agendamento: { id: a.id, primeiro_nome: a.cliente_nome.split(' ')[0], servico: a.servico, data: a.data, hora: a.hora, status: a.status, veiculo: a.veiculo, consultor: a.consultor_nome, passou: `${a.data} ${a.hora}` < `${hoje()} ${agoraHHMM()}` } });
+    if (!['confirmou', 'nao_vem', 'remarcar'].includes(body.resposta)) return json(res, 400, { erro: 'Resposta inválida.' });
+    c.resposta = body.resposta; c.respondido_em = new Date().toISOString(); c.observacao = body.observacao || null;
+    if (body.resposta === 'confirmou' && ['aguardando', 'confirmado'].includes(a.status)) { a.confirmado = 1; a.status = 'confirmado'; }
+    else TAREFAS.unshift({ id: U(450 + TAREFAS.length), titulo: body.resposta === 'remarcar' ? 'Remarcar' : 'Cliente avisou que não vem', descricao: `${a.cliente_nome} respondeu pelo link.`, origem: 'agenda', prioridade: 1, status: 'aberta', agendamento_id: a.id });
+    console.log('CONFIRMACAO', a.cliente_nome, body.resposta);
+    return json(res, 200, { ok: true, resposta: c.resposta, respondido_em: c.respondido_em });
+  }
   if (p === '/api/__falha') { FALHA = { status: Number(body.status) || 503, vezes: Number(body.vezes) || 0 }; return json(res, 200, FALHA); }
   if (FALHA.vezes > 0) { FALHA.vezes--; res.writeHead(FALHA.status, { 'Content-Type':'text/html' }); return res.end('<h1>Service Unavailable (mock)</h1>'); }
   const soPresenca = PAPEL === 'agenda';
@@ -284,8 +319,86 @@ http.createServer(async (req, res) => {
     const gestor = ['admin', 'gestor'].includes(perfilMock().papel);
     return json(res, 200, { followup: AGENDA.filter(a => ['nao_veio', 'nao_fechou'].includes(a.status)).length,
       semValor: gestor ? AGENDA.filter(a => a.status === 'concluido' && !(a.valor > 0)).length : null,
-      antigas: gestor ? antigasMock().length : null, entregues: gestor ? entreguesSemDesfecho(PATIO, AGENDA).length : null });
+      antigas: gestor ? antigasMock().length : null, entregues: gestor ? entreguesSemDesfecho(PATIO, AGENDA).length : null,
+      espera: ESPERA.filter(e => e.status === 'aberta').length, semConfirmacao: AGENDA.filter(a => a.data === dia(1) && a.status === 'aguardando' && !a.confirmado).length, proximoDia: dia(1) });
   }
+  if (p === '/api/confirmacoes/resumo') {
+    if (!['admin', 'gestor'].includes(perfilMock().papel)) return json(res, 403, { erro:'Só o gestor ou o administrador pode fazer isso.' });
+    return json(res, 200, { dias: 30, enviadas: 12, abertas: 9, confirmaram: 7, remarcar: 2, nao_vem: 1, sem_resposta: 2, taxa_resposta: 83 });
+  }
+  /* ---- RODADA 5: horários livres como serviço (as funções REAIS de horarios.js) ---- */
+  const baseHor = () => ({ consultores: CONS.filter(c => c.ativo), servicos: SERVICOS_MOCK, janelas: JANELAS_MOCK });
+  const agoraMock = () => { const [h, mi] = agoraHHMM().split(':').map(Number); return { data: hoje(), min: h * 60 + mi }; };
+  if (p === '/api/horarios-livres/dia') {
+    const data = url.searchParams.get('data'), servico = url.searchParams.get('servico') || null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data || '')) return json(res, 400, { erro: 'Informe ?data=AAAA-MM-DD.' });
+    const b = baseHor();
+    const dia = livresDoDia({ data, agora: agoraMock(), agendamentos: AGENDA, consultores: b.consultores, duracao: duracaoDoServico(servico, b.servicos),
+      janelas: janelasDoServico(servico, b.janelas, diaDaSemana(data)), consultor_id: url.searchParams.get('consultor_id') || null, ignorar: url.searchParams.get('ignorar') || null });
+    const nomes = new Map(b.consultores.map(c => [c.id, c.nome]));
+    return json(res, 200, { ...dia, servico, consultores: b.consultores.map(c => ({ id: c.id, nome: c.nome })),
+      horarios: dia.horarios.map(h => ({ ...h, consultores: h.consultores_livres.map(id => ({ id, nome: nomes.get(id) })) })), resumo: resumoDoDia(dia) });
+  }
+  if (p === '/api/horarios-livres/proximos') {
+    const b = baseHor(), servico = url.searchParams.get('servico') || null, desde = url.searchParams.get('desde') || hoje();
+    const lista = proximosDias({ desde, agora: agoraMock(), dias: Number(url.searchParams.get('dias')) || 7, porDia: (d) => AGENDA.filter(a => a.data === d),
+      consultores: b.consultores, duracao: duracaoDoServico(servico, b.servicos), janelasPorDia: (dow) => janelasDoServico(servico, b.janelas, dow) });
+    return json(res, 200, { desde, servico, duracao_min: duracaoDoServico(servico, b.servicos), capacidade: b.consultores.length || 1,
+      dias_livres: lista.map(x => ({ data: x.data, motivo: x.motivo, horarios: x.horarios.map(h => h.hora), total: x.horarios.length })), resumo: lista.map(resumoDoDia).join(' · ') });
+  }
+  /* ---- RODADA 5: lista de espera ---- */
+  if (p === '/api/espera' && m === 'GET') {
+    const st = url.searchParams.get('status') || 'aberta';
+    let l = st === 'todas' ? ESPERA : ESPERA.filter(e => e.status === st);
+    const d = url.searchParams.get('data'); if (d) l = esperaQueCabe(l, d, url.searchParams.get('servico'));
+    return json(res, 200, l);
+  }
+  if (p === '/api/espera' && m === 'POST') {
+    if (!body.cliente_nome || !body.servico) return json(res, 400, { erro: 'Informe o nome e o serviço.' });
+    const e = { id: U(650 + ESPERA.length), status: 'aberta', created_at: new Date().toISOString(), cliente_id: null, veiculo: null, placa: null, preferencia: null, de: null, ate: null, observacoes: null, agendamento_id: null, ...body, telefone: String(body.telefone || '').replace(/\D/g, '') || null };
+    ESPERA.push(e); console.log('ESPERA', JSON.stringify(e)); return json(res, 201, e);
+  }
+  if ((mm = p.match(/^\/api\/espera\/([0-9a-f-]{36})$/))) {
+    const e = ESPERA.find(x => x.id === mm[1]); if (!e) return json(res, 404, { erro: 'Não encontrado' });
+    if (m === 'DELETE') { if (!['admin', 'gestor'].includes(perfilMock().papel)) return json(res, 403, { erro: 'Só o gestor ou o administrador pode fazer isso.' }); ESPERA.splice(ESPERA.indexOf(e), 1); return json(res, 200, { ok: true }); }
+    Object.assign(e, body, body.telefone !== undefined ? { telefone: String(body.telefone || '').replace(/\D/g, '') || null } : {}); console.log('ESPERA PATCH', e.cliente_nome, e.status); return json(res, 200, e);
+  }
+  /* ---- RODADA 5: confirmação, aviso de remarcação, ficha 360, aniversários ---- */
+  if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]+)\/confirmacao$/)) && m === 'POST') {
+    const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro: 'Não encontrado' });
+    if (!['aguardando', 'confirmado'].includes(a.status)) return json(res, 409, { erro: 'Esse horário já teve desfecho — não há o que confirmar.' });
+    let c = CONFIRMACOES.find(x => x.agendamento_id === a.id && !x.resposta);
+    if (!c) { c = { agendamento_id: a.id, token: 'a1b2c3d4e5f6a7b8c9d0e1f2' + String(CONFIRMACOES.length).padStart(4, '0'), resposta: null, respondido_em: null, enviado_em: new Date().toISOString(), canal: 'whatsapp' }; CONFIRMACOES.push(c); }
+    a.confirmacao = { resposta: c.resposta, respondido_em: c.respondido_em, enviado_em: c.enviado_em, canal: c.canal };
+    const link = `http://localhost:${PORT}/confirmar/?t=${c.token}`;
+    const texto = `Oi ${a.cliente_nome.split(' ')[0]}! Aqui é da IndyCar 🏁 Seu horário de ${a.servico} está marcado para ${a.data.split('-').reverse().join('/')} às ${a.hora}. Confirma pra gente? É só tocar: ${link}`;
+    return json(res, 200, { link, texto, whatsapp: a.telefone ? `https://wa.me/55${a.telefone}?text=${encodeURIComponent(texto)}` : null, resposta: c.resposta, enviado_em: c.enviado_em });
+  }
+  if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]+)\/avisar-remarcacao$/)) && m === 'POST') {
+    const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro: 'Não encontrado' });
+    if (!a.telefone) return json(res, 200, { enfileirado: false, whatsapp: null, motivo: 'Este horário não tem telefone.' });
+    const cli = CLIENTES.find(c => c.id === a.cliente_id);
+    const texto = `Oi ${a.cliente_nome.split(' ')[0]}! Seu horário foi remarcado para ${a.data} às ${a.hora}.`;
+    if (cli && cli.aceita_mensagens === 0) return json(res, 200, { enfileirado: false, whatsapp: `https://wa.me/55${a.telefone}?text=${encodeURIComponent(texto)}`, motivo: 'O cliente pediu para não receber mensagem automática — abri o WhatsApp para você mandar à mão.' });
+    console.log('FILA COMUNICAR', a.cliente_nome, texto); return json(res, 200, { enfileirado: true, whatsapp: null, motivo: null });
+  }
+  if (p === '/api/clientes/360') {
+    const t = telefoneNacional(url.searchParams.get('tel')) || ''; const c = CLIENTES.find(x => telefoneNacional(x.telefone) === t);
+    const ags = AGENDA.filter(a => telefoneNacional(a.telefone) === t);
+    const os = PATIO.filter(o => ags.some(a => a.id === o.agendamento_id) && o.etapa !== 'cancelado');
+    return json(res, 200, { telefone: t, cliente: c ? { ...c, aceita_mensagens: c.aceita_mensagens !== 0 } : null,
+      conversa: c ? { id: 'conv-1', etapa: 'Agendado', aguardando_consultor: c.nome.startsWith('Patr'), link: `/?tel=${t}` } : null,
+      patio: os.map(o => ({ id: o.id, numero: o.numero, etapa: o.etapa, link: `/?os=${o.id}`, extras_pendentes: EXTRAS.filter(e => e.os_id === o.id && e.status === 'pendente').length })),
+      leads: c ? [{ id: 'l1', status: ags.some(a => a.status === 'aguardando') ? 'agendado' : 'concluido', link: `/?lead=l1` }] : [],
+      orcamentos: ags.filter(a => a.orcamento).map(a => ({ numero: a.orcamento.numero, status: a.orcamento.status })),
+      comunicar: c ? [{ tipo: 'lembrete', status: 'enviado', enviado_em: new Date(Date.now() - 864e5).toISOString(), resposta: 'Confirmado!' }] : [],
+      tarefas: TAREFAS.filter(x => ags.some(a => a.id === x.agendamento_id) && x.status === 'aberta'),
+      indicacoes: { fez: c && c.nome.startsWith('Maria') ? [{ nome: 'Vanderlei' }] : [], foi_indicado_por: c && c.nome.startsWith('Vander') ? { nome: 'Maria Aparecida' } : null },
+      resumo: { total_gasto: ags.reduce((s, a) => s + (a.valor || 0), 0), servicos_feitos: ags.filter(a => a.status === 'concluido').length, faltas: ags.filter(a => a.status === 'nao_veio').length,
+        ultima_visita: ags.filter(a => a.status === 'concluido').map(a => a.data).sort().at(-1) || null, proximo_horario: ags.filter(a => ['aguardando', 'confirmado'].includes(a.status)).map(a => a.data).sort()[0] || null,
+        mensagens_total: c ? 14 : 0, tarefas_abertas: TAREFAS.filter(x => ags.some(a => a.id === x.agendamento_id) && x.status === 'aberta').length, carro_na_oficina: os.some(o => !['entregue', 'cancelado'].includes(o.etapa)) } });
+  }
+  if (p === '/api/aniversarios') return json(res, 200, { dias: 7, itens: aniversariantes(CLIENTES, hoje(), Number(url.searchParams.get('dias')) || 7) });
   if (p === '/api/valores/pendentes') return json(res, 200, { dias: 120, itens: AGENDA.filter(a => a.status === 'concluido' && !(a.valor > 0)).sort((x, y) => y.data.localeCompare(x.data)) });
   if (p === '/api/pendencias-antigas') return json(res, 200, antigasMock());
   // ---- Pátio (16/10): selo da etapa, link do cliente e entregues sem desfecho
@@ -383,11 +496,12 @@ http.createServer(async (req, res) => {
       agendamentos: AGENDA, capacidade:1, ignorar: url.searchParams.get('ignorar') }) });
   }
   if (p === '/api/busca') {
-    const q = (url.searchParams.get('q') || '').toLowerCase(), d = q.replace(/D/g, '');
+    const q = (url.searchParams.get('q') || '').toLowerCase(), d = q.replace(/\D/g, '');
     const casa = (vals) => casaBusca(vals, q);
     return json(res, 200, {
       agendamentos: AGENDA.filter(a => casa([a.cliente_nome, a.placa, a.veiculo, a.servico]) || (d.length >= 4 && tel(a.telefone).includes(d))).slice(0, 12),
-      clientes: CLIENTES.filter(c => casa([c.nome, c.placa, c.veiculo]) || (d.length >= 4 && tel(c.telefone).includes(d))).slice(0, 8) });
+      clientes: CLIENTES.filter(c => casa([c.nome, c.placa, c.veiculo]) || (d.length >= 4 && tel(c.telefone).includes(d))).slice(0, 8),
+      espera: ESPERA.filter(e => e.status === 'aberta' && (casa([e.cliente_nome, e.placa, e.servico]) || (d.length >= 4 && tel(e.telefone).includes(d)))).slice(0, 6) });
   }
   if (p === '/api/servicos') return json(res, 200, [
     { id:'s1', nome:'Troca de Óleo de Motor', duracao_min:40, ativo:1 }, { id:'s2', nome:'Alinhamento 3D', duracao_min:45, ativo:1 },
@@ -462,7 +576,8 @@ http.createServer(async (req, res) => {
     porConsultor:[{ nome:'Leonardo', ativo:1, total:85, vieram:60, faltas:20, concluidos:20, naoFechou:30, taxaFechamento:33, taxaFalta:25 }] });
   if (p === '/api/agendamentos' && m === 'GET') {
     const q = (url.searchParams.get('q') || '').toLowerCase();
-    let l = soPresenca ? AGENDA.filter(a => a.data === hoje()) : AGENDA;
+    // presença: hoje + quem está na casa de outro dia (chegou e não saiu), sem telefone
+    let l = soPresenca ? AGENDA.filter(a => a.data === hoje() || (['compareceu', 'em_atendimento'].includes(a.status) && a.data < hoje())) : AGENDA;
     const de = url.searchParams.get('de'), ate = url.searchParams.get('ate'), dt = url.searchParams.get('data');
     if (!soPresenca && dt) l = l.filter(a => a.data === dt);
     else if (!soPresenca && (de || ate)) l = l.filter(a => (!de || a.data >= de) && (!ate || a.data <= ate));
@@ -485,7 +600,15 @@ http.createServer(async (req, res) => {
     }
     Object.assign(a, { status: ch.status, confirmado: ch.confirmado ?? a.confirmado,
       compareceu: ch.compareceu !== undefined ? ch.compareceu : a.compareceu });
-    return json(res, 200, { ...a, ...(body.status === 'nao_veio' ? { aviso_ausencia:{ ok:true } } : {}) });
+    // rodada 5: "Chegou" abre a OS no Pátio (aqui, de mentira) e devolve o resumo; "Não veio" diz quem da espera cabe
+    let patio = null, espera = null;
+    if (body.status === 'compareceu') {
+      let os = PATIO.find(o => o.agendamento_id === a.id && o.etapa !== 'cancelado');
+      if (!os) { os = { id: `30000000-0000-4000-8000-${String(100 + PATIO.length).padStart(12, '0')}`, numero: 102 + PATIO.length, etapa: 'recebido', etapa_em: new Date().toISOString(), agendamento_id: a.id, token_publico: 'abcdef0123456789abcdef01', entregue_em: null }; PATIO.push(os); }
+      patio = resumoDaOs(os, EXTRAS, 'https://indycar-patio.netlify.app');
+    }
+    if (['nao_veio', 'cancelado'].includes(body.status) && !soPresenca) espera = esperaQueCabe(ESPERA, a.data, a.servico).slice(0, 3);
+    return json(res, 200, { ...a, ...(body.status === 'nao_veio' ? { aviso_ausencia:{ ok:true } } : {}), ...(patio ? { patio } : {}), ...(espera?.length ? { espera } : {}) });
   }
   if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]+)$/))) {
     const i = AGENDA.findIndex(x => x.id === mm[1]);
@@ -498,7 +621,7 @@ http.createServer(async (req, res) => {
       if (nv.acao === 'carimbar') a.no_show_notificado_em = new Date().toISOString();
       if (nv.acao === 'avisar') { a.no_show_notificado_em = new Date().toISOString(); console.log('AVISO DE FALTA ENVIADO (mock)', a.cliente_nome); }
       for (const k of ['cliente_nome', 'telefone', 'veiculo', 'placa', 'servico', 'data', 'hora', 'consultor_id', 'origem', 'status', 'observacoes', 'cliente_id', 'compareceu', 'no_show_notificado_em'])
-        if (body[k] !== undefined) a[k] = k === 'telefone' ? (String(body[k] || '').replace(/D/g, '') || null) : body[k];
+        if (body[k] !== undefined) a[k] = k === 'telefone' ? (String(body[k] || '').replace(/\D/g, '') || null) : body[k];
       if (['aguardando', 'confirmado'].includes(body.status) && body.compareceu === undefined) a.compareceu = null;
       console.log('PUT', a.cliente_nome, JSON.stringify(body));
       return json(res, 200, { ...a, aviso_ausencia: nv.acao === 'avisar' ? { ok:true } : null });
@@ -507,7 +630,7 @@ http.createServer(async (req, res) => {
   }
   if (p === '/api/agendamentos' && m === 'POST') {
     if (!body.cliente_nome || !body.servico || !body.data || !body.hora) return json(res, 400, { erro:'Informe cliente, serviço, data e hora.' });
-    const a = ag({ ...body, telefone: String(body.telefone || '').replace(/D/g, '') || null, status: body.status || 'aguardando' });
+    const a = ag({ ...body, telefone: String(body.telefone || '').replace(/\D/g, '') || null, status: body.status || 'aguardando' });
     AGENDA.push(a); return json(res, 200, a);
   }
   if (m === 'GET') return json(res, 200, []);              // telas que não são o foco: lista vazia

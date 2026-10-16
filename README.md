@@ -284,13 +284,64 @@ Para testar sem derrubar nada: `POST /api/__falha {"status":503,"vezes":3}` no m
 Tour de boas-vindas por papel na primeira vez (fica em `perfis.preferencias.agenda_tour`), tela AJUDA (tecla ?)
 com o "como faço…" de cada papel. `?tour=0` na URL pula o tour.
 
+### ⚙️ Variáveis de ambiente (rodada 5 — o que o servidor lê)
+| Variável | Obrigatória | Para quê |
+|---|---|---|
+| `SUPABASE_URL` | sim | endereço do projeto (`https://nppfqhavqahapmugnyng.supabase.co`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | sim | chave de serviço — só no servidor, nunca vai ao navegador |
+| `SUPABASE_ANON_KEY` | sim | chave publicável que a tela usa para o login (`/api/config`) |
+| `PORT` | não (3000) | porta; o Render define sozinho |
+| `RENDER` | não | o Render define `true`: liga a importação do CodeWords e as automações |
+| `AUTOMACOES` | não | `1` liga as automações fora do Render; `0` desliga no Render |
+| `IMPORT_ENABLED` / `IMPORT_DISABLED` / `IMPORT_INTERVALO_MIN` / `MARK_IMPORTED` | não | importação de agendamentos do CodeWords (padrão: só no Render, a cada 15 min) |
+| `WHATSAPP_VERIFY_TOKEN` | não (`indycar`) | token do webhook da Cloud API (Meta) |
+| `WHATSAPP_NUMERO` | não | número da empresa (padrão 5512996830272) — conferência da conexão |
+| `CW_API_KEY`, `CW_SERVICE_ID`, `CW_DB_SERVICE_ID`, `CW_NOSHOW_SERVICE_ID`, `CW_CONNECT_SERVICE_ID`, `CW_DEVICE_ID`, `CW_BASE_URL` | não | preenchem `agenda_ia_config` na subida (`aplicarConfigDoAmbiente`) quando a tabela está vazia |
+| `ANTHROPIC_API_KEY` | não | só se o motor Claude for usado (hoje não é) |
+Local: `.env` na pasta (lido por `process.loadEnvFile`). No Render: env group `Indycar`. Nenhum segredo em arquivo versionado (`npm run segredos`).
+
+### 🏠 Preparado para a IndyCar Central (onda B2)
+- `server.js` exporta `{ handler, iniciar, server, VERSAO }`; só abre a porta quando é o programa principal (`node server.js`).
+  A Central chama `await iniciar({ ouvir: false })` e monta `handler` sob `/agenda/`, reescrevendo `req.url` sem o prefixo e
+  pondo `req.prefixo = '/agenda'` (o link de confirmação do cliente usa `baseDaRequisicao`, que respeita `X-Forwarded-Proto/Host` + prefixo).
+- Frontend 100 % relativo: `index.html`, `manifest.json` (`start_url: "./"`), `sw.js` (escopo pelo `self.registration.scope`) e todo `fetch`
+  partem de `IndyCarApps.raiz()` (`public/apps.js`). Sob a Central, `window.INDYCAR_APPS = { crm: { url: '/crm/' }, … }` antes do `apps.js`
+  redireciona todos os links cruzados (CRM, Atendimento, Comunicar, Orçador, Pátio, Site) sem mexer em mais nada.
+- Login único: a sessão do Supabase fica na mesma chave de `localStorage` dos outros apps no mesmo domínio.
+
+### ⏱️ Horários livres como serviço (rodada 5 — contrato para a IA do Atendimento)
+```
+GET /api/horarios-livres/dia?data=AAAA-MM-DD&servico=<texto>&consultor_id=<uuid>&ignorar=<uuid>
+→ { data, aberto, motivo, duracao_min, capacidade, janelas:[{inicio,fim}], consultores:[{id,nome}],
+    horarios:[{ hora:'08:00', fim:'08:40', livres:1, consultores_livres:[uuid], consultores:[{id,nome}] }], resumo:'sex 17/10: 08:00, 08:30…' }
+GET /api/horarios-livres/proximos?desde=AAAA-MM-DD&servico=&dias=7&quantos=5&consultor_id=
+→ { desde, dias, duracao_min, capacidade, dias_livres:[{ data, motivo, horarios:['08:00',…], total }], resumo }
+SQL (quem não depende do servidor): select agenda_horarios_livres('2026-10-17', 'Troca de óleo', null);  -- mesmo JSON do /dia
+```
+Regras (iguais no `horarios.js` e na função SQL): seg–sáb, 8h às 17h30, passos de 30 min; duração por serviço (`servicos.duracao_min`,
+senão palavras-chave, senão 60 min) e o serviço precisa caber até 17h30; `janelas_agendamento` do tipo que casa com o serviço limitam o
+horário de chegada; capacidade = consultores ativos, um carro por consultor por meia hora; hoje só a partir de 30 min. `motivo`:
+`domingo` · `passou` · `encerrado` · `lotado` · `fora_da_janela` · `consultor_inativo`. Só equipe (admin|gestor|atendente) ou a chave de serviço —
+o papel `agenda` e o anon recebem 403/42501.
+
+### ⏳ Lista de espera, confirmação do cliente e ficha 360 (rodada 5)
+- **Lista de espera** (menu ESPERA, tecla E; `ag_lista_espera`): nome, telefone, serviço, preferência e período. "Não veio"/cancelado devolve
+  no recado quem da lista cabe no dia; **Encaixar** abre o Novo agendamento preenchido e, ao salvar, a espera vira "agendada".
+- **Pedir confirmação** (✓ no cartão): `POST /api/agendamentos/:id/confirmacao` gera o link `{base}/confirmar/?t=<token>` (`ag_confirmacoes`)
+  e o texto para o WhatsApp. O cliente responde na página pública (sem login): "confirmou" liga `confirmado` (gatilho `ag_confirmacao_aplica`);
+  "remarcar"/"não vem" viram tarefa para quem atende. O cartão mostra o selo.
+- **Visão 360** na ficha e no agendamento: `GET /api/clientes/360?tel=` (rpc `cliente_360`) — conversa, carro no pátio, leads, orçamentos,
+  Comunicar, tarefas, indicações e totais. **Aniversários**: `GET /api/aniversarios?dias=7` (chip no Início).
+- **Avisar remarcação**: `POST /api/agendamentos/:id/avisar-remarcacao` põe uma mensagem avulsa na fila do Comunicar (`posvenda_envios`),
+  respeitando o opt-out; se não der, devolve o link do WhatsApp com o texto.
+
 ### 🔎 Busca sem acento
 "oleo" acha "Óleo", "jose" acha "José" — ilike na forma digitada e numa forma larga (curinga no lugar das
 vogais/ç), conferida em JS (`dados.js › casaBusca`). Sem extensão nova no banco.
 
 ### 🧪 Testes
 ```bash
-npm test          # node --test: dados.js, app.js, planejamento.js, regras.js, automacoes.js, conta.js, rodada 4 e o server.js por HTTP
+npm test          # node --test: dados.js, app.js, planejamento.js, regras.js, automacoes.js, conta.js, horários livres, rodadas 4/5 e o server.js por HTTP
 npm run segredos  # varre os arquivos versionados atrás de chave/senha
 npm run mock      # http://localhost:3011/?papel=admin|gestor|atendente|agenda|desativado|semacesso|trocarsenha|mfa (&semsessao=1 = tela de login)
 npm run check     # node --check no servidor, no mock e nos JS do public/
@@ -313,6 +364,10 @@ POST   /api/equipe/apps         POST /api/equipe/senha-temporaria   GET /api/equ
 GET    /api/saude               { ok, problema, desde, resumo }  (vigia_estado)
 GET    /api/abrir?tel=&cliente= ficha + agendamentos (link de entrada)
 GET    /api/horarios-livres     ?data=&consultor_id=&ignorar=  → { capacidade, sugestoes[3] }
+GET    /api/horarios-livres/dia ?data=&servico=&consultor_id=   GET /api/horarios-livres/proximos ?desde=&servico=&dias=   (rodada 5)
+GET    /api/espera ?status=&data=&servico=   POST /api/espera   PATCH /api/espera/:id   DELETE /api/espera/:id (gestor)
+POST   /api/agendamentos/:id/confirmacao → { link, texto, whatsapp }   GET/POST /api/publico/confirmacao (sem login, token)
+POST   /api/agendamentos/:id/avisar-remarcacao   GET /api/clientes/360?tel=   GET /api/aniversarios?dias=
 GET    /api/busca?q=            { agendamentos, clientes }
 GET    /api/clientes/historico  ?cliente_id=&tel=   ·   GET /api/clientes/mensagens (Comunicar)
 GET    /api/dashboard

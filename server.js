@@ -4,6 +4,7 @@ import http from 'node:http';
 import zlib from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, resolve } from 'node:path';
 import * as dadosReal from './dados.js';
@@ -13,8 +14,9 @@ import {
   decidirAcesso, decidirNaoVeioNaEdicao, mudaDesfechoRegistrado, origemPermitida, mensagemSegura, ehGestor,
   presencaPodeMarcar,
 } from './regras.js';
-import { rodarAutomacoes } from './automacoes.js';
+import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento } from './patio.js';
+import { lerParametros as lerParametrosDeHorario, resumoDoDia } from './horarios.js';
 
 /* A camada de dados é trocável SÓ nos testes (tests/servidor.test.mjs injeta
    um banco de mentira com _injetar). Em produção é sempre o dados.js. */
@@ -39,7 +41,7 @@ const UUID = '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a
 
 /* Marca da versão no ar — aparece em /api/versao e no app.js (VERSAO_APP).
    Serve para conferir, depois do deploy, que o Render subiu ESTE código. */
-const VERSAO = '2026-10-16-patio';
+const VERSAO = '2026-10-16-r5';
 
 /* Cache curtinho na memória do servidor para as leituras mais pesadas (painel,
    serviços). Qualquer gravação (POST/PUT/PATCH/DELETE) ou importação do
@@ -619,7 +621,19 @@ function marcarAcesso(usuario) {
    ninguém para fazer login — ela mesma se fecha assim que houver um perfil. */
 const ROTAS_SEM_LOGIN = new Set([
   '/api/config', '/api/agenda.ics', '/api/whatsapp/webhook', '/api/primeiro-acesso', '/api/versao',
+  // rodada 5: a página de confirmação que o CLIENTE abre (token no lugar do login)
+  '/api/publico/confirmacao',
 ]);
+
+/* Endereço público desta Agenda, visto de fora (atrás do proxy do Render vem
+   X-Forwarded-Proto). Com a Central, req.prefixo (ex.: '/agenda') entra no fim:
+   é a base dos links que o servidor monta para o cliente (confirmação). */
+function baseDaRequisicao(req) {
+  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || (req.socket?.encrypted ? 'https' : 'http');
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'localhost').split(',')[0].trim();
+  const prefixo = String(req.prefixo || '').replace(/\/+$/, '');
+  return `${proto}://${host}${prefixo}`;
+}
 
 /* Rotas que custam caro (varrem a tabela, chamam serviço de fora): no máximo
    30 por minuto por pessoa. */
@@ -627,6 +641,7 @@ const ROTAS_CARAS = new Set([
   '/api/busca', '/api/export/agendamentos.csv', '/api/export/clientes.csv', '/api/horarios-livres',
   '/api/codewords/run', '/api/codewords/importar', '/api/integracoes/testar-webhook', '/api/whatsapp/testar',
   '/api/whatsapp/conexao', '/api/clientes/achar', '/api/consultores/sugerir',
+  '/api/horarios-livres/dia', '/api/horarios-livres/proximos', '/api/clientes/360', '/api/aniversarios',
 ]);
 
 /* Freio por chave (IP ou usuário): um token válido — ou um script distraído —
@@ -766,6 +781,59 @@ async function api(req, res, url) {
      @indycartaubate.com voltava com "Email address is invalid". */
   if (pathname === '/api/primeiro-acesso' && m === 'GET') {
     return ok(res, { aberto: (await dados.contarPerfis()) === 0 });
+  }
+
+  /* ---- RODADA 5: confirmação pelo CLIENTE (sem login; o token é a chave) ----
+     GET  ?t=<token>  → o horário dele (primeiro nome, serviço, dia, hora) e a resposta já dada
+     POST { t, resposta: confirmou|nao_vem|remarcar, observacao? } → grava; "confirmou"
+     liga agendamentos.confirmado (gatilho ag_confirmacao_aplica). Freio por IP. */
+  if (pathname === '/api/publico/confirmacao') {
+    const ip = ipDaRequisicao(req);
+    if (!dentroDoLimite(`publico:${ip}`, 40, 600_000)) return send(res, 429, { erro: 'Muitas tentativas. Espere alguns minutos.' }, { 'Cache-Control': 'no-store' });
+    if (m === 'GET') {
+      const c = await dados.confirmacaoPorToken(texto1(searchParams.get('t'), 80));
+      if (!c) return send(res, 404, { erro: 'Este link não vale mais. Fale com a oficina pelo WhatsApp.' }, { 'Cache-Control': 'no-store' });
+      // dados públicos da oficina para a página: como chegar e falar com a gente (nada de cliente)
+      const emp = await dados.obterEmpresa().catch(() => ({}));
+      const endereco = String(emp?.endereco || '').trim();
+      c.oficina = { nome: emp?.nome || 'IndyCar Centro Automotivo', endereco: endereco || null,
+        mapa: endereco ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}` : null,
+        whatsapp: `https://wa.me/${String(NUMERO_DA_EMPRESA).replace(/\D/g, '')}` };
+      return send(res, 200, c, { 'Cache-Control': 'no-store' });
+    }
+    if (m === 'POST') {
+      const corpo = await readBody(req);
+      const resposta = texto1(corpo.resposta, 20);
+      if (!['confirmou', 'nao_vem', 'remarcar'].includes(resposta)) return bad(res, 'Resposta inválida.');
+      const r = await dados.responderConfirmacao(texto1(corpo.t, 80), resposta, texto1(corpo.observacao, 300).trim() || null);
+      if (!r) return send(res, 404, { erro: 'Este link não vale mais. Fale com a oficina pelo WhatsApp.' }, { 'Cache-Control': 'no-store' });
+      invalidarCache();
+      /* "Não vem" / "quer remarcar" vira TAREFA para a equipe (quem atende a conversa, o consultor ou um gestor —
+         a mesma regra das automações). "Confirmou" não precisa de ninguém. */
+      if (resposta !== 'confirmou') {
+        try {
+          const a = await dados.obterAgendamento(r.agendamento_id);
+          if (a) {
+            const [consultores, gestores] = await Promise.all([dados.listarConsultores().catch(() => []), dados.gestoresAtivos().catch(() => [])]);
+            const dono = consultores.find((c) => c.id === a.consultor_id)?.perfil_id || gestores[0]?.id || null;
+            await dados.criarTarefa({
+              titulo: resposta === 'remarcar' ? 'Remarcar' : 'Cliente avisou que não vem',
+              descricao: `${a.cliente_nome} respondeu pelo link de confirmação: ${resposta === 'remarcar' ? 'quer remarcar' : 'não vai conseguir vir'} (${a.servico}, ${formatarDataBR(a.data)} às ${String(a.hora).slice(0, 5)}).${corpo.observacao ? ' Recado: ' + texto1(corpo.observacao, 300) : ''}`,
+              responsavel_id: dono, agendamento_id: a.id, cliente_id: a.cliente_id || null, origem: 'agenda', prioridade: 1,
+            });
+            // e o sino toca na hora para quem vai cuidar (chave única: não repete se o cliente tocar duas vezes)
+            if (dono && dados.notificar) {
+              await dados.notificar({ perfil_id: dono, tipo: 'confirmacao', app: 'agenda', chave: `confirmacao:${a.id}:${resposta}`,
+                titulo: `${a.cliente_nome} ${resposta === 'remarcar' ? 'quer remarcar' : 'avisou que não vem'}`,
+                corpo: `${a.servico} · ${formatarDataBR(a.data)} às ${String(a.hora).slice(0, 5)} — respondeu pelo link de confirmação.`,
+                link: `/?agendamento=${a.id}` }).catch(() => null);
+            }
+          }
+        } catch (e) { console.warn('Confirmação → tarefa:', e?.message || e); }
+      }
+      return send(res, 200, { ok: true, resposta: r.resposta, respondido_em: r.respondido_em }, { 'Cache-Control': 'no-store' });
+    }
+    return notFound(res);
   }
 
   if (pathname === '/api/primeiro-acesso' && m === 'POST') {
@@ -1101,8 +1169,13 @@ async function api(req, res, url) {
     // Quem só marca presença enxerga apenas o DIA DE HOJE, sem telefone —
     // o filtro é imposto aqui, não na tela.
     if (soPresenca) {
-      const lista = await dados.listarAgendamentos({ data: hoje() });
-      return ok(res, lista.map(({ telefone, ...resto }) => resto));
+      /* rodada 5: além de hoje, quem está NA CASA de outro dia (chegou e ainda não
+         saiu), para a recepção ver quem está dentro — sempre sem telefone. */
+      const [deHoje, naCasa] = await Promise.all([
+        dados.listarAgendamentos({ data: hoje() }),
+        dados.naCasaDeOutrosDias ? dados.naCasaDeOutrosDias(7).catch(() => []) : [],
+      ]);
+      return ok(res, [...deHoje, ...naCasa].map(({ telefone, telefone_e164, ...resto }) => resto));
     }
     const de = searchParams.get('de'), ate = searchParams.get('ate');
     if ((de && !dados.dataBanco(de)) || (ate && !dados.dataBanco(ate))) return bad(res, 'Período inválido: use de=AAAA-MM-DD e ate=AAAA-MM-DD.');
@@ -1246,13 +1319,16 @@ async function api(req, res, url) {
      para o gestor (é ele quem resolve). Uma chamada no lugar da lista inteira
      do follow-up a cada troca de tela. */
   if (pathname === '/api/contagens' && m === 'GET') {
-    const [followup, semValor, antigas, entregues] = await Promise.all([
+    const [followup, semValor, antigas, entregues, espera, semConfirmacaoAmanha] = await Promise.all([
       dados.contarFollowup().catch(() => null),
       souGestor ? dados.contarConcluidosSemValor().catch(() => null) : null,
       souGestor ? dados.contarPendenciasAntigas().catch(() => null) : null,
       souGestor ? dados.entreguesNoPatioSemDesfecho().then((l) => l.length).catch(() => null) : null,
+      dados.contarEspera ? dados.contarEspera().catch(() => null) : null,
+      // amanhã (próximo dia útil) ainda sem confirmação: o chip do Início lembra de pedir
+      dados.contarSemConfirmacao ? dados.contarSemConfirmacao(proximoDiaUtil(hoje())).catch(() => null) : null,
     ]);
-    return send(res, 200, { followup, semValor, antigas, entregues }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, { followup, semValor, antigas, entregues, espera, semConfirmacao: semConfirmacaoAmanha, proximoDia: proximoDiaUtil(hoje()) }, { 'Cache-Control': 'no-store' });
   }
   /* ---- PÁTIO (16/10/2026): o banco abre a ordem no "Chegou"; aqui só leitura ----
      ?ids=<uuid,uuid…> (até 60) → { itens: { [agendamento_id]: resumo da ordem } } */
@@ -1299,7 +1375,18 @@ async function api(req, res, url) {
       if (recusa) return send(res, 403, { erro: recusa });
     }
     const { atualizado, avisoAusencia } = await mudarStatus({ antes: a, status: body.status, usuario, valor });
-    return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia });
+    /* rodada 5: "Chegou" abre a ordem no Pátio (gatilho do banco, na mesma transação) —
+       devolve o nº da OS e o link na hora, para o recado "OS nº 123 aberta — Abrir". */
+    let patio = null;
+    if (['compareceu', 'em_atendimento'].includes(body.status) && atualizado && dados.patioDosAgendamentos) {
+      patio = await dados.patioDosAgendamentos([a.id]).then((r) => r?.[a.id] || null).catch(() => null);
+    }
+    // um horário vagou (não veio / cancelado): quem está na lista de espera serviria?
+    let espera = null;
+    if (['nao_veio', 'cancelado'].includes(body.status) && atualizado && dados.listarEspera && !soPresenca) {
+      espera = await dados.listarEspera({ status: 'aberta', limite: 100 }).then((l) => dados.esperaQueCabe(l, a.data, a.servico).slice(0, 3)).catch(() => null);
+    }
+    return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia, ...(patio ? { patio } : {}), ...(espera?.length ? { espera } : {}) });
   }
 
   /* ---- link de entrada do ecossistema (?tel=&cliente=) ----
@@ -1321,6 +1408,120 @@ async function api(req, res, url) {
     return ok(res, await dados.mensagensDoCliente({ cliente_id, telefone }));
   }
 
+  /* ---- RODADA 5: HORÁRIOS LIVRES COMO SERVIÇO (é o que a IA do Atendimento usa) ----
+     GET /api/horarios-livres/dia?data=AAAA-MM-DD&servico=<texto>&consultor_id=<uuid>&ignorar=<uuid>
+       → { data, aberto, motivo, duracao_min, capacidade, janelas, consultores, horarios:[{hora, fim, livres, consultores_livres, consultores}], resumo }
+     GET /api/horarios-livres/proximos?desde=&servico=&dias=7&consultor_id=
+       → { desde, dias, duracao_min, capacidade, dias_livres:[{data, horarios:[...], total}], resumo }
+     Mesmas regras da função SQL agenda_horarios_livres(p_dia, p_servico, p_consultor). */
+  if (pathname === '/api/horarios-livres/dia' && m === 'GET') {
+    const q = lerParametrosDeHorario(searchParams);
+    if (q.dataInvalida || !q.data) return bad(res, 'Informe ?data=AAAA-MM-DD.');
+    const dia = await dados.horariosLivresDoDia({ data: q.data, servico: q.servico, consultor_id: q.consultor_id, ignorar: q.ignorar });
+    return send(res, 200, { ...dia, total: dia.horarios?.length || 0, proximo: dia.horarios?.[0]?.hora || null, resumo: resumoDoDia(dia) }, { 'Cache-Control': 'no-store' });
+  }
+  if (pathname === '/api/horarios-livres/proximos' && m === 'GET') {
+    const q = lerParametrosDeHorario({ get: (k) => (k === 'data' ? searchParams.get('desde') : searchParams.get(k)) });
+    if (q.dataInvalida) return bad(res, 'Período inválido: use desde=AAAA-MM-DD.');
+    const r = await dados.horariosProximosDias({ desde: q.data, servico: q.servico, dias: q.dias, consultor_id: q.consultor_id,
+      quantosDias: Math.min(14, Math.max(1, Number(searchParams.get('quantos')) || 5)) });
+    return send(res, 200, { ...r, resumo: r.dias_livres.map((d) => resumoDoDia({ ...d, aberto: true, horarios: d.horarios.map((h) => ({ hora: h })) })).join(' · ') }, { 'Cache-Control': 'no-store' });
+  }
+
+  /* ---- RODADA 5: LISTA DE ESPERA (encaixe) ---- */
+  if (pathname === '/api/espera' && m === 'GET') {
+    const st = texto1(searchParams.get('status'), 10) || 'aberta';
+    let lista = await dados.listarEspera({ status: ['aberta', 'agendada', 'cancelada', 'todas'].includes(st) ? st : 'aberta' });
+    const d = dados.dataBanco(searchParams.get('data') || '');
+    if (d) lista = dados.esperaQueCabe(lista, d, texto1(searchParams.get('servico'), 120) || null);
+    return send(res, 200, lista, { 'Cache-Control': 'no-store' });
+  }
+  if (pathname === '/api/espera' && m === 'POST') {
+    if (!dentroDoLimite(`espera:${usuario.id}`, 30, 60_000)) return send(res, 429, { erro: 'Muitas esperas seguidas. Espere um minuto.' });
+    if (!texto1(body.cliente_nome, 120).trim()) return bad(res, 'Informe o nome do cliente.');
+    if (!texto1(body.servico, 160).trim()) return bad(res, 'Informe o serviço.');
+    if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
+    if (body.cliente_id && !dados.ehUuid(texto1(body.cliente_id, 40))) return bad(res, 'Identificador inválido.');
+    for (const k of ['de', 'ate']) if (body[k] && !dados.dataBanco(body[k])) return bad(res, 'Data inválida.');
+    const e = await dados.criarEspera({ ...body, criado_por: usuario.id });
+    return send(res, 201, e);
+  }
+  if ((mm = pathname.match(new RegExp(`^/api/espera/${UUID}$`)))) {
+    const atual = await dados.obterEspera(mm[1]);
+    if (!atual) return notFound(res);
+    if (m === 'PATCH') {
+      if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
+      if (body.agendamento_id && !dados.ehUuid(texto1(body.agendamento_id, 40))) return bad(res, 'Identificador inválido.');
+      const statusAntes = atual.status, nomeAntes = atual.cliente_nome;
+      const e = await dados.atualizarEspera(mm[1], body, usuario.id);
+      if (body.status && body.status !== statusAntes) await dados.auditar(usuario.id, 'espera_' + body.status, 'ag_lista_espera', mm[1], { cliente: nomeAntes, agendamento: body.agendamento_id || null });
+      return ok(res, e);
+    }
+    if (m === 'DELETE') {
+      await dados.removerEspera(mm[1]);
+      await dados.auditar(usuario.id, 'apagou_espera', 'ag_lista_espera', mm[1], { cliente: atual.cliente_nome });
+      return ok(res, { ok: true });
+    }
+  }
+
+  /* ---- RODADA 5: confirmação do cliente (link/WhatsApp) e o selo "confirmou" ----
+     POST /api/agendamentos/:id/confirmacao → { link, texto, whatsapp } — a equipe manda o link; o cliente responde na página pública. */
+  if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/confirmacao$`))) && m === 'POST') {
+    const a = await dados.obterAgendamento(mm[1]);
+    if (!a) return notFound(res);
+    if (!['aguardando', 'confirmado'].includes(a.status)) return send(res, 409, { erro: 'Esse horário já teve desfecho — não há o que confirmar.' });
+    const c = await dados.criarConfirmacao({ agendamento_id: a.id, canal: texto1(body.canal, 20) || 'whatsapp', criado_por: usuario.id });
+    if (!c) return notFound(res);
+    await dados.auditar(usuario.id, 'pediu_confirmacao', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora, canal: c.canal });
+    const link = `${baseDaRequisicao(req)}/confirmar/?t=${encodeURIComponent(c.token)}`;
+    const primeiro = String(a.cliente_nome || '').trim().split(/\s+/)[0] || 'tudo bem';
+    const quando = `${formatarDataBR(a.data)} às ${String(a.hora || '').slice(0, 5)}`;
+    const texto = `Oi ${primeiro}! Aqui é da IndyCar 🏁 Seu horário de ${a.servico} está marcado para ${quando}. Confirma pra gente? É só tocar: ${link}`;
+    const tel = dados.soDigitos(a.telefone);
+    const whatsapp = tel.length >= 10 ? linkWhatsApp(tel, texto) : null;
+    return send(res, 200, { link, texto, whatsapp, resposta: c.resposta, enviado_em: c.enviado_em }, { 'Cache-Control': 'no-store' });
+  }
+
+  /* ---- RODADA 5: avisar o cliente de uma REMARCAÇÃO pela fila do Comunicar ----
+     POST /api/agendamentos/:id/avisar-remarcacao → { enfileirado, whatsapp, motivo }.
+     Entra como mensagem avulsa pendente em posvenda_envios (o carteiro envia, com
+     o intervalo e o opt-out dele). Se não der (sem telefone, cliente pediu para não
+     receber, fila fora), devolve o link do WhatsApp com o texto pronto. */
+  if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/avisar-remarcacao$`))) && m === 'POST') {
+    const a = await dados.obterAgendamento(mm[1]);
+    if (!a) return notFound(res);
+    const tel = dados.soDigitos(a.telefone);
+    if (tel.length < 10) return send(res, 200, { enfileirado: false, whatsapp: null, motivo: 'Este horário não tem telefone.' });
+    const primeiro = String(a.cliente_nome || '').trim().split(/\s+/)[0] || 'tudo bem';
+    const texto = `Oi ${primeiro}! Aqui é da IndyCar 🏁 Seu horário de ${a.servico} foi remarcado para ${formatarDataBR(a.data)} às ${String(a.hora || '').slice(0, 5)}. Se não ficar bom pra você, é só responder por aqui que a gente ajusta. Quem conhece, Indyca!`;
+    const whatsapp = linkWhatsApp(tel, texto);
+    const r = dados.enfileirarAvisoDeRemarcacao ? await dados.enfileirarAvisoDeRemarcacao(a, texto, usuario).catch((e) => ({ ok: false, motivo: e?.message })) : { ok: false, motivo: 'fila indisponível' };
+    if (r.ok) await dados.auditar(usuario.id, 'avisou_remarcacao', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora, via: 'comunicar' });
+    return send(res, 200, { enfileirado: !!r.ok, whatsapp, motivo: r.ok ? null : (r.motivo || 'A fila do Comunicar não aceitou agora — abri o WhatsApp com o texto pronto.') }, { 'Cache-Control': 'no-store' });
+  }
+
+  /* ---- RODADA 5: ficha 360 (rpc cliente_360 da base) e aniversários ---- */
+  if (pathname === '/api/clientes/360' && m === 'GET') {
+    const tel = dados.soDigitos(texto1(searchParams.get('tel'), 20));
+    if (tel.length < 10) return bad(res, 'Informe ?tel= com DDD.');
+    try {
+      return send(res, 200, await dados.cliente360(tel), { 'Cache-Control': 'no-store' });
+    } catch (e) {
+      if (e?.status === 400 && !e?.name) return bad(res, e.message);
+      // a rpc pode recusar (42501) ou não existir ainda: a ficha de sempre continua
+      return send(res, 200, { indisponivel: true, erro: 'A ficha completa não está disponível agora.' }, { 'Cache-Control': 'no-store' });
+    }
+  }
+  // resumo das confirmações pelo link (gestor; aba CRM)
+  if (pathname === '/api/confirmacoes/resumo' && m === 'GET') {
+    const dias = Math.min(365, Math.max(7, Number(searchParams.get('dias')) || 30));
+    return send(res, 200, await dados.resumoDasConfirmacoes(dias), { 'Cache-Control': 'no-store' });
+  }
+  if (pathname === '/api/aniversarios' && m === 'GET') {
+    const dias = Math.min(31, Math.max(0, Number(searchParams.get('dias')) || 7));
+    return send(res, 200, { dias, itens: await dados.aniversariosProximos(dias) }, { 'Cache-Control': 'private, max-age=300' });
+  }
+
   // ---- "✨ Sugerir horário": janelas livres calculadas aqui (sem IA, sem outro domínio)
   if (pathname === '/api/horarios-livres' && m === 'GET') {
     const data = searchParams.get('data');
@@ -1335,7 +1536,9 @@ async function api(req, res, url) {
   // ---- busca global (Ctrl+K): agendamentos + clientes
   if (pathname === '/api/busca' && m === 'GET') {
     const q = texto1(searchParams.get('q'), 80).trim();
-    return ok(res, await dados.buscaGlobal(q));
+    // rodada 5: a lista de espera entra na busca (quem está esperando também é "gente da oficina")
+    const [r, espera] = await Promise.all([dados.buscaGlobal(q), dados.buscarEspera ? dados.buscarEspera(q).catch(() => []) : []]);
+    return ok(res, { ...r, espera });
   }
 
   // ---- clientes
@@ -1365,6 +1568,7 @@ async function api(req, res, url) {
       if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
       try {
         const c = await dados.atualizarCliente(id, body);
+        if (body.nascimento !== undefined) dados.esquecerAniversarios?.();
         return c ? ok(res, c) : notFound(res);
       } catch (e) { if (/Aniversário inválido/.test(e?.message)) return bad(res, e.message); throw e; }
     }
@@ -1431,6 +1635,7 @@ async function api(req, res, url) {
     if (body.perfil_id && !dados.ehUuid(texto1(body.perfil_id, 40))) return bad(res, 'Login inválido.');
     if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
     const c = await dados.criarConsultor({ ...body, nome });
+    dados.esquecerBaseDosHorarios?.();
     await dados.auditar(usuario.id, 'cadastrou_consultor', 'consultores', c?.id, { nome, perfil_id: body.perfil_id || null });
     return ok(res, c);
   }
@@ -1441,6 +1646,7 @@ async function api(req, res, url) {
       if (body.perfil_id && !dados.ehUuid(texto1(body.perfil_id, 40))) return bad(res, 'Login inválido.');
       if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
       const c = await dados.atualizarConsultor(id, body);
+      dados.esquecerBaseDosHorarios?.();
       if (c && body.perfil_id !== undefined) await dados.auditar(usuario.id, 'ligou_consultor_login', 'consultores', id, { perfil_id: body.perfil_id || null });
       return c ? ok(res, c) : notFound(res);
     }
@@ -1458,11 +1664,13 @@ async function api(req, res, url) {
   }
   if (pathname === '/api/servicos' && m === 'POST') {
     if (!body.nome) return bad(res, 'Informe o nome do serviço.');
+    dados.esquecerBaseDosHorarios?.();
     return ok(res, await dados.criarServico(body));
   }
   if ((mm = pathname.match(new RegExp(`^/api/servicos/${UUID}$`)))) {
     const id = mm[1];
     if (m === 'PUT') {
+      dados.esquecerBaseDosHorarios?.();
       const s = await dados.atualizarServico(id, body);
       return s ? ok(res, s) : notFound(res);
     }
@@ -1515,10 +1723,10 @@ async function api(req, res, url) {
     await dados.auditar(usuario.id, 'exportou_csv', 'agendamentos', null, { linhas: lista.length });
     const rows = lista.map((a) => ({
       id: a.id, cliente: a.cliente_nome, telefone: a.telefone, veiculo: a.veiculo, placa: a.placa,
-      servico: a.servico, data: a.data, hora: a.hora, status: a.status, origem: a.origem,
-      consultor: a.consultor_nome, criado_em: a.created_at,
+      servico: a.servico, data: a.data, hora: a.hora, status: a.status, confirmado: a.confirmado ? 'sim' : 'não', valor: a.valor || '',
+      origem: a.origem, consultor: a.consultor_nome, criado_em: a.created_at,
     }));
-    return send(res, 200, gerarCSV(['id','cliente','telefone','veiculo','placa','servico','data','hora','status','origem','consultor','criado_em'], rows),
+    return send(res, 200, gerarCSV(['id','cliente','telefone','veiculo','placa','servico','data','hora','status','confirmado','valor','origem','consultor','criado_em'], rows),
       { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="agendamentos.csv"' });
   }
   if (pathname === '/api/export/clientes.csv' && m === 'GET') {
@@ -1771,13 +1979,26 @@ async function serveStatic(req, res, pathname) {
        HTML/JS/CSS continuam "no-cache" (sempre conferem a versão), mas a
        conferência agora custa um 304 vazio em vez do arquivo inteiro de novo;
        ícones e logo ficam um dia no cache do navegador. */
-    const info = await stat(filePath);
+    let info = await stat(filePath), alvo = filePath;
+    // pasta (ex.: /confirmar/) → o index.html dela
+    if (info.isDirectory()) { alvo = join(filePath, 'index.html'); info = await stat(alvo); }
     if (!info.isFile()) throw new Error('não é arquivo');
+    return servirArquivo(req, res, alvo, info);
+  } catch {
+    // SPA fallback
+    try {
+      const html = await readFile(join(PUBLIC, 'index.html'));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+    } catch { notFound(res); }
+  }
+}
+function servirArquivo(req, res, filePath, info) {
     const ext = extname(filePath);
     const chave = `${filePath}|${info.mtimeMs}|${info.size}`;
     let item = _estaticos.get(filePath);
     if (!item || item.chave !== chave) {
-      const bruto = await readFile(filePath);
+      const bruto = readFileSync(filePath);
       item = { chave, bruto, etag: `"${createHash('sha1').update(bruto).digest('base64url').slice(0, 20)}"`, comp: {} };
       _estaticos.set(filePath, item);
     }
@@ -1802,14 +2023,6 @@ async function serveStatic(req, res, pathname) {
     }
     res.writeHead(200, cabecalho);
     res.end(req.method === 'HEAD' ? undefined : item.bruto);
-  } catch {
-    // SPA fallback
-    try {
-      const html = await readFile(join(PUBLIC, 'index.html'));
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
-    } catch { notFound(res); }
-  }
 }
 
 /* Cabeçalhos de segurança em TODA resposta. A CSP é simples de propósito: a
@@ -1859,7 +2072,14 @@ function ipDentroDoLimite(ip, teto = 300, janelaMs = 60_000) {
   return ++atual.qtd <= teto;
 }
 
-const server = http.createServer(async (req, res) => {
+/* ---------------------------------------------------------------------------
+   HANDLER (rodada 5 — preparação da IndyCar Central): toda requisição passa por
+   aqui. Exportado para a Central montar a Agenda sob um prefixo (/agenda/): ela
+   reescreve req.url sem o prefixo e põe req.prefixo = '/agenda' — o que a tela
+   precisa é relativo e o que o servidor monta (link de confirmação) usa o
+   prefixo. Rodando sozinho (node server.js), req.prefixo não existe e nada muda.
+   --------------------------------------------------------------------------- */
+async function handler(req, res) {
   const inicio = process.hrtime.bigint();
   const url = new URL(req.url, `http://${req.headers.host}`);
   cabecalhosDeSeguranca(res);
@@ -1907,7 +2127,9 @@ const server = http.createServer(async (req, res) => {
     if (res.headersSent) { try { res.end(); } catch { /* conexão já foi */ } return; }
     send(res, status, { erro });
   }
-});
+}
+
+const server = http.createServer(handler);
 // Requisição que fica pendurada (cliente sumiu no meio) não segura a conexão para sempre.
 server.requestTimeout = 60_000;
 server.headersTimeout = 30_000;
@@ -1964,12 +2186,19 @@ function agendarAutomacoes(ms = 2000) {
    liga timers e abre a porta. */
 const EH_PRINCIPAL = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
-const TIMERS = EH_PRINCIPAL ? [
-  setInterval(() => importarAgendamentosCW().then(invalidarCache).catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000),
-  setTimeout(() => importarAgendamentosCW().then(invalidarCache).catch(aviso('Importação CodeWords')), 12 * 1000),
-  setInterval(cicloDeAutomacoes, 5 * 60 * 1000),
-  setTimeout(cicloDeAutomacoes, 45 * 1000),
-] : [];
+/* Os timers só nascem em iniciar(): importado pelos testes (ou pela Central
+   antes de iniciar) o módulo não dispara nada. Uma vez só. */
+const TIMERS = [];
+function ligarTimers() {
+  if (TIMERS.length) return;
+  TIMERS.push(
+    setInterval(() => importarAgendamentosCW().then(invalidarCache).catch(aviso('Importação CodeWords')), IMPORT_MIN * 60 * 1000),
+    setTimeout(() => importarAgendamentosCW().then(invalidarCache).catch(aviso('Importação CodeWords')), 12 * 1000),
+    setInterval(cicloDeAutomacoes, 5 * 60 * 1000),
+    setTimeout(cicloDeAutomacoes, 45 * 1000),
+  );
+  for (const t of TIMERS) t.unref?.();
+}
 
 /* Desligamento limpo: o Render manda SIGTERM a cada deploy. Para de aceitar
    conexão nova, deixa as requisições em curso terminarem (até 10 s) e sai —
@@ -1991,7 +2220,12 @@ function desligar(sinal) {
 // ---------------------------------------------------------------------------
 // Subida
 // ---------------------------------------------------------------------------
-async function iniciar() {
+/**
+ * Prepara o app (config de IA pelo ambiente, token do ICS) e liga os timers
+ * (importação do CodeWords, automações). A Central chama `iniciar({ ouvir:false })`
+ * para usar só o handler no servidor dela; sozinho, abre a porta.
+ */
+async function iniciar({ ouvir = true, porta = PORT } = {}) {
   conferirConfiguracao(); // avisa (sem derrubar) se faltar SUPABASE_URL/KEY
 
   // Preenche a config de IA a partir do ambiente e garante o token do feed ICS.
@@ -2004,11 +2238,15 @@ async function iniciar() {
   } catch (e) {
     console.error('Aviso na inicialização (o servidor segue no ar):', e?.message || e);
   }
+  ligarTimers();
+  if (!ouvir) return { handler, server, desligar };
 
-  server.listen(PORT, () => {
-    console.log(`\n  🏁 IndyCar Agendamentos rodando em http://localhost:${PORT}`);
+  await new Promise((ok) => server.listen(porta, () => {
+    console.log(`\n  🏁 IndyCar Agendamentos rodando em http://localhost:${porta}`);
     console.log('  Banco: Supabase (PostgREST)\n');
-  });
+    ok();
+  }));
+  return { handler, server, desligar };
 }
 
 if (EH_PRINCIPAL) {
@@ -2024,4 +2262,4 @@ export function _injetar({ dados: d, usuarioLogado: u } = {}) {
   esquecerLogins();
   USO.clear(); USO_IP.clear();
 }
-export { server };
+export { server, handler, iniciar, VERSAO };

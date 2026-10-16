@@ -393,3 +393,197 @@ O "Chegou" da Agenda já abre a ordem no IndyCar Pátio (gatilho do banco). A Ag
 284. `patio.js` com as regras puras (links, soma em centavos, entregues sem desfecho, ids) e `tests/patio.test.mjs` (11 testes, inclusive as rotas por HTTP e os papéis).
 285. Mock com ordens de mentira (Patrícia em execução com extras; Rogério entregue sem desfecho) e roteiro de navegador em 1440/375 px sem rolagem lateral.
 286. Versão `2026-10-16-patio`, service worker `indycar-v15`.
+
+## Rodada 5 (16/10/2026)
+Foco: horários livres como SERVIÇO (para a IA do Atendimento oferecer horário), lista de espera, confirmação do
+cliente pelo link, "Chegou" com a OS do Pátio, visão 360 do cliente, aniversários, recepção mais simples e a
+preparação para a IndyCar Central (handler exportado, tudo relativo). Verificado com `npm test` (135 testes, 24 novos
+em `tests/horarios.test.mjs` e `tests/rodada5-servidor.test.mjs`), `npm run check`, roteiro puppeteer contra o mock
+(admin e Franklin, 1440 e 375 px: **51/51**, capturas em `capturas-r5/`), leitura do banco real e DO-block revertido
+(`scripts/sql/teste_ag_rodada5.sql`), `get_advisors` depois da migração.
+
+### Horários livres como serviço (missão 1)
+287. Módulo puro `horarios.js`: todos os horários livres de um dia (não só 3 sugestões), com `livresDoDia`, `proximosDias`, `duracaoDoServico`, `janelasDoServico`, `resumoDoDia` e `lerParametros` — 11 testes.
+288. Regra de duração por serviço: `servicos.duracao_min` (nome igual ou contido, o mais específico ganha), senão palavras-chave, senão 60 min — e o serviço precisa caber até as 17h30.
+289. Janelas de agendamento (`janelas_agendamento`) do tipo que casa com o serviço (sem acento, palavra em comum) limitam o horário de chegada; faixa vazia (08:00–08:00) é ignorada; sem janela, o expediente inteiro vale.
+290. Capacidade = consultores ativos; um consultor nunca tem dois carros na mesma meia hora (a mesma regra do índice `agendamentos_slot_uk`); cada horário diz quais consultores estão livres.
+291. Hoje só a partir de 30 min de agora; domingo, dia passado e consultor inativo devolvem `aberto:false` com o motivo.
+292. `motivo` explica o "nenhum": `domingo` · `passou` · `encerrado` · `lotado` · `fora_da_janela` · `consultor_inativo` (a tela e a IA mostram a frase certa).
+293. `GET /api/horarios-livres/dia?data&servico&consultor_id&ignorar` → grade completa com `resumo` em texto ("sex 17/10: 08:00, 08:30 (+5)") pronto para a IA colar na conversa.
+294. `GET /api/horarios-livres/proximos?desde&servico&dias&quantos` → os próximos dias com vaga (pula domingo, para em N dias com horário).
+295. Data inválida → 400 claro; as duas rotas entram no freio de rotas caras (30/min por pessoa); o papel `agenda` não oferece horário (403); sem login 401.
+296. Função SQL `agenda_horarios_livres(p_dia date, p_servico text, p_consultor uuid)` (migração `ag_rodada5_horarios_espera_confirmacao`, cópia em `scripts/sql/2026-10-16_ag_rodada5.sql`): o MESMO cálculo em plpgsql para quem não depende do servidor (Edge Functions, IA, pg_cron).
+297. A função é SECURITY DEFINER com `search_path = ''`, só equipe (`usuario_equipe()`) ou a chave de serviço; anon e perfil sem papel recebem 42501 (testado em DO-block revertido).
+298. Auxiliar `normalizar_texto_agenda(text)` (imutável, sem acento) para casar serviço × cadastro × janela no banco.
+299. Conferido no banco real: amanhã com "Troca de óleo" devolve 6 horários dentro da janela 08–11 com 40 min; sem serviço 17 horários; domingo e dia passado devolvem o motivo.
+300. `dados.horariosLivresDoDia` e `horariosProximosDias` leem serviços/janelas/consultores com cache de 60 s e só os agendamentos vivos do período (uma consulta).
+301. Contrato publicado no README (seção "Horários livres como serviço") e mandado ao coordenador pela Ponte.
+
+### Lista de espera (encaixe)
+302. Tabela `ag_lista_espera` (RLS: equipe lê/cria/edita, gestor apaga; `telefone_e164` gerada pelo mesmo `normalizar_telefone` dos clientes; índices por status e telefone).
+303. Menu **ESPERA** (tecla E) com selo de quantos estão esperando; filtros Esperando · Agendadas · Canceladas.
+304. "Entrar na lista de espera": nome, telefone, serviço (com o catálogo), carro, placa, preferência (manhã/tarde/sábado…), período "a partir de / até" e observações.
+305. Com telefone, a espera é ligada à ficha existente pelo `telefone_e164` (sem criar cliente novo por uma espera).
+306. Cada item diz há quantos dias espera, o período que serve e tem WhatsApp pronto ("abriu um horário para …"), Editar e Cancelar (com Desfazer).
+307. **Encaixar** abre o Novo agendamento já preenchido e cai no primeiro horário livre do dia (pela duração do serviço); ao salvar, a espera vira "agendada" com o `agendamento_id` (auditado).
+308. "Não veio" e cancelado devolvem no recado quem da lista cabe naquele dia (serviço igual primeiro, depois o mais antigo) com o botão "N na espera", que abre a lista já com a pessoa destacada.
+309. No Novo agendamento, o botão "Lista de espera" leva o que já foi digitado (nome, telefone, serviço, carro, data) para a espera — nada se perde quando não há horário.
+310. A Agenda ganhou o botão "Espera" com a contagem; o chip do menu e `/api/contagens` trazem `espera` para toda a equipe.
+311. Validações no servidor: nome e serviço obrigatórios, telefone com DDD, datas reais, período não invertido, ids uuid; apagar é só do gestor (regras.js + teste).
+312. Função pura `esperaQueCabe` (testada): abertas cujo período inclui o dia, serviço igual primeiro.
+313. No celular cada espera vira cartão com os botões em linha (375 px sem rolagem lateral).
+
+### Confirmação do cliente (link/WhatsApp) e o selo "confirmou"
+314. Tabela `ag_confirmacoes` (token de 36 hex, canal, aberto/respondido, resposta confirmou|nao_vem|remarcar, observação); só a equipe lê; só o servidor grava.
+315. Botão ✓ **Pedir confirmação** no cartão (e no horário aberto) de quem ainda vai vir e tem telefone: o servidor gera o link e o texto; a pessoa manda pelo WhatsApp (abre com o texto) ou copia.
+316. O link é reaproveitado por 72 h (o cliente recebe sempre o mesmo) e respeita a base da requisição + prefixo (funciona sozinho e sob a Central).
+317. Página pública `public/confirmar/` (sem login, caminhos relativos, 375 px, tema claro/escuro, `noindex`): primeiro nome, dia, hora, serviço e três botões grandes — Confirmo · Preciso remarcar · Não vou conseguir.
+318. "Remarcar" e "Não vou" pedem um recado opcional; reabrir o link mostra a resposta já dada; horário que passou ou com desfecho avisa; token inválido tem recado claro.
+319. `GET/POST /api/publico/confirmacao` sem login, pelo token, com freio de 40 pedidos por 10 min por IP (testado: o 41º leva 429); a resposta nunca inclui telefone.
+320. "Confirmou" liga `agendamentos.confirmado` e passa Aguardando → Confirmado (gatilho `ag_confirmacao_aplica` + o servidor garante) — o cartão fica verde e a tarefa "Confirmar com o cliente" não nasce.
+321. "Remarcar"/"Não vem" viram tarefa prioridade 1 para o consultor do horário (ou um gestor), com o recado do cliente na descrição.
+322. Selo no cartão: "✓ confirmou pelo link" (verde), "quer remarcar", "avisou que não vem" e "pedido de confirmação enviado" (cinza, com a hora no tooltip) — anexado só a quem ainda não tem desfecho (`anexarConfirmacoes`).
+323. Horário com desfecho recusa o pedido (409); o papel `agenda` não pede confirmação (403).
+324. Texto do pedido sem "prezado/veículo/efetuar/comparecer" (teste conferindo).
+
+### "Chegou" com a OS do Pátio, no-show com remarcação e remarcar melhor
+325. O PATCH de "Chegou" devolve a ordem que o Pátio acabou de abrir (`patio`: nº, etapa, link) — o recado diz "OS nº 123 aberta no Pátio" com o botão **Abrir no Pátio** (recepção e painel), sem segunda chamada.
+326. O selo do Pátio no cartão passou a mostrar o nº da OS ("OS 101 · Em execução · 1 p/ aprovar").
+327. "Não veio" ganhou **Remarcar** com um clique no próprio recado (abre o Remarcar daquele horário) — e o aviso de quem está na espera.
+328. O Remarcar mostra a grade de **todos os horários livres do dia** (duração do serviço, janelas, consultores) com ‹ › para andar o dia, além dos 3 "próximos dias" de sempre; clicar preenche data/hora.
+329. O ✨ do Novo agendamento virou "Horários livres": a mesma grade do dia escolhido (recalcula ao trocar data ou serviço) + as 3 sugestões; chips já mostram quem está livre no tooltip.
+330. Depois de remarcar, o recado oferece **Avisar o cliente**: `POST /api/agendamentos/:id/avisar-remarcacao` põe uma mensagem avulsa na fila do Comunicar (`posvenda_envios`, tipo avulsa, vence em 24 h, chave única por horário — não repete).
+331. O aviso respeita `clientes.aceita_mensagens`: quem pediu para não receber faz o WhatsApp abrir com o texto pronto em vez de entrar na fila; sem telefone, o recado diz; tudo auditado (`avisou_remarcacao`).
+332. Semana › **Dia** ganhou a grade das meias horas (8h–17h30) com quantos carros há em cada casa e a capacidade; casas que já passaram ficam apagadas.
+333. **Arrastar um horário para uma casa de hora** remarca a HORA (no dia ou entre dias, mantendo a hora quando solta no dia); sempre com confirmação "de → para" (arrastar sem querer acontece), aviso de disputa e Desfazer no recado.
+334. Soltar numa hora que já passou hoje avisa em vez de remarcar.
+335. Recado com mais de uma ação (`toast({ acoes:[…] })`): Avisar o cliente + Desfazer, Remarcar + espera, Abrir no Pátio + Desfazer.
+
+### Busca, atalhos e impressão
+336. Ctrl+K: ↑ ↓ andam pelos resultados e Enter abre o marcado (ou o primeiro); dica de teclado na própria janela.
+337. A busca da Agenda acha telefone completo (com ou sem 55) pela coluna `telefone_e164` (índice) e placa digitada com hífen/espaço ("ABC-1D23") acha a gravada seca.
+338. Atalhos de uma letra para as telas: I início · A agenda · E espera · C clientes · F follow-up · H histórico · P pendências (só gestor) — fora de campo de texto e fora da recepção.
+339. Ajuda lista os atalhos novos e os "como faço" novos (pedir confirmação, lista de espera, visão 360, arrastar para a hora, OS no Chegou, na casa).
+340. Tour da equipe ganhou o passo da lista de espera.
+341. A tela Agenda ganhou o botão de imprimir a folha (hoje, amanhã ou outra data) — antes só no Início.
+
+### Recepção (Franklin) mais simples
+342. Resumo grande no topo: **N na casa** (carros dentro da oficina, inclusive os que chegaram outro dia), **N chegam hoje** e o próximo a chegar (hora + nome).
+343. A recepção passa a receber também quem chegou em outro dia e ainda não saiu (`naCasaDeOutrosDias`, 7 dias), sempre sem telefone — o cartão mostra "desde ontem".
+344. "Chegou" mostra a OS do Pátio e o botão Abrir no Pátio no recado (ver 325); o selo com o nº da OS entra em "Já chegaram".
+345. A recepção não chama nada da ficha 360, espera, aniversários ou busca global (todas guardadas por `emPresenca()`), e o servidor recusa com 403 de qualquer jeito — tela não quebra (roteiro com o papel agenda em 1440 e 375 px).
+346. Tour e Ajuda da recepção explicam o nº da OS e o "na casa".
+
+### Ficha do cliente com `cliente_360` e telefone normalizado
+347. `GET /api/clientes/360?tel=` (equipe; rpc `cliente_360` da base pelo telefone normalizado) — se a rpc recusar ou faltar, devolve `indisponivel` e a ficha de sempre continua.
+348. Dobra **Visão 360** na ficha do cliente e no agendamento (quando há telefone): gasto total, serviços feitos, faltas, última visita, próximo horário e mensagens.
+349. Chips com link: conversa no Atendimento (etapa, "aguardando consultor"), carro no Pátio (OS, etapa, extras p/ aprovar), leads abertos no CRM, orçamentos (último status), tarefas abertas, indicações feitas/recebidas, opt-out.
+350. A dobra abre sozinha quando há algo urgente (carro no pátio, lead aberto ou cliente aguardando consultor) e fica fechada no resto.
+351. A última mensagem do Comunicar aparece com tipo, data, status e a resposta do cliente.
+352. Links cruzados por `telefone_e164` (`?tel=`) em todos os chips — nada de redigitar telefone.
+
+### Aniversário do cliente (pendência das rodadas 3/4, sem bloquear)
+353. Campo **Aniversário (opcional)** no Novo/Editar agendamento com máscara DD/MM; ao salvar, vai para a ficha do cliente (`clientes.nascimento`); se falhar, o agendamento já está salvo e o recado explica.
+354. O rascunho do agendamento guarda o aniversário também.
+355. Chip **🎂 N aniversários esta semana** (ou "hoje") no Início para a equipe; `GET /api/aniversarios?dias=7` com cache de 10 min (uma varredura de `clientes.nascimento`).
+356. Lista dos aniversariantes com "em N dias", idade (quando o ano é real; 1904 = só dia/mês), carro, opt-out, WhatsApp "parabéns" pronto e Abrir ficha — a mensagem automática continua sendo do Comunicar.
+357. Função pura `aniversariantes` (testada): hoje = 0 dias, virada de ano, ignora quem não tem data.
+
+### Preparação para a IndyCar Central (missão 5)
+358. `server.js` exporta `{ handler, iniciar, server, VERSAO }`; o `http.createServer` usa o `handler`; `listen` só quando é o programa principal.
+359. `iniciar({ ouvir:false })` prepara (config, token do ICS) e liga os timers sem abrir porta — é como a Central monta a Agenda.
+360. Os timers (importação do CodeWords, automações) só nascem em `iniciar()`: importar o módulo (testes, Central) não dispara nada; `unref` para não segurar o processo.
+361. `baseDaRequisicao(req)`: links que o servidor monta para fora (confirmação) usam `X-Forwarded-Proto/Host` + `req.prefixo` (testado com os cabeçalhos do Render).
+362. `public/apps.js` (`IndyCarApps`): UM lugar com os endereços de Agenda, CRM, Atendimento, Comunicar, Orçador, Pátio, Site e Ads; `window.INDYCAR_APPS` antes dele redefine tudo (a Central põe `/crm/` etc.).
+363. `IndyCarApps.raiz()` / `raizAbsoluta()`: a raiz deste app ("/" ou "/agenda/"); todo `fetch` do app.js, o registro do service worker, o primeiro acesso, o download de CSV, a URL do ICS e do webhook partem dela.
+364. `index.html` sem nenhum caminho absoluto (`./styles.css`, `./app.js`…); `manifest.json` com `start_url`/`scope`/ícones/atalhos relativos; atalho novo "Lista de espera".
+365. `sw.js` (`indycar-v16`) calcula a raiz pelo `self.registration.scope`, guarda a casca relativa (com `apps.js` e `rodada5.css`) e nunca guarda `/api/` nem `/confirmar/`.
+366. `planejamento.js`, `conta.js` e o seletor "Apps" leem os endereços do `IndyCarApps` (com reserva de produção para os testes no Node); a faixa de saúde, a Conexão do WhatsApp e o link do Comunicar idem.
+367. `conta.js`: "esqueci a senha" volta para a raiz do app, sair volta para a raiz, links das notificações relativos à raiz.
+368. Teste garante: nenhum `fetch('/api`, nenhum `register('/sw.js')` e nenhum endereço `onrender/netlify` fixo fora do `apps.js`.
+369. README: tabela de TODAS as variáveis de ambiente que o servidor lê e a seção "Preparado para a IndyCar Central".
+370. `GET /confirmar/` é servido como pasta estática (index.html da pasta) — qualquer pasta em `public/` funciona assim.
+
+### Bugs achados e corrigidos
+371. `blocoPatioNaFicha` cortava o primeiro nome com `split(/s+/)` (barra perdida): "Oi Maria Aparecida!" em vez de "Oi Maria!" no texto do link de acompanhamento.
+372. `dataBanco` aceitava mês 99 / dia 32 e virava 500 genérico lá no Postgres; agora é null → 400 claro (em todas as rotas que recebem data).
+373. Mock: três `replace(/D/g)` (barra perdida) deixavam telefone com máscara nos agendamentos de mentira e quebravam a busca por dígitos.
+374. Mock: `tel` usado antes de ser declarado (TDZ) derrubava o servidor de mentira na ficha 360; id da espera nova colidia com uma existente.
+375. Ficha do cliente: a chave "Aceita mensagens automáticas" tinha a caixinha solta no meio e o texto fora da linha.
+376. O teste do `conta.js` lia `CONTA_APPS` até o primeiro `};` — agora entende a função imediata.
+
+### Servidor, segurança e miudezas
+377. `PATCH /status` de "Não veio"/cancelado NÃO entrega a lista de espera ao papel agenda (ele não enxerga espera).
+378. `POST /api/espera` grava `criado_por` com o id do token, nunca do corpo; `atualizarEspera` carimba `resolvido_em/por` ao agendar/cancelar e limpa ao reabrir.
+379. Auditoria: `espera_agendada`, `espera_cancelada`, `apagou_espera`, `avisou_remarcacao`.
+380. `ag_confirmacao_aplica()` teve EXECUTE revogado de anon/authenticated (migração `ag_rodada5_revoke_trigger_fn`) — `get_advisors` sem aviso novo além do genérico das rpc SECURITY DEFINER (igual à `cliente_360`).
+381. `scripts/sql/teste_ag_rodada5.sql`: teste reproduzível (anon 42501, sem perfil 42501, espera com `telefone_e164`, confirmação liga `confirmado`) — tudo revertido.
+382. Versão `2026-10-16-r5` em `/api/versao` e no app; `npm run check` cobre `horarios.js` e `apps.js`.
+383. `/api/contagens` devolve `espera` para toda a equipe (o selo do menu não precisa da lista).
+384. Grade de horários no modal: `escolhido` destacado em vermelho; chips com o fim do serviço e quem está livre no tooltip; "lotado"/"fora da janela"/"encerrou" explicados em português.
+385. Toast: ações secundárias esmaecidas; todas desligadas ao fechar (nada de Enter em botão invisível).
+386. Rótulo do "Chegou" na recepção com "desde ontem/sex 10/10" quando o carro é de outro dia; `aria-label` do cartão diz desde quando.
+387. CSS novo isolado em `rodada5.css` (só variáveis de `styles.css`: os dois temas funcionam); `[hidden]{display:none!important}` mantido.
+388. Roteiro puppeteer da rodada (`capturas-r5/`, 16 telas): admin 1440/375, Franklin 1440/375 e a página pública do cliente em 375 px, sem rolagem lateral e sem erro de console além dos 403/404 propositais.
+
+### Segunda leva (depois do roteiro): confirmação no dia a dia, espera em todo lugar, página do cliente
+389. Chip no Início para a equipe toda: "N horários de amanhã sem confirmação" (próximo dia útil — sábado aponta para segunda) → abre a Agenda já filtrada para pedir pelo link.
+390. `/api/contagens` ganhou `semConfirmacao` (só COUNT: aguardando e `confirmado=false` no próximo dia útil) e `proximoDia`.
+391. Agenda: botão-filtro **Sem confirmação** com a contagem (só horários à frente ainda não confirmados) e estado vazio "Todo mundo confirmado".
+392. Semana: filtro "Só sem confirmação" junto dos outros (função `filtrar` pura, respeita o selo do link).
+393. Semana: "+N na espera" no cabeçalho de cada dia (quem da lista serve para aquele dia) — toque abre a lista.
+394. Folha do dia: coluna "Confirmou?" já vem marcada ☑ para quem confirmou (pelo link ou pela equipe).
+395. CSV de agendamentos ganhou as colunas `confirmado` e `valor`.
+396. Ctrl+K busca também a **lista de espera** (nome, placa, serviço, telefone); o resultado abre a lista com a pessoa destacada.
+397. Aba CRM (gestor): painel "Confirmação pelo link · 30 dias" — taxa de resposta, quantos confirmaram, pediram remarcar, avisaram que não vêm, sem resposta e quantos abriram o link.
+398. `GET /api/confirmacoes/resumo?dias=` (gestor; `regras.js` + teste 403 para atendente).
+399. "Remarcar"/"Não vem" pelo link também tocam o **sino** de quem cuida do horário (consultor ou gestor), com chave única por horário+resposta (o cliente tocar duas vezes não repete).
+400. Página do cliente: depois de confirmar, **Adicionar ao calendário** (.ics de 1 h gerado na própria página, com o endereço da oficina).
+401. Página do cliente: **Como chegar** (Google Maps pelo endereço de `agenda_empresa`) e **Falar com a oficina** (WhatsApp da empresa) — a rota pública manda só dados públicos da oficina, nunca o telefone do cliente (teste).
+402. Equipe: cada consultor ativo mostra "livre às HH:MM" (primeira meia hora livre dele hoje) ou "sem vaga hoje", a partir do serviço de horários.
+403. `GET /api/horarios-livres/dia` devolve também `total` e `proximo` (o primeiro livre) — a IA responde "o mais cedo é às 08:30" sem percorrer a lista.
+404. Editar agendamento mostra a linha "Confirmou pelo link em…", "Pediu para remarcar…", "Avisou que não vem…" ou "Pedido enviado em… sem resposta".
+405. Recepção: o botão Atualizar mostra a hora da última atualização ("10:48") — a pessoa sabe que a tela está viva.
+406. Tour da recepção ganhou o passo "Quem está na casa".
+407. Cadastrar/editar consultor ou serviço esquece a base dos horários livres na hora (o cache de 60 s não mostra grade velha).
+408. Mudar o aniversário na ficha esquece a lista de aniversariantes (o chip do Início acompanha).
+409. `GET /api/espera?data=&servico=` devolve só quem cabe naquele dia (mesma regra do recado do "Não veio").
+410. Espera: o modal avisa "A partir de" depois de "Até" antes de enviar; o servidor recusa também.
+411. Encaixar prefere a data "a partir de" da espera quando é futura; senão hoje.
+412. Grade de horários: ‹ › nunca voltam para antes de hoje e pulam o domingo.
+413. Recados com ação ficam mais tempo na tela (9–10 s) para dar tempo de tocar em "Remarcar"/"Avisar o cliente".
+414. Seletor "Apps" passou a listar o **Pátio** e esconde app sem endereço (Tráfego pago, que não está publicado).
+415. `IndyCarApps.url(app, '?lead=…')` monta links cruzados com os caminhos relativos que a `cliente_360` devolve (`/?lead=`, `/?os=`, `/?conversa=`) — funciona nos endereços de hoje e nos da Central.
+416. O Pátio ganhou endereço no `apps.js` (`patio`) e o selo/links do Pátio na Agenda continuam vindo do servidor (`patio_config.link_base`).
+417. A rota antiga `GET /api/horarios-livres` (3 sugestões) continua igual — nada que já usava quebrou.
+418. `/api/aniversarios` com `Cache-Control: private, max-age=300` (o navegador não repete a varredura a cada troca de tela).
+419. A página pública nunca entra no cache do service worker e responde `no-store` (cada toque do cliente é verdade).
+420. Tela Agenda: ao abrir pelo chip "sem confirmação" o filtro "sem telefone" é desligado (um filtro de cada vez, sem lista vazia por engano).
+421. README: lista de endpoints com todas as rotas novas (horários livres, espera, confirmação, 360, aniversários, aviso de remarcação, resumo das confirmações).
+422. Mock: rotas novas (`/confirmacoes/resumo`, espera na busca, oficina na confirmação, `semConfirmacao`) e dados de mentira (duas esperas abertas e uma agendada, uma confirmação respondida e uma pendente, janelas e durações iguais às do banco).
+423. Testes: +2 (contagens/resumo/busca/CSV e página pública + sino) — total 135.
+424. Roteiro de navegador repetido depois da segunda leva: 51/51, sem erro de console novo.
+425. Pedir confirmação vai para a auditoria (`pediu_confirmacao`: cliente, data, hora, canal) — o gestor vê quem pediu o quê.
+426. `POST /api/espera` com freio de 30 por minuto por pessoa (um script distraído não enche a lista).
+427. Espera ligada a uma ficha mostra o botão de abrir a ficha do cliente (com a Visão 360) direto da lista.
+428. Página do cliente: ao reabrir o link, mostra quando a resposta foi dada ("Você respondeu (16/10 10:48)").
+429. A notificação do sino abre o horário certo na própria Agenda (link `/?agendamento=`), sem recarregar — no celular do consultor também.
+430. Apagar uma espera (gestor) pede confirmação; cancelar tem Desfazer; reabrir devolve à lista — ninguém some por engano.
+431. Botões-filtro da Agenda ("Sem telefone", "Sem confirmação") com `aria-pressed` e contagem anunciada.
+432. O ✓ de pedir confirmação some de horários que já passaram, de quem não tem telefone e de quem já confirmou pelo link — só aparece quando faz sentido.
+433. Notificação com link absoluto só abre se o endereço for de um app do ecossistema — a lista agora é a única do `apps.js` (com o Pátio).
+434. Selos do menu (Espera, Follow-up, Pendências) somem no zero em vez de mostrar "0".
+435. Os filtros da Semana (inclusive "sem confirmação") ficam valendo ao andar o período com ‹ ›.
+436. A rota de horários livres do dia é a mesma usada pelo Remarcar, pelo Novo agendamento, pelo Encaixar e pela Equipe — uma regra só, testada uma vez.
+
+### Como verifiquei
+- `npm test`: 135 testes (horários livres puros, rotas novas por HTTP com banco/porteiro de mentira, papéis, caminhos relativos, versão).
+- `npm run check`; roteiro puppeteer-core + Chrome contra `npm run mock` (51 conferências); capturas em `capturas-r5/`.
+- Banco real: só leitura (`agenda_horarios_livres` para amanhã/domingo/ontem) e DO-block revertido (`scripts/sql/teste_ag_rodada5.sql`); `get_advisors` security depois da migração.
+- Produção: `publicar.mjs agenda` e conferência de `/api/versao`, `/confirmar/?t=x`, `/apps.js`, `/api/horarios-livres/dia` (401 sem login) e `/api/publico/confirmacao` (404 com token inválido).
+
+### Pendências
+- `cliente_360` ainda não traz `avaliacoes` nem o histórico do pátio por etapa com tempos — quando a base ganhar, a dobra 360 só precisa de um chip.
+- O aviso de remarcação entra como mensagem **avulsa** na fila do Comunicar (não há tipo `remarcacao` no CHECK de `posvenda_envios`); pedido ao coordenador: tipo próprio com rótulo e ícone no Comunicar.
+- A Central (onda B2) precisa: montar `handler` sob `/agenda/` com `req.prefixo`, definir `window.INDYCAR_APPS` antes do `apps.js`, e manter `/confirmar/` acessível sem login no prefixo (o link do cliente já sai com o prefixo).
+- Arrastar na Semana continua só com mouse (o celular usa o Remarcar com a grade).

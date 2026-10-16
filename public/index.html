@@ -22,9 +22,9 @@
     })();
   </script>
 
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="IndyCar" />
@@ -32,10 +32,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="/planejamento.css" />
-  <link rel="stylesheet" href="/conta.css" />
-  <link rel="stylesheet" href="/rodada4.css" />
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./planejamento.css" />
+  <link rel="stylesheet" href="./conta.css" />
+  <link rel="stylesheet" href="./rodada4.css" />
+  <link rel="stylesheet" href="./rodada5.css" />
 </head>
 <body>
   <!-- teclado/leitor de tela: pula o menu e vai direto ao conteúdo -->
@@ -62,6 +63,11 @@
           <a class="nav-item" data-route="semana" tabindex="0" role="button" title="Semana: ocupação por dia, remarcar e relatório (tecla S)">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 14h2M14 14h2M8 18h2"/></svg>
             <span>SEMANA</span>
+          </a>
+          <a class="nav-item" data-route="espera" tabindex="0" role="button" title="Lista de espera: quem quer um horário e ainda não achou (tecla E)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M3 3l3 3M21 3l-3 3"/></svg>
+            <span>ESPERA</span>
+            <em class="badge" id="badgeEspera">0</em>
           </a>
           <a class="nav-item" data-route="clientes" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
@@ -220,7 +226,7 @@
        Publicada na internet, tudo passa por aqui primeiro. -->
   <div id="telaLogin" class="login-capa">
     <form id="formLogin" class="login-caixa" autocomplete="on">
-      <img src="/logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
       <h1>Agenda</h1>
       <p class="login-sub">Entre com o mesmo e-mail e senha do atendimento.</p>
       <label>E-mail
@@ -247,7 +253,7 @@
          Quem criar esta conta vira o administrador e passa a cadastrar os
          outros em Configurações › Equipe e acessos. -->
     <form id="formPrimeiro" class="login-caixa" autocomplete="on" novalidate hidden>
-      <img src="/logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
       <h1>Vamos começar!</h1>
       <p class="login-sub">Ninguém foi cadastrado ainda. Crie a sua conta de administrador —
         ela vale também no CRM e no Atendimento.</p>
@@ -273,7 +279,7 @@
 
     <!-- Esqueci a senha: o Supabase manda um link; ao voltar, a tela de nova senha abre sozinha -->
     <form id="formEsqueci" class="login-caixa" novalidate hidden>
-      <img src="/logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
       <h1>Esqueci a senha</h1>
       <p class="login-sub">Digite o seu e-mail de acesso. Mandamos um link para criar uma senha nova.</p>
       <label>E-mail
@@ -287,7 +293,7 @@
 
     <!-- Nova senha: volta do link de recuperação ou troca obrigatória no primeiro login -->
     <form id="formNovaSenha" class="login-caixa" novalidate hidden>
-      <img src="/logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
       <h1 id="ns_titulo">Senha nova</h1>
       <p class="login-sub" id="ns_texto"></p>
       <label>Senha nova
@@ -306,7 +312,7 @@
 
     <!-- Verificação em duas etapas: código do app autenticador depois da senha -->
     <form id="formMfa" class="login-caixa" novalidate hidden>
-      <img src="/logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
       <h1>Código de verificação</h1>
       <p class="login-sub">Abra o app autenticador do seu celular e digite o código de 6 números.</p>
       <label>Código
@@ -319,7 +325,7 @@
 
     <!-- Sem acesso a ESTE app: mostra os que a pessoa pode usar -->
     <div id="caixaSemAcesso" class="login-caixa" hidden>
-      <img src="/logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
       <h1>Você não tem acesso à Agenda</h1>
       <p class="login-sub">Seu login vale nestes apps. Se precisar da Agenda, peça ao administrador para liberar.</p>
       <div class="sem-acesso-apps" id="semAcessoApps"></div>
@@ -330,9 +336,11 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
   <!-- qrcode.min.js saiu junto com a tela de QR: o CodeWords passou a usar
        código de pareamento, e a conexão agora é feita no painel de atendimento. -->
-  <script src="/planejamento.js"></script>
-  <script src="/app.js"></script>
-  <script src="/conta.js"></script>
-  <script src="/agenda-planejada.js"></script>
+  <!-- rodada 5: endereços dos outros apps num lugar só (a Central redefine com window.INDYCAR_APPS antes daqui) -->
+  <script src="./apps.js"></script>
+  <script src="./planejamento.js"></script>
+  <script src="./app.js"></script>
+  <script src="./conta.js"></script>
+  <script src="./agenda-planejada.js"></script>
 </body>
 </html>

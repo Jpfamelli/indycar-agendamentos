@@ -145,12 +145,14 @@ export function dataBanco(d) {
   if (d === null || d === undefined) return null;
   const t = String(d).trim();
   if (!t) return null;
+  // rodada 5: mês 99 ou dia 32 passavam e viravam 500 lá no Postgres — agora é null (400 claro)
+  const real = (a, mes, dia) => { const d = new Date(Date.UTC(+a, +mes - 1, +dia)); return d.getUTCFullYear() === +a && d.getUTCMonth() === +mes - 1 && d.getUTCDate() === +dia; };
   let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  if (m) return real(m[1], m[2], m[3]) ? `${m[1]}-${m[2]}-${m[3]}` : null;
   m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) {
     const p = (n) => String(n).padStart(2, '0');
-    return `${m[3]}-${p(m[2])}-${p(m[1])}`;
+    return real(m[3], m[2], m[1]) ? `${m[3]}-${p(m[2])}-${p(m[1])}` : null;
   }
   return null;
 }
@@ -394,15 +396,21 @@ export async function listarAgendamentos({ data, status, q, de, ate, consultor_i
     const filtros = filtrosDeBusca(q, ['cliente_nome', 'placa', 'veiculo', 'telefone', 'servico']);
     const padraoTel = padraoTelefone(q);
     if (padraoTel) filtros.push(`telefone.ilike.${padraoTel}`);
+    // rodada 5: telefone completo (com ou sem 55) casa EXATO pela coluna normalizada (índice telefone_e164)
+    const nac = telefoneNacional(soDigitos(q));
+    if (nac && nac.length >= 10) filtros.push(`telefone_e164.eq.${nac}`);
+    // placa digitada com hífen/espaço ("ABC-1D23") acha a gravada seca
+    const placa = String(q).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (placa.length >= 7 && placa !== String(q).toUpperCase()) filtros.push(`placa.ilike.*${placa}*`);
     p.set('or', `(${filtros.join(',')})`);
   }
   // "Minha agenda": só os horários de um consultor
   if (ehUuid(consultor_id)) p.set('consultor_id', `eq.${consultor_id}`);
   p.set('order', 'data.desc,hora.asc');
   let linhas = await selecionarTudo(T.agendamentos, p);
-  if (q) linhas = linhas.filter((r) => casaBusca([r.cliente_nome, r.placa, r.veiculo, r.servico, r.telefone], q, r.telefone));
-  // selo "lembrete enviado / respondeu" do Comunicar nos cartões pendentes
-  return anexarLembretes(linhas.map(lerAgendamento));
+  if (q) linhas = linhas.filter((r) => casaBusca([r.cliente_nome, r.placa, r.veiculo, r.servico, r.telefone, String(r.placa || '').replace(/[^A-Za-z0-9]/g, '')], q, r.telefone));
+  // selos "lembrete enviado / respondeu" (Comunicar) e "confirmou pelo link" (rodada 5) nos cartões pendentes
+  return anexarConfirmacoes(await anexarLembretes(linhas.map(lerAgendamento)));
 }
 
 export async function obterAgendamento(id) {
@@ -1574,8 +1582,8 @@ export async function estatisticas() {
     semTelefone30d,
   };
 
-  const ultimos = await anexarLembretes(
-    montarUltimos([...deHojeEmDiante, ...passadosRecentes].map(lerAgendamento), d, agoraHHMM()));
+  const ultimos = await anexarConfirmacoes(await anexarLembretes(
+    montarUltimos([...deHojeEmDiante, ...passadosRecentes].map(lerAgendamento), d, agoraHHMM())));
   return { cards, agendaHoje, ultimos, naOficina: naOficinaDeAntes.map(lerAgendamento), data: d, agora: agoraHHMM() };
 }
 
@@ -2330,4 +2338,307 @@ export async function entreguesNoPatioSemDesfecho({ dias = 60, limite = 100 } = 
   ]);
   return entreguesSemDesfecho(ordens, ags).slice(0, limite)
     .map(({ os, agendamento }) => ({ ...agendamento, patio: resumoDaOs(os, extras, base) }));
+}
+
+// ============================================================================
+// RODADA 5 (16/10/2026) — horários livres como serviço, lista de espera,
+// confirmação do cliente, ficha 360, aniversários e a recepção.
+// ============================================================================
+import {
+  livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana as diaDaSemanaH, somaDias as somaDiasH,
+} from './horarios.js';
+
+const SEL_LIVRES = 'select=id,data,hora,status,consultor_id';
+let _memoLivres = { em: 0, servicos: [], janelas: [], consultores: [] };
+/** Serviços (duração), janelas e consultores ativos — mudam pouco: 60 s de cache. */
+async function baseDosHorarios() {
+  if (Date.now() - _memoLivres.em < 60_000) return _memoLivres;
+  const [servicos, janelas, consultores] = await Promise.all([
+    selecionarTudo(T.servicos, 'select=nome,duracao_min').catch(() => []),
+    selecionarTudo(T.janelas, 'select=tipo_servico,dias,inicio,fim').catch(() => []),
+    selecionar(T.consultores, 'select=id,nome,ativo&ativo=is.true&order=nome.asc').catch(() => []),
+  ]);
+  _memoLivres = { em: Date.now(), servicos, janelas, consultores: consultores.map(lerConsultor) };
+  return _memoLivres;
+}
+export const esquecerBaseDosHorarios = () => { _memoLivres.em = 0; };
+
+/** Agendamentos vivos entre duas datas, no formato que horarios.js lê. */
+async function vivosEntre(de, ate) {
+  const p = new URLSearchParams(SEL_LIVRES);
+  p.set('and', `(data.gte.${de},data.lte.${ate})`);
+  p.set('status', 'in.(aguardando,confirmado,compareceu,em_atendimento)');
+  p.set('order', 'data.asc,hora.asc');
+  return (await selecionarTudo(T.agendamentos, p)).map((r) => ({ ...r, hora: horaCurta(r.hora) }));
+}
+const agoraSP = () => { const [h, m] = agoraHHMM().split(':').map(Number); return { data: hoje(), min: h * 60 + m }; };
+
+/**
+ * TODOS os horários livres de um dia para um serviço (a IA do Atendimento usa
+ * isto para oferecer horário). Mesmo contrato da função SQL agenda_horarios_livres.
+ */
+export async function horariosLivresDoDia({ data, servico = null, consultor_id = null, ignorar = null } = {}) {
+  const d = dataBanco(data);
+  if (!d) throw new Error('Data inválida.');
+  const base = await baseDosHorarios();
+  const dur = duracaoDoServico(servico, base.servicos);
+  const dia = livresDoDia({
+    data: d, agora: agoraSP(), agendamentos: await vivosEntre(d, d), consultores: base.consultores, duracao: dur,
+    janelas: janelasDoServico(servico, base.janelas, diaDaSemanaH(d)), consultor_id: ehUuid(consultor_id) ? consultor_id : null,
+    ignorar: ehUuid(ignorar) ? ignorar : null,
+  });
+  const nomes = new Map(base.consultores.map((c) => [c.id, c.nome]));
+  return { ...dia, servico: servico || null, consultores: base.consultores.map((c) => ({ id: c.id, nome: c.nome })),
+    horarios: dia.horarios.map((h) => ({ ...h, consultores: h.consultores_livres.map((id) => ({ id, nome: nomes.get(id) || null })) })),
+    gerado_em: new Date().toISOString() };
+}
+
+/** Os próximos dias com horário livre (até `dias` corridos; para em `quantosDias` dias com vaga). */
+export async function horariosProximosDias({ desde, servico = null, dias = 7, quantosDias = 5, consultor_id = null } = {}) {
+  const agora = agoraSP();
+  const d0 = dataBanco(desde) && dataBanco(desde) >= agora.data ? dataBanco(desde) : agora.data;
+  const n = Math.min(30, Math.max(1, Number(dias) || 7));
+  const base = await baseDosHorarios();
+  const vivos = await vivosEntre(d0, somaDiasH(d0, n));
+  const porDia = new Map();
+  for (const a of vivos) { if (!porDia.has(a.data)) porDia.set(a.data, []); porDia.get(a.data).push(a); }
+  const lista = proximosDias({
+    desde: d0, agora, dias: n, quantosDias: Math.min(14, Math.max(1, Number(quantosDias) || 5)),
+    porDia: (data) => porDia.get(data) || [], consultores: base.consultores, duracao: duracaoDoServico(servico, base.servicos),
+    janelasPorDia: (dow) => janelasDoServico(servico, base.janelas, dow), consultor_id: ehUuid(consultor_id) ? consultor_id : null,
+  });
+  return { desde: d0, dias: n, servico: servico || null, duracao_min: duracaoDoServico(servico, base.servicos), capacidade: Math.max(1, base.consultores.length),
+    consultores: base.consultores.map((c) => ({ id: c.id, nome: c.nome })),
+    dias_livres: lista.map((x) => ({ data: x.data, motivo: x.motivo, horarios: x.horarios.map((h) => h.hora), total: x.horarios.length })),
+    gerado_em: new Date().toISOString() };
+}
+
+/* ---- lista de espera (ag_lista_espera) ------------------------------------- */
+const T_ESPERA = 'ag_lista_espera';
+const SEL_ESPERA = 'select=id,cliente_id,cliente_nome,telefone,veiculo,placa,servico,preferencia,de,ate,observacoes,status,agendamento_id,criado_por,resolvido_em,created_at,updated_at';
+const lerEspera = (r) => (r ? { ...r, de: r.de ? String(r.de).slice(0, 10) : null, ate: r.ate ? String(r.ate).slice(0, 10) : null } : null);
+
+export async function listarEspera({ status = 'aberta', limite = 200 } = {}) {
+  const p = new URLSearchParams(SEL_ESPERA);
+  if (status && status !== 'todas') p.set('status', `eq.${['aberta', 'agendada', 'cancelada'].includes(status) ? status : 'aberta'}`);
+  p.set('order', 'created_at.asc');
+  p.set('limit', String(Math.min(500, limite)));
+  return (await selecionar(T_ESPERA, p)).map(lerEspera);
+}
+export const contarEspera = () => contar(T_ESPERA, 'status=eq.aberta');
+
+export async function criarEspera(c) {
+  const linha = limparParaGravar({
+    cliente_id: uuidOuNulo(c.cliente_id),
+    cliente_nome: String(c.cliente_nome || '').trim().slice(0, 120),
+    telefone: soDigitos(c.telefone) || null,
+    veiculo: c.veiculo ? String(c.veiculo).slice(0, 80) : null,
+    placa: c.placa ? String(c.placa).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) : null,
+    servico: String(c.servico || '').trim().slice(0, 160),
+    preferencia: c.preferencia ? String(c.preferencia).slice(0, 80) : null,
+    de: dataBanco(c.de) || null, ate: dataBanco(c.ate) || null,
+    observacoes: c.observacoes ? String(c.observacoes).slice(0, 500) : null,
+    criado_por: uuidOuNulo(c.criado_por),
+  });
+  if (!linha.cliente_nome) throw new Error('Informe o nome do cliente.');
+  if (!linha.servico) throw new Error('Informe o serviço.');
+  if (linha.de && linha.ate && linha.de > linha.ate) throw new Error('Período invertido: "de" vem depois de "até".');
+  // sem ficha e com telefone: liga à ficha existente pelo telefone (não cria cliente por uma espera)
+  if (!linha.cliente_id && linha.telefone) {
+    const nac = telefoneNacional(linha.telefone);
+    if (nac && nac.length >= 10) {
+      const c0 = await selecionarUm(T.clientes, `select=id&telefone_e164=eq.${nac}&limit=1`).catch(() => null);
+      if (c0?.id) linha.cliente_id = c0.id;
+    }
+  }
+  return lerEspera(await inserirUm(T_ESPERA, linha, SEL_ESPERA));
+}
+export async function obterEspera(id) {
+  if (!ehUuid(id)) return null;
+  return lerEspera(await selecionarUm(T_ESPERA, `${SEL_ESPERA}&id=eq.${id}`));
+}
+export async function atualizarEspera(id, c, quem = null) {
+  if (!ehUuid(id)) return null;
+  const campos = { updated_at: new Date().toISOString() };
+  for (const k of ['cliente_nome', 'veiculo', 'servico', 'preferencia', 'observacoes']) if (c[k] !== undefined) campos[k] = c[k] ? String(c[k]).slice(0, 500) : null;
+  if (c.telefone !== undefined) campos.telefone = soDigitos(c.telefone) || null;
+  if (c.placa !== undefined) campos.placa = c.placa ? String(c.placa).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) : null;
+  if (c.de !== undefined) campos.de = dataBanco(c.de) || null;
+  if (c.ate !== undefined) campos.ate = dataBanco(c.ate) || null;
+  if (c.status !== undefined) {
+    if (!['aberta', 'agendada', 'cancelada'].includes(c.status)) throw new Error('Situação inválida.');
+    campos.status = c.status;
+    if (c.status !== 'aberta') { campos.resolvido_em = new Date().toISOString(); campos.resolvido_por = uuidOuNulo(quem); }
+    else { campos.resolvido_em = null; campos.resolvido_por = null; campos.agendamento_id = null; }
+  }
+  if (c.agendamento_id !== undefined) campos.agendamento_id = uuidOuNulo(c.agendamento_id);
+  if (campos.cliente_nome === null) throw new Error('Informe o nome do cliente.');
+  return lerEspera(await atualizarUm(T_ESPERA, `id=eq.${id}&${SEL_ESPERA}`, limparParaGravar(campos)));
+}
+export async function removerEspera(id) {
+  if (!ehUuid(id)) return false;
+  return (await remover(T_ESPERA, `id=eq.${id}`)).length > 0;
+}
+/** Quem está na lista de espera e serviria para este dia (um horário acabou de vagar). PURA. */
+export function esperaQueCabe(lista, data, servico = null) {
+  const alvo = semAcento(servico);
+  return (lista || []).filter((e) => e && e.status === 'aberta' && (!e.de || e.de <= data) && (!e.ate || e.ate >= data))
+    .sort((x, y) => {
+      const sx = alvo && semAcento(x.servico) === alvo ? 0 : 1, sy = alvo && semAcento(y.servico) === alvo ? 0 : 1;
+      return sx - sy || String(x.created_at).localeCompare(String(y.created_at));
+    });
+}
+
+/* ---- confirmação do cliente (ag_confirmacoes) ------------------------------- */
+const T_CONF = 'ag_confirmacoes';
+const SEL_CONF = 'select=id,agendamento_id,token,canal,enviado_em,aberto_em,respondido_em,resposta,observacao,created_at';
+const TOKEN_CONF = /^[0-9a-f]{24,64}$/i;
+
+export async function criarConfirmacao({ agendamento_id, canal = 'whatsapp', criado_por = null } = {}) {
+  if (!ehUuid(agendamento_id)) return null;
+  // reaproveita o link ainda sem resposta das últimas 72 h (o cliente recebe sempre o mesmo link)
+  const viva = await selecionarUm(T_CONF, `${SEL_CONF}&agendamento_id=eq.${agendamento_id}&resposta=is.null&created_at=gte.${new Date(Date.now() - 72 * 3600_000).toISOString()}&order=created_at.desc&limit=1`).catch(() => null);
+  if (viva) return viva;
+  return inserirUm(T_CONF, limparParaGravar({ agendamento_id, canal: ['whatsapp', 'link', 'telefone', 'balcao'].includes(canal) ? canal : 'whatsapp', criado_por: uuidOuNulo(criado_por) }), SEL_CONF);
+}
+/** O que a página pública do cliente mostra: o horário (sem telefone, sem nada além do necessário) e a resposta que já deu. */
+export async function confirmacaoPorToken(token) {
+  if (!TOKEN_CONF.test(String(token || ''))) return null;
+  const c = await selecionarUm(T_CONF, `${SEL_CONF}&token=eq.${token}`);
+  if (!c) return null;
+  const a = await selecionarUm(T.agendamentos, `select=id,cliente_nome,servico,data,hora,status,veiculo,placa,consultores(nome)&id=eq.${c.agendamento_id}`);
+  if (!a) return null;
+  if (!c.aberto_em) atualizar(T_CONF, `id=eq.${c.id}`, { aberto_em: new Date().toISOString() }).catch(() => {});
+  return {
+    token: c.token, resposta: c.resposta, respondido_em: c.respondido_em,
+    agendamento: { id: a.id, primeiro_nome: String(a.cliente_nome || '').trim().split(/\s+/)[0] || '', servico: a.servico, data: a.data, hora: horaCurta(a.hora),
+      status: a.status, veiculo: a.veiculo, consultor: a.consultores?.nome ?? null,
+      passou: `${a.data} ${horaCurta(a.hora)}` < `${hoje()} ${agoraHHMM()}` },
+  };
+}
+/** O cliente respondeu pelo link: grava a resposta; o gatilho do banco liga `confirmado` quando é "confirmou". */
+export async function responderConfirmacao(token, resposta, observacao = null) {
+  if (!TOKEN_CONF.test(String(token || ''))) return null;
+  if (!['confirmou', 'nao_vem', 'remarcar'].includes(resposta)) throw new Error('Resposta inválida.');
+  const r = await atualizarUm(T_CONF, `token=eq.${token}&${SEL_CONF}`, { resposta, respondido_em: new Date().toISOString(), observacao: observacao ? String(observacao).slice(0, 300) : null });
+  if (!r) return null;
+  if (resposta === 'confirmou') {
+    // o gatilho cuida; aqui só garante quando a sessão não deixou (service role sempre deixa)
+    await atualizar(T.agendamentos, `id=eq.${r.agendamento_id}&status=in.(aguardando,confirmado)`, { confirmado: true, status: 'confirmado' }).catch(() => []);
+  }
+  return r;
+}
+/** A confirmação mais recente de cada horário → { [agendamento_id]: { resposta, respondido_em, enviado_em, canal } }. */
+export async function confirmacoesDosAgendamentos(ids) {
+  const validos = [...new Set((ids || []).filter(ehUuid))].slice(0, 300);
+  const mapa = {};
+  for (let i = 0; i < validos.length; i += 100) {
+    const linhas = await selecionar(T_CONF, `select=agendamento_id,canal,enviado_em,respondido_em,resposta&agendamento_id=in.(${validos.slice(i, i + 100).join(',')})&order=created_at.desc`).catch(() => []);
+    for (const l of linhas) if (!mapa[l.agendamento_id]) mapa[l.agendamento_id] = { resposta: l.resposta, respondido_em: l.respondido_em, enviado_em: l.enviado_em, canal: l.canal };
+  }
+  return mapa;
+}
+/** Anexa `confirmacao` a quem ainda não tem desfecho (o selo "confirmou pelo link"). Nunca derruba a lista. */
+export async function anexarConfirmacoes(lista) {
+  const alvo = (lista || []).filter((a) => a && ['aguardando', 'confirmado'].includes(a.status));
+  if (!alvo.length) return lista;
+  let mapa = {};
+  try { mapa = await confirmacoesDosAgendamentos(alvo.map((a) => a.id)); } catch { return lista; }
+  for (const a of alvo) if (mapa[a.id]) a.confirmacao = mapa[a.id];
+  return lista;
+}
+
+/* ---- ficha 360 (rpc cliente_360 da base, só leitura) ------------------------ */
+export async function cliente360(telefone) {
+  const nac = telefoneNacional(telefone);
+  if (!nac || nac.length < 10) throw Object.assign(new Error('Informe o telefone com DDD.'), { status: 400 });
+  return rpc('cliente_360', { p_telefone: nac });
+}
+
+/* ---- aniversários (clientes.nascimento; 1904 = só dia/mês) ------------------ */
+let _memoAniv = { em: 0, lista: [] };
+/** Clientes que fazem aniversário de hoje a `dias` dias (ordem: os mais próximos primeiro). Cache de 10 min. */
+export async function aniversariosProximos(dias = 7) {
+  const hojeIso = hoje();
+  if (Date.now() - _memoAniv.em > 10 * 60_000) {
+    _memoAniv = { em: Date.now(), lista: await selecionarTudo(T.clientes, 'select=id,nome,telefone,nascimento,carro_modelo,aceita_mensagens&nascimento=not.is.null&order=nascimento.asc').catch(() => []) };
+  }
+  return aniversariantes(_memoAniv.lista, hojeIso, dias);
+}
+export const esquecerAniversarios = () => { _memoAniv.em = 0; };
+/** PURA: quem faz aniversário nos próximos `dias` (0 = hoje), com `em` dias e a idade quando o ano é real. */
+export function aniversariantes(clientes, hojeIso, dias = 7) {
+  const saida = [];
+  const hojeMs = Date.parse(`${hojeIso}T00:00:00Z`);
+  const ano = +String(hojeIso).slice(0, 4);
+  for (const c of clientes || []) {
+    const m = String(c?.nascimento || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) continue;
+    let prox = Date.UTC(ano, +m[2] - 1, +m[3]);
+    if (prox < hojeMs) prox = Date.UTC(ano + 1, +m[2] - 1, +m[3]);
+    const em = Math.round((prox - hojeMs) / 86400_000);
+    if (em > dias) continue;
+    const idade = +m[1] > ANO_SEM_ANO ? new Date(prox).getUTCFullYear() - +m[1] : null;
+    saida.push({ id: c.id, nome: c.nome, telefone: c.telefone, veiculo: c.carro_modelo ?? null, nascimento_tela: nascimentoTela(c.nascimento),
+      em, data: new Date(prox).toISOString().slice(0, 10), idade, aceita_mensagens: c.aceita_mensagens === false ? 0 : 1 });
+  }
+  return saida.sort((x, y) => x.em - y.em || String(x.nome).localeCompare(String(y.nome), 'pt-BR'));
+}
+
+/* ---- recepção (papel agenda): quem está NA CASA de outros dias (chegou e não saiu) ---- */
+export async function naCasaDeOutrosDias(dias = 7) {
+  const d = hoje();
+  const linhas = await selecionar(T.agendamentos,
+    `${SEL_AGENDAMENTO}&status=in.(compareceu,em_atendimento)&data=lt.${d}&data=gte.${diasAntes(d, dias)}&order=data.desc,hora.desc&limit=20`);
+  return linhas.map(lerAgendamento);
+}
+
+/* ---- aviso de remarcação pela FILA do Comunicar (posvenda_envios, tipo avulsa) ----
+   O carteiro do Comunicar envia com o intervalo/limite dele. Respeita o opt-out
+   (clientes.aceita_mensagens) e não repete para o mesmo horário no mesmo dia. */
+export async function enfileirarAvisoDeRemarcacao(a, texto, usuario = null) {
+  const nac = telefoneNacional(a?.telefone);
+  if (!nac || nac.length < 10) return { ok: false, motivo: 'Este horário não tem telefone.' };
+  if (ehUuid(a.cliente_id)) {
+    const c = await selecionarUm(T.clientes, `select=aceita_mensagens&id=eq.${a.cliente_id}`).catch(() => null);
+    if (c && c.aceita_mensagens === false) return { ok: false, motivo: 'O cliente pediu para não receber mensagem automática — abri o WhatsApp para você mandar à mão.' };
+  }
+  const chave = `agenda:remarcado:${a.id}:${a.data}:${horaCurta(a.hora)}`;
+  const repetido = await selecionarUm(T.envios, `select=id,status&chave_unica=eq.${encodeURIComponent(chave)}`).catch(() => null);
+  if (repetido) return { ok: true, repetido: true };
+  const linha = {
+    cliente_id: uuidOuNulo(a.cliente_id), agendamento_id: a.id, lead_id: uuidOuNulo(a.lead_id),
+    telefone: soDigitos(a.telefone), nome: a.cliente_nome || null, tipo: 'avulsa', corpo: texto, status: 'pendente',
+    enviar_em: new Date().toISOString(), chave_unica: chave, criado_por: 'agenda' + (usuario?.email ? ` (${usuario.email})` : ''),
+    criado_por_id: uuidOuNulo(usuario?.id), expira_em: new Date(Date.now() + 24 * 3600_000).toISOString(),
+  };
+  await inserirUm(T.envios, limparParaGravar(linha), 'select=id');
+  return { ok: true };
+}
+
+/* ---- rodada 5 (2ª leva): contagens de confirmação, resumo das confirmações, espera na busca ---- */
+/** Horários de um dia ainda sem confirmação (aguardando e confirmado=false) — só COUNT. */
+export const contarSemConfirmacao = (data) => contar(T.agendamentos, `data=eq.${data}&status=eq.aguardando&confirmado=is.false`);
+
+/** Resumo das confirmações pelo link nos últimos `dias` (painel do gestor). */
+export async function resumoDasConfirmacoes(dias = 30) {
+  const desde = new Date(Date.now() - dias * 86400_000).toISOString();
+  const linhas = await selecionar('ag_confirmacoes', `select=resposta,aberto_em&created_at=gte.${desde}&limit=2000`).catch(() => []);
+  const r = { dias, enviadas: linhas.length, abertas: linhas.filter((l) => l.aberto_em).length, confirmaram: 0, remarcar: 0, nao_vem: 0, sem_resposta: 0 };
+  for (const l of linhas) { if (l.resposta === 'confirmou') r.confirmaram++; else if (l.resposta === 'remarcar') r.remarcar++; else if (l.resposta === 'nao_vem') r.nao_vem++; else r.sem_resposta++; }
+  r.taxa_resposta = r.enviadas ? Math.round((r.enviadas - r.sem_resposta) / r.enviadas * 100) : 0;
+  return r;
+}
+
+/** Lista de espera na busca global (Ctrl+K): nome, telefone, placa ou serviço. */
+export async function buscarEspera(q, limite = 6) {
+  const termo = String(q ?? '').trim().slice(0, 80);
+  if (termo.length < 2) return [];
+  const p = new URLSearchParams('select=id,cliente_nome,telefone,servico,veiculo,placa,preferencia,de,ate,status,created_at');
+  const f = filtrosDeBusca(termo, ['cliente_nome', 'placa', 'servico']);
+  const dig = soDigitos(termo);
+  if (dig.length >= 4) f.push(`telefone.ilike.*${dig.slice(-8)}*`);
+  p.set('or', `(${f.join(',')})`); p.set('status', 'eq.aberta'); p.set('limit', '30');
+  const linhas = await selecionar('ag_lista_espera', p).catch(() => []);
+  return linhas.filter((r) => casaBusca([r.cliente_nome, r.placa, r.servico], termo, r.telefone)).slice(0, limite);
 }

@@ -1,0 +1,117 @@
+/* ============================ RODADA 5 (16/10/2026) ============================
+   Horários livres do dia · lista de espera · confirmação do cliente · ficha 360 ·
+   aniversários · recepção "na casa" · busca com teclado. Só usa as variáveis de
+   styles.css (os dois temas funcionam sem nada a mais aqui). */
+
+[hidden]{display:none!important}
+
+/* ---- horários livres do dia (modal de agendamento e remarcar) ---- */
+.grade-horas{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.grade-horas .chip-sugestao{min-width:64px;justify-content:center}
+.grade-horas .chip-sugestao.cheio{opacity:.45;text-decoration:line-through;pointer-events:none}
+.grade-horas .chip-sugestao.escolhido{background:var(--red);color:#fff;border-color:var(--red)}
+.livres-cab{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;font-size:12.5px;color:var(--muted)}
+.livres-cab b{color:var(--text-forte)}
+.livres-nav{display:inline-flex;gap:4px}
+.livres-nav .btn{min-height:30px;padding:0 10px}
+
+/* ---- selo "confirmou pelo link" e o botão de pedir confirmação ---- */
+.badge-pill.bp-ok-link{background:rgba(34,197,94,.16);color:var(--green-txt);border:1px solid rgba(34,197,94,.35)}
+.act.pedir-conf{color:var(--green-txt)}
+.link-conf{display:grid;gap:8px}
+.link-conf code{display:block;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--border);word-break:break-all;font-size:12px}
+.link-conf .texto{white-space:pre-wrap;font-size:13px;color:var(--text);padding:10px 12px;border-radius:12px;background:var(--surface-3);border:1px solid var(--border)}
+
+/* ---- lista de espera ---- */
+.espera-lista{display:flex;flex-direction:column;gap:10px}
+.espera-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface-3)}
+.espera-item.agendada{opacity:.72}
+.espera-item .quem b{font-size:15px;color:var(--text-forte)}
+.espera-item .quem small{display:block;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.espera-item .acoes{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.espera-item .espera-desde{font-size:11px;color:var(--muted-2);font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.espera-pref{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--muted);margin-right:8px}
+.espera-aviso{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 14px;border-radius:12px;background:var(--orange-soft);border:1px solid rgba(245,158,11,.35);color:var(--orange-txt);font-weight:700;font-size:13px}
+.espera-aviso .btn{min-height:30px}
+.pilulas-espera{display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:640px){
+  .espera-item{grid-template-columns:minmax(0,1fr)}
+  .espera-item .acoes{justify-content:stretch}
+  .espera-item .acoes .btn{flex:1 1 120px}
+}
+
+/* ---- ficha 360 ---- */
+.f360{display:grid;gap:8px}
+.f360-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.f360-resumo div{padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--border);min-width:0}
+.f360-resumo small{display:block;font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.f360-resumo b{display:block;font-size:17px;color:var(--text-forte);font-family:var(--font-num);margin-top:2px;overflow-wrap:anywhere}
+.f360-resumo b.alerta{color:var(--orange-txt)}
+.f360-chips{display:flex;flex-wrap:wrap;gap:6px}
+.f360-chips a,.f360-chips span{display:inline-flex;align-items:center;gap:5px}
+.f360-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:12.5px}
+.f360-lista li{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;color:var(--text)}
+.f360-lista li small{color:var(--muted)}
+.f360-lista li a{color:var(--blue-txt,#60a5fa)}
+
+/* ---- aniversários ---- */
+.chip-aniv{border-color:rgba(236,72,153,.45);background:rgba(236,72,153,.12);color:#f472b6}
+:root[data-tema="claro"] .chip-aniv{color:#be185d}
+.aniv-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.aniv-lista li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface-3)}
+.aniv-lista li b{color:var(--text-forte)}
+.aniv-lista li small{display:block;color:var(--muted)}
+.aniv-lista .hoje b::after{content:" · é hoje 🎉";color:#f472b6}
+
+/* ---- recepção: "na casa" e quem chega ---- */
+.rec-resumo{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.rec-resumo span{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:14px;border:1px solid var(--border-2);background:var(--surface);font-weight:800;font-size:calc(15px * var(--rec,1));color:var(--text)}
+.rec-resumo span b{font-family:var(--font-num);font-size:calc(22px * var(--rec,1));color:var(--text-forte);line-height:1}
+.rec-resumo span.casa b{color:var(--blue-txt,#60a5fa)}
+.rec-resumo span.proximo b{color:var(--red-txt)}
+.rec-cartao .appt-dia{font-size:calc(11px * var(--rec,1));font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--orange-txt)}
+.rec-cartao .selo-patio{font-size:calc(12px * var(--rec,1))}
+
+/* ---- busca Ctrl+K com teclado ---- */
+.busca-item.ativo{outline:2px solid var(--red);outline-offset:-2px;background:var(--red-soft)}
+.busca-dica{font-size:11.5px;color:var(--muted-2);margin:6px 0 0}
+kbd.mini{min-width:20px;padding:1px 5px;font-size:10.5px}
+
+/* ---- toast com dois botões e a ação secundária ---- */
+.toast .toast-acao.secundaria{opacity:.85}
+
+/* ---- remarcar: data e hora escolhidas na grade ---- */
+.remarcar-escolha{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;font-size:13px;color:var(--muted)}
+.remarcar-escolha b{color:var(--text-forte)}
+
+/* ---- Semana › dia: a grade de horas aceita arrastar para a hora ---- */
+.sem-horas{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin:8px 0 10px}
+.sem-hora-alvo{min-height:40px;border:1px dashed var(--border-2);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--surface)}
+.sem-hora-alvo em{font-style:normal;font-size:11px;color:var(--muted-2)}
+.sem-hora-alvo.cheia{border-style:solid;color:var(--text);background:var(--surface-3)}
+.sem-hora-alvo.alvo{border-color:var(--red);background:var(--red-soft);color:var(--red-txt)}
+.sem-hora-alvo.passou{opacity:.4}
+
+/* ---- modal de confirmação da remarcação ---- */
+.remarcar-conf{display:grid;gap:10px}
+.remarcar-conf .de-para{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;text-align:center;padding:12px;border-radius:12px;background:var(--surface-3);border:1px solid var(--border)}
+.remarcar-conf .de-para b{display:block;font-family:var(--font-num);font-size:22px;color:var(--text-forte)}
+.remarcar-conf .de-para small{color:var(--muted)}
+.remarcar-conf .de-para .seta{font-size:22px;color:var(--red-txt)}
+
+/* ---- atalhos novos na Ajuda ---- */
+.atalhos td:first-child{white-space:nowrap}
+
+/* ---- menu: badge da espera ---- */
+#badgeEspera{background:var(--orange)}
+
+/* ---- ficha: a chave "Aceita mensagens automáticas" ficava com a caixinha solta no meio ---- */
+.opt-mensagens .switch{display:flex;align-items:center;gap:10px;cursor:pointer}
+.opt-mensagens .switch input{width:18px;height:18px;flex:none;margin:0}
+.opt-mensagens .switch span{font-size:13.5px;line-height:1.4}
+
+/* ---- Semana: "+N na espera" no cabeçalho do dia (é um botão, parece um selo) ---- */
+.sem-espera{border:0;cursor:pointer;font:inherit;font-size:11px;font-weight:700;margin-left:6px;vertical-align:middle}
+.sem-espera:hover{filter:brightness(1.1)}
+/* recepção: "atualizado às" dentro do botão Atualizar */
+#recAtualizadoEm{font-weight:600;font-size:12px;margin-left:2px}
