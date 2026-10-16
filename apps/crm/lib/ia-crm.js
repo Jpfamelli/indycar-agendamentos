@@ -22,6 +22,7 @@ const crypto = require('node:crypto');
 const { criarContexto, paraIA, links, corta, ehUuid } = require('./contexto-lead');
 const M = require('./metricas');
 const { parametrosModelo } = require('./rodada5');
+const { podeEditarLead, avisoLeadDeOutro } = require('../public/crm-utils');
 
 const PADRAO = {
   ativo: true, modelo_rapido: 'claude-sonnet-5-5', modelo_forte: 'claude-opus-5-5',
@@ -721,12 +722,23 @@ Responda usando SÓ os dados (JSON agregado do CRM de hoje). Se os dados não pe
     return data;
   }
 
+  /** Atendente não aplica (nem desfaz) mudança da IA em lead de colega: 403 antes de trancar a ação. */
+  async function conferirDono(leadId, quem) {
+    if (!leadId || !quem || podeEditarLead({ responsavel_id: 'outro' }, quem)) return;   // gestor: livre
+    const { data: l, error } = await sb.from('leads').select('id,responsavel_id').eq('id', leadId).maybeSingle();
+    if (error) throw new ErroIA('Não consegui ler o lead.', 503);
+    if (!l || podeEditarLead(l, quem)) return;
+    const { data: p } = await sb.from('perfis').select('nome').eq('id', l.responsavel_id).maybeSingle();
+    throw new ErroIA(avisoLeadDeOutro(p?.nome), 403, { codigo: 'lead_de_outro' });
+  }
+
   async function executar(id, quem, { confirmarFaturamento = false } = {}) {
     const cfg = await config();
     if (cfg.autonomia === 'sugerir') throw new ErroIA('A IA está no modo "só sugerir": faça a mudança pela ficha.', 403);
     const a = await lerAcao(id);
     if (a.status !== 'proposta') throw new ErroIA('Essa ação já foi tratada.', 409);
     const p = a.saida?.plano || {};
+    if (p.muda?.lead) await conferirDono(a.lead_id, quem);
     if (p.faturamento && !confirmarFaturamento) throw new ErroIA('Esta ação mexe em faturamento (concluído/perdido). Confirme para executar.', 428, { precisaConfirmar: true });
     // tranca antes de aplicar: o segundo clique leva 409
     await trocarStatus(id, 'proposta', 'executada', { executada_em: new Date(agora()).toISOString(), perfil_id: quem?.id || a.perfil_id || null });
@@ -764,6 +776,7 @@ Responda usando SÓ os dados (JSON agregado do CRM de hoje). Se os dados não pe
       return { ok: true, id, tarefaCancelada: tarefaId };
     }
     if (!muda || (!muda.lead && !muda.cliente)) throw new ErroIA('Esta ação não mudou nada no CRM; não há o que desfazer.', 422);
+    if (muda.lead) await conferirDono(a.lead_id, quem);
     const inverso = {};
     if (muda.lead) inverso.lead = { antes: muda.lead.depois, depois: muda.lead.antes };
     if (muda.cliente) inverso.cliente = { antes: muda.cliente.depois, depois: muda.cliente.antes };

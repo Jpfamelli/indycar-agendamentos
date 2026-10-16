@@ -185,6 +185,17 @@ function acesso() {
 
 /* Auditoria, equipe, tarefas e automações (só no banco compartilhado). */
 let AUDITAR = null, EQUIPE = null, TAREFAS = null, AUTOMACOES = null;
+/* Lead de colega (16/10, decisão do João): atendente vê todos, mas só edita lead dele ou
+   sem responsável. Devolve o 403 pronto (com o nome de quem cuida) ou null se pode. */
+async function nomeDoPerfil(id) {
+  if (!id || !USA_SUPABASE) return null;
+  try { const { data } = await adminSupabase().from('perfis').select('nome').eq('id', id).maybeSingle(); return data?.nome || null; } catch { return null; }
+}
+async function travaLeadDeOutro(quem, lead) {
+  if (!lead || utils.podeEditarLead(lead, quem)) return null;
+  const nome = await nomeDoPerfil(lead.responsavel_id);
+  return { erro: utils.avisoLeadDeOutro(nome), codigo: 'lead_de_outro', responsavel_id: lead.responsavel_id, responsavel_nome: nome };
+}
 const auditar = (...a) => { if (!AUDITAR) AUDITAR = criarAuditoria({ sb: USA_SUPABASE ? adminSupabase() : null, log: (...x) => console.warn('[auditoria]', ...x) }); return AUDITAR(...a); };
 function equipe() { if (!EQUIPE && USA_SUPABASE && adminSupabase()) EQUIPE = criarEquipe({ sb: adminSupabase(), auditar, log: (...a) => console.warn('[equipe]', ...a) }); return EQUIPE; }
 function tarefas() { if (!TAREFAS && USA_SUPABASE && adminSupabase()) TAREFAS = criarTarefas({ sb: adminSupabase(), auditar }); return TAREFAS; }
@@ -217,7 +228,7 @@ function iaCrm() {
 /** Erro da IA vira resposta clara; o resto não vaza detalhe interno. */
 function erroIA(res, e) {
   if (e instanceof ErroIA || (e && e.status && e.status < 600)) {
-    return json(res, e.status || 500, { erro: e.message, ...(e.precisaConfirmar ? { precisaConfirmar: true } : {}) });
+    return json(res, e.status || 500, { erro: e.message, ...(e.precisaConfirmar ? { precisaConfirmar: true } : {}), ...(e.codigo ? { codigo: e.codigo } : {}) });
   }
   console.error('IA do CRM:', e && e.message);
   return json(res, 500, { erro: 'A IA do CRM falhou. Tente de novo.' });
@@ -649,6 +660,8 @@ async function handler(req, res) {
           const body = await readBody(req); const falha = utils.validarLead(body,true); if (falha) return json(res,400,{erro:falha});
           const antes = await store.getLead(id);
           if (!antes) return json(res, 404, { erro: 'lead não encontrado' });
+          const trava = await travaLeadDeOutro(quem, antes);
+          if (trava) return json(res, 403, trava);
           const updated = await store.updateLead(id, body);
           if (!updated) return json(res, 404, { erro: 'lead não encontrado' });
           // auditoria: fechamento (concluído/perdido), reabertura e mudança de valores

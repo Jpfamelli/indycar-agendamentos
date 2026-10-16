@@ -152,9 +152,25 @@ async function corpoMudanca(l, novo) {
   if (novo === 'concluido') { const v = await perguntarPagoDetalhe(l); if (!v) return null; corpo.valor_pago = v.valor; if (v.cortesia) corpo.observacoes = CrmR4.comCortesia(corpo.observacoes ?? l.observacoes); }
   return corpo;
 }
+/* 16/10: atendente vê todos os leads, mas só edita os dele ou sem responsável (o servidor e o
+   banco conferem de novo). Devolve o aviso quando o lead é de colega; null quando pode editar. */
+function travaLead(l) {
+  if (!l || !PERFIL || U.podeEditarLead(l, PERFIL)) return null;
+  return U.avisoLeadDeOutro(pessoa(l.responsavel_id)?.nome);
+}
+const seloDono = l => { if (!travaLead(l)) return ''; const n = pessoa(l.responsavel_id)?.nome; return `<span class="tag selo-dono" title="Responsável: ${esc(n || 'colega')} — só ele ou o gestor edita">🔒 de ${esc(n ? primeiroNome(n) : 'colega')}</span>`; };
+/* Trava (ou destrava) a aba Dados da ficha: campos e Salvar desativados, com o aviso. */
+function travarFormLead(l) {
+  const aviso = travaLead(l), form = $('#leadForm');
+  form.querySelectorAll('input:not([type=hidden]),select,textarea,button[type=submit]').forEach(x => { x.disabled = !!aviso; });
+  let p = $('#avisoDono');
+  if (aviso) { if (!p) { p = document.createElement('p'); p.id = 'avisoDono'; p.className = 'aviso-dono'; p.setAttribute('role', 'note'); form.prepend(p); } p.textContent = '🔒 ' + aviso; }
+  else p?.remove();
+}
 async function moverEtapa(id, novo, {anunciar} = {}) {
   const l = TODOS.find(x => String(x.id) === String(id));
   if (!l || l.status === novo) return false;
+  const trava = travaLead(l); if (trava) { toast('🔒 ' + trava, 6000); redesenhar(); return false; }
   const corpo = await corpoMudanca(l, novo); if (!corpo) return false;
   const antes = {status: l.status, valor_pago: l.valor_pago ?? 0, observacoes: l.observacoes ?? ''};
   try {
@@ -240,13 +256,16 @@ function atualizarLote() {
 $('#loteLimpar').addEventListener('click', () => { SEL.clear(); renderTabelaLeads(); });
 $('#loteExportar').addEventListener('click', () => baixarCsv(TODOS.filter(l => SEL.has(String(l.id))), 'leads-selecionados'));
 async function emLote(ids, corpoDe, rotulo) {
-  const alvos = TODOS.filter(l => ids.includes(String(l.id)));
+  const marcados = TODOS.filter(l => ids.includes(String(l.id)));
+  const alvos = marcados.filter(l => !travaLead(l)), deOutros = marcados.length - alvos.length;
+  if (!alvos.length) { toast(`🔒 ${deOutros === 1 ? 'Esse lead é' : 'Esses leads são'} de colegas: só o responsável ou o gestor muda.`, 6000); return; }
   const antes = alvos.map(l => ({id: l.id, corpo: {status: l.status, origem: l.origem, valor_pago: l.valor_pago ?? 0, observacoes: l.observacoes ?? ''}}));
   let ok = 0; const falhas = [];
   for (const l of alvos) { try { substituirLocal(await patchLead(l.id, corpoDe(l))); ok++; } catch (e) { falhas.push(l.nome + ': ' + e.message); } }
   SEL.clear(); redesenhar();
-  if (falhas.length) toast(`⚠️ ${ok} atualizados, ${falhas.length} com erro — ${falhas[0]}`, 6000);
-  else toastAcao(`${ok} lead${ok === 1 ? '' : 's'} ${rotulo}`, 'Desfazer', async () => {
+  const pulados = deOutros ? ` · ${deOutros} de colega${deOutros === 1 ? '' : 's'} ficou de fora` : '';
+  if (falhas.length) toast(`⚠️ ${ok} atualizados, ${falhas.length} com erro — ${falhas[0]}${pulados}`, 6000);
+  else toastAcao(`${ok} lead${ok === 1 ? '' : 's'} ${rotulo}${pulados}`, 'Desfazer', async () => {
     for (const a of antes) substituirLocal(await patchLead(a.id, a.corpo)); redesenhar(); toast('Ação em lote desfeita');
   }, 9000);
 }
@@ -274,13 +293,13 @@ document.addEventListener('click', e => { if (!e.target.closest('.colunas-menu')
 /* ---------------- funil (kanban) ---------------- */
 const LIMITE_CARTOES = 40; const COLUNAS_ABERTAS = new Set();
 function cartaoKanban(l, agora) {
-  const d = U.diasNaEtapa(l, agora), p = U.parado(l, agora);
-  return `<div class="kb-card${p ? ' parado' : ''}" data-id="${esc(l.id)}" tabindex="0" role="button" aria-roledescription="cartão arrastável" aria-label="${esc(l.nome)}, ${esc(LABEL_STATUS[l.status] ?? l.status)}, ${esc(U.textoDias(d))} na etapa${p ? ', parado' : ''}">
+  const d = U.diasNaEtapa(l, agora), p = U.parado(l, agora), trava = travaLead(l);
+  return `<div class="kb-card${p ? ' parado' : ''}${trava ? ' travado' : ''}" data-id="${esc(l.id)}"${trava ? ' data-travado="1"' : ''} tabindex="0" role="button" aria-roledescription="cartão arrastável" aria-label="${esc(l.nome)}, ${esc(LABEL_STATUS[l.status] ?? l.status)}, ${esc(U.textoDias(d))} na etapa${p ? ', parado' : ''}">
     <span class="kb-alca" aria-hidden="true" title="Arraste para mudar de etapa">⠿</span>
     <div class="kb-nome">${esc(l.nome)}</div>
     <div class="kb-meta">${esc(l.carro_modelo) || '—'} · ${esc(l.servico) || 'serviço n/d'}</div>
     <div class="kb-rodape"><span class="kb-valor">${brl(U.valorLead(l))}</span>${chipResponsavel(l.responsavel_id, true)}<span class="kb-tempo${p ? ' alerta' : ''}" title="Tempo desde a última mudança">${p ? '⚠ ' : ''}${esc(U.textoDias(d))}</span></div>
-    <select class="kb-etapa" aria-label="Mover ${esc(l.nome)} para outra etapa" data-lead="${esc(l.id)}">
+    ${seloDono(l)}<select class="kb-etapa" aria-label="Mover ${esc(l.nome)} para outra etapa" data-lead="${esc(l.id)}"${trava ? ` disabled title="${esc(trava)}"` : ''}>
       ${STATUSES.map(s => `<option value="${esc(s)}" ${s === l.status ? 'selected' : ''}>${esc(LABEL_STATUS[s] ?? s)}</option>`).join('')}
     </select>
   </div>`;
@@ -332,6 +351,7 @@ kanban.addEventListener('pointerdown', e => {
   const card = e.target.closest('.kb-card');
   if (!card || e.target.closest('select,button,a') || (e.pointerType === 'mouse' && e.button !== 0)) return;
   if (e.pointerType !== 'mouse' && !e.target.closest('.kb-alca')) return;
+  if (card.dataset.travado) { if (e.target.closest('.kb-alca')) toast('🔒 ' + travaLead(TODOS.find(x => String(x.id) === card.dataset.id)), 6000); return; }
   arrasto = {card, id: card.dataset.id, x: e.clientX, y: e.clientY, ativo: false, pid: e.pointerId, toque: e.pointerType !== 'mouse'};
   if (arrasto.toque) { e.preventDefault(); iniciarArrasto(e.clientX, e.clientY); }
 });
@@ -466,7 +486,7 @@ function renderFichaLead(l) {
   $('#lfTopo').innerHTML = `<span class="avatar">${esc(iniciais(l.nome))}</span>
     <div class="lf-id"><div class="ficha-nome">${esc(l.nome)}</div>
       <div class="ficha-sub">${esc(U.formatarTelefone(l.telefone))}${l.carro_modelo ? ' · ' + esc(l.carro_modelo) : ''}${l.placa ? ' · ' + esc(l.placa) : ''}</div>
-      <div class="lf-tags"><span class="badge b-${esc(l.status)}">${esc(LABEL_STATUS[l.status] ?? l.status)}</span><span class="tag">${esc(LABEL_ORIGEM[l.origem] ?? l.origem ?? '')}</span>${seloArea(l)}
+      <div class="lf-tags"><span class="badge b-${esc(l.status)}">${esc(LABEL_STATUS[l.status] ?? l.status)}</span><span class="tag">${esc(LABEL_ORIGEM[l.origem] ?? l.origem ?? '')}</span>${seloArea(l)}${seloDono(l)}
         <span class="lf-tempo${p ? ' alerta' : ''}">${p ? '⚠ parado há ' + esc(U.textoDias(d)) : d ? 'na etapa há ' + esc(U.textoDias(d)) : 'mexido hoje'}</span>${motivo ? `<span class="tag">Perda: ${esc(motivo)}</span>` : ''}</div></div>
     <div class="lf-valor"><span>${l.status === 'concluido' ? 'Pago' : 'Orçado'}</span><b>${brl(U.valorLead(l))}</b>${l.servico ? `<small>${esc(l.servico)}</small>` : ''}</div>`;
   $('#lfAcoes').innerHTML = botaoAcao(U.linkConversa(l.telefone), 'Abrir conversa', '💬') + botaoAcao(U.linkWhatsApp(l.telefone), 'WhatsApp', '🟢') +
@@ -474,7 +494,9 @@ function renderFichaLead(l) {
     `<button type="button" class="acao" data-acao="copiar"><span aria-hidden="true">📋</span>Copiar telefone</button>` +
     ((l.cliente_id || U.telE164(l.telefone)) ? `<button type="button" class="acao" data-acao="ficha360"><span aria-hidden="true">🪪</span>Ficha 360</button>` : '');
   renderRespFicha(l);
-  $('#lfEtapas').innerHTML = STATUSES.map(s => `<button type="button" class="etapa-btn" data-etapa="${esc(s)}" aria-pressed="${s === l.status}">${esc(LABEL_STATUS[s] ?? s)}</button>`).join('');
+  const trava = travaLead(l);
+  $('#lfEtapas').innerHTML = STATUSES.map(s => `<button type="button" class="etapa-btn" data-etapa="${esc(s)}" aria-pressed="${s === l.status}"${trava ? ` disabled title="${esc(trava)}"` : ''}>${esc(LABEL_STATUS[s] ?? s)}</button>`).join('');
+  travarFormLead(l);
 }
 $('#lfAcoes').addEventListener('click', async e => {
   const b = e.target.closest('[data-acao]'); if (!b) return;
@@ -546,6 +568,7 @@ function preencherForm(l, pre = {}) {
   $('#fUtmSource').value = v('utm_source'); $('#fUtmMedium').value = v('utm_medium');
   if (l?.servico && $('#fServico').value !== l.servico) { $('#fServico').insertAdjacentHTML('beforeend', `<option value="${esc(l.servico)}">${esc(l.servico)}</option>`); $('#fServico').value = l.servico; }
   limparErros(); $('#avisoDuplicado')?.remove();
+  travarFormLead(l);
   FORM_INICIAL = valoresForm();
 }
 let FORM_INICIAL = '';

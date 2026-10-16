@@ -476,6 +476,20 @@
     const dono = lead && lead.responsavel_id ? String(lead.responsavel_id) : null;
     return !dono || dono === String(perfil.id);
   }
+  /* Quem pode EDITAR o lead (status, valores, campos, etapa, perda, lote) — mesma regra
+     do servidor e do banco (RLS): gestor/admin editam tudo; atendente só edita lead dele
+     ou sem responsável (editar não muda o dono: distribuir continua com o gestor). */
+  function podeEditarLead(lead, perfil) {
+    if (!perfil) return false;
+    if (ehGestor(perfil.papel)) return true;
+    const dono = lead && lead.responsavel_id ? String(lead.responsavel_id) : null;
+    return !dono || dono === String(perfil.id);
+  }
+  /* Aviso de lead de colega (o servidor devolve o mesmo texto no 403). */
+  function avisoLeadDeOutro(nome) {
+    const n = String(nome || '').trim().split(/\s+/)[0];
+    return n ? `Este lead é do ${n}. Peça para ele ou para o gestor.` : 'Este lead é de um colega. Peça para ele ou para o gestor.';
+  }
   function ordenarDesempenho(lista, criterio = 'faturamento') {
     const v = x => criterio === 'tempo_resposta_min' ? -(x[criterio] ?? Infinity) : num(x[criterio]);
     return [...(lista || [])].sort((a, b) => v(b) - v(a) || num(b.faturamento) - num(a.faturamento) || String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
@@ -496,7 +510,7 @@
     const d = Math.floor(s / 86400); return d === 1 ? 'ontem' : d + ' dias';
   }
   const api = {normalizar,digitos,buscar,validarLead,origemDetalhada,MOTIVOS_PERDA,motivoPadrao,nascimento,moeda,csv,ETAPAS,ABERTAS,LIMITE_PARADO,valorLead,diasNaEtapa,parado,textoDias,resumoColuna,periodo,metricas,funilPassagem,comparar,motivoPerda,comMotivoPerda,telE164,linkWhatsApp,linkLigar,linkConversa,linkComunicar,linkAgenda,formatarTelefone,paginar,linhaDoTempo,casaOrigem,situacaoTarefa,ordenarTarefas,novaTarefa,COLUNAS_LEADS,COLUNAS_PADRAO,colunasValidas,ATALHOS_ABA,
-    ehUuid,PAPEIS,ROTULO_PAPEL,ehGestor,URL_APPS,NOME_APPS,acessoApp,appsPermitidos,acaoErroAcesso,mensagemLogin,esperaLogin,validarNovaSenha,codigoMfaValido,linkNotificacao,CORES_AVATAR,corAvatar,filtroResponsavel,funilPorResponsavel,vencimentoDe,situacaoTarefaDb,ordenarTarefasDb,agruparTarefas,validarTarefa,lembreteParaTarefa,ROTULO_PRIORIDADE,mesAtual,intervaloMes,progressoMeta,CAMPOS_META,validarMetas,normalizarMetas,normalizarDesempenho,normalizarEquipe,podeReatribuir,ordenarDesempenho,deveGravarAcesso,mesclarPreferencias,tempoRelativo};
+    ehUuid,PAPEIS,ROTULO_PAPEL,ehGestor,URL_APPS,NOME_APPS,acessoApp,appsPermitidos,acaoErroAcesso,mensagemLogin,esperaLogin,validarNovaSenha,codigoMfaValido,linkNotificacao,CORES_AVATAR,corAvatar,filtroResponsavel,funilPorResponsavel,vencimentoDe,situacaoTarefaDb,ordenarTarefasDb,agruparTarefas,validarTarefa,lembreteParaTarefa,ROTULO_PRIORIDADE,mesAtual,intervaloMes,progressoMeta,CAMPOS_META,validarMetas,normalizarMetas,normalizarDesempenho,normalizarEquipe,podeReatribuir,podeEditarLead,avisoLeadDeOutro,ordenarDesempenho,deveGravarAcesso,mesclarPreferencias,tempoRelativo};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CrmUtils = api;
 })(typeof window !== 'undefined' ? window : globalThis);

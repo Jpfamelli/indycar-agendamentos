@@ -1287,3 +1287,12 @@ dialog.dlg-busca{width:min(640px,calc(100vw - 32px));padding:14px;margin-top:8vh
   .f360-msgs li{max-width:100%}
 }
 @media (prefers-reduced-motion:reduce){.bg-item{transition:none}}
+
+/* 16/10: lead de colega — atendente vê, mas não edita (servidor e banco também barram) */
+.selo-dono{background:rgba(245,158,11,.14);color:var(--amarelo-txt);font-weight:600;text-transform:none}
+.kb-card .selo-dono{margin:6px 0 0;font-size:11px}
+.kb-card.travado .kb-alca{opacity:.35;cursor:not-allowed}
+.kb-card.travado .kb-etapa:disabled{opacity:.6;cursor:not-allowed}
+.aviso-dono{margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid rgba(245,158,11,.35);background:rgba(245,158,11,.1);color:var(--amarelo-txt);font-size:13px;line-height:1.4}
+#leadForm :disabled{cursor:not-allowed}
+.etapa-btn:disabled{opacity:.55;cursor:not-allowed}

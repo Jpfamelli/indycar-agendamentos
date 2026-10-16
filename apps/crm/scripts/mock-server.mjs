@@ -20,6 +20,7 @@ import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const PATIO = createRequire(import.meta.url)('../lib/patio-crm.js');
 const R5 = createRequire(import.meta.url)('../lib/rodada5.js');
+const CrmUtils = createRequire(import.meta.url)('../public/crm-utils.js');
 // Rodada 5: MOCK_PREFIXO=/crm serve o app montado num prefixo, como a IndyCar Central
 const PREFIXO = (p => p ? '/' + p : '')(String(process.env.MOCK_PREFIXO || '').trim().replace(/^\/+|\/+$/g, ''));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
@@ -547,6 +548,11 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
         const id = p.split('/').at(-1), l = leads.find(x => x.id === id);
         if (!l) return json({erro: 'lead não encontrado'}, 404);
         if (req.method === 'PATCH') {
+          // 16/10: atendente só edita lead dele ou sem dono (mesma regra do servidor real)
+          if (!gestor && l.responsavel_id && l.responsavel_id !== EU) {
+            const dono = equipe(pp).find(x => x.id === l.responsavel_id);
+            return json({erro: CrmUtils.avisoLeadDeOutro(dono?.nome), codigo: 'lead_de_outro', responsavel_id: l.responsavel_id, responsavel_nome: dono?.nome || null}, 403);
+          }
           if (d.status && !statuses.includes(d.status)) return json({erro: 'Etapa inválida.'}, 400);
           const mudouEtapa = d.status && d.status !== l.status;
           Object.assign(l, d, {updated_at: new Date().toISOString()});

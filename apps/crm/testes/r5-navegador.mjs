@@ -163,6 +163,35 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   ok(`${tag}: M no cartão do funil leva o foco ao seletor de etapa`, await page.evaluate(() => document.activeElement?.classList.contains('kb-etapa')));
   await page.keyboard.press('Escape');
 
+  /* 16/10: lead de colega — atendente vê, mas não edita (selo "de <nome>", ficha travada, 403 no servidor) */
+  {
+    const ids = await page.evaluate(() => ({
+      outro: TODOS.find(l => l.responsavel_id && l.responsavel_id !== PERFIL.id && U.ABERTAS.includes(l.status))?.id,
+      meu: TODOS.find(l => l.responsavel_id === PERFIL.id && U.ABERTAS.includes(l.status))?.id,
+      sem: TODOS.find(l => !l.responsavel_id && U.ABERTAS.includes(l.status))?.id }));
+    await page.evaluate(() => irPara('pipeline')); await dorme(300);
+    const kb = await page.evaluate(id => { const c = document.querySelector(`.kb-card[data-id="${CSS.escape(id)}"]`); return c ? { travado: c.classList.contains('travado'), selo: c.querySelector('.selo-dono')?.textContent || '', sel: c.querySelector('.kb-etapa')?.disabled } : null; }, ids.outro);
+    await page.evaluate(id => abrirModal(id), ids.outro); await dorme(400);
+    const f = await page.evaluate(() => ({ selo: document.querySelector('#lfTopo .selo-dono')?.textContent || '', aviso: document.getElementById('avisoDono')?.textContent || '',
+      salvar: document.querySelector('#leadForm button[type=submit]').disabled, nome: document.getElementById('fNome').disabled, etapas: [...document.querySelectorAll('#lfEtapas .etapa-btn')].every(b => b.disabled) }));
+    const status = await page.evaluate(async id => { try { await api('/api/leads/' + id, { method: 'PATCH', body: JSON.stringify({ observacoes: 'teste' }) }); return 200; } catch (e) { return e.status + ' ' + e.message; } }, ids.outro);
+    if (papel === 'atendente') {
+      ok(`${tag}: cartão de colega no funil com selo "de <nome>" e etapa travada`, kb && kb.travado && /^🔒 de \S+/.test(kb.selo) && kb.sel, JSON.stringify(kb));
+      ok(`${tag}: ficha de colega abre (vê), mas Dados/Salvar/etapas desativados com o aviso`, /de \S+/.test(f.selo) && /Este lead é do .+ Peça para ele ou para o gestor\./.test(f.aviso) && f.salvar && f.nome && f.etapas, JSON.stringify(f));
+      ok(`${tag}: servidor responde 403 com a mensagem ao editar lead de colega`, /^403 Este lead é do/.test(String(status)), String(status));
+      await page.screenshot({ path: join(SAIDA, `${tag}-lead-de-colega.png`) });
+      await semRolagem('lead de colega');
+      for (const [rot, id] of [['dele', ids.meu], ['sem dono', ids.sem]]) {
+        if (!id) continue;
+        await page.evaluate(() => fecharModal(true)); await page.evaluate(i => abrirModal(i), id); await dorme(300);
+        ok(`${tag}: lead ${rot} continua editável`, await page.evaluate(() => !document.getElementById('avisoDono') && !document.querySelector('#leadForm button[type=submit]').disabled && !document.querySelector('#lfTopo .selo-dono')));
+      }
+    } else {
+      ok(`${tag}: gestor edita lead de qualquer um (sem selo, sem trava, servidor 200)`, kb && !kb.travado && !kb.selo && !f.aviso && !f.salvar && status === 200, JSON.stringify({ kb, f, status }));
+    }
+    await page.evaluate(() => fecharModal(true));
+  }
+
   /* leads sem dono (gestor) */
   if (papel === 'gestor') {
     await page.evaluate(() => irPara('distribuir'));
@@ -208,6 +237,7 @@ const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new'
 try {
   await roteiro(browser, b1, { largura: 1440, altura: 900, papel: 'gestor', prefixo: '' });
   await roteiro(browser, b1, { largura: 375, altura: 812, movel: true, papel: 'atendente', prefixo: '' });
+  await roteiro(browser, b1, { largura: 1440, altura: 900, papel: 'atendente', prefixo: '' });
   await roteiro(browser, b2, { largura: 1440, altura: 900, papel: 'gestor', prefixo: '/crm' });
   await roteiro(browser, b2, { largura: 375, altura: 812, movel: true, papel: 'gestor', prefixo: '/crm' });
 } catch (e) { ok('roteiro terminou', false, e.message); console.error(e); }
