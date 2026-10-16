@@ -30,7 +30,7 @@ const MODELOS_PERMITIDOS = ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haik
 const CONFIG_PADRAO = {
   ativo: true, modelo_rapido: 'claude-sonnet-5-5', modelo_forte: 'claude-opus-5-5',
   autonomia: 'confirmar', limite_chamadas_dia: 2000, instrucoes_extras: null,
-  funil_ativo: true, funil_autonomia: {}, funil_url: 'https://indycar-atendimento.onrender.com/api/ia/funil/acordar',
+  funil_ativo: true, funil_autonomia: {}, funil_url: 'https://indycar-agendamentos.onrender.com/atendimento/api/ia/funil/acordar',
 };
 const CONFIG_CACHE_MS = 60_000;
 const MAX_VOLTAS = 4;                  // idas e voltas com a IA por pedido
@@ -55,7 +55,7 @@ const PALAVRAS_PROIBIDAS = [
   [/\bcomparecer\b/gi, 'vir'], [/\bcompareça\b/gi, 'venha'], [/\bveículos\b/gi, 'carros'], [/\bveículo\b/gi, 'carro'],
   [/\bveiculos\b/gi, 'carros'], [/\bveiculo\b/gi, 'carro'],
 ];
-const TEM_PRECO = /R\$\s*\d|\b\d+(?:[.,]\d+)?\s*(?:reais|real|conto|pila)\b|\bpor\s+\d{2,}\s*(?:,|\.|$)/i;
+const TEM_PRECO = /R\$\s*\d|\b\d+(?:[.,]\d+)?\s*(?:reais|real|conto|pila)\b|\b(?:por|a)\s+\d{2,}\s*(?:,|\.|$)|\bsai\s+(?:por|a)\s+\d|\b\d+(?:[.,]\d+)?\s*(?:%|por\s*cento)\s*(?:de\s+)?(?:desconto|off|mais\s+barato|a\s+menos)|\b(?:dou|damos|fa[cç]o|faremos|concedo|conseguimos|garanto|garantimos)\s+(?:um\s+|o\s+)?(?:desconto|abatimento)\b|\bdesconto\s+de\s+\d/i;
 
 /* ------------------------------------------------------------
    Ferramentas que a IA pode chamar (JSON Schema)
@@ -865,7 +865,10 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
         const pr = propostas.find(p => p.tipo === 'responder');
         const d = decisaoDoFunil('responder', pr?.parametros, niveis);
         resp.decisao = d;
-        if (funil.podeResponder && d === 'executar' && pr && !pr.parametros.aviso) {
+        /* Agenda que ainda espera clique (agendar/remarcar em "confirmar", ou "sugerir"): a mensagem NÃO sai
+           sozinha, senão o cliente leria "Fechado!" de um horário que não foi marcado. Vira "Aprovar e enviar". */
+        const agendaPendente = acoes.some(x => ['agendar', 'remarcar', 'cancelar_agendamento'].includes(x.tipo) && x.status === 'proposta');
+        if (funil.podeResponder && d === 'executar' && pr && !pr.parametros.aviso && !agendaPendente) {
           let texto = pr.parametros.texto;
           // o cliente aceitou um horário mas ele acabou de ser ocupado: a mensagem não pode confirmar
           if (agendarFalhou) texto = textoHorarioOcupado(sugeridos, ficha.cliente?.nome || ficha.conversa?.nome || '');
@@ -1026,6 +1029,11 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
            é o copiloto de sempre: o texto só vai para o campo do atendente. */
         if (!p.enviar) return { ok: true, saida: { usado: true }, mensagem: 'Texto no campo — revise e envie.' };
         if (typeof enviarMensagem !== 'function') return { ok: false, status: 503, erro: 'Este servidor não envia mensagens pela IA.' };
+        /* R5-C5: proposta velha não sai. Se alguém (ou a própria IA, em outra rodada) já respondeu o cliente
+           depois que esta proposta nasceu, "Aprovar e enviar" mandaria uma resposta repetida/atrasada. */
+        const { data: depois } = await sb.from('whatsapp_mensagens').select('id').eq('conversa_id', conversaId).eq('direcao', 'saida')
+          .gt('created_at', acao.created_at).limit(1);
+        if (depois && depois.length) return { ok: false, status: 409, erro: 'A conversa já foi respondida depois desta proposta da IA. Recuse esta e peça uma nova, se precisar.' };
         const r = await enviarMensagem({ conversa: conv, cliente_id: ficha.cliente?.id || conv.cliente_id || null, texto: p.texto, acao_id: acao.id });
         if (!r || !r.mensagem_id) return { ok: false, status: r?.status || 502, erro: r?.erro || 'Não consegui registrar a mensagem.' };
         return { ok: true, saida: { enviada: true, mensagem_id: r.mensagem_id, entregue: !!r.ok, erro_entrega: r.ok ? null : (r.erro || null) },

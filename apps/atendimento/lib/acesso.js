@@ -23,8 +23,8 @@ const MAX_CACHE = 2000;
 
 const NOMES_APPS = { atendimento: 'Atendimento', crm: 'CRM', agenda: 'Agenda', comunicar: 'Comunicar', orcador: 'Orçador', ads: 'Tráfego pago' };
 const LINKS_APPS = {
-  atendimento: 'https://indycar-atendimento.onrender.com', crm: 'https://indycar-crm.onrender.com',
-  agenda: 'https://indycar-agendamentos.onrender.com', comunicar: 'https://indycar-posvenda.onrender.com',
+  atendimento: 'https://indycar-agendamentos.onrender.com/atendimento/', crm: 'https://indycar-agendamentos.onrender.com/crm/',
+  agenda: 'https://indycar-agendamentos.onrender.com', comunicar: 'https://indycar-agendamentos.onrender.com/comunicar/',
   orcador: 'https://indycar-orcador.netlify.app', ads: 'https://indycar-ads.onrender.com',
 };
 

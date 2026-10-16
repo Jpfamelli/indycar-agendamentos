@@ -117,3 +117,12 @@ test('validarHorario: formato, domingo, expediente, passado, longe demais, ocupa
   assert.match(v({ data: '2026-10-15', hora: '08:30' }).motivo, /ocupado/, '8:30 de 60 min invade o das 9');
   assert.equal(v({ data: '2026-10-15', hora: '09:00', ignorarId: 'x' }).ok, true, 'remarcar o próprio horário não conta como ocupado');
 });
+
+test('R5-C5: validarHorario hoje exige 1 h de antecedência (igual à lista de livres)', () => {
+  const H2 = require('../lib/horarios.js');
+  const agora = new Date('2026-10-14T15:00:00Z'); // 12:00 em São Paulo (quarta)
+  assert.equal(H2.validarHorario({ data: '2026-10-14', hora: '12:30', agora }).ok, false);
+  assert.equal(H2.validarHorario({ data: '2026-10-14', hora: '13:00', agora }).ok, true);
+  assert.equal(H2.validarHorario({ data: '2026-10-14', hora: '11:00', agora }).motivo, 'Esse horário já passou.');
+  assert.equal(H2.validarHorario({ data: '2026-10-18', hora: '10:00', agora }).motivo, 'Domingo a oficina não abre.');
+});

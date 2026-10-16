@@ -195,6 +195,10 @@ function validarHorario({ data, hora, agora = new Date(), agendamentos = [], cap
   if (data < hoje.dia || (data === hoje.dia && t <= hoje.minutos)) {
     return { ok: false, motivo: 'Esse horário já passou.' };
   }
+  // mesma regra da lista de livres: hoje só a partir de 1 h (a IA não marca "daqui a 10 minutos")
+  if (data === hoje.dia && t < hoje.minutos + ANTECEDENCIA_MIN) {
+    return { ok: false, motivo: 'Para hoje, a agenda aceita a partir de 1 hora de antecedência.' };
+  }
   if (data > somarDias(hoje.dia, diasMax)) {
     return { ok: false, motivo: `Longe demais: a agenda aceita até ${diasMax} dias à frente.` };
   }

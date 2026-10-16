@@ -36,10 +36,17 @@ const LOTE = 8;
 /* Regras do sistema para passar para gente (a IA também julga, mas isto não depende dela).
    "Quero um orçamento" NÃO entra aqui de propósito: numa oficina isso é pedido de diagnóstico
    (gratuito) + horário, que a IA conduz; só a pergunta de VALOR vai para o consultor. */
-const RE_PRECO = /\b(pre[çc]o|valor(es)?|quanto\s+(custa|fica|sai|vai\s+ficar|que\s+fica|cobra|[ée])|caro|barato|desconto|parcel\w*)\b/i;
+const RE_PRECO = /\b(pre[çc]os?|cust(a|am|o|os)|cobram?|valor(es)?|quanto\s+(custa|fica|sai|vai\s+ficar|que\s+fica|cobra|[ée])|caro|barato|desconto|parcel\w*)\b/i;
 const RE_URGENCIA = /\b(socorro|urgente|urg[êe]ncia|parou|n[ãa]o\s+(liga|pega|anda|freia)|na\s+estrada|no\s+meio\s+da\s+(rua|pista|estrada)|acidente|bati|fuma[çc]a|fogo|pegando\s+fogo|guincho|reboque|agora\s+mesmo)\b|\bAGORA\b/;
 const RE_PESSOA = /\b(falar\s+com\s+(alguém|alguem|uma\s+pessoa|um\s+atendente|um\s+humano|o\s+dono|o\s+gerente|um\s+consultor|um\s+mec[âa]nico)|atendente\s+humano|quero\s+uma\s+pessoa|(é|e|eh)\s+(um\s+)?rob[oô]|n[ãa]o\s+quero\s+falar\s+com\s+(rob[oô]|m[áa]quina|ia|intelig))/i;
 const RE_RECLAMACAO = /\b(reclama\w*|p[ée]ssimo|horr[íi]vel|absurdo|vergonha|procon|advogado|processar|enganad\w*|voltou\s+(o\s+)?(problema|barulho|defeito)|n[ãa]o\s+resolveu|fizeram\s+errado|cobraram\s+errado|insatisfeit\w*)\b/i;
+
+/* PARAR de verdade: a mensagem INTEIRA é o pedido ("PARAR", "stop", "não quero mais receber"). Frase solta como
+   "quero cancelar o horário" não conta. A IA não responde a quem pediu para parar. */
+const RE_PARAR_TOTAL = /^\s*(parar|pare|p[aá]ra|stop|sair|descadastrar|descadastre|n[aã]o\s+quero\s+(mais\s+)?receber(\s+mais)?(\s+(mensagens?|msgs?|propagandas?|nada))?|chega\s+de\s+mensagens?)[\s.!]*$/i;
+function pediuParar(textos = []) {
+  return (Array.isArray(textos) ? textos : [textos]).some(x => RE_PARAR_TOTAL.test(String(x || '').replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '')));
+}
 
 /** Motivo para passar a um humano, olhando as mensagens do cliente desde a última resposta da loja. */
 function precisaHumano(textos = []) {
@@ -171,13 +178,34 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
 
     if (!sit.semResposta) return { ok: true, status: 'pulada', motivo: 'já respondida', feitas };
 
-    // 3) humano? (regra do sistema; a IA também julga)
     const textos = textosSemResposta(f.mensagens || []);
+
+    // 2b) PARAR: quem pediu para parar não recebe resposta da IA; desliga as mensagens automáticas (desfazível)
+    if (pediuParar(textos)) {
+      const clienteId = conv.cliente_id || f.cliente?.id || null;
+      if (clienteId && f.cliente?.aceita_mensagens !== false) {
+        const quando = agora().toISOString();
+        const antes = { aceita_mensagens: true, aceita_mensagens_em: f.cliente?.aceita_mensagens_em || null, aceita_mensagens_motivo: f.cliente?.aceita_mensagens_motivo || null };
+        const depois = { aceita_mensagens: false, aceita_mensagens_em: quando, aceita_mensagens_motivo: 'pediu pelo WhatsApp: PARAR (IA do funil)' };
+        const { error } = await sb.from('clientes').update(depois).eq('id', clienteId);
+        if (!error) {
+          await sb.from('posvenda_envios').update({ status: 'pulado', motivo_pulado: 'cliente pediu para parar' }).eq('status', 'pendente').eq('cliente_id', clienteId);
+          const a = await registrar({ tipo: 'atualizar_ficha', conversa_id: conversaId, cliente_id: clienteId, perfil_id: null,
+            resumo: 'Cliente pediu PARAR: mensagens automáticas desligadas', entrada: { campos: { aceita_mensagens: false } },
+            saida: { automatica: true, cliente_id: clienteId, antes, depois } });
+          feitas.push({ tipo: 'atualizar_ficha', id: a?.id || null, parar: true });
+        }
+      }
+      return { ok: true, status: 'pulada', motivo: 'cliente pediu para parar', feitas };
+    }
+
+    // 3) humano? (regra do sistema; a IA também julga)
     const humano = precisaHumano(textos);
     // veio pelo botão do site? a IA já sabe o serviço e a origem — não pergunta de novo
     const site = origemDoSite(textos);
     const instrucao = site ? `O CLIENTE VEIO PELO SITE${site.campanha ? ` (campanha ${site.campanha})` : ''}${site.servico ? ` pedindo orçamento de "${site.servico}": não pergunte o serviço; chame "registrar_interesse" com ele` : ''}. Pergunte só o carro (se a ficha não tiver) e ofereça o diagnóstico digital gratuito com duas opções de horário.` : null;
-    const podeResponder = !humanoEscreveuRecentemente(f.mensagens || [], agora());
+    // humano assumiu (botão Assumir grava assumida_em) OU escreveu há pouco: a IA só sugere, não envia
+    const podeResponder = !conv.assumida_em && !humanoEscreveuRecentemente(f.mensagens || [], agora());
 
     // 4) a IA conduz
     let r;
@@ -259,9 +287,22 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     return true;
   }
 
+  /** Subiu agora (Render reiniciou/deploy): linha "processando" há mais de 2 min é de um processo que morreu — volta para a fila
+      em vez de esperar os 5 min do pg_cron. Mais novas ficam (pode ser a instância antiga terminando o deploy). */
+  async function recuperarTravadas({ minSeg = 120 } = {}) {
+    try {
+      const limite = new Date(agora().getTime() - minSeg * 1000).toISOString();
+      const { data } = await sb.from('at_ia_fila').select('id,tentativas').eq('status', 'processando').lt('iniciado_em', limite).limit(50);
+      for (const l of data || []) {
+        await sb.from('at_ia_fila').update({ status: 'pendente', tentativas: (l.tentativas || 0) + 1, iniciado_em: null }).eq('id', l.id).eq('status', 'processando');
+      }
+      return (data || []).length;
+    } catch (e) { log('funil recuperar:', e.message); return 0; }
+  }
+
   function ligar({ intervaloMs = INTERVALO_FILA_MS, atrasoMs = 3_000 } = {}) {
     if (relogio) return false;
-    acordar({ atrasoMs });                                    // acabou de subir (acordou?): drena o que ficou
+    recuperarTravadas().finally(() => acordar({ atrasoMs }));  // acabou de subir (acordou?): recupera as travadas e drena o que ficou
     relogio = setInterval(() => { pendentes().then(p => { if (p.length) acordar({ atrasoMs: 10 }); }).catch(() => {}); }, intervaloMs);
     relogio.unref?.();
     return true;
@@ -316,7 +357,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     return { ok: true, desde, totais, fila: fila?.ok ? fila.hoje : null, processando: fila?.ok ? fila.processando : [], conversas: [...grupos.values()] };
   }
 
-  return { conduzir, processarFila, acordar, ligar, desligar, estado, hoje, pendentes };
+  return { conduzir, processarFila, acordar, ligar, desligar, estado, hoje, pendentes, recuperarTravadas };
 }
 
-module.exports = { criarFunil, precisaHumano, origemDoSite, textosSemResposta, humanoEscreveuRecentemente, etapaAgendadoPendente, HUMANO_RECENTE_MIN };
+module.exports = { pediuParar, criarFunil, precisaHumano, origemDoSite, textosSemResposta, humanoEscreveuRecentemente, etapaAgendadoPendente, HUMANO_RECENTE_MIN };

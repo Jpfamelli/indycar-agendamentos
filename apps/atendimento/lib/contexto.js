@@ -105,7 +105,7 @@ function criarContexto({ sb, agora = () => new Date(), cacheMs = CACHE_MS, diasL
     const agoraMs = agora().getTime();
 
     const { data: conversa, error } = await sb.from('conversas')
-      .select('id,nome,telefone,telefone_e164,cliente_id,etapa_id,etapa_em,status,ia_ativa,aguardando_consultor,aguardando_desde,desfecho,atribuida_a,ultima_mensagem_em,created_at,tipo')
+      .select('id,nome,telefone,telefone_e164,cliente_id,etapa_id,etapa_em,status,ia_ativa,aguardando_consultor,aguardando_desde,desfecho,atribuida_a,assumida_em,ultima_mensagem_em,created_at,tipo')
       .eq('id', conversaId).maybeSingle();
     if (error) return { ok: false, status: 503, erro: 'Não consegui ler a conversa: ' + error.message };
     if (!conversa) return { ok: false, status: 404, erro: 'Conversa não encontrada.' };
