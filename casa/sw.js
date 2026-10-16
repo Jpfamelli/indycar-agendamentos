@@ -2,7 +2,7 @@
 // "/", "/index.html" e "/casa/*". Os apps (/agenda/, /crm/, /comunicar/, /atendimento/)
 // têm o service worker deles, com escopo mais específico — aqui eles passam direto.
 // Também substitui o service worker antigo da Agenda, que morava em "/" antes da Central.
-const CACHE = 'indycar-casa-v1';
+const CACHE = 'indycar-casa-v2';
 const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js';
 const CORE = ['/', '/casa/casa.css', '/casa/casa.js', '/casa/tema.js', '/casa/icon-192.png', '/casa/logo.png', '/manifest.json'];
 const ehDaCasa = (u) => u.origin === self.location.origin && (u.pathname === '/' || u.pathname === '/index.html' || u.pathname.startsWith('/casa/') || u.pathname === '/manifest.json');

@@ -23,6 +23,21 @@
     { k: 'orcador',     nome: 'Orçador',     desc: 'orçamentos com IA',        ico: '🧾', url: ORCADOR + '/', fora: true },
   ];
   const BASE_APP = { agenda: '/agenda/', atendimento: '/atendimento/', crm: '/crm/', comunicar: '/comunicar/', patio: PATIO + '/', orcador: ORCADOR + '/' };
+  /* A Casa fica aberta: cada app abre na SUA aba (nome fixo por app), então clicar
+     no CRM de novo volta para a aba do CRM em vez de empilhar abas novas. */
+  const aba = (k) => 'indycar-' + k;
+  function appDoLink(url) {
+    try {
+      const u = new URL(url, location.href);
+      return Object.keys(BASE_APP).find((k) => u.href.startsWith(new URL(BASE_APP[k], location.href).href)) || null;
+    } catch { return null; }
+  }
+  function abrirNaAba(url) {
+    const k = appDoLink(url);
+    if (!k) { location.href = url; return; }
+    const w = window.open(url, aba(k));
+    if (w) { try { w.focus(); } catch { /* outra origem */ } } else location.href = url; // bloqueador de pop-up: abre aqui mesmo
+  }
   const PAPEL = { admin: 'Administrador', gestor: 'Gestor', atendente: 'Atendente', agenda: 'Agenda (presença)', mecanico: 'Mecânico' };
   const EQUIPE = new Set(['admin', 'gestor', 'atendente']);
   const ETAPA = { recebido: 'Recebido', diagnostico: 'Diagnóstico', aguardando_aprovacao: 'Aguardando aprovação', aguardando_peca: 'Aguardando peça',
@@ -239,7 +254,7 @@
 
     const meus = APPS.filter((a) => podeUsar(perfil, a.k));
     $('#gradeApps').innerHTML = meus.length ? meus.map((a) => `
-      <a class="app${a.fora ? ' app-fora' : ''}" href="${esc(a.url)}"${a.fora ? ' rel="noopener"' : ''}>
+      <a class="app${a.fora ? ' app-fora' : ''}" href="${esc(a.url)}" target="${aba(a.k)}"${a.fora ? ' rel="noopener"' : ''}>
         <span class="app-ico" aria-hidden="true">${a.ico}</span>
         <span class="app-nome">${esc(a.nome)}</span>
         <span class="app-desc">${esc(a.desc)}${a.fora ? ' · outro endereço' : ''}</span>
@@ -262,6 +277,8 @@
     c.querySelector('[data-det]').textContent = det;
     c.querySelector('[data-lista]').innerHTML = (itens || []).map((i) => `<li><span>${esc(i.a)}</span><span>${esc(i.b)}</span></li>`).join('');
     if (href) c.setAttribute('href', href);
+    const k = appDoLink(c.getAttribute('href') || '');
+    if (k) c.setAttribute('target', aba(k));
   }
   async function carregarAgora() {
     const equipe = EQUIPE.has(perfil.papel);
@@ -358,7 +375,7 @@
     const n = notifs.find((x) => x.id === id);
     if (!n) return;
     if (!n.lida_em) { n.lida_em = new Date().toISOString(); sb.from('notificacoes').update({ lida_em: n.lida_em }).eq('id', id).then(() => {}, () => {}); }
-    location.href = linkDaNotificacao(n);
+    abrirNaAba(linkDaNotificacao(n));
   }
   async function lerTodas() {
     const ids = notifs.filter((n) => !n.lida_em).map((n) => n.id);
