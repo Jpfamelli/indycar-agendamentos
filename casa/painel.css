@@ -262,3 +262,40 @@ mark { background: rgba(245,158,11,.35); color: inherit; border-radius: 3px; pad
   .aviso-apps { padding: 10px 12px; }
 }
 .origens span:first-child { text-transform: capitalize; }
+
+/* =====================================================================
+   Rodada 6 / C1c (21/10/2026): a Casa inteira em 375 px — todo alvo de toque com 44 px ou mais
+   (medido por scripts/qa-r6c-casa375.mjs em cada tela e janela), e a caixa de editar tarefa deixa de ser 22 px
+   ===================================================================== */
+.topo-marca { min-height: 44px; min-width: 44px; }
+.busca-topo { height: 44px; }
+.btn-ico { width: 44px; height: 44px; }
+.avatar { width: 44px; height: 44px; }
+.seletor button { min-height: 44px; }
+.acao { min-height: 44px; }
+.menu button { min-height: 44px; }
+.btn-olho { width: 44px; height: 44px; top: 1px; right: 2px; }
+.entrada .marcar { min-height: 44px; }
+.tarefa input.t-edita { width: 100%; height: 44px; }
+.t-texto { display: block; min-height: 44px; padding: 10px 0; }
+.t-abrir { display: inline-flex; align-items: center; min-height: 44px; }
+.tarefa { grid-template-columns: 44px 1fr auto; padding: 4px 14px 4px 6px; }
+.tarefa > input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 44px; height: 44px; margin: 0; border: 0; background: none; position: relative; cursor: pointer; }
+.tarefa > input[type="checkbox"]::before { content: ''; position: absolute; inset: 11px; border: 2px solid var(--borda-2); border-radius: 7px; background: var(--bg); }
+.tarefa > input[type="checkbox"]:checked::before { background: var(--green); border-color: var(--green); }
+.tarefa > input[type="checkbox"]:focus-visible { outline: 2px solid var(--red-2); outline-offset: -2px; }
+.dono-nota .link { display: inline-flex; align-items: center; min-height: 44px; }
+.marcar-mini { min-height: 44px; }
+.painel-topo .btn-link { min-height: 44px; }
+.linha { min-height: 44px; }
+.agora-pe a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; }
+.filtro-hoje button, .sino-filtros button { min-height: 44px; }
+.sino-atencao a { display: flex; align-items: center; min-height: 44px; }
+.busca-ir a { min-height: 44px; }
+.busca-atalhos a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; }
+.busca-campo .btn-link { min-width: 44px; min-height: 44px; }
+.busca-rec { min-height: 44px; }
+.dono-botoes .btn-link { min-height: 44px; }
+@media (max-width: 520px) {
+  .busca-topo { flex: 0 0 44px; width: 44px; }
+}
