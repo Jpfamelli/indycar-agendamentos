@@ -442,6 +442,7 @@ async function renderInicio() {
   pintarFaixaEquipe();
   window.R4?.pintarInicio();
   window.R5?.pintarSaude();
+  window.R6?.pintarInicio();
   $$('[data-ir]', view).forEach(b => b.addEventListener('click', () => route(b.dataset.ir)));
 }
 
@@ -613,6 +614,7 @@ async function renderReguas() {
   }
   window.R4?.pintarReguas();
   window.R5?.pintarReguas();
+  window.R6?.pintarReguas();
 }
 
 /* Lê o valor de um campo de configuração do jeito que o servidor espera. */
@@ -675,7 +677,9 @@ function atualizarBarra() {
 async function salvarConfig() {
   const dados = { ...state.cfgEdit };
   if (!Object.keys(dados).length) return;
-  const invalido = $('.param input.invalido, .field input.invalido', view);
+  const textoRuim = $('.r6-texto textarea.invalido', view);
+  if (textoRuim) { textoRuim.focus(); return toast('Confira o texto destacado: ' + ($('.r6-erro-texto:not([hidden])', view)?.textContent || 'tem um erro.'), 'err', 6000); }
+  const invalido = $('.param input.invalido, .field input.invalido, .r6-param input.invalido', view);
   if (invalido) { invalido.focus(); return toast('Confira o número destacado: ele está fora da faixa.', 'err'); }
   if (dados.janela_inicio !== undefined || dados.janela_fim !== undefined) {
     const ini = dados.janela_inicio ?? state.cfg.janela_inicio, fim = dados.janela_fim ?? state.cfg.janela_fim;
@@ -865,6 +869,7 @@ async function renderMensagens({ quieto } = {}) {
     catch (err) { toast(err.message, 'err'); } finally { b.disabled = false; }
   });
   ligarAcoesEnvio($('#listaEnvios'));
+  window.R6?.barraMensagens();
 }
 
 /* Quem mandou: nome de quem clicou (criado_por guarda o nome; criado_por_id, o perfil) ou 'automática'. */
@@ -908,6 +913,7 @@ function cartaoEnvio(e) {
         ${e.intencao && CHAMA_CONSULTOR.has(e.intencao) ? (e.encaminhado_em ? '<span class="badge-pill bp-green">✓ no Atendimento</span>' : `<button type="button" class="btn btn-mini primary" data-encaminhar="${esc(e.id)}">${svg(I.wa)} Passar ao Atendimento</button>`) : ''}
         ${e.status === 'enviado' || e.resposta || duvida ? `<a class="btn btn-mini ghost" href="${esc(linkConversa(e.telefone))}" target="_blank" rel="noopener">${svg(I.externo)} Abrir conversa</a>` : ''}
         ${window.R5 ? window.R5.botaoLigacoes(e.id) : ''}
+        ${window.R6 ? window.R6.botoesEnvio(e, meu) : ''}
       </div>
     </div>
   </article>`;
@@ -975,7 +981,7 @@ async function renderCampanhas() {
     <div id="aprovacoes"></div>
     <div class="panel"><div class="panel-head"><h2>${svg(I.megafone)} Histórico</h2><span class="panel-sub">agrupado por mensagem e dia</span></div>
       <div class="panel-body lista lista-anim">
-        ${lista.length ? lista.map(g => `<article class="camp">
+        ${lista.length ? lista.map(g => `<article class="camp"${g.lote ? ` data-lote="${esc(g.lote)}"` : ''}>
             <div class="camp-txt"><span class="d">${esc(rotuloDia(g.dia))}${g.pendentes ? ` · <span style="color:var(--orange-txt)">${g.pendentes} na fila</span>` : ''}${g.falhas ? ` · <span style="color:var(--red-txt)">${g.falhas} falharam</span>` : ''}${g.por ? ` · por ${esc(g.por)}` : ''}</span>
               <span class="c">${esc(g.corpo)}</span>${g.pendentes && g.lote && pode('cancelar_qualquer') ? `<button type="button" class="btn btn-mini" data-cancelar-lote="${esc(g.lote)}" data-n="${g.pendentes}">Cancelar o que falta (${g.pendentes})</button>` : ''}</div>
             <div class="camp-nums">
@@ -993,6 +999,7 @@ async function renderCampanhas() {
     catch (e) { toast(e.message || 'Não consegui cancelar agora.'); b.disabled = false; }
   }));
   pintarAprovacoes();
+  window.R6?.pintarCampanhas();
 }
 
 function assinaturaCampanha(e) {
@@ -1173,6 +1180,7 @@ window.openCampanhaModal = async function (pre = {}) {
         ${quantos > 1 ? `<div class="dica">${quantos} mensagens de relacionamento: quem já recebeu outra há poucos dias pode ser pulado pelo intervalo mínimo.${state.saudeWA?.cadencia?.porDia && quantos > state.saudeWA.cadencia.porDia ? ` Passa do limite de <b>${state.saudeWA.cadencia.porDia} por dia</b>: o que não cabe hoje sai nos dias seguintes, na hora de envio.` : ''}</div>` : ''}
         ${precisaAprovar() ? `<div class="dica aprovacao">${svg(I.check)}<span>Campanha para um grupo passa pelo gestor: ela fica <b>aguardando aprovação</b> e só entra na fila quando ele aprovar. O gestor recebe o aviso no sino.</span></div>` : ''}
       </div>`;
+    window.R6?.pintarPasso3(c, { segmentos, corpoEl: body });
     $$('[data-quando]', body).forEach(b => b.addEventListener('click', () => { c.quando = b.dataset.quando; passo3(); }));
     $('#campData').addEventListener('change', e => { c.enviar_em = e.target.value; $('#campQuandoTxt').textContent = c.enviar_em ? dataHoraBR(c.enviar_em) : 'escolha a data'; });
   };
@@ -1201,6 +1209,7 @@ window.openCampanhaModal = async function (pre = {}) {
       if (!c.enviar_em) return toast('Escolha o dia e a hora.', 'err');
       enviar_em = new Date(c.enviar_em).toISOString();
     }
+    const bloqueio = window.R6?.bloqueioDeEnvio(c); if (bloqueio) return toast(bloqueio, 'err', 6500);
     const quantos = c.alvo === 'cliente' ? 1 : c.previa.total;
     if (quantos > 1 && !confirm(precisaAprovar() ? `Mandar esta campanha (${quantos} clientes) para o gestor aprovar?` : `Colocar ${quantos} mensagens na fila?`)) return;
     const btn = $('#campAvancar'); btn.disabled = true;
@@ -1209,7 +1218,7 @@ window.openCampanhaModal = async function (pre = {}) {
       const payload = c.alvo === 'cliente'
         ? { tipo:'avulsa', corpo, enviar_em, destinos:[{ cliente_id:c.cliente.id, telefone:c.cliente.telefone, nome:c.cliente.nome, carro:c.cliente.carro, placa:c.cliente.placa }] }
         : { corpo, enviar_em, segmento:{ filtro:c.filtro, valor: c.valor || segmentos.find(s => s.id === c.filtro)?.valor }, segmento_salvo_id: c.segSalvoId || undefined };
-      const r = await api('POST', '/envios', payload);
+      const r = await api('POST', '/envios', window.R6 ? window.R6.completarPedido(c, payload) : payload);
       window.R4?.guardarRascunho('campanha', '');
       if (r.aguardando) {
         toast('Campanha mandada para aprovação — o gestor foi avisado no sino.', 'ok', 5500);

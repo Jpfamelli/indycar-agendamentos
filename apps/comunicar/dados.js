@@ -2880,12 +2880,23 @@ async function eventosDeResultado(desdeIso) {
   return { agendamentos: [...agendamentos, ...visitas.filter((a) => !vistos.has(a.id))], os, orcamentos, leads };
 }
 
+/** Cada lote ganha quando saiu (1ª mensagem), o tipo e o começo do texto — para a tela dizer "campanha de 14/10: Oi, tudo bem…" em vez de um código. */
+function descreverLotes(porLote, envios) {
+  const vistos = new Map();
+  for (const e of envios) {
+    if (!e.lote) continue;
+    const v = vistos.get(e.lote);
+    if (!v || e.enviado_em < v.quando) vistos.set(e.lote, { quando: e.enviado_em, tipo: e.tipo, texto: String(e.corpo || '').replace(/\s+/g, ' ').trim().slice(0, 90) });
+  }
+  for (const [lote, resumo] of Object.entries(porLote)) Object.assign(resumo, vistos.get(lote) || {});
+  return porLote;
+}
 const TOTAL_VAZIO = { enviadas: 0, responderam: 0, agendaram: 0, voltaram: 0, aprovaram: 0, faturou: 0, taxaResposta: null, taxaVoltou: null, porMensagem: 0 };
 /** Resposta → agendou → voltou → faturou por tipo e por lote. Janela de 30 dias para o crédito. */
 export async function resultados({ de = null, ate = null, tipo = null, lote = null, janelaDias = 30 } = {}) {
   const h = hoje();
   const dIni = dataBanco(de) || somarDias(h, -30), dFim = dataBanco(ate) || h;
-  const p = new URLSearchParams('select=id,tipo,cliente_id,telefone,enviado_em,respondido_em,agendou_depois_id,lote,campanha_id,os_id,orcamento_id,criado_por');
+  const p = new URLSearchParams('select=id,tipo,cliente_id,telefone,enviado_em,respondido_em,agendou_depois_id,lote,campanha_id,os_id,orcamento_id,criado_por,corpo');
   p.set('status', 'eq.enviado');
   p.append('enviado_em', `gte.${instanteSP(dIni, '00:00').toISOString()}`);
   p.append('enviado_em', `lt.${instanteSP(somarDias(dFim, 1), '00:00').toISOString()}`);
@@ -2898,7 +2909,7 @@ export async function resultados({ de = null, ate = null, tipo = null, lote = nu
     periodo: { de: dIni, ate: dFim }, janelaDias,
     total: conexoes.resumirResultados(envios, porEnvio, () => 'total').total || TOTAL_VAZIO,
     porTipo: conexoes.resumirResultados(envios, porEnvio),
-    porLote: conexoes.resumirResultados(envios, porEnvio, (e) => e.lote || null),
+    porLote: descreverLotes(conexoes.resumirResultados(envios, porEnvio, (e) => e.lote || null), envios),
     regra: 'Cada visita, orçamento aprovado ou serviço pago é creditado à ÚLTIMA mensagem enviada ao cliente nos 30 dias antes dele. Faturou = o maior entre agenda, CRM e orçamento (o mesmo serviço aparece nos três).',
   };
 }

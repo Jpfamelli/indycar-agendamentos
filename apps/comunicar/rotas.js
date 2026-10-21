@@ -650,6 +650,12 @@ export function criarApi(deps) {
   // ---- configuração (o caminho antigo /api/posvenda/config continua) ----
   const lerConfig = async ({ res }) => ok(res, await dados.obterConfig());
   const salvarConfig = async ({ res, usuario, body }) => {
+    /* rodada 6: texto novo com erro NÃO é ignorado em silêncio (antes dizia "salvo" e mantinha o antigo) */
+    for (const k of Object.keys(dados.TEXTOS_R6 || {})) {
+      if (body?.[k] === undefined) continue;
+      const erro = dados.validarTextoR6(k, body[k]);
+      if (erro) return bad(res, erro, { campo: k });
+    }
     const antes = await dados.obterConfig();
     const depois = await dados.salvarConfig(body);
     esquecerCache('resumo', 'pronto', 'projecao', 'carteiro');

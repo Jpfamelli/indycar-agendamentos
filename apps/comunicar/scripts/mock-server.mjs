@@ -30,6 +30,7 @@ import {
 import * as ia from '../ia.js';
 import * as A from '../acesso.js';
 import * as auto from '../automacoes.js';
+import * as conexoes from '../conexoes.js';
 // rodada 4: as MESMAS funções puras do servidor
 import { montarProntidao } from '../prontidao.js';
 import { projetarMes } from '../projecao.js';
@@ -140,6 +141,12 @@ const CFG = {
   msg_orcamento:'Oi {primeiro_nome}, aqui é da IndyCar! Conseguiu dar uma olhada no orçamento do {carro}? Se ficou alguma dúvida, me chama por aqui que a gente resolve junto. 🔧',
   msg_nao_fechou:'Oi {primeiro_nome}! Passando para saber se ainda posso ajudar com o {carro}. Quando quiser retomar, é só me chamar por aqui, sem compromisso. 🏁',
   msg_reativacao:'Oi {primeiro_nome}, tudo bem? Faz um tempo que a gente não vê o {carro} por aqui. Que tal um check-up gratuito de 30 min com scanner? É só responder por aqui para agendar. 🏁',
+  // rodada 6
+  usa_patio_posvenda:true, usa_patio_revisao:true, usa_orcador:true, ativo_extra_lembrete:true, horas_extra_lembrete:3,
+  bloquear_com_carro_na_oficina:true, bloquear_com_reclamacao:true, dias_reclamacao_aberta:14, evitar_texto_repetido_h:48, campanha_repetir_dias:14, retomada_gradual:true,
+  msg_extra_lembrete:'Oi {primeiro_nome}! O {carro} ainda tem {itens} esperando o seu OK. Veja e aprove ou recuse por aqui: {link_os}',
+  msg_orcador_novisto:'Oi {primeiro_nome}, aqui é da IndyCar! Mandei o orçamento do {carro} e queria saber se você conseguiu abrir: {link_orcamento}',
+  msg_orcador_visto:'Oi {primeiro_nome}! Vi que você olhou o orçamento do {carro}. Ficou alguma dúvida? Se quiser, ajusto o que for preciso: {link_orcamento}',
   dias_posvenda:2, meses_retorno:6, horas_lembrete:20, dias_orcamento:3, dias_nao_fechou:7, meses_reativacao:12,
   intervalo_minimo_dias:7, janela_inicio:8, janela_fim:20, hora_envio:'09:30', link_avaliacao:'https://g.page/r/indycar-taubate/review',
   envia_domingo:false, pausa_geral:false, telefone_teste:'12988887777', carteiro_configurado:true, updated_at: diasAtras(3),
@@ -506,7 +513,7 @@ http.createServer(async (req, res) => {
   const naoGestor = () => json(res, 403, { erro:'Só gestor altera as réguas.' });
   let mm;
 
-  if (p === '/api/config') return json(res, 200, { configurado:true, supabaseUrl:'http://mock.local', supabaseAnonKey:'mock', app:'IndyCar Comunicar', versao:'5.0.0-mock', prefixo:'' });
+  if (p === '/api/config') return json(res, 200, { configurado:true, supabaseUrl:'http://mock.local', supabaseAnonKey:'mock', app:'IndyCar Comunicar', versao:'6.0.0-mock', prefixo:'' });
   if (p === '/api/ping') return json(res, 200, { ok:true, versao:'4.0.0-mock' });
 
   /* Porteiro: as MESMAS regras do servidor (acesso.js) — rota, acesso ao app,
@@ -664,6 +671,78 @@ http.createServer(async (req, res) => {
     CFG.updated_at = agora();
     return json(res, 200, CFG);
   }
+
+  // ---- rodada 6: agenda, por que não saiu, adiar, simular, resultados, conexões, prévia exata ----
+  if (p === '/api/conexoes') return json(res, 200, { em: agora(), itens: [
+    { id:'patio_entregas', app:'patio', rotulo:'Carros entregues nos últimos 7 dias', valor:6, detalhe:'alimentam o pós-venda, a avaliação e a revisão', ligada: CFG.usa_patio_posvenda && CFG.ativo_posvenda, lido:true },
+    { id:'patio_ativas', app:'patio', rotulo:'Carros na oficina agora', valor:3, detalhe:'seguram aniversário, reativação e outras réguas de relacionamento', ligada: CFG.bloquear_com_carro_na_oficina, lido:true },
+    { id:'patio_extras', app:'patio', rotulo:'Extras esperando o OK do cliente', valor:1, detalhe:`lembrete depois de ${CFG.horas_extra_lembrete} h sem resposta`, ligada: CFG.ativo_extra_lembrete, lido:true },
+    { id:'patio_avaliacoes', app:'patio', rotulo:'Avaliações dadas no Pátio (7 dias)', valor:4, detalhe:'nota baixa segura o pós-venda; nota alta vai ao Google', ligada: CFG.usa_patio_posvenda, lido:true },
+    { id:'orc_enviados', app:'orcador', rotulo:'Orçamentos enviados (7 dias)', valor:9, detalhe:'origem do lembrete com link do orçamento', ligada: CFG.usa_orcador && CFG.ativo_orcamento, lido:true },
+    { id:'orc_parados', app:'orcador', rotulo:'Orçamentos esperando decisão', valor:null, detalhe:'', ligada: CFG.usa_orcador && CFG.ativo_orcamento, lido:false },
+    { id:'crm_orcamento', app:'crm', rotulo:'Leads em "orçamento" no CRM', valor:5, detalhe:'os que vêm de um orçamento do Orçador usam o caminho do Orçador', ligada: CFG.ativo_orcamento, lido:true },
+  ] });
+  if (p === '/api/resultados' || /^\/api\/lotes\/[0-9a-f-]{36}\/resultado$/.test(p)) {
+    const env7 = ENVIOS.filter((e) => e.status === 'enviado' && e.criado_por !== 'teste');
+    const soma = (l) => { const s = { enviadas: l.length, responderam: l.filter((e) => e.respondido_em).length, agendaram: l.filter((e) => e.agendou_depois_id).length, voltaram: 0, aprovaram: 0, faturou: 0 };
+      s.voltaram = s.agendaram + (l.length > 4 ? 1 : 0); s.faturou = s.agendaram * 460;
+      s.taxaResposta = l.length ? Math.round((s.responderam / l.length) * 100) : null; s.taxaVoltou = l.length ? Math.round((s.voltaram / l.length) * 100) : null; s.porMensagem = l.length ? Math.round((s.faturou / l.length) * 100) / 100 : 0; return s; };
+    const porTipo = {}, porLote = {};
+    for (const e of env7) { (porTipo[e.tipo] ||= []).push(e); if (e.lote) (porLote[e.lote] ||= []).push(e); }
+    const hojeIso = hoje();
+    const res6 = { periodo: { de: url.searchParams.get('de') || somarDias(hojeIso, -30), ate: url.searchParams.get('ate') || hojeIso }, janelaDias: 30, total: soma(env7),
+      porTipo: Object.fromEntries(Object.entries(porTipo).map(([t, l]) => [t, soma(l)])),
+      porLote: Object.fromEntries(Object.entries(porLote).map(([id, l]) => [id, { ...soma(l), tipo: l[0].tipo, quando: l[0].enviado_em, texto: String(l[0].corpo || '').slice(0, 90) }])),
+      regra: 'Cada visita, orçamento aprovado ou serviço pago é creditado à ÚLTIMA mensagem enviada ao cliente nos 30 dias antes dele. Faturou = o maior entre agenda, CRM e orçamento (o mesmo serviço aparece nos três).' };
+    if (p !== '/api/resultados') { const id = p.split('/')[3]; return json(res, 200, { lote: id, ...(res6.porLote[id] || res6.total), periodo: res6.periodo, regra: res6.regra }); }
+    return json(res, 200, res6);
+  }
+  if (p === '/api/agenda') {
+    const pend = ENVIOS.filter((e) => e.status === 'pendente');
+    return json(res, 200, { ...conexoes.montarAgendaDeEnvios(pend, CFG, hoje(), { feriado: () => null }), cfg: { hora_envio: CFG.hora_envio, envia_domingo: CFG.envia_domingo, limite_por_dia: CFG.limite_por_dia } });
+  }
+  let mm6;
+  if ((mm6 = /^\/api\/envios\/([0-9a-f-]{36})\/(porque|adiar)$/.exec(p))) {
+    const e = ENVIOS.find((x) => x.id === mm6[1]);
+    if (!e) return json(res, 404, { erro: 'Não encontrado.' });
+    if (mm6[2] === 'porque' && m === 'GET') {
+      const sit = e.tipo === 'aniversario' ? { os: { numero: 1042, etapa: 'em_execucao' } } : {};
+      return json(res, 200, { envio: { id: e.id, tipo: e.tipo, nome: e.nome, status: e.status, enviar_em: e.enviar_em },
+        ...conexoes.explicarPendente(e, { cfg: CFG, agora: Date.now(), enviadasHora: 4, enviadasHoje: 31, aFrente: 2, whatsapp: { estado: 'ok' }, situacao: sit, tiposSeguramFeriado: [] }) });
+    }
+    if (mm6[2] === 'adiar' && m === 'POST') {
+      const v = conexoes.validarAdiamento(e, body.enviar_em);
+      if (!v.ok) return json(res, 400, { erro: v.erro });
+      e.enviar_em = v.quando; return json(res, 200, { ok: true, quando: v.quando });
+    }
+  }
+  if (p === '/api/rodada/simular' && m === 'POST') {
+    if (!ehGestor()) return json(res, 403, { erro: 'Sem permissão.' });
+    const pend = ENVIOS.filter((e) => e.status === 'pendente');
+    const ref = (e) => ({ id: e.id, tipo: e.tipo, nome: e.nome, telefone: e.telefone });
+    return json(res, 200, { simulado: true, bloqueado: false, aviso: null, retomada: null,
+      enviaria: pend.slice(0, 3).map((e) => ({ ...ref(e), corpo: e.corpo })),
+      pularia: pend.slice(3, 4).map((e) => ({ ...ref(e), motivo: 'o cliente já aprovou o orçamento no Orçador' })),
+      adiaria: pend.slice(4, 6).map((e) => ({ ...ref(e), motivo: 'o carro está na oficina (ordem 1042 em execução)', quando: new Date(Date.now() + 86400000).toISOString() })),
+      reagendaria: [], atualizaria: [] });
+  }
+  if (p === '/api/campanhas/previa' && m === 'POST') {
+    const corpo = String(body.corpo ?? '').trim();
+    if (!corpo) return json(res, 400, { erro: 'Escreva a mensagem.' });
+    let destinos = Array.isArray(body.destinos) ? body.destinos : [];
+    if (!destinos.length && body.segmento?.filtro) destinos = (segmentar(body.segmento.filtro, body.segmento.valor) || []).map((c) => ({ cliente_id:c.id, telefone:c.telefone, nome:c.nome, carro:c.carro, placa:c.placa }));
+    if (!destinos.length) return json(res, 400, { erro: 'Escolha pelo menos um cliente.' });
+    const evitar = Number(body.evitar_dias) || 0;
+    const recentes = new Set(evitar ? ENVIOS.filter((e) => e.tipo === 'campanha' && ['enviado', 'pendente'].includes(e.status)).map((e) => e.cliente_id) : []);
+    const linhas = []; const pul = { total: 0, nao_quer: 0, recente: 0 };
+    for (const d of destinos) {
+      const c = porId(d.cliente_id);
+      if (c?.aceita_mensagens === false) { pul.total++; pul.nao_quer++; continue; }
+      if (recentes.has(d.cliente_id)) { pul.total++; pul.recente++; continue; }
+      linhas.push({ nome: d.nome, telefone: d.telefone, corpo: renderTemplate(corpo, { nome: d.nome, carro: d.carro, placa: d.placa, detalhe: '' }), enviar_em: agora() });
+    }
+    return json(res, 200, { simulado: true, total: linhas.length, pulados: pul.total, puladosDetalhe: pul, dias: 1, porDia: { [hoje()]: linhas.length }, limitePorDia: CFG.limite_por_dia || 300, tipo: 'campanha', linhas: linhas.slice(0, 8), linksForaDaCasa: conexoes.linksForaDaCasa(corpo), caminho: auto.destinoDoPedido(eu, destinos.length) });
+  }
   if (p === '/api/previa') return json(res, 200, previa(url.searchParams.get('regua')));
   if (p === '/api/rodar-agora' && m === 'POST') {
     const pr = previa(null);
@@ -809,6 +888,11 @@ http.createServer(async (req, res) => {
     let destinos = Array.isArray(body.destinos) ? body.destinos : [];
     if (!destinos.length && body.segmento?.filtro) destinos = (segmentar(body.segmento.filtro, body.segmento.valor) || []).map((c) => ({ cliente_id:c.id, telefone:c.telefone, nome:c.nome, carro:c.carro, placa:c.placa }));
     if (!destinos.length) return json(res, 400, { erro:'Escolha pelo menos um cliente.' });
+    const fora6 = conexoes.linksForaDaCasa(corpo);
+    if (fora6.length) {
+      if (!ehGestor()) return json(res, 403, { erro: 'O texto tem link de fora da IndyCar. Peça ao gestor para enviar.', codigo: 'link_externo', links: fora6 });
+      if (body.confirmar_links_externos !== true) return json(res, 409, { erro: 'O texto tem link de fora da IndyCar. Confirme para enviar mesmo assim.', codigo: 'link_externo', links: fora6 });
+    }
     const caminho = auto.destinoDoPedido(eu, destinos.length);
     if (caminho === 'proposta') {
       const c = { id: uuid(), status:'aguardando', corpo, detalhe: body.detalhe || null, segmento: body.segmento?.filtro ? { filtro: body.segmento.filtro, valor: body.segmento.valor ?? null } : null,

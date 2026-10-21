@@ -150,3 +150,22 @@ test('API: resultado do lote só com id válido; lote sem envios devolve zeros',
     assert.ok([400, 404].includes(ruim.status));
   } finally { await s.fechar(); }
 });
+
+test('API: salvar as réguas com os campos da rodada 6 — gestor salva; atendente 403; texto sem link ou com variável inventada vira 400 e número fora da faixa é ignorado', async () => {
+  const s = await subir();
+  try {
+    let r = await s.chamar('atendente', 'PUT', '/api/comunicar/config', { usa_orcador: false });
+    assert.equal(r.status, 403);
+    r = await s.chamar('gestor', 'PUT', '/api/comunicar/config', { usa_orcador: false, bloquear_com_reclamacao: false, horas_extra_lembrete: 5, evitar_texto_repetido_h: 0, msg_orcador_visto: 'Oi {primeiro_nome}, ficou alguma dúvida? {link_orcamento}' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.equal(r.json.usa_orcador, false); assert.equal(r.json.horas_extra_lembrete, 5); assert.equal(r.json.evitar_texto_repetido_h, 0);
+    const linha = tabelas.posvenda_config[0];
+    assert.equal(linha.usa_orcador, false); assert.equal(linha.horas_extra_lembrete, 5);
+    r = await s.chamar('gestor', 'PUT', '/api/comunicar/config', { msg_orcador_visto: 'Oi, ficou alguma dúvida do orçamento? Estou aqui.' });
+    assert.equal(r.status, 400); assert.match(r.json.erro, /link_orcamento/);
+    r = await s.chamar('gestor', 'PUT', '/api/comunicar/config', { msg_extra_lembrete: 'Oi {primeiro_nome}, {coisa_estranha} {link_os}' });
+    assert.equal(r.status, 400);
+    r = await s.chamar('gestor', 'PUT', '/api/comunicar/config', { horas_extra_lembrete: 99 });
+    assert.equal(r.status, 200); assert.equal(r.json.horas_extra_lembrete, 5, 'número fora da faixa é ignorado, o valor anterior fica');
+  } finally { await s.fechar(); }
+});

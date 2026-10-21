@@ -696,7 +696,7 @@ Lote 2 — agenda, diagnóstico, resultados e conexões (API + dados; tela no lo
 122. **"Por que não saiu"** (`GET /api/envios/:id/porque`): monta o contexto de agora e usa a mesma ordem de decisão do carteiro (pausa, janela, limite, PARAR, carro na oficina, reclamação, texto repetido, feriado, WhatsApp).
 123. **Simular a rodada** (`POST /api/rodada/simular`, só quem pode rodar o carteiro): devolve o que sairia, pularia, adiaria e reagendaria; teste prova que o banco fica intacto.
 124. 🔗 **Resultados** (`GET /api/resultados`, `GET /api/lotes/:id/resultado`): respondeu → agendou → voltou → faturou por régua e por lote; cada visita, orçamento aprovado ou serviço pago vai para a ÚLTIMA mensagem dos 30 dias anteriores; faturou = maior entre Agenda, CRM e Orçador (o mesmo serviço aparece nos três).
-125. Mensagens de teste (`criado_por = 'teste'`) não entram nos resultados; período invertido e régua desconhecida viram 400.
+125. Mensagens de teste saem fora da fila ("mandar para o meu celular"), por isso nunca entram nos resultados — e o filtro `criado_por = 'teste'` fica de garantia; período invertido e régua desconhecida viram 400.
 126. 🔗 **Conexões** (`GET /api/conexoes`): números reais do Pátio (entregues, na oficina, extras esperando, avaliações), do Orçador (enviados, parados) e do CRM (leads em orçamento), dizendo o que está ligado.
 127. **Prévia exata da campanha** (`POST /api/campanhas/previa`): as mesmas linhas que seriam enfileiradas (nome, texto final, dia), repetidos e inválidos contados, sem gravar nada.
 128. **"Não repetir para quem recebeu campanha há N dias"** (`evitar_dias`, até 90): conta em `pulados.recente`, na prévia e no envio.
@@ -707,3 +707,27 @@ Lote 2 — agenda, diagnóstico, resultados e conexões (API + dados; tela no lo
 133. `esquecerConfigDoPatio()` e um **banco falso** (`scripts/banco-falso.mjs`): os testes rodam os geradores, a rodada do carteiro e a API de verdade, sem rede e sem produção.
 
 Verificação do lote 2: 35 testes novos (geradores 18, carteiro 9, API 8) ponta a ponta com o banco falso — pós-venda/avaliação/revisão do Pátio, orçamento visto e não visto, extra pendente, PARAR, carro na oficina, reclamação aberta, texto repetido, retomada gradual, sem confirmação sem reenvio, rotas novas e permissões.
+
+Lote 3 — a tela (rodada6.js; ganchos pequenos no app.js; tudo com esc() e testado a 1440 e 375 px)
+
+134. 🔗 **Início › "Ligações e resultados"**: 7 ligações com o Pátio, o Orçador e o CRM com o número real de cada uma, "sem leitura agora" quando um sistema não responde e "usando / desligado" conforme as réguas.
+135. 🔗 **Funil dos últimos 30 dias** no Início: enviadas → responderam → agendaram → voltaram → faturou, com a taxa e o valor por mensagem.
+136. **Mensagens › Agenda de envios**: um cartão por dia com a barra do teto diário, avisos de domingo, feriado, "passa do teto: o resto sai no dia seguinte" e atrasadas, quantas de cada tipo e as primeiras 40 mensagens.
+137. **"Por que não saiu?"** em toda mensagem da fila (e dentro da agenda): veredito (pronta / esperando / segurada) e cada motivo com ícone, na ordem da decisão do carteiro.
+138. **Adiar**: atalhos (1 hora, amanhã 9h30, 2 dias, semana que vem) ou data e hora; as opções que passam da validade somem; o erro do servidor aparece no próprio modal.
+139. **Simular rodada** (só quem roda o carteiro): sairiam, seriam puladas (com o motivo), adiadas e reagendadas, e a frase "nada foi enviado".
+140. 🔗 **Resultados** (modal): período e tipo, funil, uma linha por tipo e por campanha (data + começo do texto) e "como contamos"; período invertido avisa em vez de calcular.
+141. 🔗 **Campanhas › histórico**: cada campanha mostra quantos voltaram e quanto faturou.
+142. **Réguas › Ligações com Pátio e Orçador**: interruptores do pós-venda e da revisão pelo Pátio, do lembrete do Orçador e do extra esperando OK (com as horas).
+143. **Réguas › Cuidado com o cliente**: esperar com carro na oficina, esperar com reclamação aberta (dias), retomada gradual, "não repetir o mesmo texto" (horas) e o padrão de "não repetir campanha" (dias).
+144. **Réguas › textos novos**: três textos com botões de variável, aviso na hora (variável que não existe, falta o link) e prévia no celular com dados de exemplo.
+145. Bug real: o servidor ignorava em silêncio um texto novo inválido ("salvo" sem salvar); agora responde 400 com o motivo e a tela barra o salvar antes (número fora da faixa também).
+146. **Campanha › passo 3 com a prévia exata**: as linhas que vão para a fila, com o nome e o telefone de cada um, quantos ficam de fora e por quê — sai sozinha ao chegar no passo.
+147. **"Não repetir para quem já recebeu campanha há N dias"**: ligado por padrão em campanha para grupo, com o N que a régua sugere.
+148. **Link de fora da IndyCar** na campanha: aviso vermelho com os links; o gestor confirma marcando a caixa; o atendente é barrado com o motivo; o botão final conferido na tela.
+149. A prévia mostra o escalonamento quando a campanha passa do teto diário (quantas por dia).
+150. 🔗 Resposta lida como "quer orçamento" ganha **Criar orçamento**: abre a cotação nova no Orçador já com cliente, telefone e nome.
+151. Atendente vê o painel novo das Réguas só para olhar (campos desabilitados) e não vê "Simular rodada"; verificado no navegador.
+152. Versão 6.0.0 em tudo (servidor, pacote, página, service worker com `rodada6.js` no cache, mock) e o teste confere.
+153. 🔗 Cada lote nos resultados guarda quando saiu, o tipo e o começo do texto (`descreverLotes`) — a tela diz "campanha de 14/10: Oi, tudo bem…" em vez de um código.
+154. Roteiro de navegador `scripts/navegador-rodada6.mjs` (gestor e atendente, 1440 e 375 px, sem rolagem lateral, zero erro de console) e o mock com as rotas novas.
