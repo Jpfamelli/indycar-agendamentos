@@ -73,6 +73,26 @@
     return ['agenda', 'crm', 'atendimento', 'comunicar', 'orcador', 'patio', 'site'].map(k => ({ chave: k, ...apps[k] })).filter(a => a.url);
   }
 
-  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, atual: 'atendimento' };
+  /** Abre o outro app na ABA DELE (nome fixo: clicar de novo reaproveita a aba, não empilha janelas). */
+  function abrir(app, endereco) {
+    const alvo = endereco || (apps[app] && apps[app].url);
+    if (!alvo) return null;
+    try {
+      const w = window.open(alvo, 'indycar-' + app);
+      if (w) { try { w.opener = null; } catch (e) { /* aba de outro domínio */ } if (w.focus) w.focus(); }
+      return w;
+    } catch (e) { return null; }
+  }
+  /** Qual app do ecossistema é este endereço? (para abrir na aba certa) */
+  function appDoEndereco(endereco) {
+    try {
+      const u = new URL(endereco, location.href);
+      const rota = /^\/(agenda|crm|comunicar|atendimento)(\/|$)/.exec(u.pathname);
+      if (rota && u.origin === (apps.agenda.url ? new URL(apps.agenda.url).origin : '')) return rota[1];
+      for (const [k, a] of Object.entries(apps)) { if (a.url && new URL(a.url).origin === u.origin && !(k === 'agenda' && rota)) return k; }
+    } catch (e) { /* endereço inválido */ }
+    return null;
+  }
+  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, appDoEndereco, atual: 'atendimento' };
   if (typeof module !== 'undefined') module.exports = raiz.IndyCarApps;
 })(typeof window !== 'undefined' ? window : globalThis);

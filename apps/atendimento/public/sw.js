@@ -10,7 +10,7 @@
 //    (arquivos); demorou, deu 5xx/4xx ou caiu → cópia do cache.
 // As conversas vêm direto do Supabase (que não dorme), então com a casca de pé
 // o atendente segue lendo e respondendo enquanto o servidor acorda.
-const CACHE = 'indycar-atendimento-v17';
+const CACHE = 'indycar-atendimento-v18';
 
 /* Rodada 5 (Central): o service worker pode estar servido em /atendimento/sw.js. Tudo é
    relativo à pasta dele (RAIZ): a casca, os arquivos e a fronteira do /api/. */
@@ -19,7 +19,7 @@ const RAIZ = self.location.pathname.replace(/sw\.js$/, '');
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala — o app deixa de ser instalável sem dizer por quê. Mantenha
    aqui só o que existe de verdade (o copiloto.js/.css do painel da IA também). */
-const ARQUIVOS = ['', 'styles.css', 'apps.js', 'rede.js', 'vendor/supabase.js', 'app.js', 'acesso.js', 'equipe.js', 'tarefas.js',
+const ARQUIVOS = ['', 'styles.css', 'apps.js', 'rede.js', 'vendor/supabase.js', 'app.js', 'acesso.js', 'equipe.js', 'tarefas.js', 'r6-regras.js', 'r6-tela.js', 'r6.css',
                   'ajuda.js', 'casca.js', 'copiloto.js', 'copiloto.css', 'manifest.json', 'logo.png',
                   'icon-192.png', 'icon-512.png'];
 const CORE = ARQUIVOS.map((u) => RAIZ + u);

@@ -1,0 +1,145 @@
+/* ============================================================
+   Atendimento — Rodada 6: fila priorizada, painel conectado,
+   respostas rápidas e WhatsApp parado. Só usa os tokens do styles.css
+   (segue o tema claro/escuro). Nada de transition no body.
+   ============================================================ */
+[hidden]{display:none!important}
+
+/* ---------- resumo da fila ---------- */
+.r6-resumo{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 8px;padding:7px 10px;
+  border:1px solid var(--linha,#26262b);border-radius:11px;background:var(--superficie,rgba(255,255,255,.04));font-size:.82rem}
+.r6-resumo.r6-urgente{border-color:rgba(229,9,20,.5);background:rgba(229,9,20,.09)}
+.r6-resumo-txt{min-width:0;overflow-wrap:anywhere}
+.r6-proxima{min-height:36px;padding:6px 12px;border:0;border-radius:9px;cursor:pointer;color:#fff;font:700 .85rem/1 var(--fonte-cond,'Barlow Condensed',sans-serif);
+  letter-spacing:.03em;text-transform:uppercase;background:linear-gradient(135deg,var(--vermelho,#e50914),var(--vermelho-esc,#b00710))}
+.r6-proxima:disabled{opacity:.45;cursor:default}
+.r6-link{background:none;border:0;padding:0;color:var(--vermelho-txt,#ff8a90);text-decoration:underline;cursor:pointer;font:inherit}
+.chip-r6{border-style:dashed}
+
+/* ---------- chips na linha da conversa ---------- */
+.r6-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.r6-chip,.r6-nivel{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:1px 7px;border-radius:20px;font-size:.7rem;line-height:1.5;
+  border:1px solid var(--linha,#26262b);color:var(--texto-suave,#c9c9d0);background:var(--superficie,rgba(255,255,255,.05));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r6-n-agora{border-color:rgba(229,9,20,.6);background:rgba(229,9,20,.14);color:var(--vermelho-txt,#ff8a90);font-weight:700}
+.r6-n-logo{border-color:rgba(245,158,11,.55);background:rgba(245,158,11,.12);color:var(--amarelo-txt,#fbbf24);font-weight:700}
+.r6-n-hoje{color:var(--texto-suave,#c9c9d0)}
+.r6-patio{border-color:rgba(37,211,102,.4);color:var(--verde-txt,#4ade80)}
+.r6-patio.r6-tom-atencao{border-color:rgba(245,158,11,.55);color:var(--amarelo-txt,#fbbf24)}
+.r6-falha{border-color:rgba(229,9,20,.55);color:var(--vermelho-txt,#ff8a90);font-weight:700}
+.r6-orc-aprovado_sem_horario,.r6-orc-parado{border-color:rgba(245,158,11,.55);color:var(--amarelo-txt,#fbbf24)}
+
+/* ---------- chips no cabeçalho do chat ---------- */
+.r6-chips-chat{display:flex;gap:6px;flex-wrap:wrap;padding:6px 12px 0}
+.r6-chips-chat .r6-chip{cursor:pointer;font:inherit;font-size:.74rem;min-height:28px}
+
+/* ---------- faixa do WhatsApp parado ---------- */
+.r6-zap{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:6px 12px 0;padding:8px 12px;border-radius:11px;font-size:.82rem;
+  overflow-wrap:anywhere}
+.r6-zap.parado{border:1px solid rgba(229,9,20,.6);background:rgba(229,9,20,.12);color:var(--texto,#f5f5f7)}
+.r6-zap.aviso{border:1px solid rgba(245,158,11,.55);background:rgba(245,158,11,.1);color:var(--texto,#f5f5f7)}
+.r6-zap button{min-height:34px;padding:5px 11px;border-radius:9px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer;font:inherit;font-weight:700}
+#btnEnviar.r6-parado{background:var(--superficie,#26262b);color:var(--texto,#f5f5f7);border:1px dashed var(--vermelho,#e50914)}
+
+/* ---------- respostas rápidas para agora ---------- */
+.r6-sugestoes{display:flex;gap:6px;overflow-x:auto;padding:6px 12px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.r6-sug-rotulo{flex:none;align-self:center;font-size:.72rem;color:var(--cinza,#9a9aa0);white-space:nowrap}
+.r6-sug{flex:none;min-height:34px;padding:5px 11px;border-radius:20px;border:1px solid var(--linha,#26262b);background:var(--superficie,rgba(255,255,255,.05));
+  color:var(--texto,#f5f5f7);cursor:pointer;font:inherit;font-size:.8rem;white-space:nowrap}
+.r6-sug:hover{border-color:var(--vermelho,#e50914)}
+.r6-sug kbd{font:inherit;font-size:.68rem;opacity:.6;margin-right:2px}
+.r6-sug-gente{border-style:dashed}
+
+/* ---------- menu de adiar ---------- */
+.r6-menu{position:fixed;z-index:120;display:flex;flex-direction:column;min-width:170px;padding:4px;border-radius:11px;
+  border:1px solid var(--linha,#26262b);background:var(--carta,#161619);box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.r6-menu button{min-height:40px;padding:8px 12px;border:0;border-radius:8px;background:none;color:var(--texto,#f5f5f7);text-align:left;cursor:pointer;font:inherit}
+.r6-menu button:hover,.r6-menu button:focus-visible{background:var(--superficie,rgba(255,255,255,.08))}
+
+/* ---------- painel conectado ---------- */
+.r6-painel{display:flex;flex-direction:column;gap:10px;margin:0 0 14px;min-width:0;overflow-wrap:anywhere}
+.r6-situacao{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border-radius:11px;border:1px solid rgba(229,9,20,.4);background:rgba(229,9,20,.08);font-size:.82rem}
+.r6-acoes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.r6-acoes button{min-height:40px;padding:7px 8px;border-radius:10px;border:1px solid var(--linha,#26262b);background:var(--superficie,rgba(255,255,255,.05));
+  color:var(--texto,#f5f5f7);cursor:pointer;font:inherit;font-size:.8rem;font-weight:700}
+.r6-acoes button:hover{border-color:var(--vermelho,#e50914)}
+.r6-proximos{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px;font-size:.8rem;color:var(--texto-suave,#c9c9d0)}
+.r6-bloco{border:1px solid var(--linha,#26262b);border-radius:13px;background:var(--carta,#161619);overflow:hidden}
+.r6-bloco h4{margin:0;display:flex;align-items:center}
+.r6-bloco-titulo{display:flex;align-items:center;gap:8px;flex:1;min-height:42px;padding:8px 12px;border:0;background:none;color:var(--texto-forte,#fff);cursor:pointer;
+  font:700 .9rem/1.2 var(--fonte,'DM Sans',sans-serif);text-align:left}
+.r6-bloco-titulo span{flex:1;min-width:0}
+.r6-bloco-titulo i{font-style:normal;transition:transform .2s}
+.r6-bloco.recolhido .r6-bloco-titulo i{transform:rotate(-90deg)}
+.r6-cont{font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:20px;background:rgba(229,9,20,.16);color:var(--vermelho-txt,#ff8a90)}
+.r6-bloco-corpo{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px;font-size:.84rem}
+.r6-pisca{animation:r6-pisca 1.2s ease 1}
+@keyframes r6-pisca{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 3px rgba(229,9,20,.55)}}
+.r6-vazio{margin:0;color:var(--cinza,#9a9aa0);font-size:.82rem}
+.r6-aviso{margin:0;padding:8px 10px;border-radius:10px;font-size:.8rem;background:rgba(245,158,11,.1);color:var(--amarelo-txt,#fbbf24)}
+.r6-sub{color:var(--cinza,#9a9aa0);font-size:.76rem}
+.r6-linha{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.r6-linha span{color:var(--texto-suave,#c9c9d0);min-width:0}
+.r6-linha b{text-align:right}
+.r6-botoes{display:flex;flex-wrap:wrap;gap:6px}
+.r6-btn{min-height:38px;padding:6px 11px;border-radius:10px;border:0;cursor:pointer;font:inherit;font-size:.8rem;font-weight:700;color:#fff;
+  background:linear-gradient(135deg,var(--vermelho,#e50914),var(--vermelho-esc,#b00710))}
+.r6-btn.r6-sec{background:var(--superficie,rgba(255,255,255,.07));color:var(--texto,#f5f5f7);border:1px solid var(--linha,#26262b)}
+.r6-btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* trilha do pátio */
+.r6-patio-topo{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;background:var(--superficie,rgba(255,255,255,.05))}
+.r6-patio-topo.r6-tom-ok{border-left:4px solid var(--verde,#25d366)}
+.r6-patio-topo.r6-tom-atencao{border-left:4px solid var(--amarelo,#f59e0b)}
+.r6-patio-topo.r6-tom-andamento{border-left:4px solid var(--vermelho,#e50914)}
+.r6-patio-topo small{color:var(--cinza,#9a9aa0)}
+.r6-atraso{color:var(--amarelo-txt,#fbbf24);font-weight:700}
+.r6-trilha{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.r6-trilha li{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--cinza,#9a9aa0)}
+.r6-trilha li i{width:10px;height:10px;border-radius:50%;border:2px solid var(--linha,#3a3a42);flex:none}
+.r6-trilha li.feito{color:var(--texto-suave,#c9c9d0)}
+.r6-trilha li.feito i{background:var(--verde,#25d366);border-color:var(--verde,#25d366)}
+.r6-trilha li.atual{color:var(--texto-forte,#fff);font-weight:700}
+.r6-trilha li.atual i{background:var(--vermelho,#e50914);border-color:var(--vermelho,#e50914);box-shadow:0 0 0 3px rgba(229,9,20,.25)}
+.r6-extras{padding:8px 10px;border-radius:10px;border:1px solid rgba(245,158,11,.5);background:rgba(245,158,11,.08);display:flex;flex-direction:column;gap:3px}
+
+/* cartões (orçamento, agenda, lead) */
+.r6-card{display:flex;flex-direction:column;gap:5px;padding:9px 10px;border-radius:11px;border:1px solid var(--linha,#26262b);background:var(--superficie,rgba(255,255,255,.04))}
+.r6-card.principal{border-color:rgba(229,9,20,.5)}
+.r6-card-topo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.r6-card-topo .r6-valor{margin-left:auto}
+.r6-card small{color:var(--cinza,#9a9aa0)}
+.r6-card .r6-acao{color:var(--amarelo-txt,#fbbf24)}
+.r6-selo{font-size:.7rem;padding:1px 8px;border-radius:20px;border:1px solid var(--linha,#26262b);color:var(--texto-suave,#c9c9d0)}
+.r6-selo.r6-tom-ok{border-color:rgba(37,211,102,.5);color:var(--verde-txt,#4ade80)}
+.r6-selo.r6-tom-atencao{border-color:rgba(245,158,11,.55);color:var(--amarelo-txt,#fbbf24)}
+.r6-selo.r6-tom-ruim{border-color:rgba(229,9,20,.55);color:var(--vermelho-txt,#ff8a90)}
+.r6-mais summary{cursor:pointer;color:var(--cinza,#9a9aa0);font-size:.8rem}
+.r6-tempo{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px;font-size:.78rem}
+.r6-tempo small{color:var(--cinza,#9a9aa0)}
+.r6-det{display:block}
+.r6-semcadastro{padding:10px;border-radius:11px;border:1px dashed var(--linha,#3a3a42)}
+.r6-semcadastro p{margin:4px 0 8px;font-size:.82rem;color:var(--texto-suave,#c9c9d0)}
+.r6-esqueleto{display:flex;flex-direction:column;gap:8px}
+.r6-esqueleto i{display:block;height:44px;border-radius:12px;background:var(--superficie,rgba(255,255,255,.06));animation:r6-esq 1.2s ease-in-out infinite}
+@keyframes r6-esq{50%{opacity:.45}}
+
+/* IA nesta conversa */
+.r6-ia{padding:7px 10px;border-radius:10px;background:var(--superficie,rgba(255,255,255,.05));font-size:.82rem}
+.r6-ia-respondendo{border:1px solid rgba(229,9,20,.45)}
+.r6-humano{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;border:1px solid rgba(245,158,11,.55);background:rgba(245,158,11,.1);font-size:.82rem}
+.r6-humano small{color:var(--texto-suave,#c9c9d0)}
+
+/* modal "não saíram" */
+.r6-modal{max-width:560px;width:calc(100% - 24px)}
+.r6-modal .modal-corpo{display:flex;flex-direction:column;gap:8px;max-height:70vh;overflow:auto}
+.r6-ns-texto{margin:0;padding:6px 8px;border-radius:8px;background:var(--superficie,rgba(255,255,255,.05));white-space:pre-wrap;overflow-wrap:anywhere}
+
+@media (max-width:480px){
+  .r6-acoes{grid-template-columns:1fr 1fr}
+  .r6-resumo{font-size:.78rem}
+  .r6-zap{margin:6px 8px 0}
+  .r6-sugestoes{padding:6px 8px}
+}
+@media (prefers-reduced-motion:reduce){
+  .r6-pisca,.r6-esqueleto i{animation:none}
+}

@@ -470,7 +470,7 @@ async function carregarConversas() {
     } else {
       ({ data, error } = await q);
       // "esperando há mais tempo": garante que quem espera entre, mesmo fora da página
-      if (!error && ordemLista === 'espera') {
+      if (!error && (ordemLista === 'espera' || ordemLista === 'prioridade')) {
         const r2 = await aplicarFiltrosBase(sb.from('conversas').select('*'))
           .or('nao_lidas.gt.0,aguardando_consultor.eq.true')
           .order('ultima_mensagem_em', { ascending: true }).limit(200);
@@ -524,7 +524,8 @@ function conversasFiltradas() {
   // aba "Novos hoje": só quem CHEGOU hoje (conversa criada hoje, fuso da oficina)
   if (filtroStatus === 'hoje') base = base.filter(c => chegouHoje(c.created_at));
   // aba "Agendadas" mostra só elas; a fila principal as esconde
-  if (filtroStatus === 'agendada') base = base.filter(estaAgendada);
+  if (filtroStatus.startsWith('r6_') && window.R6Tela) base = window.R6Tela.filtrar(filtroStatus, base);
+  else if (filtroStatus === 'agendada') base = base.filter(estaAgendada);
   else if (!['disparo', 'fechou', 'nao_fechou', 'aguardando', 'nao_lidas', ...Object.keys(FILTROS_ESPECIAIS)].includes(filtroStatus))
     base = base.filter(c => !estaAgendada(c));
   // aba "Não lidas": só quem tem mensagem sem ler, de qualquer etapa
@@ -646,6 +647,7 @@ function esperaDe(c) {
 
 /** Ordem escolhida no seletor (guardada neste navegador). */
 function ordenarLista(lista) {
+  if (ordemLista === 'prioridade' && window.R6Tela) return window.R6Tela.ordenar(lista);
   if (ordemLista === 'espera') {
     return [...lista].sort((a, b) => {
       const ea = esperaDe(a), eb = esperaDe(b);
@@ -752,6 +754,7 @@ function renderConversas() {
           ${IaFunil.respondendo(c.id) ? '<span class="tag ia-respondendo" title="A IA do funil está lendo e respondendo esta conversa agora"><i class="girando" aria-hidden="true"></i> IA respondendo</span>' : (c.ia_ativa ? '<span class="tag ia">✨ IA</span>' : '')}
           ${c.nao_lidas > 0 ? `<span class="nao-lidas" aria-hidden="true">${esc(String(c.nao_lidas))}</span>` : ''}
         </div>
+        ${window.R6Tela ? window.R6Tela.chipsDaLinha(c) : ''}
       </div>
     </div>`; }).join('')
     + (temMaisConversas && !termoBusca.trim()
@@ -1113,6 +1116,9 @@ function statusDaMensagem(m) {
     return `<span class="msg-st st-falhou st-duvida" title="${esc(m.erro)}">❓ não sabemos se chegou — confira no WhatsApp</span>
       <button type="button" class="msg-reenviar" data-chegou="${esc(m.id)}">Chegou</button>
       <button type="button" class="msg-reenviar" data-reenviar="${esc(m.id)}" data-forcar="1">Reenviar</button>`;
+  }
+  if (st === 'falhou' && /^Resolvido/.test(m.erro || '')) {
+    return `<span class="msg-st st-ok" title="${esc(m.erro)}">✔ resolvido fora do WhatsApp</span>`;
   }
   if (st === 'falhou') {
     return `<span class="msg-st st-falhou" title="${esc(m.erro || 'Não saiu no WhatsApp')}">⚠ não saiu</span>
@@ -2088,7 +2094,7 @@ async function carregarFicha(conv) {
         <div class="ficha-titulo">
           Mensagens automáticas
           <a class="ficha-link" href="${esc(fx?.comunicarUrl || URL_COMUNICAR)}"
-             target="_blank" rel="noopener" title="Abrir o IndyCar Comunicar">Abrir no Comunicar ↗</a>
+             target="indycar-comunicar" rel="noopener" title="Abrir o IndyCar Comunicar">Abrir no Comunicar ↗</a>
         </div>
         <label class="switch aceita${aceita ? '' : ' desligado'}">
           <input type="checkbox" id="fcAceita" ${aceita ? 'checked' : ''} ${fx?.ok ? '' : 'disabled'} />
@@ -2144,7 +2150,7 @@ function blocoDoPatioHtml(p) {
   const atrasada = prev && !entregue && p.etapa !== 'pronto' && prev < new Date();
   return `<div class="ficha-bloco patio-bloco patio-${esc(p.tom || 'andamento')}" id="fichaPatio">
       <div class="ficha-titulo">${entregue ? 'Saiu do pátio' : 'No pátio agora'}
-        <a class="ficha-link" href="${esc(p.abrir)}" target="_blank" rel="noopener" title="Abrir a ordem no IndyCar Pátio">Abrir no Pátio ↗</a></div>
+        <a class="ficha-link" href="${esc(p.abrir)}" target="indycar-patio" rel="noopener" title="Abrir a ordem no IndyCar Pátio">Abrir no Pátio ↗</a></div>
       <div class="patio-etapa">
         <b>${esc(p.etapa_rotulo)}</b>
         <small>${p.tempo_na_etapa && !entregue ? 'há ' + esc(p.tempo_na_etapa) + ' · ' : ''}ordem nº ${esc(p.numero ?? '—')}${p.placa ? ' · ' + esc(p.placa) : ''}</small>
@@ -4852,7 +4858,7 @@ function desenharRelatorios(r) {
                   .map(([t, n]) => [ROTULO_ENVIO_TIPO[t] || t, num(n)]) })
             : '')
         : semDados('Nenhuma mensagem automática programada no período.'),
-      `<a class="btn btn-ghost sm" href="${esc(URL_COMUNICAR)}" target="_blank" rel="noopener">Abrir o Comunicar ↗</a>`));
+      `<a class="btn btn-ghost sm" href="${esc(URL_COMUNICAR)}" target="indycar-comunicar" rel="noopener">Abrir o Comunicar ↗</a>`));
   }
 
   $('#relCorpo').innerHTML = partes.join('');
@@ -5248,7 +5254,7 @@ window.Rede?.aoMudar(d => { if (d.voltou && usuario) { verConexao(); verSaude();
   const atual = sel.querySelector('[data-atual]')?.value;
   sel.addEventListener('change', () => {
     const url = sel.value;
-    if (url && url !== atual) window.open(url, '_blank', 'noopener');
+    if (url && url !== atual) { const chave = window.IndyCarApps?.appDoEndereco(url); if (chave) window.IndyCarApps.abrir(chave, url); else window.open(url, '_blank', 'noopener'); }
     if (atual) sel.value = atual;
   });
 })();
@@ -5280,7 +5286,7 @@ let filtroDono = (() => {
 })();
 let ordemLista = (() => { try { return localStorage.getItem('indycar_ordem') || 'recentes'; } catch { return 'recentes'; } })();
 const FILTROS_URL = ['', 'nao_lidas', 'hoje', 'aguardando', 'agendada', 'fechou', 'nao_fechou', 'disparo',
-  'quentes', 'amanha', 'revisao', 'aniversario'];
+  'quentes', 'amanha', 'revisao', 'aniversario', 'r6_urgentes', 'r6_patio', 'r6_orcamento', 'r6_falhas'];
 
 function restaurarPreferenciasDaLista() {
   // ?filtro=nao_lidas (atalho do app instalado, links de outros sistemas)
@@ -5294,7 +5300,7 @@ function restaurarPreferenciasDaLista() {
   if (!['', 'meus', 'sem'].includes(filtroDono)) filtroDono = '';
   pintarSegmentoDono();
   const sel = $('#ordemLista');
-  if (sel) sel.value = ['recentes', 'espera', 'naolidas'].includes(ordemLista) ? ordemLista : 'recentes';
+  if (sel) sel.value = ['recentes', 'espera', 'naolidas', 'prioridade'].includes(ordemLista) ? ordemLista : 'recentes';
 }
 
 function pintarSegmentoDono() {
@@ -5720,9 +5726,9 @@ function linkComTelefone(base, tel) {
 function linksDoClienteHtml(conv, comunicarUrl) {
   const tel = normalizarDigitos(conv.telefone_e164 || conv.telefone);
   return `<nav class="ficha-links" aria-label="Este cliente nos outros sistemas">
-    <a href="${esc(linkComTelefone(URL_AGENDA, tel))}" target="_blank" rel="noopener" title="Abrir este cliente na Agenda">📅 Agenda</a>
-    <a href="${esc(linkComTelefone(URL_CRM, tel))}" target="_blank" rel="noopener" title="Abrir este cliente no CRM">📈 CRM</a>
-    <a href="${esc(linkComTelefone(comunicarUrl || URL_COMUNICAR, tel))}" target="_blank" rel="noopener" title="Abrir este cliente no Comunicar">📣 Comunicar</a>
+    <a href="${esc(linkComTelefone(URL_AGENDA, tel))}" target="indycar-agenda" rel="noopener" title="Abrir este cliente na Agenda">📅 Agenda</a>
+    <a href="${esc(linkComTelefone(URL_CRM, tel))}" target="indycar-crm" rel="noopener" title="Abrir este cliente no CRM">📈 CRM</a>
+    <a href="${esc(linkComTelefone(comunicarUrl || URL_COMUNICAR, tel))}" target="indycar-comunicar" rel="noopener" title="Abrir este cliente no Comunicar">📣 Comunicar</a>
     <button type="button" data-copiar-tel title="Copiar o telefone">📋 Tel.</button>
   </nav>`;
 }
