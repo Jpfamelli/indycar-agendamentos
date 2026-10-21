@@ -169,3 +169,43 @@ test('API: salvar as réguas com os campos da rodada 6 — gestor salva; atenden
     assert.equal(r.status, 200); assert.equal(r.json.horas_extra_lembrete, 5, 'número fora da faixa é ignorado, o valor anterior fica');
   } finally { await s.fechar(); }
 });
+
+// ---------------------------------------------------------------- passada do atacante
+test('API atacante: datas, tipos e ids com lixo ou injeção de filtro nunca viram 500 nem vazam outros lotes', async () => {
+  const s = await subir();
+  try {
+    for (const q of ["de=2026-10-01'--&ate=x", 'de=%27%29%3Bdrop%20table%20posvenda_envios%3B--', 'de=9999-99-99&ate=0000-00-00', 'de=&ate=']) {
+      const r = await s.chamar('atendente', 'GET', `/api/resultados?${q}`);
+      assert.ok(r.status === 200 || r.status === 400, `${q} → ${r.status}`);
+    }
+    for (const regua of ['campanha%3Bdrop', 'in.(a,b)', '*', 'campanha%26status%3Deq.enviado']) {
+      const r = await s.chamar('atendente', 'GET', `/api/resultados?regua=${regua}`);
+      assert.equal(r.status, 400, regua);
+    }
+    for (const id of ['nao-uuid', encodeURIComponent(`${ID(1)})or(1.eq.1`), '..%2F..%2Fetc', `${ID(1)}%00`]) {
+      for (const rota of [`/api/lotes/${id}/resultado`, `/api/envios/${id}/porque`]) {
+        const r = await s.chamar('atendente', 'GET', rota);
+        assert.ok([400, 404].includes(r.status), `${rota} → ${r.status}`);
+      }
+      const r = await s.chamar('gestor', 'POST', `/api/envios/${id}/adiar`, { enviar_em: new Date(Date.now() + 3600000).toISOString() });
+      assert.ok([400, 404].includes(r.status), `adiar ${id} → ${r.status}`);
+    }
+  } finally { await s.fechar(); }
+});
+
+test('API atacante: prévia de campanha limita o texto, o "não repetir", o número de destinos e ignora campos estranhos', async () => {
+  const s = await subir();
+  try {
+    let r = await s.chamar('atendente', 'POST', '/api/campanhas/previa', { corpo: 'x'.repeat(2001), destinos: [{ id: ID(1), nome: 'A', telefone: '12999990001' }] });
+    assert.equal(r.status, 400);
+    r = await s.chamar('atendente', 'POST', '/api/campanhas/previa', { corpo: 'Oi', destinos: [{ id: ID(1), nome: 'A', telefone: '12999990001' }], evitar_dias: 999999, enviar_em: 'lixo' });
+    assert.equal(r.status, 400, 'data inválida');
+    r = await s.chamar('atendente', 'POST', '/api/campanhas/previa', { corpo: 'Oi', destinos: [{ id: ID(1), nome: 'A', telefone: '12999990001' }], evitar_dias: 999999 });
+    assert.equal(r.status, 200); assert.equal(r.json.total, 1);
+    const muitos = Array.from({ length: 3000 }, (_, i) => ({ id: ID(5000 + i), nome: `N${i}`, telefone: `1298${String(1000000 + i)}` }));
+    r = await s.chamar('atendente', 'POST', '/api/campanhas/previa', { corpo: 'Oi {primeiro_nome}', destinos: muitos });
+    assert.equal(r.status, 200); assert.ok(r.json.total <= 2000, `total ${r.json.total}`); assert.ok(r.json.linhas.length <= 8);
+    r = await s.chamar('atendente', 'POST', '/api/campanhas/previa', { corpo: 'Oi', segmento: { filtro: 'inventado' } });
+    assert.equal(r.status, 400);
+  } finally { await s.fechar(); }
+});

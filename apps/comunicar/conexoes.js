@@ -268,7 +268,9 @@ export const DOMINIOS_DA_CASA = [
 ];
 /** Links do texto que NÃO são da casa (nem Google/Maps/WhatsApp/Instagram). Variáveis {link_*} ficam de fora. */
 export function linksForaDaCasa(texto, permitidos = DOMINIOS_DA_CASA) {
-  const achados = String(texto || '').match(/https?:\/\/[^\s)>\]]+|(?:^|\s)(?:www\.)[^\s)>\]]+/gi) || [];
+  /* além de https://… e www.…, pega endereço "pelado" (evil.com/oferta, bit.ly/x): o WhatsApp transforma em link clicável do mesmo jeito.
+     Não pega e-mail (precedido de @) nem nome de arquivo comum. */
+  const achados = String(texto || '').match(/https?:\/\/[^\s)>\]]+|(?:^|\s)(?:www\.)[^\s)>\]]+|(?<![@\w.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|br|io|app|me|link|xyz|top|co|info|shop|site|online|ly|gl|cc|tk|ml|ga|cf|gq|club|vip|store|biz|dev|page|click|live|cloud|ru|cn|in)(?![a-z0-9-])(?:\/[^\s)>\]]*)?/gi) || [];
   const fora = [];
   for (const bruto of achados) {
     const url = bruto.trim();

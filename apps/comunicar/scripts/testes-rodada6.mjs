@@ -282,3 +282,24 @@ test('resultados: o crédito vai para a ÚLTIMA mensagem antes do evento; faturo
   const porLote = C.resumirResultados(envios, r, (e) => (e.tipo === 'campanha' ? 'lote1' : null));
   assert.deepEqual(Object.keys(porLote), ['lote1']);
 });
+
+// ---------------------------------------------------------------- passada do atacante: link de fora
+test('links de fora: pega https, www e endereço "pelado" (bit.ly/x, evil.com/oferta) — e não confunde com e-mail ou domínio da casa', () => {
+  const fora = (t) => C.linksForaDaCasa(t);
+  assert.equal(fora('Veja https://indycar-orcador.netlify.app/#/o/abcdefabcdef12 e https://g.page/r/indycar').length, 0);
+  assert.equal(fora('Avalie em g.page/r/indycar/review e fale com wa.me/5512999990001 ou instagram.com/indycar').length, 0);
+  assert.deepEqual(fora('Olha: evil.com/oferta').map((x) => x.split('/')[0]), ['evil.com']);
+  assert.equal(fora('encurtado bit.ly/3abcde').length, 1);
+  assert.equal(fora('www.promo-estranha.xyz/ganhe').length, 1);
+  assert.equal(fora('HTTPS://EVIL.COM/x').length, 1);
+  assert.equal(fora('https://indycar-patio.netlify.app.evil.com/acompanhar').length, 1, 'domínio da casa como prefixo de um golpe');
+  assert.equal(fora('https://google.com.evil.com').length, 1);
+  assert.equal(fora('https://evilgoogle.com').length, 1);
+  assert.equal(fora('https://g.page.evil.net/r').length, 1);
+  assert.equal(fora('https://google.com@evil.com/x').length, 1, 'o endereço de verdade vem depois do @');
+  assert.equal(fora('https://gооgle.com/x').length, 1, 'letra russa no lugar do o');
+  assert.equal(fora('fale pelo contato@oficina.com.br').length, 0, 'e-mail não é link');
+  assert.equal(fora('Seu {link_orcamento} e {link_os} estão prontos. R$ 1.500,00 em 3x. Chegue às 09.30h.').length, 0);
+  assert.equal(fora('Frase com ponto final em evil.com.').length, 1);
+  assert.equal(fora('').length + fora(null).length, 0);
+});

@@ -1638,3 +1638,10 @@ textarea.invalido,.r6-param .inp.invalido{border-color:var(--red-2)!important}
   .r6-it-acoes{justify-content:flex-start}
   .r6-itens li{flex-wrap:wrap}
 }
+
+/* rodada 6 · passada do atacante: texto comprido sem espaço (nome, link, tipo) nunca estoura a tela */
+.r6-painel,.r6-dias,.r6-itens,.r6-passos,.r6-res-linha,.r6-exata,.r6-linkfora,.r6-sim-bloco,.r6-veredito{overflow-wrap:anywhere}
+.r6-dias .chip,.r6-dias .badge-pill,.r6-cons .badge-pill{white-space:normal;max-width:100%;overflow-wrap:anywhere;text-align:left}
+.r6-dia>summary{min-width:0}
+.r6-it-txt b,.r6-res-nome b,.r6-dia-nome{overflow-wrap:anywhere;min-width:0}
+.r6-ag-topo .badge-pill,.r6-avisos .badge-pill{white-space:normal;max-width:100%;overflow-wrap:anywhere;text-align:left}

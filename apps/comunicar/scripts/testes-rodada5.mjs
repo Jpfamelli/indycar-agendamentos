@@ -96,7 +96,7 @@ test('CodeWords falso: sucesso só com "success"; 401 = chave recusada (estrutur
     const cfg = { api_key: 'chave-boa', servico: 'whatsapp_device_manager', base: cw.base, device_id: 'dev1' };
     await fetch(`${cw.base}/aquecer`); // a 1ª conexão local pode passar de 150 ms com a máquina ocupada (teste intermitente)
     cw.chamadas.length = 0;
-    const wa = criarWhatsApp({ configWhatsapp: async () => cfg, timeoutEnvioMs: 150 });
+    const wa = criarWhatsApp({ configWhatsapp: async () => cfg, timeoutEnvioMs: 5000 });   // folgado: a máquina ocupada não pode derrubar o teste
     let r = await wa.enviar('12999990001', 'Oi!');
     assert.equal(r.ok, true);
     const ultima = cw.chamadas.at(-1);
@@ -114,7 +114,7 @@ test('CodeWords falso: sucesso só com "success"; 401 = chave recusada (estrutur
     assert.equal(r.classe, 'instabilidade'); assert.equal(r.estrutural, false);
     cw.modo = 'limite'; r = await wa.enviar('12999990001', 'Oi!');
     assert.equal(r.classe, 'limite');
-    cw.modo = 'lento'; r = await wa.enviar('12999990001', 'Oi!');
+    cw.modo = 'lento'; r = await criarWhatsApp({ configWhatsapp: async () => cfg, timeoutEnvioMs: 150 }).enviar('12999990001', 'Oi!');   // só aqui o prazo curto é o ponto do teste
     // 16/10: timeout DEPOIS do pedido = não sabemos se chegou (não re-tenta sozinho)
     assert.equal(r.classe, 'sem_confirmacao', 'timeout = sem confirmação'); assert.equal(r.semConfirmacao, true); assert.match(r.erro, /Não sabemos se chegou/);
     assert.equal(r.estrutural, false); assert.equal(r.definitivo, false);

@@ -240,3 +240,42 @@ test('nenhuma chamada saiu para a rede de verdade durante os testes', () => {
   assert.ok(banco.log.length > 20);
   assert.ok(banco.log.every((l) => typeof l.nome === 'string'));
 });
+
+// ---------------------------------------------------------------- passada de ponta a ponta: Agenda × Pátio no mesmo horário
+test('mesmo horário na Agenda e no Pátio com nota BAIXA: a Agenda não manda a pergunta por cima (um só registro, pulado)', async () => {
+  limpar(); config();
+  const ag = ID(910);
+  tabelas.patio_os = [os(20, { agendamento_id: ag })]; tabelas.clientes = [cliente(20)];
+  tabelas.patio_avaliacoes = [{ os_id: ID(20), nota: 2 }];
+  tabelas.agendamentos = [{ id: ag, cliente_id: ID(120), cliente_nome: 'Cliente 20', telefone: tel(20), servico: 'Freios', veiculo: 'Gol', placa: 'ABC1D23', data: D.somarDias(H, -2), hora: '10:00', status: 'concluido' }];
+  await D.gerarTudo({ so: 'posvenda' });
+  const linhas = envios().filter((e) => e.chave_unica === `posvenda:${ag}`);
+  assert.equal(linhas.length, 1);
+  assert.equal(linhas[0].status, 'pulado');
+  assert.equal(envios().filter((e) => e.status === 'pendente').length, 0, 'nada pendente para o cliente que reclamou');
+});
+
+test('mesmo horário com nota ALTA: vai só o convite do Google; o "ficou tudo certo?" fica registrado como pulado', async () => {
+  limpar(); config();
+  const ag = ID(911);
+  tabelas.patio_os = [os(21, { agendamento_id: ag })]; tabelas.clientes = [cliente(21)];
+  tabelas.patio_avaliacoes = [{ os_id: ID(21), nota: 5 }];
+  tabelas.agendamentos = [{ id: ag, cliente_id: ID(121), cliente_nome: 'Cliente 21', telefone: tel(21), servico: 'Freios', veiculo: 'Gol', placa: 'ABC1D23', data: D.somarDias(H, -2), hora: '10:00', status: 'concluido' }];
+  await D.gerarTudo({ so: 'posvenda' });
+  const pend = envios().filter((e) => e.status === 'pendente');
+  assert.equal(pend.length, 1); assert.equal(pend[0].tipo, 'avaliacao');
+  assert.equal(envios().find((e) => e.chave_unica === `posvenda:${ag}`).status, 'pulado');
+  await D.gerarTudo({ so: 'posvenda' });
+  assert.equal(envios().length, 2, 'rodar de novo não cria nada');
+});
+
+test('a prévia (simulação) também respeita: nota baixa no Pátio tira o pós-venda da Agenda da lista', async () => {
+  limpar(); config();
+  const ag = ID(912);
+  tabelas.patio_os = [os(22, { agendamento_id: ag })]; tabelas.clientes = [cliente(22)];
+  tabelas.patio_avaliacoes = [{ os_id: ID(22), nota: 1 }];
+  tabelas.agendamentos = [{ id: ag, cliente_id: ID(122), cliente_nome: 'Cliente 22', telefone: tel(22), servico: 'Freios', veiculo: 'Gol', placa: 'ABC1D23', data: D.somarDias(H, -2), hora: '10:00', status: 'concluido' }];
+  const r = await D.gerarTudo({ so: 'posvenda', simular: true });
+  assert.equal(r.previa.filter((x) => x.tipo === 'posvenda').length, 0);
+  assert.equal(envios().length, 0, 'simulação não grava nada');
+});

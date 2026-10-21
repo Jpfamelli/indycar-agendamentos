@@ -388,6 +388,7 @@ export function criarApi(deps) {
   rota('POST', '/api/campanhas/previa', async ({ res, usuario, body }) => {
     const corpo = String(body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');
+    if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).');
     const destinos = await resolverDestinos(body);
     if (destinos === null) return bad(res, 'Segmento desconhecido.');
     if (!destinos.length) return bad(res, 'Escolha pelo menos um cliente.');

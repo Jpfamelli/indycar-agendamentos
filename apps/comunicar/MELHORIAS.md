@@ -731,3 +731,15 @@ Lote 3 — a tela (rodada6.js; ganchos pequenos no app.js; tudo com esc() e test
 152. Versão 6.0.0 em tudo (servidor, pacote, página, service worker com `rodada6.js` no cache, mock) e o teste confere.
 153. 🔗 Cada lote nos resultados guarda quando saiu, o tipo e o começo do texto (`descreverLotes`) — a tela diz "campanha de 14/10: Oi, tudo bem…" em vez de um código.
 154. Roteiro de navegador `scripts/navegador-rodada6.mjs` (gestor e atendente, 1440 e 375 px, sem rolagem lateral, zero erro de console) e o mock com as rotas novas.
+
+Lote 4 — três passadas de caça a bug (celular 375 px · atacante · ponta a ponta com os outros sistemas)
+
+155. Passada do celular: cada modal novo (agenda, por que não saiu, adiar, simular, resultados, prévia da campanha) conferido a 375 px sem rolagem lateral — inclusive com nome, tipo e link compridos sem espaço (`overflow-wrap`).
+156. Passada do atacante no navegador (`navegador-rodada6-ataque.mjs`): toda resposta nova da API vem recheada de HTML e JavaScript; nada executa e nada vira elemento, em 1440 e 375 px.
+157. Bug real: link "pelado" no texto da campanha (`evil.com/oferta`, `bit.ly/x`) passava pela proteção de link de fora; agora é pego. Testados golpe com domínio da casa como prefixo, `@`, letra russa e `www.`; e-mail, "R$ 1.500,00" e horários não dão falso alarme.
+158. Bug real: a prévia da campanha não limitava o tamanho do texto (aceitava 100 KB); agora 400 acima de 2.000 caracteres, igual ao envio.
+159. API sob ataque: datas, tipos e ids com lixo ou injeção de filtro (`)or(1.eq.1`, `;drop table`, `%00`, `../`) viram 400 ou 404, nunca 500 nem outro lote; destinos acima de 2.000 são cortados; "não repetir" fora da faixa é limitado.
+160. 🔗 Conferido no banco REAL (só leitura): as 71 colunas que as leituras novas usam existem no Pátio, no Orçador, no CRM e na Agenda; RLS ligado sem política (só o servidor lê); a função do gatilho tem `search_path` vazio, não é SECURITY DEFINER e o anon não executa; `get_advisors` sem aviso novo.
+161. 🔗 Bug real de ponta a ponta: o "ficou tudo certo?" da Agenda saía POR CIMA da nota baixa que o cliente deu no Pátio (e do convite do Google já mandado) quando o horário era o mesmo, porque os geradores rodavam na ordem errada. Agora o Pátio vai primeiro e segura a mesma chave `posvenda:<horário>` (pulado com o motivo), também na prévia; 3 testes que falham sem a correção.
+162. 🔗 Formato do telefone conferido no banco real: `telefone_e164` dos envios e das mensagens é o número SEM o 55 — as conferências (reclamação, texto repetido) e os testes usam esse formato.
+163. 🔗 Reclamação aberta confirmada contra os dados reais: `tarefas.status = 'aberta'` e `posvenda_envios.resposta_tipo = 'negativa'` são os valores que a conferência usa.

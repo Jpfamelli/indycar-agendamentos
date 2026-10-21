@@ -1034,8 +1034,10 @@ async function posvendaDaAgenda(cfg, porteiro, ctx) {
 
 /** Pós-venda: a Agenda (serviço concluído) e, desde a rodada 6, o Pátio (carro entregue) — a mesma chave impede duas mensagens. */
 export async function gerarPosvenda(cfg, porteiro, ctx) {
-  await posvendaDaAgenda(cfg, porteiro, ctx);
+  /* o Pátio vem PRIMEIRO: ele sabe a nota que o cliente deu. Com nota baixa grava o "pulado" (e com nota alta, o convite do Google)
+     sob a MESMA chave `posvenda:<horário>` — a Agenda, logo depois, bate na chave e não manda a pergunta por cima. */
   await comAviso(ctx, 'posvenda_patio', () => posvendaDoPatio(cfg, porteiro, ctx));
+  await posvendaDaAgenda(cfg, porteiro, ctx);
 }
 
 /** Visitas posteriores por cliente (qualquer status que não seja falta/cancelamento). */
@@ -2616,11 +2618,18 @@ async function posvendaDoPatio(cfg, porteiro, ctx) {
     if (d.acao === 'avaliacao') {
       const corpo = renderTemplate(cfg.msg_avaliacao, { ...vars, link_avaliacao: cfg.link_avaliacao });
       await entregarAoPorteiro(porteiro, { ...base, tipo: 'avaliacao', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: d.chave }, ctx);
+      /* quem já foi direto ao convite do Google não recebe também o "ficou tudo certo?" que a Agenda geraria para o mesmo horário */
+      if (os.agendamento_id) {
+        const chavePv = conexoes.chavePosvendaPatio(os);
+        ctx.vistas ||= new Set(); ctx.vistas.add(chavePv);
+        if (!ctx.simular) await enfileirar({ ...base, tipo: 'posvenda', corpo: renderTemplate(cfg.msg_posvenda, vars), status: 'pulado', motivo_pulado: 'o cliente já deu nota alta no Pátio: foi direto ao convite do Google', chave_unica: chavePv }).catch(() => null);
+      }
       continue;
     }
     const corpo = await corpoDaRegua(cfg.msg_posvenda, vars, { cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, os }, ctx, info);
     if (corpo === null) continue;
     if (d.acao === 'pular') {
+      ctx.vistas ||= new Set(); ctx.vistas.add(d.chave);   // vale também na prévia: a Agenda não repete o que o Pátio segurou
       if (!ctx.simular) await enfileirar({ ...base, tipo: 'posvenda', corpo, status: 'pulado', motivo_pulado: d.motivo, chave_unica: d.chave }).catch(() => null);
       ctx.pulados.push({ ...info, corpo, motivo: d.motivo, definitivo: true });
       continue;
