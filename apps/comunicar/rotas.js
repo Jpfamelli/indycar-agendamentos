@@ -19,6 +19,7 @@ import * as prontidao from './prontidao.js';
 import * as projecao from './projecao.js';
 import * as aniv from './aniversarios.js';
 import * as patio from './patio.js';
+import * as conexoes from './conexoes.js';
 import { montarSaude } from './whatsapp.js';
 
 const LIMITE_AREA = 300;      // convite da Área do Cliente: um link (rpc) por pessoa
@@ -86,16 +87,17 @@ export function criarApi(deps) {
     Promise.resolve(dados.auditar?.(u?.id || null, acao, tabela, registro, detalhes)).catch(() => null);
 
   /** Enfileira a campanha (já aprovada ou feita por gestor). Rodada 5: respeita o limite diário (escalona nos dias seguintes). */
-  async function executarCampanha({ corpo, detalhe, destinos, enviarEm, criador, campanhaId = null }) {
+  async function executarCampanha({ corpo, detalhe, destinos, enviarEm, criador, campanhaId = null, simular = false, evitarDias = 0 }) {
     const cfg = (await Promise.resolve(dados.obterConfig?.()).catch(() => null)) || {};
     const porteiro = await dados.carregarPorteiro({ intervalo_minimo_dias: 0 });
     const lote = randomUUID();
     const linhas = [];
-    const pulados = { total: 0, nao_quer: 0, sem_link: 0 };
+    const pulados = { total: 0, nao_quer: 0, sem_link: 0, recente: 0 };
+    const recentes = evitarDias > 0 ? await dados.recebeuCampanhaRecente?.(evitarDias).catch(() => null) : null;
     // Pátio (16/10): {link_area} = convite da Área do Cliente, um link NOVO por cliente
     const area = patio.usaLinkArea(corpo);
     const tipo = area ? 'area_cliente' : 'campanha';
-    const links = area ? await linksDaArea(destinos) : null;
+    const links = area ? (simular ? new Map(destinos.map((d) => [d.cliente_id ?? d.id ?? null, `${patio.PATIO_URL}/minha/?c=(link-do-cliente)`])) : await linksDaArea(destinos)) : null;
     const vistosTel = new Set();
     for (const d of destinos) {
       const clienteId = d.cliente_id ?? d.id ?? null;
@@ -105,12 +107,14 @@ export function criarApi(deps) {
       if (!telN || telN.length < 10 || vistosTel.has(telN)) { pulados.total++; pulados.invalido = (pulados.invalido || 0) + 1; continue; }
       const v = porteiro.podeReceber({ cliente_id: clienteId, telefone: d.telefone, tipo });
       if (!v.ok) { pulados.total++; pulados.nao_quer++; continue; }
+      // rodada 6: quem recebeu campanha há pouco fica de fora quando a pessoa pediu "não repetir"
+      if (recentes && ((clienteId && recentes.ids.has(clienteId)) || recentes.tels.has(telN))) { pulados.total++; pulados.recente++; continue; }
       const linkArea = area ? links.get(clienteId) : '';
       if (area && !linkArea) { pulados.total++; pulados.sem_link++; continue; }   // sem cadastro de cliente não dá para gerar o link
       vistosTel.add(telN);
       linhas.push({
         cliente_id: clienteId, telefone: d.telefone, nome: d.nome ?? null, tipo,
-        corpo: dados.renderTemplate(corpo, { nome: d.nome, carro: d.carro, placa: d.placa, detalhe: detalhe || '', link_area: linkArea }),
+        corpo: dados.renderTemplate(corpo, { nome: d.nome, carro: d.carro, placa: d.placa, servico: d.servico || '', detalhe: detalhe || '', link_area: linkArea }),
         enviar_em: enviarEm, criado_por: criador?.nome || null, criado_por_id: criador?.id || null, lote, campanha_id: campanhaId,
       });
     }
@@ -122,6 +126,7 @@ export function criarApi(deps) {
       limitePorDia: cfg.limite_por_dia || 300, jaHoje, inicioIso: enviarEm, hoje: diaDoEnvio,
       horaEnvio: cfg.hora_envio || '09:30', enviaDomingo: !!cfg.envia_domingo, feriado: dados.feriado || (() => null),
     });
+    if (simular) return { simulado: true, total: dist.linhas.length, pulados: pulados.total, puladosDetalhe: pulados, dias: dist.dias, porDia: dist.porDia, limitePorDia: cfg.limite_por_dia || 300, tipo, linhas: dist.linhas.slice(0, 8).map((l) => ({ nome: l.nome, telefone: l.telefone, corpo: l.corpo, enviar_em: l.enviar_em })) };
     const enfileirados = dist.linhas.length ? await dados.enfileirarVarios(dist.linhas) : 0;
     return { enfileirados, pulados: pulados.total, puladosDetalhe: pulados, lote, dias: dist.dias, porDia: dist.porDia, limitePorDia: cfg.limite_por_dia || 300 };
   }
@@ -379,6 +384,58 @@ export function criarApi(deps) {
     return ok(res, { cliente: { id: c.id, nome: c.nome, telefone: c.telefone, carro: c.carro, placa: c.placa }, agendamento: a, texto: dados.renderTemplate(corpo, vars), vars, falta, regua });
   });
 
+  // ---- rodada 6: prévia EXATA da campanha (as mesmas linhas que seriam enfileiradas, sem gravar nada) ----
+  rota('POST', '/api/campanhas/previa', async ({ res, usuario, body }) => {
+    const corpo = String(body.corpo ?? '').trim();
+    if (!corpo) return bad(res, 'Escreva a mensagem.');
+    const destinos = await resolverDestinos(body);
+    if (destinos === null) return bad(res, 'Segmento desconhecido.');
+    if (!destinos.length) return bad(res, 'Escolha pelo menos um cliente.');
+    const enviarEm = body.enviar_em ? new Date(body.enviar_em) : new Date(relogio());
+    if (Number.isNaN(enviarEm.getTime())) return bad(res, 'Data de envio inválida.');
+    const r = await executarCampanha({ corpo, detalhe: body.detalhe ? String(body.detalhe).slice(0, 200) : '', destinos, enviarEm: enviarEm.toISOString(), criador: usuario, simular: true, evitarDias: Math.min(Math.max(Number(body.evitar_dias) || 0, 0), 90) });
+    return ok(res, { ...r, linksForaDaCasa: conexoes.linksForaDaCasa(corpo), caminho: auto.destinoDoPedido(usuario, destinos.length) });
+  });
+
+  // ---- rodada 6: agenda de envios, por que não saiu, simular rodada, resultados, conexões ----
+  rota('GET', '/api/agenda', async ({ res }) => ok(res, await emCache('agenda', 10_000, () => dados.agendaDeEnvios())));
+  rota('POST', `/api/envios/${U}/adiar`, async ({ res, usuario, body, url }) => {
+    const id = idDe(url.pathname);
+    if (!(await podeMexerNoEnvio(usuario, id))) return proibido(res, 'cancelar_qualquer');
+    const r = await dados.adiarManual(id, body.enviar_em);
+    if (!r.ok) return send(res, r.status || 400, { erro: r.erro });
+    esquecerCache('agenda', 'fila', 'resumo');
+    auditar(usuario, 'envio_adiado', 'posvenda_envios', id, { para: r.quando });
+    return ok(res, r);
+  });
+  rota('GET', `/api/envios/${U}/porque`, async ({ res, url }) => {
+    const r = await dados.explicarEnvio(idDe(url.pathname));
+    return r ? ok(res, r) : naoAchou(res);
+  });
+  rota('POST', '/api/rodada/simular', async ({ res, usuario }) => {
+    if (!carteiro.simular) return send(res, 503, { erro: 'A simulação não está disponível neste servidor.' });
+    const r = await carteiro.simular();
+    auditar(usuario, 'rodada_simulada', 'posvenda_envios', null, { sairiam: r.enviaria?.length || 0 });
+    return ok(res, r);
+  });
+  const periodoDe = (url) => {
+    const de = url.searchParams.get('de') || null, ate = url.searchParams.get('ate') || null;
+    return { de, ate, invertido: !!(de && ate && de > ate) };
+  };
+  rota('GET', '/api/resultados', async ({ res, url }) => {
+    const p = periodoDe(url);
+    if (p.invertido) return bad(res, 'O "de" precisa vir antes do "até".');
+    const tipo = url.searchParams.get('regua') || null;
+    if (tipo && tipo !== 'todas' && !dados.TIPOS_ENVIO.includes(tipo)) return bad(res, 'Régua desconhecida.');
+    return ok(res, await emCache(`res:${p.de}:${p.ate}:${tipo}`, 60_000, () => dados.resultados({ de: p.de, ate: p.ate, tipo })));
+  });
+  rota('GET', `/api/lotes/${U}/resultado`, async ({ res, url }) => {
+    const lote = idDe(url.pathname);
+    const r = await dados.resultados({ de: url.searchParams.get('de') || '2020-01-01', ate: url.searchParams.get('ate') || null, lote });
+    return ok(res, { lote, ...(r.porLote[lote] || r.total), periodo: r.periodo, regra: r.regra });
+  });
+  rota('GET', '/api/conexoes', async ({ res }) => ok(res, await emCache('conexoes', 30_000, () => dados.statusDasConexoes())));
+
   // ---- fila ----
   const filtrosEnvios = (sp, limite) => ({
     status: sp.get('status') || undefined, tipo: sp.get('tipo') || undefined, q: String(sp.get('q') || '').slice(0, 80) || undefined,
@@ -399,6 +456,14 @@ export function criarApi(deps) {
     if (destinos === null) return bad(res, 'Segmento desconhecido.');
     if (!destinos.length) return bad(res, 'Escolha pelo menos um cliente.');
     const detalhe = body.detalhe ? String(body.detalhe).slice(0, 200) : '';
+    /* rodada 6: link de fora da casa em mensagem para clientes é risco de golpe/spam — só o gestor, e confirmando. */
+    const foraDaCasa = conexoes.linksForaDaCasa(corpo);
+    if (foraDaCasa.length) {
+      if (!A.ehGestor(usuario)) return send(res, 403, { erro: `O texto tem link de fora da IndyCar (${foraDaCasa[0]}). Peça ao gestor para enviar.`, codigo: 'link_externo', links: foraDaCasa });
+      if (body.confirmar_links_externos !== true) return send(res, 409, { erro: `O texto tem link de fora da IndyCar (${foraDaCasa[0]}). Confirme para enviar mesmo assim.`, codigo: 'link_externo', links: foraDaCasa });
+      auditar(usuario, 'link_externo_confirmado', 'posvenda_envios', null, { links: foraDaCasa });
+    }
+    const evitarDias = Math.min(Math.max(Number(body.evitar_dias) || 0, 0), 90);
     if (patio.usaLinkArea(corpo) && destinos.length > LIMITE_AREA) {
       return bad(res, `O convite da Área do Cliente gera um link por pessoa: no máximo ${LIMITE_AREA} clientes por vez.`);
     }
@@ -445,7 +510,7 @@ export function criarApi(deps) {
     }
 
     esquecerCache('resumo', 'fila');
-    const r = await executarCampanha({ corpo, detalhe, destinos, enviarEm: enviarEm.toISOString(), criador: usuario });
+    const r = await executarCampanha({ corpo, detalhe, destinos, enviarEm: enviarEm.toISOString(), criador: usuario, evitarDias });
     if (dados.ehUuid(body.segmento_salvo_id)) dados.marcarSegmentoUsado?.(body.segmento_salvo_id).catch(() => null);
     auditar(usuario, 'campanha_enviada', 'posvenda_envios', r.lote, { total: destinos.length, enfileirados: r.enfileirados, pulados: r.pulados, dias: r.dias, segmento: body.segmento || null });
     return ok(res, { ok: true, ...r });

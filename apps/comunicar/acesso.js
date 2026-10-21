@@ -174,6 +174,15 @@ export const ROTAS = [
   ['GET',    `/api/envios/${U}/ligacoes`,                { perm: 'ver' }],
   ['GET',    '/api/relatorio/reguas',                    { perm: 'ver' }],
   ['GET',    '/api/previa/mensagem',                     { perm: 'ver' }],
+  // rodada 6
+  ['GET',    '/api/agenda',                              { perm: 'ver' }],
+  ['POST',   `/api/envios/${U}/adiar`,                  { perm: 'cancelar_proprio' }],
+  ['GET',    `/api/envios/${U}/porque`,                 { perm: 'ver' }],
+  ['POST',   '/api/rodada/simular',                      { perm: 'rodar', caro: true }],
+  ['GET',    '/api/resultados',                          { perm: 'ver' }],
+  ['GET',    `/api/lotes/${U}/resultado`,               { perm: 'ver' }],
+  ['GET',    '/api/conexoes',                            { perm: 'ver' }],
+  ['POST',   '/api/campanhas/previa',                    { perm: 'ver', caro: true }],
 ].map(([metodo, padrao, regra]) => ({ metodo, padrao, re: new RegExp(`^${padrao}$`), ...regra }));
 
 /** A regra da rota (ou null = não existe). `metodoErrado` quando o caminho existe com outro método. */

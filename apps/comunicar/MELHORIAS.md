@@ -688,3 +688,22 @@ Lote 1 — segurança
 119. Textos novos validados por código (variável desconhecida, link obrigatório, chave solta, vocabulário proibido).
 
 Verificação do lote 1: `npm test` 172 verdes (20 novos em testes-rodada6); migração aplicada e gatilho testado em DO-block revertido (`TESTE_REVERTIDO`).
+
+Lote 2 — agenda, diagnóstico, resultados e conexões (API + dados; tela no lote 3)
+
+120. **Agenda de envios** (`GET /api/agenda`): tudo que está na fila agrupado por dia (fuso da oficina), com o teto diário, domingo e feriado calculados.
+121. **Adiar à mão** (`POST /api/envios/:id/adiar`): só mensagem pendente, nunca além da validade; atendente só adia as que ele mesmo criou; auditado.
+122. **"Por que não saiu"** (`GET /api/envios/:id/porque`): monta o contexto de agora e usa a mesma ordem de decisão do carteiro (pausa, janela, limite, PARAR, carro na oficina, reclamação, texto repetido, feriado, WhatsApp).
+123. **Simular a rodada** (`POST /api/rodada/simular`, só quem pode rodar o carteiro): devolve o que sairia, pularia, adiaria e reagendaria; teste prova que o banco fica intacto.
+124. 🔗 **Resultados** (`GET /api/resultados`, `GET /api/lotes/:id/resultado`): respondeu → agendou → voltou → faturou por régua e por lote; cada visita, orçamento aprovado ou serviço pago vai para a ÚLTIMA mensagem dos 30 dias anteriores; faturou = maior entre Agenda, CRM e Orçador (o mesmo serviço aparece nos três).
+125. Mensagens de teste (`criado_por = 'teste'`) não entram nos resultados; período invertido e régua desconhecida viram 400.
+126. 🔗 **Conexões** (`GET /api/conexoes`): números reais do Pátio (entregues, na oficina, extras esperando, avaliações), do Orçador (enviados, parados) e do CRM (leads em orçamento), dizendo o que está ligado.
+127. **Prévia exata da campanha** (`POST /api/campanhas/previa`): as mesmas linhas que seriam enfileiradas (nome, texto final, dia), repetidos e inválidos contados, sem gravar nada.
+128. **"Não repetir para quem recebeu campanha há N dias"** (`evitar_dias`, até 90): conta em `pulados.recente`, na prévia e no envio.
+129. **Link de fora da IndyCar** no texto de mensagem para clientes: atendente recebe 403; gestor recebe 409 até confirmar; a confirmação fica na auditoria. Links da casa (Orçador, Pátio, Google) passam.
+130. 🔗 **Segmentos novos** vindos dos outros sistemas: carro entregue no Pátio, nota 4–5 no Pátio, extra recusado, orçamento sem resposta, orçamento recusado, leads em orçamento, leads perdidos e quem indicou.
+131. Bug de risco: cliente sem cadastro (avulso) agora também respeita o PARAR pelo telefone (antes só pelo id) — `peneirarSegmento` com `optOutTels`.
+132. 🔗 Orçamento do Orçador sem link público é pulado com o motivo (nunca sai texto sem o link prometido).
+133. `esquecerConfigDoPatio()` e um **banco falso** (`scripts/banco-falso.mjs`): os testes rodam os geradores, a rodada do carteiro e a API de verdade, sem rede e sem produção.
+
+Verificação do lote 2: 35 testes novos (geradores 18, carteiro 9, API 8) ponta a ponta com o banco falso — pós-venda/avaliação/revisão do Pátio, orçamento visto e não visto, extra pendente, PARAR, carro na oficina, reclamação aberta, texto repetido, retomada gradual, sem confirmação sem reenvio, rotas novas e permissões.

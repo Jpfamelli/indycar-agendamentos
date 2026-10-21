@@ -1292,7 +1292,30 @@ export const SEGMENTOS = [
   { id: 'sem_voltar', rotulo: 'Sem voltar há mais de N meses', valor: 6, unidade: 'meses' },
   { id: 'faltaram', rotulo: 'Faltaram nos últimos 30 dias' },
   { id: 'servico', rotulo: 'Fizeram um serviço (palavra)', valor: 'óleo', unidade: 'texto' },
+  // rodada 6: públicos que nascem nos outros sistemas
+  { id: 'entregues_patio', rotulo: 'Carro entregue no Pátio nos últimos N dias', valor: 30, unidade: 'dias', fonte: 'patio' },
+  { id: 'nota_alta_patio', rotulo: 'Deram nota 4 ou 5 no Pátio nos últimos N dias (bons para pedir avaliação no Google)', valor: 60, unidade: 'dias', fonte: 'patio' },
+  { id: 'extra_recusado_patio', rotulo: 'Recusaram um extra no Pátio nos últimos N dias', valor: 90, unidade: 'dias', fonte: 'patio' },
+  { id: 'orcamento_sem_resposta', rotulo: 'Orçamento enviado e sem resposta há mais de N dias (Orçador)', valor: 3, unidade: 'dias', fonte: 'orcador' },
+  { id: 'orcamento_recusado', rotulo: 'Recusaram um orçamento nos últimos N dias (Orçador)', valor: 60, unidade: 'dias', fonte: 'orcador' },
+  { id: 'leads_orcamento', rotulo: 'Leads em "orçamento" no CRM há mais de N dias', valor: 7, unidade: 'dias', fonte: 'crm' },
+  { id: 'leads_perdidos', rotulo: 'Leads perdidos no CRM há mais de N dias', valor: 60, unidade: 'dias', fonte: 'crm' },
+  { id: 'indicaram', rotulo: 'Clientes que indicaram amigos (para agradecer)', fonte: 'crm' },
 ];
+
+/** Cliente "de mentira" para quem só existe no Pátio/Orçador/CRM (sem cadastro em clientes): o telefone é a chave. */
+function candidatoAvulso({ id = null, nome, telefone, carro = null, placa = null, servico = null }) {
+  return { id, nome, telefone, carro, carro_modelo: carro, placa, servico, email: null, nascimento: null, aceita_mensagens: true, avulso: true };
+}
+/** Une cadastro e origem: o cadastro (com opt-out) vale quando existe; senão entra como avulso pelo telefone. */
+async function candidatosPorOrigem(linhas) {
+  const ids = linhas.map((l) => l.cliente_id).filter(ehUuid);
+  const cadastro = new Map((await clientesPorIds(ids)).map((c) => [c.id, c]));
+  return linhas.map((l) => {
+    const c = l.cliente_id ? cadastro.get(l.cliente_id) : null;
+    return c ? { ...c, servico: l.servico || null } : candidatoAvulso({ nome: l.nome, telefone: l.telefone, carro: l.carro, placa: l.placa, servico: l.servico });
+  });
+}
 
 /** Os candidatos BRUTOS de um segmento (antes de tirar opt-out, sem telefone e repetidos). */
 async function candidatosDoSegmento(filtro, valor) {
@@ -1334,6 +1357,48 @@ async function candidatosDoSegmento(filtro, valor) {
       const ags = await selecionarTudo(T.agendamentos, p);
       return clientesPorIds(ags.map((a) => a.cliente_id));
     }
+    case 'entregues_patio': {
+      const dias = Math.min(Math.max(Number(valor) || 30, 1), 730);
+      const oss = await ordensEntregues(somarDias(h, -dias), h);
+      return candidatosPorOrigem(oss.map((o) => ({ cliente_id: o.cliente_id, nome: o.cliente_nome, telefone: o.telefone, carro: o.veiculo, placa: o.placa, servico: o.servico })));
+    }
+    case 'nota_alta_patio': {
+      const dias = Math.min(Math.max(Number(valor) || 60, 1), 730);
+      const av = await selecionarTudo('patio_avaliacoes', `select=os_id,cliente_id,nota&nota=gte.4&created_at=gte.${encodeURIComponent(instanteSP(somarDias(h, -dias), '00:00').toISOString())}`);
+      const oss = new Map();
+      for (let i = 0; i < av.length; i += 60) for (const o of await selecionar('patio_os', `select=${OS_SEL}&id=in.(${av.slice(i, i + 60).map((a) => a.os_id).join(',')})`)) oss.set(o.id, o);
+      return candidatosPorOrigem(av.map((a) => { const o = oss.get(a.os_id) || {}; return { cliente_id: a.cliente_id || o.cliente_id, nome: o.cliente_nome, telefone: o.telefone, carro: o.veiculo, placa: o.placa, servico: o.servico }; }));
+    }
+    case 'extra_recusado_patio': {
+      const dias = Math.min(Math.max(Number(valor) || 90, 1), 730);
+      const ex = await selecionarTudo('patio_extras', `select=os_id,descricao&status=eq.recusado&decidido_em=gte.${encodeURIComponent(instanteSP(somarDias(h, -dias), '00:00').toISOString())}`);
+      const oss = [];
+      const ids = [...new Set(ex.map((e) => e.os_id))];
+      for (let i = 0; i < ids.length; i += 60) oss.push(...await selecionar('patio_os', `select=${OS_SEL}&id=in.(${ids.slice(i, i + 60).join(',')})`));
+      const desc = new Map(ex.map((e) => [e.os_id, e.descricao]));
+      return candidatosPorOrigem(oss.map((o) => ({ cliente_id: o.cliente_id, nome: o.cliente_nome, telefone: o.telefone, carro: o.veiculo, placa: o.placa, servico: desc.get(o.id) || o.servico })));
+    }
+    case 'orcamento_sem_resposta': {
+      const dias = Math.min(Math.max(Number(valor) || 3, 1), 60);
+      const orcs = await selecionarTudo('orc_orcamentos', `select=cliente_id,cliente_nome,cliente_telefone,veiculo,pedido&status=eq.enviado&decidido_em=is.null&enviado_em=lte.${encodeURIComponent(new Date(Date.now() - dias * 86400000).toISOString())}&enviado_em=gte.${encodeURIComponent(new Date(Date.now() - 90 * 86400000).toISOString())}`);
+      return candidatosPorOrigem(orcs.map((o) => ({ cliente_id: o.cliente_id, nome: o.cliente_nome, telefone: o.cliente_telefone, carro: conexoes.descreverCarro(o.veiculo), placa: o.veiculo?.placa, servico: o.pedido })));
+    }
+    case 'orcamento_recusado': {
+      const dias = Math.min(Math.max(Number(valor) || 60, 1), 365);
+      const orcs = await selecionarTudo('orc_orcamentos', `select=cliente_id,cliente_nome,cliente_telefone,veiculo,pedido&status=eq.recusado&decidido_em=gte.${encodeURIComponent(new Date(Date.now() - dias * 86400000).toISOString())}`);
+      return candidatosPorOrigem(orcs.map((o) => ({ cliente_id: o.cliente_id, nome: o.cliente_nome, telefone: o.cliente_telefone, carro: conexoes.descreverCarro(o.veiculo), placa: o.veiculo?.placa, servico: o.pedido })));
+    }
+    case 'leads_orcamento':
+    case 'leads_perdidos': {
+      const dias = Math.min(Math.max(Number(valor) || (filtro === 'leads_perdidos' ? 60 : 7), 1), 730);
+      const status = filtro === 'leads_perdidos' ? 'perdido' : 'orcamento';
+      const leads = await selecionarTudo(T.leads, `select=cliente_id,nome,telefone,carro_modelo,placa,servico&status=eq.${status}&updated_at=lte.${encodeURIComponent(new Date(Date.now() - dias * 86400000).toISOString())}&updated_at=gte.${encodeURIComponent(new Date(Date.now() - 400 * 86400000).toISOString())}`);
+      return candidatosPorOrigem(leads.map((l) => ({ cliente_id: l.cliente_id, nome: l.nome, telefone: l.telefone, carro: l.carro_modelo, placa: l.placa, servico: l.servico })));
+    }
+    case 'indicaram': {
+      const ind = await selecionarTudo('indicacoes', 'select=indicado_por&indicado_por=not.is.null');
+      return clientesPorIds(ind.map((i) => i.indicado_por));
+    }
     default:
       throw new Error('Segmento desconhecido.');
   }
@@ -1341,17 +1406,18 @@ async function candidatosDoSegmento(filtro, valor) {
 
 /** Pura: separa quem recebe de quem é pulado (e por quê). Quem recebeu outra mensagem há menos de N dias RECEBE mesmo assim
  *  (campanha é decisão de gente), mas é contado em `recentes` para a prévia avisar. */
-export function peneirarSegmento(lista, { optOut = new Set(), porteiro = null } = {}) {
+export function peneirarSegmento(lista, { optOut = new Set(), optOutTels = new Set(), porteiro = null } = {}) {
   const vistos = new Set();
   const recebem = [];
   const pulados = { nao_quer: 0, sem_telefone: 0, repetido: 0 };
   let recentes = 0;
   for (const c of lista) {
     if (!c) continue;
-    if (vistos.has(c.id)) { pulados.repetido++; continue; }
-    vistos.add(c.id);
+    const chave = c.id || `t:${telefoneNacional(c.telefone)}`;
+    if (vistos.has(chave) || (c.id && vistos.has(`t:${telefoneNacional(c.telefone)}`))) { pulados.repetido++; continue; }
+    vistos.add(chave); if (c.id) vistos.add(`t:${telefoneNacional(c.telefone)}`);
     if (!soDigitos(c.telefone)) { pulados.sem_telefone++; continue; }
-    if (optOut.has(c.id) || c.aceita_mensagens === false) { pulados.nao_quer++; continue; }
+    if ((c.id && optOut.has(c.id)) || c.aceita_mensagens === false || optOutTels.has(telefoneNacional(c.telefone))) { pulados.nao_quer++; continue; }
     if (porteiro && !porteiro.podeReceber({ cliente_id: c.id, telefone: c.telefone, tipo: 'campanha' }).ok) recentes++;
     recebem.push(c);
   }
@@ -1359,8 +1425,9 @@ export function peneirarSegmento(lista, { optOut = new Set(), porteiro = null } 
 }
 
 export async function segmentar(filtro, valor) {
-  const optOut = new Set((await selecionarTudo(T.clientes, 'select=id&aceita_mensagens=is.false')).map((c) => c.id));
-  return peneirarSegmento(await candidatosDoSegmento(filtro, valor), { optOut }).recebem;
+  const fora = await selecionarTudo(T.clientes, 'select=id,telefone_e164&aceita_mensagens=is.false');
+  const optOut = new Set(fora.map((c) => c.id)), optOutTels = new Set(fora.map((c) => c.telefone_e164).filter(Boolean));
+  return peneirarSegmento(await candidatosDoSegmento(filtro, valor), { optOut, optOutTels }).recebem;
 }
 
 /**
@@ -1369,8 +1436,8 @@ export async function segmentar(filtro, valor) {
  */
 export async function segmentarComMotivos(filtro, valor, cfg = null) {
   const c = cfg || await obterConfig();
-  const [bruto, porteiro] = await Promise.all([candidatosDoSegmento(filtro, valor), carregarPorteiro(c)]);
-  const r = peneirarSegmento(bruto, { porteiro });
+  const [bruto, porteiro, fora] = await Promise.all([candidatosDoSegmento(filtro, valor), carregarPorteiro(c), selecionarTudo(T.clientes, 'select=telefone_e164&aceita_mensagens=is.false')]);
+  const r = peneirarSegmento(bruto, { porteiro, optOutTels: new Set(fora.map((x) => x.telefone_e164).filter(Boolean)) });
   return { lista: r.recebem, total: r.recebem.length, bruto: r.total, pulados: r.pulados, recentes: r.recentes, intervalo_dias: Number(c.intervalo_minimo_dias) || 0 };
 }
 
@@ -2450,6 +2517,8 @@ export async function ordensDoPatio(ids) {
 }
 
 let _patioCfg = { em: 0, valor: null };
+/** Só para os testes: esquece a configuração do Pátio guardada em memória. */
+export function esquecerConfigDoPatio() { _patioCfg = { em: 0, valor: null }; }
 /** patio_config (avisos ligados e link_base), cache de 60 s; null se não deu para ler. */
 export async function patioConfig() {
   if (_patioCfg.valor && Date.now() - _patioCfg.em < 60_000) return _patioCfg.valor;
@@ -2728,4 +2797,137 @@ export async function textosRecentes(telefones = [], horas = 48) {
 /** Quantas mensagens saíram desde `iso` (retomada gradual do WhatsApp). */
 export async function enviadasDesde(iso) {
   return contar(T.envios, `status=eq.enviado&enviado_em=gte.${encodeURIComponent(iso)}`);
+}
+
+// ============================================================================
+// RODADA 6 · lote 2 — agenda de envios, "por que não saiu", resultados, conexões
+// ============================================================================
+
+/** Agenda de envios: tudo que está na fila agrupado por dia (fuso da oficina), com teto diário, domingo e feriado. */
+export async function agendaDeEnvios() {
+  const cfg = await obterConfig();
+  const p = new URLSearchParams('select=id,nome,telefone,tipo,corpo,enviar_em,motivo_pulado,expira_em');
+  p.set('status', 'eq.pendente'); p.set('order', 'enviar_em.asc'); p.set('limit', '3000');
+  const lista = await selecionar(T.envios, p);
+  return { ...conexoes.montarAgendaDeEnvios(lista, cfg, hoje(), { feriado }), cfg: { hora_envio: cfg.hora_envio, envia_domingo: cfg.envia_domingo, limite_por_dia: cfg.limite_por_dia } };
+}
+
+/** Muda o horário de UMA mensagem que ainda não saiu (nunca além da validade). */
+export async function adiarManual(id, quandoIso) {
+  if (!ehUuid(id)) return { ok: false, erro: 'Mensagem inválida.' };
+  const e = await selecionarUm(T.envios, `select=id,status,enviando_em,expira_em,tipo&id=eq.${id}`);
+  if (!e) return { ok: false, erro: 'Mensagem não encontrada.', status: 404 };
+  const v = conexoes.validarAdiamento(e, quandoIso);
+  if (!v.ok) return v;
+  await atualizarUm(T.envios, `id=eq.${id}&status=eq.pendente&enviando_em=is.null`, { enviar_em: v.quando, motivo_pulado: null });
+  return { ok: true, quando: v.quando };
+}
+
+/** "Por que esta mensagem ainda não saiu?" — monta o contexto de AGORA e usa a mesma ordem de decisão do carteiro. */
+export async function explicarEnvio(id) {
+  if (!ehUuid(id)) return null;
+  const e = await selecionarUm(T.envios, `select=${CAMPOS_ENVIO}&id=eq.${id}`);
+  if (!e) return null;
+  const agora = Date.now();
+  const cfg = await obterConfig();
+  const tel = telefoneNacional(e.telefone);
+  const [horaN, hojeN, fora, contatos, aFrente, sit, ordens, recentes] = await Promise.all([
+    enviadasNaUltimaHora().catch(() => 0), enviadasHoje().catch(() => 0),
+    clientesFora([e]).catch(() => ({ ids: new Set(), tels: new Set() })),
+    contatosDoDia(Math.max(Number(cfg.intervalo_mesmo_cliente_min) || 0, 0), agora).catch(() => ({ ultimos: new Map(), contagem: new Map() })),
+    contar(T.envios, `status=eq.pendente&enviando_em=is.null&enviar_em=lte.${encodeURIComponent(new Date(agora).toISOString())}&enviar_em=lt.${encodeURIComponent(e.enviar_em)}`).catch(() => 0),
+    situacaoDosClientes([e.telefone], { diasReclamacao: cfg.dias_reclamacao_aberta }).catch(() => new Map()),
+    e.tipo === 'lembrete' && e.agendamento_id ? ordensPorAgendamento([e.agendamento_id]).catch(() => new Map()) : new Map(),
+    cfg.evitar_texto_repetido_h ? textosRecentes([e.telefone], cfg.evitar_texto_repetido_h).catch(() => new Map()) : new Map(),
+  ]);
+  const repetido = !!conexoes.repetidoRecente(e.corpo, recentes.get(tel) || [], { horas: cfg.evitar_texto_repetido_h, agora });
+  return {
+    envio: { id: e.id, tipo: e.tipo, nome: e.nome, status: e.status, enviar_em: e.enviar_em },
+    ...conexoes.explicarPendente(e, {
+      cfg, agora, hoje: agoraSP(new Date(agora)), enviadasHora: horaN, enviadasHoje: hojeN, aFrente: Math.max(0, Number(aFrente) || 0),
+      whatsapp: cfg.whatsapp, clienteFora: !!((e.cliente_id && fora.ids.has(e.cliente_id)) || (tel && fora.tels.has(tel))),
+      ultimoDoCliente: contatos.ultimos.get(tel) || null, hojeDoCliente: contatos.contagem.get(tel) || 0,
+      feriado: feriado(hoje()), tiposSeguramFeriado: [...TIPOS_SEGURAM_NO_FERIADO], situacao: sit.get(tel) || {},
+      osDoLembrete: ordens.get?.(e.agendamento_id) || null, repetido,
+    }),
+  };
+}
+
+/** Quem recebeu (ou vai receber) campanha nos últimos N dias: { ids, tels } — para "não repetir para quem já recebeu". */
+export async function recebeuCampanhaRecente(dias) {
+  const saida = { ids: new Set(), tels: new Set() };
+  if (!(Number(dias) > 0)) return saida;
+  const desde = new Date(Date.now() - dias * 86400000).toISOString();
+  const p = new URLSearchParams('select=cliente_id,telefone_e164');
+  p.set('tipo', 'in.(campanha,area_cliente)'); p.set('status', 'in.(enviado,pendente)'); p.set('enviar_em', `gte.${desde}`);
+  for (const e of await selecionarTudo(T.envios, p)) { if (e.cliente_id) saida.ids.add(e.cliente_id); if (e.telefone_e164) saida.tels.add(e.telefone_e164); }
+  return saida;
+}
+
+const EVENTO_AG = 'select=id,cliente_id,telefone,data,status,valor,created_at';
+/** Eventos que vêm depois das mensagens (Agenda, Pátio, Orçador, CRM) a partir de `desdeIso`, para atribuir resultado. */
+async function eventosDeResultado(desdeIso) {
+  const q = encodeURIComponent(desdeIso);
+  const [agendamentos, os, orcamentos, leads, visitas] = await Promise.all([
+    selecionarTudo(T.agendamentos, `${EVENTO_AG}&created_at=gte.${q}`).catch(() => []),
+    selecionarTudo('patio_os', `select=id,cliente_id,telefone,created_at,etapa&created_at=gte.${q}&etapa=neq.cancelado`).catch(() => []),
+    selecionarTudo('orc_orcamentos', `select=id,cliente_id,cliente_telefone,status,total,decidido_em,agendamento_id&status=eq.aprovado&decidido_em=gte.${q}`).catch(() => []),
+    selecionarTudo(T.leads, `select=id,cliente_id,telefone,status,valor_pago,closed_at&status=eq.concluido&closed_at=gte.${q}`).catch(() => []),
+    // marcados antes do período mas realizados dentro dele: pela data da visita
+    selecionarTudo(T.agendamentos, `${EVENTO_AG}&data=gte.${desdeIso.slice(0, 10)}&created_at=lt.${q}`).catch(() => []),
+  ]);
+  const vistos = new Set(agendamentos.map((a) => a.id));
+  return { agendamentos: [...agendamentos, ...visitas.filter((a) => !vistos.has(a.id))], os, orcamentos, leads };
+}
+
+const TOTAL_VAZIO = { enviadas: 0, responderam: 0, agendaram: 0, voltaram: 0, aprovaram: 0, faturou: 0, taxaResposta: null, taxaVoltou: null, porMensagem: 0 };
+/** Resposta → agendou → voltou → faturou por tipo e por lote. Janela de 30 dias para o crédito. */
+export async function resultados({ de = null, ate = null, tipo = null, lote = null, janelaDias = 30 } = {}) {
+  const h = hoje();
+  const dIni = dataBanco(de) || somarDias(h, -30), dFim = dataBanco(ate) || h;
+  const p = new URLSearchParams('select=id,tipo,cliente_id,telefone,enviado_em,respondido_em,agendou_depois_id,lote,campanha_id,os_id,orcamento_id,criado_por');
+  p.set('status', 'eq.enviado');
+  p.append('enviado_em', `gte.${instanteSP(dIni, '00:00').toISOString()}`);
+  p.append('enviado_em', `lt.${instanteSP(somarDias(dFim, 1), '00:00').toISOString()}`);
+  if (tipo && tipo !== 'todas') p.set('tipo', `eq.${tipo}`);
+  if (ehUuid(lote)) p.set('lote', `eq.${lote}`);
+  const envios = (await selecionarTudo(T.envios, p)).filter((e) => e.criado_por !== 'teste');
+  const eventos = envios.length ? await eventosDeResultado(instanteSP(dIni, '00:00').toISOString()) : { agendamentos: [], os: [], orcamentos: [], leads: [] };
+  const porEnvio = conexoes.atribuirResultados({ envios, eventos, janelaDias });
+  return {
+    periodo: { de: dIni, ate: dFim }, janelaDias,
+    total: conexoes.resumirResultados(envios, porEnvio, () => 'total').total || TOTAL_VAZIO,
+    porTipo: conexoes.resumirResultados(envios, porEnvio),
+    porLote: conexoes.resumirResultados(envios, porEnvio, (e) => e.lote || null),
+    regra: 'Cada visita, orçamento aprovado ou serviço pago é creditado à ÚLTIMA mensagem enviada ao cliente nos 30 dias antes dele. Faturou = o maior entre agenda, CRM e orçamento (o mesmo serviço aparece nos três).',
+  };
+}
+
+/** Mapa das ligações: o que cada sistema está entregando ao Comunicar agora (números reais, só leitura). */
+export async function statusDasConexoes() {
+  const agora = Date.now();
+  const sete = encodeURIComponent(new Date(agora - 7 * 86400000).toISOString());
+  const [entregues7, osAtivas, extrasPend, orcEnv, orcParados, avaliacoes7, leadsOrc, cfg] = await Promise.all([
+    contar('patio_os', `etapa=eq.entregue&entregue_em=gte.${sete}`).catch(() => null),
+    contar('patio_os', `etapa=in.(${conexoes.ETAPAS_ATIVAS.join(',')})`).catch(() => null),
+    contar('patio_extras', 'status=eq.pendente').catch(() => null),
+    contar('orc_orcamentos', `status=eq.enviado&enviado_em=gte.${sete}`).catch(() => null),
+    contar('orc_orcamentos', 'status=eq.enviado&decidido_em=is.null').catch(() => null),
+    contar('patio_avaliacoes', `created_at=gte.${sete}`).catch(() => null),
+    contar(T.leads, 'status=eq.orcamento').catch(() => null),
+    obterConfig(),
+  ]);
+  const item = (id, app, rotulo, valor, detalhe, ligada) => ({ id, app, rotulo, valor, detalhe, ligada: !!ligada, lido: valor !== null });
+  return {
+    em: new Date(agora).toISOString(),
+    itens: [
+      item('patio_entregas', 'patio', 'Carros entregues nos últimos 7 dias', entregues7, 'alimentam o pós-venda, a avaliação e a revisão', cfg.usa_patio_posvenda && cfg.ativo_posvenda),
+      item('patio_ativas', 'patio', 'Carros na oficina agora', osAtivas, 'seguram aniversário, reativação e outras réguas de relacionamento', cfg.bloquear_com_carro_na_oficina),
+      item('patio_extras', 'patio', 'Extras esperando o OK do cliente', extrasPend, `lembrete depois de ${cfg.horas_extra_lembrete} h sem resposta`, cfg.ativo_extra_lembrete),
+      item('patio_avaliacoes', 'patio', 'Avaliações dadas no Pátio (7 dias)', avaliacoes7, 'nota baixa segura o pós-venda; nota alta vai ao Google', cfg.usa_patio_posvenda),
+      item('orc_enviados', 'orcador', 'Orçamentos enviados (7 dias)', orcEnv, 'origem do lembrete com link do orçamento', cfg.usa_orcador && cfg.ativo_orcamento),
+      item('orc_parados', 'orcador', 'Orçamentos esperando decisão', orcParados, `lembrete depois de ${cfg.dias_orcamento} dia(s)`, cfg.usa_orcador && cfg.ativo_orcamento),
+      item('crm_orcamento', 'crm', 'Leads em "orçamento" no CRM', leadsOrc, 'os que vêm de um orçamento do Orçador usam o caminho do Orçador', cfg.ativo_orcamento),
+    ],
+  };
 }
