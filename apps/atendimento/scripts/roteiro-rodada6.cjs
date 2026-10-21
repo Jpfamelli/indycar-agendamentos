@@ -38,6 +38,7 @@ const abrirConv = (p, nome) => p.evaluate(n => [...document.querySelectorAll('.c
       const p = await abrir('admin', w);
 
       /* ---------- fila ---------- */
+      ok(`[${w}] a coluna da lista cabe na tela (era 2144 px a 375 px: lista cortada à direita)`, await p.evaluate(() => document.querySelector('.col-lista').getBoundingClientRect().width <= innerWidth + 1 && document.querySelector('.lista-ferramentas').getBoundingClientRect().width <= innerWidth));
       ok(`[${w}] resumo da fila aparece (urgentes/para já)`, await ate(p, () => { const r = document.getElementById('r6Resumo'); return r && !r.hidden && /agora|logo|hoje|esperando|urgente/i.test(r.textContent); }));
       ok(`[${w}] chip de nível e chips de contexto na linha (carro no pátio, orçamento, não saiu)`, await ate(p, () => { const l = [...document.querySelectorAll('.conversa')].find(c => c.textContent.includes('Camila')); return l && /No pátio|Em execução/.test(l.textContent) && /Visualizado/.test(l.textContent) && /não saiu/.test(l.textContent); }));
       await p.select('#ordemLista', 'prioridade');
@@ -99,6 +100,7 @@ const abrirConv = (p, nome) => p.evaluate(n => [...document.querySelectorAll('.c
 
       /* ---------- WhatsApp parado ---------- */
       ok(`[${w}] faixa "WhatsApp parado" visível e botão vira "Salvar"`, await ate(p, () => { const z = document.getElementById('r6Zap'); return z && !z.hidden && /WhatsApp parado/.test(z.textContent) && document.getElementById('btnEnviar').textContent.trim() === 'Salvar'; }));
+      ok(`[${w}] sobra espaço para ler as mensagens (≥ 150 px) mesmo com faixa, chips e propostas`, await p.evaluate(() => document.getElementById('mensagensWrap').getBoundingClientRect().height >= 150), String(await p.evaluate(() => document.getElementById('mensagensWrap').getBoundingClientRect().height)));
       ok(`[${w}] faixa diz que nada é reenviado sozinho`, await p.evaluate(() => /nada é reenviado sozinho/.test(document.getElementById('r6Zap').textContent)));
       await p.evaluate(() => document.querySelector('#r6Zap [data-r6="nao-sairam"]')?.click());
       ok(`[${w}] painel "mensagens que não saíram" lista a da Camila com 3 ações`, await ate(p, () => { const m = document.getElementById('r6NaoSairam'); return m && m.classList.contains('aberto') && /Pode sim/.test(m.textContent) && /Resolvi por outro meio/.test(m.textContent) && /Reenviar|reenviar/.test(m.textContent); }));

@@ -418,7 +418,7 @@
     el.hidden = false;
     el.className = 'r6-zap ' + (z.parado ? 'parado' : 'aviso');
     el.innerHTML = z.parado
-      ? `<span>⛔ <b>WhatsApp parado.</b> ${esc(z.texto || R.textoWhatsappParado(z.codigo))} As mensagens ficam salvas e <u>nada é reenviado sozinho</u>.</span>${total ? ` <button type="button" data-r6="nao-sairam">Ver ${total} que não saíram</button>` : ''}`
+      ? `<span class="r6-zap-longo">⛔ <b>WhatsApp parado.</b> ${esc(z.texto || R.textoWhatsappParado(z.codigo))} As mensagens ficam salvas e <u>nada é reenviado sozinho</u>.</span><span class="r6-zap-curto">⛔ <b>WhatsApp parado:</b> nada sai e nada é reenviado sozinho.</span>${total ? ` <button type="button" data-r6="nao-sairam">Ver ${total} que não saíram</button>` : ''}`
       : `<span>⚠ <b>${total} mensagem(ns) não saíram</b> no WhatsApp. Decida uma a uma: reenviar ou marcar como resolvida por outro meio.</span> <button type="button" data-r6="nao-sairam">Revisar</button>`;
   }
 

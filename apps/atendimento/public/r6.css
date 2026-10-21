@@ -148,3 +148,22 @@
 @media (prefers-reduced-motion:reduce){
   .r6-pisca,.r6-esqueleto i{animation:none}
 }
+
+/* celular/tablet estreito: a coluna única do grid era "1fr" (= minmax(auto,1fr)) e crescia até o
+   tamanho da linha de filtros sem quebra (2144 px a 375 px de tela) — a lista saía cortada à direita */
+@media (max-width:900px){
+  .conversas-layout{grid-template-columns:minmax(0,1fr)}
+  .col-lista,.col-chat{min-width:0}
+}
+
+/* celular: o topo do chat não pode comer a tela (faixa + chips + propostas deixavam ~60 px para as mensagens) */
+.r6-zap-curto{display:none}
+@media (max-width:900px){
+  .r6-chips-chat{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:6px 10px 0}
+  .r6-chips-chat .r6-chip{flex:none}
+  .r6-zap{padding:6px 10px;font-size:.78rem;gap:6px}
+  .r6-zap-longo{display:none}
+  .r6-zap-curto{display:inline}
+  .r6-zap button{min-height:32px;padding:3px 9px}
+  .chat-propostas{max-height:24vh;overflow-y:auto}
+}
