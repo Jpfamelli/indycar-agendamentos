@@ -88,6 +88,16 @@ try {
   conf(!new URL(page.url()).search.includes('tel='), 'o telefone sai da barra de endereço');
   await page.screenshot({ path: SAIDA + 'agenda-novo-link.png' });
 
+  // celular 375px: as faixas novas do Início não criam rolagem horizontal
+  await page.setViewport({ width: 375, height: 800, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await page.goto(BASE + '/agenda/', { waitUntil: 'networkidle2' });
+  await page.waitForSelector('#r6Faixas:not([hidden]) .r6-faixa', { timeout: 15000 });
+  const sobra = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  conf(sobra <= 1, 'celular 375px: Início com as faixas do Pátio/Orçador sem rolagem horizontal (sobra ' + sobra + 'px)');
+  const estreito = await page.evaluate(() => [...document.querySelectorAll('#r6Faixas .r6-linha, #r6Faixas button')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1).length);
+  conf(estreito === 0, 'celular 375px: nenhuma linha das faixas passa da tela');
+  await page.screenshot({ path: SAIDA + 'agenda-inicio-375.png' });
+
   conf(erros.length === 0, 'nenhum erro de JS no console' + (erros.length ? ' → ' + erros.slice(0, 3).join(' | ') : ''));
 } catch (e) { conf(false, 'exceção: ' + e.message); }
 finally { await browser.close(); console.log('usuário de teste apagado: ' + await ctx.apagar()); }

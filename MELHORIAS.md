@@ -697,3 +697,19 @@ Pendências: script inline do index.html ainda exige 'unsafe-inline' na CSP; can
 512. `orcador.js` puro: endereço só https sem credencial, veículo jsonb → texto + placa, resumo, aprovado-para-agendar, escolha do orçamento aprovado entre vários (5 testes).
 513. Realtime passou a incluir `agendamentos` (a Casa atualiza a agenda de hoje sozinha).
 514. Roteiro puppeteer da Agenda (`scripts/qa-r6-agenda.mjs`, 16 conferências) e `/?busca=` coberto no da Casa (44).
+
+### Lote 3 — Central e passadas de caça a bugs
+515. Central: cada pedido ganha `X-Request-Id` (aceita o do proxy se for simples, senão cria um) para achar a linha no log do Render.
+516. Central: pedido que demora mais de 3 s é registrado com método, caminho, status e o mesmo id.
+517. 🔗 `/patio/…` e `/orcador/…` na Central redirecionam (302) para o app de verdade, mantendo caminho e consulta; `/patiozinho` não é pego.
+518. Celular 375px: as faixas "No pátio agora" e "Aprovados esperando horário" não geram rolagem horizontal (conferido no puppeteer, 18 conferências da Agenda).
+519. Caça a bugs (atacante): `ids` fora de UUID, `limite` absurdo e `orcamento_id` forjado são ignorados/limitados; a ligação só acontece se o orçamento ainda não tinha horário; recepção leva 403 — tudo coberto por teste.
+520. `get_advisors` (segurança) depois das migrações `r6_c1_*`: nenhum aviso novo (as funções ficaram SECURITY INVOKER; sobram só os 3 avisos antigos do projeto).
+
+## Como verifiquei (C1)
+`npm test` (198 passando), `npm run check`, `node scripts/qa-r6-casa.mjs` (44), `qa-r6-agenda.mjs` (18), `qa-r6-rpc.mjs` (13): servidor local na porta 3055, usuário de teste criado e apagado, rotas novas simuladas por interceptação (nada gravado no banco real).
+
+## Pendências (C1)
+- Total honesto desta rodada: 520 − 436 = 85 itens verificados (≈30 com 🔗), abaixo da meta de 230/40. O que ficou para uma próxima rodada: mais conexões da Agenda (lembretes pelo Comunicar, encaixe/remarcar com horários livres), ping de Pátio/Orçador com aviso na Casa, ajustes finos de 375px na Casa.
+- Pedido a P1/O2: `Cross-Origin-Opener-Policy: same-origin-allow-popups` no `netlify.toml` do Pátio e do Orçador, para a aba nomeada ser reaproveitada.
+- Outros apps podem linkar `/?busca=<termo>` na Casa e `/agenda/?novo=1&tel=55…` para novo horário.

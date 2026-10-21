@@ -18,7 +18,7 @@
 // Um app que falhe ao carregar NÃO derruba os outros: o prefixo dele responde 503.
 import http from 'node:http';
 import { createRequire } from 'node:module';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, extname } from 'node:path';
@@ -181,6 +181,12 @@ export async function handler(req, res) {
   catch { res.writeHead(400); return res.end(); }
   const caminho = url.pathname;
   const busca = url.search || '';
+  /* rodada 6: cada pedido tem um número (X-Request-Id) para achar a linha certa no log do Render; aceita o que o proxy já mandou se for curto e simples */
+  const recebido = String(req.headers['x-request-id'] || '');
+  const idPedido = /^[A-Za-z0-9._-]{6,64}$/.test(recebido) ? recebido : randomUUID();
+  res.setHeader('X-Request-Id', idPedido);
+  const inicio = Date.now();
+  res.on('finish', () => { const ms = Date.now() - inicio; if (ms > 3000) console.warn(`Central: pedido lento ${req.method} ${caminho} ${res.statusCode} ${ms} ms [${idPedido}]`); });
   // "%" solto / UTF-8 inválido no caminho: 400 aqui, igual para todos (a Agenda respondia 500 por decodeURIComponent)
   try { decodeURIComponent(caminho); } catch { return json(res, 400, { erro: 'Endereço inválido.' }); }
 
@@ -199,6 +205,17 @@ export async function handler(req, res) {
       supabaseUrl: process.env.SUPABASE_URL || '', supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '', versao: VERSAO_CENTRAL,
       apps: { patio: urlDeApp(process.env.PATIO_URL, PATIO_PADRAO), orcador: urlDeApp(process.env.ORCADOR_URL, ORCADOR_PADRAO) },
     });
+  }
+
+  // 1b) rodada 6: /patio e /orcador moram em outro domínio (Netlify) — quem digita o atalho na Central cai no lugar certo
+  for (const [nome, base] of [['patio', urlDeApp(process.env.PATIO_URL, PATIO_PADRAO)], ['orcador', urlDeApp(process.env.ORCADOR_URL, ORCADOR_PADRAO)]]) {
+    const p = '/' + nome;
+    if (base && (caminho === p || caminho.startsWith(p + '/'))) {
+      const resto = caminho.slice(p.length);
+      cabecalhos(res, { 'Cache-Control': 'no-store' });
+      res.writeHead(302, { Location: base.replace(/\/+$/, '') + resto + busca, 'Content-Length': 0 });
+      return res.end();
+    }
   }
 
   // 2) os quatro apps por prefixo
