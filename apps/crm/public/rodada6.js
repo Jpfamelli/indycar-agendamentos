@@ -53,7 +53,7 @@ function chips6(l) {
   const c = [];
   if (s.patio) c.push(`<span class="r6-chip patio${s.patio.etapa === 'pronto' ? ' ok' : ''}" title="Carro no Pátio${s.patio.numero ? ' · ordem ' + s.patio.numero : ''}">🔧 ${esc(ETAPA6[s.patio.etapa] || s.patio.etapa)}</span>`);
   if (s.entregue) c.push(`<span class="r6-chip alerta" title="O carro já saiu: falta concluir o lead">🏁 entregue${s.entregue.dias ? ' há ' + s.entregue.dias + ' d' : ''}: concluir</span>`);
-  if (s.orcamento) c.push(`<span class="r6-chip${s.flagsOrc ? '' : ''}${(s.flags || []).includes('orcamento_parado') ? ' alerta' : s.orcamento.status === 'aprovado' ? ' ok' : ''}" title="Orçamento nº ${esc(s.orcamento.numero ?? '')} no Orçador">🧾 ${s.orcamento.status === 'aprovado' ? 'aprovado' : s.orcamento.visualizado ? 'visto' : 'enviado'}${s.orcamento.dias ? ' há ' + s.orcamento.dias + ' d' : ''}</span>`);
+  if (s.orcamento) c.push(`<span class="r6-chip${s.flagsOrc ? '' : ''}${(s.flags || []).includes('orcamento_parado') ? ' alerta' : s.orcamento.status === 'aprovado' ? ' ok' : ''}" title="Orçamento nº ${esc(s.orcamento.numero ?? '')} no Orçador">🧾 ${s.orcamento.status === 'aprovado' ? 'aprovado' : s.orcamento.visualizado ? 'visto' : 'enviado'}${s.orcamento.dias ? ' há ' + s.orcamento.dias + ' d' : ''}${s.orcamento.total ? ' · ' + brl(s.orcamento.total) : ''}</span>`);
   if (s.esperando) c.push(`<span class="r6-chip alerta" title="Conversa esperando consultor">⏳ ${s.esperando.horas ? s.esperando.horas + ' h' : 'esperando'}</span>`);
   if (s.agendamento) c.push(`<span class="r6-chip" title="Horário na Agenda">📅 ${esc(quando6(s.agendamento.quando))}</span>`);
   if (s.followup) c.push(`<span class="r6-chip${s.followup.vencido ? ' alerta' : ''}" title="Retorno combinado">⏰ ${s.followup.vencido ? 'vencido' : esc(quando6(s.followup.em))}</span>`);
@@ -106,6 +106,7 @@ function montarDlgContato6() {
     <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button><div class="spacer"></div><button type="submit" class="btn btn-primary" id="ct6Ok">Salvar contato</button></div></form></dialog>`);
   const dlg = $('#dlgContato6');
   dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+  $('#ct6Texto').addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); $('#formContato6').requestSubmit(); } });
   $('#formContato6').addEventListener('submit', async e => {
     e.preventDefault();
     const id = dlg.dataset.lead, tipo = $('#ct6Tipo').value, res = $('#ct6Res').value, texto = $('#ct6Texto').value.trim(), prox = $('#ct6Prox').value;
@@ -116,6 +117,7 @@ function montarDlgContato6() {
     const b = $('#ct6Ok'); b.disabled = true; b.textContent = 'Salvando…'; $('#ct6Erro').textContent = '';
     try {
       const r = await post6(`/api/leads/${encodeURIComponent(id)}/contato`, corpo);
+      try { localStorage.setItem('indycar_crm_ultimo_tipo', tipo); } catch { /* sem armazenamento */ }
       dlg._ok(r);
     } catch (err) { $('#ct6Erro').textContent = err.message; }
     finally { b.disabled = false; b.textContent = 'Salvar contato'; }
@@ -127,7 +129,7 @@ async function registrarContato6(id, pre = {}) {
   montarDlgContato6();
   const dlg = $('#dlgContato6'); dlg.dataset.lead = l.id;
   $('#ct6Nome').textContent = `${l.nome} · ${U.formatarTelefone(l.telefone)}`;
-  $('#ct6Tipo').value = pre.tipo || 'ligacao'; $('#ct6Res').value = pre.resultado || ''; $('#ct6Texto').value = ''; $('#ct6Prox').value = pre.proximo || ''; $('#ct6Tarefa').checked = false; $('#ct6Erro').textContent = '';
+  $('#ct6Tipo').value = pre.tipo || (() => { try { const v = localStorage.getItem('indycar_crm_ultimo_tipo'); return TIPOS6.some(x => x[0] === v) ? v : 'ligacao'; } catch { return 'ligacao'; } })(); $('#ct6Res').value = pre.resultado || ''; $('#ct6Texto').value = ''; $('#ct6Prox').value = pre.proximo || ''; $('#ct6Tarefa').checked = false; $('#ct6Erro').textContent = '';
   const r = await abrirDlg(dlg); if (!r) return;
   aplicarContato6(l, r);
 }
@@ -283,7 +285,7 @@ async function carregarHoje6() {
   try {
     const [d, e] = await Promise.all([api6('/api/fila-do-dia' + (H6.escopo ? '?escopo=' + H6.escopo : '')), api6('/api/entregues-sem-fechar')]);
     H6.dados = d; H6.entregues = e; renderHoje6();
-  } catch (err) { el.innerHTML = `<p class="vazio-curto">Não consegui montar a fila agora: ${esc(err.message)}</p>`; }
+  } catch (err) { el.innerHTML = `<p class="vazio-curto">Não consegui montar a fila agora: ${esc(err.message)} <button type="button" class="link-btn" data-h6c="recarregar">Tentar de novo</button></p>`; }
 }
 function renderHoje6() {
   const d = H6.dados, e = H6.entregues; if (!d) return;
@@ -349,7 +351,7 @@ const D6 = { dados: null };
 async function carregarDono6() {
   if (!SOU_GESTOR) return;
   const el = $('#donoCorpo'); el.innerHTML = '<div class="skeleton" aria-label="Montando o resumo"></div>';
-  try { D6.dados = await api6('/api/dono'); renderDono6(); } catch (e) { el.innerHTML = `<p class="vazio-curto">Não consegui montar o resumo agora: ${esc(e.message)}</p>`; }
+  try { D6.dados = await api6('/api/dono'); renderDono6(); } catch (e) { el.innerHTML = `<p class="vazio-curto">Não consegui montar o resumo agora: ${esc(e.message)} <button type="button" class="link-btn" data-h6c="recarregar-dono">Tentar de novo</button></p>`; }
 }
 const delta6 = (a, b) => { if (!b) return a ? '<span class="r6-up">novo</span>' : ''; const p = Math.round((a - b) / b * 100); return p === 0 ? '' : `<span class="${p > 0 ? 'r6-up' : 'r6-down'}">${p > 0 ? '▲' : '▼'} ${Math.abs(p)}%</span>`; };
 function renderDono6() {

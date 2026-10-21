@@ -62,7 +62,7 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   /* ---- ficha do lead: conexões vivas ---- */
   await page.evaluate(() => irPara('pipeline'));
   await page.waitForFunction(() => document.querySelectorAll('#kanban .r6-chip').length > 0, { timeout: 15000 });
-  const alvo = await page.evaluate(() => { const l = TODOS.filter(x => !['concluido', 'perdido'].includes(x.status))[0]; return l ? l.id : null; });
+  const alvo = await page.evaluate(() => { const l = TODOS.filter(x => !['concluido', 'perdido'].includes(x.status) && !travaLead(x))[0]; return l ? l.id : null; });
   ok(`${tag}: há lead para abrir`, !!alvo);
   await page.evaluate(id => abrirModal(id), alvo);
   await page.waitForFunction(() => document.querySelectorAll('#r6cPainel .r6c-faixa, #r6cPainel .r6c-bloco').length > 0, { timeout: 10000 });
@@ -88,7 +88,32 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   await chamar('/__mock/etapa-lead', { lead: alvo, etapa: 'pronto' });
   await page.evaluate(() => carregarConexoes6(leadPorId6(LEAD_ABERTO), true));
   ok(`${tag}: carro que muda de etapa com a ficha aberta vira aviso e a faixa se atualiza`, await page.waitForFunction(() => /O carro agora está em: Pronto/.test(document.getElementById('toastTxt').textContent) && /Pronto/.test(document.getElementById('r6cPainel').textContent), { timeout: 8000 }).then(() => true, () => false));
+  /* atalhos na ficha aberta: W (WhatsApp), P (Pátio), Q (orçamento), C (contato) */
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press('w'); await page.keyboard.press('p'); await page.keyboard.press('q');
+  const abs = await page.evaluate(() => window.__abertas.slice(-3));
+  ok(`${tag}: na ficha, W abre o WhatsApp, P o Pátio e Q o orçamento (abas nomeadas)`, abs.length === 3 && abs[0][0].startsWith('https://wa.me/55') && /55[0-9]+$/.test(abs[0][0]) && abs[1][1] === 'indycar-patio' && abs[2][1] === 'indycar-orcador', JSON.stringify(abs));
+  ok(`${tag}: a faixa do carro oferece copiar o link de acompanhar e o aviso de extras esperando`, await page.evaluate(() => !!document.querySelector('#r6cPainel [data-r6c="copiar"][title*="acompanhar"]')));
+  await page.keyboard.press('c');
+  try { await page.waitForSelector('#dlgContato6[open]', { timeout: 5000 }); } catch (e) { console.log('DEBUG', JSON.stringify(await page.evaluate(() => ({ ae: document.activeElement.tagName + '.' + document.activeElement.id + '.' + document.activeElement.className, open: modal.classList.contains('open'), lead: LEAD_ABERTO, dlg: [...document.querySelectorAll('dialog[open]')].map(d => d.id), toast: document.getElementById('toastTxt').textContent })))); throw e; }
+  await page.type('#ct6Texto', 'teste de atalho');
+  await page.select('#ct6Tipo', 'whatsapp');
+  await page.keyboard.down('Control'); await page.keyboard.press('Enter'); await page.keyboard.up('Control');
+  ok(`${tag}: Ctrl+Enter salva o contato`, await page.waitForFunction(() => /Contato salvo/.test(document.getElementById('toastTxt').textContent), { timeout: 8000 }).then(() => true, () => false));
+  await page.evaluate(() => { registrarContato6(LEAD_ABERTO); });
+  await page.waitForSelector('#dlgContato6[open]', { timeout: 5000 });
+  ok(`${tag}: o diálogo lembra o último tipo de contato usado`, await page.evaluate(() => document.getElementById('ct6Tipo').value === 'whatsapp'));
+  await page.keyboard.press('Escape'); await dorme(200);
   await page.keyboard.press('Escape'); await dorme(300);
+
+  /* novo lead: telefone/placa já conhecidos em outros sistemas */
+  await page.evaluate(() => abrirModal(null));
+  await page.waitForSelector('#fTelefone', { visible: true, timeout: 5000 });
+  await page.type('#fPlaca', 'abc1d23'); await page.evaluate(() => document.getElementById('fPlaca').dispatchEvent(new Event('change')));
+  await page.waitForSelector('#r6cAvisoplaca', { timeout: 8000 });
+  ok(`${tag}: novo lead avisa que a placa já aparece no Pátio/Orçador e deixa abrir`, await page.evaluate(() => /Esta placa já aparece em outros sistemas/.test(document.getElementById('r6cAvisoplaca').textContent) && document.querySelectorAll('#r6cAvisoplaca [data-r6n]').length >= 1));
+  await page.keyboard.press('Escape'); await dorme(300);
+  await page.evaluate(() => { try { fecharModal(); } catch (e) {} });
 
   /* ---- Hoje ---- */
   await page.evaluate(() => irPara('hoje'));
@@ -111,6 +136,13 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   ok(`${tag}: copiar lista para ligar leva nome, telefone e motivo`, await page.evaluate(() => window.__copiado.split('\n').length >= 3 && /\(\d\d\) \d/.test(window.__copiado)));
   await semRolagem('Hoje com carros sem lead');
   await page.screenshot({ path: join(SAIDA, `${tag}-hoje.png`), fullPage: largura > 500 });
+
+  const semPhone = await page.evaluate(() => { const b = document.querySelector('#hojeLista [data-h6c="nao-atendeu"]'); return b ? b.dataset.id : null; });
+  ok(`${tag}: Hoje tem o botão "Não atendeu" de um clique`, !!semPhone);
+  if (semPhone) {
+    await page.click('#hojeLista [data-h6c="nao-atendeu"]');
+    ok(`${tag}: "Não atendeu" registra e combina o retorno sozinho`, await page.waitForFunction(id => { const l = TODOS.find(x => x.id === id); return l && l.tentativas_contato >= 1 && !!l.proximo_contato_em; }, { timeout: 8000 }, semPhone).then(() => true, () => false));
+  }
 
   /* ---- busca em todos os sistemas ---- */
   await page.keyboard.down('Control'); await page.keyboard.press('k'); await page.keyboard.up('Control');
@@ -137,6 +169,8 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
     await page.click('#donoLigBtn');
     await page.waitForFunction(() => /Ligações quebradas entre os sistemas/.test(document.getElementById('donoLigacoes').textContent), { timeout: 8000 });
     ok(`${tag}: Dono confere as ligações quebradas e só lista as que têm problema`, await page.evaluate(() => document.querySelectorAll('#donoLigacoes li').length === 1));
+    await page.waitForFunction(() => document.querySelectorAll('#donoOrcador .ficha-kpi').length >= 6, { timeout: 8000 });
+    ok(`${tag}: Dono mostra o funil do Orçador (enviado, aberto, aprovado, recusado) e por que recusam`, await page.evaluate(() => /Abertos pelo cliente/.test(document.getElementById('donoOrcador').textContent) && document.getElementById('donoOrcador').textContent.includes('Preço (2)')));
     await semRolagem('Dono'); await page.screenshot({ path: join(SAIDA, `${tag}-dono.png`), fullPage: largura > 500 });
   } else {
     ok(`${tag}: atendente leva 403 nas ligações quebradas`, await page.evaluate(async () => (await fetch(IndyCarApps.rota('/api/ligacoes-quebradas'), { headers: await authCabecalhos() })).status === 403));

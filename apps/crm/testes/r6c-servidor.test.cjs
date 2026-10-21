@@ -187,3 +187,25 @@ test('tela: rodada6c está na página e no service worker v12, [hidden] protegid
   // todo texto do banco que vira HTML passa por esc()
   assert.ok(!/\$\{(o|a|pa|carro|x|i)\.(titulo|motivo|servicos|nome|detalhe)\}/.test(js), 'campos de texto sem esc()');
 });
+
+test('funil do Orçador (Dono): só gestor, com o login dele; sem acesso ao Orçador vira aviso claro', () => com({}, async s => {
+  s.sb.rpcs.orc_funil = (a, ctx) => ({ periodo_dias: a.p_dias, enviados: 10, vistos: 4, aprovados: 3, recusados: 2, decididos: 5, valor_perdido: 800, por_motivo: [{ codigo: 'preco', quantidade: 2, valor: 800 }], seguimento: {}, uid: ctx.uid });
+  assert.equal((await s.req('atendente', '/api/orcador/funil')).status, 403);
+  const g = await s.req('gestor', '/api/orcador/funil?dias=7');
+  assert.equal(g.status, 200); assert.equal(g.corpo.periodo_dias, 7); assert.equal(g.corpo.taxa_visto, 40); assert.ok(g.corpo.insights.length >= 1);
+  assert.equal((await s.req('gestor', '/api/orcador/funil?dias=9999')).corpo.periodo_dias, 90, 'teto de 90 dias');
+  assert.ok(s.auth.rpcs.some(x => x.nome === 'orc_funil' && /^tok-/.test(x.token)));
+  s.sb.rpcs.orc_funil = () => { const e = new Error('acesso negado'); e.code = '42501'; throw e; };
+  const sem = await s.req('gestor', '/api/orcador/funil');
+  assert.equal(sem.status, 503); assert.match(sem.corpo.erro, /acesso ao Orçador/);
+}));
+
+test('conexões: o carro traz link do cliente acompanhar e extras esperando (r6_cliente_360)', () => com({
+  leads: [lead(1)], patio_os: [{ id: O(5), numero: 7, etapa: 'aguardando_aprovacao', etapa_em: dias(0), lead_id: L(1) }],
+}, async s => {
+  s.sb.rpcs.r6_cliente_360 = () => ({ telefone_55: '5512991000001', cliente: null, leads: [], orcamentos: [], agendamentos: [], comunicar: [], tarefas: [], mensagens: [],
+    patio: [{ id: O(5), link_cliente: 'https://indycar-patio.netlify.app/acompanhar/?t=zzz', extras: [{ descricao: 'Trocar correia', valor: 350 }], atrasado: true, minutos_na_etapa: 130 }] });
+  const r = await s.req('atendente', `/api/leads/${L(1)}/conexoes`);
+  const c = r.corpo.patio.carros[0];
+  assert.match(c.link_cliente, /acompanhar/); assert.equal(c.extras_pendentes[0].valor, 350); assert.equal(c.atrasado, true); assert.equal(c.etapa_rotulo, 'Aguardando aprovação');
+}));

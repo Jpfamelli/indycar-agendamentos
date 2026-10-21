@@ -180,6 +180,15 @@ function carrosDoLead(carros, lead) {
     .map(c => ({ os_id: c.os_id, numero: c.numero ?? null, etapa: c.etapa, etapa_rotulo: rotuloEtapa(c.etapa), etapa_em: c.etapa_em || null, placa: c.placa || null, previsao_entrega: c.previsao_entrega || null,
       link: ehUuid(c.os_id) ? APPS.linkApp('patio', '/?os=' + c.os_id) : null }));
 }
+/** Junta ao carro o que o r6_cliente_360 sabe: link do cliente acompanhar, extras esperando e orçamento de origem. */
+function enriquecerCarros(carros, fichaPatio) {
+  const por = new Map((Array.isArray(fichaPatio) ? fichaPatio : []).map(o => [o.id, o]));
+  return (carros || []).map(c => {
+    const o = por.get(c.os_id) || {};
+    const extras = (Array.isArray(o.extras) ? o.extras : []).slice(0, 10).map(x => ({ descricao: semControle(x.descricao).slice(0, 120), valor: x.valor != null && Number.isFinite(Number(x.valor)) ? r2(x.valor) : null }));
+    return { ...c, link_cliente: linkSeguro(o.link_cliente), extras_pendentes: extras, orcamento_numero: o.orcamento_numero ?? null, atrasado: !!o.atrasado, minutos_na_etapa: Number.isFinite(Number(o.minutos_na_etapa)) ? Number(o.minutos_na_etapa) : null };
+  });
+}
 /** Carros dentro da oficina que NENHUM lead aberto enxerga: cliente que está pagando e o CRM nem sabe. */
 function carrosSemLead(carros, leads) {
   const abertos = (leads || []).filter(l => ABERTAS.includes(l.status));
@@ -266,6 +275,35 @@ function prepararLigacoes(r) {
       amostra: (Array.isArray(v.amostra) ? v.amostra : []).filter(x => typeof x === 'string' && x.length <= 60).slice(0, 5) })).sort((a, b) => b.quantidade - a.quantidade) };
 }
 
+/* ---------------- funil do Orçador (orc_funil) ---------------- */
+const MOTIVOS_ORC = { preco: 'Preço', prazo: 'Prazo', desistiu: 'Desistiu do serviço', outro_lugar: 'Vai fazer em outro lugar', sem_urgencia: 'Sem urgência', sem_motivo: 'Não disse o motivo', outro: 'Outro motivo' };
+function prepararFunilOrcador(r) {
+  const n = k => Number(r?.[k]) || 0, pct = (a, b) => b ? Math.round(a / b * 1000) / 10 : null, h = s => Number.isFinite(Number(s)) && s != null ? Math.round(Number(s) / 360) / 10 : null;
+  const enviados = n('enviados');
+  return {
+    periodo_dias: n('periodo_dias'), criados: n('criados'), enviados, vistos: n('vistos'), decididos: n('decididos'), aprovados: n('aprovados'), recusados: n('recusados'), expirados: n('expirados'), em_espera: n('em_espera'), nunca_enviados: n('nunca_enviados'),
+    taxa_visto: pct(n('vistos'), enviados), taxa_aprovacao: pct(n('aprovados'), enviados), taxa_aprovacao_dos_decididos: pct(n('aprovados'), n('decididos')),
+    valor_enviado: r2(r?.valor_enviado), valor_aprovado: r2(r?.valor_aprovado), valor_perdido: r2(r?.valor_perdido), valor_em_espera: r2(r?.valor_em_espera),
+    mediana_ver_h: h(r?.mediana_ver_seg), mediana_decidir_h: h(r?.mediana_decidir_seg),
+    seguimento: { hoje: Number(r?.seguimento?.hoje) || 0, atrasados: Number(r?.seguimento?.atrasados) || 0 },
+    com_followup: pct(n('aprovados_com_followup'), n('decididos_com_followup')), sem_followup: pct(n('aprovados_sem_followup'), n('decididos_sem_followup')),
+    por_motivo: (Array.isArray(r?.por_motivo) ? r.por_motivo : []).slice(0, 8).map(x => ({ codigo: semControle(x.codigo).slice(0, 20), rotulo: MOTIVOS_ORC[x.codigo] || semControle(x.codigo).slice(0, 40) || 'Sem motivo', quantidade: Number(x.quantidade) || 0, valor: r2(x.valor) })),
+    por_responsavel: (Array.isArray(r?.por_responsavel) ? r.por_responsavel : []).slice(0, 10).map(x => ({ nome: semControle(x.nome).slice(0, 60) || 'Sem responsável', enviados: Number(x.enviados) || 0, aprovados: Number(x.aprovados) || 0, recusados: Number(x.recusados) || 0, valor_aprovado: r2(x.valor_aprovado), valor_perdido: r2(x.valor_perdido) })),
+  };
+}
+/** Frases do que o funil do Orçador diz ao dono. */
+function insightsOrcador(f) {
+  const out = [];
+  if (!f || !f.enviados) return out;
+  if (f.nunca_enviados >= 3) out.push(`${f.nunca_enviados} orçamentos foram montados e nunca enviados ao cliente.`);
+  if (f.taxa_visto != null && f.taxa_visto < 60 && f.enviados >= 5) out.push(`Só ${f.taxa_visto}% dos orçamentos enviados foram abertos pelo cliente: vale conferir se o link está chegando.`);
+  const top = f.por_motivo[0];
+  if (top && top.quantidade >= 2) out.push(`O motivo de recusa mais comum é "${top.rotulo.toLowerCase()}" (${top.quantidade}).`);
+  if (f.com_followup != null && f.sem_followup != null && f.com_followup > f.sem_followup + 10) out.push(`Orçamento com retorno combinado fecha mais (${f.com_followup}% contra ${f.sem_followup}%): vale fazer o retorno sempre.`);
+  if (f.seguimento.atrasados) out.push(`${f.seguimento.atrasados} retorno${f.seguimento.atrasados === 1 ? '' : 's'} de orçamento atrasado${f.seguimento.atrasados === 1 ? '' : 's'} no Orçador.`);
+  return out;
+}
+
 /* ---------------- ficha pelo contrato do X3, com plano B ---------------- */
 /** r6_cliente_360; se a função ainda não existir no banco, cai no cliente_360 antigo. */
 async function fichaDoCliente(sb, tel) {
@@ -311,7 +349,7 @@ async function rotasR6c(c) {
       site: lerObservacoes(lead.observacoes),
       orcamentos: { itens, resumo: resumirOrcamentos(itens), consultou_orcador: !orcR.error },
       pre_agendamentos: prepararPreAgendamentos(agR.dados, { agora, prefixo }),
-      patio: { carros: carrosDoLead(carR.data, lead) },
+      patio: { carros: enriquecerCarros(carrosDoLead(carR.data, lead), ficha?.patio) },
       acoes_sugeridas: acoesSugeridas(ficha?.acoes_sugeridas),
       linha_do_tempo: linhaDoTempoR6(ficha?.linha_do_tempo),
       links: {
@@ -320,6 +358,18 @@ async function rotasR6c(c) {
         whatsapp: tel ? 'https://wa.me/55' + tel : null,
       },
     });
+    return true;
+  }
+
+  /* ---------- Orçador nos últimos dias (funil + perdas), pelas rpcs do Orçador com o login do gestor ---------- */
+  if (p === '/api/orcador/funil' && m === 'GET') {
+    frear('orc-funil', 20, 60_000);
+    if (!gestor) throw falha(403, 'Só um gestor vê o desempenho do Orçador.', { codigo: 'so_gestor' });
+    const dias = Math.max(1, Math.min(90, Number(url.searchParams.get('dias')) || 30));
+    const r = await comoUsuario('orc_funil', { p_dias: dias });
+    if (r.error) throw falha(503, /42501|negado/.test(String(r.error.codigo) + r.error.message) ? 'Seu usuário não tem acesso ao Orçador.' : 'Não consegui ver o Orçador agora.');
+    const funil = prepararFunilOrcador(r.data);
+    json(res, 200, { ...funil, insights: insightsOrcador(funil) });
     return true;
   }
 
@@ -406,6 +456,6 @@ async function rotasR6c(c) {
 
 module.exports = {
   rotasR6c, linkSeguro, DOMINIOS_DA_CASA, bearerDe, rpcComoUsuario, lerObservacoes, rotuloEtapa, classificarOrcamento, valorDoOrcamento, prepararOrcamentos, resumirOrcamentos,
-  ehPreAgendamento, prepararPreAgendamentos, carrosDoLead, carrosSemLead, linkNovoOrcamento, linkOrcamento, acoesSugeridas, linhaDoTempoR6, prepararBuscaGlobal, prepararAgora, atencaoDaCasa,
-  prepararLigacoes, fichaDoCliente, CODIGOS_ACAO, GRUPOS_BUSCA, KPIS_AGORA,
+  ehPreAgendamento, prepararPreAgendamentos, enriquecerCarros, carrosDoLead, carrosSemLead, linkNovoOrcamento, linkOrcamento, acoesSugeridas, linhaDoTempoR6, prepararBuscaGlobal, prepararAgora, atencaoDaCasa,
+  prepararLigacoes, prepararFunilOrcador, insightsOrcador, MOTIVOS_ORC, fichaDoCliente, CODIGOS_ACAO, GRUPOS_BUSCA, KPIS_AGORA,
 };

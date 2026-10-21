@@ -197,3 +197,24 @@ test('textos sugeridos dos sinais novos: sem preço e sem palavras proibidas', (
     assert.match(t, /^Oi, Ana!/); assert.ok(!/R\$|prezado|efetuar|comparecer|veículo/i.test(t), cod);
   }
 });
+
+test('carro do lead ganha link de acompanhar, extras esperando e atraso do r6_cliente_360 (link de fora cortado)', () => {
+  const r = C.enriquecerCarros([{ os_id: U(1), numero: 1, etapa: 'pronto' }, { os_id: U(2), numero: 2, etapa: 'teste' }], [
+    { id: U(1), link_cliente: 'https://indycar-patio.netlify.app/acompanhar/?t=abc', extras: [{ descricao: 'Trocar pastilha <b>', valor: 180 }], orcamento_numero: 12, atrasado: true, minutos_na_etapa: 95 },
+    { id: U(2), link_cliente: 'https://evil.com/x' }]);
+  assert.match(r[0].link_cliente, /acompanhar/); assert.equal(r[0].extras_pendentes[0].valor, 180); assert.equal(r[0].orcamento_numero, 12); assert.equal(r[0].atrasado, true);
+  assert.equal(r[1].link_cliente, null); assert.deepEqual(r[1].extras_pendentes, []);
+  assert.deepEqual(C.enriquecerCarros(null, null), []);
+});
+
+test('funil do Orçador: taxas, horas e motivos em português; frases só do que importa', () => {
+  const f = C.prepararFunilOrcador({ periodo_dias: 30, enviados: 20, vistos: 10, decididos: 8, aprovados: 5, recusados: 3, nunca_enviados: 4, valor_enviado: 20000, valor_aprovado: 9000.5, valor_perdido: 3000, mediana_ver_seg: 7200, mediana_decidir_seg: 90000,
+    aprovados_com_followup: 4, decididos_com_followup: 5, aprovados_sem_followup: 1, decididos_sem_followup: 3, seguimento: { hoje: 2, atrasados: 1 },
+    por_motivo: [{ codigo: 'preco', quantidade: 2, valor: 2000 }, { codigo: 'xis', quantidade: 1, valor: 1000 }], por_responsavel: [{ nome: 'Ana', enviados: 10, aprovados: 3, valor_aprovado: 5000 }] });
+  assert.equal(f.taxa_visto, 50); assert.equal(f.taxa_aprovacao, 25); assert.equal(f.taxa_aprovacao_dos_decididos, 62.5);
+  assert.equal(f.mediana_ver_h, 2); assert.equal(f.mediana_decidir_h, 25); assert.equal(f.por_motivo[0].rotulo, 'Preço');
+  const ins = C.insightsOrcador(f);
+  assert.ok(ins.some(x => /nunca enviados/.test(x)) && ins.some(x => /50% .*abertos/.test(x)) && ins.some(x => /"preço"/.test(x)) && ins.some(x => /retorno combinado fecha mais/.test(x)) && ins.some(x => /atrasado/.test(x)));
+  assert.deepEqual(C.insightsOrcador(C.prepararFunilOrcador({})), []);
+  assert.equal(C.prepararFunilOrcador(null).taxa_visto, null);
+});

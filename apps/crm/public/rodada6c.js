@@ -48,7 +48,9 @@ function pintarConexoes6(c, l) {
   const partes = [];
   const carro = c.patio?.carros?.[0], site = c.site || {};
   if (carro) {
-    partes.push(`<div class="r6c-faixa patio${carro.etapa === 'pronto' ? ' ok' : ''}" role="status"><b>🚗 CARRO NO PÁTIO AGORA</b> · ordem nº ${esc(carro.numero ?? '')} · <b>${esc(carro.etapa_rotulo)}</b>${carro.etapa_em ? ' desde ' + esc(quando6(carro.etapa_em)) : ''}${carro.previsao_entrega ? ' · previsão ' + esc(quando6(carro.previsao_entrega)) : ''}${carro.link ? ` <button type="button" class="acao" data-r6c="abrir" data-app="patio" data-url="${esc(carro.link)}">Abrir no Pátio</button>` : ''}</div>`);
+    partes.push(`<div class="r6c-faixa patio${carro.etapa === 'pronto' ? ' ok' : ''}" role="status"><b>🚗 CARRO NO PÁTIO AGORA</b> · ordem nº ${esc(carro.numero ?? '')} · <b>${esc(carro.etapa_rotulo)}</b>${carro.etapa_em ? ' desde ' + esc(quando6(carro.etapa_em)) : ''}${carro.previsao_entrega ? ' · previsão ' + esc(quando6(carro.previsao_entrega)) : ''}${carro.atrasado ? ` · <b class="r6c-atraso">⚠ acima do normal${carro.minutos_na_etapa ? ' (' + Math.round(carro.minutos_na_etapa / 60 * 10) / 10 + ' h nesta etapa)' : ''}</b>` : ''}${carro.orcamento_numero ? ' · orçamento nº ' + esc(carro.orcamento_numero) : ''}
+      ${carro.link ? `<button type="button" class="acao" data-r6c="abrir" data-app="patio" data-url="${esc(carro.link)}">Abrir no Pátio</button>` : ''}${carro.link_cliente ? `<button type="button" class="acao" data-r6c="copiar" data-txt="${esc(carro.link_cliente)}" title="Link para o cliente acompanhar o carro">📋 Copiar link de acompanhar</button>` : ''}
+      ${(carro.extras_pendentes || []).length ? `<div class="r6c-extras"><b>${carro.extras_pendentes.length} extra${carro.extras_pendentes.length === 1 ? '' : 's'} esperando o cliente decidir:</b> ${carro.extras_pendentes.map(x => esc(x.descricao || 'extra') + (x.valor != null ? ' (' + brl(x.valor) + ')' : '')).join(' · ')}</div>` : ''}</div>`);
   } else if (site.carro_no_patio) {
     partes.push(`<div class="r6c-faixa suave" role="status"><b>🚗 O site avisou: carro no pátio</b>${site.carro_no_patio.os_numero ? ' (ordem nº ' + esc(site.carro_no_patio.os_numero) + (site.carro_no_patio.etapa_rotulo ? ', ' + esc(site.carro_no_patio.etapa_rotulo) : '') + ')' : ''} quando o lead chegou. <span class="muted">Hoje o carro não está mais no Pátio.</span></div>`);
   }
@@ -275,3 +277,82 @@ async function carregarLigacoes6() {
     el.innerHTML = ruins.length ? `<h4>Ligações quebradas entre os sistemas (${r.total_problemas})</h4><ul class="f360-lista">${ruins.map(v => `<li><b>${v.quantidade}</b> · ${esc(v.descricao)} <span class="tag">${esc(v.app)}</span></li>`).join('')}</ul>` : '<p>Todas as ligações entre Agenda, Pátio, Orçador e CRM estão em ordem. 🏁</p>';
   } catch (e) { el.innerHTML = `<p class="vazio-curto">${esc(e.message)}</p>`; }
 }
+
+/* ================= lote 2: Dono (Orçador), novo lead sabe do resto da casa, "não atendeu" num clique, atalhos na ficha ================= */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-h6c]'); if (!b) return;
+  const a = b.dataset.h6c;
+  if (a === 'recarregar') carregarHoje6();
+  if (a === 'recarregar-dono') carregarDono6();
+  if (a === 'nao-atendeu') {
+    const l = leadPorId6(b.dataset.id); if (!l) return;
+    const trava = travaLead(l); if (trava) { toast('🔒 ' + trava, 6000); return; }
+    b.disabled = true;
+    post6(`/api/leads/${encodeURIComponent(l.id)}/contato`, { tipo: 'ligacao', resultado: 'nao_atendeu' }).then(r => { aplicarContato6(l, r); carregarHoje6(); },
+      err => { b.disabled = false; toast('⚠️ ' + err.message, 6000); });
+  }
+}, true);
+const _renderHoje6c2 = renderHoje6;
+renderHoje6 = function () {
+  _renderHoje6c2();
+  $$('#hojeLista .r6-linha').forEach(el => {
+    const l = leadPorId6(el.dataset.lead); if (!l || travaLead(l) || $('[data-h6c="nao-atendeu"]', el)) return;
+    $('[data-h6="contato"]', el)?.insertAdjacentHTML('afterend', `<button type="button" class="acao" data-h6c="nao-atendeu" data-id="${esc(l.id)}" title="Registra “não atendeu” e combina o retorno sozinho">📵 Não atendeu</button>`);
+  });
+};
+
+/* Dono: o que o Orçador diz (funil, perdas, retorno) */
+async function carregarOrcadorDono6() {
+  if (!SOU_GESTOR) return;
+  const ref = $('#donoPrimeiro') || $('#donoQualidade')?.closest('.ficha-bloco'); if (!ref) return;
+  let blo = $('#donoOrcador');
+  if (!blo) { blo = document.createElement('div'); blo.id = 'donoOrcador'; blo.className = 'ficha-bloco'; ref.before(blo); }
+  blo.innerHTML = '<h4>Orçador · 30 dias</h4><div class="skeleton"></div>';
+  try {
+    const f = await api6('/api/orcador/funil?dias=30');
+    const kpi = (t, v, sub, alerta) => `<div class="ficha-kpi${alerta ? ' alerta' : ''}"><span>${t}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+    blo.innerHTML = `<h4>Orçador · últimos ${f.periodo_dias} dias <small class="muted">enviado → aberto → decidido</small></h4>
+      <div class="ficha-kpis">${kpi('Enviados', f.enviados, brl(f.valor_enviado))}${kpi('Abertos pelo cliente', f.taxa_visto != null ? f.taxa_visto + '%' : '—', f.vistos + ' de ' + f.enviados)}${kpi('Aprovados', f.aprovados, brl(f.valor_aprovado))}${kpi('Recusados', f.recusados, brl(f.valor_perdido), f.recusados > f.aprovados)}${kpi('Esperando resposta', f.em_espera, brl(f.valor_em_espera))}${kpi('Mediana para decidir', f.mediana_decidir_h != null ? f.mediana_decidir_h + ' h' : '—')}</div>
+      ${f.insights.length ? `<ul class="r6-insights">${f.insights.map(i => `<li class="atencao">${esc(i)}</li>`).join('')}</ul>` : ''}
+      ${f.por_motivo.length ? `<p class="muted mini-nota">Por que recusam: ${esc(f.por_motivo.map(m => `${m.rotulo} (${m.quantidade})`).join(' · '))}</p>` : ''}`;
+  } catch (err) { blo.innerHTML = `<h4>Orçador</h4><p class="vazio-curto">${esc(err.message)}</p>`; }
+}
+const _renderDono6c2 = renderDono6;
+renderDono6 = function () { _renderDono6c2(); setTimeout(carregarOrcadorDono6, 0); };
+
+/* Novo lead: o telefone e a placa já aparecem em outro sistema? (Pátio, Orçador, Atendimento, Agenda) */
+async function avisarOutrosSistemas6(campo) {
+  if (typeof editId !== 'undefined' && editId) return;
+  const input = $(campo === 'tel' ? '#fTelefone' : '#fPlaca'); if (!input) return;
+  const bruto = input.value.trim();
+  const q = campo === 'tel' ? (U.telE164(bruto) || '') : bruto.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const id = 'r6cAviso' + campo;
+  $('#' + id)?.remove();
+  if (campo === 'tel' ? q.length < 10 : !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(q)) return;
+  try {
+    const r = await api6('/api/busca-tudo?q=' + encodeURIComponent(q) + '&limite=3');
+    if (input.value.trim() !== bruto) return;
+    const itens = ['patio', 'orcamentos', 'conversas', 'agendamentos'].flatMap(g => (r.grupos[g] || []).filter(i => i.link).map(i => ({ ...i, g })));
+    if (!itens.length) return;
+    $('#' + id)?.remove();
+    const el = document.createElement('div'); el.id = id; el.className = 'r6c-novo-aviso'; el.setAttribute('role', 'status');
+    el.innerHTML = `<b>${campo === 'tel' ? 'Este telefone' : 'Esta placa'} já aparece em outros sistemas:</b> ` + itens.slice(0, 5).map((i, n) => `<button type="button" class="link-btn" data-r6n="${n}">${ICONE_GRUPO6[i.g]} ${esc(i.titulo || i.nome)}</button>`).join(' · ');
+    el.addEventListener('click', ev => { const b = ev.target.closest('[data-r6n]'); if (b) { const i = itens[Number(b.dataset.r6n)]; abrirSeguro6(i.link, i.app); } });
+    (input.closest('label') || input).insertAdjacentElement('afterend', el);
+  } catch { /* o aviso é um extra: sem ele o cadastro segue */ }
+}
+$('#fTelefone')?.addEventListener('change', () => avisarOutrosSistemas6('tel'));
+$('#fPlaca')?.addEventListener('change', () => avisarOutrosSistemas6('placa'));
+const _abrirModalR6c = abrirModal;
+abrirModal = async function (id, pre) { $('#r6cAvisotel')?.remove(); $('#r6cAvisoplaca')?.remove(); const r = await _abrirModalR6c(id, pre); if (!id && pre?.telefone) setTimeout(() => avisarOutrosSistemas6('tel'), 50); return r; };
+
+/* Ficha aberta: C registra contato, W abre o WhatsApp, P o Pátio, Q o orçamento que pede ação */
+document.addEventListener('keydown', e => {
+  if (!modal.classList.contains('open') || !LEAD_ABERTO || $('dialog[open]') || /INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+  const l = leadPorId6(LEAD_ABERTO); if (!l) return;
+  const k = e.key.toLowerCase(), c = C6.lead === l.id ? C6.con : null;
+  if (k === 'c') { e.preventDefault(); registrarContato6(l.id); }
+  if (k === 'w') { const t = U.telE164(l.telefone); if (t) { e.preventDefault(); window.open('https://wa.me/55' + t, '_blank', 'noopener'); } }
+  if (k === 'p') { e.preventDefault(); const car = c?.patio?.carros?.[0]; if (car?.link) abrirSeguro6(car.link, 'patio'); else toast('Esse lead não tem carro no Pátio agora.'); }
+  if (k === 'q') { e.preventDefault(); const o = c?.orcamentos?.itens?.[0]; if (o) abrirSeguro6(o.link_equipe, 'orcador'); else toast('Esse lead não tem orçamento no Orçador.'); }
+}, true);
