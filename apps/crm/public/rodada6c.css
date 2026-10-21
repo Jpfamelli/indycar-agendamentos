@@ -38,3 +38,4 @@
 .r6c-extras{flex-basis:100%;margin-top:4px;font-size:.84rem;color:var(--texto-suave)}
 .r6c-novo-aviso{margin-top:6px;padding:8px 10px;border-radius:8px;border:1px solid var(--warn);background:var(--superficie);font-size:.84rem;line-height:1.5}
 .r6c-faixa .acao{margin-left:6px}
+.r6c-qlista{margin-top:10px;padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--superficie)}

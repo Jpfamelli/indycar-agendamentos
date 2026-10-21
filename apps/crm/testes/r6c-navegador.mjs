@@ -104,6 +104,7 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   await page.waitForSelector('#dlgContato6[open]', { timeout: 5000 });
   ok(`${tag}: o diálogo lembra o último tipo de contato usado`, await page.evaluate(() => document.getElementById('ct6Tipo').value === 'whatsapp'));
   await page.keyboard.press('Escape'); await dorme(200);
+  ok(`${tag}: ficha oferece mensagens prontas do WhatsApp (link de acompanhar, orçamento, horário), sem preço`, await page.evaluate(() => { const t = [...document.querySelectorAll('#r6cPainel a[href^="https://wa.me/55"]')].map(a => new URL(a.href).searchParams.get('text')); return t.length === 3 && t.every(x => !x.includes('R$')) && t.some(x => /acompanhar/.test(x)) && t.some(x => /orçamento/.test(x)); }));
   await page.keyboard.press('Escape'); await dorme(300);
 
   /* novo lead: telefone/placa já conhecidos em outros sistemas */
@@ -169,12 +170,17 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
     await page.click('#donoLigBtn');
     await page.waitForFunction(() => /Ligações quebradas entre os sistemas/.test(document.getElementById('donoLigacoes').textContent), { timeout: 8000 });
     ok(`${tag}: Dono confere as ligações quebradas e só lista as que têm problema`, await page.evaluate(() => document.querySelectorAll('#donoLigacoes li').length === 1));
+    await page.click('#donoQualBtn');
+    await page.waitForFunction(() => document.querySelectorAll('#donoQualidade [data-q6]').length > 0, { timeout: 8000 });
+    await page.click('#donoQualidade [data-q6]');
+    ok(`${tag}: Qualidade dos dados lista os leads do problema (antes abria só o primeiro)`, await page.waitForFunction(() => document.querySelectorAll('#donoQualidade .r6c-qlista [data-q6lead]').length >= 2, { timeout: 8000 }).then(() => true, () => false));
     await page.waitForFunction(() => document.querySelectorAll('#donoOrcador .ficha-kpi').length >= 6, { timeout: 8000 });
     ok(`${tag}: Dono mostra o funil do Orçador (enviado, aberto, aprovado, recusado) e por que recusam`, await page.evaluate(() => /Abertos pelo cliente/.test(document.getElementById('donoOrcador').textContent) && document.getElementById('donoOrcador').textContent.includes('Preço (2)')));
     await semRolagem('Dono'); await page.screenshot({ path: join(SAIDA, `${tag}-dono.png`), fullPage: largura > 500 });
   } else {
     ok(`${tag}: atendente leva 403 nas ligações quebradas`, await page.evaluate(async () => (await fetch(IndyCarApps.rota('/api/ligacoes-quebradas'), { headers: await authCabecalhos() })).status === 403));
   }
+  ok(`${tag}: lista de atalhos documenta a fila Hoje, C/A/P/Q/W e Ctrl+Enter`, await page.evaluate(() => { const x = document.getElementById('dlgAtalhos').textContent; return /Hoje: a fila/.test(x) && /abrir o WhatsApp/.test(x) && /registrar um contato/.test(x) && /Ctrl.*Enter/.test(x); }));
   await page.evaluate(() => aplicarTema('claro')); await page.evaluate(() => irPara('hoje')); await dorme(400);
   await semRolagem('Hoje claro');
   const errosReais = erros.filter(e => !/favicon|net::ERR_ABORTED|Failed to load resource.*(404|401|403)/.test(e));

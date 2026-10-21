@@ -356,3 +356,53 @@ document.addEventListener('keydown', e => {
   if (k === 'p') { e.preventDefault(); const car = c?.patio?.carros?.[0]; if (car?.link) abrirSeguro6(car.link, 'patio'); else toast('Esse lead não tem carro no Pátio agora.'); }
   if (k === 'q') { e.preventDefault(); const o = c?.orcamentos?.itens?.[0]; if (o) abrirSeguro6(o.link_equipe, 'orcador'); else toast('Esse lead não tem orçamento no Orçador.'); }
 }, true);
+
+/* ================= lote 3: mensagens prontas com os links da casa, lista de qualidade, atalhos documentados ================= */
+const primeiroNome6c = n => { const p = String(n || '').trim().split(/\s+/)[0]; return p && !/família|familia|cliente/i.test(p) ? p : ''; };
+const waLink6 = (l, texto) => { const t = U.telE164(l.telefone); return t ? 'https://wa.me/55' + t + '?text=' + encodeURIComponent(texto) : null; };
+/** Textos sem preço e no vocabulário da casa; quem manda é a pessoa (abre o WhatsApp já escrito). */
+function textosProntos6(l, c) {
+  const oi = primeiroNome6c(l.nome) ? `Oi, ${primeiroNome6c(l.nome)}!` : 'Oi!';
+  const out = [];
+  const car = c?.patio?.carros?.[0];
+  if (car?.link_cliente) out.push({ k: 'acompanhar', rotulo: '🟢 Mandar o link para acompanhar o carro', texto: `${oi} Aqui é da IndyCar. Você pode acompanhar o seu carro direto por aqui, a hora que quiser: ${car.link_cliente}` });
+  const o = (c?.orcamentos?.itens || []).find(x => x.link_cliente && ['enviado', 'parado', 'visto'].includes(x.situacao.cod));
+  if (o) out.push({ k: 'orcamento', rotulo: '🟢 Mandar o link do orçamento', texto: `${oi} Aqui é da IndyCar. Segue o link do seu orçamento, você vê os itens e responde por lá mesmo: ${o.link_cliente}. Qualquer dúvida é só falar. Quem conhece, Indyca! 🏎` });
+  const pa = (c?.pre_agendamentos || []).find(x => !x.passou);
+  if (pa) out.push({ k: 'horario', rotulo: '🟢 Confirmar o horário pedido', texto: `${oi} Aqui é da IndyCar. Recebi o seu pedido de horário para ${dataCurta6(pa.quando)} às ${pa.hora}. Posso confirmar? A gente atende de segunda a sábado, das 8h às 17h30.` });
+  return out.filter(x => !/R\$|prezad|efetuar|comparecer|ve[ií]culo/i.test(x.texto));
+}
+const _pintarConexoes6c3 = pintarConexoes6;
+pintarConexoes6 = function (c, l) {
+  _pintarConexoes6c3(c, l);
+  if (!c || !l) return;
+  const msgs = textosProntos6(l, c).map(x => ({ ...x, href: waLink6(l, x.texto) })).filter(x => x.href);
+  if (!msgs.length) return;
+  $('#r6cPainel').insertAdjacentHTML('beforeend', `<div class="r6c-bloco"><h4>💬 Mensagens prontas <small>abrem o WhatsApp já escritas; você revisa e envia</small></h4><div class="r6c-linha-acao">${msgs.map(x => `<a class="acao" href="${esc(x.href)}" target="_blank" rel="noopener">${esc(x.rotulo)}</a>`).join('')}</div></div>`);
+};
+if (C6.con && C6.lead) pintarConexoes6(C6.con, leadPorId6(C6.lead));
+
+/* Qualidade dos dados: "ver" mostra a lista (antes abria só o primeiro lead) */
+const _carregarQualidade6c = carregarQualidade6;
+carregarQualidade6 = async function () {
+  await _carregarQualidade6c();
+  const el = $('#donoQualidade'); if (!el) return;
+  el.onclick = async ev => {
+    const b = ev.target.closest('[data-q6]'); if (!b) return;
+    let q; try { q = await api6('/api/qualidade'); } catch (e) { toast('⚠️ ' + e.message); return; }
+    const k = b.dataset.q6, lista = k === 'duplicados' ? q.duplicados.grupos.flatMap(g => g.leads) : (q[k]?.exemplos || []);
+    el.querySelector('.r6c-qlista')?.remove();
+    el.insertAdjacentHTML('beforeend', `<div class="r6c-qlista"><b>${esc(b.closest('li').textContent.replace(/\bver\b\s*$/, '').trim())}</b><ul class="f360-lista">${lista.slice(0, 20).map(x => `<li><button type="button" class="link-btn" data-q6lead="${esc(x.id)}">${esc(x.nome)}</button> <span class="muted">${esc(x.status || '')}${x.telefone ? ' · ' + esc(U.formatarTelefone(x.telefone)) : ''}</span></li>`).join('')}</ul>${lista.length > 20 ? '<p class="muted mini-nota">Mostrando os 20 primeiros.</p>' : ''}</div>`);
+    el.querySelector('.r6c-qlista').onclick = e2 => { const x = e2.target.closest('[data-q6lead]'); if (x) abrirModal(x.dataset.q6lead); };
+  };
+};
+
+/* Atalhos de teclado: a lista da tela não tinha nada da rodada 6; agora tem tudo */
+(function atalhos6c() {
+  const dl = $('#dlgAtalhos .atalhos'); if (!dl || dl.dataset.r6c) return; dl.dataset.r6c = '1';
+  const linhas = [['<kbd>G</kbd> <kbd>H</kbd>', 'Hoje: a fila de quem contatar agora'], ['<kbd>G</kbd> <kbd>K</kbd>', 'Resumo do dono (gestor)'], ['<kbd>1</kbd> … <kbd>7</kbd>', 'No cartão do funil: mover para a etapa'],
+    ['<kbd>C</kbd>', 'No cartão, na fila Hoje ou na ficha do lead: registrar um contato'], ['<kbd>A</kbd>', 'No cartão ou na fila: combinar quando falar de novo'], ['<kbd>J</kbd> <kbd>K</kbd>', 'Na fila Hoje: próxima e anterior'],
+    ['<kbd>P</kbd>', 'Abrir o carro no Pátio (cartão ou ficha)'], ['<kbd>Q</kbd>', 'Abrir o orçamento no Orçador (cartão ou ficha)'], ['<kbd>W</kbd>', 'Na ficha do lead: abrir o WhatsApp'], ['<kbd>Ctrl</kbd> <kbd>Enter</kbd>', 'No registro de contato: salvar']];
+  const fim = [...dl.children].find(x => x.tagName === 'DT' && /Esc/.test(x.textContent)) || null;
+  for (const [t, d] of linhas) { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.innerHTML = t; dd.textContent = d; dl.insertBefore(dt, fim); dl.insertBefore(dd, fim); }
+})();

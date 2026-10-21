@@ -209,3 +209,10 @@ test('conexões: o carro traz link do cliente acompanhar e extras esperando (r6_
   const c = r.corpo.patio.carros[0];
   assert.match(c.link_cliente, /acompanhar/); assert.equal(c.extras_pendentes[0].valor, 350); assert.equal(c.atrasado, true); assert.equal(c.etapa_rotulo, 'Aguardando aprovação');
 }));
+
+test('fila do dia: empate de urgência vai para o lead de maior valor orçado', () => com({
+  leads: [lead(1, { responsavel_id: PESSOAS.atendente.id, status: 'contato', proximo_contato_em: dias(1), valor_orcado: 300, nome: 'Aaa Barato' }), lead(2, { responsavel_id: PESSOAS.atendente.id, status: 'contato', proximo_contato_em: dias(1), valor_orcado: 2500, nome: 'Zzz Caro' })],
+}, async s => {
+  const r = await s.req('atendente', '/api/fila-do-dia');
+  assert.equal(r.corpo.itens[0].lead.nome, 'Zzz Caro');
+}));

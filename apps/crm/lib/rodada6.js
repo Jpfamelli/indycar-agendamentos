@@ -654,7 +654,7 @@ async function rotasR6(c) {
         score: pr.score, motivos: pr.motivos.slice(0, 3), principal: pr.principal.codigo, texto: pr.principal.texto, script: scriptSugerido(pr.principal.codigo, l),
         sinais: { patio: sn.patio || null, orcamento: sn.orcamento || null, tarefa: sn.tarefa || null, agendamento: sn.agendamento || null } });
     }
-    itens.sort((a, b) => b.score - a.score || String(a.lead.nome).localeCompare(String(b.lead.nome), 'pt-BR'));
+    itens.sort((a, b) => b.score - a.score || (b.lead.valor_orcado - a.lead.valor_orcado) || String(a.lead.nome).localeCompare(String(b.lead.nome), 'pt-BR'));
     // último contato registrado de cada lead da fila (quem ligou, quando, o que deu)
     const topo = itens.slice(0, 80), idsTopo = topo.map(i => i.lead.id);
     if (idsTopo.length) {
