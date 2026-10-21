@@ -299,3 +299,23 @@ mark { background: rgba(245,158,11,.35); color: inherit; border-radius: 3px; pad
 @media (max-width: 520px) {
   .busca-topo { flex: 0 0 44px; width: 44px; }
 }
+
+/* ---- Rodada 6 (C1c): "Bom dia" e botões de WhatsApp nas linhas ---- */
+[hidden] { display: none !important; }
+.manha { background: var(--panel); border: 1px solid var(--line, rgba(255,255,255,.08)); border-radius: 16px; padding: 14px 16px; margin: 0 0 14px; }
+.manha-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.manha-cab .atencao-titulo { margin: 0; }
+.manha-frase { margin: 6px 0 0; color: var(--muted); }
+.manha .atencao-lista { margin-top: 10px; }
+.manha-lembrar h3 { font-size: 13px; margin: 12px 0 4px; color: var(--muted); font-weight: 600; }
+.manha-lista { list-style: none; margin: 0; padding: 0; }
+.com-acao { display: flex; align-items: center; gap: 6px; }
+.com-acao > .linha { flex: 1 1 auto; min-width: 0; }
+.wa-mini { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600; text-decoration: none; color: var(--ink, inherit); border: 1px solid var(--line, rgba(255,255,255,.14)); background: var(--panel-2); white-space: nowrap; }
+.wa-mini:hover { border-color: var(--accent, #3ddc84); }
+.wa-sem { color: var(--muted); font-weight: 400; border-style: dashed; }
+.wa-agenda { margin-left: 0; }
+@media (max-width: 480px) { .com-acao { flex-wrap: wrap; } .com-acao > .linha { flex-basis: 100%; } .wa-mini { flex: 1 1 auto; } }
+.manha, .manha-lembrar, .manha-lista, .manha-lista li { min-width: 0; max-width: 100%; }
+.manha-lista .linha .l-a { min-width: 0; flex: 1 1 auto; }
+.manha-lista .linha .l-b { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }

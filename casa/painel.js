@@ -17,6 +17,14 @@
   /* ---------------- pedaços de HTML ---------------- */
   const alvo = (app) => `target="${C.esc(L.nomeDaAba(app))}"`;
   const linkA = (url, app, classe, html, extra = '') => `<a class="${classe}" href="${C.esc(url)}" ${alvo(app)} ${extra}>${html}</a>`;
+  const W = () => window.CasaLogica3;
+  /** botão de WhatsApp com a mensagem pronta (o consultor só aperta enviar); abre na aba nomeada do WhatsApp */
+  function waBtn(tipo, i, hojeIso, data) {
+    const a = W() && W().acaoDaLinha(tipo, i, hojeIso, data);
+    if (!a) return '';
+    return `<a class="wa-mini" href="${C.esc(a.url)}" target="${C.esc(L.nomeDaAba('whatsapp'))}" rel="noopener noreferrer" title="Abre o WhatsApp com a mensagem pronta" aria-label="${C.esc(a.rotulo)} ${C.esc(i.nome || 'cliente')} pelo WhatsApp">💬 ${C.esc(a.rotulo)}</a>`;
+  }
+  const itemLi = (inner, wa) => (wa ? `<li class="com-acao">${inner}${wa}</li>` : `<li>${inner}</li>`);
   function pilula(texto, tom) { return `<span class="pil${tom ? ' pil-' + tom : ''}">${C.esc(texto)}</span>`; }
 
   function cartao(id, { num, det, linhas, erro }) {
@@ -58,16 +66,17 @@
         const tom = L.tomDaEtapa(o.etapa, o.etapa_em, agora);
         const prev = L.previsao(o.previsao_entrega, o.etapa, agora);
         const carro = [o.veiculo || o.nome || 'Carro', o.placa ? L.formatarPlaca(o.placa) : ''].filter(Boolean).join(' · ');
-        return `<li>${linkA(links.os(o.id), 'patio', 'linha linha-2' + (proprios ? ' meu' : ''),
+        return itemLi(linkA(links.os(o.id), 'patio', 'linha linha-2' + (proprios ? ' meu' : ''),
           `<span class="l-a"><b>#${C.esc(o.numero)}</b> ${C.esc(carro)}${o.extras_pendentes > 0 ? ` <span class="pil pil-aviso" title="serviços extras esperando o cliente">${o.extras_pendentes} extra${o.extras_pendentes > 1 ? 's' : ''}</span>` : ''}</span>` +
           `<span class="l-b">${pilula(L.rotuloEtapa(o.etapa), tom === 'atrasado' ? 'ruim' : tom === 'atencao' ? 'aviso' : o.etapa === 'pronto' ? 'bom' : '')} <span class="tempo tempo-${tom}">${C.esc(L.duracao(agora - Date.parse(o.etapa_em)))}</span></span>` +
-          `<span class="l-c">${C.esc(o.nome || '')}${prev.texto ? ` · <span class="${prev.atrasada ? 'txt-ruim' : ''}">${C.esc(prev.texto)}</span>` : ''}</span>`, 'data-os="' + C.esc(o.id) + '"')}</li>`;
+          `<span class="l-c">${C.esc(o.nome || '')}${prev.texto ? ` · <span class="${prev.atrasada ? 'txt-ruim' : ''}">${C.esc(prev.texto)}</span>` : ''}</span>`, 'data-os="' + C.esc(o.id) + '"'), o.etapa === 'pronto' ? waBtn('pronto', o, hojeIso()) : '');
       }).join(''),
     });
     rodapeLinks('#cPatio', { '[data-abrir]': [links.patioPainel(), 'patio'], '[data-tv]': [links.patioTv(), 'patio'], '[data-nova]': [links.patioEntrada(), 'patio'] });
     $('#cPatio [data-nova]').hidden = V.soMeusCarros;
   }
 
+  const hojeIso = () => (dados && dados.hoje) || L.hojeSP();
   function desenharOrc(o) {
     const lista = o.lista || [];
     const agora = Date.now();
@@ -80,10 +89,12 @@
       det: o.esperando ? (partes.join(' · ') || 'esperando o cliente decidir') : (partes.join(' · ') || 'nenhum orçamento esperando'),
       linhas: lista.map((q) => {
         const idade = q.enviado_em ? agora - Date.parse(q.enviado_em) : 0;
-        return `<li>${linkA(links.orcamento(q.id), 'orcador', 'linha',
+        return itemLi(linkA(links.orcamento(q.id), 'orcador', 'linha',
           `<span class="l-a"><b>${C.esc(L.numeroOrc(q.numero))}</b> ${C.esc(q.nome || 'Cliente')}${q.visualizado_em ? ' <span class="pil pil-bom" title="o cliente abriu o link">visto</span>' : ''}</span>` +
-          `<span class="l-b">${C.esc(L.brl(q.total))} · <span class="tempo tempo-${idade > 24 * 36e5 ? 'atrasado' : idade > 6 * 36e5 ? 'atencao' : 'ok'}">${C.esc(q.enviado_em ? L.duracao(idade) : '')}</span></span>`)}</li>`;
-      }).join(''),
+          `<span class="l-b">${C.esc(L.brl(q.total))} · <span class="tempo tempo-${idade > 24 * 36e5 ? 'atrasado' : idade > 6 * 36e5 ? 'atencao' : 'ok'}">${C.esc(q.enviado_em ? L.duracao(idade) : '')}</span></span>`), idade > 6 * 36e5 ? waBtn('orcamento', q, hojeIso()) : '');
+      }).join('') + (o.aprovados || []).map((q) => itemLi(linkA(links.orcamento(q.id), 'orcador', 'linha',
+          `<span class="l-a"><b>${C.esc(L.numeroOrc(q.numero))}</b> ${C.esc(q.nome || 'Cliente')} ${pilula('aprovado · sem horário', 'bom')}</span><span class="l-b">${C.esc(L.brl(q.total))}</span>`),
+          waBtn('aprovado', q, hojeIso()) + (q.telefone && C.podeUsar('agenda') ? `<a class="wa-mini wa-agenda" href="${C.esc(links.agendaNovo({ telefone: q.telefone }))}" target="${C.esc(L.nomeDaAba('agenda'))}" aria-label="Marcar horário para ${C.esc(q.nome || 'cliente')} na Agenda">📅 Marcar</a>` : ''))).join(''),
     });
     rodapeLinks('#cOrc', { '[data-abrir]': [links.orcamentosLista(), 'orcador'], '[data-nova]': [links.novoOrcamento(), 'orcador'] });
   }
@@ -118,12 +129,12 @@
       num: String(a.total || 0),
       det: a.total ? partes.join(' · ') : 'nenhum horário marcado hoje',
       linhas: (a.total > 1 ? `<li class="filtro-hoje" role="group" aria-label="Filtrar horários de hoje">${[['todos', 'Todos'], ['vir', 'Por vir'], ['chegou', 'Na oficina']].map(([k, n]) => `<button type="button" data-filtro-hoje="${k}" aria-pressed="${filtroHoje === k}">${n}</button>`).join('')}</li>` : '') +
-        (por.length ? por.slice(0, 12).map((x) => `<li>${linkA(links.agenda(x.id), 'agenda', 'linha linha-2',
+        (por.length ? por.slice(0, 12).map((x) => itemLi(linkA(links.agenda(x.id), 'agenda', 'linha linha-2',
           `<span class="l-a"><b>${C.esc(L.hora5(x.hora))}</b> ${C.esc(x.nome || '')}</span>` +
           `<span class="l-b">${pilula(L.rotuloAg(x.status), x.status === 'nao_veio' ? 'ruim' : L.CHEGARAM.includes(x.status) ? 'bom' : x.confirmado ? 'bom' : '')}` +
           `${x.patio_etapa ? ' ' + pilula('🔧 ' + L.rotuloEtapa(x.patio_etapa), x.patio_etapa === 'pronto' ? 'bom' : 'aviso') : ''}` +
           `${x.orc_id ? ' ' + pilula('🧾 ' + L.rotuloOrc(x.orc_status), x.orc_status === 'aprovado' ? 'bom' : x.orc_status === 'recusado' ? 'ruim' : '') : ''}</span>` +
-          `<span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`)}</li>`).join('')
+          `<span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`), x.status === 'aguardando' && !x.confirmado ? waBtn('lembrar', { ...x, data: a.hoje || undefined }, hojeIso(), a.hoje || hojeIso()) : '')).join('')
           : (a.total ? '<li class="vazio">Nenhum horário nesse filtro.</li>' : '')),
     });
     rodapeLinks('#cHoje', { '[data-abrir]': [links.agenda(), 'agenda'], '[data-nova]': [links.agendaNovo(), 'agenda'] });

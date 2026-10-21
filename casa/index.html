@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/casa/casa.css" />
-  <link rel="stylesheet" href="/casa/painel.css?v=6" />
+  <link rel="stylesheet" href="/casa/painel.css?v=7" />
 </head>
 <body>
   <!-- ======================= ENTRADA (login único) ======================= -->
@@ -148,6 +148,14 @@
 
       <section id="acoes" class="acoes" aria-label="Ações rápidas"></section>
 
+      <section id="manha" class="manha" aria-label="Bom dia: ontem e amanhã" hidden>
+        <div class="manha-cab"><h2 id="manhaTitulo" class="atencao-titulo">Bom dia</h2><button id="manhaFechar" class="btn-link" type="button">dispensar por hoje</button></div>
+        <p id="manhaOntem" class="manha-frase"></p>
+        <p id="manhaAmanha" class="manha-frase"></p>
+        <ul id="manhaPend" class="atencao-lista"></ul>
+        <div id="manhaLembrar" class="manha-lembrar" hidden></div>
+      </section>
+
       <section id="atencao" class="atencao" aria-label="Pede atenção agora" hidden>
         <h2 class="atencao-titulo">Pede atenção agora</h2>
         <ul id="atencaoLista" class="atencao-lista"></ul>
@@ -276,8 +284,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
   <script src="/casa/logica.js?v=3"></script>
   <script src="/casa/logica2.js?v=5"></script>
+  <script src="/casa/logica3.js?v=1"></script>
   <script src="/casa/sino.js?v=5"></script>
-  <script src="/casa/painel.js?v=5"></script>
+  <script src="/casa/painel.js?v=6"></script>
+  <script src="/casa/manha.js?v=1"></script>
   <script src="/casa/tarefas.js?v=5"></script>
   <script src="/casa/busca.js?v=5"></script>
   <script src="/casa/atalhos.js?v=5"></script>

@@ -67,7 +67,7 @@ export async function cenario(papel, largura, fn, { apps, ajustar, altura } = {}
   const estado = {
     saudeChamadas: 0, saude: saudeOk, escritas: [],
     rpc: { r6_agora: agora, r6_c1_agora_extras: extras, r6_c1_painel_dono: dadosDono(), r6_busca_global: dadosBusca(),
-      r6_c1b_painel_consultores: { consultores: [{ nome: 'Gabriel', marcados: 20, vieram: 15, fecharam: 9, faltaram: 3, valor: 5400 }, { nome: null, marcados: 4, vieram: 2, fecharam: 1, faltaram: 1, valor: 300 }], origens: [{ origem: 'Google', marcados: 12, vieram: 9, fecharam: 6, valor: 3800 }, { origem: 'Instagram', marcados: 6, vieram: 4, fecharam: 2, valor: 900 }] } },
+      r6_c1c_manha: dadosManha(), r6_c1b_painel_consultores: { consultores: [{ nome: 'Gabriel', marcados: 20, vieram: 15, fecharam: 9, faltaram: 3, valor: 5400 }, { nome: null, marcados: 4, vieram: 2, fecharam: 1, faltaram: 1, valor: 300 }], origens: [{ origem: 'Google', marcados: 12, vieram: 9, fecharam: 6, valor: 3800 }, { origem: 'Instagram', marcados: 6, vieram: 4, fecharam: 2, valor: 900 }] } },
     rest: { tarefas: TAREFAS(), notificacoes: NOTIFS(), consultores: [], perfis: [] },
   };
   ajustar && ajustar(estado);
@@ -110,4 +110,18 @@ export async function medirTela(page, { min = 44, ignorar = '' } = {}) {
     r.passando = [...new Set(r.passando)].slice(0, 12); r.pequenos = [...new Set(r.pequenos)].slice(0, 40);
     return r;
   }, min, ignorar);
+}
+
+/** Resposta de mentira do r6_c1c_manha ("Bom dia"): ontem, amanhã e o pátio. */
+export function dadosManha() {
+  const dia = (d) => new Date(Date.now() + d * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  return {
+    hoje: dia(0), gerado_em: new Date().toISOString(),
+    ontem: { data: dia(-1), total: 8, vieram: 6, faltaram: 1, fechados: 4, nao_fecharam: 1, sem_baixa: 1, valor: 5400, sem_baixa_lista: [{ id: 'a0000000-0000-4000-8000-000000000001', hora: '16:00', cliente: 'Lia Gomes', telefone_55: '5512955554444', veiculo: 'Polo', servico: 'Freios' }] },
+    amanha: { data: dia(1), total: 3, sem_confirmar: 2, sem_telefone: 1, primeiro: '08:00', lista: [
+      { id: 'a0000000-0000-4000-8000-000000000002', hora: '08:00', cliente: 'Nando Reis', telefone_55: '5512944443333', confirmado: true, veiculo: 'Fox', servico: 'Óleo' },
+      { id: 'a0000000-0000-4000-8000-000000000003', hora: '10:30', cliente: '<img src=x onerror=window.__xss=1>', telefone_55: '5512933332222', confirmado: false, veiculo: 'Uno', servico: 'Revisão' },
+      { id: 'a0000000-0000-4000-8000-000000000004', hora: '15:00', cliente: 'Sem Fone', telefone_55: null, confirmado: false, veiculo: 'Gol', servico: 'Alinhamento' }] },
+    patio: { parados_2d: 1, prontos_desde_ontem: 2, entregues_ontem: 3 },
+  };
 }

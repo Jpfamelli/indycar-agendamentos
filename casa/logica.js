@@ -467,16 +467,17 @@
     return {
       hoje: a.hoje, gerado_em: a.gerado_em,
       patio: { total: num(p.total), prontos: num(p.prontos_esperando_retirada), atrasados: num(p.atrasados), extras_pendentes: num(p.extras_pendentes), por_etapa: porEtapa,
-        lista: carros.slice(0, 8).map((c) => ({ id: c.id, numero: c.numero, nome: c.cliente, veiculo: c.veiculo, placa: c.placa, etapa: c.etapa, etapa_em: c.desde,
+        lista: carros.slice(0, 8).map((c) => ({ id: c.id, numero: c.numero, nome: c.cliente, telefone: c.telefone_55 || null, veiculo: c.veiculo, placa: c.placa, etapa: c.etapa, etapa_em: c.desde,
           previsao_entrega: c.previsao_entrega, orcamento_id: c.orcamento_id, extras_pendentes: num(c.extras_pendentes) })) },
       orcamentos: { esperando: num(o.esperando_total), vistos: num(ex.orcamentos?.vistos), aprovados_sem_horario: num(o.aprovados_sem_horario_total), recusados_7d: num(ex.orcamentos?.recusados_7d),
-        lista: (o.esperando || []).slice(0, 6).map((q) => ({ id: q.id, numero: q.numero, nome: q.cliente, total: q.total, enviado_em: q.enviado_em, visualizado_em: q.visualizado_em, validade: q.validade })) },
+        aprovados: (o.aprovados_sem_horario || []).slice(0, 4).map((q) => ({ id: q.id, numero: q.numero, nome: q.cliente, telefone: q.telefone_55 || null, total: q.total, decidido_em: q.decidido_em })),
+        lista: (o.esperando || []).slice(0, 6).map((q) => ({ id: q.id, numero: q.numero, nome: q.cliente, telefone: q.telefone_55 || null, veiculo: q.veiculo || null, total: q.total, enviado_em: q.enviado_em, visualizado_em: q.visualizado_em, validade: q.validade })) },
       conversas: { esperando: num(cv.total), antigas: num(ex.conversas?.antigas), nao_lidas: num(ex.conversas?.nao_lidas),
         lista: (cv.itens || []).slice(0, 6).map((v) => ({ id: v.id, nome: v.nome, telefone: v.telefone_55, aguardando_desde: v.desde, previa: v.previa, atribuida_a: v.dono || null })) },
       agenda: { total: num(ag.total), chegaram: num(ex.agenda?.chegaram), sem_confirmar: num(ex.agenda?.sem_confirmar), faltaram: num(ex.agenda?.faltaram),
         lista: itens.map((i) => {
           const q = ex.agenda?.orcamentos?.[i.id];
-          return { id: i.id, hora: i.hora, nome: i.cliente, veiculo: i.veiculo, servico: i.servico, status: i.status, confirmado: i.status === 'confirmado',
+          return { id: i.id, hora: i.hora, nome: i.cliente, telefone: i.telefone_55 || null, veiculo: i.veiculo, servico: i.servico, status: i.status, confirmado: i.status === 'confirmado',
             patio_etapa: i.os_etapa || null, os_id: i.os_id || null, orc_id: q?.id || null, orc_numero: q?.numero, orc_status: q?.status };
         }) },
       leads: { novos_sem_dono: num(ex.leads?.novos_sem_dono), novos_hoje: num(ex.leads?.novos_hoje) },
