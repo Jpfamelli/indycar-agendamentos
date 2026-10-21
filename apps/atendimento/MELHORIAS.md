@@ -885,3 +885,210 @@ os horários no formato esperado) e `get_advisors` (nenhum aviso para os objetos
 ### Lead de colega
 - O modal "editar serviço" da ficha grava `leads` direto pelo supabase-js: com a policy nova do banco (`r5c_crm_lead_de_colega`), o atendente só edita lead dele ou sem responsável. A ficha mostra "🔒 de <nome>" no lugar do "✎ Editar" nos leads de colega, e se o banco barrar (0 linhas) a tela avisa em vez de dizer "Serviço atualizado".
 - Testes: `test/sem-confirmacao.test.js` (fetch de verdade contra um CodeWords falso: timeout, conexão derrubada, porta fechada, 500, 401; entregador não reenvia sem o clique); roteiro `scripts/roteiro-r5c-dono-confirmacao.cjs` (atendente e gestor, 1440 e 375). O mock emula a policy de `leads`.
+
+## Rodada 6 (21/10/2026)
+Agente C3 — Atendimento: fila priorizada, painel conectado (Pátio, Orçador, Agenda, CRM), respostas rápidas, IA sem inventar preço e WhatsApp parado sem perder nem duplicar mensagem. 175 melhorias (39 marcadas com 🔗 por ligarem com outro sistema), numeradas a partir da 88.
+
+### Regras que servidor e tela compartilham (`public/r6-regras.js`, novo)
+Arquivo único (UMD: `window.R6` no navegador, `require` no Node). Testado em `test/r6-regras.test.js` (14 testes).
+88. Guarda de preço mais dura que a do copiloto: pega "R$ 90", "trezentos reais", "3x de 120", "fica 350", "mil e quinhentos", "$ 90", "1.200,50", "10% de desconto", "dou um desconto" — e deixa passar "12 meses de garantia", "às 9h30", "30 minutos".
+89. A guarda pega preço por extenso ("trezentos reais", "mil e quinhentos") sem confundir com "um dia" ou "dois horários".
+90. A guarda pega parcelamento ("3x de 120", "10x 89") e "2 mil"/"2k" sem confundir com quilometragem ("80 mil km").
+91. A guarda pega promessa de desconto ("dou um desconto", "10% de desconto", "desconto de 50") — a IA e as respostas prontas nunca negociam.
+92. A guarda de preço do copiloto (`lib/ia-copiloto.js`) passou a usar a mesma regra: o que a regra antiga deixava passar ("sai trezentos reais", "fica 3x de 120", "o total é 1.250,00") agora é barrado (`test/r6-funil.test.js`).
+93. `oQueOClientePediu`: lê as mensagens ainda sem resposta e devolve o que o cliente pediu (urgência, reclamação, pessoa, ligação, valor, carro, orçamento, aprovou, remarcar, cancelar, horário, endereço, garantia, pagamento, nota fiscal, vai pensar, só áudio/foto, só agradeceu). Acento e caixa não atrapalham (o `\b` do JavaScript não enxerga letra acentuada; as regras rodam em texto sem acento).
+94. "AGORA" em maiúsculas (grito) conta como urgência.
+95. Mensagem que é só "ok", "valeu", "obrigado" ou só emoji vira "só agradeceu" e perde prioridade (-30 pontos).
+96. `[áudio]`/`[foto]` sem texto vira "só mídia": a IA não ouve nem enxerga, então passa para uma pessoa.
+97. `motivoParaHumano` segue uma ordem fixa: urgência > reclamação > pessoa > ligação > valor > só mídia > nota fiscal > cancelar.
+98. Pontuação da fila (`pontuarConversa`): cada motivo vale pontos, o resultado cai em Agora / Logo / Hoje / Normal e carrega a lista de motivos (para mostrar o porquê no selo).
+99. Espera do cliente vira pontos por faixa (5 min, 15 min, 1 h, 4 h); conversa "aguardando consultor" conta a espera desde que a IA passou e ganha até +30 pelo tempo.
+100. Conversa de colega perde 25 pontos e nunca é "a próxima"; a que ninguém assumiu ganha 10; a sua ganha 8; já agendada perde 15; IA respondendo agora perde 20.
+101. Conversa fixada ganha 500; adiada perde 300; disparo em massa e conversa com desfecho ficam fora da fila.
+102. `ordenarPorPrioridade` desempata por quem espera há mais tempo e depois pela mensagem mais recente.
+103. `resumoDaFila` ("2 agora · 4 logo") e `proximaDaFila` (maior pontuação, que não é de colega e ainda não é a conversa aberta).
+104. `situacaoOrcamento` do Orçador: em montagem, enviado, visualizado (cliente abriu e não respondeu), parado (48 h sem resposta), vencido pela validade (dia inteiro, fuso de São Paulo), aprovado com e sem horário, recusado (mostra o motivo) — cada um com rótulo, tom e "o que fazer a seguir".
+105. `orcamentoQueImporta` escolhe, entre vários orçamentos do cliente, o que mais pede ação (aprovado sem horário > visualizado > parado > enviado).
+106. `passosDoPatio`: trilha Recebido → Diagnóstico → Aprovação → Execução → Teste → Pronto → Entregue; "aguardando peça" fica na Execução.
+107. 🔗 `linkNovoOrcamento` monta o endereço do Orçador no contrato combinado com o O1: `/#/cotacao?origem=atendimento&conversa=&tel=55…&nome=&placa=&veiculo=&lead=`; telefone ganha 55, placa só entra se for válida, nome/veículo saem sem caractere de controle, lead/conversa só se forem UUID; sem conversa nem telefone não há link.
+108. 🔗 `linkOrcamento` (`#/historico/<id>`) e `linkOrcamentoDoCliente` (`#/o/<token>`) recusam id/token com `../` ou caractere estranho.
+109. 🔗 `relCrmLead`, `relAgendamento` e `relPatioOs` montam `/?lead=`, `/?agendamento=` e `/?os=` só com UUID válido.
+110. `NOME_ABA`: um nome de aba fixo por app (`indycar-orcador`, `indycar-patio`, `indycar-crm`…).
+111. `respostasRapidas`: respostas prontas por situação, todas sem preço, sem "veículo/prezado/efetuar/comparecer", com uma pergunta só; testado que nenhuma passa na guarda de preço.
+112. Resposta pronta "Urgência": avisa que o consultor já foi chamado e pergunta se o carro está em local seguro; marca a ação "passar ao consultor".
+113. Resposta pronta "Reclamação": pede desculpa, chama o consultor e pede para o cliente contar o que aconteceu.
+114. Resposta pronta "Chamar consultor" (pediu uma pessoa ou ligação): pergunta o melhor horário para ele ligar.
+115. Resposta pronta "Valor com o consultor": explica que o consultor confirma o valor depois de ver o carro, lembra que o diagnóstico digital é gratuito e já oferece dois horários — sem citar preço.
+116. 🔗 Resposta pronta "Carro pronto": só aparece se a OS do Pátio está em "pronto"; diz que pode retirar de segunda a sábado, das 8h às 17h30.
+117. 🔗 Resposta pronta "Como está o carro": cita a etapa real do Pátio e a previsão que a equipe registrou, e oferece o link para acompanhar.
+118. 🔗 Resposta pronta "Carro não está no pátio": quando o Pátio não tem o carro, pede a placa em vez de inventar andamento.
+119. 🔗 Resposta pronta "Sobre o orçamento": cita o número e a situação reais do Orçador e pergunta se ficou dúvida.
+120. 🔗 Resposta pronta "Orçamento não feito": quando o Orçador não tem orçamento, promete que o consultor monta hoje e sugere a ação "Criar orçamento".
+121. Resposta pronta "Combinar horário" (cliente aprovou): já oferece os dois horários livres.
+122. Resposta pronta "Remarcar": aceita remarcar e oferece dois horários.
+123. Resposta pronta "Cancelar": aceita, pergunta se aconteceu algo que a gente possa resolver e marca "passar ao consultor".
+124. Resposta pronta "Dois horários": para quem só falou de horário ou dia.
+125. Resposta pronta "Endereço": Av. Bandeirantes, 875 – Parque Paduan, Taubaté, seg–sáb 8h–17h30, e oferece reservar horário.
+126. Resposta pronta "Garantia": 12 meses em peça e mão de obra, e pergunta se houve problema.
+127. Resposta pronta "Pagamento": diz que o consultor confirma as formas de pagamento junto com o valor (não promete parcelamento).
+128. Resposta pronta "Nota fiscal": pede nome ou CPF/CNPJ da nota e encaminha ao consultor.
+129. Resposta pronta "Vai pensar": respeita o prazo do cliente e oferece reservar um horário sem compromisso.
+130. Resposta pronta "Recebi o áudio/foto": avisa que viu e pede uma frase sobre o problema do carro.
+131. Resposta pronta "De nada" para quem só agradeceu, com o slogan "Quem conhece, Indyca! 🏎".
+132. Resposta pronta "Já estou vendo" quando nenhum pedido foi reconhecido (a barra nunca fica sem opção).
+133. 🔗 A resposta de "meu carro já ficou pronto?" usa o pátio de verdade: "Pronto, pode retirar seg–sáb 8h–17h30" ou "está em <etapa>, previsão <data>" ou "não achei o carro, qual a placa?".
+134. 🔗 A resposta de "e o orçamento?" cita o número e a situação reais do Orçador; sem orçamento, diz que o consultor monta hoje.
+135. Respostas de horário usam os dois horários livres reais da Agenda ("Tenho terça 9h ou quarta 14h") ou pedem o dia quando não há.
+136. Fora do expediente (seg–sáb 8h–17h30, fuso de São Paulo) as respostas de urgência, reclamação e "chamar consultor" avisam que ele responde quando abrir.
+137. `oficinaAberta` devolve também quando reabre ("hoje às 8h", "amanhã às 8h", "segunda às 8h"); domingo sempre fechado.
+138. `textoDeEncaminhamento`: a mensagem que o SISTEMA manda quando a IA ficou calada (urgência, reclamação, pessoa/ligação, valor, só mídia, nota fiscal, cancelar) — nunca cita preço, uma pergunta, avisa fora do horário.
+139. `progressoDoFunil`: Carro / Serviço / Horário — o que a IA já sabe e o que ainda falta.
+140. `classificarNaoSairam`: separa "não saiu" de "sem confirmação" e calcula há quantos minutos.
+141. `textoWhatsappParado` explica em português cada causa (chave recusada, celular desconectado, cota).
+142. Causa "chave do CodeWords recusada (401)": diz que nada sai até o administrador trocar a chave.
+143. Causa "celular da oficina desconectado": manda reconectar o aparelho.
+144. Causa "cota do CodeWords acabou": manda renovar o plano ou esperar virar o mês.
+145. 🔗 `lerFormularioSite` lê "Placa:", "Horário:", "Nome:", "Serviço:" e "Carro:" da mensagem que chega do formulário do site (pedido do X1); placa inválida, linha enorme e texto com `<script>` são ignorados.
+### WhatsApp parado: nada some, nada duplica (`lib/zap-estado.js`, novo; `server.js`)
+146. Disjuntor do WhatsApp: depois de chave recusada (401), celular desconectado ou cota, o envio seguinte falha NA HORA (`codigo: 'whatsapp_parado'`), sem rede e sem gastar cota.
+147. Durante a pausa passa só UMA sondagem por janela para descobrir se o WhatsApp voltou; as outras falham rápido.
+148. Um envio que dá certo ou a chave trocada reabre o disjuntor.
+149. O vigia de saúde já existente alimenta o disjuntor ao subir o servidor (não precisa esperar o primeiro erro).
+150. Nada é reenviado automaticamente: o disjuntor só decide se vale tentar; reenviar continua sendo um clique do atendente.
+151. `server.js` embrulha `enviarPeloCodeWords` com o disjuntor sem mexer no entregador que já protege contra duplicar (`lib/entrega.js`).
+152. Bloqueio de preço também em `enviarPelaIA`: se a IA gerar texto com valor, o envio é recusado e a resposta vira proposta.
+### IA conduzindo o funil (`lib/ia-funil.js`, `lib/ia-copiloto.js`)
+153. Novos motivos para passar a uma pessoa antes de a IA falar: pediu ligação, só áudio/foto, nota fiscal e cancelar (além de valor, pessoa, urgência, reclamação).
+154. Cliente que pede "me liga" ou "pode ligar" passa para uma pessoa (`ligacao`).
+155. Cliente que manda só áudio ou foto passa para uma pessoa (`so_midia`).
+156. Cliente que pede nota fiscal, recibo ou comprovante passa para uma pessoa (`nota_fiscal`).
+157. Cliente que fala em cancelar, desmarcar ou desistir passa para uma pessoa (`cancelar`).
+158. Cliente pediu valor e a IA ficou calada: sai o encaminhamento do sistema (sem preço) e a conversa fica "aguardando consultor" (`test/r6-funil.test.js`).
+159. O encaminhamento não duplica quando a IA já respondeu ao cliente.
+160. Trava de laço: a IA manda no máximo 6 mensagens por hora numa conversa; a sétima vira proposta para a equipe.
+161. Com o WhatsApp parado a IA não manda nada: a resposta vira proposta e o resultado diz `zap_parado`.
+162. Oficina fechada: a instrução da IA ganha o aviso de expediente para ela não prometer atendimento imediato.
+163. `ia-funil.js` ganhou `zapParado` e `enviarMensagem` como dependências injetáveis (testável sem rede).
+### Dados e rotas do servidor (`lib/r6-dados.js`, `lib/rotas-r6.js`, novos; migração `r6_c3_marcas`)
+Rotas testadas por HTTP de verdade em `test/r6-rotas.test.js` (11 testes) e dados em `test/r6-dados.test.js` (11 testes).
+164. 🔗 `GET /api/r6/fila`: para cada conversa ativa dos últimos 7 dias devolve pedidos do cliente, carro no pátio, orçamento e mensagens que não saíram; cache de 12 s.
+165. 🔗 `GET /api/r6/cliente/:id`: painel conectado — pátio, Orçador, Agenda e CRM — a partir do `r6_cliente_360` do X3; leitura com chave de serviço, porque o atendente pode não ter permissão no Pátio.
+166. 🔗 `GET /api/r6/patio/:clienteId`: só a etapa do carro (a ficha pergunta a cada 20 s).
+167. `GET /api/r6/sugestoes/:conversaId`: respostas prontas para o que o cliente acabou de pedir, já filtradas pela guarda de preço.
+168. `GET /api/r6/conversas/:id/ia`: o que a IA está fazendo, por que passou para gente, quantas coisas fez hoje e quantas esperam clique.
+169. `POST /api/r6/conversas/:id/passar-consultor`: marca "aguardando consultor" e cria UMA tarefa; a segunda chamada responde `ja_estava` e não duplica.
+170. `GET /api/r6/zap` e `GET /api/r6/nao-sairam`: estado do WhatsApp e lista de mensagens que não saíram.
+171. 🔗 A contagem do WhatsApp parado vem do estado do disjuntor + as mensagens `falhou` dos últimos 3 dias; a lista completa olha até 30 dias.
+172. `POST /api/r6/nao-sairam/resolver`: "resolvi por outro meio" — troca o erro por "Resolvido fora do WhatsApp por <nome>", grava marca e auditoria.
+173. `POST /api/r6/testar-mensagem` (só gestor/admin): mostra o que o sistema faria com uma mensagem, sem enviar nada.
+174. Toda rota exige login (401), responde `Cache-Control: no-store`, valida UUID (400), aplica limite de pedidos por pessoa (429) e devolve 503 em português quando falta a chave de serviço (nunca 500).
+175. Motivo inventado em "passar ao consultor" cai em "valor" e não entra no texto da tarefa.
+176. A nota do "resolvi por outro meio" perde quebra de linha e caractere de controle e é cortada em 120 caracteres; o nome de quem resolveu também é limpo.
+177. Só mensagem de saída com status `falhou` pode ser marcada como resolvida (409 nas outras).
+178. 🔗 O painel lê `patio_os.link_visto_em` direto da OS (o `r6_cliente_360` não traz) para saber se o cliente já abriu o link de acompanhar; se abriu, a ficha para de sugerir mandar o link de novo.
+179. 🔗 Eventos do Orçador (`orc_eventos`: conexão, enviado, aprovado, recusado) entram no painel e na linha do tempo (pedido do O1).
+180. Migração `r6_c3_marcas` (aditiva): fixar, adiar e "resolvido fora do WhatsApp" por pessoa, com RLS (só da equipe, só as minhas; a equipe lê as marcas "resolvido"); cópia em `indycar-ferramentas/sql/2026-10-21_r6_c3_marcas.sql`.
+181. Conferi o RLS de verdade (DO-block como usuário `authenticated`, revertido): a pessoa fixa a própria conversa, NÃO consegue criar marca em nome de outra e só enxerga as suas. Tirei de `authenticated` os privilégios TRUNCATE/TRIGGER/REFERENCES e todos os de `anon` (o RLS não cobre TRUNCATE); cópia em `2026-10-21_r6_c3_marcas_endurecimento.sql`.
+182. `get_advisors` de segurança antes e depois: nenhum aviso sobre `r6_c3_marcas` (os 4 que aparecem são antigos e de outras tabelas).
+183. Conferi no banco real que todas as colunas que as consultas usam existem (conversas, patio_os, orc_orcamentos, whatsapp_mensagens, patio_extras, clientes, tarefas, ia_acoes, at_ia_fila, r6_c3_marcas) e que o insert de tarefa com `origem 'atendimento'` é aceito (DO-block revertido).
+### Fila priorizada na tela (`public/r6-tela.js`, `public/r6.css`, `index.html`)
+184. Ordem "🎯 Prioridade (quem atender primeiro)" no seletor de ordem; a escolha fica lembrada no aparelho.
+185. Resumo no topo da lista ("3 agora · 1 logo") com o botão 🎯 Próxima.
+186. O botão 🎯 Próxima fica desabilitado quando não há ninguém esperando por você, e o Alt+P avisa "fila limpa".
+187. O botão Próxima diz no `aria-label` quem é a próxima conversa (leitor de tela).
+188. Selo de nível na linha da conversa (🔴 agora, 🟠 logo) com o motivo principal; ao passar o mouse mostra todos os motivos.
+189. 🔗 Chip "🚗 <etapa>" na linha de quem tem carro no pátio, com ⚠️ quando há extra esperando aprovação.
+190. 🔗 Chip "📄 <situação do orçamento>" na linha (visualizado, parado, aprovado sem horário…).
+191. Chip "⚠ N não saiu" na linha de quem tem mensagem que não saiu no WhatsApp (some quando o número é zero).
+192. Filtros novos: 🔴 Urgentes, 🚗 Carro no pátio, 🧾 Orçamento na mesa e ⚠ Não saiu.
+193. Filtro "🔴 Urgentes": só as conversas nos níveis Agora e Logo.
+194. Filtro "🚗 Carro no pátio": só quem tem carro dentro da oficina agora (conferido: sobra só a Camila).
+195. Filtro "🧾 Orçamento na mesa": enviado, visualizado, parado ou aprovado sem horário.
+196. Filtro "⚠ Não saiu": só conversas com mensagem que não saiu.
+197. Alt+P abre a próxima da fila de qualquer lugar da tela; aparece na lista de atalhos (`?`).
+198. Menu ⋯ › 📌 Fixar no topo: fica na SUA fila, guardado no banco, não aparece para os colegas.
+199. Menu ⋯ › 💤 Adiar (1 h, 3 h, amanhã às 8h): some dos urgentes e volta sozinha se o cliente escrever depois.
+200. Adiar "daqui 1 hora", "daqui 3 horas" ou "amanhã às 8h" (horário de Brasília).
+201. "💤 Tirar do adiamento" devolve a conversa à fila na hora.
+### Painel conectado na ficha do cliente
+202. 🔗 Bloco "🚗 No pátio agora": etapa em destaque, há quanto tempo, OS, placa e selo "acima do normal".
+203. 🔗 Trilha do pátio com etapa atual marcada (`aria-current="step"`).
+204. 🔗 A trilha se atualiza sozinha: a cada 20 s a ficha pergunta a etapa; mudou, avisa com um toast e refaz o painel (testado trocando a etapa no servidor de mentira).
+205. 🔗 Previsão de entrega, ou "sem previsão — não prometa prazo".
+206. 🔗 Extras esperando o cliente aprovar, com descrição e valor para o atendente.
+207. 🔗 "🔗 Mandar link de acompanhar": cola no campo (sem enviar) o texto com o link do cliente; revisar e enviar é do atendente.
+208. 🔗 Mostra se o cliente já abriu o link de acompanhar.
+209. 🔗 "🏁 Avisar que está pronto": cola no campo o aviso com o horário de retirada.
+210. 🔗 "Abrir no Pátio ↗" abre a OS na aba nomeada do Pátio.
+211. 🔗 Bloco "🧾 Orçamentos" do Orçador com número, situação, total, validade e o que fazer a seguir; o principal vem destacado.
+212. 🔗 "Abrir no Orçador ↗" no orçamento (aba `indycar-orcador`) e "📋 Colar link do cliente" quando o orçamento já foi enviado.
+213. 🔗 "💬 Dar um retorno" nos orçamentos parados ou visualizados: cola uma pergunta curta no campo.
+214. 🔗 "📅 Marcar horário" no orçamento aprovado sem horário: abre o agendador.
+215. 🔗 Eventos do orçamento (conectado à conversa, enviado, aprovado, recusado) listados no próprio bloco.
+216. 🔗 "🧾 Criar orçamento" abre o Orçador na aba nomeada `indycar-orcador` já com conversa, telefone com 55, nome, placa, veículo e lead (conferido no navegador).
+217. 🔗 Bloco "📅 Agenda": próximo horário, consultor, e "Abrir na Agenda ↗"; os anteriores ficam recolhidos.
+218. 🔗 "📅 Agendar" no painel abre o mesmo agendador do cabeçalho.
+219. 🔗 Bloco "📈 Lead no CRM" com situação, responsável, valor orçado e "Abrir no CRM ↗".
+220. Faixa "situação" no topo do painel resume carro, orçamento, horário e lead numa olhada.
+221. "O que fazer agora": lista curta calculada pelo servidor (extra esperando, aprovado sem horário, carro pronto, link não aberto, lead sem orçamento).
+222. Cabeçalho do chat ganha chips clicáveis (carro, orçamento, agenda, lead) que abrem e destacam o bloco certo da ficha.
+223. Cliente sem cadastro: o painel avisa e oferece "➕ Cadastrar este cliente" (cria pelo telefone e liga à conversa).
+224. Cliente sem cadastro ainda pode ter "🧾 Criar orçamento" e "📅 Agendar" — o Orçador abre pela conversa e pelo telefone.
+225. Blocos recolhíveis (abrir/fechar conferido pelos chips do cabeçalho do chat, que abrem e destacam o bloco).
+226. Linha do tempo do cliente (mensagens, horários, pátio, orçamentos) recolhida por padrão.
+227. Cartão "✨ IA nesta conversa": ligada, respondendo agora, humano assumiu, só copiloto ou desligada, com quantas coisas a IA fez hoje e quantas esperam clique.
+228. Cartão da IA mostra o que ela já sabe do funil (Carro ✓ Serviço ✓ Horário ○) e o próximo passo.
+229. Quando a IA passou a conversa, o cartão diz por quê ("Pediu valor — cliente quer saber o valor").
+230. "👤 Passar para o consultor" no cartão: um clique marca e cria a tarefa, com aviso se já estava.
+231. 🔗 Formulário do site: quando a mensagem veio do formulário, a ficha mostra "📝 Do formulário do site: placa, carro, serviço, horário que prefere".
+232. 🔗 O prompt da IA ganhou a linha "O cliente preencheu o formulário do site… NÃO pergunte de novo" (`lib/contexto.js`, testado).
+### Respostas rápidas "Para agora"
+233. Barra acima do campo, só quando há mensagem do cliente sem resposta, com até 4 respostas para o que ele acabou de pedir.
+234. Clicar põe o texto no campo (não envia); Alt+Shift+1…4 faz o mesmo pelo teclado (Ctrl+Alt+número foi evitado: é o AltGr do teclado ABNT2 e digita ¹ ² ³ £).
+235. "👤 Passar ao consultor" aparece junto quando a resposta é de encaminhamento.
+236. A barra se atualiza quando chega mensagem nova na conversa aberta e some quando não há o que sugerir.
+237. Nenhuma resposta da barra contém preço (conferido no navegador e no teste da rota).
+### WhatsApp parado na tela
+238. Faixa vermelha "⛔ WhatsApp parado" com o motivo e "nada é reenviado sozinho"; fica visível na conversa.
+239. O botão Enviar vira "Salvar" (tracejado) enquanto o WhatsApp está parado: a mensagem fica salva e NÃO sai.
+240. Painel "Mensagens que não saíram": lista cada uma com cliente, texto, há quanto tempo e se foi da IA.
+241. O painel de "não saíram" fecha com Esc e com o X, e é um diálogo (`role="dialog"`, `aria-modal`).
+242. "Não sabemos se chegou" (sem confirmação) é separado de "não saiu", com o botão "Conferi: reenviar".
+243. Reenviar fica desabilitado enquanto o WhatsApp está parado (conferido no navegador).
+244. "Resolvi por outro meio" pede uma nota (ex.: liguei para o cliente), tira a mensagem da lista e registra quem resolveu.
+245. Quando o WhatsApp volta, um aviso diz quantas mensagens ainda precisam ser revisadas.
+246. No celular a faixa vira uma linha curta com o botão, para não comer a tela do chat.
+### Ferramenta do gestor
+247. Aba IA › "Testar uma mensagem de cliente" (só gestor/admin): mostra se passaria para uma pessoa, o motivo, a resposta que o sistema mandaria e as respostas rápidas; nada é enviado.
+### Celular (375 px), segurança e acessibilidade
+248. Bug de layout encontrado: no celular a coluna da lista chegava a 2144 px (o grid de uma coluna era `1fr`, que cresce até a linha de filtros sem quebra) e a lista ficava cortada à direita; corrigido com `minmax(0,1fr)` (medido: 2144 → 375 px) e coberto no roteiro.
+249. Bug de uso encontrado: com faixa, chips e propostas o chat deixava ~60 px para as mensagens; chips viram uma linha rolável, a faixa fica curta e as propostas têm altura máxima (conferido: ≥ 150 px).
+250. `IndyCarApps.enderecoSeguro`: só abre aba para http(s) de um app da casa — `javascript:`, `data:`, domínio de fora, `usuario:senha@` e domínio parecido (`...netlify.app.evil.com`) são recusados (`test/r6-apps.test.js`); o endereço pode vir de uma linha do banco.
+251. Abas nomeadas sem `noopener` (para reaproveitar a aba) e com `opener = null` depois; testado.
+252. Os links do sino de tarefas passam pelo mesmo `abrir` validado.
+253. Todo dado do banco que a tela mostra passa por `esc()` (descrição de extra, serviço do lead, pedido do orçamento, nota da resolução).
+254. Botões com 38–44 px de altura, `aria-pressed`/`aria-expanded` nos blocos, `role="status"` no resumo, `role="alert"` na faixa do WhatsApp, `aria-current="step"` na trilha.
+255. `prefers-reduced-motion` desliga o esqueleto e o pisca do bloco.
+256. Cores e bordas só com os tokens do tema (claro e escuro); `[hidden]{display:none!important}` no CSS novo.
+257. Service worker `indycar-atendimento-v18` com `r6-regras.js`, `r6-tela.js` e `r6.css` no CORE (teste `servidor.test.js` confere que tudo do HTML está no CORE).
+258. Ajuda "Como faço…" ganhou 5 respostas (quem atender primeiro, ver carro/orçamento/horário, fixar/adiar, passar ao consultor, mensagem que não saiu) e a lista de atalhos ganhou Alt+P e Alt+Shift+1…4.
+### Testes e ferramentas
+259. `test/r6-regras.test.js` (14), `test/r6-dados.test.js` (11), `test/r6-rotas.test.js` (11), `test/r6-funil.test.js` (6) e `test/r6-apps.test.js` (3): 45 testes novos; suíte inteira 295/295 (ver "Como verifiquei").
+260. Servidor de mentira ganhou todas as rotas `/api/r6/*` (carro que muda de etapa por `/api/_r6_etapa`, orçamento visualizado, mensagem sem confirmação, eventos do Orçador).
+261. `scripts/roteiro-rodada6.cjs`: 62 conferências em 1440 e 375 px (fila, filtros, próxima, painel, link do carro, Criar orçamento, carro ao vivo, respostas rápidas, atalhos, WhatsApp parado, não saíram, resolver, passar ao consultor, fixar, testar mensagem, espaço no celular, lista cabe na tela).
+262. Regressão no navegador depois das mudanças: `roteiro-tela` 220/220, `roteiro-rodada4` 145/145, `roteiro-rodada5` 74/74.
+
+### Como verifiquei (Rodada 6)
+- `npm test` 295/295 (45 testes novos: regras, dados, rotas por HTTP de verdade, funil e endereço seguro).
+- Servidor de mentira (`PORT=3260 node scripts/mock-server.mjs`) + `node scripts/roteiro-rodada6.cjs` → 62/62 em 1440 e 375 px; regressões `roteiro-tela` 220/220, `roteiro-rodada4` 145/145, `roteiro-rodada5` 74/74.
+- Banco real: colunas usadas pelas consultas conferidas em `information_schema`; formato do `r6_cliente_360` (pátio com `link_cliente`, agenda com `consultor`, leads com `responsavel_nome`) conferido na definição da função; insert de tarefa e RLS de `r6_c3_marcas` testados em DO-block revertido; `get_advisors` sem aviso novo.
+- `server.js` real subiu e serviu `r6-regras.js`, `r6-tela.js` e `r6.css`; `/api/r6/zap` sem login → 401.
+- Três buscas de falha: celular de 375 px (achou a lista de 2144 px e o chat sem espaço), atacante (achou o `window.open` sem validar endereço e a nota sem limpeza) e ponta a ponta com os outros sistemas (achou que `link_visto_em` não vem do 360). Cada uma virou teste.
+
+### Pendências (Rodada 6)
+- O CodeWords continua recusando a chave até o João trocar (Integrações): a faixa "WhatsApp parado" e o botão "Salvar" aparecem assim que o próximo envio falhar; depois da troca o disjuntor fecha sozinho.
+- Edge Function `codewords-webhook` não foi alterada nem publicada.
+- O Orçador precisa ler `?conversa=`, `tel=55…`, `placa=`, `veiculo=` e `lead=` em `#/cotacao` (pedido ao O1, já combinado); até lá o Atendimento só abre a página.
+- Os eventos do Orçador (`orc_eventos`) ainda estão vazios no banco real: a lista aparece na ficha quando o O1 começar a gravar `conexao`, `enviado`, `aprovado` e `recusado`.
+- O formulário do site precisa mandar linhas "Placa: …" e "Horário: …" (combinado com o X1); a leitura já está pronta e testada.
+- A resposta pronta "Endereço" usa o endereço fixo da oficina (Av. Bandeirantes, 875); se mudar, trocar em `lib/contexto.js` e `public/r6-regras.js`.
