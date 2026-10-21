@@ -151,3 +151,17 @@ test('estado da IA: situação, motivo do humano e quantas ações sozinhas', as
   assert.strictEqual((await r6.estadoIA(CONV, {})).situacao, 'humano_assumiu');
   assert.strictEqual((await r6.estadoIA(CONV, { config: { ativo: false } })).situacao, 'desligada');
 });
+
+test('resolver fora: a nota perde quebra de linha e caractere de controle, e é cortada em 120', async () => {
+  const { sb, r6 } = montar();
+  const id = '88b965a4-65e0-4562-a1b0-952466991b2c';
+  const nada = await r6.resolverFora({ mensagemId: '99b965a4-65e0-4562-a1b0-952466991b2c', perfil: { id: 'p', nome: 'Ana' }, nota: 'x' });
+  assert.strictEqual(nada.ok, false, 'mensagem que não existe');
+  sb.db.whatsapp_mensagens.push({ id, conversa_id: CONV2, direcao: 'saida', corpo: 'z', status: 'falhou', erro: 'WhatsApp parado', created_at: iso(5) });
+  const ok = await r6.resolverFora({ mensagemId: id, perfil: { id: 'p', nome: 'Ana\nMaria' }, nota: 'liguei\r\n\u0007para ele ' + 'a'.repeat(300) });
+  assert.ok(ok.ok);
+  const e = sb.db.whatsapp_mensagens.find((m) => m.id === id).erro;
+  assert.ok(!/[\n\r\u0007]/.test(e), JSON.stringify(e));
+  assert.ok(e.startsWith('Resolvido fora do WhatsApp por Ana Maria: liguei para ele'), e);
+  assert.ok(e.length <= 'Resolvido fora do WhatsApp por Ana Maria: '.length + 120);
+});

@@ -297,10 +297,11 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
     if (error) return { ok: false, status: 503, erro: 'Não consegui ler a mensagem agora.' };
     if (!m) return { ok: false, status: 404, erro: 'Mensagem não encontrada.' };
     if (m.direcao !== 'saida' || m.status !== 'falhou') return { ok: false, status: 409, erro: 'Só mensagem que não saiu pode ser marcada como resolvida.' };
-    const texto = `Resolvido fora do WhatsApp por ${perfil?.nome || 'a equipe'}${nota ? ': ' + String(nota).slice(0, 120) : ''}`;
+    const notaLimpa = String(nota || '').replace(/[\p{C}\p{Zl}\p{Zp}]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+    const texto = `Resolvido fora do WhatsApp por ${String(perfil?.nome || 'a equipe').replace(/[\p{C}\p{Zl}\p{Zp}]+/gu, ' ').trim().slice(0, 60)}${notaLimpa ? ': ' + notaLimpa : ''}`;
     const { data: ok, error: e2 } = await sb.from('whatsapp_mensagens').update({ erro: texto }).eq('id', mensagemId).eq('status', 'falhou').select('id');
     if (e2 || !ok?.length) return { ok: false, status: 503, erro: 'Não consegui marcar agora.' };
-    try { await sb.from('r6_c3_marcas').insert({ perfil_id: perfil?.id, tipo: 'fora_whatsapp', conversa_id: m.conversa_id, mensagem_id: m.id, nota: String(nota || '').slice(0, 200) || null }); }
+    try { await sb.from('r6_c3_marcas').insert({ perfil_id: perfil?.id, tipo: 'fora_whatsapp', conversa_id: m.conversa_id, mensagem_id: m.id, nota: notaLimpa || null }); }
     catch (e) { log('marca fora_whatsapp:', e.message); }
     await auditar({ perfil: perfil?.id, acao: 'mensagem.resolvida_fora', tabela: 'whatsapp_mensagens', registro: m.id, detalhes: { conversa: m.conversa_id } });
     return { ok: true, erro_texto: texto };

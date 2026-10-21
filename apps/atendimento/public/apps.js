@@ -74,8 +74,21 @@
   }
 
   /** Abre o outro app na ABA DELE (nome fixo: clicar de novo reaproveita a aba, não empilha janelas). */
+  /** Só abre http(s) de um app da casa (ou desta própria página). javascript:, data: e domínio de fora não passam:
+      o endereço pode vir de uma linha do banco (lead, orçamento, agendamento) e window.open('javascript:…') roda no contexto de quem abriu. */
+  function enderecoSeguro(endereco) {
+    if (endereco === null || endereco === undefined || String(endereco).trim() === '') return null;
+    try {
+      const u = new URL(String(endereco), location.href);
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+      if (u.username || u.password) return null;
+      if (u.origin === location.origin) return u.href;
+      for (const a of Object.values(apps)) { if (a && a.url && new URL(a.url).origin === u.origin) return u.href; }
+    } catch (e) { /* endereço inválido */ }
+    return null;
+  }
   function abrir(app, endereco) {
-    const alvo = endereco || (apps[app] && apps[app].url);
+    const alvo = endereco ? enderecoSeguro(endereco) : (apps[app] && apps[app].url);
     if (!alvo) return null;
     try {
       const w = window.open(alvo, 'indycar-' + app);
@@ -93,6 +106,6 @@
     } catch (e) { /* endereço inválido */ }
     return null;
   }
-  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, appDoEndereco, atual: 'atendimento' };
+  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, enderecoSeguro, appDoEndereco, atual: 'atendimento' };
   if (typeof module !== 'undefined') module.exports = raiz.IndyCarApps;
 })(typeof window !== 'undefined' ? window : globalThis);

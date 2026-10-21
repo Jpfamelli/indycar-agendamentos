@@ -29,7 +29,8 @@
   };
   const abrirApp = (app, url) => {
     if (!url) return toast('⚠️ Não consegui montar o link.');
-    if (window.IndyCarApps) window.IndyCarApps.abrir(app, url); else window.open(url, R.NOME_ABA[app] || '_blank');
+    const w = window.IndyCarApps ? window.IndyCarApps.abrir(app, url) : null;
+    if (!w && !(window.IndyCarApps && window.IndyCarApps.enderecoSeguro(url))) toast('⚠️ Esse endereço não é de um sistema da casa — não abri.');
   };
   const appUrl = (app, rel) => (window.IndyCarApps ? window.IndyCarApps.link(app, rel) : null);
 
