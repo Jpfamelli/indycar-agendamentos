@@ -222,7 +222,7 @@ test('horário comercial seg–sáb 8h–17h30 e limite diário escalonando a ca
 test('montarSaude: chave recusada → vermelho com o botão para Integrações; conectado → verde; falhas recentes → instável', () => {
   const s = montarSaude({ status: { ok: false, chaveRecusada: true }, fila: { pendentes: 4, atrasados: 2 }, carteiro: { ultimaEm: new Date(AGORA - 5 * 60000).toISOString() }, agora: AGORA });
   assert.equal(s.estado, 'chave_recusada'); assert.equal(s.cor, 'vermelho');
-  assert.match(s.acao.alvo, /indycar-atendimento\.onrender\.com\/\?aba=integracoes/); assert.match(s.acao.rotulo, /Colar a chave/);
+  assert.match(s.acao.alvo, /indycar-agendamentos\.onrender\.com\/atendimento\/\?aba=integracoes/); assert.match(s.acao.rotulo, /Colar a chave/);
   assert.ok(s.detalhes.some((d) => /4 mensagens na fila \(2 atrasadas/.test(d)));
   assert.ok(s.detalhes.some((d) => /carteiro rodou há 5 min/.test(d)));
   const ok = montarSaude({ status: { ok: true, conectado: true, numero: '5512997000000' }, agora: AGORA });
@@ -309,12 +309,12 @@ test('montarLigacoes: do JSON do cliente_360 para os links certos (conversa, lea
     tarefas: [{ id: ID(60), titulo: 'Ligar', responsavel_nome: 'Leo' }], indicacoes: { fez: [{}, {}], foi_indicado_por: { nome: 'Maria' } }, resumo: { total_gasto: 100 },
   };
   const l = montarLigacoes(c360);
-  assert.match(l.conversa.link, /indycar-atendimento\.onrender\.com\/\?conversa=00000000-0000-4000-8000-000000000010$/);
+  assert.match(l.conversa.link, /indycar-agendamentos\.onrender\.com\/atendimento\/\?conversa=00000000-0000-4000-8000-000000000010$/);
   assert.equal(l.conversa.aguardando_consultor, true); assert.equal(l.conversa.atribuida_a, 'Leonardo');
-  assert.match(l.leads[0].link, /indycar-crm\.onrender\.com\/\?lead=/);
+  assert.match(l.leads[0].link, /indycar-agendamentos\.onrender\.com\/crm\/\?lead=/);
   assert.equal(l.carroNaOficina.id, ID(31), 'a ordem aberta, não a entregue');
   assert.match(l.carroNaOficina.link, /indycar-patio\.netlify\.app\/\?os=/);
-  assert.match(l.orcamentos[0].link, /indycar-orcador\.netlify\.app\/\?orcamento=/);
+  assert.match(l.orcamentos[0].link, /indycar-orcador\.netlify\.app\/#\/orcamento\//);
   assert.match(l.agendamentos[0].link, /indycar-agendamentos\.onrender\.com\/\?agendamento=/);
   assert.equal(l.tarefas[0].responsavel, 'Leo'); assert.equal(l.indicacoes.fez, 2); assert.equal(l.indicacoes.foiIndicadoPor, 'Maria');
   assert.equal(montarLigacoes(null), null);
@@ -323,12 +323,12 @@ test('montarLigacoes: do JSON do cliente_360 para os links certos (conversa, lea
 
 test('apps.js: um lugar só para os endereços; LINKS montam o registro certo e tiram o 55 do telefone', () => {
   const { APPS, LINKS, semDDI } = globalThis.IndyApps;
-  assert.equal(APPS.comunicar.url, 'https://indycar-posvenda.onrender.com');
+  assert.equal(APPS.comunicar.url, 'https://indycar-agendamentos.onrender.com/comunicar');
   assert.equal(A.APPS.atendimento.url, APPS.atendimento.url, 'acesso.js lê do mesmo lugar');
-  assert.equal(LINKS.conversaTel('5512999990001'), 'https://indycar-atendimento.onrender.com/?tel=12999990001');
+  assert.equal(LINKS.conversaTel('5512999990001'), 'https://indycar-agendamentos.onrender.com/atendimento/?tel=12999990001');
   assert.equal(LINKS.conversaTel(''), null);
-  assert.equal(LINKS.integracoes(), 'https://indycar-atendimento.onrender.com/?aba=integracoes');
-  assert.equal(LINKS.clienteCrm(ID(1), '55 12 99999-0001'), `https://indycar-crm.onrender.com/?cliente=${ID(1)}&tel=12999990001`);
+  assert.equal(LINKS.integracoes(), 'https://indycar-agendamentos.onrender.com/atendimento/?aba=integracoes');
+  assert.equal(LINKS.clienteCrm(ID(1), '55 12 99999-0001'), `https://indycar-agendamentos.onrender.com/crm/?cliente=${ID(1)}&tel=12999990001`);
   assert.equal(LINKS.os(null), null); assert.equal(semDDI('5512999990001'), '12999990001'); assert.equal(semDDI('5599999'), '5599999', 'número curto não perde o começo');
   // o MESMO arquivo roda no navegador: não usa export nem require
   const fonte = readFileSync(join(RAIZ, 'public', 'apps.js'), 'utf8');
@@ -456,7 +456,7 @@ test('API: chave recusada → saúde vermelha com o link para Atendimento › In
   try {
     const r = await s.chamar('gestor', 'GET', '/api/whatsapp/saude');
     assert.equal(r.json.estado, 'chave_recusada'); assert.equal(r.json.cor, 'vermelho');
-    assert.equal(r.json.acao.alvo, 'https://indycar-atendimento.onrender.com/?aba=integracoes');
+    assert.equal(r.json.acao.alvo, 'https://indycar-agendamentos.onrender.com/atendimento/?aba=integracoes');
   } finally { await s.fechar(); }
 });
 

@@ -22,8 +22,9 @@ import * as acesso from './acesso.js';
 import * as auto from './automacoes.js';
 import * as carteiro from './carteiro.js';
 import * as patio from './patio.js';
+import * as conexoes from './conexoes.js';
 import { criarWhatsApp } from './whatsapp.js';
-import { enviarFila } from './rodada.js';
+import { enviarFila, simularRodada } from './rodada.js';
 import { criarApi } from './rotas.js';
 import { criarEstaticos } from './estaticos.js';
 import { selecionarUm, conferirConfiguracao } from './supabase.js';
@@ -31,7 +32,7 @@ import { selecionarUm, conferirConfiguracao } from './supabase.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
 const PORT = process.env.PORT || 3500;
-export const VERSAO = '5.0.0';
+export const VERSAO = '6.0.0';
 
 /* Token do carteiro externo (GitHub Actions e o pg_cron do Supabase chamam
    /api/rodar de fora, para o caso do servidor gratuito do Render estar dormindo). */
@@ -132,8 +133,20 @@ function ontemSemRodada(ultimaRodadaEm) {
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Rodada 6: o estado do WhatsApp (e o de ANTES) fica gravado em posvenda_config — antes só a tela de Saúde sabia, e o Render
+ * dorme. É por ele que o carteiro sabe que o aparelho acabou de voltar de uma queda e solta a fila devagar (retomada gradual).
+ */
+async function registrarEstadoWhatsapp(cfg, status = undefined) {
+  const st = status === undefined ? await wa.status().catch(() => null) : status;
+  const estado = conexoes.estadoDoWhatsapp(st);
+  if (!estado) return;
+  if (await dados.gravarEstadoWhatsapp(estado, st?.erro || null).catch(() => false)) cfg.whatsapp = (await dados.obterConfig()).whatsapp;
+}
+
 async function umaRodada() {
   const cfg = await dados.obterConfig();
+  if (await dados.contarPendentes().catch(() => 0)) await registrarEstadoWhatsapp(cfg).catch(() => {});
   // 1. o que ficou para trás e não faz mais sentido, e envios presos de um servidor que caiu
   const presos = await dados.soltarReservasPresas(carteiro.ERRO_RESERVA_PRESA, carteiro.RESERVA_PRESA_MIN).catch(() => 0);
   const expirados = (await dados.expirarVencidos(carteiro.MOTIVO_EXPIRADO).catch(() => 0))
@@ -147,8 +160,17 @@ async function umaRodada() {
 
   // tudo o que fala com o cliente mora em rodada.js (testado com banco e CodeWords de mentira)
   const env = await enviarFila({ cfg, dados, wa, patio, carteiro, dormir });
+  // um erro estrutural no meio da rodada (chave recusada, aparelho caído) também fica gravado
+  if (env.classe && ['chave_recusada', 'sem_chave', 'sem_aparelho', 'desconectado', 'limite'].includes(env.classe)) await dados.gravarEstadoWhatsapp(env.classe, env.aviso || null).catch(() => {});
+  else if (env.enviados > 0) await dados.gravarEstadoWhatsapp('ok').catch(() => {});
   if (env.bloqueado) return anotar({ ...base, equipe: await equipeNaRodada(), aviso: env.aviso });
   return anotar({ ...base, equipe: await equipeNaRodada(), ...env });
+}
+
+/** "Se o carteiro rodasse agora…": a mesma decisão da rodada real, sem enviar nem gravar nada (rotas.js › /api/rodada/simular). */
+async function simularCarteiro() {
+  const cfg = await dados.obterConfig();
+  return simularRodada({ cfg, dados, patio, carteiro });
 }
 
 function anotar(resultado) {
@@ -289,7 +311,7 @@ const api = criarApi({
   dados, ia, versao: VERSAO, runnerToken: RUNNER_TOKEN, https: EM_PRODUCAO, autenticar, esquecerSessao, chamadaIA, prefixo: PREFIXO,
   supabase: { url: SUPA_URL, anon: SUPA_ANON, configurado: !!(SUPA_URL && SUPA_ANON && SUPA_SRV) },
   whatsapp: { enviar: wa.enviar, status: wa.status, reconferir: reconferirWhatsapp },
-  carteiro: { rodar: rodarCarteiro, lerRespostas: lerRespostasComIA, ultimaRodada: () => (ultimaRodada.em ? ultimaRodada : null) },
+  carteiro: { rodar: rodarCarteiro, lerRespostas: lerRespostasComIA, ultimaRodada: () => (ultimaRodada.em ? ultimaRodada : null), simular: simularCarteiro },
 });
 
 /* Rodada 4: arquivos da tela em memória, comprimidos e com ETag (estaticos.js). */

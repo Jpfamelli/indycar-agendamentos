@@ -648,3 +648,43 @@ Como verifiquei: `npm test` 148 verdes; `navegador-rodada3/4/5` e `navegador-c8`
 - **Banco**: migração aditiva `r5c_comunicar_sem_confirmacao` (só acrescenta `sem_confirmacao` ao CHECK de `erro_classe` + índice parcial); `status` continua com os valores de antes.
 - **Tela**: Mensagens ganhou o filtro "❓ Sem confirmação"; o cartão mostra "❓ Sem confirmação" e "Não sabemos se chegou — confira no WhatsApp", com **Chegou** (`POST /api/envios/:id/chegou` → enviado; só vale para sem confirmação) e **Reenviar** (volta para pendente, pede confirmação antes) e "Abrir conversa". "Saúde do WhatsApp" conta as sem confirmação, fica laranja e leva direto ao filtro. SW `comunicar-v5.0.1`.
 - **Testes**: CodeWords falso de verdade (timeout, conexão derrubada no meio, porta fechada, 500, 401) em `testes-rodada5.mjs`; rodada de ponta a ponta (timeout/caiu não retentam nem na rodada seguinte; recusa e 500 retentam) e `confirmarChegou`/`reenfileirar`/filtro/reserva presa em `testes-rodada5-c8.mjs`; roteiro `scripts/navegador-sem-confirmacao.mjs` (gestor e atendente, 1440 e 375).
+
+## Rodada 6 (21/10/2026)
+
+Foco: réguas ligadas aos eventos reais do Pátio e do Orçador, anti-spam e "nada duplicado quando o WhatsApp voltar". Regras puras em `conexoes.js`; testes em `scripts/testes-rodada6.mjs`; migração `r6_c4_conexoes` (cópia em `scripts/sql/` e em `indycar-ferramentas/sql/`).
+
+Lote 1 — eventos dos outros sistemas
+
+92. 🔗 **Pós-venda pela entrega no Pátio**: carro entregue (sem horário na Agenda) recebe o "ficou tudo certo?" N dias depois, mesma janela de 5 dias de recuperação.
+93. 🔗 Chave igual à do pós-venda da Agenda quando a ordem veio de um horário: o carro entregue nunca recebe duas mensagens (também na prévia, `ctx.vistas`).
+94. 🔗 Cliente que deu **nota 1–3 no Pátio** não recebe a pergunta automática: vira "pulado" com o motivo e a equipe cuida.
+95. 🔗 Nota 4–5 no Pátio vai **direto ao convite do Google** (se a régua de avaliação e o link estão prontos).
+96. 🔗 **Revisão pelo histórico do Pátio**: ordem entregue cujo prazo (regra por serviço) vence entra na régua de revisão.
+97. 🔗 Chave `retorno:patio:<os>` idêntica à do gatilho do Pátio — a mesma revisão não sai duas vezes; um convite por cliente somando Agenda e Pátio.
+98. 🔗 Bug real: "voltou depois" (revisão e não fechou) agora vê as passagens pelo Pátio; antes o cliente de balcão recebia convite logo depois de visitar a oficina.
+99. 🔗 Bug real: reativação e segmento "sem voltar" usam serviço e visita do Pátio (carro na oficina agora conta como visita).
+100. 🔗 **Orçador → lembrete**: orçamento enviado e sem decisão há N dias vira lembrete com o link público do orçamento (`#/o/<token>`).
+101. 🔗 Dois textos: quem **abriu** o orçamento ("ficou alguma dúvida?") e quem nem abriu ("conseguiu abrir?"); quem abriu há menos de 1 dia espera.
+102. 🔗 Na hora de enviar, orçamento aprovado/recusado/expirado/apagado/voltou a rascunho cancela o lembrete com o motivo.
+103. 🔗 O lead do CRM que nasceu do orçamento não recebe o mesmo lembrete por outro caminho.
+104. 🔗 **Extra do Pátio sem resposta**: depois de N horas (padrão 3) um lembrete por ordem com o link de acompanhar, respeitando o "avisar extra" do Pátio.
+105. 🔗 O lembrete do extra só sai depois do aviso inicial ter saído de verdade e some se o cliente decidir (conferido na hora).
+106. 🔗 Lembrete de horário não sai se o carro já está na oficina (ordem aberta ou entregue).
+107. 🔗 Aniversário, reativação, não fechou, revisão e orçamento **esperam enquanto o carro está na oficina**.
+108. 🔗 Os mesmos tipos esperam enquanto há **reclamação sem resolver** (resposta negativa recente e tarefa aberta).
+109. 🔗 Revisão conferida na hora do envio: se o cliente voltou desde que a mensagem entrou na fila, é pulada.
+110. 🔗 `posvenda_envios.os_id` e `orcamento_id` (gatilho preenche pela chave, inclusive os avisos que o próprio Pátio enfileira; legado preenchido).
+111. 🔗 "Onde toca" ganhou o orçamento e usa `os_id` para achar a ordem.
+112. 🔗 Bug de risco: links do servidor (CRM, Atendimento, Comunicar) apontavam para os serviços antigos que o João pode desligar; agora vão para a Central.
+113. 🔗 `LINKS.orcamento` usa a rota real do Orçador (`#/orcamento/<id>`), mais `orcamentoCliente(token)` e `novoOrcamento({cliente,tel,nome,carro,placa,servico})`.
+114. Migração `r6_c4_conexoes`: interruptores `usa_patio_posvenda/revisao`, `usa_orcador`, `ativo_extra_lembrete`, horas, três textos novos, bloqueios e retomada; filtros de segmento ampliados.
+
+Lote 1 — segurança
+
+115. **Texto repetido**: o mesmo texto (ignorando acento, emoji e link) para o mesmo número em 48 h é pulado, olhando também as saídas do Atendimento.
+116. **Retomada gradual**: WhatsApp que volta de queda séria (chave recusada, sem aparelho, desconectado) solta no máximo 8 mensagens nos primeiros 30 min e 25 até 2 h, descontando o que já saiu.
+117. Bug: `gravarEstadoWhatsapp` nunca era chamado (estado sempre nulo); o carteiro agora confere o status antes de enviar e grava.
+118. O estado de antes fica guardado (`whatsapp_estado_anterior`), base da retomada.
+119. Textos novos validados por código (variável desconhecida, link obrigatório, chave solta, vocabulário proibido).
+
+Verificação do lote 1: `npm test` 172 verdes (20 novos em testes-rodada6); migração aplicada e gatilho testado em DO-block revertido (`TESTE_REVERTIDO`).

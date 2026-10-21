@@ -10,14 +10,15 @@
      Agenda       /?agendamento=<uuid>  /?cliente=<uuid>&tel=
      Comunicar    /?cliente=<uuid>   /?tel=  /?tela=mensagens&status=&tipo=
      Pátio        /?os=<uuid>  (cliente: /acompanhar/?t=<token>  Área: /minha/?c=<token>)
+     Orçador      /#/orcamento/<uuid>  /#/o/<token> (cliente)  /?cliente=&tel=&nome=&carro=&placa=&servico= (cotação nova)
    ======================================================================================= */
 (function (raiz) {
   'use strict';
   const APPS = {
     agenda:      { nome: 'Agenda',      desc: 'horários e presença',    url: 'https://indycar-agendamentos.onrender.com' },
-    crm:         { nome: 'CRM',         desc: 'leads e funil',          url: 'https://indycar-crm.onrender.com' },
-    atendimento: { nome: 'Atendimento', desc: 'conversas do WhatsApp',  url: 'https://indycar-atendimento.onrender.com' },
-    comunicar:   { nome: 'Comunicar',   desc: 'lembretes e réguas',     url: 'https://indycar-posvenda.onrender.com' },
+    crm:         { nome: 'CRM',         desc: 'leads e funil',          url: 'https://indycar-agendamentos.onrender.com/crm' },
+    atendimento: { nome: 'Atendimento', desc: 'conversas do WhatsApp',  url: 'https://indycar-agendamentos.onrender.com/atendimento' },
+    comunicar:   { nome: 'Comunicar',   desc: 'lembretes e réguas',     url: 'https://indycar-agendamentos.onrender.com/comunicar' },
     orcador:     { nome: 'Orçador',     desc: 'orçamentos com IA',      url: 'https://indycar-orcador.netlify.app' },
     patio:       { nome: 'Pátio',       desc: 'carro dentro da oficina', url: 'https://indycar-patio.netlify.app' },
     site:        { nome: 'Site',        desc: 'indycar-taubate',        url: 'https://indycar-taubate.netlify.app' },
@@ -42,7 +43,19 @@
     agendamento:  (id)  => (id ? `${APPS.agenda.url}/?agendamento=${limpo(id)}` : null),
     clienteAgenda:(id, tel) => (id ? `${APPS.agenda.url}/?cliente=${limpo(id)}${semDDI(tel) ? `&tel=${limpo(semDDI(tel))}` : ''}` : null),
     os:           (id)  => (id ? `${APPS.patio.url}/?os=${limpo(id)}` : null),
-    orcamento:    (id)  => (id ? `${APPS.orcador.url}/?orcamento=${limpo(id)}` : null),
+    orcamento:    (id)  => (id ? `${APPS.orcador.url}/#/orcamento/${limpo(id)}` : null),   // rota real do Orçador (Histórico, no orçamento)
+    /** Página que o CLIENTE vê (sem login): #/o/<token_publico>. */
+    orcamentoCliente: (token) => (/^[A-Za-z0-9_-]{12,128}$/.test(String(token || '')) ? `${APPS.orcador.url}/#/o/${token}` : null),
+    /** "Criar orçamento": abre a cotação nova já com o cliente e o carro (o Orçador lê estes parâmetros). */
+    novoOrcamento: (c = {}) => {
+      const p = new URLSearchParams();
+      if (c.cliente_id) p.set('cliente', String(c.cliente_id));
+      const t = semDDI(c.telefone); if (t) p.set('tel', t);
+      for (const k of ['nome', 'carro', 'placa', 'servico']) if (c[k]) p.set(k, String(c[k]).trim().slice(0, 80));
+      const q = p.toString();
+      return q ? `${APPS.orcador.url}/?${q}` : APPS.orcador.url;
+    },
+    patioHome:    ()    => APPS.patio.url,
     clienteComunicar: (id) => (id ? `${APPS.comunicar.url}/?cliente=${limpo(id)}` : null),
   };
   raiz.IndyApps = { APPS, LINKS, semDDI, atual: 'comunicar' };

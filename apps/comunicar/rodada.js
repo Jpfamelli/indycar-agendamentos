@@ -18,6 +18,8 @@
 //      (o cliente receberia duas) — fica para a equipe conferir (Chegou / Reenviar) e a rodada para.
 // -----------------------------------------------------------------------------
 
+import * as conexoes from './conexoes.js';
+
 export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms) => new Promise((r) => setTimeout(r, ms)), agora = new Date(), log = console }) {
   const { hora, minuto, diaSemana, data } = dados.agoraSP(agora);
   if (cfg.pausa_geral) return { bloqueado: true, aviso: 'Envios pausados: a pausa geral está ligada.' };
@@ -33,6 +35,17 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   if (!vagasHora) return { bloqueado: true, aviso: `Limite de ${cfg.limite_por_hora} mensagens por hora atingido — o resto sai na próxima rodada.` };
   const vagas = carteiro.vagasPorCadencia({ limitePorMinuto: cfg.limite_por_minuto, limitePorDia: cfg.limite_por_dia, enviadasHoje, vagasHora });
   if (!vagas) return { bloqueado: true, aviso: `Limite diário de ${cfg.limite_por_dia} mensagens atingido — o resto sai amanhã.` };
+  /* rodada 6: o WhatsApp acabou de voltar de uma queda (chave recusada, aparelho caído): a primeira meia hora sai devagar —
+     quem espera há dias não vira rajada, e qualquer problema residual aparece antes de atingir a fila toda. */
+  let vagasFinal = vagas, retomada = null;
+  if (cfg.whatsapp?.estado === 'ok' && cfg.whatsapp?.em && cfg.retomada_gradual !== false) {
+    const desdeVolta = await (dados.enviadasDesde?.(cfg.whatsapp.em) ?? Promise.resolve(0)).catch(() => 0);
+    retomada = conexoes.limiteDeRetomada({ ligada: true, estado: cfg.whatsapp.estado, estadoEm: cfg.whatsapp.em, anterior: cfg.whatsapp.anterior, agora: agora.getTime(), enviadasDesde: desdeVolta });
+    if (retomada) {
+      if (retomada.limite <= 0) return { bloqueado: true, aviso: `Retomada gradual: ${retomada.motivo}. O resto sai quando a primeira meia hora passar.`, retomada };
+      vagasFinal = Math.min(vagas, retomada.limite);
+    }
+  }
   const pausaMs = carteiro.pausaEntreEnvios(cfg.limite_por_minuto);
 
   const nomeFeriado = dados.feriado(data);
@@ -45,7 +58,7 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     dados.enviosDevidos(60, { tipos: [...carteiro.TIPOS_URGENTES] }),
     dados.enviosDevidos(100, { exceto: [...carteiro.TIPOS_URGENTES] }),
   ]);
-  const ordenada = carteiro.ordenarFila([...urgentes, ...demais]).slice(0, vagas * 3 + 20);
+  const ordenada = carteiro.ordenarFila([...urgentes, ...demais]).slice(0, vagasFinal * 3 + 20);
 
   // quem pediu para parar não recebe nada, nem o que já estava na fila
   const fora = await dados.clientesFora(ordenada);
@@ -74,10 +87,21 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   // avisos do Pátio: confere a ordem de AGORA (carro já entregue não recebe "está pronto")
   const ordensPatio = await dados.ordensDoPatio(fila.map((e) => patio.osIdDaChave(e.chave_unica)).filter(Boolean)).catch(() => null);
 
+  /* rodada 6: conferências de AGORA com o Orçador, o Pátio e o Atendimento (cada uma tolera falhar: sem leitura, segue como antes) */
+  const nulo = () => null;
+  const porTipo = (tipo) => fila.filter((e) => e.tipo === tipo);
+  const [orcamentos, situacao, voltaram, recentes] = await Promise.all([
+    dados.orcamentosPorIds?.(porTipo('orcamento').map((e) => e.orcamento_id).filter(Boolean)).catch(nulo),
+    dados.situacaoDosClientes?.(fila.filter((e) => conexoes.TIPOS_AUTOMATICOS_RELACIONAMENTO.has(e.tipo)).map((e) => e.telefone), { diasReclamacao: cfg.dias_reclamacao_aberta }).catch(nulo),
+    dados.voltouDepois?.(porTipo('retorno').map((e) => ({ cliente_id: e.cliente_id, apos: conexoes.diaSP(e.created_at) }))).catch(nulo),
+    Number(cfg.evitar_texto_repetido_h) !== 0 ? dados.textosRecentes?.(fila.map((e) => e.telefone), cfg.evitar_texto_repetido_h ?? 48).catch(nulo) : null,
+  ]);
+  const ordemDoLembrete = agendas ? await dados.ordensPorAgendamento?.(porTipo('lembrete').map((e) => e.agendamento_id).filter(Boolean)).catch(nulo) : null;
+
   let enviados = 0, falhas = 0, semConfirmacao = 0, adiados = sep.adiados.length, reagendados = 0, parouPor = null, classeParou = null;
   const porClasse = {};
   for (const envio of fila) {
-    if (enviados >= vagas) break;
+    if (enviados >= vagasFinal) break;
     if (carteiro.envioVencido(envio, agora.getTime())) continue; // a faxina do começo pega na próxima
     // feriado nacional: régua de relacionamento espera o próximo dia útil
     if (nomeFeriado && dados.TIPOS_SEGURAM_NO_FERIADO.has(envio.tipo)) {
@@ -98,6 +122,35 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
       const os = osId && ordensPatio ? (ordensPatio.get(osId) || null) : undefined;
       const c = patio.conferirPatio(envio, os, os?.extras || [], agora.getTime());
       if (c.acao === 'pular') { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {}); pulados++; continue; }
+    }
+    // Orçador: o cliente já decidiu o orçamento? (lembrete antigo não vai depois da aprovação)
+    if (envio.tipo === 'orcamento' && envio.orcamento_id && orcamentos) {
+      const c = conexoes.conferirOrcamento(envio, orcamentos.get(envio.orcamento_id));
+      if (c.acao === 'pular') { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {}); pulados++; continue; }
+    }
+    // revisão: o cliente voltou depois (nova ordem no Pátio ou horário na Agenda)? então não incomoda
+    if (envio.tipo === 'retorno' && voltaram?.has(envio.cliente_id)) {
+      const c = conexoes.conferirRetorno(envio, voltaram.get(envio.cliente_id));
+      await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {}); pulados++; continue;
+    }
+    // lembrete de horário: o carro já chegou à oficina (ordem aberta no Pátio)? o lembrete perdeu o sentido
+    if (envio.tipo === 'lembrete' && envio.agendamento_id && ordemDoLembrete?.get(envio.agendamento_id)) {
+      const c = conexoes.conferirLembreteComOrdem(envio, ordemDoLembrete.get(envio.agendamento_id));
+      if (c.acao === 'pular') { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {}); pulados++; continue; }
+    }
+    // carro na oficina agora ou reclamação sem resolver: relacionamento automático espera
+    if (situacao) {
+      const sit = situacao.get(carteiro.telDe(envio.telefone)) || {};
+      const b = conexoes.bloqueioDeRelacionamento(envio, sit, cfg, agora.getTime());
+      if (b.acao === 'adiar') { await dados.adiarEnvio(envio.id, b.ate, b.motivo).catch(() => {}); adiados++; continue; }
+    }
+    // o mesmo texto já foi para este número há pouco (Comunicar ou Atendimento): não repete
+    if (recentes) {
+      const rep = conexoes.repetidoRecente(envio.corpo, recentes.get(carteiro.telDe(envio.telefone)) || [], { horas: cfg.evitar_texto_repetido_h ?? 48, agora: agora.getTime() });
+      if (rep) {
+        await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: `o mesmo texto já foi para este número há pouco (${rep.origem === 'atendimento' ? 'pelo Atendimento' : 'pelo Comunicar'}): não repete` }).catch(() => {});
+        pulados++; continue;
+      }
     }
     // alguém está atendendo o cliente agora → espera 3 h
     let ocup = { ocupada: false, conversa: undefined };
@@ -157,6 +210,52 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     }
     await dormir(pausaMs); // cadência: respeita o limite por minuto, com variação (sem rajada)
   }
-  return { enviados, falhas, semConfirmacao, adiados, reagendados, pulados, porClasse, cadencia: { vagas, pausaMs, enviadasHoje },
+  return { enviados, falhas, semConfirmacao, adiados, reagendados, pulados, porClasse, cadencia: { vagas: vagasFinal, pausaMs, enviadasHoje }, retomada: retomada || undefined,
     feriado: nomeFeriado || undefined, aviso: parouPor || undefined, classe: classeParou || undefined };
+}
+
+/**
+ * "Se o carteiro rodasse AGORA, o que sairia?" — roda a MESMA decisão da rodada real (enviarFila) com um banco que
+ * só anota e um WhatsApp de mentira: nada é enviado, reservado, adiado ou gravado. Devolve, por mensagem, o que ele faria.
+ */
+export async function simularRodada({ cfg, dados, patio, carteiro, agora = new Date() }) {
+  const feito = { enviaria: [], adiaria: [], pularia: [], reagendaria: [], atualizaria: [] };
+  const porId = new Map();
+  const conhecer = async (id) => {
+    if (!porId.has(id)) {
+      const e = await dados.obterEnvio?.(id).catch(() => null);
+      porId.set(id, e || { id });
+    }
+    return porId.get(id);
+  };
+  let ultimoReservado = null;
+  const lista = await Promise.all([
+    dados.enviosDevidos(60, { tipos: [...carteiro.TIPOS_URGENTES] }),
+    dados.enviosDevidos(100, { exceto: [...carteiro.TIPOS_URGENTES] }),
+  ]);
+  for (const e of lista.flat()) porId.set(e.id, e);
+  const simulado = {
+    ...dados,
+    async reservarEnvio(id) { ultimoReservado = id; return { id }; },
+    async marcarEnvio(id, status, erro, tentativas, extra = {}) {
+      const e = await conhecer(id);
+      if (status === 'pulado') feito.pularia.push({ id, tipo: e.tipo, nome: e.nome, motivo: extra.motivo_pulado || erro || '' });
+      else if (status === 'pendente' && extra.enviar_em) feito.reagendaria.push({ id, tipo: e.tipo, nome: e.nome, quando: extra.enviar_em, motivo: erro || '' });
+      else if (status === 'enviado') { /* o envio já foi anotado em wa.enviar */ }
+      return { id };
+    },
+    async adiarEnvio(id, quando, motivo) { const e = await conhecer(id); feito.adiaria.push({ id, tipo: e.tipo, nome: e.nome, quando, motivo }); return { id }; },
+    async atualizarEnvio(id, campos) { const e = await conhecer(id); feito.atualizaria.push({ id, tipo: e.tipo, nome: e.nome, campos: Object.keys(campos) }); return { id }; },
+    async registrarNoHistorico() { return null; },
+    async gravarEstadoWhatsapp() { return false; },
+  };
+  const wa = {
+    async enviar(telefone, corpo) {
+      const e = await conhecer(ultimoReservado);
+      feito.enviaria.push({ id: e.id, tipo: e.tipo, nome: e.nome, telefone, corpo, prioridade: carteiro.prioridadeDe(e.tipo) });
+      return { ok: true };
+    },
+  };
+  const r = await enviarFila({ cfg, dados: simulado, wa, patio, carteiro, dormir: async () => {}, agora, log: { error() {} } });
+  return { ...feito, aviso: r.aviso || null, bloqueado: !!r.bloqueado, retomada: r.retomada || null, cadencia: r.cadencia || null, simulado: true };
 }

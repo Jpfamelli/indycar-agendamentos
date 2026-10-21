@@ -21,6 +21,7 @@ import { validadeDoEnvio, esperaDaTentativa, LIMITE_ATRASO_H } from './carteiro.
 import { TIPOS_PATIO, ROTULO_PATIO, VALIDADE_PATIO_H, linkArea, linkOs, usaLinkArea, usaLinkOs, PATIO_URL } from './patio.js';
 import { mesclarPreferencias, LINKS } from './acesso.js';
 import { classificarErro } from './whatsapp.js';
+import * as conexoes from './conexoes.js';
 
 const T = {
   clientes: 'clientes',
@@ -445,7 +446,7 @@ export async function ligacoesDoEnvio(id) {
   if (!e) return null;
   const c360 = await cliente360(e.telefone).catch(() => null);
   const lig = montarLigacoes(c360) || {};
-  let osId = /^patio_(entrada|extra|pronto):([0-9a-f-]{36})/i.exec(String(e.chave_unica || ''))?.[2] || null;
+  let osId = e.os_id || /^patio_(entrada|extra_lembrete|extra|pronto(?:_lembrete)?):([0-9a-f-]{36})/i.exec(String(e.chave_unica || ''))?.[2] || null;
   if (!osId && e.agendamento_id) osId = (await ordensPorAgendamento([e.agendamento_id])).get(e.agendamento_id)?.id || null;
   const conversaId = e.conversa_id || lig.conversa?.id || null;
   return {
@@ -455,6 +456,7 @@ export async function ligacoesDoEnvio(id) {
       lead: LINKS.lead(e.lead_id || lig.leads?.[0]?.id || null),
       agendamento: LINKS.agendamento(e.agendamento_id),
       os: LINKS.os(osId || lig.carroNaOficina?.id || null),
+      orcamento: LINKS.orcamento(e.orcamento_id || lig.orcamentos?.[0]?.id || null),   // rodada 6
       cliente_crm: LINKS.clienteCrm(e.cliente_id, e.telefone),
     },
     ligacoes: lig,
@@ -468,12 +470,15 @@ export async function ligacoesDoEnvio(id) {
  *   ctx.links = { os: Map(agendamento_id → link|null), area: Map(cliente_id → link|null) }
  * Em simulação o {link_area} vira um marcador (a rpc gera um token de verdade).
  */
-export async function linksDaRegua(template, { cliente_id = null, agendamento_id = null }, ctx = {}) {
+export async function linksDaRegua(template, { cliente_id = null, agendamento_id = null, os = null }, ctx = {}) {
   const saida = {};
   ctx.links ||= { os: new Map(), area: new Map(), areaGastos: 0 };
   if (usaLinkOs(template)) {
     let link = null;
-    if (ehUuid(agendamento_id)) {
+    if (os?.token_publico) { // rodada 6: a ordem já veio na mão (entrega no Pátio) — não depende do horário da Agenda
+      const cfgP = await patioConfig().catch(() => null);
+      link = linkOs(cfgP?.link_base || PATIO_URL, os.token_publico);
+    } else if (ehUuid(agendamento_id)) {
       if (!ctx.links.os.has(agendamento_id)) {
         const o = (await ordensPorAgendamento([agendamento_id]).catch(() => new Map())).get(agendamento_id);
         const cfgP = await patioConfig().catch(() => null);
@@ -516,12 +521,39 @@ const FAIXAS = {
   janela_inicio: [0, 23], janela_fim: [1, 24], limite_por_hora: [1, 500],
   // rodada 5: cadência segura
   limite_por_minuto: [1, 60], limite_por_dia: [1, 5000], intervalo_mesmo_cliente_min: [0, 1440],
+  // rodada 6: ligações com o Pátio e o Orçador, anti-spam
+  horas_extra_lembrete: [1, 48], dias_reclamacao_aberta: [1, 60], evitar_texto_repetido_h: [0, 336], campanha_repetir_dias: [0, 90],
 };
 export const PADRAO_NUM = {
   dias_posvenda: 2, meses_retorno: 6, horas_lembrete: 20, dias_orcamento: 3, dias_nao_fechou: 7,
   meses_reativacao: 12, intervalo_minimo_dias: 7, janela_inicio: 8, janela_fim: 20, limite_por_hora: 60,
   limite_por_minuto: 10, limite_por_dia: 300, intervalo_mesmo_cliente_min: 60,
+  horas_extra_lembrete: 3, dias_reclamacao_aberta: 14, evitar_texto_repetido_h: 48, campanha_repetir_dias: 14,
 };
+/** Rodada 6: interruptores das ligações novas (todos ligados por padrão; o que depende de uma régua só age com ela ligada). */
+export const BOOLEANOS_R6 = ['usa_patio_posvenda', 'usa_patio_revisao', 'usa_orcador', 'ativo_extra_lembrete', 'bloquear_com_carro_na_oficina', 'bloquear_com_reclamacao', 'retomada_gradual'];
+/** Rodada 6: textos novos e as variáveis que cada um aceita (qualquer outra fica vazia no cliente — a tela e a API barram). */
+export const TEXTOS_R6 = {
+  msg_extra_lembrete: { rotulo: 'Lembrete do extra do Pátio', vars: ['nome', 'primeiro_nome', 'carro', 'placa', 'itens', 'link_os'], obrigatorias: ['link_os'] },
+  msg_orcador_novisto: { rotulo: 'Orçamento do Orçador (cliente nem abriu)', vars: ['nome', 'primeiro_nome', 'carro', 'placa', 'servico', 'link_orcamento'], obrigatorias: ['link_orcamento'] },
+  msg_orcador_visto: { rotulo: 'Orçamento do Orçador (cliente abriu e não decidiu)', vars: ['nome', 'primeiro_nome', 'carro', 'placa', 'servico', 'link_orcamento'], obrigatorias: ['link_orcamento'] },
+};
+/** Pura: texto novo válido? devolve a mensagem de erro em português ou null. */
+export function validarTextoR6(campo, texto) {
+  const def = TEXTOS_R6[campo];
+  if (!def) return null;
+  const t = String(texto ?? '').trim();
+  if (t.length < 10) return `${def.rotulo}: escreva pelo menos uma frase.`;
+  if (t.length > 1000) return `${def.rotulo}: no máximo 1000 letras.`;
+  const usadas = [...t.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
+  const desconhecida = usadas.find((v) => !def.vars.includes(v));
+  if (desconhecida) return `${def.rotulo}: a variável {${desconhecida}} não existe aqui (use ${def.vars.map((v) => `{${v}}`).join(', ')}).`;
+  const falta = def.obrigatorias.find((v) => !usadas.includes(v));
+  if (falta) return `${def.rotulo}: o texto precisa ter {${falta}} — sem o link o cliente não consegue abrir.`;
+  if (/\{[^}]*$|^[^{]*\}/.test(t.replace(/\{\w+\}/g, ''))) return `${def.rotulo}: tem uma chave { } solta no texto.`;
+  if (/prezad|efetuar|comparecer|ve[ií]culo/i.test(t)) return `${def.rotulo}: evite "prezado", "efetuar", "comparecer" e "veículo" — fale como a casa fala (use "carro").`;
+  return null;
+}
 
 export async function obterConfig() {
   const c = (await selecionarUm(T.config, `select=*&${LINHA_UNICA}`)) || {};
@@ -543,15 +575,21 @@ export async function obterConfig() {
   cfg.updated_at = c.updated_at || null;
   // rodada 5: só horário comercial (seg–sáb 8h–17h30) e o estado do WhatsApp que o carteiro gravou
   cfg.so_horario_comercial = !!c.so_horario_comercial;
-  cfg.whatsapp = { estado: c.whatsapp_estado || null, em: c.whatsapp_estado_em || null, motivo: c.whatsapp_motivo || null };
+  cfg.whatsapp = { estado: c.whatsapp_estado || null, em: c.whatsapp_estado_em || null, motivo: c.whatsapp_motivo || null, anterior: c.whatsapp_estado_anterior || null };
+  // rodada 6: ligações com o Pátio e o Orçador, anti-spam e retomada gradual (ligados por padrão)
+  for (const k of BOOLEANOS_R6) cfg[k] = c[k] !== false;
+  for (const k of Object.keys(TEXTOS_R6)) cfg[k] = c[k] || '';
   return cfg;
 }
 
 /** O carteiro grava o estado do WhatsApp que viu (o Render dorme e perde a memória) — só quando muda. */
 export async function gravarEstadoWhatsapp(estado, motivo = null, atual = null) {
-  const a = atual || (await selecionarUm(T.config, `select=whatsapp_estado,whatsapp_motivo&${LINHA_UNICA}`).catch(() => null)) || {};
+  const a = atual || (await selecionarUm(T.config, `select=whatsapp_estado,whatsapp_motivo,whatsapp_estado_anterior&${LINHA_UNICA}`).catch(() => null)) || {};
   if (a.whatsapp_estado === estado && (a.whatsapp_motivo || null) === (motivo || null)) return false;
-  await atualizarUm(T.config, LINHA_UNICA, { whatsapp_estado: estado, whatsapp_estado_em: new Date().toISOString(), whatsapp_motivo: motivo ? String(motivo).slice(0, 300) : null }).catch(() => null);
+  /* rodada 6: guarda o estado de ANTES — com ele o carteiro sabe que o WhatsApp acabou de voltar de uma queda (retomada gradual).
+     Só vira "anterior" um estado diferente do novo; mudar de problema para problema mantém o último bom. */
+  const anterior = a.whatsapp_estado && a.whatsapp_estado !== estado ? a.whatsapp_estado : (a.whatsapp_estado_anterior ?? null);
+  await atualizarUm(T.config, LINHA_UNICA, { whatsapp_estado: estado, whatsapp_estado_em: new Date().toISOString(), whatsapp_motivo: motivo ? String(motivo).slice(0, 300) : null, whatsapp_estado_anterior: anterior }).catch(() => null);
   return true;
 }
 
@@ -584,6 +622,10 @@ export async function salvarConfig(dados) {
   if (dados.envia_domingo !== undefined) campos.envia_domingo = dados.envia_domingo === true;
   if (dados.pausa_geral !== undefined) campos.pausa_geral = dados.pausa_geral === true;
   if (dados.so_horario_comercial !== undefined) campos.so_horario_comercial = dados.so_horario_comercial === true;
+  for (const k of BOOLEANOS_R6) if (dados[k] !== undefined) campos[k] = dados[k] === true;
+  for (const k of Object.keys(TEXTOS_R6)) {
+    if (dados[k] !== undefined && !validarTextoR6(k, dados[k])) campos[k] = String(dados[k]).trim();
+  }
   if (dados.telefone_teste !== undefined) {
     const t = soDigitos(dados.telefone_teste);
     campos.telefone_teste = t.length >= 10 ? t : null;
@@ -653,7 +695,7 @@ export async function listarModelos() {
 // ============================================================================
 
 /* rodada 4: colunas explícitas (antes select=*) — é o que a tela e o CSV usam */
-const CAMPOS_ENVIO = 'id,cliente_id,agendamento_id,lead_id,telefone,nome,tipo,corpo,enviar_em,enviado_em,status,erro,erro_classe,tentativas,motivo_pulado,chave_unica,criado_por,criado_por_id,campanha_id,lote,resposta,resposta_tipo,respondido_em,agendou_depois_id,intencao,intencao_em,intencao_resumo,encaminhado_em,tarefa_id,expira_em,conversa_id,mensagem_id,created_at';
+const CAMPOS_ENVIO = 'id,cliente_id,agendamento_id,lead_id,telefone,nome,tipo,corpo,enviar_em,enviado_em,status,erro,erro_classe,tentativas,motivo_pulado,chave_unica,criado_por,criado_por_id,campanha_id,lote,resposta,resposta_tipo,respondido_em,agendou_depois_id,intencao,intencao_em,intencao_resumo,encaminhado_em,tarefa_id,expira_em,conversa_id,mensagem_id,os_id,orcamento_id,created_at';
 export async function listarEnvios({ status, tipo, q, de, ate, intencao, limite = 300, offset = 0 } = {}) {
   const p = new URLSearchParams(`select=${CAMPOS_ENVIO}`);
   const desloc = Math.max(0, Math.min(Number(offset) || 0, 100000));
@@ -696,7 +738,7 @@ export async function enfileirar({
   cliente_id = null, agendamento_id = null, lead_id = null, telefone, nome = null,
   tipo, corpo, enviar_em = null, chave_unica = null, criado_por = null,
   status = 'pendente', motivo_pulado = null, lote = null, criado_por_id = null, campanha_id = null,
-  expira_em = null,
+  expira_em = null, os_id = null, orcamento_id = null,
 }) {
   const tel = soDigitos(telefone);
   if (!tel || !corpo || !tipo) return null;
@@ -710,6 +752,8 @@ export async function enfileirar({
       chave_unica, criado_por, status, motivo_pulado, lote: uuidOuNulo(lote),
       criado_por_id: uuidOuNulo(criado_por_id), campanha_id: uuidOuNulo(campanha_id),
       ...(expira_em ? { expira_em } : {}),
+      ...(uuidOuNulo(os_id) ? { os_id: uuidOuNulo(os_id) } : {}),
+      ...(uuidOuNulo(orcamento_id) ? { orcamento_id: uuidOuNulo(orcamento_id) } : {}),
     }, 'select=*');
   } catch (e) {
     if (e?.status === 409) return null; // chave_unica repetida: já estava na fila
@@ -761,7 +805,7 @@ export async function contarSemConfirmacao() {
 }
 
 /** Pendentes que já venceram — o carteiro do server.js chama isto. */
-export const CAMPOS_FILA = 'id,cliente_id,agendamento_id,lead_id,telefone,nome,tipo,corpo,enviar_em,tentativas,status,enviando_em,expira_em,mensagem_id,criado_por_id,chave_unica,created_at';
+export const CAMPOS_FILA = 'id,cliente_id,agendamento_id,lead_id,telefone,nome,tipo,corpo,enviar_em,tentativas,status,enviando_em,expira_em,mensagem_id,criado_por_id,chave_unica,os_id,orcamento_id,created_at';
 export async function enviosDevidos(limite = 25, { tipos = null, exceto = null } = {}) {
   const p = new URLSearchParams(`select=${CAMPOS_FILA}`);
   if (tipos?.length) p.set('tipo', `in.(${tipos.join(',')})`);
@@ -866,6 +910,12 @@ export async function carregarPorteiro(cfg) {
 
 /** Passa pelo porteiro e enfileira (ou só anota, em simulação). */
 async function entregarAoPorteiro(porteiro, dados, ctx) {
+  /* rodada 6: duas fontes (Agenda e Pátio) podem chegar à mesma mensagem — a chave é a mesma e só a primeira vale (também na prévia). */
+  if (dados.chave_unica) {
+    ctx.vistas ||= new Set();
+    if (ctx.vistas.has(dados.chave_unica)) return null;
+    ctx.vistas.add(dados.chave_unica);
+  }
   const veredito = porteiro.podeReceber(dados);
   if (!veredito.ok) {
     const anotado = { ...dados, motivo: veredito.motivo, definitivo: veredito.definitivo };
@@ -961,7 +1011,7 @@ export async function gerarAniversarios(cfg, porteiro, ctx) {
 }
 
 /** Serviços concluídos há N dias → "ficou tudo certo?". Dedupe por agendamento. */
-export async function gerarPosvenda(cfg, porteiro, ctx) {
+async function posvendaDaAgenda(cfg, porteiro, ctx) {
   const ate = somarDias(hoje(), -cfg.dias_posvenda);
   const desde = somarDias(ate, -5);            // janela de recuperação de 5 dias
   const p = new URLSearchParams(A_SEL);
@@ -982,8 +1032,14 @@ export async function gerarPosvenda(cfg, porteiro, ctx) {
   }
 }
 
+/** Pós-venda: a Agenda (serviço concluído) e, desde a rodada 6, o Pátio (carro entregue) — a mesma chave impede duas mensagens. */
+export async function gerarPosvenda(cfg, porteiro, ctx) {
+  await posvendaDaAgenda(cfg, porteiro, ctx);
+  await comAviso(ctx, 'posvenda_patio', () => posvendaDoPatio(cfg, porteiro, ctx));
+}
+
 /** Visitas posteriores por cliente (qualquer status que não seja falta/cancelamento). */
-async function ultimaVisitaDepoisDe(clientesIds, dataMinima) {
+async function ultimaVisitaDepoisDe(clientesIds, dataMinima, { patio = false } = {}) {
   const mapa = new Map(); // cliente_id -> maior data
   const ids = [...new Set(clientesIds.filter(Boolean))];
   for (let i = 0; i < ids.length; i += 80) {
@@ -993,6 +1049,18 @@ async function ultimaVisitaDepoisDe(clientesIds, dataMinima) {
     q.set('status', 'not.in.(cancelado,nao_veio)');
     for (const n of await selecionarTudo(T.agendamentos, q)) {
       if (!mapa.has(n.cliente_id) || mapa.get(n.cliente_id) < n.data) mapa.set(n.cliente_id, n.data);
+    }
+    /* rodada 6: carro que passou pelo Pátio (mesmo sem horário na Agenda) também é "voltou" —
+       antes o cliente de balcão recebia convite de revisão/reativação logo depois de visitar a oficina. */
+    if (patio) {
+      const p = new URLSearchParams('select=cliente_id,created_at');
+      p.set('cliente_id', `in.(${ids.slice(i, i + 80).join(',')})`);
+      p.set('etapa', 'neq.cancelado');
+      p.set('created_at', `gt.${instanteSP(dataMinima, '23:59').toISOString()}`);
+      for (const o of await selecionarTudo('patio_os', p)) {
+        const dia = conexoes.diaSP(o.created_at);
+        if (!mapa.has(o.cliente_id) || mapa.get(o.cliente_id) < dia) mapa.set(o.cliente_id, dia);
+      }
     }
   }
   return mapa;
@@ -1004,6 +1072,11 @@ async function ultimaVisitaDepoisDe(clientesIds, dataMinima) {
  * voltou depois, convida. Dedupe por agendamento.
  */
 export async function gerarRetornos(cfg, porteiro, ctx, regras) {
+  ctx.convidadosRevisao ||= new Set();            // um convite por cliente, vindo da Agenda OU do Pátio
+  await retornosDaAgenda(cfg, porteiro, ctx, regras);
+  await comAviso(ctx, 'revisao_patio', () => retornosDoPatio(cfg, porteiro, ctx, regras));
+}
+async function retornosDaAgenda(cfg, porteiro, ctx, regras) {
   const h = hoje();
   const p = new URLSearchParams(A_SEL);
   p.set('status', 'eq.concluido');
@@ -1022,8 +1095,8 @@ export async function gerarRetornos(cfg, porteiro, ctx, regras) {
   }
   if (!candidatos.length) return;
 
-  const voltaram = await ultimaVisitaDepoisDe(candidatos.map((a) => a.cliente_id), candidatos.reduce((m, a) => (a.data < m ? a.data : m), h));
-  const jaConvidado = new Set();
+  const voltaram = await ultimaVisitaDepoisDe(candidatos.map((a) => a.cliente_id), candidatos.reduce((m, a) => (a.data < m ? a.data : m), h), { patio: cfg.usa_patio_revisao });
+  const jaConvidado = ctx.convidadosRevisao;
   for (const a of candidatos) {
     if (!soDigitos(a.telefone)) continue;
     if (a.cliente_id && (voltaram.get(a.cliente_id) || '') > a.data) continue; // voltou depois: não convida
@@ -1044,6 +1117,12 @@ export async function gerarRetornos(cfg, porteiro, ctx, regras) {
 
 /** Orçamento parado há N dias no CRM → "conseguiu olhar?". Dedupe por lead. */
 export async function gerarOrcamentos(cfg, porteiro, ctx) {
+  /* rodada 6: o Orçador manda primeiro (link do orçamento, "abriu / não abriu"); o lead do CRM que nasceu desse
+     orçamento não recebe o mesmo lembrete por outro caminho. */
+  let leadsDoOrcador = new Set();
+  if (cfg.usa_orcador) {
+    await comAviso(ctx, 'orcamento_orcador', async () => { leadsDoOrcador = await orcamentosDoOrcador(cfg, porteiro, ctx); });
+  }
   const ate = new Date(Date.now() - cfg.dias_orcamento * 86400000).toISOString();
   const desde = new Date(Date.now() - (cfg.dias_orcamento + 7) * 86400000).toISOString();
   const p = new URLSearchParams('select=id,cliente_id,nome,telefone,carro_modelo,placa,servico,updated_at');
@@ -1052,6 +1131,7 @@ export async function gerarOrcamentos(cfg, porteiro, ctx) {
   p.append('updated_at', `gte.${desde}`);
   for (const l of await selecionar(T.leads, p)) {
     if (!soDigitos(l.telefone)) continue;
+    if (leadsDoOrcador.has(l.id)) continue;
     const corpo = await corpoDaRegua(cfg.msg_orcamento, {
       nome: l.nome, carro: l.carro_modelo, placa: l.placa, servico: l.servico || 'o serviço',
     }, { cliente_id: l.cliente_id }, ctx, { tipo: 'orcamento', nome: l.nome, telefone: l.telefone, cliente_id: l.cliente_id });
@@ -1074,7 +1154,7 @@ export async function gerarNaoFechou(cfg, porteiro, ctx) {
   p.append('data', `lte.${ate}`);
   const lista = await selecionar(T.agendamentos, p);
   if (!lista.length) return;
-  const voltaram = await ultimaVisitaDepoisDe(lista.map((a) => a.cliente_id), desde);
+  const voltaram = await ultimaVisitaDepoisDe(lista.map((a) => a.cliente_id), desde, { patio: cfg.usa_patio_revisao });
   for (const a of lista) {
     if (!soDigitos(a.telefone)) continue;
     if (a.cliente_id && (voltaram.get(a.cliente_id) || '') > a.data) continue;
@@ -1091,7 +1171,7 @@ export async function gerarNaoFechou(cfg, porteiro, ctx) {
 }
 
 /** Último serviço por cliente + última visita de qualquer tipo (lê os agendamentos uma vez). */
-async function historicoPorCliente() {
+async function historicoPorCliente({ patio = false } = {}) {
   const todos = await selecionarTudo(T.agendamentos, 'select=id,cliente_id,cliente_nome,telefone,servico,veiculo,placa,data,status&cliente_id=not.is.null&order=data.asc');
   const mapa = new Map();
   for (const a of todos) {
@@ -1099,6 +1179,23 @@ async function historicoPorCliente() {
     if (a.status === 'concluido' && (!h.ultimoServico || h.ultimoServico.data <= a.data)) h.ultimoServico = a;
     if (!['cancelado', 'nao_veio'].includes(a.status) && (!h.ultimaVisita || h.ultimaVisita < a.data)) h.ultimaVisita = a.data;
     mapa.set(a.cliente_id, h);
+  }
+  if (patio) {
+    /* rodada 6: o que passou pelo Pátio (mesmo sem horário na Agenda) conta como serviço e como visita — o cliente de balcão
+       não é "reativado" logo depois de ter feito o serviço, e o carro que está na oficina agora também é visita. */
+    const oss = await selecionarTudo('patio_os', 'select=id,cliente_id,cliente_nome,telefone,servico,veiculo,placa,etapa,entregue_em,created_at&cliente_id=not.is.null&etapa=neq.cancelado');
+    for (const o of oss) {
+      const h = mapa.get(o.cliente_id) || { ultimoServico: null, ultimaVisita: null, faltas30: 0 };
+      const visita = conexoes.diaSP(o.created_at);
+      if (visita && (!h.ultimaVisita || h.ultimaVisita < visita)) h.ultimaVisita = visita;
+      if (o.etapa === 'entregue' && o.entregue_em) {
+        const data = conexoes.diaSP(o.entregue_em);
+        if (!h.ultimoServico || h.ultimoServico.data <= data) {
+          h.ultimoServico = { id: null, os_id: o.id, origem: 'patio', cliente_id: o.cliente_id, cliente_nome: o.cliente_nome, telefone: o.telefone, servico: o.servico, veiculo: o.veiculo, placa: o.placa, data, status: 'concluido' };
+        }
+      }
+      mapa.set(o.cliente_id, h);
+    }
   }
   return mapa;
 }
@@ -1111,7 +1208,7 @@ export async function gerarReativacao(cfg, porteiro, ctx) {
   const h = hoje();
   const limiteSup = somarDias(h, -cfg.meses_reativacao * 30);
   const limiteInf = somarDias(limiteSup, -30);
-  const historico = await historicoPorCliente();
+  const historico = await historicoPorCliente({ patio: cfg.usa_patio_revisao });
   const alvos = [];
   for (const [clienteId, info] of historico) {
     const u = info.ultimoServico;
@@ -1127,10 +1224,10 @@ export async function gerarReativacao(cfg, porteiro, ctx) {
     if (!soDigitos(telefone)) continue;
     const corpo = await corpoDaRegua(cfg.msg_reativacao, {
       nome: c?.nome || u.cliente_nome, carro: c?.carro || u.veiculo, placa: c?.placa || u.placa, servico: u.servico,
-    }, { cliente_id: clienteId, agendamento_id: u.id }, ctx, { tipo: 'reativacao', nome: c?.nome || u.cliente_nome, telefone, cliente_id: clienteId });
+    }, { cliente_id: clienteId, agendamento_id: u.id || null }, ctx, { tipo: 'reativacao', nome: c?.nome || u.cliente_nome, telefone, cliente_id: clienteId });
     if (corpo === null) continue;
     await entregarAoPorteiro(porteiro, {
-      cliente_id: clienteId, agendamento_id: u.id, telefone, nome: c?.nome || u.cliente_nome,
+      cliente_id: clienteId, agendamento_id: u.id || null, os_id: u.os_id || null, telefone, nome: c?.nome || u.cliente_nome,
       tipo: 'reativacao', corpo, enviar_em: hojeAs(cfg.hora_envio),
       chave_unica: `reativacao:${clienteId}:${h.slice(0, 4)}`, criado_por: 'gerador',
       expira_em: validadeDoEnvio('reativacao', { base: h }),
@@ -1141,6 +1238,7 @@ export async function gerarReativacao(cfg, porteiro, ctx) {
 const GERADORES = {
   lembrete: gerarLembretes, posvenda: gerarPosvenda, retorno: gerarRetornos, aniversario: gerarAniversarios,
   orcamento: gerarOrcamentos, nao_fechou: gerarNaoFechou, reativacao: gerarReativacao,
+  extra_lembrete: gerarExtraLembrete,   // rodada 6: extra do Pátio esperando o OK do cliente
   // 'avaliacao' é disparada pelo gatilho do banco quando o cliente responde bem ao pós-venda
 };
 
@@ -1215,7 +1313,7 @@ async function candidatosDoSegmento(filtro, valor) {
     case 'sem_voltar': {
       const meses = Math.min(Math.max(Number(valor) || 6, 1), 60);
       const limite = somarDias(h, -meses * 30);
-      const historico = await historicoPorCliente();
+      const historico = await historicoPorCliente({ patio: true });
       const ids = [];
       for (const [id, info] of historico) {
         if (info.ultimoServico && info.ultimoServico.data <= limite && (info.ultimaVisita || '') <= info.ultimoServico.data) ids.push(id);
@@ -2393,4 +2491,241 @@ export async function cargaDeHoje() {
 export async function agendamentosDoCliente(clienteId, limite = 3) {
   if (!ehUuid(clienteId)) return [];
   return selecionar(T.agendamentos, `${A_SEL}&cliente_id=eq.${clienteId}&order=data.desc,hora.desc&limit=${Math.min(Number(limite) || 3, 20)}`);
+}
+
+// ============================================================================
+// RODADA 6 (21/10/2026) — réguas ligadas aos eventos do Pátio e do Orçador
+// ============================================================================
+
+/** Roda um pedaço opcional de uma régua: se a integração falhar, a régua principal segue e o erro aparece na prévia. */
+async function comAviso(ctx, tipo, fn) {
+  try { await fn(); } catch (e) { (ctx.erros ||= []).push({ tipo, erro: String(e?.message || e).slice(0, 300) }); }
+}
+
+const OS_SEL = 'id,numero,etapa,cliente_id,agendamento_id,lead_id,orcamento_id,cliente_nome,telefone,veiculo,placa,servico,entregue_em,token_publico,created_at';
+
+/** Ordens ENTREGUES entre duas datas (fuso da oficina) — pós-venda e revisão pelo histórico do Pátio. */
+export async function ordensEntregues(deIso, ateIso) {
+  const p = new URLSearchParams(`select=${OS_SEL}`);
+  p.set('etapa', 'eq.entregue');
+  p.append('entregue_em', `gte.${instanteSP(deIso, '00:00').toISOString()}`);
+  p.append('entregue_em', `lt.${instanteSP(somarDias(ateIso, 1), '00:00').toISOString()}`);
+  p.set('order', 'entregue_em.desc');
+  return selecionarTudo('patio_os', p);
+}
+
+/** Avaliações que o cliente deu no Pátio (nota 1–5) das ordens pedidas. */
+export async function avaliacoesDoPatio(osIds = []) {
+  const ids = [...new Set(osIds.filter(ehUuid))];
+  const saida = [];
+  for (let i = 0; i < ids.length; i += 80) {
+    saida.push(...await selecionar('patio_avaliacoes', `select=os_id,nota,comentario&os_id=in.(${ids.slice(i, i + 80).join(',')})`));
+  }
+  return saida;
+}
+
+/**
+ * Carro ENTREGUE no Pátio → pós-venda (ou, se o cliente já deu nota 4–5 no Pátio, direto o convite do Google;
+ * nota 1–3 fica para a equipe). Cobre quem não veio pela Agenda; a chave é a mesma do pós-venda da Agenda.
+ */
+async function posvendaDoPatio(cfg, porteiro, ctx) {
+  if (!cfg.usa_patio_posvenda) return;
+  const h = hoje();
+  const ate = somarDias(h, -cfg.dias_posvenda), desde = somarDias(ate, -5);
+  const oss = await ordensEntregues(desde, ate);
+  if (!oss.length) return;
+  const notas = new Map((await avaliacoesDoPatio(oss.map((o) => o.id))).map((a) => [a.os_id, a]));
+  for (const os of oss) {
+    const d = conexoes.decidirPosvendaPatio(os, {
+      hojeIso: h, diasPosvenda: cfg.dias_posvenda, avaliacao: notas.get(os.id) || null,
+      avaliacaoLigada: !!cfg.ativo_avaliacao, linkAvaliacao: cfg.link_avaliacao,
+    });
+    if (d.acao === 'ignorar') continue;
+    const vars = { nome: os.cliente_nome, carro: os.veiculo, placa: os.placa, servico: os.servico || 'o serviço' };
+    const info = { tipo: 'posvenda', nome: os.cliente_nome, telefone: os.telefone, cliente_id: os.cliente_id };
+    const base = { cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, lead_id: os.lead_id, telefone: os.telefone, nome: os.cliente_nome, os_id: os.id, criado_por: 'gerador' };
+    if (d.acao === 'avaliacao') {
+      const corpo = renderTemplate(cfg.msg_avaliacao, { ...vars, link_avaliacao: cfg.link_avaliacao });
+      await entregarAoPorteiro(porteiro, { ...base, tipo: 'avaliacao', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: d.chave }, ctx);
+      continue;
+    }
+    const corpo = await corpoDaRegua(cfg.msg_posvenda, vars, { cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, os }, ctx, info);
+    if (corpo === null) continue;
+    if (d.acao === 'pular') {
+      if (!ctx.simular) await enfileirar({ ...base, tipo: 'posvenda', corpo, status: 'pulado', motivo_pulado: d.motivo, chave_unica: d.chave }).catch(() => null);
+      ctx.pulados.push({ ...info, corpo, motivo: d.motivo, definitivo: true });
+      continue;
+    }
+    await entregarAoPorteiro(porteiro, {
+      ...base, tipo: 'posvenda', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: d.chave,
+      expira_em: validadeDoEnvio('posvenda', { base: hoje() }),
+    }, ctx);
+  }
+}
+
+/** Revisão pelo histórico do Pátio: ordens entregues cujo prazo (regra por serviço) vence agora e o cliente não voltou. */
+async function retornosDoPatio(cfg, porteiro, ctx, regras) {
+  if (!cfg.usa_patio_revisao) return;
+  const h = hoje();
+  const oss = await ordensEntregues(somarDias(h, -(36 * 30 + 10)), somarDias(h, -25));
+  const candidatos = [];
+  for (const os of oss) {
+    const r = conexoes.revisaoDoPatio(os, regras, cfg.meses_retorno, h);
+    if (r) candidatos.push({ os, ...r });
+  }
+  if (!candidatos.length) return;
+  const voltaram = await ultimaVisitaDepoisDe(candidatos.map((c) => c.os.cliente_id), candidatos.reduce((m, c) => (c.dia < m ? c.dia : m), h), { patio: true });
+  const jaConvidado = ctx.convidadosRevisao ||= new Set();
+  for (const c of candidatos) {
+    const os = c.os;
+    if (os.cliente_id && (voltaram.get(os.cliente_id) || '') > c.dia) continue;      // voltou depois: não convida
+    const chaveCliente = os.cliente_id || telefoneNacional(os.telefone);
+    if (jaConvidado.has(chaveCliente)) continue;                                      // um convite por cliente
+    jaConvidado.add(chaveCliente);
+    const corpo = await corpoDaRegua(c.regra?.mensagem || cfg.msg_retorno, {
+      nome: os.cliente_nome, carro: os.veiculo, placa: os.placa, servico: os.servico || 'o último serviço', meses: c.meses,
+    }, { cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, os }, ctx, { tipo: 'retorno', nome: os.cliente_nome, telefone: os.telefone, cliente_id: os.cliente_id });
+    if (corpo === null) continue;
+    await entregarAoPorteiro(porteiro, {
+      cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, lead_id: os.lead_id, telefone: os.telefone, nome: os.cliente_nome, os_id: os.id,
+      tipo: 'retorno', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: conexoes.chaveRetornoPatio(os), criado_por: 'gerador',
+      expira_em: validadeDoEnvio('retorno', { base: hoje() }),
+    }, ctx);
+  }
+}
+
+/** Orçamentos ENVIADOS no Orçador e sem decisão há N dias → lembrete com o link do orçamento. Devolve os leads do CRM que já estão cobertos por um orçamento. */
+async function orcamentosDoOrcador(cfg, porteiro, ctx) {
+  const agora = Date.now();
+  const ate = new Date(agora - cfg.dias_orcamento * 86400000).toISOString();
+  const desde = new Date(agora - (cfg.dias_orcamento + 7) * 86400000).toISOString();
+  const p = new URLSearchParams('select=id,numero,status,cliente_id,cliente_nome,cliente_telefone,veiculo,pedido,total,validade,enviado_em,visualizado_em,decidido_em,token_publico,lead_id,agendamento_id');
+  p.set('status', 'eq.enviado');
+  p.append('enviado_em', `lte.${ate}`);
+  p.append('enviado_em', `gte.${desde}`);
+  const h = hoje();
+  for (const o of await selecionar('orc_orcamentos', p)) {
+    const d = conexoes.decidirOrcamentoParado(o, { agora, dias: cfg.dias_orcamento, hojeIso: h });
+    if (!d.elegivel) continue;
+    const info = { tipo: 'orcamento', nome: o.cliente_nome, telefone: o.cliente_telefone, cliente_id: o.cliente_id };
+    const link = conexoes.linkOrcamentoCliente(conexoes.ORCADOR_URL, o.token_publico);
+    if (!link) { ctx.pulados.push({ ...info, motivo: 'o orçamento ainda não tem link público (token) no Orçador', definitivo: false }); continue; }
+    const corpo = renderTemplate(d.visto ? cfg.msg_orcador_visto : cfg.msg_orcador_novisto, {
+      nome: o.cliente_nome, carro: conexoes.descreverCarro(o.veiculo), placa: o.veiculo?.placa || '', servico: o.pedido || 'o serviço', link_orcamento: link,
+    });
+    await entregarAoPorteiro(porteiro, {
+      cliente_id: o.cliente_id, lead_id: o.lead_id, agendamento_id: o.agendamento_id, telefone: o.cliente_telefone, nome: o.cliente_nome,
+      tipo: 'orcamento', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: conexoes.chaveOrcamento(o), criado_por: 'gerador',
+      expira_em: validadeDoEnvio('orcamento', { base: h }), orcamento_id: o.id,
+    }, ctx);
+  }
+  const cobertos = await selecionar('orc_orcamentos', `select=lead_id&lead_id=not.is.null&created_at=gte.${new Date(agora - 45 * 86400000).toISOString()}`);
+  return new Set(cobertos.map((x) => x.lead_id));
+}
+
+/**
+ * Extra do Pátio esperando o OK: depois de N horas sem decisão — e só se o aviso inicial já SAIU — um lembrete por ordem,
+ * com o link de acompanhar (é lá que o cliente aprova ou recusa). Respeita o interruptor "avisar extra" do próprio Pátio.
+ */
+export async function gerarExtraLembrete(cfg, porteiro, ctx) {
+  const pc = await patioConfig().catch(() => null);
+  if (pc && pc.avisar_extra === false) return;
+  const extras = await selecionarTudo('patio_extras', 'select=id,os_id,descricao,status,created_at&status=eq.pendente');
+  if (!extras.length) return;
+  const osIds = [...new Set(extras.map((e) => e.os_id))];
+  const ordens = [], avisos = [];
+  for (let i = 0; i < osIds.length; i += 60) {
+    const lote = osIds.slice(i, i + 60).join(',');
+    ordens.push(...await selecionar('patio_os', `select=${OS_SEL}&id=in.(${lote})`));
+    avisos.push(...await selecionar(T.envios, `select=os_id,status,enviado_em,chave_unica&tipo=eq.patio_extra&os_id=in.(${lote})`));
+  }
+  const agora = Date.now();
+  for (const os of ordens) {
+    const meus = avisos.filter((a) => a.os_id === os.id && !String(a.chave_unica || '').startsWith('patio_extra_lembrete:'));
+    const d = conexoes.decidirExtraLembrete(os, extras.filter((e) => e.os_id === os.id), meus, { agora, horas: cfg.horas_extra_lembrete });
+    if (!d.elegivel) continue;
+    const link = linkOs(pc?.link_base || PATIO_URL, os.token_publico);
+    if (!link) continue;
+    const corpo = renderTemplate(cfg.msg_extra_lembrete, { nome: os.cliente_nome, carro: os.veiculo, placa: os.placa, itens: conexoes.listarItens(d.itens), link_os: link });
+    await entregarAoPorteiro(porteiro, {
+      cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, lead_id: os.lead_id, telefone: os.telefone, nome: os.cliente_nome, os_id: os.id,
+      tipo: 'patio_extra', corpo, enviar_em: new Date(agora).toISOString(), chave_unica: d.chave, criado_por: 'gerador',
+      expira_em: new Date(agora + 24 * 3600000).toISOString(),
+    }, ctx);
+  }
+}
+
+// ---- dados para as conferências do carteiro (rodada.js) --------------------------------------
+
+/** Orçamentos do Orçador pelos ids (status e decisão de AGORA) — o lembrete conferido antes de sair. */
+export async function orcamentosPorIds(ids = []) {
+  const lista = [...new Set(ids.filter(ehUuid))];
+  const mapa = new Map();
+  for (let i = 0; i < lista.length; i += 60) {
+    for (const o of await selecionar('orc_orcamentos', `select=id,numero,status,decidido_em,validade&id=in.(${lista.slice(i, i + 60).join(',')})`)) mapa.set(o.id, o);
+  }
+  return mapa;
+}
+
+/**
+ * Para cada telefone da fila: a ordem ATIVA no Pátio (carro na oficina agora) e a reclamação em aberto
+ * (resposta negativa recente sem tarefa resolvida). Map(telefone nacional → { os, reclamacao }).
+ */
+export async function situacaoDosClientes(telefones = [], { diasReclamacao = 14 } = {}) {
+  const tels = [...new Set(telefones.map(telefoneNacional).filter((t) => t && t.length >= 10))];
+  const mapa = new Map(tels.map((t) => [t, { os: null, reclamacao: null }]));
+  if (!tels.length) return mapa;
+  // ordens ativas: poucas por vez; o telefone da OS é digitado à mão, então compara os dígitos nacionais
+  const oss = await selecionar('patio_os', `select=numero,etapa,telefone&etapa=in.(${conexoes.ETAPAS_ATIVAS.join(',')})&telefone=not.is.null&limit=1000`).catch(() => []);
+  for (const o of oss) {
+    const t = telefoneNacional(o.telefone);
+    if (t && mapa.has(t) && !mapa.get(t).os) mapa.get(t).os = { numero: o.numero, etapa: o.etapa };
+  }
+  const desde = new Date(Date.now() - diasReclamacao * 86400000).toISOString();
+  for (let i = 0; i < tels.length; i += 60) {
+    const lista = tels.slice(i, i + 60).map((t) => `"${t}"`).join(',');
+    const neg = await selecionar(T.envios, `select=telefone_e164,respondido_em,resposta,tarefa_id&resposta_tipo=eq.negativa&respondido_em=gte.${desde}&telefone_e164=in.(${lista})&order=respondido_em.desc`).catch(() => []);
+    const tarefaIds = [...new Set(neg.map((n) => n.tarefa_id).filter(ehUuid))];
+    const abertas = new Set();
+    if (tarefaIds.length) for (const t of await selecionar('tarefas', `select=id,status&id=in.(${tarefaIds.join(',')})`).catch(() => [])) if (t.status === 'aberta') abertas.add(t.id);
+    for (const n of neg) {
+      const m = mapa.get(n.telefone_e164);
+      if (m && !m.reclamacao) m.reclamacao = { em: n.respondido_em, resumo: String(n.resposta || '').slice(0, 80), tarefaAberta: n.tarefa_id ? abertas.has(n.tarefa_id) : true };
+    }
+  }
+  return mapa;
+}
+
+/** O cliente voltou depois da entrega/serviço? Map(cliente_id → data) para a revisão conferir antes de sair. */
+export async function voltouDepois(itens = []) {
+  const mapa = new Map();
+  const validos = itens.filter((i) => ehUuid(i.cliente_id) && i.apos);
+  if (!validos.length) return mapa;
+  const minima = validos.reduce((m, i) => (i.apos < m ? i.apos : m), validos[0].apos);
+  const v = await ultimaVisitaDepoisDe(validos.map((i) => i.cliente_id), minima, { patio: true });
+  for (const i of validos) if ((v.get(i.cliente_id) || '') > i.apos) mapa.set(i.cliente_id, v.get(i.cliente_id));
+  return mapa;
+}
+
+/** Textos que já foram para estes telefones (Comunicar enviados + saídas do Atendimento) nas últimas N horas. */
+export async function textosRecentes(telefones = [], horas = 48) {
+  const tels = [...new Set(telefones.map(telefoneNacional).filter((t) => t && t.length >= 10))];
+  const mapa = new Map(tels.map((t) => [t, []]));
+  if (!tels.length || !horas) return mapa;
+  const desde = new Date(Date.now() - horas * 3600000).toISOString();
+  for (let i = 0; i < tels.length; i += 60) {
+    const lista = tels.slice(i, i + 60).map((t) => `"${t}"`).join(',');
+    for (const e of await selecionar(T.envios, `select=telefone_e164,corpo,enviado_em&status=eq.enviado&enviado_em=gte.${desde}&telefone_e164=in.(${lista})`).catch(() => [])) {
+      mapa.get(e.telefone_e164)?.push({ corpo: e.corpo, quando: Date.parse(e.enviado_em), origem: 'comunicar' });
+    }
+    for (const m of await selecionar(T.mensagens, `select=telefone_e164,corpo,created_at&direcao=eq.saida&created_at=gte.${desde}&telefone_e164=in.(${lista})&limit=500`).catch(() => [])) {
+      if (m.corpo) mapa.get(m.telefone_e164)?.push({ corpo: m.corpo, quando: Date.parse(m.created_at), origem: 'atendimento' });
+    }
+  }
+  return mapa;
+}
+
+/** Quantas mensagens saíram desde `iso` (retomada gradual do WhatsApp). */
+export async function enviadasDesde(iso) {
+  return contar(T.envios, `status=eq.enviado&enviado_em=gte.${encodeURIComponent(iso)}`);
 }
