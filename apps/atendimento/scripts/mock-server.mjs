@@ -1020,6 +1020,14 @@ http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, nao_saiu: [], sem_confirmacao: sem, zap: { parado: ultimoEnvio401, codigo: ultimoEnvio401 ? 'codewords-401' : null, texto: '' } });
     }
     if (p === '/api/r6/nao-sairam/resolver') { ESTADO_R6.resolvidas.add(body.mensagemId); const x = DB.whatsapp_mensagens.find(y => y.id === body.mensagemId); if (x) x.erro = 'Resolvido fora do WhatsApp'; return json(res, 200, { ok: true }); }
+    if (p === '/api/r6/testar-mensagem') {
+      if (!['admin', 'gestor'].includes(quem.papel)) return erro(res, 403, undefined, 'Só gestor ou administrador testa mensagens.');
+      const texto = String(body.texto || '').trim();
+      if (!texto) return erro(res, 400, undefined, 'Escreva uma mensagem de cliente para testar.');
+      const pedidos = R6.oQueOClientePediu([texto]); const motivo = R6.motivoParaHumano([texto]);
+      return json(res, 200, { ok: true, pedidos, motivo, motivo_rotulo: motivo ? R6.MOTIVO_HUMANO[motivo].rotulo : null, passa_para_gente: !!motivo, tem_preco: R6.textoTemPreco(texto),
+        resposta_do_sistema: motivo ? R6.textoDeEncaminhamento(motivo, 'Cliente', false) : null, respostas_prontas: R6.respostasRapidas(pedidos, { nome: 'Cliente' }).map(r => r.rotulo) });
+    }
     return erro(res, 404, undefined, 'rota não encontrada');
   }
   if (p === '/api/enviar') {

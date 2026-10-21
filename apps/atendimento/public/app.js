@@ -6435,6 +6435,8 @@ const TECLAS = [
   ['Alt + I', 'Abrir o copiloto da IA'],
   ['Alt + Z', 'Modo foco (só chat e ficha)'],
   ['Alt + N', 'Nova conversa'],
+  ['Alt + P', 'Próxima da fila: abre quem precisa de você primeiro'],
+  ['Alt + Shift + 1 … 4', 'Usar a resposta rápida “Para agora” (1 a 4)'],
   ['Esc', 'Fechar menu, busca, gaveta ou modal'],
   ['?', 'Ajuda: como faço… e esta lista'],
 ];

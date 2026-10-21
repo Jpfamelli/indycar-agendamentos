@@ -569,7 +569,9 @@
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') { fecharMenuAdiar(); $('#r6NaoSairam')?.classList.remove('aberto'); }
     if (ev.altKey && !ev.ctrlKey && !ev.metaKey && (ev.key === 'p' || ev.key === 'P' || ev.code === 'KeyP')) { ev.preventDefault(); irParaProxima(); return; }
-    if (ev.ctrlKey && ev.altKey && /^[1-4]$/.test(ev.key)) { ev.preventDefault(); usarSugestao(Number(ev.key) - 1); }
+    /* Alt+Shift+1…4 (Ctrl+Alt é o AltGr do teclado ABNT2 e digita ¹ ² ³ £) */
+    const dig = /^Digit([1-4])$/.exec(ev.code || '');
+    if (dig && ev.altKey && ev.shiftKey && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); usarSugestao(Number(dig[1]) - 1); }
   });
 
   /* ======================= LIGAÇÃO COM O APP ======================= */
@@ -592,11 +594,38 @@
   window.addEventListener('indycar:ia-acao', () => { carregarIA(); });
   window.addEventListener('indycar:ia-fila', () => { carregarIA(); });
 
+  /* ---------- gestor: "testar uma mensagem de cliente" (não envia nada) ---------- */
+  function iniciarTeste() {
+    const cartao = $('#cartaoTestarMsg'); if (!cartao) return;
+    cartao.hidden = !(perfil && (perfil.papel === 'admin' || perfil.papel === 'gestor'));
+    const btn = $('#r6TestarBtn');
+    if (!btn || btn.dataset.pronto) return;
+    btn.dataset.pronto = '1';
+    const rodar = async () => {
+      const texto = ($('#r6TestarTexto').value || '').trim();
+      const saida = $('#r6TestarSaida');
+      if (!texto) { saida.innerHTML = '<p class="r6-aviso">Escreva uma mensagem para testar.</p>'; return; }
+      btn.disabled = true; saida.innerHTML = '<p class="r6-vazio">Testando…</p>';
+      const r = await api('/api/r6/testar-mensagem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
+      btn.disabled = false;
+      if (!r.ok) { saida.innerHTML = `<p class="r6-aviso">⚠️ ${esc(r.erro || 'Não consegui testar agora.')}</p>`; return; }
+      const ped = (r.pedidos || []).map(p => R.ROTULO_PEDIDO[p] || (R.MOTIVO_HUMANO[p] && R.MOTIVO_HUMANO[p].rotulo) || p);
+      saida.innerHTML = `<div class="r6-card">
+        <div class="r6-card-topo"><b>${r.passa_para_gente ? '🙋 Passa para uma pessoa' : '✨ A IA pode conduzir'}</b>${r.motivo_rotulo ? `<span class="r6-selo r6-tom-atencao">${esc(r.motivo_rotulo)}</span>` : ''}</div>
+        <small>${ped.length ? 'O cliente está pedindo: ' + esc(ped.join(', ')) : 'Nenhum pedido especial reconhecido.'}${r.tem_preco ? ' · a mensagem fala de valor (a IA nunca responde valor)' : ''}</small>
+        ${r.resposta_do_sistema ? `<p class="r6-ns-texto">${esc(r.resposta_do_sistema)}</p><small>Resposta que o sistema manda no lugar da IA.</small>` : ''}
+        ${(r.respostas_prontas || []).length ? `<small>Respostas rápidas que o atendente veria: ${esc(r.respostas_prontas.join(' · '))}</small>` : ''}</div>`;
+    };
+    btn.addEventListener('click', rodar);
+    $('#r6TestarTexto').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); rodar(); } });
+  }
+
   let iniciou = false;
   async function iniciar() {
     if (iniciou || typeof perfil === 'undefined' || !perfil) return;
     iniciou = true;
     await carregarMarcas();
+    iniciarTeste();
     atualizarFila({ forcar: true });
     verZap();
     clearInterval(S.timers.fila); S.timers.fila = setInterval(() => { if (visivel()) atualizarFila({ forcar: true }); }, 30_000);

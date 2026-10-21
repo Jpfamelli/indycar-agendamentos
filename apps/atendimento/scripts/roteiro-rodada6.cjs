@@ -86,6 +86,17 @@ const abrirConv = (p, nome) => p.evaluate(n => [...document.querySelectorAll('.c
       await p.evaluate(() => document.querySelector('#r6Sugestoes [data-r6-sug="0"]')?.click());
       ok(`[${w}] clicar numa sugestão põe o texto no campo`, await p.evaluate(() => document.getElementById('campoMensagem').value.length > 5));
 
+      /* ---------- atalhos de teclado ---------- */
+      await p.evaluate(() => { const c = document.getElementById('campoMensagem'); c.value = ''; c.dispatchEvent(new Event('input')); c.blur(); });
+      await espera(800);
+      await p.keyboard.down('Alt'); await p.keyboard.down('Shift'); await p.keyboard.press('Digit1'); await p.keyboard.up('Shift'); await p.keyboard.up('Alt');
+      ok(`[${w}] Alt+Shift+1 usa a primeira resposta rápida`, await ate(p, () => document.getElementById('campoMensagem').value.length > 5, null, 3000), JSON.stringify(await p.evaluate(() => [R6Tela.estado.sugestoes.length, document.activeElement && document.activeElement.id, document.getElementById('campoMensagem').value])));
+      const antesConv = await p.evaluate(() => conversaAtual && conversaAtual.id);
+      await p.keyboard.down('Alt'); await p.keyboard.press('KeyP'); await p.keyboard.up('Alt');
+      ok(`[${w}] Alt+P abre a próxima da fila (outra conversa)`, await ate(p, (a) => conversaAtual && conversaAtual.id !== a, antesConv, 4000));
+      await abrirConv(p, 'Camila');
+      await ate(p, () => conversaAtual && /Camila/.test(document.getElementById('chatNome').textContent));
+
       /* ---------- WhatsApp parado ---------- */
       ok(`[${w}] faixa "WhatsApp parado" visível e botão vira "Salvar"`, await ate(p, () => { const z = document.getElementById('r6Zap'); return z && !z.hidden && /WhatsApp parado/.test(z.textContent) && document.getElementById('btnEnviar').textContent.trim() === 'Salvar'; }));
       ok(`[${w}] faixa diz que nada é reenviado sozinho`, await p.evaluate(() => /nada é reenviado sozinho/.test(document.getElementById('r6Zap').textContent)));
@@ -108,6 +119,13 @@ const abrirConv = (p, nome) => p.evaluate(n => [...document.querySelectorAll('.c
       await p.evaluate(() => document.getElementById('btnFixarConversa').click());
       ok(`[${w}] fixar põe 📌 na linha da conversa`, await ate(p, () => [...document.querySelectorAll('.conversa')].some(c => c.textContent.includes('📌'))));
 
+      /* ---------- gestor testa uma mensagem (aba IA) ---------- */
+      await p.evaluate(() => document.querySelector('.nav-item[data-aba="ia"]')?.click());
+      ok(`[${w}] aba IA do admin mostra "Testar uma mensagem de cliente"`, await ate(p, () => { const c = document.getElementById('cartaoTestarMsg'); return c && !c.hidden; }));
+      await p.type('#r6TestarTexto', 'quanto custa a pastilha de freio?');
+      await p.evaluate(() => document.getElementById('r6TestarBtn').click());
+      ok(`[${w}] teste mostra que passa para uma pessoa por causa do valor, sem preço na resposta`, await ate(p, () => { const t = document.getElementById('r6TestarSaida').textContent; return /Passa para uma pessoa/.test(t) && /valor/i.test(t) && !/R$s?d/.test(t); }));
+      if (w === 1440) await p.screenshot({ path: OUT + 'testar-1440.png' });
       ok(`[${w}] sem rolagem lateral`, await semRolagemX(p));
       if (w === 375) await p.screenshot({ path: OUT + 'chat-375.png' });
       if (w === 1440) await p.screenshot({ path: OUT + 'tela-1440.png' });

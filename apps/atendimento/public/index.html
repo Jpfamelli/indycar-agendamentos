@@ -699,6 +699,17 @@
           <div class="ia-totais" id="iaHojeTotais" aria-live="polite"></div>
           <div id="iaHojeLista" class="ia-hoje-lista"><p class="cartao-sub">Carregando o que a IA fez hoje…</p></div>
         </div>
+
+        <!-- Rodada 6: o gestor cola uma mensagem de cliente e vê o que o sistema faria (sem enviar nada) -->
+        <div class="cartao cartao-largo" id="cartaoTestarMsg" hidden>
+          <h3>Testar uma mensagem de cliente</h3>
+          <p class="cartao-sub">Cole o que o cliente escreveu. Nada é enviado: você só vê se a IA passaria para uma pessoa e que resposta pronta ela teria.</p>
+          <div class="r6-testar">
+            <textarea id="r6TestarTexto" rows="2" maxlength="1000" aria-label="Mensagem de cliente para testar" placeholder="Ex.: quanto custa a pastilha de freio?"></textarea>
+            <button type="button" class="btn btn-ghost sm" id="r6TestarBtn">Testar</button>
+          </div>
+          <div id="r6TestarSaida" class="r6-testar-saida" aria-live="polite"></div>
+        </div>
       </div>
     </div>
   </section>
