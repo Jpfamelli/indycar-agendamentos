@@ -6,6 +6,12 @@
   const MOD = { nome: 'sino' };
   let C = null, L = null, notifs = [], filtro = '', soNovas = false, canal = null, timerSync = null, primeiraCarga = true;
   const VISTAS_MAX = 60;
+  const LS_ADIADOS = 'indycar_central_sino_adiados';
+  const M2 = () => window.CasaLogica2;
+  const lerAdiados = () => { try { return M2().aindaAdiados(JSON.parse(localStorage.getItem(LS_ADIADOS) || '{}')); } catch { return {}; } };
+  const gravarAdiados = (o) => { try { localStorage.setItem(LS_ADIADOS, JSON.stringify(o)); } catch { /* sem armazenamento */ } };
+  /** avisos visíveis agora: sem os adiados neste aparelho e com os repetidos agrupados */
+  const visiveis = () => { const ad = lerAdiados(); return M2().agruparAvisos(notifs.filter((n) => !ad[n.id])); };
 
   const $ = (s) => document.querySelector(s);
   const rotuloApp = (k) => (L.APPS[k] ? L.APPS[k].nome : k ? String(k) : 'Outros');
@@ -13,7 +19,8 @@
 
   function desenhar() {
     const lista = $('#listaNotif');
-    const novas = notifs.filter((n) => !n.lida_em).length;
+    const adiados = lerAdiados();
+    const novas = notifs.filter((n) => !n.lida_em && !adiados[n.id]).length;
     const num = $('#sinoNum'); num.textContent = novas > 99 ? '99+' : String(novas); num.hidden = !novas;
     $('#bSino').setAttribute('aria-label', novas ? `Notificações: ${novas} sem ler` : 'Notificações');
     document.title = L.tituloDaAba(novas);
@@ -24,25 +31,28 @@
     $('#sinoFiltros').innerHTML = apps.length > 1 ? [`<button type="button" data-filtro="" aria-pressed="${filtro === ''}">Todos${novas ? ` <b>${novas}</b>` : ''}</button>`]
       .concat(apps.map((a) => `<button type="button" data-filtro="${C.esc(a)}" aria-pressed="${filtro === a}">${icoApp(a)} ${C.esc(rotuloApp(a))}${porApp[a] ? ` <b>${porApp[a]}</b>` : ''}</button>`)).join('') : '';
 
-    const grupos = L.organizarNotificacoes(notifs, { app: filtro, soNaoLidas: soNovas });
+    const grupos = L.organizarNotificacoes(visiveis(), { app: filtro, soNaoLidas: soNovas });
+    const nAd = Object.keys(adiados).length;
     lista.innerHTML = grupos.length ? grupos.map((g) => `
       <section class="notif-grupo"><h3 class="notif-dia">${C.esc(g.nome)}</h3><ul>${g.itens.map((n) => `
         <li class="${n.lida_em ? '' : 'nova'}">
           <button type="button" class="notif-abrir" data-notif="${C.esc(n.id)}">
-            <span class="n-ico" aria-hidden="true">${icoApp(n.app)}</span>
+            <span class="n-ico" aria-hidden="true">${M2().iconeDoAviso(n)}</span>
             <span class="n-txt"><span class="n-tit">${C.esc(n.titulo || 'Aviso')}</span>
             ${n.corpo ? `<span class="n-corpo">${C.esc(n.corpo)}</span>` : ''}
             <span class="n-quando">${C.esc(L.quando(n.created_at))} · ${C.esc(rotuloApp(n.app))}</span></span>
           </button>
-          ${n.lida_em ? '' : `<button type="button" class="notif-ler" data-ler="${C.esc(n.id)}" aria-label="Marcar como lida: ${C.esc(n.titulo || 'aviso')}" title="Marcar como lida">✓</button>`}
+          ${n.lida_em || n.grupo ? '' : `<button type="button" class="notif-adiar" data-adiar-sino="${C.esc(n.id)}" aria-label="Adiar por 1 hora: ${C.esc(n.titulo || 'aviso')}" title="Esconder por 1 hora">⏱</button>`}
+          ${n.lida_em ? '' : `<button type="button" class="notif-ler" data-ler="${C.esc(n.grupo ? n.grupo.join(',') : n.id)}" aria-label="Marcar como lida: ${C.esc(n.titulo || 'aviso')}" title="Marcar como lida">✓</button>`}
         </li>`).join('')}</ul></section>`).join('')
       : `<p class="vazio">${notifs.length ? 'Nada com esse filtro.' : 'Nada por aqui. Quando passarem uma conversa, um lead, um orçamento ou um carro para você, aparece aqui.'}</p>`;
 
     const rod = $('#sinoRodape');
+    const rodAd = nAd ? `<button type="button" class="btn-link" data-voltar-adiados>${nAd} adiado${nAd > 1 ? 's' : ''} por 1 hora — mostrar agora</button> ` : '';
     const perm = ('Notification' in window) ? Notification.permission : 'indisponivel';
-    rod.innerHTML = perm === 'default'
+    rod.innerHTML = rodAd + (perm === 'default'
       ? '<button type="button" class="btn-link" data-aviso-sistema>Ativar avisos do navegador (quando a Central estiver em segundo plano)</button>'
-      : perm === 'granted' ? '<span class="vazio-mini">Avisos do navegador ativados.</span>' : '';
+      : perm === 'granted' ? '<span class="vazio-mini">Avisos do navegador ativados.</span>' : '');
   }
 
   async function carregar() {
@@ -79,9 +89,11 @@
     });
   }
   function abrir(id) {
-    const n = notifs.find((x) => x.id === id);
+    const gr = String(id).startsWith('grupo:');
+    const n = gr ? visiveis().find((x) => x.id === id) : notifs.find((x) => x.id === id);
     if (!n) return;
-    marcar([id]);
+    marcar(gr ? n.grupo : [id]);
+    if (gr) { C.abrirNaAba(C.bases[n.app] || '/'); return; }
     C.abrirNaAba(L.linkDaNotificacao(n, C.bases, location.origin));
   }
   function lerTodas() {
@@ -119,7 +131,10 @@
       const f = e.target.closest('[data-filtro]');
       if (f) { filtro = f.dataset.filtro; desenhar(); return; }
       const ler = e.target.closest('[data-ler]');
-      if (ler) { marcar([ler.dataset.ler]); return; }
+      if (ler) { marcar(ler.dataset.ler.split(',')); return; }
+      const ad = e.target.closest('[data-adiar-sino]');
+      if (ad) { const o = lerAdiados(); o[ad.dataset.adiarSino] = Date.now() + 3600_000; gravarAdiados(o); desenhar(); C.toast('Aviso escondido por 1 hora.', 2200); return; }
+      if (e.target.closest('[data-voltar-adiados]')) { gravarAdiados({}); desenhar(); return; }
       const a = e.target.closest('[data-notif]');
       if (a) { alternar(false); abrir(a.dataset.notif); return; }
       if (e.target.closest('[data-aviso-sistema]')) {

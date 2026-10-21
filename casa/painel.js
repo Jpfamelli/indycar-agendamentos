@@ -24,7 +24,9 @@
     el.hidden = false;
     const n = el.querySelector('[data-num]'); if (n) n.textContent = num;
     const d = el.querySelector('[data-det]'); if (d) d.textContent = det;
-    const l = el.querySelector('[data-lista]'); if (l) l.innerHTML = erro ? `<li class="vazio vazio-erro">${C.esc(erro)} <button type="button" class="btn-link" data-recarregar>tentar de novo</button></li>` : (linhas || '');
+    const l = el.querySelector('[data-lista]');
+    const ensina = window.CasaLogica2 && window.CasaLogica2.VAZIOS[el.id];
+    if (l) l.innerHTML = erro ? `<li class="vazio vazio-erro">${C.esc(erro)} <button type="button" class="btn-link" data-recarregar>tentar de novo</button></li>` : (linhas || (ensina && Number(num) === 0 ? `<li class="vazio vazio-ensina"><b>${C.esc(ensina.texto)}</b><span>${C.esc(ensina.dica)}</span></li>` : ''));
     el.classList.toggle('carregou', !erro);
   }
   function rodapeLinks(id, mapa) {
@@ -204,6 +206,7 @@
       }
       dados = d; ultima = Date.now(); emFalha = false;
       desenharTudo(d);
+      try { C.aoAgora && C.aoAgora(d); } catch { /* extras nunca derrubam o painel */ }
     } catch (e) {
       emFalha = true;
       if (!silencioso || !dados) {
@@ -251,10 +254,42 @@
       barraConv(`Quem veio e fechou (${cv.fechou || 0} de ${(cv.fechou || 0) + (cv.nao_fechou || 0)})`, conv.fechamento) +
       barraConv(`Faltas (${cv.nao_veio || 0} não vieram)`, conv.falta, false) +
       barraConv(`Orçamentos aprovados (${o.aprovados || 0} de ${o.enviados || 0})`, conv.orcAprovados);
+    desenharMeta(f);
     medidas($('#visaoDono'));
     const g = L.gargalos(d, links);
     $('#donoGargalos').innerHTML = g.length ? g.map((x) => `<li class="grav-${x.grav}">${linkA(x.url, x.app, 'atencao-item', `<span class="a-num">${x.grav >= 3 ? '!' : '•'}</span><span class="a-txt">${C.esc(x.texto)}${x.extra ? `<small>${C.esc(x.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('')
       : '<li class="vazio">Nenhum gargalo agora. Oficina andando. 🏁</li>';
+  }
+  /* meta do mês (guardada neste aparelho) + projeção pelo ritmo dos dias úteis */
+  const LS_META = 'indycar_central_meta_mes';
+  function desenharMeta(f) {
+    const M2 = window.CasaLogica2, box = $('#donoMeta');
+    if (!box || !M2) return;
+    const meta = Number(ler(LS_META)) || 0;
+    const p = M2.projecaoDoMes(f.mes, L.hojeSP());
+    const pm = M2.progressoDaMeta(f.mes, meta);
+    box.innerHTML = '<h3 class="dono-h">Ritmo do mês</h3>' +
+      (p.projecao === null ? '<p class="dono-nota">Sem dias úteis para projetar.</p>' :
+        `<p class="meta-linha">No ritmo de agora o mês fecha em <b>${C.esc(L.brl(p.projecao))}</b> <small>(${p.passados} de ${p.total} dias úteis passados)</small></p>`) +
+      (pm ? `<div class="conv-linha"><span>Meta de ${C.esc(L.brl(meta))}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${pm.batida ? '' : 'ruim'}" data-w="${Math.min(100, pm.pct)}"></span></span><b>${pm.pct}%</b></div>
+        <p class="dono-nota">${pm.batida ? 'Meta batida! 🏁' : 'Faltam ' + C.esc(L.brl(pm.falta)) + (p.faltam ? ' em ' + p.faltam + ' dias úteis (' + C.esc(L.brl(Math.ceil(pm.falta / p.faltam))) + ' por dia)' : '')}</p>` : '<p class="dono-nota">Defina uma meta para acompanhar a barra.</p>') +
+      `<div class="dono-botoes"><button type="button" class="btn-link" data-meta>${meta ? 'mudar a meta' : 'definir a meta do mês'}</button> <button type="button" class="btn-link" data-copiar-resumo>copiar resumo do dia</button></div>`;
+    medidas(box);
+  }
+  function desenharConsultores(r) {
+    const M2 = window.CasaLogica2, box = $('#donoConsultores');
+    if (!box || !M2) return;
+    const rk = M2.rankingConsultores(r && r.consultores);
+    const org = (r && r.origens) || [];
+    box.innerHTML = '<h3 class="dono-h">Desempenho (30 dias)</h3>' + (rk.length ? `<div class="tabela-rolavel"><table class="tab-dono"><thead><tr><th>Consultor</th><th>Marcados</th><th>Vieram</th><th>Fecharam</th><th>Faltas</th><th>Faturado</th></tr></thead><tbody>${rk.map((x) => `<tr><th scope="row">${C.esc(x.nome)}</th><td>${x.marcados}</td><td>${x.vieram}</td><td>${x.fecharam}${x.taxaFecha === null ? '' : ` <small>${x.taxaFecha}%</small>`}</td><td class="${x.taxaFalta >= 30 ? 'txt-ruim' : ''}">${x.faltaram}${x.taxaFalta === null ? '' : ` <small>${x.taxaFalta}%</small>`}</td><td>${C.esc(L.brl(x.valor))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="dono-nota">Sem horários nos últimos 30 dias.</p>') +
+      (org.length ? `<h3 class="dono-h dono-h2">Origem que mais fecha</h3><ul class="origens">${org.slice(0, 5).map((o) => `<li><span>${C.esc(o.origem)}</span><b>${Number(o.fecharam)}</b><small>de ${Number(o.marcados)} marcados · ${C.esc(L.brl(o.valor))}</small></li>`).join('')}</ul>` : '');
+  }
+  async function carregarConsultores() {
+    try {
+      const { data, error } = await C.sb.rpc('r6_c1b_painel_consultores');
+      if (error) throw error;
+      desenharConsultores(data);
+    } catch { const b = $('#donoConsultores'); if (b && !b.dataset.ok) b.innerHTML = '<p class="vazio vazio-erro">Não deu para ler o desempenho agora.</p>'; }
   }
   async function carregarDono() {
     if (!V.dono) return;
@@ -263,6 +298,7 @@
       if (error) throw error;
       dono = data; ultimaDono = Date.now();
       desenharDono(data);
+      carregarConsultores();
     } catch (e) {
       if (!dono) $('#donoTiles').innerHTML = '<p class="vazio vazio-erro">Não deu para ler a visão do dono agora. <button type="button" class="btn-link" data-recarregar>tentar de novo</button></p>';
     }
@@ -336,7 +372,7 @@
     timerRelogio = setInterval(relogio, 5_000);
     window.addEventListener('online', aoRede); window.addEventListener('offline', aoRede);
     document.addEventListener('visibilitychange', aoVisivel);
-    C.painel = { atualizar: () => { carregarAgora(); if (visao === 'dono') carregarDono(); }, trocarVisao, visao: () => visao };
+    C.painel = { atualizar: () => { carregarAgora(); if (visao === 'dono') carregarDono(); }, trocarVisao, visao: () => visao, dados: () => dados, dono: () => dono, redesenhar: () => { if (dados) { redesenhar(); try { C.aoAgora && C.aoAgora(dados); } catch { /* segue */ } } } };
 
     $('#bAtualizar').onclick = () => { C.painel.atualizar(); C.toast('Atualizando…', 1200); };
     $('#seletorVisao').onclick = (e) => { const b = e.target.closest('[data-visao]'); if (b) trocarVisao(b.dataset.visao); };
@@ -344,7 +380,17 @@
       if (e.target.closest('[data-recarregar]')) { C.painel.atualizar(); return; }
       const f = e.target.closest('[data-filtro-hoje]');
       if (f) { filtroHoje = f.dataset.filtroHoje; if (dados?.agenda) desenharHoje(dados.agenda); return; }
-      if (e.target.closest('[data-abrir-busca]')) { C.busca && C.busca.abrir(); }
+      if (e.target.closest('[data-abrir-busca]')) { C.busca && C.busca.abrir(); return; }
+      if (e.target.closest('[data-meta]')) {
+        const atual = Number(ler(LS_META)) || '';
+        const v = window.prompt('Meta de faturamento do mês, em reais (deixe vazio para tirar):', atual);
+        if (v === null) return;
+        const n = Number(String(v).replace(/\./g, '').replace(',', '.'));
+        gravar(LS_META, Number.isFinite(n) && n > 0 ? String(Math.round(n)) : '');
+        if (dono) desenharMeta(dono.faturamento || {});
+        return;
+      }
+      if (e.target.closest('[data-copiar-resumo]')) { if (dono && dados) C.copiarResumo(dono, dados); else C.toast('Espere o painel carregar.'); }
     };
     relogio();
   };

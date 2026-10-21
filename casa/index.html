@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/casa/casa.css" />
-  <link rel="stylesheet" href="/casa/painel.css?v=3" />
+  <link rel="stylesheet" href="/casa/painel.css?v=4" />
 </head>
 <body>
   <!-- ======================= ENTRADA (login único) ======================= -->
@@ -128,9 +128,11 @@
         <p id="hoje" class="saudacao-data"></p>
         <h1 class="saudacao-titulo"><span id="ola">Olá</span>, <em id="nomeCurto">equipe</em>.</h1>
         <p class="saudacao-sub">Quem conhece, Indyca! 🏎</p>
+        <p id="clima" class="clima" aria-live="polite"></p>
       </section>
 
       <div id="avisoRede" class="aviso-rede" role="status" hidden></div>
+      <div id="avisoApps" class="aviso-apps" role="status" hidden></div>
 
       <div class="barra-painel">
         <div id="seletorVisao" class="seletor" role="tablist" aria-label="Visão do painel" hidden>
@@ -153,6 +155,11 @@
 
       <div id="visaoOperacao">
         <section id="agora" class="agora" aria-label="Agora na oficina">
+          <article id="cMeuDia" class="agora-cartao c-meudia" hidden>
+            <header class="agora-cab"><span class="agora-rotulo">Meu dia</span><span class="agora-num" data-num>—</span></header>
+            <p class="agora-det" data-det>carregando…</p>
+            <ul class="agora-lista" data-lista></ul>
+          </article>
           <article id="cPatio" class="agora-cartao c-patio" hidden>
             <header class="agora-cab"><span class="agora-rotulo">Carros no pátio</span><span class="agora-num" data-num>—</span></header>
             <p class="agora-det" data-det>carregando…</p>
@@ -181,6 +188,7 @@
           <article id="cLeads" class="agora-cartao c-leads" hidden>
             <header class="agora-cab"><span class="agora-rotulo">Leads novos</span><span class="agora-num" data-num>—</span></header>
             <p class="agora-det" data-det>carregando…</p>
+            <ul class="agora-lista" data-lista></ul>
             <footer class="agora-pe"><a data-abrir href="#">Abrir o CRM</a></footer>
           </article>
         </section>
@@ -199,6 +207,10 @@
             <div id="donoConv" class="conv"></div>
           </div>
         </div>
+        <div class="dono-duas">
+          <div id="donoMeta" class="cartao dono-bloco"></div>
+          <div id="donoConsultores" class="cartao dono-bloco"><p class="vazio">carregando…</p></div>
+        </div>
         <div class="cartao dono-bloco">
           <h3 class="dono-h">Gargalos</h3>
           <ul id="donoGargalos" class="gargalos"></ul>
@@ -215,8 +227,10 @@
           <h2 id="tTarefas" class="bloco-titulo">Minhas tarefas</h2>
           <span id="tarefasNum" class="selo"></span>
         </div>
+        <div id="tFiltros" class="t-filtros" role="group" aria-label="Filtrar tarefas"></div>
         <form id="fTarefa" class="nova-tarefa">
           <input id="tTitulo" maxlength="200" placeholder="Nova tarefa para mim… (Enter grava)" aria-label="Nova tarefa" />
+          <select id="tQuem" aria-label="Para quem é a tarefa" hidden></select>
           <select id="tPrazo" aria-label="Prazo da tarefa">
             <option value="">sem prazo</option>
             <option value="hoje">hoje até 17h30</option>
@@ -261,11 +275,13 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
   <script src="/casa/logica.js?v=3"></script>
-  <script src="/casa/sino.js?v=3"></script>
-  <script src="/casa/painel.js?v=3"></script>
-  <script src="/casa/tarefas.js?v=3"></script>
-  <script src="/casa/busca.js?v=3"></script>
-  <script src="/casa/atalhos.js?v=3"></script>
-  <script src="/casa/casa.js?v=3"></script>
+  <script src="/casa/logica2.js?v=4"></script>
+  <script src="/casa/sino.js?v=4"></script>
+  <script src="/casa/painel.js?v=4"></script>
+  <script src="/casa/tarefas.js?v=4"></script>
+  <script src="/casa/busca.js?v=4"></script>
+  <script src="/casa/atalhos.js?v=4"></script>
+  <script src="/casa/comando.js?v=4"></script>
+  <script src="/casa/casa.js?v=4"></script>
 </body>
 </html>

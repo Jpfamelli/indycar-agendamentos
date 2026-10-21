@@ -40,6 +40,45 @@ export function urlDeApp(valor, padrao) {
 }
 
 /* ---------------------------------------------------------------------------
+   Saúde do Pátio e do Orçador (rodada 6, C1b): eles moram no Netlify, fora desta Central.
+   A Casa precisa saber se estão respondendo para avisar a equipe ANTES de alguém clicar e
+   dar de cara com a página de erro. Um sondador só, com cache de 40 s, não importa quantas
+   pessoas estejam com a Casa aberta. Uma falha isolada não alarma: só "fora do ar" na 2ª seguida.
+   --------------------------------------------------------------------------- */
+export function proximoEstadoApp(anterior, resultado, agora = Date.now()) {
+  if (resultado?.ok) return { fora: false, suspeito: false, falhas: 0, desde: null, ms: resultado.ms ?? null, status: resultado.status ?? null, motivo: null, verificado_em: agora };
+  const falhas = (anterior?.falhas || 0) + 1;
+  return { fora: falhas >= 2, suspeito: falhas === 1, falhas, desde: anterior?.desde || agora, ms: resultado?.ms ?? null, status: resultado?.status ?? null, motivo: resultado?.motivo || 'sem_resposta', verificado_em: agora };
+}
+export async function sondarApp(base, fetchFn = globalThis.fetch, tempoMs = 4000) {
+  const t0 = Date.now();
+  try {
+    const r = await fetchFn(base, { method: 'GET', redirect: 'manual', headers: { 'user-agent': 'IndyCar-Central-saude' }, signal: AbortSignal.timeout(tempoMs) });
+    try { await r.body?.cancel(); } catch { /* corpo já foi */ }
+    const ok = r.status < 500;
+    return { ok, status: r.status, ms: Date.now() - t0, motivo: ok ? null : 'http_' + r.status };
+  } catch (e) {
+    return { ok: false, status: null, ms: Date.now() - t0, motivo: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'tempo_esgotado' : 'sem_resposta' };
+  }
+}
+const SAUDE = { patio: null, orcador: null };
+let saudeEm = 0, saudeVoo = null, sondaFn = null;
+export function definirSondaParaTeste(fn) { sondaFn = fn; saudeEm = 0; SAUDE.patio = null; SAUDE.orcador = null; }
+export async function saudeDosApps(agora = Date.now(), validadeMs = 40_000) {
+  if (agora - saudeEm < validadeMs && SAUDE.patio) return { verificado_em: saudeEm, apps: { ...SAUDE } };
+  if (!saudeVoo) {
+    saudeVoo = (async () => {
+      const b = { patio: urlDeApp(process.env.PATIO_URL, PATIO_PADRAO), orcador: urlDeApp(process.env.ORCADOR_URL, ORCADOR_PADRAO) };
+      const resultados = await Promise.all(Object.entries(b).map(async ([k, url]) => [k, await (sondaFn ? sondaFn(url, k) : sondarApp(url))]));
+      for (const [k, r] of resultados) SAUDE[k] = proximoEstadoApp(SAUDE[k], r, Date.now());
+      saudeEm = Date.now();
+    })().finally(() => { saudeVoo = null; });
+  }
+  await saudeVoo;
+  return { verificado_em: saudeEm, apps: { ...SAUDE } };
+}
+
+/* ---------------------------------------------------------------------------
    Carregar os quatro apps (cada um isolado num try)
    --------------------------------------------------------------------------- */
 const APPS = {};       // nome -> { prefixo, handler, versao, erro }
@@ -205,6 +244,11 @@ export async function handler(req, res) {
       supabaseUrl: process.env.SUPABASE_URL || '', supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '', versao: VERSAO_CENTRAL,
       apps: { patio: urlDeApp(process.env.PATIO_URL, PATIO_PADRAO), orcador: urlDeApp(process.env.ORCADOR_URL, ORCADOR_PADRAO) },
     });
+  }
+
+  if (caminho === '/api/central/saude-apps' && (req.method === 'GET' || req.method === 'HEAD')) {
+    // só "está respondendo?" de dois sites públicos — nada sensível; o cache de 40 s protege os sites de enxurrada
+    return json(res, 200, await saudeDosApps());
   }
 
   // 1b) rodada 6: /patio e /orcador moram em outro domínio (Netlify) — quem digita o atalho na Central cai no lugar certo
