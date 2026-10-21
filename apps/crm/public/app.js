@@ -151,7 +151,7 @@ const TITULOS = {
 // (Clientes e Serviços têm a própria busca, dentro da aba)
 const ABAS_COM_BUSCA = new Set(['leads', 'pipeline']);
 // "+ Novo Lead" não faz sentido no catálogo nem nas configurações
-const ABAS_SEM_NOVO = new Set(['servicos', 'configuracoes', 'equipe', 'distribuir', 'relatorios']);
+const ABAS_SEM_NOVO = new Set(['servicos', 'configuracoes', 'equipe', 'distribuir', 'relatorios', 'hoje', 'dono']);
 
 function irPara(v) {
   if (!TITULOS[v]) return;

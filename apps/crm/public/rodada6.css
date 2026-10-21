@@ -1,0 +1,45 @@
+/* Rodada 6 (21/10/2026): sinais ao vivo, contato do lead, aba Hoje e aba Dono. Usa só as variáveis do tema. */
+[hidden]{display:none!important}
+.r6-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 2px}
+.r6-chip{display:inline-flex;align-items:center;gap:3px;font-size:.72rem;line-height:1.2;padding:2px 7px;border-radius:999px;background:var(--superficie-2);color:var(--texto-suave);border:1px solid var(--line-2);white-space:nowrap}
+.r6-chip.ok{color:var(--verde-txt,#4ade80);border-color:currentColor}
+.r6-chip.alerta{color:var(--warn);border-color:currentColor;font-weight:600}
+.r6-rapidas{display:flex;gap:6px;margin:6px 0 2px}
+.r6-mini{font:inherit;font-size:.74rem;padding:4px 8px;min-height:28px;border-radius:8px;border:1px solid var(--line);background:var(--superficie);color:var(--texto);cursor:pointer}
+.r6-mini:hover,.r6-mini:focus-visible{background:var(--superficie-2);border-color:var(--red)}
+.r6-painel{display:grid;gap:8px;margin-bottom:12px}
+.r6-eco{padding:8px 10px;border-radius:10px;background:var(--superficie);border:1px solid var(--line-2);font-size:.88rem;line-height:1.45}
+.r6-eco.alerta{border-color:var(--warn)}
+.r6-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.r6-barra{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.r6-prox{font-size:.84rem;color:var(--texto-suave)}
+.r6-prox.alerta{color:var(--warn);font-weight:600}
+.r6-cad select{font:inherit;font-size:.84rem;min-height:32px;border-radius:8px;border:1px solid var(--line);background:var(--campo-fundo);color:var(--texto);padding:0 8px}
+.r6-hist{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.86rem}
+.r6-hist li{padding:6px 0;border-bottom:1px solid var(--line-2)}
+.r6-check{display:flex!important;align-items:center;gap:8px;flex-direction:row!important}
+.r6-cab{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.r6-cab h3{margin:0;margin-right:auto}
+.r6-esc{display:flex;align-items:center;gap:6px;font-size:.84rem}
+.r6-linha{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line-2)}
+.r6-corpo{flex:1 1 280px;min-width:0}
+.r6-topo{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.r6-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.r6-script summary{cursor:pointer;font-size:.8rem;color:var(--texto-suave);margin-top:4px}
+.r6-script p{margin:6px 0;font-size:.88rem;line-height:1.5;white-space:pre-wrap}
+#hojeEntregues h4{margin:8px 0 0}
+.r6-meta-barra{height:10px;border-radius:99px;background:var(--superficie-2);overflow:hidden}
+.r6-meta-barra div{height:100%;background:var(--red)}
+.r6-meta p{margin:6px 0 14px;font-size:.9rem}
+.r6-up{color:var(--verde-txt,#4ade80);font-size:.78rem}
+.r6-down{color:var(--warn);font-size:.78rem}
+.r6-insights{margin:0;padding-left:18px;display:grid;gap:4px;line-height:1.5}
+.r6-pre{white-space:pre-wrap;background:var(--codigo-fundo);padding:12px;border-radius:10px;font:inherit;font-size:.86rem;line-height:1.5;overflow-wrap:anywhere}
+.r6-seg{border-color:var(--red)}
+.nav-item[data-view="hoje"][data-badge]:not([data-badge=""])::after{content:attr(data-badge);margin-left:auto;font-size:.7rem;background:var(--red);color:#fff;border-radius:99px;padding:1px 7px}
+#kanban .kb-card[hidden]{display:none!important}
+@media (max-width:600px){
+  .r6-linha{flex-direction:column}
+  .r6-acoes .acao,.r6-acoes .btn{flex:1 1 auto;justify-content:center;min-height:40px}
+  .r6-mini{min-height:36px}
+}

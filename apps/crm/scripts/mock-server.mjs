@@ -20,6 +20,7 @@ import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const PATIO = createRequire(import.meta.url)('../lib/patio-crm.js');
 const R5 = createRequire(import.meta.url)('../lib/rodada5.js');
+const R6 = createRequire(import.meta.url)('../lib/rodada6.js');
 const CrmUtils = createRequire(import.meta.url)('../public/crm-utils.js');
 // Rodada 5: MOCK_PREFIXO=/crm serve o app montado num prefixo, como a IndyCar Central
 const PREFIXO = (p => p ? '/' + p : '')(String(process.env.MOCK_PREFIXO || '').trim().replace(/^\/+|\/+$/g, ''));
@@ -123,6 +124,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
   };
   const equipe = pp => [eu(pp), ...perfis];
   const ha = (d, h = 10) => { const x = new Date(); x.setDate(x.getDate() + d); x.setHours(h, 0, 0, 0); return x.toISOString(); };
+  const ativ = [];
   let tarefas = [
     {titulo: 'Retornar o orçamento de freios (fictício)', vence_em: ha(-2, 10), prioridade: 3, lead_id: leads[1].id},
     {titulo: 'Ligar para confirmar o diagnóstico (fictício)', vence_em: ha(-1, 15), prioridade: 2, lead_id: leads[2].id},
@@ -491,6 +493,65 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
         const cliente = clientes.find(doTel) || null, ls = leads.filter(doTel).sort((a, b) => b.created_at.localeCompare(a.created_at));
         const aberto = ls.find(l => !['concluido','perdido'].includes(l.status)) || null;
         return json({cliente, leads: ls, aberto, lead: aberto || ls[0] || null});
+      }
+      /* ---------- rodada 6 ---------- */
+      if (p.startsWith('/api/pipeline/sinais') || p === '/api/fila-do-dia' || p === '/api/entregues-sem-fechar' || p === '/api/leads/followup-lote' || p === '/api/roi/campanhas' || p === '/api/qualidade' || p === '/api/dono' || /^\/api\/leads\/[0-9a-f-]{36}\/(contato|atividades|cadencia|ecossistema)$/.test(p)) {
+        const agora = Date.now(), abertos = leads.filter(l => !['concluido','perdido'].includes(l.status));
+        const etapas = ['recebido', 'em_execucao', 'pronto'];
+        const dados = {
+          os: abertos.filter((_, i) => i % 9 === 0).map((l, i) => ({id: 'os-' + l.id, numero: 100 + i, etapa: etapas[i % 3], etapa_em: hAtras(3 + i), lead_id: l.id, cliente_id: l.cliente_id, telefone: l.telefone, placa: l.placa})),
+          entregues: abertos.filter((_, i) => i % 13 === 5).map((l, i) => ({id: 'ose-' + l.id, numero: 200 + i, etapa: 'entregue', entregue_em: hAtras(30 + i * 10), lead_id: l.id, cliente_id: l.cliente_id, telefone: l.telefone, placa: l.placa})),
+          extras: [], orcs: abertos.filter((_, i) => i % 7 === 3).map((l, i) => ({id: 'orc-' + l.id, numero: 300 + i, status: i % 4 === 0 ? 'aprovado' : 'enviado', lead_id: l.id, cliente_id: l.cliente_id, cliente_telefone: l.telefone, total: 800 + i * 50, enviado_em: hAtras(24 * (1 + i % 5)), created_at: hAtras(24 * (1 + i % 5))})),
+          conversas: abertos.filter((_, i) => i % 11 === 2).map((l, i) => ({id: 'cv-' + l.id, telefone_e164: R5.normalizarTelefone(l.telefone), aguardando_desde: hAtras(2 + i)})),
+          tarefas: tarefas.filter(t => t.status === 'aberta' && t.lead_id), agendamentos: [],
+        };
+        const sinais = R6.construirSinais(leads, dados, agora);
+        if (p.startsWith('/api/pipeline/sinais')) { const out = {}; for (const [id, x] of Object.entries(sinais)) if (x.flags.some(f => f !== 'sem_tarefa') || x.followup || x.tentativas) out[id] = x; return json({gerado_em: agoraIso(), leads: out, contagem: R6.contarSinais(sinais), rotulos: R6.SINAIS_ROTULO}); }
+        if (p === '/api/fila-do-dia') {
+          let esc = url.searchParams.get('escopo') || (gestor ? 'todos' : 'meus'); if (!gestor && esc === 'todos') esc = 'meus';
+          const itens = [];
+          for (const l of abertos) { if (esc === 'meus' && l.responsavel_id !== EU && l.responsavel_id) continue; if (esc === 'sem' && l.responsavel_id) continue; const pr = R6.prioridadeFila(l, sinais[l.id], agora); if (!pr.score) continue; itens.push({lead: l, score: pr.score, motivos: pr.motivos.slice(0, 3), principal: pr.principal.codigo, texto: pr.principal.texto, script: R6.scriptSugerido(pr.principal.codigo, l), sinais: {}}); }
+          itens.sort((a, b) => b.score - a.score); const por = {}; for (const i of itens) por[i.principal] = (por[i.principal] || 0) + 1;
+          return json({escopo: esc, total: itens.length, itens: itens.slice(0, 80), por_motivo: por, feitos_hoje: ativ.filter(a => a.criado_por === EU).length, gerado_em: agoraIso()});
+        }
+        if (p === '/api/entregues-sem-fechar') {
+          const itens = abertos.filter(l => sinais[l.id]?.entregue).map(l => { const os = sinais[l.id].entregue; return {lead: l, os: {id: os.id, numero: os.numero, entregue_em: os.entregue_em, dias: os.dias}, extras_aprovados: 0, orcamento: null, sugestoes: R6.sugestaoValorEntregue({lead: l}), pode_editar: gestor || !l.responsavel_id || l.responsavel_id === EU}; });
+          return json({total: itens.length, itens});
+        }
+        if (p === '/api/qualidade') { if (!gestor) return json({erro: 'Só um gestor vê a qualidade dos dados.', codigo: 'so_gestor'}, 403); return json(R6.qualidadeDados(leads, agora)); }
+        if (p === '/api/roi/campanhas') {
+          if (!gestor) return json({erro: 'Só um gestor vê o investimento e o retorno das campanhas.', codigo: 'so_gestor'}, 403);
+          const met = [{plataforma: 'meta', data: agoraIso().slice(0, 10), campanha_nome: 'Freios Taubaté', gasto: 320, cliques: 140, impressoes: 5200, conversoes: 9}, {plataforma: 'google', data: agoraIso().slice(0, 10), campanha_nome: 'Oficina perto de mim', gasto: 210, cliques: 90, impressoes: 3100, conversoes: 4}];
+          return json({de: agoraIso().slice(0, 8) + '01', ate: agoraIso().slice(0, 10), ...R6.roiCampanhas(met, leads), alertas: [], fontes: ['demo'], so_demonstracao: true});
+        }
+        if (p === '/api/dono') {
+          if (!gestor) return json({erro: 'Só um gestor vê o resumo do dono.', codigo: 'so_gestor'}, 403);
+          const mes = R6.janela(leads, agora - 20 * DIA, agora + 1), r = {gerado_em: agoraIso(), mes: {...mes, mes: agoraIso().slice(0, 7), ritmo: R6.ritmoMeta({realizado: mes.faturamento, meta: 40000, agora}), meta_loja: {faturamento: 40000}}, semana: R6.janela(leads, agora - 7 * DIA, agora + 1), anterior: R6.janela(leads, agora - 14 * DIA, agora - 7 * DIA),
+            patio: {no_patio: dados.os.length, por_etapa: {}, prontos: dados.os.filter(o => o.etapa === 'pronto').length, entregues_hoje: 1, entregues_sem_fechar: dados.entregues.length, extras_pendentes: 0}, orcamentos: {enviados: 4, valor_enviado: 3200, parados: 2, valor_parado: 1500, aprovados_sem_horario: 1},
+            conversas: {esperando: dados.conversas.length, maior_espera_h: 9}, avaliacoes: {media: 4.6, total: 8, detratores: 0}, ads: {gasto_mes: 530, leads: 18, ganhos: 3, faturamento: 4200, roas: 7.9, melhor: null, pior: null, alertas: 1}, agenda: {no_show_pct: 8, fechadas: 25},
+            perdas: [{motivo: 'Achou caro', qtd: 4}], vendedores: [{id: EU, nome: 'Vendedor Fictício', vendas: 3, faturamento: 4200}], qualidade: {sem_dono: 5, tarefas_atrasadas: 2, followups_vencidos: 1}, abertos: {total: abertos.length, valor: 52000}};
+          r.insights = R6.insightsDono(r); r.texto_whatsapp = R6.textoWhatsAppDono(r, new Date(agora)); return json(r);
+        }
+        if (p === '/api/leads/followup-lote') {
+          const ids = Array.isArray(d.ids) ? d.ids : []; if (!ids.length) return json({erro: 'Escolha de 1 a 200 leads.'}, 400);
+          const q = d.limpar === true ? null : R6.resolverProximo(d.proximo, agora); const anteriores = {}, feitos = [];
+          for (const l of leads) if (ids.includes(l.id) && !['concluido','perdido'].includes(l.status) && (gestor || !l.responsavel_id || l.responsavel_id === EU)) { anteriores[l.id] = l.proximo_contato_em || null; l.proximo_contato_em = q ? new Date(q).toISOString() : null; feitos.push(l.id); }
+          return json({ok: true, atualizados: feitos.length, ids: feitos, de_colegas: 0, fechados: 0, proximo_contato_em: q ? new Date(q).toISOString() : null, anteriores});
+        }
+        const mm = p.match(/^\/api\/leads\/([0-9a-f-]{36})\/(contato|atividades|cadencia|ecossistema)$/), lead = leads.find(l => l.id === mm[1]);
+        if (!lead) return json({erro: 'Lead não encontrado.'}, 404);
+        if (mm[2] === 'atividades') return json({atividades: ativ.filter(a => a.lead_id === lead.id).slice(0, 60)});
+        if (mm[2] === 'ecossistema') return json({lead_id: lead.id, sinais: sinais[lead.id] || {flags: []}, ficha: null, links: {novoOrcamento: '/?tel=' + R5.normalizarTelefone(lead.telefone)}});
+        if (!gestor && lead.responsavel_id && lead.responsavel_id !== EU) return json({erro: 'Esse lead é de outra pessoa.', codigo: 'lead_de_outro'}, 403);
+        if (mm[2] === 'cadencia') { try { const plano = R6.planoCadencia(d.tipo, agora); for (const x of plano) tarefas.push({id: crypto.randomUUID(), titulo: x.titulo, vence_em: x.vence_em, status: 'aberta', lead_id: lead.id, responsavel_id: EU, prioridade: 2, origem: 'crm', created_at: agoraIso()}); return json({ok: true, rotulo: R6.CADENCIAS[d.tipo].rotulo, criadas: plano, puladas: 0}, 201); } catch (e) { return json({erro: e.message}, 400); } }
+        try {
+          const b = R6.validarContato(d, agora), ef = R6.efeitoDoContato(lead, b);
+          const a = {id: crypto.randomUUID(), lead_id: lead.id, tipo: b.tipo, resultado: b.resultado, texto: b.texto, proximo_contato_em: b.proximo ? new Date(b.proximo).toISOString() : null, criado_por: EU, autor: 'Você', created_at: agoraIso(), resultado_rotulo: R6.ROTULO_RESULTADO[b.resultado] || null};
+          ativ.unshift(a);
+          if (b.tipo !== 'nota') { lead.ultimo_contato_em = agoraIso(); lead.tentativas_contato = ef.tentativas; if (ef.status) lead.status = ef.status; }
+          if (b.proximo !== undefined) lead.proximo_contato_em = a.proximo_contato_em;
+          return json({ok: true, atividade: a, lead: {id: lead.id, status: lead.status, ultimo_contato_em: lead.ultimo_contato_em || null, proximo_contato_em: lead.proximo_contato_em || null, tentativas_contato: lead.tentativas_contato || 0}, sugestao: b.tipo === 'nota' ? null : ef.sugestao, tarefa: null}, 201);
+        } catch (e) { return json({erro: e.message}, e.status || 400); }
       }
       /* ---------- rodada 5 ---------- */
       if (p === '/api/clientes/360') {

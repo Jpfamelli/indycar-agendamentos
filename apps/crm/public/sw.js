@@ -6,14 +6,14 @@
 // Biblioteca do Supabase e fontes (endereços com versão) ficam em cache direto.
 // v8 (16/10/2026, rodada 5): caminhos RELATIVOS ao escopo — o CRM pode estar na
 // raiz (/) ou montado na IndyCar Central (/crm/); nada começa com "/" fixo.
-const CACHE = 'indycar-crm-v10';   // v10 (16/10): lead de colega travado na tela
+const CACHE = 'indycar-crm-v11';   // v10 (16/10): lead de colega travado na tela
 const CACHE_EXTERNO = 'indycar-crm-externo-v1';
 /* Pasta do app: '/' ou '/crm/' (o escopo do registro é a pasta de sw.js). */
 const RAIZ = new URL('./', self.registration ? self.registration.scope : self.location.href).pathname;
 
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala. Só o que existe de verdade. */
-const CORE = ['', 'styles.css', 'apps.js', 'app.js', 'crm-utils.js', 'crm-r4.js', 'melhorias.js', 'acesso.js', 'equipe.js', 'rodada4.js', 'rodada5.js', 'crm-ia.js', 'crm-ia.css',
+const CORE = ['', 'styles.css', 'apps.js', 'app.js', 'crm-utils.js', 'crm-r4.js', 'melhorias.js', 'acesso.js', 'equipe.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'rodada6.css', 'crm-ia.js', 'crm-ia.css',
               'manifest.json', 'icon-192.png', 'icon-512.png'].map((p) => RAIZ + p);
 const EXTERNOS = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@', 'https://fonts.googleapis.com/', 'https://fonts.gstatic.com/'];
 const ESPERA_REDE_MS = 3500;
