@@ -191,6 +191,12 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
     const ordens = (r360.patio || []).filter(o => o && o.etapa !== 'cancelado');
     const aberta = ordens.find(o => ABERTAS.includes(o.etapa)) || ordens.find(o => o.etapa === 'entregue' && t0 - Date.parse(o.entregue_em || o.etapa_em || 0) <= 2 * DIA) || null;
     let patioPainel = null;
+    // o r6_cliente_360 não traz quando o cliente abriu o link de acompanhar: lê direto da OS
+    let linkVistoEm = aberta?.link_visto_em || null;
+    if (aberta && !linkVistoEm) {
+      try { const { data: v } = await sb.from('patio_os').select('link_visto_em').eq('id', aberta.id).maybeSingle(); linkVistoEm = v?.link_visto_em || null; }
+      catch (e) { log('link_visto_em:', e.message); }
+    }
     if (aberta) {
       patioPainel = {
         id: aberta.id, numero: aberta.numero ?? null, etapa: aberta.etapa, etapa_rotulo: aberta.etapa_rotulo || PAT.ETAPAS[aberta.etapa] || aberta.etapa,
@@ -200,7 +206,7 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
         extras: (aberta.extras || []).map(e => ({ descricao: e.descricao, urgencia: e.urgencia, valor: e.valor ?? null })),
         orcamento_numero: aberta.orcamento_numero || null, orcamento_id: aberta.orcamento_id || null,
         link_cliente: aberta.link_cliente || null, abrir: aberta.link_equipe || R6.relPatioOs(aberta.id),
-        passos: R6.passosDoPatio(aberta.etapa), link_visto_em: aberta.link_visto_em || null,
+        passos: R6.passosDoPatio(aberta.etapa), link_visto_em: linkVistoEm,
         texto_link: aberta.link_cliente ? PAT.textoDoAcompanhamento({ nome: cli.nome, veiculo: aberta.veiculo || cli.carro_modelo, link: aberta.link_cliente }) : '',
       };
     }

@@ -126,7 +126,7 @@ const abrirConv = (p, nome) => p.evaluate(n => [...document.querySelectorAll('.c
       ok(`[${w}] aba IA do admin mostra "Testar uma mensagem de cliente"`, await ate(p, () => { const c = document.getElementById('cartaoTestarMsg'); return c && !c.hidden; }));
       await p.type('#r6TestarTexto', 'quanto custa a pastilha de freio?');
       await p.evaluate(() => document.getElementById('r6TestarBtn').click());
-      ok(`[${w}] teste mostra que passa para uma pessoa por causa do valor, sem preço na resposta`, await ate(p, () => { const t = document.getElementById('r6TestarSaida').textContent; return /Passa para uma pessoa/.test(t) && /valor/i.test(t) && !/R$s?d/.test(t); }));
+      ok(`[${w}] teste mostra que passa para uma pessoa por causa do valor, sem preço na resposta`, await ate(p, () => { const t = document.getElementById('r6TestarSaida').textContent; return /Passa para uma pessoa/.test(t) && /valor/i.test(t) && !/R\$\s?\d/.test(t); }));
       if (w === 1440) await p.screenshot({ path: OUT + 'testar-1440.png' });
       ok(`[${w}] sem rolagem lateral`, await semRolagemX(p));
       if (w === 375) await p.screenshot({ path: OUT + 'chat-375.png' });

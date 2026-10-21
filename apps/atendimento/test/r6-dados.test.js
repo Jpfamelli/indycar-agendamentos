@@ -165,3 +165,19 @@ test('resolver fora: a nota perde quebra de linha e caractere de controle, e é 
   assert.ok(e.startsWith('Resolvido fora do WhatsApp por Ana Maria: liguei para ele'), e);
   assert.ok(e.length <= 'Resolvido fora do WhatsApp por Ana Maria: '.length + 120);
 });
+
+test('painel: "link visto" vem da própria OS (o r6_cliente_360 não traz) e some o aviso de mandar o link', async () => {
+  const mk = (visto) => {
+    const r360 = { patio: [{ id: OS, numero: 7, etapa: 'em_execucao', veiculo: 'Onix', link_cliente: 'https://indycar-patio.netlify.app/acompanhar/?t=' + 'b'.repeat(32) }] };
+    const { sb } = montar({ clientes: [{ id: CLI, nome: 'Maria', telefone: '5512988660661', telefone_e164: '5512988660661' }],
+      patio_os: [{ id: OS, numero: 7, etapa: 'em_execucao', etapa_em: iso(40), cliente_id: CLI, telefone: '12988660661', link_visto_em: visto }] },
+    { rpc: { r6_cliente_360: () => ({ data: r360, error: null }) } });
+    return criarR6({ sb, agora: () => AGORA, log: () => {} }).painelCliente(CLI);
+  };
+  const nunca = await mk(null);
+  assert.strictEqual(nunca.patio.link_visto_em, null);
+  assert.ok(nunca.proximos.some((x) => x.cod === 'link'), 'ainda não abriu: sugere mandar o link');
+  const visto = await mk(iso(10));
+  assert.ok(visto.patio.link_visto_em);
+  assert.ok(!visto.proximos.some((x) => x.cod === 'link'), 'já abriu: não pede para mandar de novo');
+});
