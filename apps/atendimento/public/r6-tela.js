@@ -94,7 +94,7 @@
       partes.push(`<span class="r6-chip r6-patio r6-tom-${esc(x.patio.tom)}" title="Carro no pátio: ${esc(x.patio.etapa_rotulo)}${alerta ? ' — extra esperando o cliente' : ''}">🚗 ${esc(x.patio.etapa_rotulo.replace(/ do cliente$/, ''))}${alerta ? ' ⚠️' : ''}</span>`);
     }
     if (x.orc) partes.push(`<span class="r6-chip r6-orc r6-orc-${esc(x.orc.cod || x.orc.status)}" title="Orçamento nº ${esc(x.orc.numero ?? '—')}: ${esc(x.orc.rotulo)}">📄 ${esc(x.orc.rotulo)}</span>`);
-    if (x.falhas) {
+    if (x.falhas && (x.falhas.nao_saiu + x.falhas.sem_confirmacao) > 0) {
       const n = x.falhas.nao_saiu + x.falhas.sem_confirmacao;
       partes.push(`<span class="r6-chip r6-falha" title="${n} mensagem(ns) desta conversa não saíram no WhatsApp">⚠ ${n} não saiu</span>`);
     }

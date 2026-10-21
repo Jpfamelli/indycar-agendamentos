@@ -34,6 +34,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import PAT from '../lib/patio.js';
+import { createRequire } from 'node:module';
+const R6 = createRequire(import.meta.url)('../public/r6-regras.js');
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3211);
@@ -164,6 +166,7 @@ const DB = {
     // 16/10: o CodeWords não respondeu a tempo depois do pedido — não sabemos se chegou
     { id: 'm9', conversa_id: CONV.camila, corpo: 'Pode sim! Te espero às 9h.', direcao: 'saida', status: 'falhou', erro: 'Sem confirmação: o CodeWords não respondeu em 60 s — não sabemos se a mensagem chegou. Confira na conversa do WhatsApp antes de mandar de novo.', enviado_por: U.atendente, created_at: h(0.1) },
   ],
+  r6_c3_marcas: [],
   leads: [
     { id: 'l1', cliente_id: CLI.camila, servico: 'Troca de óleo do motor', valor_orcado: 320, valor_pago: 340, status: 'concluido', created_at: d(200), closed_at: d(190), origem: 'whatsapp' },
     { id: 'l2', cliente_id: CLI.camila, servico: 'Alinhamento 3D', valor_orcado: 180, valor_pago: 0, status: 'orcamento', created_at: d(1), origem: 'whatsapp' },
@@ -662,6 +665,7 @@ http.createServer(async (req, res) => {
   if (p === '/api/_mock') return json(res, 200, consultar(body, quemDoToken(req)));
   if (p === '/api/_dormir') { DORMINDO_ATE = Date.now() + Number(body.segundos || 0) * 1000; return json(res, 200, { ok: true }); }
   if (p === '/api/_envios') return json(res, 200, { envios: ENVIOS_FEITOS });
+  if (p === '/api/_r6_etapa') { const E = (globalThis.__r6 ||= { etapa: 'em_execucao', passadas: new Set(), resolvidas: new Set() }); E.etapa = body.etapa || 'pronto'; if (body.reset) { E.passadas.clear(); E.resolvidas.clear(); DB.r6_c3_marcas.length = 0; } return json(res, 200, { ok: true }); }
   if (p === '/api/_ia_reset') { for (const k of [...ACOES.keys()]) if (!IA_HOJE.some(a => a.id === k)) ACOES.delete(k); for (const a of IA_HOJE) if (ACOES.has(a.id)) ACOES.get(a.id).status = a.status; ACOES.get('ia-h7').status = 'proposta'; IA_FILA.forEach(f => { f.status = 'processando'; }); return json(res, 200, { ok: true }); }
   if (dormindo()) {
     res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8', 'x-render-routing': 'hibernate-wake-error' });
@@ -955,6 +959,68 @@ http.createServer(async (req, res) => {
     if (/antiga|ruim/.test(k)) return json(res, 400, { ok: false, erro: 'O CodeWords recusou essa chave (401) — nada foi salvo. Confira se copiou a chave nova inteira.', teste: { resultado: 'recusada' } });
     CHAVE = k; ultimoEnvio401 = false; SAUDE_OK = true;
     return json(res, 200, { ok: true, mascara: '••••••••' + k.slice(-4), salvoEm: ['codewords_config', 'agenda_ia_config'], teste: { resultado: 'ok', mensagem: 'Chave aceita pelo CodeWords — 1 conexão de WhatsApp.' }, avisos: [] });
+  }
+  /* ---------- Rodada 6 (C3): fila priorizada, painel conectado, WhatsApp parado ---------- */
+  if (p.startsWith('/api/r6/')) {
+    const ESTADO_R6 = (globalThis.__r6 ||= { etapa: 'em_execucao', passadas: new Set(), resolvidas: new Set() });
+    const iso = (min) => new Date(Date.now() - min * 60000).toISOString();
+    const etapaRot = { em_execucao: 'Em execução', pronto: 'Pronto para retirar', aguardando_aprovacao: 'Aguardando você aprovar' };
+    const patioCamila = () => ({ id: 'os-1', numero: 412, etapa: ESTADO_R6.etapa, etapa_rotulo: etapaRot[ESTADO_R6.etapa] || ESTADO_R6.etapa, tom: ESTADO_R6.etapa === 'pronto' ? 'ok' : 'andamento',
+      minutos_na_etapa: 95, atrasado: false, veiculo: 'Corolla 2018', placa: 'ABC1D23', previsao_entrega: new Date(Date.now() + 5 * 3600000).toISOString(),
+      extras: [], extras_pendentes: 0, orcamento_numero: 87, link_cliente: 'https://indycar-patio.netlify.app/c/abc123', abrir: 'https://indycar-patio.netlify.app/?os=os-1',
+      passos: R6.passosDoPatio(ESTADO_R6.etapa), link_visto_em: null,
+      texto_link: 'Camila, acompanhe o seu Corolla por aqui: https://indycar-patio.netlify.app/c/abc123' });
+    if (p === '/api/r6/fila') {
+      const pc = patioCamila();
+      return json(res, 200, { ok: true, gerado_em: new Date().toISOString(), conversas: {
+        [CONV.camila]: { sem_resposta: true, pedidos: ['estado_carro'], patio: { id: pc.id, numero: pc.numero, etapa: pc.etapa, etapa_rotulo: pc.etapa_rotulo, tom: pc.tom, extras_pendentes: 0 },
+          orc: { id: 'orc-1', numero: 87, status: 'enviado', cod: 'visualizado', rotulo: 'Visualizado, sem resposta', enviado_em: iso(3000), visualizado_em: iso(2000) }, falhas: { nao_saiu: 0, sem_confirmacao: ESTADO_R6.resolvidas.has('m9') ? 0 : 1 } },
+        [CONV.jose]: { sem_resposta: true, pedidos: ['preco'], patio: null, orc: null, falhas: null },
+        [CONV.semcad]: { sem_resposta: true, pedidos: ['preco'], patio: null, orc: null, falhas: null } }, resumo: {} });
+    }
+    let m = /^\/api\/r6\/cliente\/([^/]+)$/.exec(p);
+    if (m) {
+      const cli = DB.clientes.find(x => x.id === m[1]);
+      if (!cli) return json(res, 404, { ok: false, erro: 'Cliente não encontrado.' });
+      const ehCamila = cli.id === CLI.camila;
+      const pat = ehCamila ? patioCamila() : null;
+      const orcs = ehCamila ? [{ id: 'orc-1', numero: 87, status: 'enviado', rotulo: 'Visualizado, sem resposta', tom: 'atencao', cod: 'visualizado', acao: 'Abriu o orçamento há 1 dia e não respondeu: dê um retorno.', total: 1180, pedido: 'Revisão + pastilhas',
+        enviado_em: iso(3000), created_at: iso(3100), validade: new Date(Date.now() + 5 * 86400000).toISOString(), abrir: 'https://indycar-orcador.netlify.app/#/historico/orc-1', link_cliente: 'https://indycar-orcador.netlify.app/#/o/tok123' }] : [];
+      const lead = ehCamila ? { id: 'l2', status: 'orcamento', rotulo: 'Orçamento', servico: 'Alinhamento 3D', valor_orcado: 180, responsavel_nome: 'Leonardo', origem: 'whatsapp', abrir: 'https://x/?lead=l2' } : null;
+      return json(res, 200, { ok: true, aviso: null, cliente: { id: cli.id, nome: cli.nome, telefone: cli.telefone, carro: cli.carro_modelo, placa: cli.placa },
+        situacao: ehCamila ? ['Carro: ' + pat.etapa_rotulo, 'Orçamento nº 87: visualizado, sem resposta'] : [],
+        proximos: ehCamila ? [{ icone: '📄', texto: 'Abriu o orçamento e não respondeu: dê um retorno.' }, { icone: '🔗', texto: 'O cliente ainda não abriu o link de acompanhar: mande o link.' }] : [],
+        patio: pat, orcamentos: orcs, orcamento_principal: orcs[0]?.id || null,
+        agendamentos: { proximo: ehCamila ? { id: 'a2', data: new Date(Date.now() + 86400000).toISOString().slice(0, 10), hora: '09:00', status: 'agendado', servico: 'Revisão', consultor: 'Leonardo', abrir: 'https://x/?agendamento=a2' } : null, futuros: [], recentes: [] },
+        lead, leads: lead ? [lead] : [], timeline: ehCamila ? [{ quando: iso(2000), titulo: 'Abriu o orçamento nº 87' }, { quando: iso(3000), titulo: 'Orçamento enviado' }] : [],
+        links: { novo_orcamento: 'https://indycar-orcador.netlify.app/?cliente=' + cli.id + '&tel=' + String(cli.telefone_e164 || '').replace(/\D/g, '') + '&nome=' + encodeURIComponent(cli.nome), crm_lead: lead ? lead.abrir : null, crm_cliente: 'https://x/crm' } });
+    }
+    m = /^\/api\/r6\/patio\/([^/]+)$/.exec(p);
+    if (m) return json(res, 200, { ok: true, patio: m[1] === CLI.camila ? patioCamila() : null });
+    m = /^\/api\/r6\/sugestoes\/([^/]+)$/.exec(p);
+    if (m) {
+      const cv = DB.conversas.find(x => x.id === m[1]);
+      const ult = DB.whatsapp_mensagens.filter(x => x.conversa_id === m[1] && x.direcao === 'entrada').pop();
+      const pedidos = ult ? R6.oQueOClientePediu([ult.corpo]) : [];
+      const respostas = R6.respostasRapidas(pedidos, { nome: cv?.nome || 'Cliente', foraDoHorario: false, horarios: [] }).filter(r => !R6.textoTemPreco(r.texto));
+      return json(res, 200, { ok: true, pedidos, respostas, fora_do_horario: false });
+    }
+    m = /^\/api\/r6\/conversas\/([^/]+)\/ia$/.exec(p);
+    if (m) return json(res, 200, { ok: true, situacao: 'ligada', humano: m[1] === CONV.semcad ? { cod: 'preco', rotulo: R6.MOTIVO_HUMANO.preco.rotulo, texto: R6.MOTIVO_HUMANO.preco.texto } : null, sozinhas: 3, esperando_clique: 1, ultima_rodada: { proxima_acao: 'Perguntar o carro e o dia' } });
+    m = /^\/api\/r6\/conversas\/([^/]+)\/passar-consultor$/.exec(p);
+    if (m) {
+      const ja = ESTADO_R6.passadas.has(m[1]); ESTADO_R6.passadas.add(m[1]);
+      const cv = DB.conversas.find(x => x.id === m[1]);
+      if (cv) { cv.aguardando_consultor = true; cv.aguardando_desde = new Date().toISOString(); }
+      return json(res, 200, { ok: true, ja_estava: ja, tarefa_id: ja ? null : 't-r6' });
+    }
+    if (p === '/api/r6/zap') return json(res, 200, { ok: true, parado: ultimoEnvio401, codigo: ultimoEnvio401 ? 'codewords-401' : null, texto: ultimoEnvio401 ? R6.textoWhatsappParado('codewords-401') : '', nao_saiu: 0, sem_confirmacao: ESTADO_R6.resolvidas.has('m9') ? 0 : 1 });
+    if (p === '/api/r6/nao-sairam') {
+      const sem = ESTADO_R6.resolvidas.has('m9') ? [] : [{ id: 'm9', conversa_id: CONV.camila, nome: 'Camila Rodrigues', telefone: '12996830111', corpo: 'Pode sim! Te espero às 9h.', ha_min: 6, ia: false }];
+      return json(res, 200, { ok: true, nao_saiu: [], sem_confirmacao: sem, zap: { parado: ultimoEnvio401, codigo: ultimoEnvio401 ? 'codewords-401' : null, texto: '' } });
+    }
+    if (p === '/api/r6/nao-sairam/resolver') { ESTADO_R6.resolvidas.add(body.mensagemId); const x = DB.whatsapp_mensagens.find(y => y.id === body.mensagemId); if (x) x.erro = 'Resolvido fora do WhatsApp'; return json(res, 200, { ok: true }); }
+    return erro(res, 404, undefined, 'rota não encontrada');
   }
   if (p === '/api/enviar') {
     if (ultimoEnvio401) return json(res, 502, { ok: false, codigo: 'codewords-401', status: 401,
