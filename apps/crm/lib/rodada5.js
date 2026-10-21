@@ -210,7 +210,7 @@ function linksFicha(ficha, { prefixo = '' } = {}) {
     conversa: f.conversa?.link ? ap('atendimento', f.conversa.link) : null,
     agendamentos: Object.fromEntries((f.agendamentos || []).map(a => [a.id, ap('agenda', a.link || `/?agendamento=${a.id}`)])),
     patio: Object.fromEntries((f.patio || []).map(o => [o.id, ap('patio', o.link || `/?os=${o.id}`)])),
-    orcamentos: Object.fromEntries((f.orcamentos || []).map(o => [o.id, ap('orcador', o.link || `/?orcamento=${o.id}`)])),
+    orcamentos: Object.fromEntries((f.orcamentos || []).map(o => [o.id, ap('orcador', `/#/orcamento/${encodeURIComponent(o.id)}`)])),
     leads: Object.fromEntries((f.leads || []).map(l => [l.id, APPS.linkCrm(l.link || `/?lead=${l.id}`, { prefixo })])),
   };
 }
@@ -252,6 +252,7 @@ async function rotasR5(c) {
       throw falha(503, 'Não consegui montar a ficha agora.');
     }
     const ficha = data && typeof data === 'object' ? data : {};
+    if (module.exports.enriquecer) { try { await module.exports.enriquecer(sb, ficha); } catch { /* a ficha básica já serve */ } }
     json(res, 200, { ...ficha, links: linksFicha(ficha, { prefixo }), motivosPerda: MOTIVOS_PERDA });
     return true;
   }

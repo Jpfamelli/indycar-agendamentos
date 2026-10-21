@@ -158,7 +158,7 @@ function criarFakeSb(tabelas = {}) {
     async createUser({ email }) { if ((db.__usuarios || []).includes(email)) return { data: null, error: { message: 'already been registered' } }; (db.__usuarios ||= []).push(email); const id = crypto.randomUUID(); (db.perfis ||= []).push({ id, email, papel: 'atendente', ativo: true, apps: ['atendimento', 'crm', 'agenda', 'comunicar', 'orcador', 'ads'] }); return { data: { user: { id } }, error: null }; },
     async updateUserById(id, dados) { (db.__senhas ||= {})[id] = !!dados.password; return { data: { user: { id } }, error: null }; },
   } };
-  return { from: consulta, rpc, auth, db, chamadas, falhar: nomes => { falhas = new Set(nomes); } };
+  return { from: consulta, rpc, rpcs, auth, db, chamadas, falhar: nomes => { falhas = new Set(nomes); } };
 }
 
 /* IA falsa roteirizada: cada chamada consome o próximo roteiro.

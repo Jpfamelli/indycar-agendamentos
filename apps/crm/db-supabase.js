@@ -66,7 +66,8 @@ const telKey = s => { const d = digitos(s); return d.length >= 8 ? d.slice(-8) :
 
 /* Colunas explícitas (rodada 4): só o que a tela e a IA usam, nada de select('*'). */
 const COLS_LEAD = 'id,cliente_id,nome,telefone,carro_modelo,placa,servico,valor_orcado,valor_pago,status,origem,'
-  + 'utm_source,utm_medium,utm_campaign,observacoes,created_at,updated_at,closed_at,responsavel_id';
+  + 'utm_source,utm_medium,utm_campaign,observacoes,created_at,updated_at,closed_at,responsavel_id,'
+  + 'proximo_contato_em,ultimo_contato_em,tentativas_contato';
 
 /* Cache curto da lista inteira (painel, funil e lista leem a mesma coisa várias
    vezes por minuto). Toda gravação feita por aqui esquece o cache; mudança feita

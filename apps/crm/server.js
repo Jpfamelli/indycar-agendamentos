@@ -31,6 +31,7 @@ const USA_SUPABASE = process.env.CRM_DB !== 'sqlite'
   && !!process.env.SUPABASE_URL
   && !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY);
 
+const R6 = require('./lib/rodada6');
 const store = USA_SUPABASE ? require('./db-supabase') : require('./db');
 const { gerarResumoSemanal, montarBriefing } = require('./ia');
 const { criarIACrm, ErroIA, planoAcao } = require('./lib/ia-crm');
@@ -507,6 +508,10 @@ async function handler(req, res) {
       }
       const limparTudo = () => { statsCache = null; CLIENTES_CACHE = null; store.esquecerCache?.(); };
       if (req.method !== 'GET') { CLIENTES_CACHE = null; }
+
+      /* Rodada 6: sinais ao vivo, contatos/follow-up, fila do dia, ROI por campanha, resumo do dono. */
+      if (await R6.rotasR6({ req, res, url, pathname, quem, json, lerCorpo: () => readBody(req), freio: FREIO, auditar, prefixo, store, tarefas: tarefas(),
+        travaLead: travaLeadDeOutro, podeEditarLead: utils.podeEditarLead, limparCache: limparTudo, sb: USA_SUPABASE ? adminSupabase() : null })) return;
 
       /* Rodada 5: ficha 360 (rpc), busca global, leads sem dono, campanha do Comunicar, filtros salvos, previsão. */
       if (await R5.rotasR5({ req, res, url, pathname, quem, json, lerCorpo: () => readBody(req), freio: FREIO, auditar, prefixo, acesso: acesso(),
