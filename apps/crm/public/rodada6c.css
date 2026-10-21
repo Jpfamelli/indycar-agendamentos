@@ -1,0 +1,36 @@
+/* Rodada 6, segunda leva (C5): conexões vivas do lead, Hoje, busca entre sistemas, Dono. */
+[hidden]{display:none!important}
+.r6c-painel{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.r6c-painel:empty{display:none}
+.r6c-faixa{padding:9px 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--superficie);font-size:.88rem;line-height:1.5;display:block}
+.r6c-faixa.patio{border-color:var(--red);background:var(--superficie-2)}
+.r6c-faixa.patio.ok{border-color:var(--verde-txt,#4ade80)}
+.r6c-faixa.pre{border-color:var(--warn)}
+.r6c-faixa.alerta{border-color:var(--warn)}
+.r6c-faixa.suave{color:var(--texto-suave)}
+.r6c-bloco{padding:10px 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--superficie)}
+.r6c-bloco h4{margin:0 0 6px;font-size:.92rem}
+.r6c-bloco h4 small{font-weight:400;color:var(--texto-suave);margin-left:6px}
+.r6c-bloco.vazio{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.r6c-orcs,.r6c-acoes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.r6c-orcs li{padding:8px 0;border-top:1px solid var(--line-2)}
+.r6c-orcs li:first-child{border-top:0;padding-top:0}
+.r6c-acoes li{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.r6c-sel{display:inline-block;font-size:.74rem;padding:1px 8px;border-radius:999px;border:1px solid var(--line);background:var(--superficie-2)}
+.r6c-sel.alerta{color:var(--warn);border-color:currentColor;font-weight:600}
+.r6c-sel.atencao{border-color:var(--warn)}
+.r6c-sel.ok{color:var(--verde-txt,#4ade80);border-color:currentColor}
+.r6c-linha-acao{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-top:4px}
+.r6c-aviso{font-size:.82rem;color:var(--texto-suave);padding:6px 2px}
+.r6c-ultimo{font-size:.78rem;color:var(--texto-suave);margin-top:3px;overflow-wrap:anywhere}
+.r6c-ultimo q{font-style:italic}
+.r6c-ultimo.nunca{font-style:italic}
+.r6c-carros{margin-top:18px}
+.r6c-carros:empty{display:none}
+.r6c-busca{margin-top:2px}
+.r6c-busca:empty{display:none}
+@media (max-width:480px){
+  .r6c-faixa{font-size:.84rem}
+  .r6c-acoes li{flex-direction:column;align-items:flex-start}
+  .r6c-linha-acao .acao{min-height:38px}
+}

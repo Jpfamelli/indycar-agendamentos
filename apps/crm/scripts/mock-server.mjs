@@ -21,6 +21,7 @@ import {createRequire} from 'node:module';
 const PATIO = createRequire(import.meta.url)('../lib/patio-crm.js');
 const R5 = createRequire(import.meta.url)('../lib/rodada5.js');
 const R6 = createRequire(import.meta.url)('../lib/rodada6.js');
+const R6C = createRequire(import.meta.url)('../lib/rodada6c.js');
 const CrmUtils = createRequire(import.meta.url)('../public/crm-utils.js');
 // Rodada 5: MOCK_PREFIXO=/crm serve o app montado num prefixo, como a IndyCar Central
 const PREFIXO = (p => p ? '/' + p : '')(String(process.env.MOCK_PREFIXO || '').trim().replace(/^\/+|\/+$/g, ''));
@@ -245,6 +246,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
   const C0 = clientes[0].id, leadDoC0 = leads.find(l => l.cliente_id === C0), leadIndicado = leads.find(l => l.cliente_id !== C0);
   if (leadIndicado) { leadIndicado.utm_source = 'area_cliente'; leadIndicado.origem = 'indicacao'; }
   const hAtras = h => new Date(Date.now() - h * 3600000).toISOString();
+  const orcVistoMock = new Set(), etapasMock = {};
   const PATIO_FALSO = [{id: '44444444-4444-4444-8444-444444444444', numero: 57, etapa: 'entregue', cliente_id: C0, lead_id: leadDoC0?.id || null, veiculo: 'Carro de teste', placa: 'ABC1D23',
     servico: 'Revisão (fictícia)', created_at: hAtras(30), entregue_em: hAtras(2), abrir: PATIO.PATIO_URL + '/?os=44444444-4444-4444-8444-444444444444',
     eventos: [{tipo: 'etapa', etapa_de: 'recebido', etapa_para: 'diagnostico', created_at: hAtras(29)}, {tipo: 'etapa', etapa_de: 'em_execucao', etapa_para: 'pronto', created_at: hAtras(6)}, {tipo: 'etapa', etapa_de: 'pronto', etapa_para: 'entregue', created_at: hAtras(2)}],
@@ -371,6 +373,8 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
       const t = {id: crypto.randomUUID(), titulo: String(d.titulo || 'Tarefa fictícia'), descricao: null, responsavel_id: EU, criado_por: EQUIPE_BASE[3].id, lead_id: d.lead_id || null, cliente_id: null, conversa_id: null, agendamento_id: null, origem: 'atendimento', prioridade: 2, vence_em: d.vence_em || null, status: 'aberta', concluida_em: null, concluida_por: null, created_at: agoraIso()};
       tarefas.push(t); avisar('tarefas', 'INSERT', t); return json(t, 201);
     }
+    if (url.pathname === '/__mock/orc-visto' && req.method === 'POST') { if (d.limpar) { orcVistoMock.clear(); for (const k of Object.keys(etapasMock)) delete etapasMock[k]; } else orcVistoMock.add(d.lead); return json({ok: true}); }
+    if (url.pathname === '/__mock/etapa-lead' && req.method === 'POST') { etapasMock[d.lead] = d.etapa; return json({ok: true}); }
     if (url.pathname.startsWith('/api/')) {
       if (latencia) await new Promise(r => setTimeout(r, latencia));
       // Render acordando: 503 em HTML, sem o JSON do nosso servidor
@@ -493,6 +497,39 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
         const cliente = clientes.find(doTel) || null, ls = leads.filter(doTel).sort((a, b) => b.created_at.localeCompare(a.created_at));
         const aberto = ls.find(l => !['concluido','perdido'].includes(l.status)) || null;
         return json({cliente, leads: ls, aberto, lead: aberto || ls[0] || null});
+      }
+      /* ---------- rodada 6, segunda leva (C5): conexões vivas ---------- */
+      {
+        const agora = Date.now(), abertos = leads.filter(l => !['concluido','perdido'].includes(l.status));
+        const etapas = ['recebido', 'em_execucao', 'pronto'];
+        const carrosMock = () => abertos.filter((_, i) => i % 9 === 0).map((l, i) => ({os_id: l.id.slice(0, 32) + '0100', numero: 100 + i, etapa: etapasMock[l.id] || etapas[i % 3], etapa_em: hAtras(3 + i), placa: l.placa || null, cliente_id: l.cliente_id, lead_id: l.id, agendamento_id: null, telefone: l.telefone, previsao_entrega: null}));
+        const mc = p.match(/^\/api\/leads\/([0-9a-f-]{36})\/conexoes$/);
+        if (mc) {
+          const lead = leads.find(l => l.id === mc[1]); if (!lead) return json({erro: 'Lead não encontrado.'}, 404);
+          const idx = abertos.indexOf(lead), tel = R5.normalizarTelefone(lead.telefone);
+          const linhas = idx >= 0 && idx % 5 === 0 ? [
+            {id: lead.id.slice(0, 32) + '0012', numero: 12, status: 'enviado', total: 1200, carro: 'Corolla 2019', servicos: 'Pastilhas e discos', enviado_em: hAtras(60), visualizado_em: orcVistoMock.has(lead.id) ? hAtras(30) : null, criado_em: hAtras(60), link_cliente: 'https://indycar-orcador.netlify.app/#/o/abc123'},
+            {id: lead.id.slice(0, 32) + '0009', numero: 9, status: 'recusado', total: 450, carro: 'Corolla 2019', servicos: 'Alinhamento', enviado_em: hAtras(300), decidido_em: hAtras(240), criado_em: hAtras(300)}] : [];
+          const itens = R6C.prepararOrcamentos(linhas, {observacoes: idx % 5 === 0 ? '[Orçador 18/10 09:00] Orçamento nº 0009 recusado — motivo: preço.' : '', agora});
+          const carros = R6C.carrosDoLead(carrosMock(), lead);
+          const pre = idx >= 0 && idx % 5 === 0 ? R6C.prepararPreAgendamentos([{id: crypto.randomUUID(), data: new Date(Date.now() + 2 * DIA).toISOString().slice(0, 10), hora: '08:00:00', status: 'aguardando', observacoes: 'PRÉ-AGENDAMENTO pedido pelo cliente pela página do orçamento — confirmar horário. Orçamento nº 0012 (Orçador)', servico: 'Pastilhas e discos'}], {agora}) : [];
+          return json({lead_id: lead.id, gerado_em: agoraIso(), avisos: [], site: R6C.lerObservacoes(idx % 5 === 0 ? 'CARRO NO PÁTIO AGORA: OS nº 100 (em execucao).\nHorário escolhido: sexta de manhã.' : lead.observacoes), orcamentos: {itens, resumo: R6C.resumirOrcamentos(itens), consultou_orcador: true},
+            pre_agendamentos: pre, patio: {carros}, acoes_sugeridas: idx % 5 === 0 ? R6C.acoesSugeridas([{codigo: 'cobrar_orcamento', app: 'orcador', titulo: 'Cobrar o orçamento nº 12', motivo: 'O cliente abriu e não respondeu', link: 'https://indycar-orcador.netlify.app/#/historico/x'}]) : [],
+            linha_do_tempo: [], links: {novo_orcamento: R6C.linkNovoOrcamento({telefone: lead.telefone, nome: lead.nome, lead_id: lead.id}), whatsapp: tel ? 'https://wa.me/55' + tel : null}});
+        }
+        if (p === '/api/patio/carros') { const car = carrosMock(), sem = [{os_id: crypto.randomUUID(), numero: 777, etapa: 'teste', etapa_em: hAtras(2), placa: 'XYZ9K88', telefone: '12988887777', cliente_id: null}]; return json({total: car.length + 1, sem_lead_total: sem.length, sem_lead: sem.map(x => ({...x, etapa_rotulo: R6C.rotuloEtapa(x.etapa), nome: 'Dono Sem Lead', link: 'https://indycar-patio.netlify.app/?os=' + x.os_id}))}); }
+        if (p === '/api/busca-tudo') {
+          const q = String(url.searchParams.get('q') || '').trim(); if (q.length < 2) return json(R6C.prepararBuscaGlobal({termo: q, aviso: 'Digite pelo menos 2 letras.', grupos: {}}));
+          return json(R6C.prepararBuscaGlobal({termo: q, total: 2, grupos: {patio: [{tipo: 'os', id: crypto.randomUUID(), titulo: 'OS 100 · Corolla', detalhe: 'ABC1D23 · Em execução', status: 'em_execucao', app: 'patio', link: 'https://indycar-patio.netlify.app/?os=1'}], orcamentos: [{tipo: 'orcamento', id: crypto.randomUUID(), titulo: 'Orçamento 12', detalhe: 'R$ 1.200,00', app: 'orcador', link: 'https://indycar-orcador.netlify.app/#/historico/1'}]}}));
+        }
+        if (p === '/api/agora') return json({...R6C.prepararAgora({kpis: {carros_no_patio: 4, carros_atrasados: 1, extras_pendentes: 2, prontos_esperando_retirada: 1, orcamentos_esperando: 3, orcamentos_aprovados_sem_horario: 1, conversas_sem_resposta: 2, agendamentos_hoje: 5, faltam_chegar: 2}, orcamentos: {valor_esperando: 4300}, patio: {por_etapa: []}}), atencao: gestor ? R6C.atencaoDaCasa(R6C.prepararAgora({kpis: {carros_atrasados: 1, conversas_sem_resposta: 2}})) : []});
+        if (p === '/api/ligacoes-quebradas') { if (!gestor) return json({erro: 'Só um gestor vê as ligações quebradas entre os sistemas.', codigo: 'so_gestor'}, 403); return json(R6C.prepararLigacoes({total_problemas: 3, verificacoes: [{codigo: 'os_sem_orcamento', app: 'patio', descricao: 'Ordens abertas cujo agendamento tem orçamento aprovado, mas sem ligação', quantidade: 3, amostra: ['a']}, {codigo: 'ok', app: 'crm', descricao: 'Leads sem cliente', quantidade: 0, amostra: []}]})); }
+        if (p === '/api/leads/contato-lote' && req.method === 'POST') {
+          const ids = Array.isArray(d.ids) ? d.ids.filter(x => EH_UUID.test(String(x))) : []; if (!ids.length || ids.length > 100) return json({erro: 'Escolha de 1 a 100 leads.'}, 400);
+          const alvo = leads.filter(l => ids.includes(l.id) && !['concluido','perdido'].includes(l.status)), podem = alvo.filter(l => gestor || !l.responsavel_id || l.responsavel_id === EU);
+          for (const l of podem) { l.ultimo_contato_em = agoraIso(); ativ.unshift({id: crypto.randomUUID(), lead_id: l.id, tipo: d.tipo, resultado: d.resultado, texto: d.texto || null, criado_por: EU, autor: 'Você', created_at: agoraIso()}); }
+          return json({ok: true, registrados: podem.length, ids: podem.map(l => l.id), de_colegas: alvo.length - podem.length, fechados: ids.length - alvo.length, inexistentes: 0}, 201);
+        }
       }
       /* ---------- rodada 6 ---------- */
       if (p.startsWith('/api/pipeline/sinais') || p === '/api/fila-do-dia' || p === '/api/entregues-sem-fechar' || p === '/api/leads/followup-lote' || p === '/api/roi/campanhas' || p === '/api/qualidade' || p === '/api/dono' || /^\/api\/leads\/[0-9a-f-]{36}\/(contato|atividades|cadencia|ecossistema)$/.test(p)) {

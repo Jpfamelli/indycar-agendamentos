@@ -47,7 +47,7 @@ async function subirServidor({ tabelas = {}, roteiros = [], env = {}, comPessoas
   const procEnv = { SUPABASE_URL: 'http://falso.invalid', SUPABASE_ANON_KEY: 'publica-ficticia', SUPABASE_SERVICE_ROLE_KEY: 'servico-ficticia', PORT: '0', CRM_CACHE_LEADS_MS: '0', CRM_CACHE_CLIENTES_MS: '0', ...env };
   const store = carregarDb(sb, procEnv);
   const libIA = require('../lib/ia-crm');
-  const auth = { chamadas: 0, fora: false };
+  const auth = { chamadas: 0, fora: false, rpcs: [] };
   /* Rodada 5: o server.js exporta { handler, iniciar } e só escuta quando é o programa
      principal. Aqui `require.main` fica indefinido: nada escuta sozinho; o teste monta o
      servidor em cima do handler (e pode montá-lo num prefixo, como a Central). */
@@ -67,6 +67,14 @@ async function subirServidor({ tabelas = {}, roteiros = [], env = {}, comPessoas
       if (auth.fora) throw new Error('rede fora');
       const tok = String(opts.headers?.Authorization || '').replace(/^Bearer /, '');
       const m = /^tok-([0-9a-f-]{36})-/.exec(tok);
+      /* rodada 6 (C5): rpc chamada com o login da pessoa (POST /rest/v1/rpc/<nome>) cai no banco falso, que recebe o id de quem chamou */
+      const rp = /\/rest\/v1\/rpc\/([a-z0-9_]+)$/.exec(String(url));
+      if (rp) {
+        auth.rpcs.push({ nome: rp[1], token: tok, apikey: opts.headers?.apikey });
+        if (!m) return { ok: false, status: 401, json: async () => ({ message: 'JWT inválido' }) };
+        const r = await sb.rpc(rp[1], JSON.parse(opts.body || '{}'), { uid: m[1] });
+        return r.error ? { ok: false, status: 400, json: async () => ({ message: r.error.message, code: r.error.code }) } : { ok: true, status: 200, json: async () => r.data };
+      }
       if (!url.includes('/auth/v1/user') || !m) return { ok: false, status: 401, json: async () => ({}) };
       return { ok: true, status: 200, json: async () => ({ id: m[1], email: 'x@teste.invalid' }) };
     },

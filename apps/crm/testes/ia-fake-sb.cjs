@@ -111,6 +111,19 @@ function criarFakeSb(tabelas = {}) {
       return true;
     },
     crm_soltar_trava(a) { db.crm_travas = (db.crm_travas || []).filter(x => !(x.nome === a.p_nome && x.dono === a.p_dono)); return true; },
+    /* rodada 6 (C5): rpcs do Orçador/Pátio/X3. As do Orçador só respondem para quem tem perfil ativo (como o banco: usuario_ativo()). */
+    patio_carros_abertos() { return (db.patio_os || []).filter(o => !['entregue', 'cancelado'].includes(o.etapa)).map(o => ({ os_id: o.id, numero: o.numero ?? null, etapa: o.etapa, etapa_em: o.etapa_em || null, placa: o.placa || null, cliente_id: o.cliente_id || null, lead_id: o.lead_id || null, agendamento_id: o.agendamento_id || null, telefone: o.telefone || null, previsao_entrega: o.previsao_entrega || null })); },
+    orc_status_por_lead(a, ctx) {
+      const ativo = (db.perfis || []).some(p => p.id === ctx.uid && p.ativo !== false); if (!ativo) return [];
+      const l = (db.leads || []).find(x => x.id === a.p_lead); if (!l) return [];
+      const tel = e164(l.telefone);
+      return (db.orc_orcamentos || []).filter(o => o.lead_id === a.p_lead || (l.cliente_id && o.cliente_id === l.cliente_id) || (tel && e164(o.cliente_telefone) === tel)).map(o => ({ id: o.id, numero: o.numero, status: o.status, cliente_nome: o.cliente_nome || null, carro: o.carro || 'carro', placa: o.placa || null, total: o.total ?? null, total_aprovado: o.total_aprovado ?? null, aprovado_parcial: !!o.aprovado_parcial, enviado_em: o.enviado_em || null, visualizado_em: o.visualizado_em || null, decidido_em: o.decidido_em || null, follow_up_em: o.follow_up_em || null, movere_status: null, agendamento_id: o.agendamento_id || null, lead_id: o.lead_id || null, servicos: o.servicos || null, link_orcador: 'https://indycar-orcador.netlify.app/#/historico/' + o.id, link_cliente: null, criado_em: o.created_at || null }));
+    },
+    orc_status_por_telefone(a, ctx) {
+      const ativo = (db.perfis || []).some(p => p.id === ctx.uid && p.ativo !== false); if (!ativo) return [];
+      const tel = e164(a.p_telefone); if (!tel) return [];
+      return (db.orc_orcamentos || []).filter(o => e164(o.cliente_telefone) === tel).map(o => ({ id: o.id, numero: o.numero, status: o.status, cliente_nome: o.cliente_nome || null, carro: o.carro || 'carro', placa: o.placa || null, total: o.total ?? null, total_aprovado: o.total_aprovado ?? null, aprovado_parcial: !!o.aprovado_parcial, enviado_em: o.enviado_em || null, visualizado_em: o.visualizado_em || null, decidido_em: o.decidido_em || null, follow_up_em: null, movere_status: null, agendamento_id: o.agendamento_id || null, lead_id: o.lead_id || null, servicos: o.servicos || null, link_orcador: 'https://indycar-orcador.netlify.app/#/historico/' + o.id, link_cliente: null, criado_em: o.created_at || null }));
+    },
     /* rodada 5: a ficha inteira em um JSON (mesma forma da rpc real, casando por telefone_e164 OU cliente_id) */
     cliente_360(a) {
       const tel = e164(a.p_telefone);
@@ -147,11 +160,11 @@ function criarFakeSb(tabelas = {}) {
       };
     },
   };
-  async function rpc(nome, args = {}) {
-    chamadas.push({ rpc: nome, args });
+  async function rpc(nome, args = {}, ctx = {}) {
+    chamadas.push({ rpc: nome, args, uid: ctx.uid || null });
     if (falhas && falhas.has('rpc:' + nome)) return { data: null, error: { message: 'falha simulada' } };
     if (!rpcs[nome]) return { data: null, error: { message: 'função não existe: ' + nome } };
-    try { return { data: rpcs[nome](args), error: null }; }
+    try { return { data: rpcs[nome](args, ctx), error: null }; }
     catch (e) { return { data: null, error: { message: e.message, code: e.code || 'P0001' } }; }
   }
   const auth = { admin: {

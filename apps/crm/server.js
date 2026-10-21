@@ -32,6 +32,7 @@ const USA_SUPABASE = process.env.CRM_DB !== 'sqlite'
   && !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY);
 
 const R6 = require('./lib/rodada6');
+const R6C = require('./lib/rodada6c');
 const store = USA_SUPABASE ? require('./db-supabase') : require('./db');
 const { gerarResumoSemanal, montarBriefing } = require('./ia');
 const { criarIACrm, ErroIA, planoAcao } = require('./lib/ia-crm');
@@ -508,6 +509,10 @@ async function handler(req, res) {
       }
       const limparTudo = () => { statsCache = null; CLIENTES_CACHE = null; store.esquecerCache?.(); };
       if (req.method !== 'GET') { CLIENTES_CACHE = null; }
+
+      /* Rodada 6 (C5): conexões vivas do lead (Orçador, Pátio, site, Agenda), busca entre sistemas, Agora na casa. */
+      if (await R6C.rotasR6c({ req, res, url, pathname, quem, json, lerCorpo: () => readBody(req), auditar, freio: FREIO, prefixo, store, sb: USA_SUPABASE ? adminSupabase() : null,
+        podeEditarLead: utils.podeEditarLead, limparCache: limparTudo, fetch, supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY })) return;
 
       /* Rodada 6: sinais ao vivo, contatos/follow-up, fila do dia, ROI por campanha, resumo do dono. */
       if (await R6.rotasR6({ req, res, url, pathname, quem, json, lerCorpo: () => readBody(req), freio: FREIO, auditar, prefixo, store, tarefas: tarefas(),

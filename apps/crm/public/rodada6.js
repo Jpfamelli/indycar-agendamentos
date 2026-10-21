@@ -166,7 +166,7 @@ $('#kanban').addEventListener('keydown', async e => {
   if (/^[1-7]$/.test(k)) { e.preventDefault(); e.stopPropagation(); const novo = STATUSES[Number(k) - 1]; if (novo && await moverEtapa(l.id, novo, { anunciar: true })) $('.kb-card[data-id="' + CSS.escape(String(l.id)) + '"]')?.focus(); return; }
   if (k === 'o') { e.preventDefault(); e.stopPropagation(); abrirFichaCliente(l.cliente_id || { tel: U.telE164(l.telefone) }); }
   if (k === 'p') { e.preventDefault(); e.stopPropagation(); if (s.patio) abrirApp6('patio', '/?os=' + s.patio.id); else toast('Esse lead não tem carro no Pátio agora.'); }
-  if (k === 'q') { e.preventDefault(); e.stopPropagation(); if (s.orcamento) abrirApp6('orcador', '/#/orcamento/' + s.orcamento.id); else toast('Esse lead não tem orçamento enviado.'); }
+  if (k === 'q') { e.preventDefault(); e.stopPropagation(); if (s.orcamento) abrirApp6('orcador', '/#/historico/' + s.orcamento.id); else toast('Esse lead não tem orçamento enviado.'); }
 });
 if (U.ATALHOS_ABA) { U.ATALHOS_ABA.h = 'hoje'; U.ATALHOS_ABA.k = 'dono'; }
 
@@ -195,7 +195,7 @@ function r6Pintar(l) {
   if (s.patio) { const o = (f.patio || []).find(x => x.id === s.patio.id); const href = L.patio?.[s.patio.id] || A6.urlApp('patio', `/?os=${s.patio.id}`); linha.push(`<div class="r6-eco"><b>🔧 Carro no Pátio</b> · ${esc(ETAPA6[s.patio.etapa] || s.patio.etapa)} desde ${esc(quando6(s.patio.etapa_em))}${s.patio.previsao_entrega ? ' · previsão ' + esc(quando6(s.patio.previsao_entrega)) : ''}${s.patio.extras_pendentes ? ` · <b class="parado-txt">${s.patio.extras_pendentes} extra(s) esperando o cliente</b>` : ''}
     <span class="r6-links"><a class="acao" href="${esc(href)}">Abrir no Pátio</a>${o?.link_cliente ? `<button type="button" class="acao" data-r6p="copiar" data-txt="${esc(o.link_cliente)}">🔗 Copiar link do cliente</button>` : ''}</span></div>`); }
   if (s.entregue) linha.push(`<div class="r6-eco alerta"><b>🏁 Carro entregue${s.entregue.dias ? ' há ' + s.entregue.dias + ' d' : ' hoje'}</b> · falta concluir o lead com o valor pago. ${trava ? '' : '<button type="button" class="acao acao-forte" data-r6p="concluir">Concluir agora</button>'}</div>`);
-  if (s.orcamento) { const href = L.orcamentos?.[s.orcamento.id] || A6.urlApp('orcador', `/#/orcamento/${s.orcamento.id}`); linha.push(`<div class="r6-eco"><b>🧾 Orçamento nº ${esc(s.orcamento.numero ?? '')}</b> · ${esc(s.orcamento.status)} · ${brl(s.orcamento.total)}${s.orcamento.visualizado ? ' · o cliente já abriu' : ''}${s.orcamento.dias ? ' · enviado há ' + s.orcamento.dias + ' d' : ''}<span class="r6-links"><a class="acao" href="${esc(href)}">Abrir no Orçador</a></span></div>`); }
+  if (s.orcamento) { const href = L.orcamentos?.[s.orcamento.id] || A6.urlApp('orcador', `/#/historico/${s.orcamento.id}`); linha.push(`<div class="r6-eco"><b>🧾 Orçamento nº ${esc(s.orcamento.numero ?? '')}</b> · ${esc(s.orcamento.status)} · ${brl(s.orcamento.total)}${s.orcamento.visualizado ? ' · o cliente já abriu' : ''}${s.orcamento.dias ? ' · enviado há ' + s.orcamento.dias + ' d' : ''}<span class="r6-links"><a class="acao" href="${esc(href)}">Abrir no Orçador</a></span></div>`); }
   if (s.esperando) linha.push(`<div class="r6-eco alerta"><b>⏳ Cliente esperando</b> há ${s.esperando.horas || 0} h<span class="r6-links"><a class="acao" href="${esc(L.conversa || A6.urlApp('atendimento', `/?tel=${U.telE164(l.telefone) || ''}`))}">Abrir conversa</a></span></div>`);
   if (s.agendamento) linha.push(`<div class="r6-eco"><b>📅 Horário</b> · ${esc(quando6(s.agendamento.quando))} (${esc(s.agendamento.status)})<span class="r6-links"><a class="acao" href="${esc(L.agendamentos?.[s.agendamento.id] || A6.urlApp('agenda', `/?agendamento=${s.agendamento.id}`))}">Abrir na Agenda</a></span></div>`);
   if (f.segmento && f.segmento.codigo !== 'novo') linha.push(`<div class="r6-eco"><b>🪪 ${esc(f.segmento.rotulo)}</b>${f.segmento.ltv ? ' · já gastou ' + brl(f.segmento.ltv) : ''}${f.segmento.revisao_vencida ? ' · <b class="parado-txt">revisão vencida</b>' : ''}${f.nota ? ` · nota média ${f.nota.media} (${f.nota.total})` : ''}</div>`);
@@ -304,7 +304,7 @@ function renderHoje6() {
 function linksHoje6(it) {
   const s = it.sinais || {}, l = it.lead, tel = U.telE164(l.telefone) || '', out = [];
   if (s.patio) out.push('<a class="acao" href="' + esc(A6.urlApp('patio', '/?os=' + s.patio.id) || '#') + '">🔧 Pátio</a>');
-  if (s.orcamento) out.push('<a class="acao" href="' + esc(A6.urlApp('orcador', '/#/orcamento/' + s.orcamento.id) || '#') + '">🧾 Orçamento</a>');
+  if (s.orcamento) out.push('<a class="acao" href="' + esc(A6.urlApp('orcador', '/#/historico/' + s.orcamento.id) || '#') + '">🧾 Orçamento</a>');
   if (it.principal === 'esperando' && tel) out.push('<a class="acao" href="' + esc(A6.urlApp('atendimento', '/?tel=' + tel) || '#') + '">💬 Conversa</a>');
   if (it.principal === 'orcamento_aprovado' && tel) out.push('<a class="acao" href="' + esc(A6.urlApp('agenda', '/?tel=' + tel) || '#') + '">📅 Agendar</a>');
   return out.join('');

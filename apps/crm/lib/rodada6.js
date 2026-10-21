@@ -136,6 +136,7 @@ const SINAIS_ROTULO = {
   esperando: 'Cliente esperando resposta', patio: 'Carro na oficina', pronto_retirar: 'Carro pronto para retirar', entregue_fechar: 'Carro entregue: falta concluir',
   orcamento_parado: 'Orçamento sem resposta', orcamento_aprovado: 'Orçamento aprovado sem horário', tarefa_atrasada: 'Tarefa atrasada', sem_tarefa: 'Sem tarefa',
   followup_vencido: 'Follow-up vencido', primeiro_contato: 'Primeiro contato atrasado', extra_pendente: 'Extra esperando o cliente',
+  orcamento_visto: 'Cliente abriu o orçamento e não respondeu', orcamento_recusado: 'Orçamento recusado', pre_agendamento: 'Pré-agendamento para confirmar',
 };
 const e164 = R5.normalizarTelefone;
 const MAX_ESPERA_PRIMEIRO_CONTATO_H = 2;
@@ -168,13 +169,21 @@ function construirSinais(leads, dados = {}, agora = Date.now()) {
     }
     const ent = dePatioEntregue(l).sort((a, b) => String(b.entregue_em).localeCompare(String(a.entregue_em)))[0];
     if (ent && !os) { s.entregue = { id: ent.id, numero: ent.numero ?? null, entregue_em: ent.entregue_em, dias: Math.max(0, Math.floor((agora - ms(ent.entregue_em)) / DIA)) }; s.flags.push('entregue_fechar'); }
-    const orcs = deOrc(l).filter(o => ['enviado', 'aprovado'].includes(o.status)).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    const todosOrcs = deOrc(l).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    const orcs = todosOrcs.filter(o => ['enviado', 'aprovado'].includes(o.status));
     const orc = orcs[0];
     if (orc) {
       const dias = orc.enviado_em ? Math.max(0, Math.floor((agora - ms(orc.enviado_em)) / DIA)) : 0;
       s.orcamento = { id: orc.id, numero: orc.numero ?? null, status: orc.status, total: Number(orc.total_aprovado) > 0 ? Number(orc.total_aprovado) : Number(orc.total) || 0, dias, visualizado: !!orc.visualizado_em, validade: orc.validade || null, follow_up_em: orc.follow_up_em || null };
       if (orc.status === 'enviado' && dias >= 2) s.flags.push('orcamento_parado');
       if (orc.status === 'aprovado' && !orc.agendamento_id && !os) s.flags.push('orcamento_aprovado');
+      if (orc.status === 'enviado' && orc.visualizado_em && (agora - ms(orc.visualizado_em)) >= DIA) { s.orcamento.visto_dias = Math.floor((agora - ms(orc.visualizado_em)) / DIA); s.flags.push('orcamento_visto'); }
+    }
+    // recusado nos últimos 14 dias e sem outro orçamento mais novo em andamento
+    const rec = todosOrcs.find(o => o.status === 'recusado' && Number.isFinite(ms(o.decidido_em || o.created_at)) && (agora - ms(o.decidido_em || o.created_at)) <= 14 * DIA);
+    if (rec && !(orc && String(orc.created_at) > String(rec.created_at))) {
+      s.orcamento_recusado = { id: rec.id, numero: rec.numero ?? null, dias: Math.max(0, Math.floor((agora - ms(rec.decidido_em || rec.created_at)) / DIA)), total: Number(rec.total) || 0 };
+      s.flags.push('orcamento_recusado');
     }
     const conv = deConv(l).filter(c => c.aguardando_consultor).sort((a, b) => String(a.aguardando_desde).localeCompare(String(b.aguardando_desde)))[0];
     if (conv) { const h = conv.aguardando_desde ? Math.max(0, Math.round((agora - ms(conv.aguardando_desde)) / 3600_000)) : 0; s.esperando = { conversa_id: conv.id, horas: h }; s.flags.push('esperando'); }
@@ -187,6 +196,8 @@ function construirSinais(leads, dados = {}, agora = Date.now()) {
     const ag = deAg(l).filter(a => ['aguardando', 'confirmado'].includes(a.status) && ms(a.inicio_em || `${a.data}T${String(a.hora || '00:00').slice(0, 5)}:00-03:00`) >= agora - 3600_000)
       .sort((a, b) => String(a.inicio_em || a.data).localeCompare(String(b.inicio_em || b.data)))[0];
     if (ag) s.agendamento = { id: ag.id, quando: ag.inicio_em || `${ag.data}T${String(ag.hora || '00:00').slice(0, 5)}:00-03:00`, status: ag.status };
+    const pre = deAg(l).filter(a => a.status === 'aguardando' && /^s*PR[ÉE]-AGENDAMENTO/i.test(String(a.observacoes || ''))).sort((a, b) => String(a.data).localeCompare(String(b.data)))[0];
+    if (pre) { s.pre_agendamento = { id: pre.id, quando: pre.inicio_em || `${pre.data}T${String(pre.hora || '00:00').slice(0, 5)}:00-03:00` }; s.flags.push('pre_agendamento'); }
     if (l.proximo_contato_em) {
       const vencido = ms(l.proximo_contato_em) <= agora;
       s.followup = { em: l.proximo_contato_em, vencido };
@@ -222,6 +233,9 @@ function prioridadeFila(lead, s, agora = Date.now()) {
   if (f.has('orcamento_aprovado')) add('orcamento_aprovado', 75, 'Orçamento aprovado: marcar o horário');
   if (f.has('followup_vencido')) { const d = Math.max(0, Math.floor((agora - ms(lead.proximo_contato_em)) / DIA)); add('followup_vencido', 80 + Math.min(15, d), d ? `Retorno combinado venceu há ${d} d` : 'Retorno combinado para hoje'); }
   if (f.has('tarefa_atrasada')) add('tarefa_atrasada', 70, `Tarefa atrasada: ${s.tarefa?.titulo || ''}`.trim());
+  if (f.has('pre_agendamento')) add('pre_agendamento', 78, 'Pré-agendamento do Orçador: confirmar o horário com o cliente');
+  if (f.has('orcamento_visto')) add('orcamento_visto', 72, `O cliente abriu o orçamento há ${s.orcamento.visto_dias} d e não respondeu`);
+  if (f.has('orcamento_recusado')) add('orcamento_recusado', 58, `Orçamento recusado${s.orcamento_recusado.dias ? ' há ' + s.orcamento_recusado.dias + ' d' : ' hoje'}: entender o motivo`);
   if (f.has('pronto_retirar')) add('pronto_retirar', 65, 'Carro pronto: avisar o cliente para retirar');
   if (f.has('orcamento_parado')) add('orcamento_parado', 60 + Math.min(20, s.orcamento.dias), `Orçamento sem resposta há ${s.orcamento.dias} d`);
   if (f.has('extra_pendente')) add('extra_pendente', 62, 'Extra do Pátio esperando o cliente decidir');
@@ -247,6 +261,9 @@ function scriptSugerido(codigo, lead) {
     case 'pronto_retirar': return `${oi} Aqui é da IndyCar. O seu carro ficou pronto! Pode vir retirar quando quiser, até as 17h30.`;
     case 'entregue_fechar': return `${oi} Aqui é da IndyCar. Obrigado por confiar na gente! Como ficou o carro? Qualquer coisa é só chamar. Quem conhece, Indyca! 🏎`;
     case 'extra_pendente': return `${oi} Aqui é da IndyCar. Mandei no seu link de acompanhamento um serviço extra que o mecânico viu${carro}. Dá uma olhada e me diz se pode fazer?`;
+    case 'orcamento_visto': return `${oi} Aqui é da IndyCar. Vi que você já deu uma olhada no orçamento${carro}. Ficou alguma dúvida que eu possa tirar?`;
+    case 'orcamento_recusado': return `${oi} Aqui é da IndyCar. Entendi que o orçamento não serviu${carro}. Posso saber o que pesou? Se der, eu vejo outra opção com você.`;
+    case 'pre_agendamento': return `${oi} Aqui é da IndyCar. Recebi o seu pedido de horário${carro}. Posso confirmar? A gente atende de segunda a sábado, das 8h às 17h30.`;
     case 'tarefa_atrasada': case 'parado': return `${oi} Aqui é da IndyCar. Passando pra saber se ainda posso ajudar${carro}.`;
     default: return `${oi} Aqui é da IndyCar. Posso ajudar${carro}?`;
   }
@@ -450,10 +467,10 @@ async function carregarDadosSinais(sb, agora = Date.now()) {
     lerSeguro(sb.from('patio_os').select('id,numero,etapa,etapa_em,lead_id,cliente_id,telefone,placa,previsao_entrega,agendamento_id').in('etapa', ETAPAS_PATIO_ABERTAS)),
     lerSeguro(sb.from('patio_os').select('id,numero,etapa,lead_id,cliente_id,telefone,placa,entregue_em').eq('etapa', 'entregue').gte('entregue_em', iso(agora - 14 * DIA))),
     lerSeguro(sb.from('patio_extras').select('os_id').eq('status', 'pendente')),
-    lerTodas(() => sb.from('orc_orcamentos').select('id,numero,status,cliente_id,cliente_telefone,lead_id,total,total_aprovado,enviado_em,visualizado_em,validade,agendamento_id,follow_up_em,created_at').in('status', ['enviado', 'aprovado']).order('id')),
+    lerTodas(() => sb.from('orc_orcamentos').select('id,numero,status,cliente_id,cliente_telefone,lead_id,total,total_aprovado,enviado_em,visualizado_em,decidido_em,validade,agendamento_id,follow_up_em,created_at').in('status', ['enviado', 'aprovado', 'recusado']).order('id')),
     lerSeguro(sb.from('conversas').select('id,cliente_id,telefone_e164,aguardando_desde').eq('aguardando_consultor', true)),
     lerTodas(() => sb.from('tarefas').select('id,titulo,lead_id,cliente_id,vence_em,prioridade,responsavel_id,status').eq('status', 'aberta').not('lead_id', 'is', null).order('id')),
-    lerTodas(() => sb.from('agendamentos').select('id,lead_id,cliente_id,telefone,data,hora,inicio_em,status').in('status', ['aguardando', 'confirmado']).gte('data', iso(inicioDiaBRT(agora)).slice(0, 10)).order('id')),
+    lerTodas(() => sb.from('agendamentos').select('id,lead_id,cliente_id,telefone,data,hora,inicio_em,status,observacoes').in('status', ['aguardando', 'confirmado']).gte('data', iso(inicioDiaBRT(agora)).slice(0, 10)).order('id')),
   ]);
   return { os, entregues, extras, orcs, conversas, tarefas, agendamentos };
 }
@@ -471,16 +488,9 @@ async function sinaisAgora(c, { forcar = false } = {}) {
 const esquecerSinais = () => { CACHE_SINAIS = null; };
 
 /** Abre o orçamento no Orçador (a rota "orcamento" cai na lista já com o orçamento). */
-const linkOrcamento = (id, opts) => APPS.linkApp('orcador', '/#/orcamento/' + encodeURIComponent(id), opts);
-/** Nova cotação no Orçador já com o cliente (?cliente=&tel=&nome=). */
-function linkNovoOrcamento({ cliente_id, telefone, nome }, opts) {
-  const p = new URLSearchParams();
-  if (ehUuid(cliente_id)) p.set('cliente', cliente_id);
-  const t = e164(telefone); if (t) p.set('tel', t);
-  const n = String(nome || '').replace(/[\p{C}<>]/gu, '').trim().slice(0, 80); if (n) p.set('nome', n);
-  const q = p.toString();
-  return APPS.linkApp('orcador', '/' + (q ? '?' + q : ''), opts);
-}
+const linkOrcamento = (id, opts) => APPS.linkApp('orcador', '/#/historico/' + encodeURIComponent(id), opts);
+/** Nova cotação no Orçador já com o cliente, o lead, o carro e o serviço (contrato r6_link_nova_cotacao; ver rodada6c). */
+const linkNovoOrcamento = (d, opts) => require('./rodada6c').linkNovoOrcamento(d, opts);
 
 /* ---------------- ficha 360 enriquecida ---------------- */
 async function enriquecerFicha(sb, ficha, agora = Date.now()) {
@@ -612,7 +622,7 @@ async function rotasR6(c) {
       const tel = e164(lead.telefone);
       let ficha = null;
       if (tel) {
-        const { data, error } = await sb.rpc('cliente_360', { p_telefone: tel });
+        const { data, error } = await require('./rodada6c').fichaDoCliente(sb, tel);
         if (error) { if (/não existe|does not exist|function/i.test(String(error.message))) throw falha(503, 'A ficha completa ainda não está disponível no banco.'); throw falha(503, 'Não consegui montar o ecossistema agora.'); }
         ficha = data && typeof data === 'object' ? data : null;
         if (ficha) await enriquecerFicha(sb, ficha, agora);
@@ -621,7 +631,7 @@ async function rotasR6(c) {
       const L = ficha ? R5.linksFicha(ficha, { prefixo }) : {};
       const pr = prioridadeFila(lead, s.sinais[id], agora);
       json(res, 200, { lead_id: id, sinais: s.sinais[id] || { flags: [] }, proxima_acao: pr.principal ? { codigo: pr.principal.codigo, texto: pr.principal.texto, script: scriptSugerido(pr.principal.codigo, lead) } : null, ficha,
-        links: { ...L, novoOrcamento: linkNovoOrcamento({ cliente_id: lead.cliente_id || ficha?.cliente?.id, telefone: lead.telefone, nome: lead.nome }, { prefixo }) } });
+        links: { ...L, novoOrcamento: linkNovoOrcamento({ cliente_id: lead.cliente_id || ficha?.cliente?.id, telefone: lead.telefone, nome: lead.nome, lead_id: lead.id, placa: lead.placa, veiculo: lead.carro_modelo, servico: lead.servico }, { prefixo }) } });
       return true;
     }
   }
@@ -645,9 +655,17 @@ async function rotasR6(c) {
         sinais: { patio: sn.patio || null, orcamento: sn.orcamento || null, tarefa: sn.tarefa || null, agendamento: sn.agendamento || null } });
     }
     itens.sort((a, b) => b.score - a.score || String(a.lead.nome).localeCompare(String(b.lead.nome), 'pt-BR'));
+    // último contato registrado de cada lead da fila (quem ligou, quando, o que deu)
+    const topo = itens.slice(0, 80), idsTopo = topo.map(i => i.lead.id);
+    if (idsTopo.length) {
+      const ats = await lerSeguro(sb.from('crm_atividades').select('lead_id,tipo,resultado,texto,created_at,criado_por').in('lead_id', idsTopo).order('created_at', { ascending: false }).limit(800));
+      const nomes = await pessoas(ats.map(a => a.criado_por));
+      const visto = new Set();
+      for (const a of ats) { if (visto.has(a.lead_id)) continue; visto.add(a.lead_id); const it = topo.find(i => i.lead.id === a.lead_id); if (it) it.ultimo_contato = { tipo: a.tipo, resultado: a.resultado, resultado_rotulo: ROTULO_RESULTADO[a.resultado] || null, texto: a.texto ? String(a.texto).slice(0, 140) : null, quando: a.created_at, autor: nomes.get(a.criado_por) || null }; }
+    }
     const feitos = await lerSeguro(sb.from('crm_atividades').select('id').eq('criado_por', quem.id).gte('created_at', iso(inicioDiaBRT(agora))));
     const porMotivo = {}; for (const it of itens) porMotivo[it.principal] = (porMotivo[it.principal] || 0) + 1;
-    json(res, 200, { escopo, total: itens.length, itens: itens.slice(0, 80), por_motivo: porMotivo, feitos_hoje: feitos.length, gerado_em: iso(agora) });
+    json(res, 200, { escopo, total: itens.length, mostrando: Math.min(80, itens.length), itens: itens.slice(0, 80), por_motivo: porMotivo, feitos_hoje: feitos.length, gerado_em: iso(agora) });
     return true;
   }
 
@@ -709,6 +727,22 @@ async function rotasR6(c) {
   return false;
 }
 
+/** Quanto o time demora para falar com um lead novo (leads com contato registrado; mediana e média em horas, por pessoa). */
+function tempoAtePrimeiroContato(leads, nomes = new Map()) {
+  const h = l => (ms(l.ultimo_contato_em) - ms(l.created_at)) / 3600_000;
+  const com = (leads || []).filter(l => l.ultimo_contato_em && Number.isFinite(h(l)) && h(l) >= 0);
+  const mediana = a => { const s = [...a].sort((x, y) => x - y); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
+  const media = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const r1 = v => v == null ? null : Math.round(v * 10) / 10;
+  const porPessoa = new Map();
+  for (const l of com) { const k = l.responsavel_id || 'sem'; (porPessoa.get(k) || porPessoa.set(k, []).get(k)).push(h(l)); }
+  const todas = com.map(h);
+  return { leads: (leads || []).length, com_contato: com.length, sem_contato: (leads || []).length - com.length, mediana_h: r1(mediana(todas)), media_h: r1(media(todas)),
+    por_pessoa: [...porPessoa.entries()].map(([id, a]) => ({ id, nome: id === 'sem' ? 'Sem responsável' : nomes.get(id) || 'Alguém', leads: a.length, mediana_h: r1(mediana(a)) })).sort((a, b) => (a.mediana_h ?? 1e9) - (b.mediana_h ?? 1e9)) };
+}
+const nomesPorId = m => m;
+async function pessoas_(sb, ids) { const u = [...new Set(ids.filter(ehUuid))]; if (!u.length) return new Map(); const r = await lerSeguro(sb.from('perfis').select('id,nome').in('id', u)); return new Map(r.map(x => [x.id, x.nome])); }
+
 /** Junta tudo o que o dono quer ver numa tela só. */
 async function resumoDono(c, agora = Date.now()) {
   const sb = c.sb;
@@ -752,11 +786,12 @@ async function resumoDono(c, agora = Date.now()) {
   for (const l of leads) if (l.status === 'concluido' && ms(l.closed_at || l.updated_at) >= mesIni) { const k = l.responsavel_id || 'sem'; const x = porVend.get(k) || { id: k, vendas: 0, faturamento: 0 }; x.vendas++; x.faturamento += Number(l.valor_pago) || 0; porVend.set(k, x); }
   const nomes = await (async () => { const u = [...porVend.keys()].filter(ehUuid); if (!u.length) return new Map(); const r = await lerSeguro(sb.from('perfis').select('id,nome').in('id', u)); return new Map(r.map(x => [x.id, x.nome])); })();
   const vendedores = [...porVend.values()].map(x => ({ ...x, faturamento: r2(x.faturamento), nome: x.id === 'sem' ? 'Sem responsável' : nomes.get(x.id) || 'Alguém' })).sort((a, b) => b.faturamento - a.faturamento).slice(0, 5);
+  const primeiro = tempoAtePrimeiroContato(leads.filter(l => ms(l.created_at) >= agora - 14 * DIA), nomesPorId(await pessoas_(sb, leads.map(l => l.responsavel_id))));
   const abertos = leads.filter(l => ABERTAS.includes(l.status));
   const qualidade = { sem_dono: abertos.filter(l => !l.responsavel_id).length, tarefas_atrasadas: Object.values(s.sinais).filter(x => x.flags.includes('tarefa_atrasada')).length,
     followups_vencidos: Object.values(s.sinais).filter(x => x.flags.includes('followup_vencido')).length };
   const r = { gerado_em: iso(agora), mes: { ...mes, mes: mesAnoMes, ritmo, meta_loja: metaLoja ? { leads: metaLoja.leads, agendamentos: metaLoja.agendamentos, vendas: metaLoja.vendas, faturamento: Number(metaLoja.faturamento) || 0 } : null },
-    semana, anterior, patio, orcamentos, conversas, avaliacoes, ads, agenda, perdas, vendedores, qualidade, abertos: { total: abertos.length, valor: r2(abertos.reduce((t, l) => t + (Number(l.valor_orcado) || 0), 0)) } };
+    semana, anterior, patio, orcamentos, conversas, avaliacoes, ads, agenda, perdas, vendedores, qualidade, primeiro_contato: primeiro, abertos: { total: abertos.length, valor: r2(abertos.reduce((t, l) => t + (Number(l.valor_orcado) || 0), 0)) } };
   r.insights = insightsDono(r);
   r.texto_whatsapp = textoWhatsAppDono(r, new Date(agora));
   return r;
@@ -771,5 +806,5 @@ module.exports = {
   resolverProximo, proximoSugerido, validarContato, efeitoDoContato, CADENCIAS, planoCadencia,
   construirSinais, contarSinais, SINAIS_ROTULO, prioridadeFila, scriptSugerido, sugestaoValorEntregue,
   slug, mesmaCampanha, roiCampanhas, qualidadeDados, segmentoCliente, notaMedia, linhaDoTempoCliente,
-  janela, ritmoMeta, insightsDono, textoWhatsAppDono, diasUteisEntre, ETAPAS_PATIO_ABERTAS,
+  tempoAtePrimeiroContato, janela, ritmoMeta, insightsDono, textoWhatsAppDono, diasUteisEntre, ETAPAS_PATIO_ABERTAS,
 };

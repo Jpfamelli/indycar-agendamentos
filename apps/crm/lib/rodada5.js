@@ -210,7 +210,7 @@ function linksFicha(ficha, { prefixo = '' } = {}) {
     conversa: f.conversa?.link ? ap('atendimento', f.conversa.link) : null,
     agendamentos: Object.fromEntries((f.agendamentos || []).map(a => [a.id, ap('agenda', a.link || `/?agendamento=${a.id}`)])),
     patio: Object.fromEntries((f.patio || []).map(o => [o.id, ap('patio', o.link || `/?os=${o.id}`)])),
-    orcamentos: Object.fromEntries((f.orcamentos || []).map(o => [o.id, ap('orcador', `/#/orcamento/${encodeURIComponent(o.id)}`)])),
+    orcamentos: Object.fromEntries((f.orcamentos || []).map(o => [o.id, ap('orcador', `/#/historico/${encodeURIComponent(o.id)}`)])),
     leads: Object.fromEntries((f.leads || []).map(l => [l.id, APPS.linkCrm(l.link || `/?lead=${l.id}`, { prefixo })])),
   };
 }
@@ -244,7 +244,7 @@ async function rotasR5(c) {
       tel = data?.telefone || '';
     }
     if (!normalizarTelefone(tel)) throw falha(400, 'Informe o telefone com DDD (ou um cliente válido).');
-    const { data, error } = await sb.rpc('cliente_360', { p_telefone: tel });
+    const { data, error } = await require('./rodada6c').fichaDoCliente(sb, tel);
     if (error) {
       if (String(error.code) === '42501') throw falha(403, 'Seu papel não pode abrir a ficha completa.');
       if (String(error.code) === '22023') throw falha(400, 'Telefone inválido.');

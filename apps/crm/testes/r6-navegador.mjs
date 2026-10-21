@@ -96,7 +96,7 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
     await page.evaluate(id => document.querySelector('.kb-card[data-id="' + id + '"]').focus(), comOrc);
     await page.keyboard.press('q');
     const ab = await page.evaluate(() => window.__abertas.at(-1));
-    ok(`${tag}: tecla Q abre o orçamento no Orçador (aba indycar-orcador, rota #/orcamento/)`, ab && ab[1] === 'indycar-orcador' && /#\/orcamento\//.test(ab[0]), JSON.stringify(ab));
+    ok(`${tag}: tecla Q abre o orçamento no Orçador (aba indycar-orcador, rota #/historico/)`, ab && ab[1] === 'indycar-orcador' && /#\/historico\//.test(ab[0]), JSON.stringify(ab));
     await page.evaluate(id => document.querySelector('.kb-card[data-id="' + id + '"]').focus(), comOrc);
     await page.keyboard.press('c');
     await page.waitForSelector('#dlgContato6[open]', { timeout: 5000 });
