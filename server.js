@@ -1254,9 +1254,15 @@ async function api(req, res, url) {
         origem: body.origem ?? 'Google',
       });
     }
-    const criado = await dados.criarAgendamento({ ...body, cliente_id: clienteId });
+    const { orcamento_id: orcamentoDeOrigem, ...corpoSemOrc } = body;
+    const criado = await dados.criarAgendamento({ ...corpoSemOrc, cliente_id: clienteId });
     await dispararWebhook('agendamento_criado', { agendamento: criado });
-    return ok(res, criado);
+    /* rodada 6: marcado a partir de um orçamento aprovado do Orçador → o orçamento ganha o horário (só se ainda estava solto) */
+    let orcamentoLigado = false;
+    if (orcamentoDeOrigem && dados.ehUuid(texto1(orcamentoDeOrigem, 40)) && dados.ligarOrcamentoAoAgendamento && criado?.id) {
+      orcamentoLigado = await dados.ligarOrcamentoAoAgendamento(orcamentoDeOrigem, criado.id).catch(() => false);
+    }
+    return ok(res, orcamentoLigado ? { ...criado, orcamento_ligado: true } : criado);
   }
 
   let mm;
@@ -1374,6 +1380,24 @@ async function api(req, res, url) {
     const ids = idsDeAgendamento(searchParams.get('ids'));
     const itens = ids.length ? await dados.patioDosAgendamentos(ids).catch(() => null) : {};
     if (itens === null) return send(res, 200, { itens: {}, erro: 'Pátio indisponível agora.' }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, { itens }, { 'Cache-Control': 'no-store' });
+  }
+  /* ---- ORÇADOR (rodada 6): orçamento de cada horário e aprovados esperando horário (só leitura) ---- */
+  if (pathname === '/api/orcamentos/agendamentos' && m === 'GET') {
+    const ids = idsDeAgendamento(searchParams.get('ids'));
+    const itens = ids.length && dados.orcamentosDosAgendamentos ? await dados.orcamentosDosAgendamentos(ids).catch(() => null) : {};
+    if (itens === null) return send(res, 200, { itens: {}, erro: 'Orçador indisponível agora.' }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, { itens }, { 'Cache-Control': 'no-store' });
+  }
+  if (pathname === '/api/orcamentos/aprovados' && m === 'GET') {
+    const itens = dados.orcamentosAprovadosSemHorario ? await dados.orcamentosAprovadosSemHorario({ limite: Number(searchParams.get('limite')) || 12 }).catch(() => null) : [];
+    if (itens === null) return send(res, 200, { itens: [], erro: 'Orçador indisponível agora.' }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, { itens }, { 'Cache-Control': 'no-store' });
+  }
+  // Pátio ao vivo no Início: todos os carros dentro da oficina agora
+  if (pathname === '/api/patio/agora' && m === 'GET') {
+    const itens = dados.patioAgora ? await dados.patioAgora({ limite: Number(searchParams.get('limite')) || 12 }).catch(() => null) : [];
+    if (itens === null) return send(res, 200, { itens: [], erro: 'Pátio indisponível agora.' }, { 'Cache-Control': 'no-store' });
     return send(res, 200, { itens }, { 'Cache-Control': 'no-store' });
   }
   // Pendências: entregue no Pátio e sem "Veio e fechou / Veio e não fechou" na Agenda
@@ -2037,6 +2061,8 @@ async function serveStatic(req, res, pathname) {
     if (!info.isFile()) throw new Error('não é arquivo');
     return servirArquivo(req, res, alvo, info);
   } catch {
+    /* rodada 6: arquivo com extensão que não existe (/rodada9.js, /foto.png) é 404 — antes devolvia o index.html com 200 e o navegador tentava rodar HTML como script */
+    if (/\.(?:js|mjs|css|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|json|txt|xml)$/i.test(pathname)) return notFound(res);
     // SPA fallback
     try {
       const html = await readFile(join(PUBLIC, 'index.html'));

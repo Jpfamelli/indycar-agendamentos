@@ -106,9 +106,10 @@ test('links de saída: contrato do ecossistema (?tel= / ?cliente=&tel=)', () => 
 });
 
 test('link de entrada: lê ?tel= (com/sem 55) e &cliente=, ignora lixo e limpa a URL', () => {
-  assert.deepEqual(P.lerEntrada('?tel=5512991415355'), { tel: '12991415355', cliente: '', agendamento: '' });
+  assert.deepEqual(P.lerEntrada('?tel=5512991415355'), { tel: '12991415355', cliente: '', agendamento: '', novo: false, nome: '' });
   assert.deepEqual(P.lerEntrada('?tel=12991415355&cliente=0B6C3C3E-1D1F-4C3A-9A7B-2B1F0F0E9D11'),
-    { tel: '12991415355', cliente: '0b6c3c3e-1d1f-4c3a-9a7b-2b1f0f0e9d11', agendamento: '' });
+    { tel: '12991415355', cliente: '0b6c3c3e-1d1f-4c3a-9a7b-2b1f0f0e9d11', agendamento: '', novo: false, nome: '' });
+  assert.deepEqual(P.lerEntrada('?novo=1&tel=5512991415355&nome=Ana%20%3Cb%3E'), { tel: '12991415355', cliente: '', agendamento: '', novo: true, nome: 'Ana b' }, 'rodada 6: ?novo=1 e ?nome= (sem marcação HTML)');
   assert.equal(P.lerEntrada('?tel=123'), null);                  // curto demais para achar alguém
   assert.equal(P.lerEntrada('?cliente=<script>'), null);
   assert.equal(P.lerEntrada('?r=agenda'), null);

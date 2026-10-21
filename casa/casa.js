@@ -242,6 +242,7 @@
     if (montada) desmontarModulos();
     montada = true;
     for (const m of window.CasaModulos) { try { m.montar && m.montar(Casa); } catch (e) { console.error('Casa: módulo', m.nome, e); } }
+    if (buscaPedida) { const t = buscaPedida; buscaPedida = ''; setTimeout(() => Casa.busca && Casa.busca.abrir(t), 120); }
   }
 
   /* ---------------- ligações da tela ---------------- */
@@ -271,8 +272,15 @@
     });
   }
 
+  let buscaPedida = '';
   async function iniciar() {
     ligar();
+    /* /?busca=<termo>: outros apps abrem a Casa já com a busca global preenchida (o termo sai da barra de endereço) */
+    try {
+      const p = new URLSearchParams(location.search);
+      buscaPedida = String(p.get('busca') || '').slice(0, 80);
+      if (p.has('busca')) history.replaceState(history.state, '', location.pathname + location.hash);
+    } catch { buscaPedida = ''; }
     const email = ler(LS_EMAIL); if (email) $('#lEmail').value = email;
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
     try {

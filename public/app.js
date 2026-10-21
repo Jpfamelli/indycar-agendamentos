@@ -327,7 +327,7 @@ function recadoDeAusencia(r) {
 }
 // Origens aceitas pelo banco compartilhado. Faltar uma aqui fazia o formulário
 // reescrever a origem do cliente em silêncio ao salvar.
-const ORIGENS = ['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem','Telefone','Orgânico'];
+const ORIGENS = ['Google','Indicação','Instagram','Facebook','WhatsApp','Passagem','Telefone','Orgânico','Orçador'];
 // Papéis da tabela `perfis` (compartilhada com o CRM e o Atendimento).
 // 'agenda' = só marca presença aqui na Agenda; não entra nos outros sistemas.
 const PAPEL_LABEL = { admin:'Administrador', gestor:'Gestor', atendente:'Atendente',
@@ -712,6 +712,7 @@ function bindApptActions(root) {
     }));
   });
   decorarPatio(root).catch(() => { /* sem Pátio: cartão como sempre */ });
+  window.R6?.decorarOrcamentos(root);
 }
 
 /* ============================================================================
@@ -747,7 +748,7 @@ function recadoDaOs(nome, r) {
   const os = r?.patio;
   if (!os?.os_id) return { msg: `${nome} chegou ✅`, acao: null };
   _patioCache.set(r.id, { em: Date.now(), os });
-  return { msg: `${nome} chegou ✅ — OS nº ${os.numero ?? '?'} aberta no Pátio`, acao: { rotulo: 'Abrir no Pátio', fn: () => window.open(os.abrir, '_blank', 'noopener') } };
+  return { msg: `${nome} chegou ✅ — OS nº ${os.numero ?? '?'} aberta no Pátio`, acao: { rotulo: 'Abrir no Pátio', fn: () => IndyCarApps.abrir(os.abrir) } };
 }
 async function decorarPatio(root) {
   if (!root) return;
@@ -1059,6 +1060,7 @@ function pintarInicio(d, opts = {}) {
   state._cards = c;
   if (state.contagens) pintarContagens(state.contagens);   // chips do gestor sem esperar outra chamada
   pintarAniversarios();                                     // 🎂 da semana (equipe toda)
+  window.R6?.inicio(d);                                     // 🔗 pátio ao vivo + orçamentos aprovados esperando horário
 }
 
 /* RODADA 5 — ANIVERSÁRIOS da semana (clientes.nascimento): um chip no Início; toque
@@ -2982,6 +2984,12 @@ async function abrirEntrada(e) {
     const qs = new URLSearchParams(); if (e.tel) qs.set('tel', e.tel); if (e.cliente) qs.set('cliente', e.cliente);
     const r = await api('GET', '/abrir?' + qs);
     const nome = r.cliente?.nome || r.agendamentos?.[0]?.cliente_nome || '';
+    /* rodada 6 (🔗): ?novo=1&tel= (Casa, Atendimento, CRM) abre direto o NOVO horário já com o cliente */
+    if (e.novo) {
+      const u = r.agendamentos?.[0] || {};
+      if (r.pendentes?.length) toast(`${nome || 'Esse cliente'} já tem ${r.pendentes.length === 1 ? 'um horário marcado' : r.pendentes.length + ' horários marcados'} — veja no histórico da ficha`);
+      return openAgendamentoModal(null, { telefone: r.telefone || e.tel, cliente_nome: nome || e.nome, cliente_id: r.cliente?.id, veiculo: r.cliente?.veiculo || u.veiculo, placa: r.cliente?.placa || u.placa, origem: u.origem || 'WhatsApp' });
+    }
     if (r.pendentes?.length === 1) {
       toast(`Agendamento de ${nome || 'cliente'}: ${rotuloDia(r.pendentes[0].data, agoraSP().data)} às ${r.pendentes[0].hora}`);
       return openAgendamentoModal(r.pendentes[0].id);
@@ -3176,13 +3184,15 @@ function ligarRascunho(id, pre) {
    "Agendar de novo" na ficha, "+ Agendar" num dia da Semana). */
 window.openAgendamentoModal = async function(id, pre = {}){
   if (emPresenca()) return;
+  /* rodada 6: marcado a partir de um orçamento aprovado do Orçador — o servidor liga o orçamento ao horário novo */
+  const orcamentoDeOrigem = !id && pre && /^[0-9a-f-]{36}$/i.test(String(pre.orcamento_id || '')) ? pre.orcamento_id : null;
   const servicos = await api('GET','/servicos').catch(()=>[]);
   state.servicos = servicos;
   let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:hojeSP(),
             hora:'09:00',consultor_id:'',origem:'Google',observacoes:'',status:'aguardando',confirmado:0 };
   if (id) a = await api('GET',`/agendamentos/${id}`).catch(()=>null) || a;
   else if (pre && typeof pre === 'object') {
-    for (const k of ['cliente_nome','telefone','veiculo','placa','servico','data','hora','consultor_id','origem','cliente_id'])
+    for (const k of ['cliente_nome','telefone','veiculo','placa','servico','data','hora','consultor_id','origem','cliente_id','observacoes'])
       if (pre[k]) a[k] = pre[k];
     if (a.telefone) a.telefone = mascaraTelefone(a.telefone);
     // encaixe da lista de espera: cai no primeiro horário livre do dia (o servidor sabe a duração do serviço)
@@ -3251,6 +3261,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
       <div class="field"><label for="f_obs">Observações</label><textarea id="f_obs">${esc(a.observacoes)}</textarea></div>
       ${id && a.confirmacao ? `<p class="info-campo">${svg(I.check)} ${a.confirmacao.resposta === 'confirmou' ? `Confirmou pelo link em ${esc(dataHoraBR(a.confirmacao.respondido_em))}` : a.confirmacao.resposta === 'remarcar' ? `Pediu para remarcar pelo link em ${esc(dataHoraBR(a.confirmacao.respondido_em))}` : a.confirmacao.resposta === 'nao_vem' ? `Avisou pelo link que não vem (${esc(dataHoraBR(a.confirmacao.respondido_em))})` : `Pedido de confirmação enviado em ${esc(dataHoraBR(a.confirmacao.enviado_em))} — sem resposta ainda`}</p>` : ''}
       <div id="f_patio" class="contexto-cliente" hidden></div>
+      <div id="f_orc" class="contexto-cliente" hidden></div>
       <div id="f_contexto" class="contexto-cliente"></div>
       <!-- "Não veio" pela edição: o cliente recebe o WhatsApp de falta? Pergunta antes de salvar -->
       <div class="aviso-falta" id="f_aviso_falta" role="alertdialog" aria-labelledby="f_af_tit" hidden>
@@ -3374,6 +3385,8 @@ window.openAgendamentoModal = async function(id, pre = {}){
   $('#f_tel').addEventListener('change', contexto);
   // Pátio: etapa, "Abrir no Pátio" e o link de acompanhamento do cliente
   if (id && PATIO_ST_CHEGOU.has(a.status)) blocoPatioNaFicha($('#f_patio'), { ...a, id }).catch(() => {});
+  // Orçador (rodada 6): o orçamento ligado a este horário, ou "Criar orçamento" já com o cliente
+  window.R6?.blocoOrcamentoNaFicha($('#f_orc'), { ...a, id: id || null }).catch(() => {});
   // mini-ficha de quem já é cliente (última visita, próxima revisão, aniversário)
   if (a.cliente_id) mostrarFicha(a.cliente_id);
   let confirmouSemTelefone = false, confirmouSemConsultor = false, avisarFalta;
@@ -3426,7 +3439,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
     try {
       // edição: só vai o que a pessoa MUDOU — o modal pode estar aberto há minutos e o resto (situação,
       // hora, confirmação) pode ter mudado por outra pessoa; mandar tudo desfaria a chegada marcada na recepção
-      const r = id ? await api('PUT', `/agendamentos/${id}`, P.soMudancas(payload, a)) : await api('POST', '/agendamentos', payload);
+      const r = id ? await api('PUT', `/agendamentos/${id}`, P.soMudancas(payload, a)) : await api('POST', '/agendamentos', orcamentoDeOrigem ? { ...payload, orcamento_id: orcamentoDeOrigem } : payload);
       esquecerDias(); rascunho.apagar();
       const aviso = r?.aviso_ausencia;
       toast(aviso ? recadoDeAusencia(r) : 'Agendamento salvo', aviso && !aviso.ok ? 'err' : 'ok');

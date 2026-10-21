@@ -207,12 +207,14 @@
     const cliente = ehUuid(p.get('cliente') || '') ? p.get('cliente').trim().toLowerCase() : '';
     const agendamento = ehUuid(p.get('agendamento') || '') ? p.get('agendamento').trim().toLowerCase() : '';
     if (!tel && !cliente && !agendamento) return null;
-    return { tel, cliente, agendamento };
+    const novo = p.get('novo') === '1';
+    const nome = String(p.get('nome') || '').replace(/[\p{C}<>]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    return { tel, cliente, agendamento, novo, nome };
   }
   /** A mesma URL sem os parâmetros de entrada (o telefone não fica na barra nem no histórico). */
   function semEntrada(href) {
     const u = new URL(href);
-    for (const k of ['tel', 'telefone', 'cliente', 'agendamento']) u.searchParams.delete(k);
+    for (const k of ['tel', 'telefone', 'cliente', 'agendamento', 'novo', 'nome']) u.searchParams.delete(k);
     return u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash;
   }
 

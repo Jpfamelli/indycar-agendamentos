@@ -68,6 +68,21 @@ test('links antigos da Agenda: /?agendamento=x → /agenda/?agendamento=x (308);
   assert.equal(r.status, 401, 'API antiga da raiz continua exigindo login');
 });
 
+test('rodada 6: /?busca=<termo> é da Casa (200), qualquer outra consulta segue para a Agenda; /casa/inexistente é 404 da Casa', async () => {
+  let r = await pega('/?busca=ABC1D23');
+  assert.equal(r.status, 200); assert.match(r.headers.get('content-type'), /text\/html/);
+  assert.match(await r.text(), /casa\/casa\.js/);
+  r = await pega('/?busca=x&novo=1');
+  assert.equal(r.status, 200, 'busca vence quando vem junto de outro parâmetro');
+  r = await pega('/?novo=1');
+  assert.equal(r.status, 308);
+  r = await pega('/casa/nao-existe.js');
+  assert.equal(r.status, 404); assert.match(r.headers.get('content-type'), /json/);
+  r = await pega('/casa/logica.js');
+  assert.equal(r.status, 200); assert.match(r.headers.get('content-type'), /javascript/);
+  assert.equal(r.headers.get('cross-origin-opener-policy'), 'same-origin-allow-popups');
+});
+
 test('cada prefixo sem barra vira com barra (308) mantendo a consulta', async () => {
   for (const p of ['/agenda', '/crm', '/comunicar', '/atendimento']) {
     const r = await pega(p + '?lead=abc');

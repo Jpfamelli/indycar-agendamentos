@@ -672,3 +672,28 @@ Pendências: script inline do index.html ainda exige 'unsafe-inline' na CSP; can
 489. COOP da Casa passou de `same-origin` para `same-origin-allow-popups` (necessário para reaproveitar abas nomeadas). Achado: Pátio e Orçador mandam `same-origin` no Netlify, então o navegador não reencontra a aba deles — pedido a P1/O2.
 490. Service worker da Casa v3 guarda os novos módulos para abrir sem rede.
 491. 16 testes novos das regras puras (`tests/casa-r6.test.mjs`) + roteiro puppeteer da Casa (`npm run qa:casa`, 42 conferências) com usuário de teste criado e apagado.
+
+### Lote 2 — Casa recebe links de fora; Agenda ligada ao Orçador e ao Pátio
+492. 🔗 `/?busca=<termo>` na Casa abre a busca global já preenchida (outros apps linkam assim) e limpa o endereço da barra.
+493. O redirecionamento antigo `/?x` → `/agenda/` não engole mais a consulta `busca` (teste: `/?busca=` 200, `/?novo=1` 308).
+494. 🔗 Agenda: cada horário mostra o selo do orçamento ligado (número, status, total, "visto") com "Abrir orçamento" na aba `indycar-orcador`, direto em `#/historico/<id>`.
+495. 🔗 Ficha do horário: bloco "Orçamento" com Abrir (se existe) ou "Criar orçamento" levando cliente, telefone com 55 e nome.
+496. 🔗 Início da Agenda: faixa "No pátio agora" com a etapa ao vivo de cada carro e quantos extras esperam o cliente.
+497. 🔗 Clicar no carro da faixa abre a OS no Pátio na aba `indycar-patio` (Agenda segue na dela).
+498. 🔗 Início da Agenda: faixa "Aprovados esperando horário" (orçamentos aprovados sem agendamento).
+499. 🔗 "Marcar horário" no aprovado abre o novo horário já com nome, telefone e observação citando o orçamento.
+500. Nova origem "Orçador" na lista de origens do agendamento.
+501. 🔗 Salvar o horário ligado a um orçamento manda `orcamento_id`; o servidor liga o orçamento ao horário novo só se ele ainda não tinha horário.
+502. `orcamento_id` que não é UUID é ignorado, e o campo nunca é gravado em `agendamentos`.
+503. Orçador ou Pátio fora do ar não derrubam a Agenda: a rota responde 200 com aviso e lista vazia.
+504. Recepção (papel `agenda`) leva 403 nas rotas de orçamento e de pátio; sem login, 401.
+505. Nome de cliente vindo do orçamento entra como texto (HTML escapado) nas faixas e no formulário.
+506. 🔗 `/agenda/?novo=1&tel=…` abre o NOVO horário com o cliente; o telefone sai da barra de endereço.
+507. 🔗 `IndyCarApps.abrir(href)`: qualquer link do ecossistema abre em `window.open(url,'indycar-<app>')`.
+508. 🔗 Clique em link de outro app dentro da Agenda é interceptado e vai para a aba nomeada dele.
+509. 🔗 Recado da OS no Pátio abre pela mesma regra de aba nomeada.
+510. Servidor: arquivo estático com extensão inexistente responde 404 (antes devolvia a página inicial com 200).
+511. Service worker da Agenda v19 guarda `rodada6.js/css` para abrir sem rede.
+512. `orcador.js` puro: endereço só https sem credencial, veículo jsonb → texto + placa, resumo, aprovado-para-agendar, escolha do orçamento aprovado entre vários (5 testes).
+513. Realtime passou a incluir `agendamentos` (a Casa atualiza a agenda de hoje sozinha).
+514. Roteiro puppeteer da Agenda (`scripts/qa-r6-agenda.mjs`, 16 conferências) e `/?busca=` coberto no da Casa (44).

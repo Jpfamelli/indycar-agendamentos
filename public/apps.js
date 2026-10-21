@@ -67,5 +67,29 @@
       });
     } catch { return false; }
   }
-  root.IndyCarApps = Object.freeze({ apps, url, raiz, raizAbsoluta, ehDoEcossistema, aqui: 'agenda' });
+  /** Qual app é dono deste endereço? ('crm', 'patio', 'orcador'…) ou null. Rodada 6: abre cada app na aba NOMEADA dele. */
+  function appDoLink(href) {
+    try {
+      const u = new URL(href, root.location.href);
+      let achado = null, melhor = -1;
+      for (const k of Object.keys(apps)) {
+        const b = url(k); if (!b) continue;
+        const ub = new URL(b);
+        const base = ub.pathname.replace(/\/+$/, '');
+        if (ub.origin !== u.origin) continue;
+        if (base === '' || u.pathname === base || u.pathname.startsWith(base + '/')) {
+          if (base.length > melhor) { achado = k; melhor = base.length; }   // o prefixo mais específico vence (/crm/ antes de /)
+        }
+      }
+      return achado;
+    } catch { return null; }
+  }
+  /** window.open(url, 'indycar-<app>'): clicar de novo volta para a aba do app em vez de empilhar abas. */
+  function abrir(href) {
+    const k = appDoLink(href);
+    const w = root.open(href, k ? 'indycar-' + k : '_blank');
+    try { w && w.focus(); } catch { /* outra origem */ }
+    return !!w;
+  }
+  root.IndyCarApps = Object.freeze({ apps, url, raiz, raizAbsoluta, ehDoEcossistema, appDoLink, abrir, aqui: 'agenda' });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

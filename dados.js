@@ -18,6 +18,7 @@ import {
 } from './supabase.js';
 import { randomBytes } from 'node:crypto';
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, PATIO_URL } from './patio.js';
+import { orcamentoPorAgendamento, aprovadoParaAgendar, baseDoOrcador } from './orcador.js';
 
 // Tabelas de configuração ganharam o prefixo agenda_ no banco compartilhado.
 const T = {
@@ -2330,6 +2331,45 @@ export async function patioDosAgendamentos(ids = []) {
   const saida = {};
   for (const o of ordens) if (!saida[o.agendamento_id]) saida[o.agendamento_id] = resumoDaOs(o, extras, base);
   return saida;
+}
+
+// ============================================================================
+// ORÇADOR (rodada 6, 21/10/2026): a Agenda LÊ os orçamentos ligados aos horários.
+// ============================================================================
+const SEL_ORC = 'select=id,numero,status,total,agendamento_id,visualizado_em,enviado_em,decidido_em,veiculo,cliente_id,lead_id,cliente_nome,cliente_telefone';
+
+/** Orçamento de cada horário pedido → { [agendamento_id]: resumo }. Sem a tabela/permissão, vazio. */
+export async function orcamentosDosAgendamentos(ids = []) {
+  const lista = ids.filter(ehUuid);
+  if (!lista.length) return {};
+  const linhas = await selecionar('orc_orcamentos', `${SEL_ORC}&agendamento_id=in.(${lista.join(',')})&order=created_at.desc&limit=200`);
+  return orcamentoPorAgendamento(linhas, baseDoOrcador(process.env.ORCADOR_URL));
+}
+
+/** Orçamentos aprovados que ainda não viraram horário (para o Início oferecer "Marcar horário"). */
+export async function orcamentosAprovadosSemHorario({ limite = 12 } = {}) {
+  const n = Math.min(Math.max(Number(limite) || 12, 1), 50);
+  const linhas = await selecionar('orc_orcamentos', `${SEL_ORC}&status=eq.aprovado&agendamento_id=is.null&order=decidido_em.desc.nullslast&limit=${n}`);
+  const base = baseDoOrcador(process.env.ORCADOR_URL);
+  return linhas.map((o) => aprovadoParaAgendar(o, base)).filter(Boolean);
+}
+
+/** Liga o orçamento ao horário recém-criado (só se ainda estiver solto — nunca troca o horário de quem já tem). */
+export async function ligarOrcamentoAoAgendamento(orcamentoId, agendamentoId) {
+  if (!ehUuid(orcamentoId) || !ehUuid(agendamentoId)) return false;
+  const r = await atualizar('orc_orcamentos', `id=eq.${orcamentoId}&agendamento_id=is.null`, { agendamento_id: agendamentoId });
+  return Array.isArray(r) ? r.length > 0 : !!r;
+}
+
+/** Carros dentro da oficina agora (qualquer entrada, não só os da Agenda) — o "No pátio agora" do Início. */
+export async function patioAgora({ limite = 12 } = {}) {
+  const n = Math.min(Math.max(Number(limite) || 12, 1), 40);
+  const [ordens, extras, base] = await Promise.all([
+    selecionar('patio_os', `select=id,numero,etapa,etapa_em,agendamento_id,token_publico,previsao_entrega,entregue_em,created_at,cliente_nome,veiculo,placa&etapa=not.in.(entregue,cancelado)&order=etapa_em.asc&limit=${n}`),
+    selecionar('patio_extras', 'select=os_id,status,valor&status=eq.pendente&limit=500').catch(() => []),
+    linkBaseDoPatio(),
+  ]);
+  return ordens.map((o) => ({ ...resumoDaOs(o, extras, base), cliente_nome: o.cliente_nome || '', veiculo: o.veiculo || '', placa: o.placa || '' }));
 }
 
 /** Extras (com status e valor) da ordem viva deste horário — para somar à sugestão de valor. */

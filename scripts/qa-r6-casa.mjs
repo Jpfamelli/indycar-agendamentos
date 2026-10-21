@@ -121,6 +121,12 @@ await cenario('gestor', 1440, async ({ page }) => {
   await page.keyboard.press('/');
   conf(await visivel(page, '#busca'), '"/" abre a busca');
   await page.keyboard.press('Escape');
+  // outros apps linkam /?busca=<termo>: a Casa abre a busca já preenchida e limpa a barra de endereço
+  await page.goto(BASE + '/?busca=ABC1D23', { waitUntil: 'networkidle2' });
+  await page.waitForSelector('#busca:not([hidden]) #buscaInput', { visible: true, timeout: 15000 });
+  conf((await page.$eval('#buscaInput', (i) => i.value)) === 'ABC1D23', '/?busca=ABC1D23 abre a busca global já com o termo');
+  conf(new URL(page.url()).search === '' && new URL(page.url()).pathname === '/', '/?busca= limpa a barra de endereço e continua na Casa');
+  await page.keyboard.press('Escape');
 }, {});
 
 console.log(`\n${ok} ok, ${falha} falha(s)`);
