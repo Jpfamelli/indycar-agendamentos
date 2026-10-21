@@ -20,7 +20,8 @@ import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional, casaB
 import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../regras.js';
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento } from '../patio.js';
-import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia } from '../horarios.js';
+import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia, candidatosDaEspera } from '../horarios.js';
+import { situacaoDoLembrete, resumoDosLembretes, textoDoLembrete } from '../lembretes.js';
 import { esperaQueCabe, aniversariantes } from '../dados.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -108,6 +109,7 @@ EXTRAS = [
 ];
 }
 
+const LEMB = { cfg: { ativo_lembrete: false, horas_lembrete: 20, pausa_geral: false }, envios: new Map() };
 semearAgenda();
 
 const MAPA = {
@@ -574,6 +576,40 @@ http.createServer(async (req, res) => {
     porOrigem:[{ origem:'WhatsApp', total:41, faltas:9, vieram:28, fechou:12, taxaFalta:24, taxaFechamento:43 }, { origem:'Google', total:33, faltas:12, vieram:18, fechou:6, taxaFalta:40, taxaFechamento:33 },
       { origem:'Indicação', total:15, faltas:1, vieram:13, fechou:8, taxaFalta:7, taxaFechamento:62 }, { origem:'Instagram', total:8, faltas:3, vieram:5, fechou:1, taxaFalta:38, taxaFechamento:20 }],
     porConsultor:[{ nome:'Leonardo', ativo:1, total:85, vieram:60, faltas:20, concluidos:20, naoFechou:30, taxaFechamento:33, taxaFalta:25 }] });
+  /* ---- RODADA 6 (C1b): lembretes ligados ao Comunicar + horários livres da espera (funções REAIS de lembretes.js / horarios.js) ---- */
+  const lembSit = (a) => situacaoDoLembrete({ a, envio: LEMB.envios.get(a.id) || null, cfg: LEMB.cfg, cliente: null });
+  const lembResp = (a) => ({ situacao: lembSit(a), envio: LEMB.envios.get(a.id) || null, cfg: { ativo_lembrete: LEMB.cfg.ativo_lembrete, horas_lembrete: LEMB.cfg.horas_lembrete } });
+  if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/lembrete$/))) {
+    const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro: 'Não encontrado' });
+    if (m === 'POST') {
+      const sit = lembSit(a);
+      if (sit.codigo === 'enviado' && body.reenviar !== true) return json(res, 409, { ok: false, jaEnviado: true, motivo: 'O lembrete já foi enviado. Para mandar de novo, confirme o reenvio.', ...lembResp(a) });
+      if (!sit.podeMandar && sit.codigo !== 'enviado') return json(res, 200, { ok: sit.codigo === 'na_fila', repetido: sit.codigo === 'na_fila', motivo: sit.motivo || sit.rotulo, ...lembResp(a) });
+      LEMB.envios.set(a.id, { status: 'pendente', texto: textoDoLembrete(null, a, hoje()) }); a.lembrete = { status: 'pendente' };
+      console.log('LEMBRETE NA FILA', a.cliente_nome);
+      return json(res, 200, { ok: true, ...lembResp(a) });
+    }
+    return json(res, 200, lembResp(a));
+  }
+  if (p === '/api/lembretes' && m === 'GET') {
+    const d = url.searchParams.get('data') || dia(1);
+    const itens = AGENDA.filter(a => a.data === d && ['aguardando', 'confirmado'].includes(a.status)).map(a => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, situacao: lembSit(a) }));
+    return json(res, 200, { data: d, itens, cfg: { ativo_lembrete: LEMB.cfg.ativo_lembrete, horas_lembrete: 20, pausa_geral: false }, resumo: resumoDosLembretes(itens) });
+  }
+  if (p === '/api/lembretes/lote' && m === 'POST') {
+    const alvo = AGENDA.filter(a => a.data === body.data && ['aguardando', 'confirmado'].includes(a.status) && lembSit(a).podeMandar && lembSit(a).codigo !== 'enviado');
+    for (const a of alvo) { LEMB.envios.set(a.id, { status: 'pendente' }); a.lembrete = { status: 'pendente' }; }
+    console.log('LEMBRETE EM LOTE', alvo.length);
+    return json(res, 200, { pedidos: alvo.length, na_fila: alvo.length, falhas: 0, pulados: 0 });
+  }
+  if ((mm = p.match(/^\/api\/espera\/([0-9a-f-]{36})\/horarios$/)) && m === 'GET') {
+    const e = ESPERA.find(x => x.id === mm[1]); if (!e) return json(res, 404, { erro: 'Não encontrado' });
+    const b = baseHor(), dur = duracaoDoServico(e.servico, b.servicos), dias = [];
+    for (let i = 0; i < 14; i++) { const data = dia(i); dias.push(livresDoDia({ data, agora: agoraMock(), agendamentos: AGENDA.filter(a => a.data === data), consultores: b.consultores, duracao: dur, janelas: janelasDoServico(e.servico, b.janelas, diaDaSemana(data)) })); }
+    const nomes = new Map(b.consultores.map(c => [c.id, c.nome]));
+    const itens = candidatosDaEspera({ dias, preferencia: e.preferencia, de: e.de, ate: e.ate, max: 6 }).map(c => ({ ...c, consultor_nome: nomes.get(c.consultor_id) || null }));
+    return json(res, 200, { itens, duracao_min: dur, motivo: itens.length ? null : 'Nenhum horário livre combina com o que essa pessoa pediu nos próximos dias.' });
+  }
   if (p === '/api/agendamentos' && m === 'GET') {
     const q = (url.searchParams.get('q') || '').toLowerCase();
     // presença: hoje + quem está na casa de outro dia (chegou e não saiu), sem telefone
@@ -630,6 +666,7 @@ http.createServer(async (req, res) => {
       for (const k of ['cliente_nome', 'telefone', 'veiculo', 'placa', 'servico', 'data', 'hora', 'consultor_id', 'origem', 'status', 'observacoes', 'cliente_id', 'compareceu', 'no_show_notificado_em'])
         if (body[k] !== undefined) a[k] = k === 'telefone' ? (String(body[k] || '').replace(/\D/g, '') || null) : body[k];
       if (['aguardando', 'confirmado'].includes(body.status) && body.compareceu === undefined) a.compareceu = null;
+      if (body.consultor_id !== undefined) a.consultor_nome = CONS.find(c => c.id === body.consultor_id)?.nome ?? null;
       console.log('PUT', a.cliente_nome, JSON.stringify(body));
       return json(res, 200, { ...a, aviso_ausencia: nv.acao === 'avisar' ? { ok:true } : null });
     }

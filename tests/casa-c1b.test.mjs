@@ -164,3 +164,13 @@ test('vazios que ensinam existem para todos os cartões do Agora', () => {
   for (const k of ['cPatio', 'cOrc', 'cConversas', 'cHoje', 'cLeads']) { assert.ok(M.VAZIOS[k].texto && M.VAZIOS[k].dica.length > 20, k); }
   assert.equal(M.ATALHOS_NUMERO[5], 'patio');
 });
+
+test('avisos do Orçador: aprovado e recusado têm ícone e rótulo; o link abre dentro do Orçador', () => {
+  assert.equal(M.iconeDoAviso({ tipo: 'orcamento_aprovado', app: 'orcador' }), '✅');
+  assert.equal(M.iconeDoAviso({ tipo: 'orcamento_recusado', app: 'orcador' }), '❌');
+  assert.match(M.rotuloTipo('orcamento_aprovado'), /aprovados/);
+  const id = '12345678-1234-4234-8234-123456789012';
+  const u = L.linkDaNotificacao({ app: 'orcador', link: `https://indycar-orcador.netlify.app/#/historico/${id}` }, L.bases(), 'https://central.exemplo/');
+  assert.equal(u, `https://indycar-orcador.netlify.app/#/historico/${id}`);
+  assert.equal(L.appDoLink(u, 'https://central.exemplo/', L.bases()), 'orcador');
+});

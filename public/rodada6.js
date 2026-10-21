@@ -147,5 +147,5 @@
     if (host.isConnected) pintarFaixas(host);
   }
 
-  window.R6 = { decorarOrcamentos, blocoOrcamentoNaFicha, inicio, linkNovoOrcamento, seloOrc };
+  window.R6 = { decorarOrcamentos, blocoOrcamentoNaFicha, inicio, linkNovoOrcamento, seloOrc, orcDe };
 })();

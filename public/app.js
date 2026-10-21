@@ -425,7 +425,7 @@ function corpoDoCartao(a, agora, botoes) {
   const [seloCls, seloTxt] = seloDoCartao(a);
   return `
   <article class="appt s-${esc(a.status)}${rel && rel.tom === 'atrasado' ? ' is-atrasado' : ''}"
-           data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}">
+           data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}"${/^\s*PR[ÉE]-?\s*AGENDAMENTO/i.test(a.observacoes || '') ? ' data-pre="1"' : ''}>
     <div class="appt-when">
       <span class="appt-hora">${esc(a.hora)}</span>
       <span class="appt-dia${a.data === agora.data ? ' hoje' : ''}">${esc(rotuloDia(a.data, agora.data))}</span>
@@ -713,6 +713,7 @@ function bindApptActions(root) {
   });
   decorarPatio(root).catch(() => { /* sem Pátio: cartão como sempre */ });
   window.R6?.decorarOrcamentos(root);
+  window.R6b?.decorarPre(root);
 }
 
 /* ============================================================================
@@ -1060,6 +1061,7 @@ function pintarInicio(d, opts = {}) {
   state._cards = c;
   if (state.contagens) pintarContagens(state.contagens);   // chips do gestor sem esperar outra chamada
   pintarAniversarios();                                     // 🎂 da semana (equipe toda)
+  window.R6b?.inicio();
   window.R6?.inicio(d);                                     // 🔗 pátio ao vivo + orçamentos aprovados esperando horário
 }
 
@@ -1707,8 +1709,8 @@ const AJUDA = {
     ['Distribuir horários sem consultor', 'Menu EQUIPE › "Distribuir": dá os horários do dia sem consultor para quem tem menos carros.'],
   ],
 };
-const ATALHOS_TELA = { i: 'inicio', a: 'agenda', e: 'espera', c: 'clientes', f: 'followup', h: 'historico', p: 'pendencias' };
-const ATALHOS = [['N', 'novo agendamento'], ['Ctrl + K', 'buscar em tudo (↑ ↓ e Enter nos resultados)'], ['I', 'início'], ['A', 'agenda'], ['S', 'semana'], ['E', 'lista de espera'],
+const ATALHOS_TELA = { i: 'inicio', a: 'agenda', q: 'quadro', e: 'espera', c: 'clientes', f: 'followup', h: 'historico', p: 'pendencias' };
+const ATALHOS = [['N', 'novo agendamento'], ['Ctrl + K', 'buscar em tudo (↑ ↓ e Enter nos resultados)'], ['I', 'início'], ['A', 'agenda'], ['S', 'semana'], ['Q', 'quadro por consultor'], ['E', 'lista de espera'],
   ['C', 'clientes'], ['F', 'follow-up'], ['H', 'histórico'], ['P', 'pendências (gestor)'], ['/', 'ir para a busca da tela'], ['?', 'esta ajuda'], ['Esc', 'fechar janela']];
 
 async function renderAjuda() {
@@ -3262,6 +3264,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
       ${id && a.confirmacao ? `<p class="info-campo">${svg(I.check)} ${a.confirmacao.resposta === 'confirmou' ? `Confirmou pelo link em ${esc(dataHoraBR(a.confirmacao.respondido_em))}` : a.confirmacao.resposta === 'remarcar' ? `Pediu para remarcar pelo link em ${esc(dataHoraBR(a.confirmacao.respondido_em))}` : a.confirmacao.resposta === 'nao_vem' ? `Avisou pelo link que não vem (${esc(dataHoraBR(a.confirmacao.respondido_em))})` : `Pedido de confirmação enviado em ${esc(dataHoraBR(a.confirmacao.enviado_em))} — sem resposta ainda`}</p>` : ''}
       <div id="f_patio" class="contexto-cliente" hidden></div>
       <div id="f_orc" class="contexto-cliente" hidden></div>
+      <div id="f_lembrete" class="contexto-cliente" hidden></div>
       <div id="f_contexto" class="contexto-cliente"></div>
       <!-- "Não veio" pela edição: o cliente recebe o WhatsApp de falta? Pergunta antes de salvar -->
       <div class="aviso-falta" id="f_aviso_falta" role="alertdialog" aria-labelledby="f_af_tit" hidden>
@@ -3387,6 +3390,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
   if (id && PATIO_ST_CHEGOU.has(a.status)) blocoPatioNaFicha($('#f_patio'), { ...a, id }).catch(() => {});
   // Orçador (rodada 6): o orçamento ligado a este horário, ou "Criar orçamento" já com o cliente
   window.R6?.blocoOrcamentoNaFicha($('#f_orc'), { ...a, id: id || null }).catch(() => {});
+  window.R6b?.blocoLembreteNaFicha($('#f_lembrete'), { ...a, id: id || null }).catch(() => {});
   // mini-ficha de quem já é cliente (última visita, próxima revisão, aniversário)
   if (a.cliente_id) mostrarFicha(a.cliente_id);
   let confirmouSemTelefone = false, confirmouSemConsultor = false, avisarFalta;
@@ -3936,6 +3940,7 @@ async function renderEspera(opts = {}) {
         ? 'Quando um cliente quiser um horário que não existe, use "Entrar na lista de espera" (aqui ou no Novo agendamento). Quando um horário vagar, o recado avisa.'
         : 'As esperas agendadas ou canceladas aparecem aqui.');
     ligarEspera(box);
+    window.R6b?.espera(box);
     if (state.esperaFoco) { const el = $(`.espera-item[data-id="${state.esperaFoco}"]`, box); if (el) { el.classList.add('tour-alvo'); el.scrollIntoView({ block: 'center' }); setTimeout(() => el.classList.remove('tour-alvo'), 2500); } state.esperaFoco = null; }
   };
   if (opts.quieto && $('#esperaLista')) return pintarLista_();

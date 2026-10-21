@@ -1,0 +1,59 @@
+/* Agenda — Rodada 6 / C1b: lembretes, espera com horários livres e o Quadro por consultor */
+[hidden] { display: none !important; }
+
+/* ---- lembretes: Início e ficha ---- */
+.r6b-faixa-lembretes { margin: 0 0 14px; }
+.r6b-lembretes .eco-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.r6b-lembrete small { display: block; margin: 2px 0; }
+
+/* ---- espera: chips de horários livres ---- */
+.r6b-slots { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border, rgba(255,255,255,.12)); }
+.r6b-slot { min-height: 40px; }
+
+/* ---- Quadro por consultor ---- */
+.qd-bar .left { flex-wrap: wrap; gap: 10px 14px; }
+.qd-nav { display: inline-flex; align-items: center; gap: 6px; }
+.qd-nav input[type="date"] { min-height: 36px; }
+.qd-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.qd-corpo { margin-top: 10px; overflow-x: auto; border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 14px; background: var(--panel, #0d1220); }
+.qd-chips { display: flex; gap: 6px; overflow-x: auto; padding: 8px; }
+.qd-grade { display: grid; grid-template-columns: 54px repeat(var(--qd-cols, 1), minmax(190px, 1fr)); min-width: min-content; }
+.qd-th { position: sticky; top: 0; z-index: 3; background: var(--panel-2, #121a2e); padding: 10px 10px; border-bottom: 1px solid var(--border, rgba(255,255,255,.1)); font-size: 13px; display: flex; align-items: baseline; gap: 6px; }
+.qd-canto { color: var(--muted, #8a93a8); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.qd-hh { position: sticky; left: 0; z-index: 2; background: var(--panel-2, #121a2e); padding: 8px 6px; font-size: 12px; color: var(--muted, #8a93a8); border-top: 1px solid rgba(255,255,255,.05); font-variant-numeric: tabular-nums; }
+.qd-hh.agora { color: #ffb347; font-weight: 700; box-shadow: inset 3px 0 0 #ffb347; }
+.qd-cel { position: relative; min-height: 56px; padding: 4px; border-top: 1px solid rgba(255,255,255,.05); border-left: 1px solid rgba(255,255,255,.04); display: flex; flex-direction: column; gap: 4px; }
+.qd-cel.agora { background: rgba(255,179,71,.06); }
+.qd-mais { position: absolute; inset: 4px; border: 1px dashed transparent; border-radius: 10px; background: transparent; color: transparent; font-size: 20px; cursor: pointer; min-width: 44px; min-height: 44px; }
+.qd-cel:hover .qd-mais, .qd-mais:focus-visible { border-color: rgba(255,255,255,.25); color: var(--muted, #8a93a8); }
+.qd-card { border: 1px solid var(--border, rgba(255,255,255,.12)); border-left: 4px solid #5b8cff; border-radius: 10px; padding: 7px 9px; background: rgba(255,255,255,.04); display: grid; gap: 3px; cursor: grab; font-size: 13px; }
+.qd-card.s-confirmado { border-left-color: #35c486; }
+.qd-card.s-compareceu, .qd-card.s-em_atendimento { border-left-color: #4aa8ff; }
+.qd-card.s-concluido { border-left-color: #9b7bff; opacity: .75; }
+.qd-card.s-nao_veio, .qd-card.s-cancelado, .qd-card.s-nao_fechou { border-left-color: #ff6b6b; opacity: .6; }
+.qd-card.atrasado { box-shadow: 0 0 0 1px #ffb347 inset; }
+.qd-card.movendo, .qd-card.arrastando { outline: 2px solid #ffb347; opacity: .7; }
+.qd-card.ocupado { opacity: .5; pointer-events: none; }
+.qd-topo { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.qd-hora { font-variant-numeric: tabular-nums; }
+.qd-nome { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qd-serv { opacity: .75; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qd-selos { display: flex; flex-wrap: wrap; gap: 4px; }
+.qd-selos:empty { display: none; }
+.qd-selos .badge-pill { font-size: 11px; padding: 2px 8px; }
+.qd-acoes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.qd-acoes .btn.mini { min-height: 36px; padding: 4px 10px; }
+.qd-grade.modo-mover .qd-card:not(.movendo) { pointer-events: none; opacity: .5; }
+.qd-cel.alvo-ok { background: rgba(53,196,134,.14); outline: 1px solid rgba(53,196,134,.55); outline-offset: -2px; cursor: pointer; }
+.qd-cel.alvo-nao { background: rgba(255,255,255,.015); }
+.qd-cel.sobre { background: rgba(53,196,134,.32); }
+.qd-cel.alvo-ok .qd-mais { display: none; }
+@media (max-width: 720px) {
+  .qd-grade { grid-template-columns: 46px minmax(0, 1fr); }
+  .qd-corpo { border-radius: 10px; }
+  .qd-bar .right { width: 100%; justify-content: space-between; }
+  .qd-acoes .btn.mini { flex: 1 1 auto; min-height: 44px; }
+  .qd-mais { color: var(--muted, #8a93a8); border-color: rgba(255,255,255,.18); }
+  .qd-chips .pilula { min-height: 40px; white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) { .qd-card, .qd-cel { transition: none; } }

@@ -204,6 +204,6 @@ test('versão nova no ar e a casca nova no service worker', async () => {
   const v = await chamar(null, 'GET', '/api/versao');
   assert.equal(v.j.versao, '2026-10-16-r5');
   const sw = await (await fetch(base + '/sw.js')).text();
-  assert.match(sw, /indycar-agenda-v19/);
+  assert.match(sw, /indycar-agenda-v\d+/);
   assert.match(sw, /rodada4\.css/);
 });

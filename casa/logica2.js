@@ -171,7 +171,7 @@
   }
 
   /* ---------------- sino ---------------- */
-  const ICONES_TIPO = { atraso: '⏰', falta: '🚫', nao_veio: '🚫', extra: '➕', pronto: '🏁', orcamento: '🧾', aprovado: '✅', recusado: '❌', conversa: '💬', mensagem: '💬', lead: '📈', tarefa: '📝', patio: '🔧', erro: '⚠️' };
+  const ICONES_TIPO = { atraso: '⏰', falta: '🚫', nao_veio: '🚫', extra: '➕', pronto: '🏁', orcamento: '🧾', aprovado: '✅', recusado: '❌', orcamento_aprovado: '✅', orcamento_recusado: '❌', conversa: '💬', mensagem: '💬', lead: '📈', tarefa: '📝', patio: '🔧', erro: '⚠️' };
   const iconeDoAviso = (n) => ICONES_TIPO[n?.tipo] || { agenda: '📅', atendimento: '💬', crm: '📈', comunicar: '📣', patio: '🔧', orcador: '🧾' }[n?.app] || '🔔';
   /** Agrupa avisos repetidos do mesmo app+tipo+título-base (ex.: "João está 35 min atrasado" ×3 → "3 horários atrasados"). */
   function agruparAvisos(lista) {
@@ -190,7 +190,7 @@
     }
     return out.sort((a, b) => Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0));
   }
-  const ROTULO_TIPO = { atraso: 'atrasos', falta: 'faltas', nao_veio: 'faltas', extra: 'extras esperando', pronto: 'carros prontos', orcamento: 'orçamentos', aprovado: 'aprovados', recusado: 'recusados', conversa: 'conversas', mensagem: 'mensagens', lead: 'leads', tarefa: 'tarefas', patio: 'pátio' };
+  const ROTULO_TIPO = { atraso: 'atrasos', falta: 'faltas', nao_veio: 'faltas', extra: 'extras esperando', pronto: 'carros prontos', orcamento: 'orçamentos', aprovado: 'aprovados', recusado: 'recusados', orcamento_aprovado: 'orçamentos aprovados', orcamento_recusado: 'orçamentos recusados', conversa: 'conversas', mensagem: 'mensagens', lead: 'leads', tarefa: 'tarefas', patio: 'pátio' };
   const rotuloTipo = (t) => ROTULO_TIPO[t] || t || 'avisos';
   /** Adiados neste aparelho: { id: ateMs }. Devolve só os que ainda não voltaram. */
   function aindaAdiados(mapa, agoraMs = Date.now()) {
