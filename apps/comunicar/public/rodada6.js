@@ -87,6 +87,13 @@
     }
     return '';
   };
+  /** Ficha do cliente: o que ainda vai sair para ele, com "Por que não saiu?" e "Adiar". */
+  R6.htmlProgramadas = function (lista) {
+    if (!Array.isArray(lista) || !lista.length) return '';
+    return `<div class="g-sec r6-programadas"><h4>Na fila para este cliente <small>${plural(lista.length, 'mensagem', 'mensagens')}</small></h4>${lista.map(e => `<div class="mini-envio"><div class="m-top"><span>${EMOJI(e.tipo)} ${esc(ROT(e.tipo))} · sai ${esc(dataHoraBR(e.enviar_em))}</span></div>
+      <div class="m-corpo">${esc(e.corpo)}</div>${e.motivo_pulado ? `<small class="r6-motivo">⏭ ${esc(e.motivo_pulado)}</small>` : ''}
+      <div class="r6-acoes">${R6.botoesEnvio({ id: e.id, status: 'pendente', expira_em: e.expira_em }, pode('cancelar_qualquer'))}</div></div>`).join('')}</div>`;
+  };
   document.addEventListener('click', (ev) => {
     const p = ev.target.closest('[data-r6-porque]'); if (p) { R6.abrirPorque(p.dataset.r6Porque); return; }
     const a = ev.target.closest('[data-r6-adiar]'); if (a) R6.abrirAdiar(a.dataset.r6Adiar, a.dataset.r6Exp);
@@ -314,6 +321,7 @@
   ];
   const NUMEROS = [
     { campo: 'evitar_texto_repetido_h', titulo: 'Não repetir o mesmo texto', antes: 'nas últimas', depois: 'horas (0 = desligado)', min: 0, max: 336, desc: 'O mesmo texto para o mesmo número é pulado, olhando também o que o Atendimento mandou.' },
+    { campo: 'max_mensagens_cliente_dia', titulo: 'Teto de mensagens por cliente no dia', antes: 'no máximo', depois: 'mensagens automáticas por cliente por dia', min: 1, max: 10, desc: 'Passou do teto, a mensagem espera o próximo dia. Lembrete de horário e avisos do carro no Pátio não entram na conta.' },
     { campo: 'campanha_repetir_dias', titulo: 'Campanha: não repetir para quem já recebeu', antes: 'padrão de', depois: 'dias (0 = desligado)', min: 0, max: 90, desc: 'Valor sugerido na hora de criar uma campanha.' },
   ];
   R6.pintarReguas = function () {

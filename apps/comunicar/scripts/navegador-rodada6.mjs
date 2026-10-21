@@ -83,6 +83,15 @@ for (const larg of [1440, 375]) {
     await page.evaluate(() => { const d = document.querySelector('#r6ResDe'); d.value = '2030-01-01'; d.dispatchEvent(new Event('change', { bubbles: true })); }); await espera(500);
     ok(larg, 'Resultados: período invertido avisa em vez de calcular', /antes do/.test(await texto(page, '#r6ResModal')));
     await page.evaluate(() => document.querySelector('.modal [data-fechar]')?.click()); await espera(300);
+    const cid = await page.evaluate(async () => { const r = await api('GET', '/envios?status=pendente&limite=80'); return (r.find((e) => e.cliente_id) || {}).cliente_id || null; });
+    if (cid) {
+      await page.evaluate((id) => abrirFicha(id), cid); await espera(1100);
+      const fi = await page.evaluate(() => ({ bloco: document.querySelectorAll('.r6-programadas .mini-envio').length, porque: document.querySelectorAll('.r6-programadas [data-r6-porque]').length }));
+      ok(larg, 'gestor Ficha: "Na fila para este cliente" com "Por que não saiu?" em cada mensagem', fi.bloco >= 1 && fi.porque === fi.bloco, JSON.stringify(fi));
+      ok(larg, 'gestor Ficha: sem rolagem lateral', await semRolagem(page));
+      await page.evaluate(() => document.querySelector('#gavetaOverlay, .gaveta-fechar, [data-fechar]')?.click());
+      await page.keyboard.press('Escape'); await espera(300);
+    } else ok(larg, 'gestor Ficha: o mock tem cliente com mensagem na fila', false);
     ok(larg, 'gestor Mensagens: filtro por origem com 5 opções', (await page.evaluate(() => document.querySelectorAll('#origemMsg option').length)) === 5);
     ok(larg, 'gestor Mensagens: sem rolagem lateral', await semRolagem(page));
 
@@ -97,6 +106,8 @@ for (const larg of [1440, 375]) {
     ok(larg, 'gestor Réguas: texto corrigido limpa o aviso', !(await page.evaluate(() => !document.querySelector('#r6e_msg_orcador_visto').hidden)));
     await page.evaluate(() => { const c = document.querySelector('[data-r6cfg="usa_orcador"]'); c.click(); }); await espera(200);
     ok(larg, 'gestor Réguas: desligar uma ligação muda o rótulo e conta como alteração', /Desligado/.test(await page.evaluate(() => document.querySelector('[data-r6cfg="usa_orcador"]').closest('.sw').textContent)));
+    const teto = await page.evaluate(() => { const i = document.querySelector('input[type=number][data-r6cfg="max_mensagens_cliente_dia"]'); return i ? { v: i.value, min: i.min, max: i.max, off: i.disabled } : null; });
+    ok(larg, 'gestor Réguas: teto de mensagens por cliente no dia (1 a 10, vem com 3, editável)', !!teto && teto.v === '3' && teto.min === '1' && teto.max === '10' && !teto.off, JSON.stringify(teto));
     await page.screenshot({ path: path.join(SAIDA, `reguas-${larg}.png`), fullPage: false });
     ok(larg, 'gestor Réguas: sem rolagem lateral', await semRolagem(page));
 

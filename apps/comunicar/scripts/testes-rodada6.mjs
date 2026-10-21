@@ -418,3 +418,13 @@ test('projeção: cliente que não aceita mensagens fica fora, também no Orçad
   const p = projetarMes({ hoje: '2026-10-21', cfg: CFG_PROJ, clientes, orcamentos: [ORC(1)], agora: new Date('2026-10-21T14:00:00Z') });
   assert.equal(p.porRegua.orcamento.total, 0);
 });
+
+test('por que não saiu: o teto por cliente no dia mostrado é o que está configurado (1 vira "1 mensagem", não "1 mensagens")', () => {
+  const cfg = { janela_inicio: 8, janela_fim: 20, pausa_geral: false, envia_domingo: false, limite_por_hora: 60, limite_por_dia: 300, intervalo_mesmo_cliente_min: 0 };
+  const hoje = { data: '2026-10-20', hora: 11, minuto: 0, diaSemana: 2 };
+  const e = { id: ID(51), status: 'pendente', tipo: 'campanha', telefone: '12999990006', enviar_em: new Date(AGORA - 3600000).toISOString() };
+  const um = C.explicarPendente(e, { cfg, agora: AGORA, hoje, hojeDoCliente: 1, maxPorDia: 1 }).passos.map((p) => p.texto).join(' | ');
+  assert.match(um, /já recebeu 1 mensagem hoje \(o teto é 1\)/);
+  const dois = C.explicarPendente(e, { cfg, agora: AGORA, hoje, hojeDoCliente: 1, maxPorDia: 2 });
+  assert.equal(dois.bloqueios + dois.esperas, 0, 'com teto 2, uma mensagem hoje não segura');
+});

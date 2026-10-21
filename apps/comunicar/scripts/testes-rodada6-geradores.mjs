@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { instalarBancoFalso } from './banco-falso.mjs';
 
 const tabelas = {};
-const banco = instalarBancoFalso(tabelas);
+const rpcs = {};
+const banco = instalarBancoFalso(tabelas, { rpcs });
 const D = await import('../dados.js');
 const C = await import('../conexoes.js');
 
@@ -312,4 +313,63 @@ test('a prévia (simulação) também respeita: nota baixa no Pátio tira o pós
   const r = await D.gerarTudo({ so: 'posvenda', simular: true });
   assert.equal(r.previa.filter((x) => x.tipo === 'posvenda').length, 0);
   assert.equal(envios().length, 0, 'simulação não grava nada');
+});
+
+// ---------------------------------------------------------------- nota baixa no Pátio avisa a equipe
+test('nota baixa no Pátio: vira tarefa urgente ligada ao registro e avisa os gestores — uma vez só, mesmo rodando de novo', async () => {
+  limpar(); config();
+  const avisos = [];
+  rpcs.comunicar_gestores = () => [ID(900), ID(901)];
+  rpcs.notificar = (a) => { avisos.push(a); return ID(950 + avisos.length); };
+  tabelas.patio_os = [os(7), os(8), os(9)]; tabelas.clientes = [cliente(7), cliente(8), cliente(9)];
+  tabelas.patio_avaliacoes = [{ os_id: ID(7), nota: 2, comentario: '  demorou   demais\n e   sujou o banco  ' }, { os_id: ID(8), nota: 3 }, { os_id: ID(9), nota: 4 }];
+  tabelas.tarefas = [];
+  await D.gerarTudo({ so: 'posvenda' });
+  assert.equal(tabelas.tarefas.length, 2, 'notas 2 e 3 geram tarefa, a 4 não');
+  const t7 = tabelas.tarefas.find((t) => /Cliente 7/.test(t.titulo));
+  assert.match(t7.titulo, /^Nota 2 no Pátio/);
+  assert.equal(t7.prioridade, 1); assert.equal(t7.responsavel_id, ID(900)); assert.equal(t7.cliente_id, ID(107));
+  assert.match(t7.descricao, /demorou demais e sujou o banco/, 'comentário limpo, sem quebra de linha');
+  assert.equal(porChave(`posvenda:patio:${ID(7)}`).tarefa_id, t7.id, 'o registro guardado aponta para a tarefa');
+  assert.equal(avisos.length, 4, '2 gestores × 2 notas baixas');
+  assert.ok(avisos.every((a) => a.p_tipo === 'reclamacao' && /^nota-baixa:/.test(a.p_chave)));
+  assert.ok(Date.parse(t7.vence_em) - Date.now() < 25 * 3600000);
+  await D.gerarTudo({ so: 'posvenda' });
+  assert.equal(tabelas.tarefas.length, 2, 'rodar de novo não cria tarefa repetida');
+  assert.equal(avisos.length, 4, 'nem aviso repetido');
+});
+
+test('nota baixa: sem gestor cadastrado a tarefa nasce sem dono e nada quebra; a simulação não cria tarefa nem aviso', async () => {
+  limpar(); config();
+  const avisos = [];
+  rpcs.comunicar_gestores = () => [];
+  rpcs.notificar = (a) => { avisos.push(a); return ID(960); };
+  tabelas.patio_os = [os(10)]; tabelas.clientes = [cliente(10)];
+  tabelas.patio_avaliacoes = [{ os_id: ID(10), nota: 1 }];
+  tabelas.tarefas = [];
+  await D.gerarTudo({ so: 'posvenda', simular: true });
+  assert.equal(tabelas.tarefas.length, 0, 'simular não grava');
+  assert.equal(avisos.length, 0);
+  await D.gerarTudo({ so: 'posvenda' });
+  assert.equal(tabelas.tarefas.length, 1);
+  assert.equal(tabelas.tarefas[0].responsavel_id ?? null, null);
+  assert.equal(avisos.length, 0, 'sem gestor, ninguém para avisar');
+  assert.equal(porChave(`posvenda:patio:${ID(10)}`).status, 'pulado');
+});
+
+test('ficha do cliente: "na fila" traz o que ainda vai sair pelo cadastro OU pelo telefone, em ordem, sem enviadas nem de outro cliente', async () => {
+  limpar(); config();
+  tabelas.clientes = [cliente(20), cliente(21)];
+  tabelas.posvenda_envios = [
+    { id: ID(1), status: 'pendente', tipo: 'campanha', cliente_id: ID(120), telefone: tel(20), telefone_e164: tel(20), corpo: 'B', enviar_em: diaSP(2) },
+    { id: ID(2), status: 'pendente', tipo: 'avulsa', cliente_id: null, telefone: tel(20), telefone_e164: tel(20), corpo: 'A por telefone', enviar_em: diaSP(1) },
+    { id: ID(3), status: 'enviado', tipo: 'posvenda', cliente_id: ID(120), telefone: tel(20), telefone_e164: tel(20), corpo: 'já foi', enviar_em: diaSP(-3) },
+    { id: ID(4), status: 'pendente', tipo: 'campanha', cliente_id: ID(121), telefone: tel(21), telefone_e164: tel(21), corpo: 'de outro', enviar_em: diaSP(1) },
+    { id: ID(5), status: 'cancelado', tipo: 'campanha', cliente_id: ID(120), telefone: tel(20), telefone_e164: tel(20), corpo: 'cancelada', enviar_em: diaSP(1) },
+  ];
+  const f = await D.fichaCliente(ID(120));
+  assert.deepEqual(f.programadas.map((e) => e.id), [ID(2), ID(1)], 'em ordem de horário, uma pelo telefone e uma pelo cadastro');
+  assert.ok(f.programadas.every((e) => e.corpo && e.enviar_em));
+  assert.equal(f.envios.length, 3, 'o histórico continua como antes (só pelo cadastro)');
+  assert.deepEqual((await D.fichaCliente(ID(121))).programadas.map((e) => e.id), [ID(4)]);
 });

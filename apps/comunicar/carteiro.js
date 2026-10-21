@@ -195,7 +195,7 @@ export function separarMesmoCliente(fila = [], { minutos = 60, agora = Date.now(
     const ultimo = tel ? vistos.get(tel) : null;
     if (tel && !ehOperacional(e.tipo)) {
       if (maxPorDia > 0 && (contagem.get(tel) || 0) >= maxPorDia) {
-        adiados.push({ envio: e, enviar_em: proximoDia ? proximoDia() : new Date(agora + 24 * 3600000).toISOString(), motivo: `o cliente já recebeu ${maxPorDia} mensagens hoje: espera o próximo dia` });
+        adiados.push({ envio: e, enviar_em: proximoDia ? proximoDia() : new Date(agora + 24 * 3600000).toISOString(), motivo: `o cliente já recebeu ${maxPorDia} ${maxPorDia === 1 ? "mensagem" : "mensagens"} hoje: espera o próximo dia` });
         continue;
       }
       if (ultimo !== undefined && ultimo !== null && agora - ultimo < minutos * 60000) {

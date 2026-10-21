@@ -1373,6 +1373,7 @@ async function abrirFicha(id, quieto = false) {
         <div class="ficha-item"><small>Satisfação</small><b>${f.respostas?.length ? Math.round((f.respostas.filter(x => x.satisfeito).length / f.respostas.length) * 100) + '%' : '—'}</b><span>${f.respostas?.length ? plural(f.respostas.length, 'resposta', 'respostas') : 'sem resposta'}</span></div>
       </div>
       ${window.R5 ? window.R5.htmlLigacoes(f.ligacoes, c) : ''}
+      ${window.R6 ? window.R6.htmlProgramadas(f.programadas) : ''}
       <div class="g-sec"><h4>Mensagens <small>${plural(f.envios?.length || 0, 'recente', 'recentes')}</small></h4>
         ${f.envios?.length ? f.envios.map(e => `<div class="mini-envio"><div class="m-top"><span>${TIPO[e.tipo]?.emoji || '✉️'} ${esc(TIPO[e.tipo]?.rotulo || e.tipo)} · ${esc(dataHoraBR(e.enviado_em || e.enviar_em))}</span>${pillStatus(e.status)}${e.agendou_depois_id ? `<span class="selo-agendou">${svg(I.calendar)} agendou depois</span>` : ''}</div>
             <div class="m-corpo">${esc(e.corpo)}</div>

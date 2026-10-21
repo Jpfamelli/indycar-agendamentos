@@ -351,13 +351,16 @@ export async function importarClientes(linhas) {
 export async function fichaCliente(id) {
   const cliente = await obterCliente(id);
   if (!cliente) return null;
-  const [v360, regras, cfg, ultimos, envios, respostas] = await Promise.all([
+  const telNac = telefoneNacional(cliente.telefone);
+  const [v360, regras, cfg, ultimos, envios, respostas, programadas] = await Promise.all([
     selecionarUm(T.v360, `select=total_leads,total_agendamentos,servicos_feitos,faltas,total_gasto,ultimo_servico_em,proximo_horario&id=eq.${id}`),
     listarRegras(),
     obterConfig(),
     selecionar(T.agendamentos, `select=id,servico,data,hora,status,valor,veiculo&cliente_id=eq.${id}&order=data.desc,hora.desc&limit=6`),
     selecionar(T.envios, `select=id,tipo,status,corpo,enviar_em,enviado_em,respondido_em,resposta,resposta_tipo,agendou_depois_id,motivo_pulado&cliente_id=eq.${id}&order=created_at.desc&limit=10`),
     selecionar(T.respostas, `select=id,satisfeito,nota,comentario,origem,created_at&cliente_id=eq.${id}&order=created_at.desc&limit=5`),
+    // o que ainda vai sair para este cliente (pelo cadastro OU pelo telefone, que é como as mensagens avulsas chegam)
+    selecionar(T.envios, `select=id,tipo,corpo,enviar_em,expira_em,motivo_pulado&status=eq.pendente&or=(${[`cliente_id.eq.${id}`, telNac && telNac.length >= 10 ? `telefone_e164.eq.${telNac}` : null].filter(Boolean).join(',')})&order=enviar_em.asc&limit=10`).catch(() => []),
   ]);
   const ultimoServico = ultimos.find((a) => a.status === 'concluido') || null;
   let proximaRevisao = null;
@@ -377,7 +380,7 @@ export async function fichaCliente(id) {
       total_gasto: Number(v360.total_gasto) || 0, ultimo_servico_em: v360.ultimo_servico_em,
       proximo_horario: v360.proximo_horario,
     } : null,
-    ultimoServico, proximaRevisao, agendamentos: ultimos, envios, respostas, ligacoes,
+    ultimoServico, proximaRevisao, agendamentos: ultimos, envios, programadas, respostas, ligacoes,
   };
 }
 
@@ -520,13 +523,13 @@ const FAIXAS = {
   // rodada 5: cadência segura
   limite_por_minuto: [1, 60], limite_por_dia: [1, 5000], intervalo_mesmo_cliente_min: [0, 1440],
   // rodada 6: ligações com o Pátio e o Orçador, anti-spam
-  horas_extra_lembrete: [1, 48], dias_reclamacao_aberta: [1, 60], evitar_texto_repetido_h: [0, 336], campanha_repetir_dias: [0, 90],
+  horas_extra_lembrete: [1, 48], dias_reclamacao_aberta: [1, 60], evitar_texto_repetido_h: [0, 336], campanha_repetir_dias: [0, 90], max_mensagens_cliente_dia: [1, 10],
 };
 export const PADRAO_NUM = {
   dias_posvenda: 2, meses_retorno: 6, horas_lembrete: 20, dias_orcamento: 3, dias_nao_fechou: 7,
   meses_reativacao: 12, intervalo_minimo_dias: 7, janela_inicio: 8, janela_fim: 20, limite_por_hora: 60,
   limite_por_minuto: 10, limite_por_dia: 300, intervalo_mesmo_cliente_min: 60,
-  horas_extra_lembrete: 3, dias_reclamacao_aberta: 14, evitar_texto_repetido_h: 48, campanha_repetir_dias: 14,
+  horas_extra_lembrete: 3, dias_reclamacao_aberta: 14, evitar_texto_repetido_h: 48, campanha_repetir_dias: 14, max_mensagens_cliente_dia: 3,
 };
 /** Rodada 6: interruptores das ligações novas (todos ligados por padrão; o que depende de uma régua só age com ela ligada). */
 export const BOOLEANOS_R6 = ['usa_patio_posvenda', 'usa_patio_revisao', 'usa_orcador', 'ativo_extra_lembrete', 'bloquear_com_carro_na_oficina', 'bloquear_com_reclamacao', 'bloquear_com_orcamento_aberto', 'retomada_gradual'];
@@ -2590,6 +2593,36 @@ export async function ordensEntregues(deIso, ateIso) {
   return selecionarTudo('patio_os', p);
 }
 
+/**
+ * Nota baixa (1–3) no Pátio: o pós-venda automático fica guardado como pulado e a equipe NÃO pode ficar sabendo só
+ * por quem abre a lista — cria uma tarefa urgente (24 h) ligada ao registro e avisa quem recebe reclamações.
+ */
+export async function cuidarNotaBaixa(os, avaliacao, envio = null) {
+  const nota = Number(avaliacao?.nota);
+  if (!(nota >= 1 && nota <= 3)) return { tarefa: null, avisados: 0 };
+  const nome = String(os.cliente_nome || 'Cliente').trim();
+  const donos = await gestores('reclamacao').catch(() => []);
+  const comentario = String(avaliacao?.comentario || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const tarefa = await criarTarefa({
+    titulo: `Nota ${nota} no Pátio: falar com ${nome}`,
+    descricao: [`Ordem ${os.numero ?? ''}${os.servico ? ` · ${os.servico}` : ''}`.trim(), comentario ? `Comentário do cliente: ${comentario}` : null,
+      'O pós-venda automático foi segurado. Fale com o cliente antes de qualquer outra mensagem da oficina.'].filter(Boolean).join('\n'),
+    prioridade: 1, vence_em: new Date(Date.now() + 24 * 3600000).toISOString(),
+    responsavel_id: donos[0] || null, cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, lead_id: os.lead_id, origem: 'comunicar',
+  }).catch(() => null);
+  if (tarefa?.id && envio?.id) await ligarTarefaAoEnvio(envio.id, tarefa.id).catch(() => null);
+  let avisados = 0;
+  for (const g of donos) {
+    const id = await notificar({
+      perfil: g, tipo: 'reclamacao', titulo: `${nome} deu nota ${nota} no Pátio`.slice(0, 140),
+      corpo: (comentario || 'Sem comentário. O pós-venda automático foi segurado.').slice(0, 300),
+      link: os.cliente_id ? `/?cliente=${os.cliente_id}` : null, app: 'comunicar', chave: `nota-baixa:${os.id}`,
+    }).catch(() => null);
+    if (id) avisados++;
+  }
+  return { tarefa: tarefa?.id || null, avisados };
+}
+
 /** Avaliações que o cliente deu no Pátio (nota 1–5) das ordens pedidas. */
 export async function avaliacoesDoPatio(osIds = []) {
   const ids = [...new Set(osIds.filter(ehUuid))];
@@ -2635,7 +2668,11 @@ async function posvendaDoPatio(cfg, porteiro, ctx) {
     if (corpo === null) continue;
     if (d.acao === 'pular') {
       ctx.vistas ||= new Set(); ctx.vistas.add(d.chave);   // vale também na prévia: a Agenda não repete o que o Pátio segurou
-      if (!ctx.simular) await enfileirar({ ...base, tipo: 'posvenda', corpo, status: 'pulado', motivo_pulado: d.motivo, chave_unica: d.chave }).catch(() => null);
+      if (!ctx.simular) {
+        const guardado = await enfileirar({ ...base, tipo: 'posvenda', corpo, status: 'pulado', motivo_pulado: d.motivo, chave_unica: d.chave }).catch(() => null);
+        // só quando o registro é NOVO (a chave única barra a segunda vez): a equipe é avisada uma vez só
+        if (guardado) await cuidarNotaBaixa(os, notas.get(os.id), guardado).catch((e) => console.error('nota baixa:', e?.message || e));
+      }
       ctx.pulados.push({ ...info, corpo, motivo: d.motivo, definitivo: true });
       continue;
     }
@@ -2771,6 +2808,8 @@ export async function situacaoDosClientes(telefones = [], { diasReclamacao = 14 
     if (t && mapa.has(t) && !mapa.get(t).orcamento) mapa.get(t).orcamento = { numero: o.numero, validade: o.validade };
   }
   const desde = new Date(Date.now() - diasReclamacao * 86400000).toISOString();
+  // nota baixa (1–3) dada no Pátio: conta como reclamação enquanto a tarefa que a equipe recebeu continua aberta
+  await comNotaBaixaDoPatio(mapa, tels, desde).catch(() => {});
   for (let i = 0; i < tels.length; i += 60) {
     const lista = tels.slice(i, i + 60).map((t) => `"${t}"`).join(',');
     const neg = await selecionar(T.envios, `select=telefone_e164,respondido_em,resposta,tarefa_id&resposta_tipo=eq.negativa&respondido_em=gte.${desde}&telefone_e164=in.(${lista})&order=respondido_em.desc`).catch(() => []);
@@ -2783,6 +2822,30 @@ export async function situacaoDosClientes(telefones = [], { diasReclamacao = 14 
     }
   }
   return mapa;
+}
+
+/** Preenche `reclamacao` de quem deu nota 1–3 no Pátio desde `desdeIso` (a tarefa fechada libera o cliente). */
+async function comNotaBaixaDoPatio(mapa, tels, desdeIso) {
+  const avs = await selecionar('patio_avaliacoes', `select=os_id,nota,created_at&nota=lte.3&created_at=gte.${encodeURIComponent(desdeIso)}&order=created_at.desc&limit=500`);
+  const ids = [...new Set(avs.map((a) => a.os_id).filter(ehUuid))];
+  if (!ids.length) return;
+  const oss = new Map();
+  for (let i = 0; i < ids.length; i += 80) {
+    for (const o of await selecionar('patio_os', `select=id,telefone&id=in.(${ids.slice(i, i + 80).join(',')})`)) oss.set(o.id, telefoneNacional(o.telefone));
+  }
+  const dosNossos = avs.filter((a) => mapa.has(oss.get(a.os_id)) && !mapa.get(oss.get(a.os_id)).reclamacao);
+  if (!dosNossos.length) return;
+  const chaves = dosNossos.map((a) => `"posvenda:patio:${a.os_id}"`).join(',');
+  const registros = new Map((await selecionar(T.envios, `select=chave_unica,tarefa_id&chave_unica=in.(${chaves})`).catch(() => [])).map((e) => [e.chave_unica, e.tarefa_id]));
+  const tarefaIds = [...new Set([...registros.values()].filter(ehUuid))];
+  const abertas = new Set();
+  if (tarefaIds.length) for (const t of await selecionar('tarefas', `select=id,status&id=in.(${tarefaIds.join(',')})`).catch(() => [])) if (t.status === 'aberta') abertas.add(t.id);
+  for (const a of dosNossos) {
+    const m = mapa.get(oss.get(a.os_id));
+    if (m.reclamacao) continue;
+    const tarefa = registros.get(`posvenda:patio:${a.os_id}`);
+    m.reclamacao = { em: a.created_at, resumo: `nota ${a.nota} no Pátio`, tarefaAberta: tarefa ? abertas.has(tarefa) : true };
+  }
 }
 
 /** O cliente voltou depois da entrega/serviço? Map(cliente_id → data) para a revisão conferir antes de sair. */
@@ -2889,7 +2952,7 @@ export async function explicarEnvio(id) {
     ...conexoes.explicarPendente(e, {
       cfg, agora, hoje: agoraSP(new Date(agora)), enviadasHora: horaN, enviadasHoje: hojeN, aFrente: Math.max(0, Number(aFrente) || 0),
       whatsapp: cfg.whatsapp, clienteFora: !!((e.cliente_id && fora.ids.has(e.cliente_id)) || (tel && fora.tels.has(tel))),
-      ultimoDoCliente: contatos.ultimos.get(tel) || null, hojeDoCliente: contatos.contagem.get(tel) || 0,
+      ultimoDoCliente: contatos.ultimos.get(tel) || null, hojeDoCliente: contatos.contagem.get(tel) || 0, maxPorDia: cfg.max_mensagens_cliente_dia,
       feriado: feriado(hoje()), tiposSeguramFeriado: [...TIPOS_SEGURAM_NO_FERIADO], situacao: sit.get(tel) || {},
       osDoLembrete: ordens.get?.(e.agendamento_id) || null, repetido,
     }),

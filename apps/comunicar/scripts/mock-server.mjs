@@ -143,7 +143,7 @@ const CFG = {
   msg_reativacao:'Oi {primeiro_nome}, tudo bem? Faz um tempo que a gente não vê o {carro} por aqui. Que tal um check-up gratuito de 30 min com scanner? É só responder por aqui para agendar. 🏁',
   // rodada 6
   usa_patio_posvenda:true, usa_patio_revisao:true, usa_orcador:true, ativo_extra_lembrete:true, horas_extra_lembrete:3,
-  bloquear_com_carro_na_oficina:true, bloquear_com_reclamacao:true, bloquear_com_orcamento_aberto:true, dias_reclamacao_aberta:14, evitar_texto_repetido_h:48, campanha_repetir_dias:14, retomada_gradual:true,
+  bloquear_com_carro_na_oficina:true, bloquear_com_reclamacao:true, bloquear_com_orcamento_aberto:true, dias_reclamacao_aberta:14, evitar_texto_repetido_h:48, campanha_repetir_dias:14, max_mensagens_cliente_dia:3, retomada_gradual:true,
   msg_extra_lembrete:'Oi {primeiro_nome}! O {carro} ainda tem {itens} esperando o seu OK. Veja e aprove ou recuse por aqui: {link_os}',
   msg_orcador_novisto:'Oi {primeiro_nome}, aqui é da IndyCar! Mandei o orçamento do {carro} e queria saber se você conseguiu abrir: {link_orcamento}',
   msg_orcador_visto:'Oi {primeiro_nome}! Vi que você olhou o orçamento do {carro}. Ficou alguma dúvida? Se quiser, ajusto o que for preciso: {link_orcamento}',
@@ -1025,6 +1025,7 @@ http.createServer(async (req, res) => {
       proximaRevisao,
       agendamentos: ags.slice(0, 6).map(({ cliente, ...a }) => a),
       envios: ENVIOS.filter((e) => e.cliente_id === c.id).slice(0, 10),
+      programadas: ENVIOS.filter((e) => e.cliente_id === c.id && e.status === 'pendente').slice(0, 10).map(({ id, tipo, corpo, enviar_em, expira_em, motivo_pulado }) => ({ id, tipo, corpo, enviar_em, expira_em, motivo_pulado })),
       respostas: RESPOSTAS.filter((r) => r.cliente_id === c.id).slice(0, 5),
       ligacoes: montarLigacoes(c360Mock(c, c.telefone)),
     });

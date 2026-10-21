@@ -781,3 +781,21 @@ Lote 6 — adiar o dia, resultados em planilha, origem, projeção
 193. 🔗 A leitura da projeção traz do Orçador só o que espera decisão (teste com enviado, decidido e aprovado).
 194. Bug que eu mesmo criei e o navegador pegou: ao colar o código novo, `$$` virou `$` (substituição de texto) e quebrou o botão "Adiar" da Agenda; corrigido e o roteiro agora cobre o clique de cada botão novo.
 195. Roteiro do navegador ampliado: adiar o dia (3 atalhos, cabe na tela), quem voltou + planilha (gestor), sem planilha nem "dia todo" para o atendente, filtro de origem com 5 opções; e o roteiro do atacante cobre o nome malicioso em "quem voltou".
+
+Lote 7 — nota baixa que não se perde, ficha com a fila, teto por cliente
+
+196. 🔗 **Nota baixa (1 a 3) no Pátio vira tarefa urgente**: o pós-venda automático já ficava guardado como "pulado", mas ninguém era chamado; agora nasce uma tarefa de 24 h ("Nota 2 no Pátio: falar com Fulano", com a ordem, o serviço e o comentário limpo) ligada ao registro e ao cliente.
+197. 🔗 Os gestores que recebem reclamação são avisados na hora; a chave `nota-baixa:<ordem>` impede aviso repetido.
+198. Rodar de novo não cria outra tarefa nem outro aviso (só quando o registro guardado é novo); nota 4 não gera nada; sem gestor cadastrado a tarefa nasce sem dono e nada quebra; a simulação não grava tarefa nem aviso. Dois testes.
+199. 🔗 **Nota baixa no Pátio segura aniversário e reativação** enquanto a tarefa da equipe está aberta (conta como reclamação, pelo telefone da ordem) — antes o cliente que deu nota 1 podia receber "parabéns" dois dias depois.
+200. 🔗 Tarefa concluída libera o cliente na rodada seguinte; nota 5 nunca segura nada (teste com o carteiro de ponta a ponta).
+201. 🔗 **Ficha do cliente › "Na fila para este cliente"**: o que ainda vai sair para ele, pelo cadastro OU pelo telefone (mensagem avulsa não tem cliente), em ordem de horário, sem enviadas, canceladas nem de outro cliente.
+202. Cada mensagem da fila na ficha tem "Por que não saiu?" e "Adiar" (os mesmos botões da lista); conferido no navegador a 1440 e 375 px, sem rolagem lateral.
+203. Teste da ficha com os cinco casos (cadastro, só telefone, enviada, outro cliente, cancelada) e o histórico antigo intacto.
+204. **Teto de mensagens por cliente no dia virou configuração** (1 a 10, padrão 3 = o de sempre): campo novo em Réguas › Cuidado com o cliente, lido pelo carteiro e pelo "Por que não saiu?".
+205. 🔗 Migração `r6_c4_limite_cliente_dia` (coluna com padrão 3 e check de 1 a 10); cópias em `scripts/sql/` e `indycar-ferramentas/sql/`; `get_advisors` sem alerta novo (só o aviso antigo de RLS sem política, que é de propósito).
+206. Com o teto em 1, a segunda mensagem do mesmo cliente no dia não se perde: continua na fila, vai para outro dia e diz o motivo; com 2, as duas saem na mesma rodada. Teste com o carteiro.
+207. A configuração só aceita inteiros de 1 a 10 (0, 11, -1, 2,5, texto e vazio são recusados; 5 e 10 passam); sem o campo no banco vale 3.
+208. Bug de português corrigido: "já recebeu 1 mensagens hoje" virou "1 mensagem" no motivo da fila e no "Por que não saiu?".
+209. "Por que não saiu?" mostra o teto que está configurado, não um número fixo: com teto 2 e uma mensagem hoje, não segura nada.
+210. Roteiro do navegador confere o campo novo (1 a 10, vem com 3, editável pelo gestor) e o do atendente continua só olhando.

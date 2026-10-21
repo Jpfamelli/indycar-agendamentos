@@ -147,3 +147,60 @@ test('orçamento aberto com o interruptor desligado: a reativação sai normalme
   await rodar({ bloquear_com_orcamento_aberto: false });
   assert.equal(status(a).status, 'enviado');
 });
+
+test('nota baixa no Pátio com a tarefa da equipe aberta: aniversário e reativação esperam; tarefa feita libera; nota alta nunca segura', async () => {
+  limpar();
+  const t = tel(920);
+  tabelas.patio_os = [{ id: ID(80), telefone: t }];
+  tabelas.patio_avaliacoes = [{ os_id: ID(80), nota: 2, created_at: horas(-30) }];
+  tabelas.tarefas = [{ id: ID(81), status: 'aberta' }];
+  tabelas.posvenda_envios = [{ id: ID(82), status: 'pulado', tipo: 'posvenda', telefone: t, telefone_e164: t, chave_unica: `posvenda:patio:${ID(80)}`, tarefa_id: ID(81), enviado_em: null }];
+  const a = envio({ tipo: 'aniversario', telefone: t, cliente_id: ID(320), telefone_e164: t });
+  let { w } = await rodar();
+  assert.equal(w.saiu.length, 0, 'a equipe ainda não resolveu');
+  assert.match(status(a).motivo_pulado || '', /reclamou|nota 2/i);
+  tabelas.tarefas[0].status = 'feita';
+  status(a).status = 'pendente'; status(a).motivo_pulado = null; status(a).enviar_em = horas(-1);
+  ({ w } = await rodar());
+  assert.equal(w.saiu.length, 1, 'tarefa feita: o cliente volta a receber');
+  limpar();
+  tabelas.patio_os = [{ id: ID(83), telefone: t }];
+  tabelas.patio_avaliacoes = [{ os_id: ID(83), nota: 5, created_at: horas(-30) }];
+  const b = envio({ tipo: 'aniversario', telefone: t, cliente_id: ID(320), telefone_e164: t });
+  ({ w } = await rodar());
+  assert.equal(w.saiu.length, 1, 'nota 5 não segura nada');
+  assert.equal(status(b).status, 'enviado');
+});
+
+test('teto por cliente no dia é configurável: com 1, a segunda mensagem do mesmo cliente espera o próximo dia; com 2, as duas saem', async () => {
+  limpar();
+  const t = tel(930);
+  const a = envio({ tipo: 'campanha', telefone: t, cliente_id: ID(330), telefone_e164: t, enviar_em: horas(-2) });
+  const b = envio({ tipo: 'orcamento', telefone: t, cliente_id: ID(330), telefone_e164: t, enviar_em: horas(-1) });
+  let { w } = await rodar({ intervalo_mesmo_cliente_min: 0, max_mensagens_cliente_dia: 1 });
+  assert.equal(w.saiu.length, 1, 'só uma sai com o teto em 1');
+  const esperou = [a, b].map(status).find((e) => e.status === 'pendente');
+  assert.ok(esperou, 'a outra continua na fila, não se perde');
+  assert.ok(Date.parse(esperou.enviar_em) > Date.now() + 3 * 3600000, 'e foi para outro dia');
+  assert.match(esperou.motivo_pulado || '', /1 mensagem hoje/);
+  limpar();
+  const c = envio({ tipo: 'campanha', telefone: t, cliente_id: ID(330), telefone_e164: t, enviar_em: horas(-2) });
+  const d = envio({ tipo: 'orcamento', telefone: t, cliente_id: ID(330), telefone_e164: t, enviar_em: horas(-1) });
+  ({ w } = await rodar({ intervalo_mesmo_cliente_min: 0, max_mensagens_cliente_dia: 2 }));
+  assert.equal(w.saiu.length, 2);
+  assert.equal(status(c).status, 'enviado'); assert.equal(status(d).status, 'enviado');
+});
+
+test('teto por cliente: sem o campo na configuração vale 3 (o de sempre) e a configuração só aceita de 1 a 10', async () => {
+  limpar();
+  tabelas.posvenda_config = [{ id: true }];
+  assert.equal((await real.obterConfig()).max_mensagens_cliente_dia, 3);
+  for (const ruim of [0, 11, -1, 2.5, 'abc', null]) {
+    await real.salvarConfig({ max_mensagens_cliente_dia: ruim });
+    assert.equal(tabelas.posvenda_config[0].max_mensagens_cliente_dia, undefined, `recusou ${ruim}`);
+  }
+  await real.salvarConfig({ max_mensagens_cliente_dia: 5 });
+  assert.equal((await real.obterConfig()).max_mensagens_cliente_dia, 5);
+  await real.salvarConfig({ max_mensagens_cliente_dia: 10 });
+  assert.equal(tabelas.posvenda_config[0].max_mensagens_cliente_dia, 10);
+});

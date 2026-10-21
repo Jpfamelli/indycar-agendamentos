@@ -77,7 +77,7 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   const hist = await dados.contatosDoDia(Math.max(Number(cfg.intervalo_mesmo_cliente_min) || 0, 0));
   const sep = carteiro.separarMesmoCliente(candidatos, {
     minutos: cfg.intervalo_mesmo_cliente_min, agora: agora.getTime(), recentes: hist.ultimos, contagemHoje: hist.contagem,
-    maxPorDia: carteiro.MAX_MENSAGENS_CLIENTE_DIA, proximoDia,
+    maxPorDia: Number(cfg.max_mensagens_cliente_dia) >= 1 ? Number(cfg.max_mensagens_cliente_dia) : carteiro.MAX_MENSAGENS_CLIENTE_DIA, proximoDia,
   });
   for (const a of sep.adiados) await dados.adiarEnvio(a.envio.id, a.enviar_em, a.motivo || 'outra mensagem para o mesmo cliente saiu há pouco: espera um pouco').catch(() => {});
   const fila = sep.agora;

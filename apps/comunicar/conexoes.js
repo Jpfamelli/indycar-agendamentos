@@ -328,7 +328,7 @@ export function explicarPendente(envio, ctx = {}) {
   if (!operacional) {
     const min = Number(cfg.intervalo_mesmo_cliente_min) || 0;
     if (min && ctx.ultimoDoCliente && agora - ctx.ultimoDoCliente < min * 60000) add('espera', `Outra mensagem para este cliente saiu há ${Math.max(1, Math.round((agora - ctx.ultimoDoCliente) / 60000))} min; espera completar ${min} min.`);
-    if ((ctx.maxPorDia || 3) > 0 && (ctx.hojeDoCliente || 0) >= (ctx.maxPorDia || 3)) add('espera', `Este cliente já recebeu ${ctx.hojeDoCliente} mensagens hoje (o teto é ${ctx.maxPorDia || 3}): sai no próximo dia útil.`);
+    if ((ctx.maxPorDia || 3) > 0 && (ctx.hojeDoCliente || 0) >= (ctx.maxPorDia || 3)) add('espera', `Este cliente já recebeu ${ctx.hojeDoCliente} ${ctx.hojeDoCliente === 1 ? 'mensagem' : 'mensagens'} hoje (o teto é ${ctx.maxPorDia || 3}): sai no próximo dia útil.`);
   }
   const s = ctx.situacao || {};
   if (TIPOS_AUTOMATICOS_RELACIONAMENTO.has(envio.tipo)) {
