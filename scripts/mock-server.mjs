@@ -21,6 +21,7 @@ import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../re
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento } from '../patio.js';
 import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia, candidatosDaEspera } from '../horarios.js';
+import { resumoDoContexto, semanaDoQuadro, duracoesDaLista } from '../contexto.js';
 import { situacaoDoLembrete, resumoDosLembretes, textoDoLembrete } from '../lembretes.js';
 import { esperaQueCabe, aniversariantes } from '../dados.js';
 
@@ -610,12 +611,21 @@ http.createServer(async (req, res) => {
     const itens = candidatosDaEspera({ dias, preferencia: e.preferencia, de: e.de, ate: e.ate, max: 6 }).map(c => ({ ...c, consultor_nome: nomes.get(c.consultor_id) || null }));
     return json(res, 200, { itens, duracao_min: dur, motivo: itens.length ? null : 'Nenhum horário livre combina com o que essa pessoa pediu nos próximos dias.' });
   }
+  if (p === '/api/quadro/semana' && m === 'GET') {
+    const d = url.searchParams.get('data') || hoje();
+    return json(res, 200, { dias: semanaDoQuadro({ desde: d, n: 7, agendamentos: AGENDA.filter(a => a.data >= d && a.data <= dia(6)), capacidadePorDia: 38 }) });
+  }
+  if (p === '/api/contexto-cliente' && m === 'GET') {
+    const os = PATIO.filter(o => o.etapa !== 'entregue' && o.etapa !== 'cancelado').map(o => ({ ...o, placa: o.placa || 'ABC1D23', telefone: o.telefone || '12991110011' }));
+    return json(res, 200, resumoDoContexto({ tel: url.searchParams.get('tel'), placa: url.searchParams.get('placa'), ignorar: url.searchParams.get('ignorar'), hojeIso: hoje(), agendamentos: AGENDA, os, orcamentos: [] }));
+  }
   if (p === '/api/quadro' && m === 'GET') {
     const d = url.searchParams.get('data') || hoje(), b = baseHor();
     const lista = AGENDA.filter(a => a.data === d);
     const livres = livresDoDia({ data: d, agora: agoraMock(), agendamentos: AGENDA, consultores: b.consultores, duracao: 60, janelas: janelasDoServico(null, b.janelas, diaDaSemana(d)) });
     const itens = lista.filter(a => ['aguardando', 'confirmado'].includes(a.status)).map(a => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, situacao: lembSit(a) }));
-    return json(res, 200, { data: d, lista, livres, lembretes: { data: d, itens, cfg: { ativo_lembrete: LEMB.cfg.ativo_lembrete, horas_lembrete: 20, pausa_geral: false }, resumo: resumoDosLembretes(itens) } });
+    const duracoes = duracoesDaLista(lista, (sv) => duracaoDoServico(sv, b.servicos));
+    return json(res, 200, { data: d, lista, livres, duracoes, lembretes: { data: d, itens, cfg: { ativo_lembrete: LEMB.cfg.ativo_lembrete, horas_lembrete: 20, pausa_geral: false }, resumo: resumoDosLembretes(itens) } });
   }
   if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/mover$/)) && m === 'POST') {
     const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro: 'Não encontrado' });

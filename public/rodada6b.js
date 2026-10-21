@@ -178,7 +178,7 @@
   /* ======================= QUADRO por consultor ======================= */
   const ABRE = 8 * 60, FECHA = 17 * 60 + 30, PASSO = 30;
   const SLOTS = []; for (let t = ABRE; t <= FECHA - PASSO + 0; t += PASSO) SLOTS.push(t);
-  const _q = { data: null, ocultaCancelados: true, foco: null, movendo: null, livres: null, dados: null, carregando: 0 };
+  const _q = { data: null, ocultaCancelados: true, foco: null, movendo: null, livres: null, dados: null, carregando: 0, busca: '', soFalta: false };
   const VIVO = new Set(['aguardando', 'confirmado']);
   const estreito = () => window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
   const slotDe = (hora) => { const m = emMin(hora); if (!Number.isFinite(m)) return ABRE; return Math.min(FECHA - PASSO, Math.max(ABRE, Math.floor(m / PASSO) * PASSO)); };
@@ -190,7 +190,7 @@
     const lista = r.lista || [], livres = r.livres || null, lemb = r.lembretes || null;
     if (state.consultores?.length === 0 || !state.consultores) state.consultores = await api('GET', '/consultores').catch(() => []);
     if (eu !== _q.carregando) return null;
-    return { data, lista, livres, lemb };
+    return { data, lista, livres, lemb, duracoes: r.duracoes || {} };
   }
   const consultoresAtivos = () => (state.consultores || []).filter((c) => c.ativo !== 0 && c.ativo !== false);
 
@@ -220,6 +220,7 @@
       <div class="qd-topo"><b class="qd-hora">${esc(String(a.hora).slice(0, 5))}</b><span class="badge-pill ${selCls}">${esc(selTxt)}</span></div>
       <div class="qd-nome" title="${esc(a.cliente_nome)}">${esc(a.cliente_nome)}</div>
       <div class="qd-serv">${esc(a.servico || '')}${a.veiculo || a.placa ? ` · ${esc([a.veiculo, a.placa].filter(Boolean).join(' '))}` : ''}</div>
+      ${window.R6c ? window.R6c.duracaoHtml(a, _q.dados?.duracoes) : ''}
       <div class="qd-selos">${passou ? `<span class="badge-pill bp-orange" title="Já passou do horário e o cliente não chegou">atrasado ${atraso} min</span>` : ''}${typeof seloConfirmacao === 'function' ? seloConfirmacao(a) : ''}${ehPre(a) && a.status === 'aguardando' ? SELO_PRE : ''}${lemb}${!a.telefone ? '<span class="badge-pill bp-gray">sem telefone</span>' : ''}${orc ? window.R6.seloOrc(orc) : ''}${os ? seloPatioHtml(os) : ''}</div>
       <div class="qd-acoes">
         ${vivo ? `${ehPre(a) && a.status === 'aguardando' ? '<button type="button" class="btn mini primary" data-qd="confirmarpre" title="Confirmar o horário do pré-agendamento">Confirmar</button>' : ''}<button type="button" class="btn mini primary" data-qd="chegou" title="O cliente chegou — abre a OS no Pátio">Chegou</button>
@@ -242,7 +243,8 @@
       cols = cols.filter((c) => (c.id || '') === _q.foco);
     }
     const lembDe = new Map((d.lemb?.itens || []).map((i) => [i.id, i.situacao]));
-    const vis = d.lista.filter((a) => !(_q.ocultaCancelados && a.status === 'cancelado'));
+    let vis = d.lista.filter((a) => !(_q.ocultaCancelados && a.status === 'cancelado'));
+    if (window.R6c) vis = window.R6c.filtrar(vis);
     const porCel = new Map();
     for (const a of vis) {
       const k = chaveCel(slotDe(a.hora), cols.some((c) => c.id === (a.consultor_id || null)) ? a.consultor_id : (mobile ? null : null));
@@ -252,9 +254,21 @@
     const aberto = d.livres ? d.livres.aberto !== false : true;
     const livreDe = new Map();      // slot|consultor -> true (para o "+")
     for (const h of d.livres?.horarios || []) for (const cid of h.consultores_livres || []) livreDe.set(chaveCel(emMin(h.hora), cid), true);
+    const caudaDe = new Map();      // linhas seguintes ao início do serviço (a duração aparece no tamanho do cartão)
+    if (window.R6c) {
+      const colDe = (a) => (cols.some((c) => c.id === (a.consultor_id || null)) ? (a.consultor_id || null) : null);
+      for (const c of cols) {
+        const cards = vis.filter((a) => colDe(a) === c.id);
+        const inicios = cards.map((a) => slotDe(a.hora));
+        for (const a of cards) {
+          const ini = slotDe(a.hora), n = window.R6c.PURO.caudaDoCartao(ini, Number(d.duracoes?.[a.id]) || 0, inicios);
+          for (let k = 1; k <= n; k++) caudaDe.set(chaveCel(ini + k * PASSO, c.id), { nome: primeiro(a.cliente_nome), primeiro: k === 1, status: a.status });
+        }
+      }
+    }
     const totalPorCol = (c) => vis.filter((a) => (a.consultor_id || null) === c.id && VIVO.has(a.status)).length;
     const proxLivre = (c) => (c.id && aberto ? (d.livres?.horarios || []).find((h) => (h.consultores_livres || []).includes(c.id))?.hora : null);
-    const cabeca = cols.map((c) => `<div class="qd-th" role="columnheader"><b>${esc(c.nome)}</b> <em class="tab-num">${totalPorCol(c)}</em>${c.inativo ? ' <small class="muted">inativo</small>' : ''}${proxLivre(c) ? ` <small class="muted qd-prox" title="Próximo horário livre de ${esc(c.nome)}">livre ${esc(proxLivre(c))}</small>` : ''}</div>`).join('');
+    const cabeca = cols.map((c) => `<div class="qd-th" role="columnheader"><b>${esc(c.nome)}</b> <em class="tab-num">${totalPorCol(c)}</em>${window.R6c && d.duracoes ? ` <small class="muted qd-carga" title="Tempo de serviço marcado para ${esc(c.nome)}">${esc(window.R6c.PURO.duracaoLabel(window.R6c.PURO.cargaEmMin(d.lista, d.duracoes, c.id)))}</small>` : ''}${c.inativo ? ' <small class="muted">inativo</small>' : ''}${proxLivre(c) ? ` <small class="muted qd-prox" title="Próximo horário livre de ${esc(c.nome)}">livre ${esc(proxLivre(c))}</small>` : ''}</div>`).join('');
     let linhas = '';
     for (const t of SLOTS) {
       const agoraLinha = hojeFlag && agora.min >= t && agora.min < t + PASSO;
@@ -263,7 +277,9 @@
         const k = chaveCel(t, c.id);
         const cards = (porCel.get(k) || []).sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
         const livre = livreDe.get(k) && aberto;
-        linhas += `<div class="qd-cel${agoraLinha ? ' agora' : ''}${cards.length ? ' cheia' : ''}" role="gridcell" data-slot="${t}" data-cons="${esc(c.id || '')}">
+        const cauda = !cards.length ? caudaDe.get(k) : null;
+        linhas += `<div class="qd-cel${agoraLinha ? ' agora' : ''}${cards.length ? ' cheia' : ''}${cauda ? ' cauda s-' + esc(cauda.status) : ''}" role="gridcell" data-slot="${t}" data-cons="${esc(c.id || '')}">
+          ${cauda ? `<span class="qd-cauda-txt" title="O serviço de ${esc(cauda.nome)} continua nesta linha">${cauda.primeiro ? '↳ ' + esc(cauda.nome) : ''}</span>` : ''}
           ${cards.map((a) => cartao(a, lembDe, (d._orc || {})[a.id], (d._patio || {})[a.id], agora)).join('')}
           ${livre && !cards.length ? `<button type="button" class="qd-mais" data-qd-novo aria-label="Novo agendamento ${hm(t)} com ${esc(c.nome)}" title="Marcar ${hm(t)} com ${esc(c.nome)}">+</button>` : ''}
         </div>`;
@@ -275,7 +291,7 @@
     const semLemb = (d.lemb?.resumo?.podeMandar) || 0;
     const livresTot = (d.livres?.horarios || []).reduce((s, h) => s + (h.consultores_livres?.length || 0), 0);
     $('#qdResumo').innerHTML = aberto
-      ? `${vis.length} horário${vis.length === 1 ? '' : 's'} · ${vivos} esperando · ${chegaram} chegou${chegaram === 1 ? '' : 'ram'}${semLemb ? ` · ${semLemb} sem lembrete` : ''}${livresTot ? ` · ${livresTot} vaga${livresTot === 1 ? '' : 's'} livre${livresTot === 1 ? '' : 's'}` : ''}`
+      ? `${vis.length} horário${vis.length === 1 ? '' : 's'} · ${vivos} esperando · ${chegaram} ${chegaram === 1 ? 'chegou' : 'chegaram'}${semLemb ? ` · ${semLemb} sem lembrete` : ''}${livresTot ? ` · ${livresTot} vaga${livresTot === 1 ? '' : 's'} livre${livresTot === 1 ? '' : 's'}` : ''}`
       : `A oficina não abre neste dia${d.livres?.motivo ? ' (' + d.livres.motivo.replace('_', ' ') + ')' : ''}.`;
     const nEsp = Number(state.contagens?.espera) || 0;
     const be = $('#qdEspera'); if (be) { be.hidden = !nEsp; be.textContent = `${nEsp} na espera`; }
@@ -286,6 +302,7 @@
     ligar(host);
     if (_q.movendo) marcarAlvos();
     decorarExtras(d);
+    if (window.R6c) window.R6c.aposDesenhar(d);
     if (hojeFlag && !_q._rolou && !estreito()) { _q._rolou = true; $('.qd-cel.agora', host)?.scrollIntoView({ block: 'center' }); }
   }
 
@@ -507,5 +524,5 @@
     if (typeof ATALHOS_TELA !== 'undefined') ATALHOS_TELA.q = 'quadro';
   }
 
-  window.R6b = { decorarPre, ehPre, blocoLembreteNaFicha, inicio, espera, renderQuadro, estado: _q };
+  window.R6b = { decorarPre, ehPre, blocoLembreteNaFicha, inicio, espera, renderQuadro, estado: _q, redesenhar: () => { if (_q.dados) desenhar(_q.dados); } };
 })();

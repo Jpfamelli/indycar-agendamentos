@@ -2813,3 +2813,38 @@ export async function horariosDaEspera(e, { max = 6, diasMax = 14 } = {}) {
     .map((c) => ({ ...c, consultor_nome: nomes.get(c.consultor_id) || null }));
   return { itens, duracao_min: dur, motivo: itens.length ? null : 'Nenhum horário livre combina com o que essa pessoa pediu nos próximos dias.' };
 }
+
+/* ---- rodada 6 (C1c): contexto de quem está sendo marcado, duração no Quadro e a semana ----------------- */
+import { resumoDoContexto, semanaDoQuadro as semanaPura, duracoesDaLista, nacional as nacionalCtx, placaLimpa } from './contexto.js';
+
+/** Este cliente/carro já tem horário? Já está no pátio? Tem orçamento esperando? Uma ida só; falha de um lado não derruba os outros. */
+export async function contextoDoClienteParaMarcar({ tel, placa, ignorar = null } = {}) {
+  const t = nacionalCtx(tel), p = placaLimpa(placa);
+  if (t.length < 10 && !p) return { futuros: [], patio: [], orcamentos: [], avisos: [] };
+  const h = hoje();
+  const buscar = (q) => listarAgendamentos({ de: h, ate: somaDiasH(h, 120), q }).catch(() => []);
+  const [porTel, porPlaca, os, orcs] = await Promise.all([
+    t.length >= 10 ? buscar(t) : [], p ? buscar(p) : [],
+    selecionar('patio_os', 'select=id,numero,etapa,placa,telefone&etapa=not.in.(entregue,cancelado)&limit=300').catch(() => []),
+    selecionar('orc_orcamentos', `${SEL_ORC}&status=in.(enviado,aprovado)&agendamento_id=is.null&order=created_at.desc&limit=200`).catch(() => []),
+  ]);
+  const vistos = new Map(); for (const a of [...porTel, ...porPlaca]) vistos.set(a.id, a);
+  return resumoDoContexto({ tel, placa, ignorar: ehUuid(ignorar) ? ignorar : null, hojeIso: h, agendamentos: [...vistos.values()], os, orcamentos: orcs });
+}
+
+/** Duração estimada (min) de cada horário da lista, pelo cadastro de serviços. */
+export async function duracoesDosAgendamentos(lista) {
+  const base = await baseDosHorarios();
+  return duracoesDaLista(lista, (s) => duracaoDoServico(s, base.servicos));
+}
+
+/** A faixa de dias do Quadro: quantos horários cada dia e a lotação (carros por meia hora × consultores). */
+export async function semanaDoQuadroDados(desde, n = 7) {
+  const d0 = dataBanco(desde) || hoje();
+  const dias = Math.min(14, Math.max(1, Number(n) || 7));
+  const base = await baseDosHorarios();
+  const lista = await listarAgendamentos({ de: d0, ate: somaDiasH(d0, dias - 1) });
+  // capacidade do dia = vagas de 30 min no expediente × consultores ativos
+  const vagasDia = ((17 * 60 + 30 - 8 * 60) / 30) * Math.max(1, base.consultores.length);
+  return semanaPura({ desde: d0, n: dias, agendamentos: lista, capacidadePorDia: vagasDia });
+}

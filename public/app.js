@@ -3210,6 +3210,8 @@ window.openAgendamentoModal = async function(id, pre = {}){
     <div class="modal-head"><h3>${svg(I.calendar)} ${id?'Editar':'Novo'} agendamento</h3>
       <button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
     <div class="modal-body">
+      <div id="f_rapido" class="r6c-rapido" hidden></div>
+      <div id="f_ctx6c" class="r6c-ctx" aria-live="polite"></div>
       <div class="grid2">
         <div class="field"><label for="f_nome">Cliente *</label><input id="f_nome" value="${esc(a.cliente_nome)}" autocomplete="off"></div>
         <!-- Telefone em DESTAQUE: sem ele o cliente não recebe lembrete nem pós-venda e
@@ -3393,6 +3395,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
   // Orçador (rodada 6): o orçamento ligado a este horário, ou "Criar orçamento" já com o cliente
   window.R6?.blocoOrcamentoNaFicha($('#f_orc'), { ...a, id: id || null }).catch(() => {});
   window.R6b?.blocoLembreteNaFicha($('#f_lembrete'), { ...a, id: id || null }).catch(() => {});
+  window.R6c?.aoAbrirFormulario?.({ id, a, pre });
   // mini-ficha de quem já é cliente (última visita, próxima revisão, aniversário)
   if (a.cliente_id) mostrarFicha(a.cliente_id);
   let confirmouSemTelefone = false, confirmouSemConsultor = false, avisarFalta;

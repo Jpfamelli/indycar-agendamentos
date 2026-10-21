@@ -1635,7 +1635,20 @@ async function api(req, res, url) {
       dados.horariosLivresDoDia({ data: d }).catch(() => null),
       dados.lembretesDoDia(d).catch(() => null),
     ]);
-    return send(res, 200, { data: d, lista, livres, lembretes: lemb && { ...lemb, resumo: resumoDosLembretes(lemb.itens) } }, { 'Cache-Control': 'no-store' });
+    const duracoes = await dados.duracoesDosAgendamentos(lista).catch(() => ({}));
+    return send(res, 200, { data: d, lista, livres, duracoes, lembretes: lemb && { ...lemb, resumo: resumoDosLembretes(lemb.itens) } }, { 'Cache-Control': 'no-store' });
+  }
+  /* rodada 6 (C1c): a faixa de dias do Quadro (quantos horários e a lotação de cada dia) */
+  if (pathname === '/api/quadro/semana' && m === 'GET') {
+    const d = dados.dataBanco(searchParams.get('data') || '') || hoje();
+    const n = Math.min(14, Math.max(1, Number(searchParams.get('dias')) || 7));
+    return send(res, 200, { dias: await dados.semanaDoQuadroDados(d, n) }, { 'Cache-Control': 'no-store' });
+  }
+  /* rodada 6 (C1c): na hora de marcar — este cliente/carro já tem horário? já está no pátio? tem orçamento esperando? */
+  if (pathname === '/api/contexto-cliente' && m === 'GET') {
+    if (!dentroDoLimite(`ctx-cliente:${usuario.id}`, 120, 60_000)) return send(res, 429, { erro: 'Muitos pedidos seguidos. Espere um minuto.' });
+    const ign = texto1(searchParams.get('ignorar'), 40);
+    return send(res, 200, await dados.contextoDoClienteParaMarcar({ tel: texto1(searchParams.get('tel'), 24), placa: texto1(searchParams.get('placa'), 16), ignorar: dados.ehUuid(ign) ? ign : null }), { 'Cache-Control': 'no-store' });
   }
   if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/mover$`))) && m === 'POST') {
     if (!dentroDoLimite(`mover:${usuario.id}`, 60, 60_000)) return send(res, 429, { erro: 'Muitas trocas seguidas. Espere um minuto.' });

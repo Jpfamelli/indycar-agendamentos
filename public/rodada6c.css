@@ -1,0 +1,56 @@
+/* Agenda — Rodada 6 / C1c: duração no cartão do Quadro, faixa da semana, ferramentas, atrasados, marcar rápido e avisos de contexto */
+[hidden] { display: none !important; }
+
+/* duração no cartão e cauda nas linhas seguintes */
+.qd-dur { font-size: 11px; color: var(--muted, #8a93a8); font-variant-numeric: tabular-nums; }
+.qd-carga { font-size: 11px; font-variant-numeric: tabular-nums; }
+.qd-cel.cauda { background-image: linear-gradient(90deg, rgba(91,140,255,.22) 0 5px, transparent 5px); }
+.qd-cel.cauda.s-confirmado { background-image: linear-gradient(90deg, rgba(53,196,134,.25) 0 5px, transparent 5px); }
+.qd-cel.cauda.s-compareceu, .qd-cel.cauda.s-em_atendimento { background-image: linear-gradient(90deg, rgba(74,168,255,.28) 0 5px, transparent 5px); }
+.qd-cauda-txt { font-size: 11px; color: var(--muted, #8a93a8); padding-left: 8px; min-height: 14px; pointer-events: none; }
+.qd-cel.cauda.alvo-ok { background-image: none; }
+
+/* ferramentas e faixa da semana */
+.qd-ferr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 8px 0; }
+.qd-busca { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border, rgba(255,255,255,.14)); background: var(--panel, #0d1220); color: inherit; font: inherit; }
+.qd-ferr .btn.mini { min-height: 40px; }
+.qd-semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 8px 0 0; }
+.qd-dia { display: grid; gap: 2px; justify-items: center; padding: 6px 4px 8px; min-height: 56px; border-radius: 10px; border: 1px solid var(--border, rgba(255,255,255,.12)); background: var(--panel, #0d1220); color: inherit; cursor: pointer; font: inherit; }
+.qd-dia b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.qd-dia-n { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #8a93a8); }
+.qd-dia.atual { border-color: #ff2d40; box-shadow: 0 0 0 1px #ff2d40 inset; }
+.qd-dia.hoje .qd-dia-n { color: #ffb347; font-weight: 700; }
+.qd-dia.fechado { opacity: .5; }
+.qd-lot { width: 80%; height: 4px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; }
+.qd-lot i { display: block; height: 100%; background: #35c486; border-radius: 99px; }
+.qd-atrasados { margin: 8px 0; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,179,71,.5); background: rgba(255,179,71,.08); display: grid; gap: 8px; }
+.qd-atrasados ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.qd-atrasados li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; }
+.qd-atrasados li > span { flex: 1 1 200px; min-width: 0; }
+
+/* marcar rápido e avisos de contexto no novo agendamento */
+.r6c-rapido { display: grid; gap: 6px; margin: 0 0 12px; }
+.r6c-rapido .linha { display: flex; gap: 8px; }
+.r6c-rapido input { flex: 1; min-width: 0; min-height: 44px; }
+.r6c-rapido .dica { font-size: 12px; color: var(--muted, #8a93a8); }
+.r6c-ctx { display: grid; gap: 6px; margin: 0 0 10px; }
+.r6c-ctx .aviso { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; font-size: 13px; border: 1px solid rgba(255,179,71,.5); background: rgba(255,179,71,.08); }
+.r6c-ctx .aviso.bom { border-color: rgba(53,196,134,.5); background: rgba(53,196,134,.08); }
+.r6c-ctx .aviso.neutro { border-color: var(--border, rgba(255,255,255,.14)); background: rgba(255,255,255,.04); }
+.r6c-ctx .aviso a { font-weight: 700; }
+
+@media (max-width: 720px) {
+  .qd-ferr .qd-opt { min-height: 44px; }
+  .qd-semana { gap: 4px; }
+  .qd-dia { min-height: 56px; padding: 6px 2px 8px; }
+  .qd-ferr .btn.mini, .qd-busca { min-height: 44px; }
+  .qd-atrasados .btn.mini { min-height: 44px; }
+}
+@media print {
+  body.imprimindo-quadro .sidebar, body.imprimindo-quadro .topbar, body.imprimindo-quadro .qd-ferr, body.imprimindo-quadro .qd-semana, body.imprimindo-quadro .qd-atrasados,
+  body.imprimindo-quadro .qd-acoes, body.imprimindo-quadro .qd-bar .right, body.imprimindo-quadro #qdChips, body.imprimindo-quadro .qd-mais { display: none !important; }
+  body.imprimindo-quadro .qd-corpo { overflow: visible; border: 0; }
+  body.imprimindo-quadro .qd-grade { grid-template-columns: 54px repeat(var(--qd-cols, 1), 1fr); }
+  body.imprimindo-quadro { background: #fff !important; color: #000 !important; }
+  body.imprimindo-quadro .qd-card { background: #fff !important; color: #000 !important; border-color: #888 !important; break-inside: avoid; }
+}
