@@ -57,3 +57,4 @@
   .qd-chips .pilula { min-height: 40px; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { .qd-card, .qd-cel { transition: none; } }
+.qd-prox{font-size:11px}

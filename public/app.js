@@ -1706,6 +1706,8 @@ const AJUDA = {
   gestor: [
     ['Completar valores e horários antigos', 'Menu PENDÊNCIAS: valor dos concluídos (Enter salva e pula para o próximo) e "Não veio (sem avisar)" para os antigos.'],
     ['Ligar consultor ao login', 'Menu EQUIPE: o botão "Ligar a …" aparece quando o sistema reconhece a pessoa. Assim "Minha agenda", tarefas e avisos vão para ela.'],
+    ['Ver o dia por consultor', 'Menu QUADRO (tecla Q): uma coluna por consultor, linhas de 30 min. Arraste o cartão (ou toque em ⇄ Mover) para uma célula verde; "Chegou", "Faltou" e o lembrete estão no próprio cartão.'],
+    ['O cliente recebeu o lembrete?', 'Abra o horário: o bloco "Lembrete" diz se está na fila, enviado ou se o cliente respondeu, e deixa mandar agora. No Início, "Lembrar os que faltam" cuida do dia seguinte de uma vez.'],
     ['Distribuir horários sem consultor', 'Menu EQUIPE › "Distribuir": dá os horários do dia sem consultor para quem tem menos carros.'],
   ],
 };

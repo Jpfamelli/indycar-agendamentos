@@ -1624,6 +1624,39 @@ async function api(req, res, url) {
     return send(res, 200, saida, { 'Cache-Control': 'no-store' });
   }
 
+  /* ---- RODADA 6 (C1b): QUADRO por consultor ----
+     GET  /api/quadro?data=                → { data, lista, livres, lembretes } numa só ida (o Quadro abre mais rápido)
+     POST /api/agendamentos/:id/mover {data, hora, consultor_id} → muda horário/consultor CONFERINDO de novo, no servidor,
+          se a vaga ainda existe (duas pessoas arrastando ao mesmo tempo não fazem dois carros no mesmo horário). 409 se não cabe. */
+  if (pathname === '/api/quadro' && m === 'GET') {
+    const d = dados.dataBanco(searchParams.get('data') || '') || hoje();
+    const [lista, livres, lemb] = await Promise.all([
+      dados.listarAgendamentos({ data: d }),
+      dados.horariosLivresDoDia({ data: d }).catch(() => null),
+      dados.lembretesDoDia(d).catch(() => null),
+    ]);
+    return send(res, 200, { data: d, lista, livres, lembretes: lemb && { ...lemb, resumo: resumoDosLembretes(lemb.itens) } }, { 'Cache-Control': 'no-store' });
+  }
+  if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/mover$`))) && m === 'POST') {
+    if (!dentroDoLimite(`mover:${usuario.id}`, 60, 60_000)) return send(res, 429, { erro: 'Muitas trocas seguidas. Espere um minuto.' });
+    const a = await dados.obterAgendamento(mm[1]);
+    if (!a) return notFound(res);
+    const data = dados.dataBanco(body.data || '');
+    const hora = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(body.hora || '')) ? String(body.hora) : null;
+    const cons = body.consultor_id ? texto1(body.consultor_id, 40) : null;
+    if (!data || !hora) return bad(res, 'Informe data e hora.');
+    if (cons && !dados.ehUuid(cons)) return bad(res, 'Consultor inválido.');
+    if (!['aguardando', 'confirmado'].includes(a.status)) return send(res, 409, { erro: 'Só dá para mover quem ainda não chegou.' });
+    const dia = await dados.horariosLivresDoDia({ data, servico: a.servico, consultor_id: cons, ignorar: a.id });
+    const cabe = dia.aberto !== false && (dia.horarios || []).some((h) => h.hora === hora && (cons ? (h.consultores_livres || []).includes(cons) : (h.livres || 0) > 0));
+    if (!cabe) return send(res, 409, { erro: 'Esse horário acabou de ser ocupado ou não cabe para esse consultor. Escolha outro.', codigo: 'horario_ocupado' });
+    const antes = { data: a.data, hora: a.hora, consultor_id: a.consultor_id || null };
+    const novo = await dados.atualizarAgendamento(a.id, { ...a, data, hora, consultor_id: cons });
+    if (!novo) return notFound(res);
+    await dados.auditar(usuario.id, 'moveu_no_quadro', 'agendamentos', a.id, { cliente: a.cliente_nome, de: antes, para: { data, hora, consultor_id: cons } });
+    return send(res, 200, novo);
+  }
+
   /* ---- RODADA 5: ficha 360 (rpc cliente_360 da base) e aniversários ---- */
   if (pathname === '/api/clientes/360' && m === 'GET') {
     const tel = dados.soDigitos(texto1(searchParams.get('tel'), 20));

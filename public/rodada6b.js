@@ -186,11 +186,8 @@
   async function carregarQuadro() {
     const data = _q.data;
     const eu = ++_q.carregando;
-    const [lista, livres, lemb] = await Promise.all([
-      api('GET', '/agendamentos?data=' + encodeURIComponent(data)),
-      api('GET', '/horarios-livres/dia?data=' + data, null, { repetir: false }).catch(() => null),
-      api('GET', '/lembretes?data=' + data, null, { repetir: false }).catch(() => null),
-    ]);
+    const r = await api('GET', '/quadro?data=' + encodeURIComponent(data), null, { repetir: false });
+    const lista = r.lista || [], livres = r.livres || null, lemb = r.lembretes || null;
     if (state.consultores?.length === 0 || !state.consultores) state.consultores = await api('GET', '/consultores').catch(() => []);
     if (eu !== _q.carregando) return null;
     return { data, lista, livres, lemb };
@@ -214,6 +211,7 @@
     const vivo = VIVO.has(a.status) && a.compareceu !== 1;
     const dia = a.data;
     const passou = vivo && dia === agora.data && emMin(a.hora) < agora.min - 10;
+    const atraso = passou ? agora.min - emMin(a.hora) : 0;
     const lm = lembDe?.get(a.id);
     const lemb = a.lembrete ? seloLembrete(a) : '';
     const podeLembrar = vivo && lm && lm.podeMandar && !a.lembrete;
@@ -222,7 +220,7 @@
       <div class="qd-topo"><b class="qd-hora">${esc(String(a.hora).slice(0, 5))}</b><span class="badge-pill ${selCls}">${esc(selTxt)}</span></div>
       <div class="qd-nome" title="${esc(a.cliente_nome)}">${esc(a.cliente_nome)}</div>
       <div class="qd-serv">${esc(a.servico || '')}${a.veiculo || a.placa ? ` · ${esc([a.veiculo, a.placa].filter(Boolean).join(' '))}` : ''}</div>
-      <div class="qd-selos">${ehPre(a) && a.status === 'aguardando' ? SELO_PRE : ''}${lemb}${!a.telefone ? '<span class="badge-pill bp-gray">sem telefone</span>' : ''}${orc ? window.R6.seloOrc(orc) : ''}${os ? seloPatioHtml(os) : ''}</div>
+      <div class="qd-selos">${passou ? `<span class="badge-pill bp-orange" title="Já passou do horário e o cliente não chegou">atrasado ${atraso} min</span>` : ''}${typeof seloConfirmacao === 'function' ? seloConfirmacao(a) : ''}${ehPre(a) && a.status === 'aguardando' ? SELO_PRE : ''}${lemb}${!a.telefone ? '<span class="badge-pill bp-gray">sem telefone</span>' : ''}${orc ? window.R6.seloOrc(orc) : ''}${os ? seloPatioHtml(os) : ''}</div>
       <div class="qd-acoes">
         ${vivo ? `${ehPre(a) && a.status === 'aguardando' ? '<button type="button" class="btn mini primary" data-qd="confirmarpre" title="Confirmar o horário do pré-agendamento">Confirmar</button>' : ''}<button type="button" class="btn mini primary" data-qd="chegou" title="O cliente chegou — abre a OS no Pátio">Chegou</button>
           <button type="button" class="btn mini" data-qd="mover" title="Mover para outro horário ou consultor">⇄ Mover</button>
@@ -255,7 +253,8 @@
     const livreDe = new Map();      // slot|consultor -> true (para o "+")
     for (const h of d.livres?.horarios || []) for (const cid of h.consultores_livres || []) livreDe.set(chaveCel(emMin(h.hora), cid), true);
     const totalPorCol = (c) => vis.filter((a) => (a.consultor_id || null) === c.id && VIVO.has(a.status)).length;
-    const cabeca = cols.map((c) => `<div class="qd-th" role="columnheader"><b>${esc(c.nome)}</b> <em class="tab-num">${totalPorCol(c)}</em>${c.inativo ? ' <small class="muted">inativo</small>' : ''}</div>`).join('');
+    const proxLivre = (c) => (c.id && aberto ? (d.livres?.horarios || []).find((h) => (h.consultores_livres || []).includes(c.id))?.hora : null);
+    const cabeca = cols.map((c) => `<div class="qd-th" role="columnheader"><b>${esc(c.nome)}</b> <em class="tab-num">${totalPorCol(c)}</em>${c.inativo ? ' <small class="muted">inativo</small>' : ''}${proxLivre(c) ? ` <small class="muted qd-prox" title="Próximo horário livre de ${esc(c.nome)}">livre ${esc(proxLivre(c))}</small>` : ''}</div>`).join('');
     let linhas = '';
     for (const t of SLOTS) {
       const agoraLinha = hojeFlag && agora.min >= t && agora.min < t + PASSO;
@@ -278,6 +277,8 @@
     $('#qdResumo').innerHTML = aberto
       ? `${vis.length} horário${vis.length === 1 ? '' : 's'} · ${vivos} esperando · ${chegaram} chegou${chegaram === 1 ? '' : 'ram'}${semLemb ? ` · ${semLemb} sem lembrete` : ''}${livresTot ? ` · ${livresTot} vaga${livresTot === 1 ? '' : 's'} livre${livresTot === 1 ? '' : 's'}` : ''}`
       : `A oficina não abre neste dia${d.livres?.motivo ? ' (' + d.livres.motivo.replace('_', ' ') + ')' : ''}.`;
+    const nEsp = Number(state.contagens?.espera) || 0;
+    const be = $('#qdEspera'); if (be) { be.hidden = !nEsp; be.textContent = `${nEsp} na espera`; }
     const chips = estreito() ? `<div class="qd-chips" role="group" aria-label="Consultor">${colunas(d).map((c) => `<button type="button" class="pilula ${(c.id || '') === _q.foco ? 'ativa' : ''}" data-qd-foco="${esc(c.id || '')}" aria-pressed="${(c.id || '') === _q.foco}">${esc(c.nome)}</button>`).join('')}</div>` : '';
     const caixaChips = $('#qdChips'); if (caixaChips) { caixaChips.innerHTML = chips; $$('[data-qd-foco]', caixaChips).forEach((b) => b.addEventListener('click', () => { _q.foco = b.dataset.qdFoco; desenhar(_q.dados); })); }
     host.innerHTML = `<div class="qd-grade${_q.movendo ? ' modo-mover' : ''}" style="--qd-cols:${nCols}" role="grid" aria-label="Quadro por consultor">
@@ -349,7 +350,7 @@
     if (antes.hora === hora && antes.consultor_id === (consultorId || null)) { pararMover(); return; }
     const corpo = { data: _q.data, hora, consultor_id: consultorId || null };
     try {
-      await api('PUT', `/agendamentos/${a.id}`, corpo, { repetir: false });
+      await api('POST', `/agendamentos/${a.id}/mover`, corpo, { repetir: false });
     } catch (e) { toast(e.message || 'Não consegui mover agora', 'err'); pararMover(); return atualizar(true); }
     esquecerDias();
     pararMover();
@@ -363,7 +364,7 @@
       } catch (e) { toast(e.message, 'err'); }
     } } : null;
     toast(`${primeiro(a.cliente_nome)}: ${hora}${nomeCons ? ' com ' + nomeCons : ''} ✅`, 'ok', { duracao: 10000, acoes: [avisar, { rotulo: 'Desfazer', fn: async () => {
-      await api('PUT', `/agendamentos/${a.id}`, antes).catch((e) => toast(e.message, 'err'));
+      await api('POST', `/agendamentos/${a.id}/mover`, antes).catch((e) => toast(e.message, 'err'));
       esquecerDias(); toast(`Desfeito — ${primeiro(a.cliente_nome)} voltou para ${antes.hora}`); atualizar(true);
     } }] });
     atualizar(true);
@@ -462,6 +463,7 @@
             <button type="button" class="btn mini" id="qdHoje">Hoje</button></div>
           <span class="muted" id="qdResumo" aria-live="polite"></span></div>
         <div class="right"><label class="qd-opt"><input type="checkbox" id="qdCanc" ${_q.ocultaCancelados ? '' : 'checked'}> cancelados</label>
+          <button type="button" class="btn" id="qdEspera" hidden title="Quem quer um horário e ainda não achou"></button>
           <button type="button" class="btn" id="qdNovo">${svg(I.plus)} Novo</button></div></div>
         <p class="aviso-campo" id="qdAviso" hidden role="status">${svg(I.alerta)} <span></span> <button type="button" class="btn mini" id="qdSoltar">Cancelar (Esc)</button></p>
         <div id="qdChips" class="qd-chips-wrap"></div>
@@ -474,6 +476,7 @@
       $('#qdData').addEventListener('change', (e) => ir(e.target.value));
       $('#qdCanc').addEventListener('change', (e) => { _q.ocultaCancelados = !e.target.checked; if (_q.dados) desenhar(_q.dados); });
       $('#qdNovo').addEventListener('click', () => openAgendamentoModal(null, { data: _q.data }));
+      $('#qdEspera').addEventListener('click', () => route('espera'));
       $('#qdSoltar').addEventListener('click', pararMover);
       state._cxTimer = setInterval(() => { if (!document.hidden) atualizar(); }, 30_000);
     }

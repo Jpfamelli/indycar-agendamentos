@@ -80,6 +80,10 @@ try {
     conf(!!(await page.$(`${card('Teste Ana')} [data-qd="lembrar"]`)), 'Com telefone oferece 📨 (lembrete automático desligado no Comunicar)');
     await page.screenshot({ path: SAIDA + 'agenda-quadro-1440.png' });
 
+    conf((await page.$$eval('.qd-prox', (e) => e.length)) >= 1, 'Cabeçalho mostra o próximo horário livre de cada consultor');
+    const velho = await api(page, 'POST', `/api/agendamentos/${(await dados(page)).find((a) => a.cliente_nome === 'Teste Bia').id}/mover`, { data: DIA, hora: '09:00', consultor_id: GAB });
+    conf(velho.status === 409 && velho.j.codigo === 'horario_ocupado', 'Servidor recusa mover para vaga que já foi ocupada (409), mesmo sem a tela saber');
+
     // mover: alvos verdes só onde cabe
     await page.click(`${card('Teste Ana')} [data-qd="mover"]`);
     await page.waitForSelector('.qd-cel.alvo-ok', { timeout: 8000 });

@@ -610,6 +610,23 @@ http.createServer(async (req, res) => {
     const itens = candidatosDaEspera({ dias, preferencia: e.preferencia, de: e.de, ate: e.ate, max: 6 }).map(c => ({ ...c, consultor_nome: nomes.get(c.consultor_id) || null }));
     return json(res, 200, { itens, duracao_min: dur, motivo: itens.length ? null : 'Nenhum horário livre combina com o que essa pessoa pediu nos próximos dias.' });
   }
+  if (p === '/api/quadro' && m === 'GET') {
+    const d = url.searchParams.get('data') || hoje(), b = baseHor();
+    const lista = AGENDA.filter(a => a.data === d);
+    const livres = livresDoDia({ data: d, agora: agoraMock(), agendamentos: AGENDA, consultores: b.consultores, duracao: 60, janelas: janelasDoServico(null, b.janelas, diaDaSemana(d)) });
+    const itens = lista.filter(a => ['aguardando', 'confirmado'].includes(a.status)).map(a => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, situacao: lembSit(a) }));
+    return json(res, 200, { data: d, lista, livres, lembretes: { data: d, itens, cfg: { ativo_lembrete: LEMB.cfg.ativo_lembrete, horas_lembrete: 20, pausa_geral: false }, resumo: resumoDosLembretes(itens) } });
+  }
+  if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/mover$/)) && m === 'POST') {
+    const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro: 'Não encontrado' });
+    const b = baseHor();
+    const dia = livresDoDia({ data: body.data, agora: agoraMock(), agendamentos: AGENDA, consultores: b.consultores, duracao: duracaoDoServico(a.servico, b.servicos), janelas: janelasDoServico(a.servico, b.janelas, diaDaSemana(body.data)), consultor_id: body.consultor_id || null, ignorar: a.id });
+    const cabe = dia.aberto !== false && dia.horarios.some(h => h.hora === body.hora && (body.consultor_id ? h.consultores_livres.includes(body.consultor_id) : h.livres > 0));
+    if (!cabe) return json(res, 409, { erro: 'Esse horário acabou de ser ocupado ou não cabe para esse consultor. Escolha outro.', codigo: 'horario_ocupado' });
+    Object.assign(a, { data: body.data, hora: body.hora, consultor_id: body.consultor_id || null, consultor_nome: CONS.find(c => c.id === body.consultor_id)?.nome ?? null });
+    console.log('MOVER', a.cliente_nome, body.hora);
+    return json(res, 200, a);
+  }
   if (p === '/api/agendamentos' && m === 'GET') {
     const q = (url.searchParams.get('q') || '').toLowerCase();
     // presença: hoje + quem está na casa de outro dia (chegou e não saiu), sem telefone

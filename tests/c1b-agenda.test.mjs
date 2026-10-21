@@ -200,6 +200,9 @@ const falso = {
   listarAgendamentos: async () => [ag({ data: AMANHA }), ag({ id: ID(2), data: AMANHA, telefone: '' })],
   obterEspera: async (id) => (id === ID(60) ? { id, status: 'aberta', servico: 'Revisão', preferencia: 'Manhã', de: null, ate: null } : id === ID(61) ? { id, status: 'agendada' } : null),
   lembretesDoDia: async (data) => { const lista = [ag({ data }), ag({ id: ID(2), data, telefone: '' })]; const itens = lista.map((a) => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, situacao: situacaoDoLembrete({ a, envio: null, cfg: CFG, cliente: null, agora: AGORA }) })); return { data, itens, cfg: CFG }; },
+  horariosLivresDoDia: async ({ consultor_id }) => ({ aberto: true, horarios: [{ hora: '09:00', livres: 1, consultores_livres: [ID(7)] }, { hora: '09:30', livres: 1, consultores_livres: [] }] }),
+  atualizarAgendamento: async (id, novo) => ({ ...novo, id }),
+  listarAgendamentos: async () => [ag({ data: AMANHA }), ag({ id: ID(2), data: AMANHA, telefone: '' })],
   horariosDaEspera: async () => ({ itens: [{ data: AMANHA, hora: '09:00', consultor_id: ID(7), consultor_nome: 'Gabriel' }], motivo: null }),
 };
 before(async () => {
@@ -272,4 +275,24 @@ test('GET /api/espera/:id/horarios: devolve candidatos reais; espera encerrada o
   assert.deepEqual(enc.j.itens, []); assert.match(enc.j.motivo, /já saiu/);
   assert.equal((await chamar('atendente', 'GET', `/api/espera/${ID(62)}/horarios`)).status, 404);
   assert.equal((await chamar('agenda', 'GET', `/api/espera/${ID(60)}/horarios`)).status, 403);
+});
+
+test('GET /api/quadro: lista, vagas e lembretes numa ida só; recepção 403', async () => {
+  const r = await chamar('atendente', 'GET', `/api/quadro?data=${AMANHA}`);
+  assert.equal(r.status, 200); assert.equal(r.j.lista.length, 2); assert.equal(r.j.livres.horarios.length, 2); assert.equal(r.j.lembretes.resumo.total, 2);
+  assert.equal((await chamar('agenda', 'GET', '/api/quadro')).status, 403);
+  assert.equal((await chamar(null, 'GET', '/api/quadro')).status, 401);
+});
+test('POST /mover: confere a vaga no servidor (409 se ocupou), valida entrada, audita e recepção 403', async () => {
+  const ok = await chamar('atendente', 'POST', `/api/agendamentos/${ID(1)}/mover`, { data: '2099-12-31', hora: '09:00', consultor_id: ID(7) });
+  assert.equal(ok.status, 200); assert.equal(ok.j.hora, '09:00');
+  assert.equal(auditorias.filter((x) => x[1] === 'moveu_no_quadro').length, 1);
+  const cheio = await chamar('atendente', 'POST', `/api/agendamentos/${ID(1)}/mover`, { data: '2099-12-31', hora: '09:30', consultor_id: ID(7) });
+  assert.equal(cheio.status, 409); assert.equal(cheio.j.codigo, 'horario_ocupado');
+  const semCons = await chamar('atendente', 'POST', `/api/agendamentos/${ID(1)}/mover`, { data: '2099-12-31', hora: '09:30' });
+  assert.equal(semCons.status, 200, 'sem consultor basta haver vaga no horário');
+  assert.equal((await chamar('atendente', 'POST', `/api/agendamentos/${ID(1)}/mover`, { data: '2099-12-31', hora: '9h' })).status, 400);
+  assert.equal((await chamar('atendente', 'POST', `/api/agendamentos/${ID(1)}/mover`, { data: '2099-12-31', hora: '09:00', consultor_id: 'x' })).status, 400);
+  assert.equal((await chamar('atendente', 'POST', `/api/agendamentos/${ID(99)}/mover`, { data: '2099-12-31', hora: '09:00' })).status, 404);
+  assert.equal((await chamar('agenda', 'POST', `/api/agendamentos/${ID(1)}/mover`, { data: '2099-12-31', hora: '09:00' })).status, 403);
 });
