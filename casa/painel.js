@@ -273,10 +273,32 @@
   }
   /* meta do mês (guardada neste aparelho) + projeção pelo ritmo dos dias úteis */
   const LS_META = 'indycar_central_meta_mes';
+  /* meta do mês compartilhada (casa_metas, só gestor/admin): vale em todo aparelho; o localStorage fica de reserva */
+  let metaRemota;   // undefined = ainda não leu · null = não há meta no banco · número
+  const mesChave = () => L.hojeSP().slice(0, 7);
+  const metaAtual = () => (metaRemota != null ? metaRemota : Number(ler(LS_META)) || 0);
+  async function salvarMeta(n, silencioso) {
+    gravar(LS_META, n ? String(n) : '');
+    try {
+      if (n) { const r = await C.sb.from('casa_metas').upsert({ mes: mesChave(), valor: n, atualizado_por: C.perfil.id, updated_at: new Date().toISOString() }, { onConflict: 'mes' }); if (r.error) throw r.error; metaRemota = n; }
+      else { const r = await C.sb.from('casa_metas').delete().eq('mes', mesChave()); if (r.error) throw r.error; metaRemota = null; }
+      if (!silencioso) C.toast(n ? 'Meta guardada para todos os aparelhos.' : 'Meta tirada.', 'ok');
+    } catch { if (!silencioso) C.toast('Guardei só neste aparelho: não consegui salvar a meta para todos.', 'err'); }
+  }
+  async function carregarMeta() {
+    try {
+      const r = await C.sb.from('casa_metas').select('valor').eq('mes', mesChave()).maybeSingle();
+      if (r.error) throw r.error;
+      metaRemota = r.data ? Number(r.data.valor) : null;
+      const local = Number(ler(LS_META)) || 0;
+      if (metaRemota === null && local > 0) await salvarMeta(local, true);   // meta que estava só neste aparelho sobe uma vez
+    } catch { metaRemota = undefined; }
+    if (dono) desenharMeta(dono.faturamento || {});
+  }
   function desenharMeta(f) {
     const M2 = window.CasaLogica2, box = $('#donoMeta');
     if (!box || !M2) return;
-    const meta = Number(ler(LS_META)) || 0;
+    const meta = metaAtual();
     const p = M2.projecaoDoMes(f.mes, L.hojeSP());
     const pm = M2.progressoDaMeta(f.mes, meta);
     box.innerHTML = '<h3 class="dono-h">Ritmo do mês</h3>' +
@@ -310,6 +332,7 @@
       dono = data; ultimaDono = Date.now();
       desenharDono(data);
       carregarConsultores();
+      carregarMeta();
     } catch (e) {
       if (!dono) $('#donoTiles').innerHTML = '<p class="vazio vazio-erro">Não deu para ler a visão do dono agora. <button type="button" class="btn-link" data-recarregar>tentar de novo</button></p>';
     }
@@ -393,12 +416,16 @@
       if (f) { filtroHoje = f.dataset.filtroHoje; if (dados?.agenda) desenharHoje(dados.agenda); return; }
       if (e.target.closest('[data-abrir-busca]')) { C.busca && C.busca.abrir(); return; }
       if (e.target.closest('[data-meta]')) {
-        const atual = Number(ler(LS_META)) || '';
+        const atual = metaAtual() || '';
         const v = window.prompt('Meta de faturamento do mês, em reais (deixe vazio para tirar):', atual);
         if (v === null) return;
         const n = Number(String(v).replace(/\./g, '').replace(',', '.'));
-        gravar(LS_META, Number.isFinite(n) && n > 0 ? String(Math.round(n)) : '');
+        const meta = Number.isFinite(n) && n > 0 && n < 1e8 ? Math.round(n) : 0;
+        if (!meta && String(v).trim()) { C.toast('Não entendi esse valor. Use só números, ex.: 80000.', 'err'); return; }
+        metaRemota = meta || null;                       // a barra já mostra o valor novo; o banco confirma em seguida
+        gravar(LS_META, meta ? String(meta) : '');
         if (dono) desenharMeta(dono.faturamento || {});
+        salvarMeta(meta);
         return;
       }
       if (e.target.closest('[data-copiar-resumo]')) { if (dono && dados) C.copiarResumo(dono, dados); else C.toast('Espere o painel carregar.'); }
@@ -410,7 +437,7 @@
     canal = null; clearInterval(timerPoll); clearInterval(timerRelogio); clearTimeout(deb);
     window.removeEventListener('online', aoRede); window.removeEventListener('offline', aoRede);
     document.removeEventListener('visibilitychange', aoVisivel);
-    dados = null; dono = null;
+    dados = null; dono = null; metaRemota = undefined;
   };
   (window.CasaModulos = window.CasaModulos || []).push(MOD);
 })();

@@ -36,6 +36,15 @@ export function montarMocks(estado) {
       estado.chamadasRpc = estado.chamadasRpc || []; estado.chamadasRpc.push(rpc[1]);
       return json(typeof v === 'function' ? v(req) : v);
     }
+    const metaRest = /\/rest\/v1\/casa_metas(\?|$)/.exec(u);
+    if (metaRest && estado.metas) {
+      if (m === 'OPTIONS') return req.respond({ status: 204, headers: CORS });
+      const mes = /mes=eq\.([0-9-]+)/.exec(u)?.[1];
+      estado.escritas.push({ tabela: 'casa_metas', metodo: m, url: u, corpo: req.postData() });
+      if (m === 'GET') return json(estado.metas[mes] != null ? [{ valor: estado.metas[mes] }] : []);   // como o PostgREST de verdade: lista
+      if (m === 'POST') { const b = JSON.parse(req.postData() || '{}'); estado.metas[b.mes] = Number(b.valor); return req.respond({ status: 201, headers: CORS }); }
+      if (m === 'DELETE') { delete estado.metas[mes]; return req.respond({ status: 204, headers: CORS }); }
+    }
     const rest = /\/rest\/v1\/(tarefas|notificacoes|consultores)(\?|$)/.exec(u);
     if (rest && estado.rest[rest[1]] !== undefined) {
       if (m === 'OPTIONS') return req.respond({ status: 204, headers: CORS });
@@ -65,7 +74,7 @@ export async function cenario(papel, largura, fn, { apps, ajustar, altura } = {}
   const agora = dadosAgora();
   const extras = dadosExtras();
   const estado = {
-    saudeChamadas: 0, saude: saudeOk, escritas: [],
+    saudeChamadas: 0, saude: saudeOk, escritas: [], metas: {},
     rpc: { r6_agora: agora, r6_c1_agora_extras: extras, r6_c1_painel_dono: dadosDono(), r6_busca_global: dadosBusca(),
       r6_c1c_manha: dadosManha(), r6_c1b_painel_consultores: { consultores: [{ nome: 'Gabriel', marcados: 20, vieram: 15, fecharam: 9, faltaram: 3, valor: 5400 }, { nome: null, marcados: 4, vieram: 2, fecharam: 1, faltaram: 1, valor: 300 }], origens: [{ origem: 'Google', marcados: 12, vieram: 9, fecharam: 6, valor: 3800 }, { origem: 'Instagram', marcados: 6, vieram: 4, fecharam: 2, valor: 900 }] } },
     rest: { tarefas: TAREFAS(), notificacoes: NOTIFS(), consultores: [], perfis: [] },

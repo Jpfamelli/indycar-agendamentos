@@ -3,7 +3,7 @@
 // servidor fora do ar: a tela aparece, avisa e tenta de novo sozinha).
 /* Central (16/10): nome com o app — no mesmo domínio moram 5 service workers e cada um só
    apaga o que é SEU (antes apagava o cache dos outros apps ao ativar). */
-const CACHE = 'indycar-agenda-v22';
+const CACHE = 'indycar-agenda-v23';
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala — o app deixa de ser instalável sem dizer por quê. Foi o que
    quase aconteceu quando o qrcode.min.js saiu junto com a tela de QR e

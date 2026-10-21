@@ -70,6 +70,7 @@
   const semAcesso = () => typeof emPresenca === 'function' && emPresenca();
   const Q = () => (root.R6b && root.R6b.estado) || {};
   const CHEGOU = new Set(['compareceu', 'em_atendimento', 'concluido', 'nao_fechou']);
+  const VIVO = new Set(['aguardando', 'confirmado', 'compareceu', 'em_atendimento']);
 
   /* ---- 1) links entre sistemas: sempre a aba nomeada ---- */
   document.addEventListener('click', (ev) => {
@@ -113,6 +114,26 @@
         b.addEventListener('click', (ev) => { ev.stopPropagation(); repetir(a); });
         acoes.appendChild(b);
       }
+      // 🔗 conversa do cliente no Atendimento (aba nomeada pelo clique global)
+      const conv = a.telefone && root.Planejamento && Planejamento.links(a).atendimento;
+      if (conv && !$('.qd-conversa', acoes) && VIVO.has(a.status)) {
+        acoes.insertAdjacentHTML('beforeend', `<a class="btn mini qd-conversa" href="${esc(conv)}" target="_blank" rel="noopener" title="Abrir a conversa deste cliente no Atendimento">💬 Conversa</a>`);
+      }
+    }
+  }
+  /* 🔗 "Orçar": o carro chegou e ainda não tem orçamento — abre o Orçador já com cliente e telefone */
+  async function acrescentarOrcar(d) {
+    if (!root.R6 || !R6.orcDe || !R6.linkNovoOrcamento) return;
+    const chegando = d.lista.filter((a) => ['compareceu', 'em_atendimento'].includes(a.status));
+    if (!chegando.length) return;
+    const orc = await R6.orcDe(chegando.map((a) => a.id)).catch(() => ({}));
+    if (Q().dados !== d || !$('#qdCorpo')) return;
+    for (const a of chegando) {
+      if (orc[a.id]) continue;
+      const url = R6.linkNovoOrcamento(a); if (!url) continue;
+      const card = $(`#qdCorpo .qd-card[data-id="${CSS.escape(a.id)}"]`); const acoes = card && $('.qd-acoes', card);
+      if (!acoes || $('.qd-orcar', acoes)) continue;
+      acoes.insertAdjacentHTML('beforeend', `<a class="btn mini qd-orcar" href="${esc(url)}" target="_blank" rel="noopener" title="Criar o orçamento deste carro no Orçador">🧾 Orçar</a>`);
     }
   }
   function repetir(a) {
@@ -145,6 +166,7 @@
     if (sob && host._r6dMarcar) host._r6dMarcar(sob);
     acrescentarBotoes(d);
     avisarProntos(d).catch(() => { /* sem Pátio: cartão como sempre */ });
+    acrescentarOrcar(d).catch(() => { /* sem Orçador: cartão como sempre */ });
   }
 
   /* ---- lista do dia / recepção: "Avisar" ao lado do ícone do Pátio ---- */

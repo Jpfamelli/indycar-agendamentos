@@ -390,6 +390,8 @@
   /* ---- ações do cartão ---- */
   async function acaoCartao(card, acao) {
     const a = _q.dados?.lista.find((x) => x.id === card.dataset.id); if (!a) return;
+    // cliques seguidos (tecla Enter repetida, dedo nervoso): enquanto a ação anterior não terminou, o cartão não aceita outra
+    if (acao !== 'abrir' && acao !== 'mover') { if (card._r6Ocupado) return; card._r6Ocupado = true; setTimeout(() => { card._r6Ocupado = false; }, 1200); }
     const nome = primeiro(a.cliente_nome);
     try {
       if (acao === 'abrir') return openAgendamentoModal(a.id);
