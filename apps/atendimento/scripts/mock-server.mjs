@@ -992,6 +992,7 @@ http.createServer(async (req, res) => {
         proximos: ehCamila ? [{ icone: '📄', texto: 'Abriu o orçamento e não respondeu: dê um retorno.' }, { icone: '🔗', texto: 'O cliente ainda não abriu o link de acompanhar: mande o link.' }] : [],
         patio: pat, orcamentos: orcs, orcamento_principal: orcs[0]?.id || null,
         agendamentos: { proximo: ehCamila ? { id: 'a2', data: new Date(Date.now() + 86400000).toISOString().slice(0, 10), hora: '09:00', status: 'agendado', servico: 'Revisão', consultor: 'Leonardo', abrir: 'https://x/?agendamento=a2' } : null, futuros: [], recentes: [] },
+        eventos_orcamento: ehCamila ? [{ quando: iso(2000), tipo: 'orcamento', evento: 'conexao', titulo: 'Orçamento nº 87 conectado a esta conversa' }, { quando: iso(2990), tipo: 'orcamento', evento: 'enviado', titulo: 'Orçamento nº 87 enviado ao cliente' }] : [],
         lead, leads: lead ? [lead] : [], timeline: ehCamila ? [{ quando: iso(2000), titulo: 'Abriu o orçamento nº 87' }, { quando: iso(3000), titulo: 'Orçamento enviado' }] : [],
         links: { novo_orcamento: 'https://indycar-orcador.netlify.app/?cliente=' + cli.id + '&tel=' + String(cli.telefone_e164 || '').replace(/\D/g, '') + '&nome=' + encodeURIComponent(cli.nome), crm_lead: lead ? lead.abrir : null, crm_cliente: 'https://x/crm' } });
     }
@@ -1003,7 +1004,7 @@ http.createServer(async (req, res) => {
       const ult = DB.whatsapp_mensagens.filter(x => x.conversa_id === m[1] && x.direcao === 'entrada').pop();
       const pedidos = ult ? R6.oQueOClientePediu([ult.corpo]) : [];
       const respostas = R6.respostasRapidas(pedidos, { nome: cv?.nome || 'Cliente', foraDoHorario: false, horarios: [] }).filter(r => !R6.textoTemPreco(r.texto));
-      return json(res, 200, { ok: true, pedidos, respostas, fora_do_horario: false });
+      return json(res, 200, { ok: true, pedidos, respostas, formulario: R6.lerFormularioSite(DB.whatsapp_mensagens.filter(x => x.conversa_id === m[1] && x.direcao === 'entrada').map(x => x.corpo)), fora_do_horario: false });
     }
     m = /^\/api\/r6\/conversas\/([^/]+)\/ia$/.exec(p);
     if (m) return json(res, 200, { ok: true, situacao: 'ligada', humano: m[1] === CONV.semcad ? { cod: 'preco', rotulo: R6.MOTIVO_HUMANO.preco.rotulo, texto: R6.MOTIVO_HUMANO.preco.texto } : null, sozinhas: 3, esperando_clique: 1, ultima_rodada: { proxima_acao: 'Perguntar o carro e o dia' } });

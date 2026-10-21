@@ -341,18 +341,20 @@
   /** Orçador já com cliente/carro (?cliente= ?tel= ?nome= que ele lê hoje; ?carro= ?placa= pedidos ao O1). */
   function linkNovoOrcamento(d = {}, base = BASES.orcador) {
     const p = new URLSearchParams();
-    if (RE_UUID.test(String(d.clienteId || ''))) p.set('cliente', d.clienteId);
-    let tel = soDigitos(d.telefone).replace(/^55(?=\d{10,11}$)/, '');
-    if (tel.length === 10 || tel.length === 11) p.set('tel', tel);
+    p.set('origem', 'atendimento');
+    if (RE_UUID.test(String(d.conversaId || ''))) p.set('conversa', d.conversaId);
+    let tel = soDigitos(d.telefone);
+    if (/^\d{10,11}$/.test(tel)) tel = '55' + tel;
+    if (/^55\d{10,11}$/.test(tel)) p.set('tel', tel);
     const nome = limparTexto(d.nome, 80);
     if (nome) p.set('nome', nome);
-    const carro = limparTexto(d.carro, 60);
-    if (carro) p.set('carro', carro);
     const placa = String(d.placa ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(placa)) p.set('placa', placa);
-    const q = p.toString();
-    if (!p.has('cliente') && !p.has('tel')) return null;      // o Orçador só entende cliente ou telefone
-    return `${String(base).replace(/\/+$/, '')}/?${q}`;
+    const veiculo = limparTexto(d.veiculo || d.carro, 60);
+    if (veiculo) p.set('veiculo', veiculo);
+    if (RE_UUID.test(String(d.leadId || ''))) p.set('lead', d.leadId);
+    if (!p.has('conversa') && !p.has('tel')) return null;      // sem conversa nem telefone o Orçador não sabe de quem é
+    return `${String(base).replace(/\/+$/, '')}/#/cotacao?${p.toString()}`;
   }
   const linkOrcamento = (id, base = BASES.orcador) => (RE_UUID.test(String(id || '')) ? `${String(base).replace(/\/+$/, '')}/#/historico/${id}` : null);
   const linkOrcamentoDoCliente = (token, base = BASES.orcador) => (/^[A-Za-z0-9_-]{8,128}$/.test(String(token || '')) ? `${String(base).replace(/\/+$/, '')}/#/o/${token}` : null);
@@ -411,9 +413,9 @@
       } else if (p === 'garantia') {
         add('garantia', 'Garantia', `${n}a garantia é de 12 meses em peça e em mão de obra. Teve algum problema com o serviço?`);
       } else if (p === 'pagamento') {
-        add('pagamento', 'Pagamento', `${n}temos parcelamento. O consultor confirma as condições certinhas junto com o valor. Posso pedir para ele te chamar?`, { acao: 'passar-consultor' });
+        add('pagamento', 'Pagamento', `${n}as formas de pagamento o consultor confirma certinho junto com o valor. Posso pedir para ele te chamar?`, { acao: 'passar-consultor' });
       } else if (p === 'nota_fiscal') {
-        add('nota', 'Nota fiscal', `${n}claro! Vou pedir para o financeiro separar e te mando por aqui. Qual o nome ou CPF/CNPJ da nota?`, { acao: 'passar-consultor' });
+        add('nota', 'Nota fiscal', `${n}claro! Vou pedir para a equipe separar e te mando por aqui. Qual o nome ou CPF/CNPJ da nota?`, { acao: 'passar-consultor' });
       } else if (p === 'pensar') {
         add('pensar', 'Vai pensar', `${n}combinado, sem pressa! Se quiser, deixo um horário reservado sem compromisso. Prefere de manhã ou à tarde?`);
       } else if (p === 'so_midia') {
@@ -498,6 +500,28 @@
     return { aberta, reabre, dia, minutos: min };
   }
 
+  /* ---------------- 10) Formulário do site ----------------
+     O site manda uma mensagem do tipo "Nome: … / Placa: … / Horário: …". Lemos esses campos para a IA e a ficha não perguntarem de novo. */
+  function lerFormularioSite(textos = []) {
+    const out = {};
+    const mapa = { nome: 'nome', placa: 'placa', horario: 'horario', 'horario preferido': 'horario', servico: 'servico', carro: 'carro', veiculo: 'carro', modelo: 'carro' };
+    for (const t of (Array.isArray(textos) ? textos : [textos])) {
+      for (const linha of String(t ?? '').split(/\r?\n/)) {
+        const m = /^\s*[-*•]?\s*([A-Za-zÀ-ÿ ]{3,20}?)\s*:\s*(.{1,80})$/.exec(linha);
+        if (!m) continue;
+        const chave = mapa[semAcento(m[1]).trim()];
+        if (!chave) continue;
+        const valor = limparTexto(m[2], 60);
+        if (!valor) continue;
+        if (chave === 'placa') {
+          const placa = valor.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          if (/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(placa)) out.placa = placa;
+        } else out[chave] = valor;
+      }
+    }
+    return out;
+  }
+
   const API = {
     semAcento, soDigitos, primeiroNome, minutosEntre, rotuloMinutos,
     textoTemPreco, PADROES_PRECO,
@@ -507,7 +531,7 @@
     PASSOS_PATIO, passosDoPatio,
     BASES, NOME_ABA, linkNovoOrcamento, linkOrcamento, linkOrcamentoDoCliente, relCrmLead, relAgendamento, relPatioOs,
     respostasRapidas, progressoDoFunil,
-    textoWhatsappParado, classificarNaoSairam, textoDeEncaminhamento, oficinaAberta,
+    textoWhatsappParado, classificarNaoSairam, textoDeEncaminhamento, oficinaAberta, lerFormularioSite,
   };
   raiz.R6 = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

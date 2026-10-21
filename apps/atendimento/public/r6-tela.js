@@ -259,6 +259,10 @@
           ${['parado', 'visualizado'].includes(o.cod) ? `<button type="button" class="r6-btn" data-r6="cobrar-orc" data-id="${esc(o.id)}">💬 Dar um retorno</button>` : ''}
         </div></article>`).join('');
   }
+  function htmlEventosOrc(ev) {
+    if (!ev || !ev.length) return '';
+    return `<ol class="r6-tempo r6-eventos" aria-label="O que aconteceu com os orçamentos">${ev.slice(0, 5).map(e => `<li><small>${esc(dataCurta(e.quando))} ${esc(horaDe(e.quando))}</small> <span>${esc(e.titulo)}</span></li>`).join('')}</ol>`;
+  }
   function htmlAgenda(ag) {
     const um = (a, rotulo) => `<article class="r6-card"><div class="r6-card-topo"><b>${esc(rotulo || dataCurta(a.data))}${a.hora ? ' às ' + esc(a.hora) : ''}</b><span class="r6-selo">${esc(a.status)}</span></div>
       <small>${esc(a.servico || 'serviço')}${a.consultor ? ' · ' + esc(a.consultor) : ''}${a.os_etapa_rotulo ? ' · carro: ' + esc(a.os_etapa_rotulo) : ''}</small>
@@ -280,6 +284,7 @@
     const orcPrincipal = p.orcamentos.find(o => o.id === p.orcamento_principal);
     el.hidden = false;
     el.innerHTML = `
+      <div class="r6-formsite" id="r6FormSite" hidden></div>
       ${p.situacao.length ? `<div class="r6-situacao" role="status">${p.situacao.map(s => `<span>${esc(s)}</span>`).join('')}</div>` : ''}
       <div class="r6-acoes" role="toolbar" aria-label="Ações rápidas deste cliente">
         <button type="button" data-r6="agendar" title="Agendar este cliente">📅 Agendar</button>
@@ -289,13 +294,14 @@
       </div>
       ${p.proximos.length ? `<ul class="r6-proximos" aria-label="O que fazer agora">${p.proximos.map(x => `<li>${x.icone} ${esc(x.texto)}</li>`).join('')}</ul>` : ''}
       ${bloco('patio', p.patio && p.patio.etapa !== 'entregue' ? '🚗 No pátio agora' : p.patio ? '🚗 Saiu do pátio' : '🚗 Pátio', `<div id="r6PatioCorpo">${htmlPatio(p.patio)}</div>`, { contagem: p.patio && p.patio.etapa !== 'entregue' ? 'ao vivo' : '' })}
-      ${bloco('orcamentos', '🧾 Orçamentos', htmlOrcamentos(p.orcamentos, p.orcamento_principal), { contagem: p.orcamentos.length ? String(p.orcamentos.length) : '' })}
+      ${bloco('orcamentos', '🧾 Orçamentos', htmlOrcamentos(p.orcamentos, p.orcamento_principal) + htmlEventosOrc(p.eventos_orcamento), { contagem: p.orcamentos.length ? String(p.orcamentos.length) : '' })}
       ${bloco('agenda', '📅 Agenda', htmlAgenda(p.agendamentos))}
       ${bloco('lead', '📈 Lead no CRM', htmlLead(p.lead))}
       ${bloco('ia', '✨ IA nesta conversa', '<div id="r6IaCorpo"><p class="r6-vazio">Carregando…</p></div>')}
       ${p.timeline.length ? bloco('linha', '🕘 Linha do tempo', `<ol class="r6-tempo">${p.timeline.map(e => `<li><small>${esc(dataCurta(e.quando))} ${esc(horaDe(e.quando))}</small> <span>${esc(e.titulo)}</span>${e.detalhe ? `<small class="r6-det">${esc(String(e.detalhe).slice(0, 70))}</small>` : ''}</li>`).join('')}</ol>`, { aberto: false }) : ''}
       ${p.aviso ? `<small class="r6-aviso">⚠️ ${esc(p.aviso)}</small>` : ''}`;
     S.patioEtapa = p.patio ? p.patio.etapa : null;
+    pintarFormulario();
     pintarCabecalhoDoChat(p);
     carregarIA();
   }
@@ -321,8 +327,10 @@
       el.hidden = false;
       el.innerHTML = `<div class="r6-semcadastro"><b>Cliente sem cadastro</b><p>Cadastre para ver pátio, orçamentos e horários aqui, e para o Orçador abrir já com o cliente.</p>
         <button type="button" class="r6-btn" data-r6="cadastrar">➕ Cadastrar este cliente</button></div>
+        <div class="r6-formsite" id="r6FormSite" hidden></div>
         <div class="r6-acoes"><button type="button" data-r6="agendar">📅 Agendar</button><button type="button" data-r6="criar-orc">🧾 Criar orçamento</button></div>
         <div id="r6IaCorpo"></div>`;
+      pintarFormulario();
       carregarIA();
       return;
     }
@@ -364,13 +372,15 @@
     const ROT = { ligada: ['✨', 'IA ligada: conduz até onde o dono deixou'], respondendo: ['⏳', 'IA lendo e respondendo agora'], humano_assumiu: ['🙋', 'Uma pessoa assumiu: a IA só sugere'],
       desligada: ['⏸', 'IA desligada nas configurações'], so_copiloto: ['💡', 'Só copiloto: a IA não responde sozinha'] };
     const [ico, txt] = ROT[r.situacao] || ['✨', 'IA'];
-    const prog = S.painel ? null : null;
+    const pn = S.painel;
+    const prog = R.progressoDoFunil({ cliente: { carro_modelo: pn?.cliente?.carro }, leadAberto: pn?.lead ? { servico: pn.lead.servico } : null, patio: pn?.patio ? { veiculo: pn.patio.veiculo, servico: pn.patio.servico } : null,
+      agendamentos: { futuros: (pn?.agendamentos?.futuros?.length ? pn.agendamentos.futuros : (pn?.agendamentos?.proximo ? [pn.agendamentos.proximo] : [])) } });
     alvo.innerHTML = `<div class="r6-ia r6-ia-${esc(r.situacao)}"><b>${ico} ${esc(txt)}</b></div>
       ${r.humano ? `<div class="r6-humano">${R.MOTIVO_HUMANO[r.humano.cod]?.icone || '🙋'} Passou para gente: <b>${esc(r.humano.rotulo)}</b><small>${esc(r.humano.texto)}</small></div>` : ''}
       <div class="r6-linha"><span>Feito sozinha hoje</span><b>${esc(r.sozinhas)}</b></div>
       <div class="r6-linha"><span>Esperando seu clique</span><b>${esc(r.esperando_clique)}</b></div>
       ${r.ultima_rodada?.proxima_acao ? `<small class="r6-sub">Próximo passo: ${esc(r.ultima_rodada.proxima_acao)}</small>` : ''}
-      <div class="r6-funil" id="r6Funil"></div>
+      ${pn ? `<div class="r6-funil" id="r6Funil" aria-label="O que a IA já sabe">${prog.passos.map(x => `<span class="r6-passo ${x.feito ? 'feito' : ''}">${x.feito ? '✓' : '○'} ${esc(x.rotulo)}</span>`).join('')}<small class="r6-sub">${esc(prog.texto)}</small></div>` : ''}
       <div class="r6-botoes"><button type="button" class="r6-btn r6-sec" data-r6="passar-consultor" data-motivo="${esc(r.humano?.cod === 'pediu_pessoa' ? 'pessoa' : r.humano?.cod || 'preco')}">👤 Passar para o consultor</button></div>`;
   }
 
@@ -382,6 +392,8 @@
     const r = await api(`/api/r6/sugestoes/${encodeURIComponent(conv.id)}`);
     if (S.sugConv !== conv.id || !r.ok) return;
     const aguardando = conv.nao_lidas > 0 || (r.pedidos || []).length;
+    S.formulario = r.formulario || {};
+    pintarFormulario();
     S.sugestoes = (r.respostas || []).slice(0, 4);
     S.pedidos = r.pedidos || [];
     if (!aguardando || !S.sugestoes.length || !(r.pedidos || []).length) { barra.hidden = true; barra.innerHTML = ''; return; }
@@ -389,6 +401,13 @@
     barra.innerHTML = `<span class="r6-sug-rotulo" title="Respostas prontas para o que o cliente acabou de pedir (sem IA, sem preço)">⚡ Para agora</span>`
       + S.sugestoes.map((s, i) => `<button type="button" class="r6-sug" data-r6-sug="${i}" title="${esc(s.texto)}"><kbd>${i + 1}</kbd> ${esc(s.rotulo)}</button>`).join('')
       + (S.sugestoes.some(s => s.acao === 'passar-consultor') ? '<button type="button" class="r6-sug r6-sug-gente" data-r6="passar-consultor-sug" title="Marca como aguardando consultor e cria a tarefa">👤 Passar ao consultor</button>' : '');
+  }
+  function pintarFormulario() {
+    const el = $('#r6FormSite'); if (!el) return;
+    const f = S.formulario || {};
+    const itens = [['placa', 'Placa'], ['carro', 'Carro'], ['servico', 'Serviço'], ['horario', 'Horário que prefere']].filter(([k]) => f[k]);
+    el.hidden = !itens.length;
+    el.innerHTML = itens.length ? `<b>📝 Do formulário do site</b> ${itens.map(([k, r]) => `<span>${esc(r)}: <b>${esc(f[k])}</b></span>`).join('')}` : '';
   }
   function usarSugestao(i) {
     const s = S.sugestoes[i]; if (!s) return;
@@ -483,8 +502,9 @@
       case 'agendar': return $('#btnAgendar')?.click();
       case 'recarregar': return carregarPainel(conv);
       case 'criar-orc': {
-        const l = p?.links?.novo_orcamento || R.linkNovoOrcamento({ clienteId: conv?.cliente_id, telefone: conv?.telefone_e164 || conv?.telefone, nome: conv?.nome });
-        if (!l) return toast('⚠️ Sem cliente cadastrado nem telefone válido para abrir o Orçador.');
+        const l = R.linkNovoOrcamento({ conversaId: conv?.id, telefone: conv?.telefone_e164 || conv?.telefone, nome: p?.cliente?.nome || conv?.nome,
+          placa: p?.cliente?.placa || p?.patio?.placa || S.formulario?.placa, veiculo: p?.cliente?.carro || p?.patio?.veiculo || S.formulario?.carro, leadId: p?.lead?.id });
+        if (!l) return toast('⚠️ Sem conversa nem telefone válido para abrir o Orçador.');
         return abrirApp('orcador', l);
       }
       case 'link-patio': if (p?.patio?.texto_link && inserirNoCampo(p.patio.texto_link)) toast('🔗 Link de acompanhamento no campo — revise e envie'); return;

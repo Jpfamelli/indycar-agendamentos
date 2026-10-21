@@ -223,8 +223,21 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
       origem: l.origem || null, created_at: l.created_at, abrir: l.link_equipe || null }));
     const leadAberto = leads.find(l => !['concluido', 'perdido'].includes(l.status)) || null;
 
+    // eventos do Orçador (conexão com a conversa/agenda, enviado, aprovado, recusado)
+    const TITULO_EVENTO = { conexao: 'conectado a esta conversa', enviado: 'enviado ao cliente', aprovado: 'aprovado pelo cliente', recusado: 'recusado pelo cliente' };
+    let eventosOrc = [];
+    const idsOrc = orcamentos.map(o => o.id).filter(Boolean);
+    if (idsOrc.length) {
+      try {
+        const { data: ev } = await sb.from('orc_eventos').select('orcamento_id,tipo,detalhe,created_at').in('orcamento_id', idsOrc).in('tipo', Object.keys(TITULO_EVENTO)).order('created_at', { ascending: false }).limit(12);
+        eventosOrc = (ev || []).map(e => {
+          const o = orcamentos.find(x => x.id === e.orcamento_id);
+          return { quando: e.created_at, tipo: 'orcamento', app: 'orcador', evento: e.tipo, titulo: `Orçamento nº ${o?.numero ?? '—'} ${TITULO_EVENTO[e.tipo]}`, detalhe: null, link: o?.abrir || null };
+        });
+      } catch (e) { log('orc_eventos:', e.message); }
+    }
     // linha do tempo: tudo menos a conversa em si (as 2 últimas mensagens ficam)
-    const tl = r360.linha_do_tempo || [];
+    const tl = [...(r360.linha_do_tempo || []), ...eventosOrc];
     const naoMsg = tl.filter(e => e.tipo !== 'mensagem');
     const linha = [...naoMsg, ...tl.filter(e => e.tipo === 'mensagem').slice(0, 2)]
       .sort((a, b) => String(b.quando).localeCompare(String(a.quando))).slice(0, 14);
@@ -262,7 +275,7 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
       resumo: { total_gasto: resumo.total_gasto ?? null, servicos_feitos: resumo.servicos_feitos ?? 0, nota_media: resumo.nota_media ?? null, dias_desde_ultima_visita: resumo.dias_desde_ultima_visita ?? null,
         orcamentos_esperando: resumo.orcamentos_esperando ?? 0, extras_pendentes: resumo.extras_pendentes ?? 0 },
       indicacoes: r360.indicacoes || null,
-      timeline: linha, links,
+      timeline: linha, eventos_orcamento: eventosOrc, links,
     };
     return guarda('painel:' + clienteId, out);
   }

@@ -60,6 +60,8 @@ const abrirConv = (p, nome) => p.evaluate(n => [...document.querySelectorAll('.c
       /* ---------- painel conectado (Camila) ---------- */
       await abrirConv(p, 'Camila');
       ok(`[${w}] painel conectado carrega: pátio, orçamento, agenda, lead`, await ate(p, () => { const t = document.getElementById('r6Painel')?.textContent || ''; return /Em execução/.test(t) && /Nº 87/.test(t) && /Revisão/.test(t) && /Alinhamento/.test(t); }));
+      ok(`[${w}] cartão da IA mostra o que ela já sabe (carro, serviço, horário)`, await ate(p, () => { const f = document.getElementById('r6Funil'); return f && f.querySelectorAll('.r6-passo').length === 3 && f.querySelectorAll('.r6-passo.feito').length === 3; }));
+      ok(`[${w}] eventos do orçamento (conectado, enviado) aparecem no bloco Orçamentos`, await p.evaluate(() => { const t = document.querySelector('#r6Painel [data-bloco="orcamentos"]')?.textContent || ''; return /conectado a esta conversa/.test(t) && /enviado ao cliente/.test(t); }));
       ok(`[${w}] trilha do pátio com a etapa atual marcada`, await p.evaluate(() => !!document.querySelector('.r6-trilha li.atual[aria-current="step"]')));
       if (w === 1440) await p.screenshot({ path: OUT + 'painel-1440.png' });
       ok(`[${w}] "Mandar link de acompanhar" cola o link no campo (sem enviar)`, await (async () => {
@@ -70,7 +72,7 @@ const abrirConv = (p, nome) => p.evaluate(n => [...document.querySelectorAll('.c
       ok(`[${w}] "Criar orçamento" abre o Orçador na aba nomeada com cliente e telefone`, await (async () => {
         await p.evaluate(() => { window.__aberto = null; const o = window.open; window.open = (u, n) => { window.__aberto = { u, n }; return { opener: null, focus() {} }; }; window.__o = o; document.querySelector('#r6Painel [data-r6="criar-orc"]').click(); });
         await espera(300);
-        return p.evaluate(() => window.__aberto && window.__aberto.n === 'indycar-orcador' && /cliente=/.test(window.__aberto.u) && /tel=12996830111/.test(window.__aberto.u));
+        return p.evaluate(() => window.__aberto && window.__aberto.n === 'indycar-orcador' && window.__aberto.u.includes('#/cotacao?') && /origem=atendimento/.test(window.__aberto.u) && /conversa=c0000000/.test(window.__aberto.u) && /tel=5512996830111/.test(window.__aberto.u));
       })());
       ok(`[${w}] chips no cabeçalho do chat (carro, orçamento, agenda, lead)`, await p.evaluate(() => { const c = document.getElementById('r6ChipsChat'); return c && !c.hidden && c.querySelectorAll('.r6-chip').length >= 3; }));
 

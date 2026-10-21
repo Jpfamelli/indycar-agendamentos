@@ -72,16 +72,21 @@ test('orçamento: situação, vencido e o que mais importa', () => {
   assert.strictEqual(p.id, 'b');
 });
 
-test('links: Orçador recebe cliente/tel/nome/carro/placa limpos; sem cliente nem telefone não há link', () => {
+test('links: Orçador recebe conversa/tel(55)/nome/placa/veículo/lead no contrato #/cotacao; sem conversa nem telefone não há link', () => {
   const id = '0bf5de3c-669d-41db-a0f8-6f76343a490b';
-  const l = R.linkNovoOrcamento({ clienteId: id, telefone: '5512988660661', nome: 'João <b>', carro: 'Onix 2019', placa: 'abc-1d23' });
-  const u = new URL(l);
-  assert.strictEqual(u.searchParams.get('cliente'), id);
-  assert.strictEqual(u.searchParams.get('tel'), '12988660661');
+  const l = R.linkNovoOrcamento({ conversaId: id, telefone: '5512988660661', nome: 'João <b>', carro: 'Onix 2019', placa: 'abc-1d23' });
+  assert.ok(l.startsWith('https://indycar-orcador.netlify.app/#/cotacao?'), l);
+  const u = new URL(l.replace('#/cotacao?', 'cotacao?'));
+  assert.strictEqual(u.searchParams.get('origem'), 'atendimento');
+  assert.strictEqual(u.searchParams.get('conversa'), id);
+  assert.strictEqual(u.searchParams.get('tel'), '5512988660661');
   assert.strictEqual(u.searchParams.get('nome'), 'João b');
   assert.strictEqual(u.searchParams.get('placa'), 'ABC1D23');
+  assert.strictEqual(u.searchParams.get('veiculo'), 'Onix 2019');
+  assert.strictEqual(new URL(R.linkNovoOrcamento({ telefone: '12988660661', leadId: id }).replace('#/cotacao?', 'c?')).searchParams.get('lead'), id);
+  assert.ok(!R.linkNovoOrcamento({ telefone: '12988660661', leadId: 'lixo' }).includes('lead='));
   assert.strictEqual(R.linkNovoOrcamento({ nome: 'x' }), null);
-  assert.strictEqual(R.linkNovoOrcamento({ clienteId: 'lixo', telefone: '123' }), null);
+  assert.strictEqual(R.linkNovoOrcamento({ conversaId: 'lixo', telefone: '123' }), null);
   assert.strictEqual(R.linkOrcamento(id), `https://indycar-orcador.netlify.app/#/historico/${id}`);
   assert.strictEqual(R.linkOrcamento('../x'), null);
   assert.strictEqual(R.relCrmLead(id), `/?lead=${id}`);
@@ -153,4 +158,14 @@ test('disjuntor do WhatsApp: para, deixa uma sondagem, volta quando dá certo', 
   z.marcar('codewords-401'); t = 70_000;
   assert.ok(z.passar().tentar);
   z.limpar(); assert.ok(z.passar().tentar && !z.estado().parado);
+});
+
+test('formulário do site: lê Placa, Horário, Nome, Serviço e Carro da mensagem; placa inválida e lixo são ignorados', () => {
+  const f = R.lerFormularioSite(['Olá, vim pelo site!\nNome: Maria Souza\nPlaca: abc-1d23\nHorário: amanhã de manhã\n- Serviço: barulho no freio\nCarro: Onix 2019']);
+  assert.deepStrictEqual(f, { nome: 'Maria Souza', placa: 'ABC1D23', horario: 'amanhã de manhã', servico: 'barulho no freio', carro: 'Onix 2019' });
+  assert.strictEqual(R.lerFormularioSite(['Placa: 12']).placa, undefined);
+  assert.deepStrictEqual(R.lerFormularioSite(['oi, tudo bem?', null, '']), {});
+  assert.ok(!('placa' in R.lerFormularioSite(['Placa: <script>'])));
+  assert.strictEqual(R.lerFormularioSite(['Horário: ' + 'x'.repeat(75)]).horario.length, 60);
+  assert.strictEqual(R.lerFormularioSite(['Horário: ' + 'x'.repeat(500)]).horario, undefined, 'linha enorme é ignorada');
 });

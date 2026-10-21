@@ -86,7 +86,7 @@ test('fila e painel devolvem o formato que a tela espera', async () => {
   assert.ok(f.j.conversas[CONV].pedidos.includes('estado_carro'));
   const p = await s.chamar(`/api/r6/cliente/${CLI}`);
   assert.strictEqual(p.status, 200);
-  assert.ok(Array.isArray(p.j.orcamentos) && Array.isArray(p.j.proximos) && p.j.agendamentos && p.j.links.novo_orcamento.includes('cliente=' + CLI));
+  assert.ok(Array.isArray(p.j.orcamentos) && Array.isArray(p.j.proximos) && p.j.agendamentos && p.j.links.novo_orcamento.includes('#/cotacao?origem=atendimento'));
   s.fechar();
 });
 

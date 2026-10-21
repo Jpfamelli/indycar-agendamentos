@@ -189,3 +189,10 @@ test('situacaoDaConversa: quem falou por último, espera em horas/dias e se a lo
   assert.equal(CTX.horaDeBrasilia('2026-10-14T02:30:00Z'), '2026-10-13 23:30');
   assert.equal(CTX.horaDeBrasilia('lixo'), '');
 });
+
+test('R6: formulário do site (Placa/Horário) entra no prompt da IA com "não pergunte de novo"', () => {
+  const txt = CTX.textoParaIA({ conversa: { nome: 'Maria' }, mensagens: [], formularioSite: { placa: 'ABC1D23', horario: 'amanhã de manhã', servico: 'freio' }, geradoEm: new Date().toISOString() });
+  assert.match(txt, /formulário do site · placa ABC1D23 · serviço freio · horário que prefere: amanhã de manhã — NÃO pergunte de novo/);
+  const sem = CTX.textoParaIA({ conversa: { nome: 'Maria' }, mensagens: [], geradoEm: new Date().toISOString() });
+  assert.ok(!/formulário do site/.test(sem));
+});

@@ -20,6 +20,7 @@
 const COM = require('./comunicar.js');
 const H = require('./horarios.js');
 const PAT = require('./patio.js');
+const R6 = require('../public/r6-regras.js');
 
 const CACHE_MS = 45_000;           // ficha da conversa: curta (a conversa muda a cada minuto)
 const CACHE_FIXO_MS = 10 * 60_000; // catálogo, janelas, serviços, empresa: mudam raramente
@@ -238,6 +239,7 @@ function criarContexto({ sb, agora = () => new Date(), cacheMs = CACHE_MS, diasL
       consultores: fx.consultores,
       servicos: fx.servicos.map(s => ({ id: s.id, nome: s.nome, duracao_min: s.duracao_min })),
       mensagens,
+      formularioSite: R6.lerFormularioSite(mensagens.filter(m => m.direcao === 'entrada').map(m => m.corpo)),
       avisos,
     };
     if (cache.size > 300) cache.clear();
@@ -361,6 +363,10 @@ function textoParaIA(ficha, { cerca = 'CONVERSA', maxMensagens = MAX_MENSAGENS }
     if (c.aceita_mensagens === false) L.push('- NÃO aceita mensagens automáticas (pediu para parar) — não proponha retorno automático.');
   } else {
     L.push(`- Cliente sem cadastro ainda (nome no WhatsApp: ${f.conversa?.nome || 'desconhecido'}).`);
+  }
+  if (f.formularioSite && Object.keys(f.formularioSite).length) {
+    const fs_ = f.formularioSite;
+    L.push(`- O cliente preencheu o formulário do site${fs_.placa ? ` · placa ${fs_.placa}` : ''}${fs_.carro ? ` · carro ${fs_.carro}` : ''}${fs_.servico ? ` · serviço ${fs_.servico}` : ''}${fs_.horario ? ` · horário que prefere: ${fs_.horario}` : ''} — NÃO pergunte de novo o que já veio no formulário; confirme e siga.`);
   }
   if (f.ultimoServico) L.push(`- Último serviço: ${f.ultimoServico.servico || '—'} em ${f.ultimoServico.data}`);
   if (f.revisao) L.push(`- Próxima revisão prevista: ${f.revisao.rotulo} em ${String(f.revisao.prevista).slice(0, 10)}`

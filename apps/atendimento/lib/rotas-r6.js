@@ -91,6 +91,7 @@ function criarRotasR6({ getSb, usuarioLogado, dentroDoLimite, readBody, dados, z
       const { textosSemResposta } = require('./r6-dados.js');
       const sem = textosSemResposta((msgs || []).slice().reverse());
       const pedidos = R6.oQueOClientePediu(sem);
+      const formulario = R6.lerFormularioSite((msgs || []).filter(x => x.direcao === 'entrada').map(x => x.corpo));
       let painel = null;
       if (cv.cliente_id) painel = await D().painelCliente(cv.cliente_id).catch(() => null);
       const aberta = R6.oficinaAberta(new Date());
@@ -109,7 +110,7 @@ function criarRotasR6({ getSb, usuarioLogado, dentroDoLimite, readBody, dados, z
         } catch { /* sem horários: a resposta pergunta o dia */ }
       }
       const respostas = R6.respostasRapidas(pedidos, ficha).filter(r => !R6.textoTemPreco(r.texto));
-      return enviar(req, res, 200, { ok: true, pedidos, respostas, fora_do_horario: !aberta.aberta, reabre: aberta.reabre });
+      return enviar(req, res, 200, { ok: true, pedidos, respostas, formulario, fora_do_horario: !aberta.aberta, reabre: aberta.reabre });
     }
 
     m = /^\/api\/r6\/conversas\/([^/]+)\/ia$/.exec(pathname);

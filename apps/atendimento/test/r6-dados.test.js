@@ -121,8 +121,9 @@ test('painel do cliente junta pátio, orçamentos, agenda e CRM do r6_cliente_36
   assert.ok(p.situacao.length >= 3);
   assert.strictEqual(p.tarefas_abertas, 1);
   assert.ok(p.timeline.length === 2);
-  const u = new URL(p.links.novo_orcamento);
-  assert.strictEqual(u.searchParams.get('cliente'), CLI);
+  const u = new URL(p.links.novo_orcamento.replace('#/cotacao?', 'cotacao?'));
+  assert.ok(p.links.novo_orcamento.includes('#/cotacao?origem=atendimento'));
+  assert.strictEqual(u.searchParams.get('tel'), '5512988660661');
   assert.strictEqual(u.searchParams.get('placa'), 'ABC1D23');
   assert.strictEqual((await r6.painelCliente('lixo')).status, 400);
   assert.strictEqual((await r6.painelCliente('bbb965a4-65e0-4562-a1b0-952466991b2c')).status, 404);
@@ -180,4 +181,19 @@ test('painel: "link visto" vem da própria OS (o r6_cliente_360 não traz) e som
   const visto = await mk(iso(10));
   assert.ok(visto.patio.link_visto_em);
   assert.ok(!visto.proximos.some((x) => x.cod === 'link'), 'já abriu: não pede para mandar de novo');
+});
+
+test('painel: eventos do orçamento (conexão, enviado, aprovado, recusado) entram na linha do tempo; outros tipos ficam de fora', async () => {
+  const OID = '88b965a4-65e0-4562-a1b0-952466991b2c';
+  const r360 = { orcamentos: [{ id: OID, numero: 12, status: 'enviado', total: 500, created_at: iso(900) }], linha_do_tempo: [] };
+  const { sb } = montar({ clientes: [{ id: CLI, nome: 'Maria', telefone: '5512988660661', telefone_e164: '5512988660661' }],
+    orc_eventos: [
+      { id: 1, orcamento_id: OID, tipo: 'conexao', created_at: iso(30) },
+      { id: 2, orcamento_id: OID, tipo: 'enviado', created_at: iso(60) },
+      { id: 3, orcamento_id: OID, tipo: 'editado', created_at: iso(10) },
+    ] }, { rpc: { r6_cliente_360: () => ({ data: r360, error: null }) } });
+  const p = await criarR6({ sb, agora: () => AGORA, log: () => {} }).painelCliente(CLI);
+  assert.deepStrictEqual(p.eventos_orcamento.map((e) => e.evento), ['conexao', 'enviado']);
+  assert.match(p.eventos_orcamento[0].titulo, /Orçamento nº 12 conectado a esta conversa/);
+  assert.ok(p.timeline.some((e) => /enviado ao cliente/.test(e.titulo)));
 });
