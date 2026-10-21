@@ -174,3 +174,12 @@ test('avisos do Orçador: aprovado e recusado têm ícone e rótulo; o link abre
   assert.equal(u, `https://indycar-orcador.netlify.app/#/historico/${id}`);
   assert.equal(L.appDoLink(u, 'https://central.exemplo/', L.bases()), 'orcador');
 });
+
+test('Meu dia: pré-agendamento do Orçador vira item com ligação à Agenda (só quando há)', () => {
+  assert.equal(M.itemPreAgendamento(0), null);
+  assert.equal(M.itemPreAgendamento(undefined), null);
+  const um = M.itemPreAgendamento(1), dois = M.itemPreAgendamento(2);
+  assert.match(um.texto, /^1 pré-agendamento do Orçador esperando confirmação/);
+  assert.match(dois.texto, /^2 pré-agendamentos/);
+  assert.equal(um.app, 'agenda');
+});

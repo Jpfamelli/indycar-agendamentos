@@ -713,3 +713,118 @@ Pendências: script inline do index.html ainda exige 'unsafe-inline' na CSP; can
 - Total honesto desta rodada: 520 − 436 = 85 itens verificados (≈30 com 🔗), abaixo da meta de 230/40. O que ficou para uma próxima rodada: mais conexões da Agenda (lembretes pelo Comunicar, encaixe/remarcar com horários livres), ping de Pátio/Orçador com aviso na Casa, ajustes finos de 375px na Casa.
 - Pedido a P1/O2: `Cross-Origin-Opener-Policy: same-origin-allow-popups` no `netlify.toml` do Pátio e do Orçador, para a aba nomeada ser reaproveitada.
 - Outros apps podem linkar `/?busca=<termo>` na Casa e `/agenda/?novo=1&tel=55…` para novo horário.
+
+## Rodada 6 — Casa e Agenda (C1b) (21/10/2026)
+Continuação do C1. Numeração a partir de 521. 🔗 = conexão entre sistemas. Cada linha foi conferida por teste (`npm test`, 244) ou roteiro de navegador (`qa-r6b-casa` 52, `qa-r6b-agenda` 47).
+
+### Lote 1 — Casa como painel de comando
+521. 🔗 Central: `/api/central/saude-apps` sonda Pátio e Orçador (cache de 40 s, pedidos simultâneos viram um só).
+522. "Fora do ar" só depois de duas falhas seguidas (uma só marca "suspeito"); sucesso zera.
+523. 🔗 Faixa na Casa quando Pátio ou Orçador estão fora: motivo e há quanto tempo.
+524. 🔗 Plano B por app dentro do aviso (o que fazer enquanto não volta).
+525. Aviso de que o app voltou ao ar.
+526. Marca de saúde nos cartões de cada app.
+527. Clima da oficina: uma frase com o ritmo do dia.
+528. "Meu dia": conversas suas, tarefas vencidas, próximos horários (por papel e por consultor).
+529. Ordem dos cartões muda por papel/visão (dono, operação, mecânico).
+530. Cartões recolhíveis, lembrados no navegador.
+531. Estados vazios que ensinam o que fazer.
+532. Paleta de comandos (`>`): novo horário, nova entrada, tema, sino, visão, sair…
+533. Teclas 1 a 6 abrem os apps.
+534. Teclas `d`, `j`, `k` (visão do dono, descer e subir na lista).
+535. Tarefas com filtros (minhas, todas, vencidas, hoje).
+536. Tarefas: adiar com um toque (+1 dia útil, nunca domingo, sempre 9 h).
+537. Tarefas: editar no lugar.
+538. Tarefas: o gestor passa a tarefa para um colega.
+539. Tarefas em tempo real (toda a equipe).
+540. Situação da tarefa (vencida, hoje, próxima, sem prazo) e texto do prazo.
+541. Contagem de tarefas por situação.
+542. Sino: ícone por tipo de aviso.
+543. Sino: avisos repetidos agrupados ("3 horários atrasados").
+544. Sino: adiar um aviso por 1 hora.
+545. Sino: mostrar os adiados de volta.
+546. 🔗 Dono: desempenho por consultor (RPC `r6_c1b_painel_consultores`, só gestor).
+547. Dono: projeção do mês pelo ritmo (dias úteis).
+548. Dono: meta do mês e progresso.
+549. Dono: "copiar resumo do dia" pronto para o WhatsApp.
+550. RPC do painel só responde ao gestor (conferido com perfil de atendente).
+551. Migração `r6_c1b_painel_consultores` (e correção do enum `origem::text`).
+552. Alvos de toque de 44 px no celular.
+553. Service worker da Casa v4 (agora v5).
+554. 17 testes puros da Casa (`tests/casa-c1b.test.mjs`).
+555. Roteiro de navegador da Casa: 52 conferências em 1440 e 375 px.
+556. Roteiro das RPCs: 4 conferências.
+
+### Lote 2 — Agenda: lembretes ligados ao Comunicar, espera e Quadro
+557. 🔗 Situação real do lembrete de cada horário, lida da fila do Comunicar (na fila, enviado, respondeu, falhou…).
+558. 🔗 "Mandar lembrete agora" entra na MESMA fila e com a MESMA chave do gerador do Comunicar (nunca duplica).
+559. 🔗 O texto usa o modelo `msg_lembrete` do Comunicar.
+560. 🔗 Reenvio só com confirmação; chave com sufixo por hora (clique duplo não duplica).
+561. 🔗 Respeita sem telefone, cliente que pediu para parar, pausa geral e horário já encerrado.
+562. 🔗 Quem respondeu "vou" não é cutucado de novo.
+563. 🔗 Lembrete que falhou ou foi pulado renasce na mesma linha, com o texto de agora.
+564. 🔗 Aviso claro de que o lembrete automático está DESLIGADO no Comunicar hoje, com envio manual.
+565. 🔗 Bloco "Lembrete" na ficha do horário (mandar agora, mandar de novo, abrir o Comunicar).
+566. 🔗 Resposta do cliente aparece na ficha.
+567. 🔗 Faixa no Início: "Lembretes de <dia>" com contagens.
+568. 🔗 "Lembrar os que faltam" em lote (até 60, com confirmação).
+569. Auditoria: `pediu_lembrete`, `reenviou_lembrete`, `lembrou_o_dia`.
+570. Freios: 40 lembretes/min e 6 lotes/min por pessoa.
+571. Rotas novas: sem login 401, recepção 403.
+572. 🔗 Espera: horários livres de verdade para cada pessoa (`GET /api/espera/:id/horarios`).
+573. Espera respeita a preferência (manhã, tarde, começo, fim do dia, sábado).
+574. Espera respeita a janela de datas; no máximo 3 por dia e 6 no total.
+575. Chip do horário abre o Novo agendamento com dia, hora e consultor; ao salvar, sai da espera.
+576. Quadro por consultor: linhas de 30 min, uma coluna por consultor ativo e "Sem consultor".
+577. Quadro: arrastar o cartão para remarcar.
+578. Quadro: botão "⇄ Mover" (toque e teclado).
+579. Quadro: células verdes só onde cabe (vagas reais do servidor); ocupadas não aceitam.
+580. Quadro: "Desfazer" no recado.
+581. 🔗 Quadro: "Avisar o cliente" da remarcação pela fila do Comunicar.
+582. Quadro: trocar de consultor no mesmo horário.
+583. 🔗 Quadro: "Chegou" abre a OS no Pátio; o recado mostra o nº e abre o Pátio.
+584. Quadro: "Faltou" pede confirmação antes de avisar o cliente.
+585. 🔗 Quadro: botão de lembrete no cartão.
+586. 🔗 Selo do orçamento ligado no cartão.
+587. 🔗 Etapa do Pátio ao vivo no cartão de quem chegou.
+588. Selos de orçamento/pátio entram sem redesenhar a grade (não perde o clique).
+589. Linha do "agora" (hoje).
+590. Atualiza sozinho a cada 30 s (sem pisar em quem está arrastando).
+591. Teclas ← → mudam o dia, T volta para hoje.
+592. "+" em célula livre abre o novo horário já preenchido.
+593. Resumo do dia no topo (horários, esperando, chegaram, sem lembrete, vagas).
+594. Celular: um consultor por vez, com botões para trocar; sem rolagem lateral.
+595. Alternar cancelados.
+596. Botões do cartão com 36 px (44 px no celular).
+597. Menu QUADRO e tecla Q.
+598. Recepção (papel `agenda`) não entra no Quadro: vai para a Recepção.
+599. 🔗 Selo "Pré-agendamento" (observações do Orçador) no cartão e no Quadro.
+600. 🔗 "Confirmar horário" do pré-agendamento (Quadro e cartões).
+601. 🔗 Casa: ícones e rótulos para `orcamento_aprovado` e `orcamento_recusado`.
+602. 🔗 Link do aviso do Orçador abre na aba `indycar-orcador`.
+
+### Lote 3 — velocidade e segurança do Quadro
+603. `GET /api/quadro`: lista, vagas e lembretes numa ida só (3 chamadas viram 1).
+604. `POST /api/agendamentos/:id/mover` confere a vaga de novo no servidor (409 `horario_ocupado`): duas pessoas arrastando não geram dois carros no mesmo horário.
+605. Auditoria `moveu_no_quadro` (de, para, quem).
+606. Cabeçalho da coluna mostra o próximo horário livre do consultor.
+607. Selo "atrasado N min" no cartão de quem não chegou.
+608. Selo "confirmou pelo link" também no Quadro.
+609. Botão "N na espera" no Quadro.
+610. Ajuda: duas entradas novas (Quadro e lembrete).
+611. Service worker da Agenda v20 guarda `rodada6b.js/css`.
+612. Servidor de mentira com as rotas novas (lembretes, espera, quadro, mover).
+613. 27 testes novos do servidor e das regras (`tests/c1b-agenda.test.mjs`).
+614. Roteiro de navegador da Agenda: 47 conferências (desktop, Início, espera, 375 px, recepção).
+615. Testes antigos de service worker passam a aceitar qualquer versão.
+616. 🔗 Casa: "Meu dia" mostra pré-agendamentos do Orçador esperando confirmação (leva à Agenda).
+617. Service worker da Casa v5.
+
+## Como verifiquei (C1b)
+`npm test` (244 passando), `npm run check`; Casa: `node scripts/qa-r6b-casa.mjs` (52) e `qa-r6b-rpc.mjs` (4) contra o servidor local (porta 3066, automações desligadas), usuário de teste criado e apagado; Agenda: `node scripts/qa-r6b-agenda.mjs` (47) contra `scripts/mock-server.mjs` em porta própria (nada toca o banco real). Banco real só leitura; a migração `r6_c1b_painel_consultores` passou por `get_advisors` sem aviso novo.
+
+## Pendências (C1b)
+- Total honesto: 97 itens (521–617), 27 com 🔗 — abaixo da meta de 150/30. Faltou: duração do serviço no tamanho do cartão do Quadro, tour do Quadro, auditoria de 375 px por mais telas da Casa e uma 3ª passada de caça a bugs.
+- O lembrete automático (`ativo_lembrete`) está DESLIGADO no banco real: só liga o gestor no Comunicar; até lá a recepção usa o botão "Mandar lembrete agora".
+- Nada foi publicado nem enviado (push): os commits estão só locais; o coordenador faz o `pull --rebase`, o push e a publicação da Central.
+- Pedido a P1/O2: `Cross-Origin-Opener-Policy: same-origin-allow-popups` nos dois apps para a aba nomeada ser reaproveitada.

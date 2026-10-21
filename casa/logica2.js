@@ -103,6 +103,9 @@
     return { hojeIso, itens, total: itens.reduce((s, i) => s + i.n, 0), proximo, vencidas: vencidas.length };
   }
 
+  /** 🔗 Pré-agendamentos criados pelo Orçador (observações começam com PRÉ-AGENDAMENTO) que ainda esperam o horário ser confirmado. */
+  const itemPreAgendamento = (n) => (Number(n) > 0 ? { k: 'pre', n: Number(n), texto: `${n} ${Number(n) === 1 ? 'pré-agendamento do Orçador esperando' : 'pré-agendamentos do Orçador esperando'} confirmação`, extra: 'o cliente já aprovou o orçamento', app: 'agenda' } : null);
+
   /* ---------------- tarefas ---------------- */
   /** Prazos prontos. Depois das 17h30 "hoje" vira amanhã cedo (não nasce vencida). */
   function prazoDaTarefa(codigo, agora = new Date()) {
@@ -267,7 +270,7 @@
   root.CasaLogica2 = Object.freeze({
     avisosDeApps, voltaramAoAr, rotuloMotivo, PLANO_B, horaDe,
     comandos, filtrarComandos, ordemDosCartoes, ORDEM_CARTOES,
-    meuDia, prazoDaTarefa, adiarTarefa, situacaoDaTarefa, filtrarTarefas, contagemDeTarefas, textoDoPrazo,
+    meuDia, itemPreAgendamento, prazoDaTarefa, adiarTarefa, situacaoDaTarefa, filtrarTarefas, contagemDeTarefas, textoDoPrazo,
     iconeDoAviso, agruparAvisos, aindaAdiados, rotuloTipo,
     projecaoDoMes, progressoDaMeta, rankingConsultores, resumoDoDia,
     ATALHOS_NUMERO, VAZIOS, climaDaOficina,

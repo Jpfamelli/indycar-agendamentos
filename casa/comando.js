@@ -98,12 +98,26 @@
       consultorId = data && data[0] ? data[0].id : null;
     } catch { consultorId = null; }
   }
+  /* 🔗 pré-agendamentos do Orçador esperando confirmação (uma contagem leve, guardada 60 s) */
+  let preN = 0, preEm = 0;
+  async function contarPre() {
+    if (Date.now() - preEm < 60000) return;
+    preEm = Date.now();
+    try {
+      const { count } = await C.sb.from('agendamentos').select('id', { count: 'exact', head: true }).eq('status', 'aguardando').ilike('observacoes', 'PRÉ-AGENDAMENTO%').gte('data', L.hojeSP());
+      const novo = Number(count) || 0;
+      if (novo !== preN) { preN = novo; if (C.painel && C.painel.redesenhar) C.painel.redesenhar(); }
+    } catch { /* sem a contagem, o resto do "Meu dia" continua igual */ }
+  }
   function pintarMeuDia(dados) {
     const el = $('#cMeuDia'); if (!el) return;
     const V = C.visao();
     if (V.soMeusCarros || V.recepcao || !dados) { el.hidden = true; return; }
     const r = M.meuDia({ perfil: C.perfil, dados, tarefas: (C.tarefas && C.tarefas.lista && C.tarefas.lista()) || [], consultorId });
     if (!r) { el.hidden = true; return; }
+    contarPre();
+    const pre = M.itemPreAgendamento(preN);
+    if (pre && C.podeUsar('agenda')) { r.itens.push(pre); r.total += pre.n; }
     el.hidden = false;
     el.querySelector('[data-num]').textContent = String(r.total);
     el.querySelector('[data-det]').textContent = r.itens.length ? 'o que é seu agora' : 'tudo em dia com você. Bom trabalho! 🏁';
