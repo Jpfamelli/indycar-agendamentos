@@ -145,6 +145,17 @@ test('linkNovoOrcamento: leva serviço, OS e agendamento quando existem e descar
   assert.ok(!ruim.includes('os=') && !ruim.includes('agendamento='));
 });
 
+test('orcamentoQueImporta: recusado recente passa na frente do aprovado antigo; recusado de mais de 14 dias fica por último', () => {
+  const aprovado = { id: ORC2, numero: 70, status: 'aprovado', agendamento_id: AG, created_at: iso(90000) };
+  const recente = { id: ORC1, numero: 87, status: 'recusado', decidido_em: iso(60), created_at: iso(5000) };
+  const velho = { id: 'v', numero: 60, status: 'recusado', decidido_em: iso(60 * 24 * 30), created_at: iso(60 * 24 * 40) };
+  assert.strictEqual(R.orcamentoQueImporta([aprovado, recente], AGORA).numero, 87);
+  assert.strictEqual(R.orcamentoQueImporta([velho, aprovado], AGORA).numero, 70);
+  assert.strictEqual(R.orcamentoQueImporta([velho], AGORA).numero, 60, 'sozinho ele ainda é o que existe');
+  const enviado = { id: 'e', numero: 88, status: 'enviado', enviado_em: iso(30), created_at: iso(30) };
+  assert.strictEqual(R.orcamentoQueImporta([recente, enviado], AGORA).numero, 88, 'em andamento ganha do recusado');
+});
+
 /* ---------------- servidor: Orçador como o usuário ---------------- */
 function fetchFalso(respostas = {}) {
   const chamadas = [];

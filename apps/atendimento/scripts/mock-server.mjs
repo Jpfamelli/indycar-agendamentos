@@ -665,6 +665,12 @@ http.createServer(async (req, res) => {
   if (p === '/api/_mock') return json(res, 200, consultar(body, quemDoToken(req)));
   if (p === '/api/_dormir') { DORMINDO_ATE = Date.now() + Number(body.segundos || 0) * 1000; return json(res, 200, { ok: true }); }
   if (p === '/api/_envios') return json(res, 200, { envios: ENVIOS_FEITOS });
+  if (p === '/api/_c5') {
+    const C5 = (globalThis.__c5 ||= { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, token: null, vistoNovo: false, semPreco: false, xss: false, tokens: [] });
+    if (body.reset) Object.assign(C5, { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, vistoNovo: false, semPreco: false, xss: false, tokens: [] });
+    for (const k of ['orc', 'negado', 'caiu', 'pre', 'parar', 'carros', 'vistoNovo', 'semPreco', 'xss']) if (k in body) C5[k] = body[k];
+    return json(res, 200, { ok: true, ...C5 });
+  }
   if (p === '/api/_r6_etapa') { const E = (globalThis.__r6 ||= { etapa: 'em_execucao', passadas: new Set(), resolvidas: new Set() }); E.etapa = body.etapa || 'pronto'; if (body.reset) { E.passadas.clear(); E.resolvidas.clear(); DB.r6_c3_marcas.length = 0; } return json(res, 200, { ok: true }); }
   if (p === '/api/_ia_reset') { for (const k of [...ACOES.keys()]) if (!IA_HOJE.some(a => a.id === k)) ACOES.delete(k); for (const a of IA_HOJE) if (ACOES.has(a.id)) ACOES.get(a.id).status = a.status; ACOES.get('ia-h7').status = 'proposta'; IA_FILA.forEach(f => { f.status = 'processando'; }); return json(res, 200, { ok: true }); }
   if (dormindo()) {
@@ -961,6 +967,53 @@ http.createServer(async (req, res) => {
     return json(res, 200, { ok: true, mascara: '••••••••' + k.slice(-4), salvoEm: ['codewords_config', 'agenda_ia_config'], teste: { resultado: 'ok', mensagem: 'Chave aceita pelo CodeWords — 1 conexão de WhatsApp.' }, avisos: [] });
   }
   /* ---------- Rodada 6 (C3): fila priorizada, painel conectado, WhatsApp parado ---------- */
+  /* ---------- Rodada 6, segunda leva (C5): Orçador ao vivo, pré-agendamento, carros sem conversa ---------- */
+  const C5 = (globalThis.__c5 ||= { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, token: null, vistoNovo: false, semPreco: false, xss: false, tokens: [] });
+  if (p.startsWith('/api/r6/c5/')) {
+    const iso5 = (min) => new Date(Date.now() - min * 60000).toISOString();
+    let m5 = /^\/api\/r6\/c5\/conversa\/([^/]+)$/.exec(p);
+    if (m5) {
+      C5.chamadas++;
+      C5.tokens.push(String(req.headers.authorization || '').slice(0, 12));
+      const cv = DB.conversas.find(x => x.id === m5[1]);
+      if (!cv) return json(res, 404, { ok: false, erro: 'Conversa não encontrada.' });
+      if (C5.caiu) return json(res, 503, { ok: false, erro: 'Servidor sem SUPABASE_SERVICE_ROLE_KEY — não enxergo o Pátio nem o Orçador.' });
+      const ehCamila = m5[1] === CONV.camila;
+      const base = { id: 'c5000000-0000-4000-8000-000000000087', numero: 87, enviado_em: iso5(3000), criado_em: iso5(3100), total: C5.semPreco ? null : 1180, link_cliente: 'https://indycar-orcador.netlify.app/#/o/tok12345678' };
+      let linhas = [];
+      if (ehCamila && !C5.negado) {
+        if (C5.orc === 'visto') linhas = [{ ...base, status: 'enviado', visualizado_em: iso5(C5.vistoNovo ? 1 : 200) }];
+        else if (C5.orc === 'recusado') linhas = [{ ...base, status: 'recusado', visualizado_em: iso5(300), decidido_em: iso5(30), motivo_recusa: C5.xss ? '<img src=x onerror="window.__xss=1">achei caro' : 'achei caro, vou pesquisar' }];
+        else if (C5.orc === 'enviado') linhas = [{ ...base, status: 'enviado', enviado_em: iso5(60) }];
+        else if (C5.orc === 'aprovado') linhas = [{ ...base, status: 'aprovado', aprovado_parcial: true, total_aprovado: 400, decidido_em: iso5(20) }];
+        if (C5.orc !== 'sem') linhas.push({ id: 'c5000000-0000-4000-8000-000000000070', numero: 70, status: 'aprovado', total: C5.semPreco ? null : 300, enviado_em: iso5(90000), criado_em: iso5(91000), agendamento_id: 'a-velho' });
+      }
+      const live = linhas.map(l => { const c = R6.classificarLive(l, new Date()); if (l.motivo_recusa) { c.motivo_recusa = l.motivo_recusa; c.acao = 'Recusou: ' + l.motivo_recusa; } return c; });
+      const orcamentos = R6.mesclarOrcamentos([], live);
+      const pr = R6.orcamentoQueImporta(orcamentos, new Date());
+      const dia = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      return json(res, 200, { ok: true, gerado_em: new Date().toISOString(), ao_vivo: !C5.negado, aviso: C5.negado ? 'Seu acesso não enxerga o Orçador agora. Peça ao administrador para conferir seu perfil.' : null,
+        orcamentos, orcamento_principal: pr ? pr.id : null,
+        pre_agendamentos: ehCamila && C5.pre ? [{ id: 'a-pre-1', data: dia, hora: '09:00', servico: 'Revisão', numero_orcamento: 87, abrir: '/?agendamento=a-pre-1' }] : [],
+        acoes: ehCamila ? [
+          { codigo: 'cobrar_orcamento', app: 'orcador', titulo: 'Dar um retorno sobre o orçamento', motivo: 'Aberto há 3 h e sem resposta', link: 'https://indycar-orcador.netlify.app/#/historico/c5000000-0000-4000-8000-000000000087', texto: 'Camila, conseguiu ver o orçamento? Se ficou alguma dúvida, eu te explico.' },
+          { codigo: 'enviar_link_acompanhar', app: 'patio', titulo: 'Mandar o link para acompanhar o carro', motivo: 'O cliente ainda não abriu', link: null, texto: null },
+          ...(C5.parar ? [{ codigo: 'nao_mandar_mensagens', app: 'comunicar', titulo: 'Pediu para não receber mensagens automáticas', motivo: 'respondeu PARAR em 12/10', link: null, texto: null }] : []),
+        ] : [],
+        cliente: { nome: ehCamila ? 'Camila Rodrigues' : cv.nome, carro: ehCamila ? 'Corolla 2018' : null, placa: ehCamila ? 'ABC1D23' : null },
+        link_novo_orcamento: 'https://indycar-orcador.netlify.app/#/cotacao?origem=atendimento&conversa=' + m5[1] + '&tel=55' + String(cv.telefone_e164 || '').replace(/\D/g, '') });
+    }
+    if (p === '/api/r6/c5/carros') {
+      if (C5.carros === 'erro') return json(res, 503, { ok: false, erro: 'Não consegui ler os carros do pátio agora.', carros: [] });
+      const todos = [
+        { os_id: 'd0000000-0000-4000-8000-000000000001', numero: 413, etapa: 'pronto', etapa_rotulo: 'Pronto para retirar', min_na_etapa: 20, placa: 'XYZ9K88', cliente_id: null, nome: 'José Lima', carro: 'Gol 2015', telefone: '5512991234567', previsao_entrega: null, abrir: '/?os=d0000000-0000-4000-8000-000000000001' },
+        { os_id: 'd0000000-0000-4000-8000-000000000002', numero: 414, etapa: 'em_execucao', etapa_rotulo: 'Em execução', min_na_etapa: 300, placa: 'QWE1R23', cliente_id: null, nome: null, carro: null, telefone: null, previsao_entrega: null, abrir: '/?os=d0000000-0000-4000-8000-000000000002' },
+      ];
+      const carros = C5.carros === 'nenhum' ? [] : C5.carros === 'um' ? todos.slice(0, 1) : todos;
+      return json(res, 200, { ok: true, total_no_patio: carros.length + 1, carros });
+    }
+    return erro(res, 404, undefined, 'rota não encontrada');
+  }
   if (p.startsWith('/api/r6/')) {
     const ESTADO_R6 = (globalThis.__r6 ||= { etapa: 'em_execucao', passadas: new Set(), resolvidas: new Set() });
     const iso = (min) => new Date(Date.now() - min * 60000).toISOString();
@@ -972,11 +1025,12 @@ http.createServer(async (req, res) => {
       texto_link: 'Camila, acompanhe o seu Corolla por aqui: https://indycar-patio.netlify.app/c/abc123' });
     if (p === '/api/r6/fila') {
       const pc = patioCamila();
-      return json(res, 200, { ok: true, gerado_em: new Date().toISOString(), conversas: {
+      const filaC5 = (r) => { const cam = r.conversas[CONV.camila]; if (C5.pre) cam.pre = { id: 'a-pre-1', data: '2026-10-22', hora: '09:00' }; if (C5.orc === 'recusado') cam.orc = { ...cam.orc, status: 'recusado', cod: 'recusado', rotulo: 'Recusado' }; return r; };
+      return json(res, 200, filaC5( { ok: true, gerado_em: new Date().toISOString(), conversas: {
         [CONV.camila]: { sem_resposta: true, pedidos: ['estado_carro'], patio: { id: pc.id, numero: pc.numero, etapa: pc.etapa, etapa_rotulo: pc.etapa_rotulo, tom: pc.tom, extras_pendentes: 0 },
           orc: { id: 'orc-1', numero: 87, status: 'enviado', cod: 'visualizado', rotulo: 'Visualizado, sem resposta', enviado_em: iso(3000), visualizado_em: iso(2000) }, falhas: { nao_saiu: 0, sem_confirmacao: ESTADO_R6.resolvidas.has('m9') ? 0 : 1 } },
         [CONV.jose]: { sem_resposta: true, pedidos: ['preco'], patio: null, orc: null, falhas: null },
-        [CONV.semcad]: { sem_resposta: true, pedidos: ['preco'], patio: null, orc: null, falhas: null } }, resumo: {} });
+        [CONV.semcad]: { sem_resposta: true, pedidos: ['preco'], patio: null, orc: null, falhas: null } }, resumo: {} }));
     }
     let m = /^\/api\/r6\/cliente\/([^/]+)$/.exec(p);
     if (m) {

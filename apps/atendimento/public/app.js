@@ -676,6 +676,12 @@ const TEXTO_VAZIO_FILTRO = {
   amanha: 'Ninguém com horário marcado para amanhã. 📅',
   revisao: 'Nenhum cliente com revisão vencida e sem horário. 🔧',
   aniversario: 'Nenhum aniversário nos próximos 7 dias. 🎂',
+  r6_urgentes: 'Nada urgente agora: ninguém precisa de você com pressa. 👏',
+  r6_patio: 'Nenhum cliente com conversa aberta tem o carro dentro da oficina agora. 🚗',
+  r6_orcamento: 'Nenhum orçamento esperando resposta, parado ou aprovado sem horário. 🧾',
+  r6_falhas: 'Nenhuma mensagem deixou de sair no WhatsApp. ✅',
+  r6_recusou: 'Ninguém recusou orçamento nos últimos 14 dias. 🙌',
+  r6_pre: 'Nenhum cliente esperando confirmação de horário pedido pela página do orçamento. 📅',
 };
 
 let ultimoHtmlLista = '';
@@ -5286,7 +5292,7 @@ let filtroDono = (() => {
 })();
 let ordemLista = (() => { try { return localStorage.getItem('indycar_ordem') || 'recentes'; } catch { return 'recentes'; } })();
 const FILTROS_URL = ['', 'nao_lidas', 'hoje', 'aguardando', 'agendada', 'fechou', 'nao_fechou', 'disparo',
-  'quentes', 'amanha', 'revisao', 'aniversario', 'r6_urgentes', 'r6_patio', 'r6_orcamento', 'r6_falhas'];
+  'quentes', 'amanha', 'revisao', 'aniversario', 'r6_urgentes', 'r6_patio', 'r6_orcamento', 'r6_falhas', 'r6_recusou', 'r6_pre'];
 
 function restaurarPreferenciasDaLista() {
   // ?filtro=nao_lidas (atalho do app instalado, links de outros sistemas)
@@ -6436,6 +6442,10 @@ const TECLAS = [
   ['Alt + Z', 'Modo foco (só chat e ficha)'],
   ['Alt + N', 'Nova conversa'],
   ['Alt + P', 'Próxima da fila: abre quem precisa de você primeiro'],
+  ['Alt + O', 'Abrir o orçamento deste cliente no Orçador (sem orçamento, abre um novo)'],
+  ['Alt + L', 'Colar no campo o link para o cliente acompanhar o carro'],
+  ['Alt + R', 'Atualizar a ficha do cliente agora'],
+  ['Alt + G', 'Ver os carros da oficina que ainda não têm conversa'],
   ['Alt + Shift + 1 … 4', 'Usar a resposta rápida “Para agora” (1 a 4)'],
   ['Esc', 'Fechar menu, busca, gaveta ou modal'],
   ['?', 'Ajuda: como faço… e esta lista'],

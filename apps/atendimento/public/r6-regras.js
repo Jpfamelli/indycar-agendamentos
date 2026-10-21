@@ -305,8 +305,14 @@
 
   /** Dos orçamentos do cliente, o que mais importa agora (aprovado sem horário > visualizado > parado > enviado > o mais novo). */
   function orcamentoQueImporta(lista = [], agora = new Date()) {
-    const ordem = ['aprovado_sem_horario', 'visualizado', 'parado', 'enviado', 'recente', 'aprovado', 'aberto'];
-    const comSit = (lista || []).filter(Boolean).map((o) => ({ o, s: situacaoOrcamento(o, agora) }));
+    const ordem = ['aprovado_sem_horario', 'visualizado', 'parado', 'enviado', 'recente', 'recusado', 'aprovado', 'aberto'];
+    const agoraMs = agora instanceof Date ? agora.getTime() : Number(agora);
+    // recusado só importa por 14 dias; depois disso o cliente já seguiu em frente
+    const comSit = (lista || []).filter(Boolean).map((o) => {
+      const sit = situacaoOrcamento(o, agora);
+      const quando = Date.parse(o.decidido_em || o.created_at || '');
+      return { o, s: sit.cod === 'recusado' && Number.isFinite(quando) && agoraMs - quando > 14 * 86400000 ? { ...sit, cod: 'recusado_antigo' } : sit };
+    });
     comSit.sort((a, b) => {
       const ia = ordem.indexOf(a.s.cod), ib = ordem.indexOf(b.s.cod);
       return ((ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)) || String(b.o.created_at || '').localeCompare(String(a.o.created_at || ''));

@@ -32,6 +32,17 @@
     const w = window.IndyCarApps ? window.IndyCarApps.abrir(app, url) : null;
     if (!w && !(window.IndyCarApps && window.IndyCarApps.enderecoSeguro(url))) toast('⚠️ Esse endereço não é de um sistema da casa — não abri.');
   };
+  /** Põe o texto no campo SEM apagar o que o atendente já estava escrevendo: com rascunho, entra embaixo, separado por linha em branco. */
+  function inserirTexto(texto) {
+    const campoMsg = document.getElementById('campoMensagem') || document.querySelector('#chatForm textarea');
+    const t = String(texto ?? '');
+    if (!campoMsg || !String(campoMsg.value || '').trim()) return inserirNoCampo(t);
+    campoMsg.value = campoMsg.value.replace(/\s+$/, '') + '\n\n' + t;
+    campoMsg.dispatchEvent(new Event('input'));
+    campoMsg.focus(); campoMsg.selectionStart = campoMsg.selectionEnd = campoMsg.value.length;
+    toast('Adicionei embaixo do que você já escrevia');
+    return true;
+  }
   const appUrl = (app, rel) => (window.IndyCarApps ? window.IndyCarApps.link(app, rel) : null);
 
   /* ======================= FILA PRIORIZADA ======================= */
@@ -41,7 +52,7 @@
     aprovou: 'Aprovou?', carro_pronto: 'Carro pronto', extra_pendente: 'Extra esperando', extra_pendente_antigo: 'Extra esperando',
     orc_aprovado_sem_horario: 'Aprovado sem horário', orc_visualizado: 'Viu o orçamento', orc_parado: 'Orçamento parado',
     aguardando_consultor: 'Esperando consultor', remarcar: 'Quer remarcar', nota_fiscal: 'Nota fiscal', espera: 'Esperando',
-    agradecimento: 'Só agradeceu', fixada: 'Fixada',
+    agradecimento: 'Só agradeceu', fixada: 'Fixada', orc_recusado: 'Recusou o orçamento', pre_agendamento: 'Pediu horário',
   };
 
   function opcoes() {
@@ -82,9 +93,11 @@
     const x = S.ctx[c.id] || {};
     const p = pontosDe(c);
     const partes = [];
+    let topoCod = null;
     const modoPrioridade = typeof ordemLista !== 'undefined' && ordemLista === 'prioridade';
     if (!p.fora && p.motivos.length && (p.nivel === 'agora' || p.nivel === 'logo' || (modoPrioridade && p.nivel === 'hoje'))) {
       const topo = p.motivos.find(m => CURTO[m.cod]) || p.motivos[0];
+      topoCod = topo.cod;
       const todos = p.motivos.map(m => `${m.icone} ${m.texto}`).join(' · ');
       partes.push(`<span class="r6-nivel r6-n-${p.nivel}" title="${esc(R.NIVEIS[p.nivel].rotulo + ': ' + todos)}">${R.NIVEIS[p.nivel].icone} ${esc(CURTO[topo.cod] || topo.texto)}</span>`);
     }
@@ -94,6 +107,7 @@
       const alerta = x.patio.extras_pendentes > 0;
       partes.push(`<span class="r6-chip r6-patio r6-tom-${esc(x.patio.tom)}" title="Carro no pátio: ${esc(x.patio.etapa_rotulo)}${alerta ? ' — extra esperando o cliente' : ''}">🚗 ${esc(x.patio.etapa_rotulo.replace(/ do cliente$/, ''))}${alerta ? ' ⚠️' : ''}</span>`);
     }
+    if (x.pre && topoCod !== 'pre_agendamento') partes.push(`<span class="r6-chip r6-pre" title="O cliente pediu um horário pela página do orçamento — falta confirmar${x.pre.hora ? ' (' + esc(x.pre.hora) + ')' : ''}">📅 pediu horário</span>`);
     if (x.orc) partes.push(`<span class="r6-chip r6-orc r6-orc-${esc(x.orc.cod || x.orc.status)}" title="Orçamento nº ${esc(x.orc.numero ?? '—')}: ${esc(x.orc.rotulo)}">📄 ${esc(x.orc.rotulo)}</span>`);
     if (x.falhas && (x.falhas.nao_saiu + x.falhas.sem_confirmacao) > 0) {
       const n = x.falhas.nao_saiu + x.falhas.sem_confirmacao;
@@ -107,6 +121,8 @@
     r6_patio: (c) => !!S.ctx[c.id]?.patio,
     r6_orcamento: (c) => { const o = S.ctx[c.id]?.orc; return !!o && ['enviado', 'parado', 'visualizado', 'recente', 'aprovado_sem_horario'].includes(o.cod); },
     r6_falhas: (c) => !!S.ctx[c.id]?.falhas,
+    r6_recusou: (c) => S.ctx[c.id]?.orc?.cod === 'recusado',
+    r6_pre: (c) => !!S.ctx[c.id]?.pre,
   };
   function filtrar(codigo, base) { const f = FILTROS[codigo]; return f ? base.filter(f) : base; }
 
@@ -338,7 +354,10 @@
     el.innerHTML = '<div class="r6-esqueleto" aria-hidden="true"><i></i><i></i><i></i></div>';
     const r = await api(`/api/r6/cliente/${encodeURIComponent(conv.cliente_id)}`);
     if (S.painelConv !== conv.id) return;                         // já abriu outra conversa
-    if (!r.ok) { el.innerHTML = `<p class="r6-aviso">⚠️ ${esc(r.erro || 'Não consegui carregar o painel conectado.')} <button type="button" class="r6-link" data-r6="recarregar">Tentar de novo</button></p>`; return; }
+    if (!r.ok) {
+      const msg = !navigator.onLine ? 'Sem internet agora. A ficha volta quando a conexão voltar.' : r.status === 401 ? 'Sua sessão expirou: entre de novo para ver a ficha conectada.' : r.status === 429 ? 'Muitos pedidos seguidos. Espere um minuto e tente de novo.' : (r.erro || 'Não consegui carregar o painel conectado.');
+      el.innerHTML = `<p class="r6-aviso">⚠️ ${esc(msg)} <button type="button" class="r6-link" data-r6="recarregar">Tentar de novo</button></p>`; return;
+    }
     S.painel = r;
     renderPainel(r);
   }
@@ -411,7 +430,7 @@
   }
   function usarSugestao(i) {
     const s = S.sugestoes[i]; if (!s) return;
-    if (inserirNoCampo(s.texto)) {
+    if (inserirTexto(s.texto)) {
       if (s.acao === 'colar-link-patio' && S.painel?.patio?.link_cliente) toast('Dica: use “🔗 Link do carro” para colar o link depois desta frase.');
       if (s.acao === 'criar-orcamento') toast('Dica: use “🧾 Criar orçamento” no painel.');
     }
@@ -507,16 +526,16 @@
         if (!l) return toast('⚠️ Sem conversa nem telefone válido para abrir o Orçador.');
         return abrirApp('orcador', l);
       }
-      case 'link-patio': if (p?.patio?.texto_link && inserirNoCampo(p.patio.texto_link)) toast('🔗 Link de acompanhamento no campo — revise e envie'); return;
+      case 'link-patio': if (p?.patio?.texto_link && inserirTexto(p.patio.texto_link)) toast('🔗 Link de acompanhamento no campo — revise e envie'); return;
       case 'avisar-pronto': {
         const n = R.primeiroNome(p?.cliente?.nome); const c = p?.cliente?.carro ? `o ${p.cliente.carro}` : 'o carro';
-        if (inserirNoCampo(`${n ? n + ', ' : ''}${c} já está pronto! Pode retirar de segunda a sábado, das 8h às 17h30. Que horário você vem?`)) toast('🏁 Aviso no campo — revise e envie');
+        if (inserirTexto(`${n ? n + ', ' : ''}${c} já está pronto! Pode retirar de segunda a sábado, das 8h às 17h30. Que horário você vem?`)) toast('🏁 Aviso no campo — revise e envie');
         return;
       }
       case 'abrir-os': return abrirApp('patio', p?.patio?.abrir);
       case 'abrir-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); return abrirApp('orcador', o?.abrir); }
-      case 'link-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); if (o?.link_cliente && inserirNoCampo(`${R.primeiroNome(p.cliente.nome) ? R.primeiroNome(p.cliente.nome) + ', ' : ''}aqui está o seu orçamento nº ${o.numero ?? ''} para você ver com calma: ${o.link_cliente}`)) toast('📋 Link do orçamento no campo — revise e envie'); return; }
-      case 'cobrar-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); const n = R.primeiroNome(p?.cliente?.nome); if (o && inserirNoCampo(`${n ? n + ', ' : ''}conseguiu ver o orçamento nº ${o.numero ?? ''}? Se ficou alguma dúvida, eu te explico.`)) toast('💬 Retorno no campo — revise e envie'); return; }
+      case 'link-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); if (o?.link_cliente && inserirTexto(`${R.primeiroNome(p.cliente.nome) ? R.primeiroNome(p.cliente.nome) + ', ' : ''}aqui está o seu orçamento nº ${o.numero ?? ''} para você ver com calma: ${o.link_cliente}`)) toast('📋 Link do orçamento no campo — revise e envie'); return; }
+      case 'cobrar-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); const n = R.primeiroNome(p?.cliente?.nome); if (o && inserirTexto(`${n ? n + ', ' : ''}conseguiu ver o orçamento nº ${o.numero ?? ''}? Se ficou alguma dúvida, eu te explico.`)) toast('💬 Retorno no campo — revise e envie'); return; }
       case 'abrir-ag': { const a = [p?.agendamentos.proximo, ...(p?.agendamentos.futuros || []), ...(p?.agendamentos.recentes || [])].find(x => x && x.id === alvo.dataset.id); return abrirApp('agenda', a?.abrir); }
       case 'abrir-lead': return abrirApp('crm', p?.links?.crm_lead || p?.links?.crm_cliente || appUrl('crm', conv ? `/?tel=${R.soDigitos(conv.telefone_e164 || conv.telefone)}` : ''));
       case 'cadastrar': {
@@ -658,5 +677,5 @@
   window.addEventListener('indycar:pronto', iniciar);
   setTimeout(iniciar, 2500);
 
-  window.R6Tela = { ordenar, chipsDaLinha, filtrar, atualizarFila, irParaProxima, estado: S, carregarPainel, carregarSugestoes, verZap, iniciar, pontosDe };
+  window.R6Tela = { inserir: inserirTexto, adiar, alternarFixar, ordenar, chipsDaLinha, filtrar, atualizarFila, irParaProxima, estado: S, carregarPainel, carregarSugestoes, verZap, iniciar, pontosDe };
 })();

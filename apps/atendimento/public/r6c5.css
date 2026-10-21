@@ -1,0 +1,43 @@
+/* ============================================================
+   Atendimento — Rodada 6, segunda leva (C5): Orçador ao vivo, pré-agendamento,
+   carros sem conversa. Só usa os tokens do styles.css/r6.css (tema claro/escuro).
+   ============================================================ */
+[hidden]{display:none!important}
+
+/* ---------- faixas no topo da ficha ---------- */
+.c5-faixas{display:flex;flex-direction:column;gap:6px;margin:0 0 8px}
+.c5-faixa{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:11px;font-size:.82rem;
+  border:1px solid var(--linha,#26262b);background:var(--superficie,rgba(255,255,255,.04));overflow-wrap:anywhere}
+.c5-faixa>span:first-child{min-width:0;flex:1 1 180px}
+.c5-botoes{display:flex;gap:6px;flex-wrap:wrap}
+.c5-pre{border-color:rgba(37,211,102,.5);background:rgba(37,211,102,.1)}
+.c5-recusou{border-color:rgba(229,9,20,.5);background:rgba(229,9,20,.09)}
+.c5-visto{border-color:rgba(245,158,11,.55);background:rgba(245,158,11,.1)}
+.c5-aviso{border-color:rgba(245,158,11,.55);background:rgba(245,158,11,.08)}
+.c5-faixa .r6-btn{min-height:36px}
+.c5-ao-vivo{display:block;margin:0 0 4px}
+
+/* ---------- sugestões do sistema ---------- */
+.c5-lista{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.c5-acao{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:7px 9px;border:1px solid var(--linha,#26262b);border-radius:10px;font-size:.82rem}
+.c5-acao>div{min-width:0;flex:1 1 150px}
+.c5-acao small{display:block;color:var(--texto-suave,#c9c9d0);overflow-wrap:anywhere}
+
+/* ---------- chips ---------- */
+.r6-pre{border-color:rgba(37,211,102,.5);color:var(--verde-txt,#4ade80)}
+.r6-orc-recusado{border-color:rgba(229,9,20,.55);color:var(--vermelho-txt,#ff8a90)}
+
+/* ---------- barra dos carros sem conversa ---------- */
+.c5-barra{margin:0 0 8px}
+.c5-carros-btn{width:100%;min-height:38px;padding:7px 11px;border-radius:11px;border:1px dashed rgba(37,211,102,.5);background:rgba(37,211,102,.07);color:inherit;
+  cursor:pointer;font:inherit;font-size:.82rem;text-align:left}
+.c5-carros-btn.c5-pronto{border-style:solid;background:rgba(37,211,102,.14);font-weight:600}
+.c5-carros-btn:focus-visible{outline:2px solid var(--vermelho,#e50914);outline-offset:2px}
+.c5-carro.c5-pronto{border-color:rgba(37,211,102,.55)}
+.c5-lidas{flex:0 0 auto;font-size:.78rem}
+
+@media (max-width:480px){
+  .c5-faixa{flex-direction:column;align-items:stretch}
+  .c5-faixa .c5-botoes,.c5-acao .c5-botoes{width:100%}
+  .c5-faixa .r6-btn,.c5-acao .r6-btn{flex:1 1 140px}
+}
