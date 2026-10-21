@@ -30,9 +30,10 @@ document.addEventListener('click', e => {
   if (a.closest('#ecossistema')) return;
   const app = appDoLink6(a.getAttribute('href')); if (!app) return;
   if (A6.CENTRAL && ['agenda', 'atendimento', 'comunicar'].includes(app) && !a.target) return;
-  e.preventDefault(); window.open(a.href, 'indycar-' + app);
+  e.preventDefault(); abrirNomeada6(a.href, app);
 }, true);
-const abrirApp6 = (app, caminho) => { const u = A6.urlApp(app, caminho); if (u) window.open(u, 'indycar-' + app); };
+function abrirNomeada6(u, app) { const w = window.open(u, 'indycar-' + app); if (w) { try { w.opener = null; w.focus(); } catch { /* outra origem */ } } return w; }
+const abrirApp6 = (app, caminho) => { const u = A6.urlApp(app, caminho); if (u) abrirNomeada6(u, app); };
 
 /* ================= sinais ao vivo ================= */
 async function carregarSinais6(forcar) {
@@ -158,6 +159,15 @@ $('#kanban').addEventListener('keydown', e => {
   if (k === 'c') { e.preventDefault(); e.stopPropagation(); registrarContato6(c.dataset.id); }
   if (k === 'a') { e.preventDefault(); e.stopPropagation(); adiar6(c.dataset.id); }
 });
+$('#kanban').addEventListener('keydown', async e => {
+  const c = e.target.closest('.kb-card'); if (!c || e.target !== c || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+  const l = leadPorId6(c.dataset.id); if (!l) return;
+  const k = e.key.toLowerCase(), s = R6.sinais[l.id] || {};
+  if (/^[1-7]$/.test(k)) { e.preventDefault(); e.stopPropagation(); const novo = STATUSES[Number(k) - 1]; if (novo && await moverEtapa(l.id, novo, { anunciar: true })) $('.kb-card[data-id="' + CSS.escape(String(l.id)) + '"]')?.focus(); return; }
+  if (k === 'o') { e.preventDefault(); e.stopPropagation(); abrirFichaCliente(l.cliente_id || { tel: U.telE164(l.telefone) }); }
+  if (k === 'p') { e.preventDefault(); e.stopPropagation(); if (s.patio) abrirApp6('patio', '/?os=' + s.patio.id); else toast('Esse lead não tem carro no Pátio agora.'); }
+  if (k === 'q') { e.preventDefault(); e.stopPropagation(); if (s.orcamento) abrirApp6('orcador', '/#/orcamento/' + s.orcamento.id); else toast('Esse lead não tem orçamento enviado.'); }
+});
 if (U.ATALHOS_ABA) { U.ATALHOS_ABA.h = 'hoje'; U.ATALHOS_ABA.k = 'dono'; }
 
 /* ================= ficha do lead: ecossistema + histórico de contatos ================= */
@@ -189,6 +199,8 @@ function r6Pintar(l) {
   if (s.esperando) linha.push(`<div class="r6-eco alerta"><b>⏳ Cliente esperando</b> há ${s.esperando.horas || 0} h<span class="r6-links"><a class="acao" href="${esc(L.conversa || A6.urlApp('atendimento', `/?tel=${U.telE164(l.telefone) || ''}`))}">Abrir conversa</a></span></div>`);
   if (s.agendamento) linha.push(`<div class="r6-eco"><b>📅 Horário</b> · ${esc(quando6(s.agendamento.quando))} (${esc(s.agendamento.status)})<span class="r6-links"><a class="acao" href="${esc(L.agendamentos?.[s.agendamento.id] || A6.urlApp('agenda', `/?agendamento=${s.agendamento.id}`))}">Abrir na Agenda</a></span></div>`);
   if (f.segmento && f.segmento.codigo !== 'novo') linha.push(`<div class="r6-eco"><b>🪪 ${esc(f.segmento.rotulo)}</b>${f.segmento.ltv ? ' · já gastou ' + brl(f.segmento.ltv) : ''}${f.segmento.revisao_vencida ? ' · <b class="parado-txt">revisão vencida</b>' : ''}${f.nota ? ` · nota média ${f.nota.media} (${f.nota.total})` : ''}</div>`);
+  const pa = eco?.proxima_acao;
+  if (pa) linha.unshift('<div class="r6-eco acao-sug"><b>👉 Próxima ação:</b> ' + esc(pa.texto) + '<details class="r6-script"><summary>Mensagem sugerida</summary><p>' + esc(pa.script) + '</p><span class="r6-links"><button type="button" class="acao" data-r6p="copiar" data-txt="' + esc(pa.script) + '">Copiar texto</button>' + (U.telE164(l.telefone) ? '<a class="acao" href="https://wa.me/55' + esc(U.telE164(l.telefone)) + '?text=' + encodeURIComponent(pa.script) + '" target="_blank" rel="noopener">🟢 Abrir no WhatsApp</a>' : '') + '</span></details></div>');
   const prox = l.proximo_contato_em ? `<span class="r6-prox${Date.parse(l.proximo_contato_em) <= Date.now() ? ' alerta' : ''}">⏰ Falar de novo: ${esc(quando6(l.proximo_contato_em))}</span>` : '<span class="muted">Sem retorno combinado</span>';
   const novoOrc = L.novoOrcamento ? `<a class="acao" href="${esc(L.novoOrcamento)}">🧾 Novo orçamento</a>` : '';
   p.innerHTML = `${linha.join('')}
@@ -249,8 +261,17 @@ const _fecharModalR6 = typeof fecharModal === 'function' ? fecharModal : null;
 /* ================= aba Hoje ================= */
 TITULOS.hoje = ['Hoje', 'Quem contatar agora, e por quê, na ordem de urgência'];
 TITULOS.dono = ['Dono', 'Meta do mês, pátio, orçamentos, anúncios e o que pede atenção'];
-const H6 = { escopo: '', dados: null, entregues: null };
+const H6 = { escopo: '', dados: null, entregues: null, motivo: '' };
+function renderFaixa6() {
+  const alvo = $('#view-dashboard'); if (!alvo) return;
+  let f = $('#r6Faixa');
+  if (!f) { f = document.createElement('div'); f.id = 'r6Faixa'; f.className = 'r6-faixa'; alvo.prepend(f); f.addEventListener('click', e => { const b = e.target.closest('[data-faixa]'); if (!b) return; if (b.dataset.faixa === 'hoje') irPara('hoje'); else { R6.filtro = b.dataset.faixa; irPara('pipeline'); renderFiltroSinal6(); renderKanban(); } }); }
+  const c = R6.contagem, it = [['hoje', '⏳', (c.esperando || 0), 'esperando resposta'], ['followup_vencido', '⏰', (c.followup_vencido || 0), 'retornos vencidos'], ['entregue_fechar', '🏁', (c.entregue_fechar || 0), 'entregues para concluir'], ['orcamento_parado', '🧾', (c.orcamento_parado || 0), 'orçamentos parados'], ['pronto_retirar', '🔧', (c.pronto_retirar || 0), 'carros prontos']].filter(x => x[2]);
+  f.hidden = !it.length;
+  f.innerHTML = it.length ? '<b>Agora:</b> ' + it.map(([k, i, n, t]) => '<button type="button" class="r6-chip-btn" data-faixa="' + (k === 'hoje' ? 'hoje' : k) + '">' + i + ' ' + n + ' ' + t + '</button>').join('') : '';
+}
 function renderSeloHoje6() {
+  renderFaixa6();
   const nav = $('.nav-item[data-view="hoje"]'); if (!nav) return;
   const c = R6.contagem; const n = (c.esperando || 0) + (c.followup_vencido || 0) + (c.primeiro_contato || 0) + (c.entregue_fechar || 0);
   nav.dataset.badge = n || '';
@@ -266,21 +287,43 @@ async function carregarHoje6() {
 }
 function renderHoje6() {
   const d = H6.dados, e = H6.entregues; if (!d) return;
-  $('#hojeResumo').innerHTML = `<b>${d.total}</b> para contatar · <b>${d.feitos_hoje}</b> contato${d.feitos_hoje === 1 ? '' : 's'} registrado${d.feitos_hoje === 1 ? '' : 's'} hoje` + Object.entries(d.por_motivo).map(([k, n]) => ` <span class="r6-chip">${esc(textoMotivo6[k] || k)} ${n}</span>`).join('');
+  $('#hojeResumo').innerHTML = `<b>${d.total}</b> para contatar · <b>${d.feitos_hoje}</b> contato${d.feitos_hoje === 1 ? '' : 's'} registrado${d.feitos_hoje === 1 ? '' : 's'} hoje` + (H6.motivo ? ` <button type="button" class="r6-chip-btn" data-h6="motivo" data-k="">limpar filtro</button>` : '') + Object.entries(d.por_motivo).map(([k, n]) => ` <button type="button" class="r6-chip-btn${H6.motivo === k ? ' on' : ''}" data-h6="motivo" data-k="${esc(k)}" aria-pressed="${H6.motivo === k}">${esc(textoMotivo6[k] || k)} ${n}</button>`).join('');
   const sel = $('#hojeEscopo'); if (sel && !sel.dataset.pronto) { sel.dataset.pronto = '1'; sel.innerHTML = (SOU_GESTOR ? '<option value="todos">Todos</option>' : '') + '<option value="meus">Meus leads</option><option value="sem">Sem responsável</option>'; sel.value = d.escopo; sel.onchange = () => { H6.escopo = sel.value; carregarHoje6(); }; }
   const ent = (e?.itens || []).filter(x => x.pode_editar);
   $('#hojeEntregues').innerHTML = ent.length ? `<h4>🏁 Carros entregues: falta concluir o lead (${ent.length})</h4>` + ent.map(x => `<div class="r6-linha" data-lead="${esc(x.lead.id)}"><div><strong>${esc(x.lead.nome)}</strong> <span class="muted">${esc(x.lead.carro_modelo || '')}</span><div class="cell-sub">Ordem nº ${esc(x.os.numero ?? '')} entregue há ${x.os.dias} d${x.orcamento ? ' · orçamento ' + brl(x.orcamento.total) : ''}${x.extras_aprovados ? ' + extras ' + brl(x.extras_aprovados) : ''}</div></div>
       <div class="r6-acoes">${x.sugestoes[0] ? `<span class="tag">sugerido ${brl(x.sugestoes[0].valor)}</span>` : ''}<button type="button" class="btn btn-primary sm" data-h6="concluir" data-id="${esc(x.lead.id)}">Concluir</button></div></div>`).join('') : '';
-  $('#hojeLista').innerHTML = d.itens.length ? d.itens.map(it => {
+  const itensH = d.itens.filter(i => !H6.motivo || i.principal === H6.motivo);
+  $('#hojeLista').innerHTML = itensH.length ? itensH.map(it => {
     const l = it.lead, tel = U.telE164(l.telefone);
     return `<article class="r6-linha" data-lead="${esc(l.id)}"><div class="r6-corpo"><div class="r6-topo"><strong>${esc(l.nome)}</strong> <span class="badge b-${esc(l.status)}">${esc(LABEL_STATUS[l.status] ?? l.status)}</span> ${l.responsavel_id ? chipResponsavel(l.responsavel_id, true) : '<span class="tag">sem dono</span>'}</div>
       <div class="cell-sub">${esc(it.texto)}${it.motivos.length > 1 ? ' · ' + esc(it.motivos.slice(1).map(m => m.texto).join(' · ')) : ''}</div>
       <details class="r6-script"><summary>Mensagem sugerida</summary><p>${esc(it.script)}</p><button type="button" class="link-btn" data-h6="copiar" data-txt="${esc(it.script)}">Copiar texto</button></details></div>
-      <div class="r6-acoes">${tel ? `<a class="acao" href="https://wa.me/55${esc(tel)}?text=${encodeURIComponent(it.script)}" target="_blank" rel="noopener">🟢 WhatsApp</a>` : ''}<button type="button" class="acao" data-h6="contato" data-id="${esc(l.id)}">📞 Registrar</button><button type="button" class="acao" data-h6="adiar" data-id="${esc(l.id)}">⏰ Adiar</button><button type="button" class="acao" data-h6="abrir" data-id="${esc(l.id)}">Abrir</button></div></article>`;
+      <div class="r6-acoes">${tel ? `<a class="acao" href="https://wa.me/55${esc(tel)}?text=${encodeURIComponent(it.script)}" target="_blank" rel="noopener">🟢 WhatsApp</a>` : ''}<button type="button" class="acao" data-h6="contato" data-id="${esc(l.id)}">📞 Registrar</button><button type="button" class="acao" data-h6="adiar" data-id="${esc(l.id)}">⏰ Adiar</button><button type="button" class="acao" data-h6="abrir" data-id="${esc(l.id)}">Abrir</button>${linksHoje6(it)}</div></article>`;
   }).join('') : '<p class="vazio-curto"><strong>Fila zerada. 🏁</strong><br>Nada urgente agora. Os retornos combinados aparecem aqui quando vencerem.</p>';
 }
+function linksHoje6(it) {
+  const s = it.sinais || {}, l = it.lead, tel = U.telE164(l.telefone) || '', out = [];
+  if (s.patio) out.push('<a class="acao" href="' + esc(A6.urlApp('patio', '/?os=' + s.patio.id) || '#') + '">🔧 Pátio</a>');
+  if (s.orcamento) out.push('<a class="acao" href="' + esc(A6.urlApp('orcador', '/#/orcamento/' + s.orcamento.id) || '#') + '">🧾 Orçamento</a>');
+  if (it.principal === 'esperando' && tel) out.push('<a class="acao" href="' + esc(A6.urlApp('atendimento', '/?tel=' + tel) || '#') + '">💬 Conversa</a>');
+  if (it.principal === 'orcamento_aprovado' && tel) out.push('<a class="acao" href="' + esc(A6.urlApp('agenda', '/?tel=' + tel) || '#') + '">📅 Agendar</a>');
+  return out.join('');
+}
+document.addEventListener('keydown', e => {
+  if (!$('#view-hoje')?.classList.contains('active') || $('dialog[open]') || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase(); if (!['j', 'k', 'c', 'a'].includes(k) && e.key !== 'Enter') return;
+  const linhas = $$('#hojeLista .r6-linha'); if (!linhas.length) return;
+  let i = linhas.findIndex(x => x === document.activeElement || x.contains(document.activeElement));
+  if (k === 'j' || k === 'k') { e.preventDefault(); i = Math.max(0, Math.min(linhas.length - 1, i + (k === 'j' ? 1 : -1))); linhas[i].tabIndex = 0; linhas[i].focus(); linhas[i].scrollIntoView({ block: 'nearest' }); return; }
+  if (i < 0) return;
+  const id = linhas[i].dataset.lead;
+  if (e.key === 'Enter' && e.target === linhas[i]) { e.preventDefault(); abrirModal(id); }
+  if (k === 'c') { e.preventDefault(); registrarContato6(id).then(carregarHoje6); }
+  if (k === 'a') { e.preventDefault(); adiar6(id).then(carregarHoje6); }
+});
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-h6]'); if (!b) return;
+  if (b.dataset.h6 === 'motivo') { H6.motivo = b.dataset.k || ''; renderHoje6(); return; }
   const id = b.dataset.id, a = b.dataset.h6;
   if (a === 'abrir') abrirModal(id);
   if (a === 'contato') { await registrarContato6(id); carregarHoje6(); }

@@ -541,7 +541,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
         const mm = p.match(/^\/api\/leads\/([0-9a-f-]{36})\/(contato|atividades|cadencia|ecossistema)$/), lead = leads.find(l => l.id === mm[1]);
         if (!lead) return json({erro: 'Lead não encontrado.'}, 404);
         if (mm[2] === 'atividades') return json({atividades: ativ.filter(a => a.lead_id === lead.id).slice(0, 60)});
-        if (mm[2] === 'ecossistema') return json({lead_id: lead.id, sinais: sinais[lead.id] || {flags: []}, ficha: null, links: {novoOrcamento: '/?tel=' + R5.normalizarTelefone(lead.telefone)}});
+        if (mm[2] === 'ecossistema') return json({lead_id: lead.id, sinais: sinais[lead.id] || {flags: []}, proxima_acao: (() => { const pr = R6.prioridadeFila(lead, sinais[lead.id], agora); return pr.principal ? {codigo: pr.principal.codigo, texto: pr.principal.texto, script: R6.scriptSugerido(pr.principal.codigo, lead)} : null; })(), ficha: null, links: {novoOrcamento: '/?tel=' + R5.normalizarTelefone(lead.telefone)}});
         if (!gestor && lead.responsavel_id && lead.responsavel_id !== EU) return json({erro: 'Esse lead é de outra pessoa.', codigo: 'lead_de_outro'}, 403);
         if (mm[2] === 'cadencia') { try { const plano = R6.planoCadencia(d.tipo, agora); for (const x of plano) tarefas.push({id: crypto.randomUUID(), titulo: x.titulo, vence_em: x.vence_em, status: 'aberta', lead_id: lead.id, responsavel_id: EU, prioridade: 2, origem: 'crm', created_at: agoraIso()}); return json({ok: true, rotulo: R6.CADENCIAS[d.tipo].rotulo, criadas: plano, puladas: 0}, 201); } catch (e) { return json({erro: e.message}, 400); } }
         try {

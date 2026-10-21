@@ -38,6 +38,11 @@
 .r6-seg{border-color:var(--red)}
 .nav-item[data-view="hoje"][data-badge]:not([data-badge=""])::after{content:attr(data-badge);margin-left:auto;font-size:.7rem;background:var(--red);color:#fff;border-radius:99px;padding:1px 7px}
 #kanban .kb-card[hidden]{display:none!important}
+.r6-faixa{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px;font-size:.88rem}
+.r6-chip-btn{font:inherit;font-size:.78rem;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--superficie);color:var(--texto);cursor:pointer;min-height:30px}
+.r6-chip-btn:hover,.r6-chip-btn:focus-visible,.r6-chip-btn.on{border-color:var(--red);background:var(--superficie-2)}
+.r6-linha:focus-visible{outline:2px solid var(--red);outline-offset:2px;border-radius:8px}
+.acao-sug{border-color:var(--red)}
 @media (max-width:600px){
   .r6-linha{flex-direction:column}
   .r6-acoes .acao,.r6-acoes .btn{flex:1 1 auto;justify-content:center;min-height:40px}

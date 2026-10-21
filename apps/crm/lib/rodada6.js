@@ -619,7 +619,8 @@ async function rotasR6(c) {
       }
       const s = await sinaisAgora(c);
       const L = ficha ? R5.linksFicha(ficha, { prefixo }) : {};
-      json(res, 200, { lead_id: id, sinais: s.sinais[id] || { flags: [] }, ficha,
+      const pr = prioridadeFila(lead, s.sinais[id], agora);
+      json(res, 200, { lead_id: id, sinais: s.sinais[id] || { flags: [] }, proxima_acao: pr.principal ? { codigo: pr.principal.codigo, texto: pr.principal.texto, script: scriptSugerido(pr.principal.codigo, lead) } : null, ficha,
         links: { ...L, novoOrcamento: linkNovoOrcamento({ cliente_id: lead.cliente_id || ficha?.cliente?.id, telefone: lead.telefone, nome: lead.nome }, { prefixo }) } });
       return true;
     }

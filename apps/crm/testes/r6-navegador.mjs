@@ -69,6 +69,41 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   ok(`${tag}: filtro por sinal esconde o resto`, filtrado.vis > 0 && filtrado.vis < filtrado.todos, JSON.stringify(filtrado));
   await page.select('#fSinal6', '');
 
+  /* teclado no funil: tecla 2 move o cartão para Em contato; faixa no painel */
+  const cartaoNovo = await page.evaluate(() => { const c = [...document.querySelectorAll('#kanban .kb-col[data-etapa="novo"] .kb-card:not([data-travado])')][0]; return c?.dataset.id; });
+  if (cartaoNovo) {
+    await page.evaluate(id => document.querySelector('.kb-card[data-id="' + id + '"]').focus(), cartaoNovo);
+    await page.keyboard.press('2');
+    let moveu = true; try { await page.waitForFunction(id => TODOS.find(x => x.id === id)?.status === 'contato', { timeout: 8000 }, cartaoNovo); } catch { moveu = false; }
+    ok(`${tag}: tecla 2 no cartão move para Em contato`, moveu, moveu ? '' : await page.evaluate(id => JSON.stringify({ toast: document.getElementById('toastTxt')?.textContent, lead: TODOS.find(x => x.id === id), foco: document.activeElement?.className }), cartaoNovo));
+  }
+  await page.evaluate(() => irPara('dashboard')); await dorme(300);
+  ok(`${tag}: faixa "Agora" no painel com atalhos`, await page.evaluate(() => !document.getElementById('r6Faixa').hidden && document.querySelectorAll('#r6Faixa [data-faixa]').length >= 2));
+  await semRolagem('painel com faixa');
+  await page.evaluate(() => irPara('pipeline')); await dorme(200);
+
+  /* teclas C, P e Q no cartão; links abrem na aba nomeada */
+  await page.evaluate(() => { window.__abertas = []; window.open = (u, nome) => { window.__abertas.push([u, nome]); return { focus() {} }; }; });
+  const comPatio = await page.evaluate(() => TODOS.find(l => R6.sinais[l.id]?.patio && !travaLead(l))?.id);
+  if (comPatio) {
+    await page.evaluate(id => document.querySelector('.kb-card[data-id="' + id + '"]').focus(), comPatio);
+    await page.keyboard.press('p');
+    const ab = await page.evaluate(() => window.__abertas.at(-1));
+    ok(`${tag}: tecla P abre o Pátio na aba nomeada indycar-patio`, ab && ab[1] === 'indycar-patio' && /os=/.test(ab[0]), JSON.stringify(ab));
+  }
+  const comOrc = await page.evaluate(() => TODOS.find(l => R6.sinais[l.id]?.orcamento && !travaLead(l))?.id);
+  if (comOrc) {
+    await page.evaluate(id => document.querySelector('.kb-card[data-id="' + id + '"]').focus(), comOrc);
+    await page.keyboard.press('q');
+    const ab = await page.evaluate(() => window.__abertas.at(-1));
+    ok(`${tag}: tecla Q abre o orçamento no Orçador (aba indycar-orcador, rota #/orcamento/)`, ab && ab[1] === 'indycar-orcador' && /#\/orcamento\//.test(ab[0]), JSON.stringify(ab));
+    await page.evaluate(id => document.querySelector('.kb-card[data-id="' + id + '"]').focus(), comOrc);
+    await page.keyboard.press('c');
+    await page.waitForSelector('#dlgContato6[open]', { timeout: 5000 });
+    ok(`${tag}: tecla C no cartão abre o registro de contato`, true);
+    await page.keyboard.press('Escape'); await dorme(200);
+  }
+
   /* registrar contato pelo cartão */
   const idLead = await page.evaluate(() => document.querySelector('#kanban .kb-card:not([data-travado]) .r6-mini[data-r6="contato"]')?.dataset.id);
   ok(`${tag}: há cartão com botão Contato`, !!idLead);
@@ -83,6 +118,7 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
     await page.evaluate(id => abrirModal(id), idLead);
     await page.waitForFunction(() => document.querySelectorAll('#r6Hist li').length > 0 && !/Carregando/.test(document.getElementById('r6Hist').textContent), { timeout: 10000 });
     ok(`${tag}: ficha do lead lista o contato registrado`, await page.evaluate(() => /Não atendeu/.test(document.getElementById('r6Hist').textContent)));
+    ok(`${tag}: lead tem painel do ecossistema e select de cadência`, await page.evaluate(() => !!document.getElementById('r6Painel') && !!document.getElementById('r6Cad')));
     await page.screenshot({ path: join(SAIDA, `${tag}-ficha.png`) });
     await semRolagem('ficha do lead');
     await page.keyboard.press('Escape');
@@ -95,13 +131,30 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   const h = await page.evaluate(() => ({ n: document.querySelectorAll('#hojeLista .r6-linha').length, resumo: document.getElementById('hojeResumo').textContent, titulo: document.getElementById('viewTitle').textContent, script: document.querySelectorAll('#hojeLista .r6-script').length }));
   ok(`${tag}: aba Hoje lista a fila com motivo e mensagem sugerida`, h.n > 0 && h.script === h.n && h.titulo === 'Hoje', `${h.n} itens · ${h.resumo.slice(0, 60)}`);
   await semRolagem('Hoje');
+  await page.evaluate(() => document.activeElement?.blur?.()); await dorme(300); await page.keyboard.press('j'); await dorme(200);
+  ok(`${tag}: tecla J na aba Hoje foca a primeira linha`, await page.evaluate(() => document.activeElement?.classList.contains('r6-linha')), await page.evaluate(() => document.activeElement?.tagName + '.' + document.activeElement?.className));
+  const chipMotivo = await page.evaluate(() => document.querySelector('#hojeResumo [data-h6="motivo"]')?.dataset.k);
+  if (chipMotivo) { await page.click('#hojeResumo [data-h6="motivo"]'); ok(`${tag}: chip de motivo filtra a fila`, await page.evaluate(() => document.querySelectorAll('#hojeLista .r6-linha').length > 0)); await page.click('#hojeResumo [data-h6="motivo"][data-k=""]'); }
   await page.screenshot({ path: join(SAIDA, `${tag}-hoje.png`), fullPage: largura > 500 });
+  ok(`${tag}: WhatsApp da fila já leva o texto sugerido`, await page.evaluate(() => [...document.querySelectorAll('#hojeLista a[href^="https://wa.me/55"]')].some(a => /text=Oi/.test(a.href))));
+  ok(`${tag}: linhas da fila trazem links para Pátio/Orçamento quando há`, await page.evaluate(() => [...document.querySelectorAll('#hojeLista a.acao')].some(a => /Pátio|Orçamento|Conversa|Agendar/.test(a.textContent))));
+  await page.keyboard.press('j'); await dorme(150);
+  await page.keyboard.press('c');
+  await page.waitForSelector('#dlgContato6[open]', { timeout: 5000 });
+  ok(`${tag}: tecla C na fila abre o registro de contato do lead em foco`, true);
+  await page.keyboard.press('Escape'); await dorme(200);
   ok(`${tag}: mensagem sugerida não traz preço nem palavra proibida`, await page.evaluate(() => ![...document.querySelectorAll('#hojeLista .r6-script p')].some(p => /R\$|prezad|efetuar|comparecer|ve[ií]culo/i.test(p.textContent))));
 
   /* aba Dono (só gestor) */
   if (papel === 'gestor' || papel === 'admin') {
     await page.evaluate(() => irPara('dono'));
     await page.waitForFunction(() => document.querySelectorAll('#donoCorpo .ficha-kpi').length > 5, { timeout: 15000 });
+    ok(`${tag}: Hoje mostra o bloco de carros entregues para concluir`, await (async () => { await page.evaluate(() => irPara('hoje')); await dorme(800); return page.evaluate(() => document.querySelectorAll('#hojeEntregues [data-h6="concluir"]').length > 0); })());
+    await page.evaluate(() => irPara('dono'));
+    await page.waitForFunction(() => document.querySelectorAll('#donoCorpo .ficha-kpi').length > 5, { timeout: 15000 });
+    await page.click('#donoQualBtn');
+    await page.waitForFunction(() => document.querySelectorAll('#donoQualidade li').length > 0, { timeout: 10000 });
+    ok(`${tag}: Dono lista a qualidade dos dados`, await page.evaluate(() => /sem responsável|telefone/.test(document.getElementById('donoQualidade').textContent)));
     ok(`${tag}: aba Dono mostra KPIs, meta e texto do WhatsApp`, await page.evaluate(() => !!document.getElementById('donoTexto') && document.querySelector('.r6-meta-barra') !== null));
     await semRolagem('Dono'); await page.screenshot({ path: join(SAIDA, `${tag}-dono.png`), fullPage: largura > 500 });
     await page.evaluate(() => irPara('origem'));

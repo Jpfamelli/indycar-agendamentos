@@ -852,3 +852,226 @@ Conectar tudo (ficha 360 em uma chamada, telefone normalizado), operação profi
 - **Banco** (migração `r5c_crm_lead_de_colega`, cópia em `indycar-ferramentas/sql/`): policy RESTRICTIVE de UPDATE em `leads` para `authenticated`: `usuario_gestor() or responsavel_id is null or responsavel_id = auth.uid()` (USING e WITH CHECK). Cobre quem grava `leads` direto pelo navegador (o modal "editar serviço" do Atendimento). Antes conferi: todos os gatilhos que atualizam `leads` como efeito colateral (`sincronizar_lead_pelo_agendamento`, `registrar_troca_de_etapa`, `tocar_conversa`, `at_origem_pelo_site`, `orc_sincronizar_crm`, `lead_herda_responsavel` e os da própria `leads`) são SECURITY DEFINER do `postgres` (BYPASSRLS) — e testei em DO-block revertido: atendente marcando "compareceu" num horário de lead de colega continua levando o lead para `em_servico`; atendente não edita lead de colega (0 linhas), edita sem dono (1 linha) e não consegue passar lead para outra pessoa direto.
 - Testes: `testes/r5-dono-lead.test.cjs` (atendente-dono, atendente-outro, sem dono, gestor, admin, IA executar/lote/desfazer); `testes/r5-navegador.mjs` ganhou o bloco "lead de colega" (atendente 375 e 1440, gestor 1440/375 e com prefixo /crm). Service worker `indycar-crm-v10`.
 - Pendência (não pedida, só registro): o atendente ainda pode **pegar para si** um lead sem dono pela ficha ("Pegar para mim", regra antiga de `podeReatribuir`). Se a distribuição deve ser só do gestor também aí, é uma linha em `lib/equipe-crm.js#atribuir`.
+
+
+# Rodada 6 (21/10/2026)
+
+O CRM passa a enxergar o que acontece nos outros sistemas: o carro no Pátio, o orçamento no Orçador, a conversa esperando no Atendimento e o horário na Agenda. Cada lead ganha registro de contato com retorno combinado, o dia ganha uma fila ordenada por urgência (aba **Hoje**), o dono ganha um resumo (aba **Dono**) e o lead vira cliente de verdade quando o Pátio entrega o carro. Legenda de prova: **[B]** banco real (bloco revertido `TESTE_REVERTIDO`), **[P]** `testes/r6-puras.test.cjs`, **[S]** `testes/r6-servidor.test.cjs`, **[N]** `testes/r6-navegador.mjs` (Chrome headless, 1440 e 375 px). 🔗 marca ligação com outro sistema.
+
+## Banco (migrações `r6_c2_*`, cópias em `indycar-ferramentas/sql/`)
+1. Tabela `crm_atividades`: cada contato fica registrado (quem, quando, tipo, resultado, anotação, próximo contato). [S]
+2. Tipo do contato limitado por constraint: ligação, WhatsApp, visita, nota, retorno, sistema. [B]
+3. Nove resultados possíveis por constraint (atendeu, não atendeu, caixa postal, respondeu, sem resposta, agendou, pediu prazo, recusou, outro). [B]
+4. Anotação de até 1.000 caracteres na constraint e na rota (400 acima disso). [P]
+5. Índices por lead e data, por cliente e por autor. [B]
+6. RLS ligado em `crm_atividades`, sem acesso de `anon`. [B]
+7. Política "equipe lê": só quem é da equipe lê o histórico. [B]
+8. Política "registra no lead dela": atendente só grava contato em lead dele ou sem dono, e só em seu nome; gestor em qualquer um. [B]
+9. Só gestor apaga; ninguém edita o histórico (sem política de UPDATE). [B]
+10. Advisor de segurança sem nenhum aviso sobre `crm_atividades` ou `r6_c2_*` depois das políticas (o INFO "RLS sem política" sumiu). [B]
+11. `leads.proximo_contato_em`: quando falar de novo. [S]
+12. `leads.ultimo_contato_em`: quando foi o último contato. [S]
+13. `leads.tentativas_contato`: quantas tentativas sem resposta. [S]
+14. Índice parcial só dos leads abertos com retorno combinado. [B]
+15. Gatilho zera o retorno combinado quando o lead é concluído ou perdido (teste: `followup = NULL`). [B]
+16. 🔗 Pátio: carro recebido leva o lead aberto (pelo `lead_id` da OS ou pelo cliente) para "Em serviço". [B]
+17. 🔗 Pátio: carro pronto avisa o responsável do lead, com link `/?lead=`. [B]
+18. 🔗 Pátio: carro entregue avisa o responsável e cria a tarefa "Concluir o lead: nome (placa)" para 2 h depois. [B]
+19. 🔗 A tarefa de concluir não se repete (só uma aberta por lead) e não nasce quando a OS veio da Agenda, que já cria a dela. [B]
+20. Aviso do Pátio não duplica (chave por OS e responsável). [B]
+21. O gatilho do Pátio nunca derruba a operação do Pátio (`exception when others`). [B]
+22. 🔗 Lead concluído marca a indicação ligada a ele como "virou cliente" (Área do Cliente). [B]
+23. Retorno vencido avisa o responsável: função `r6_c2_avisar_retornos` + `pg_cron` a cada 15 min, de segunda a sábado, 8h às 17h. [B]
+24. O aviso de retorno não repete para o mesmo combinado (chave com a data/hora do retorno). [B]
+25. Lead concluído ou perdido fecha as tarefas "Retornar:", "Orçamento:" e "Reativação:" dele; as de "Pós-venda:" continuam abertas. [B]
+26. 🔗 O lead vira cliente: conferido no banco que nenhum lead com telefone válido fica sem `cliente_id` (98 sem cliente, 0 com telefone; o gatilho `leads_garante_cliente` já existente cobre o resto). [B]
+27. Nada de teste ficou no banco: toda prova usou bloco com `RAISE EXCEPTION 'TESTE_REVERTIDO'`. [B]
+
+## Tempo útil da oficina
+28. Dia útil é segunda a sábado: "daqui a 1 dia útil" na quarta cai na quinta. [P]
+29. Sábado à tarde + 1 dia útil cai na segunda. [P]
+30. "Hoje às 9h" que já passou vira o próximo dia útil. [P]
+31. "Daqui a 2 horas" fora do expediente vai para o próximo horário de abertura (madrugada → 9h). [P]
+32. Depois das 17h30 o retorno de horas vai para o dia seguinte. [P]
+33. Domingo nunca recebe retorno (vai para a segunda). [P]
+34. Todas as contas no fuso de Brasília (UTC-3). [P]
+35. Seis atalhos de retorno: 2 horas, hoje (17h), amanhã (9h), 3 dias, 1 semana, 2 semanas. [P]
+36. Data livre válida é aceita como veio. [P]
+37. Data que já passou é recusada ("o próximo contato já passou"). [P]
+38. Data a mais de um ano é recusada. [P]
+39. Texto que não é data nem atalho é recusado com 400. [P]
+40. Retorno sugerido pelo resultado: não atendeu em 2 h, caixa postal e sem resposta amanhã, atendeu/respondeu/prazo em 3 dias, recusou e agendou nenhum. [P]
+
+## Registrar contato
+41. Corpo inválido (nulo ou lista) devolve 400. [P]
+42. Resultado desconhecido devolve 400. [P]
+43. Sem resultado e sem anotação devolve 400 ("diga o que aconteceu"). [P]
+44. Uma nota não exige resultado. [P]
+45. A anotação perde espaços e quebras repetidas. [P]
+46. Tipo desconhecido vira ligação. [P]
+47. O retorno é sugerido sozinho pelo resultado, mas `sugerir: false` desliga. [P]
+48. `proximo: null` limpa o retorno combinado. [P]
+49. `criar_tarefa: true` pede também uma tarefa de retorno. [P]
+50. Sem contato (não atendeu, caixa postal, sem resposta) soma uma tentativa. [P]
+51. Contato de verdade zera as tentativas; outro resultado mantém. [P]
+52. Lead novo que respondeu passa para "Em contato"; se não atendeu, continua novo. [P]
+53. Quatro tentativas sem resposta sugerem marcar como perdido ("Sem retorno do cliente"). [P]
+54. Cliente que recusou sugere perdido com motivo "Desistiu do serviço". [P]
+55. 🔗 Cliente que topou sugere abrir a Agenda já no telefone dele. [P]
+56. A rota grava a atividade, atualiza o lead, move a etapa e cria a tarefa numa chamada só (retorno 201). [S]
+57. Cada contato entra na auditoria (`lead_contato`). [S]
+58. Atendente não registra contato em lead de colega: 403 `lead_de_outro`, e nada é gravado. [S]
+59. Gestor registra em qualquer lead. [S]
+60. Id de lead inválido devolve 404. [S]
+61. O histórico do lead (`/atividades`) traz o resultado em português e o autor quando existe. [S]
+62. Tela: diálogo "Registrar contato" (como foi, o que aconteceu, anotação, falar de novo, tarefa). [N]
+63. Tela: contato salvo atualiza tentativas e combina o retorno sozinho. [N]
+64. Tela: a ficha do lead lista o contato registrado. [N]
+65. Tela: depois do contato, toast com ação ("Marcar como perdido", "Abrir a Agenda") conforme a sugestão. [N]
+
+## Cadência de tarefas
+66. Três cadências prontas: orçamento (1, 3 e 7 dias), pós-venda (2 e 30 dias) e reativação (hoje e 4 dias). [P]
+67. As tarefas saem às 9h de dias úteis. [P]
+68. Os títulos têm prefixo ("Orçamento:", "Pós-venda:", "Reativação:") para o banco fechar as certas depois. [P]
+69. Cadência desconhecida devolve 400. [P]
+70. Rodar a cadência duas vezes não duplica as tarefas. [S]
+71. Atendente não aplica cadência em lead de colega (403). [S]
+72. O primeiro passo vira o retorno combinado do lead, se ele não tinha. [S]
+
+## Retorno em lote
+73. Combinar retorno de vários leads de uma vez, de 1 a 200. [S]
+74. Atendente só adianta os leads que pode editar; os de colega ficam de fora e são contados. [S]
+75. Leads fechados são ignorados e contados. [S]
+76. "Tirar o retorno" limpa em lote (retorno volta nulo). [S]
+77. A resposta devolve o retorno anterior de cada lead, para desfazer. [S]
+78. Lista vazia devolve 400. [S]
+
+## Sinais ao vivo (funil, ficha, lista)
+79. `GET /api/pipeline/sinais` junta, num só lugar, Pátio, extras, Orçador, Atendimento, tarefas e Agenda . [S]
+80. 🔗 Pátio: o lead mostra a etapa do carro (recebido … pronto) e a ordem. [P]
+81. 🔗 Pátio: "carro pronto para retirar" vira sinal próprio. [P]
+82. 🔗 Pátio: extra esperando o cliente vira sinal e conta quantos. [P]
+83. 🔗 Pátio: carro já entregue com o lead aberto vira "entregue: concluir", com os dias. [P]
+84. 🔗 Carro com ordem aberta nunca aparece como "entregue" (a ordem aberta vale). [P]
+85. 🔗 Orçador: orçamento enviado há 2 dias ou mais vira "orçamento parado". [P]
+86. 🔗 Orçador: orçamento aprovado sem horário vira sinal "marcar horário" (usa o valor aprovado). [P]
+87. 🔗 Orçador: orçamento recusado não gera sinal. [P]
+88. 🔗 Atendimento: conversa marcada "aguardando consultor" vira "cliente esperando" com as horas. [P]
+89. 🔗 Agenda: o próximo horário confirmado do lead aparece no cartão. [P]
+90. Tarefa atrasada do lead vira sinal; lead sem tarefa também (só conta com outro motivo). [P]
+91. Retorno combinado vencido vira sinal. [P]
+92. Lead novo sem contato há mais de 2 h (até 72 h) vira "primeiro contato atrasado". [P]
+93. O casamento dos dados é por `lead_id`, cliente ou telefone normalizado (DDD + número). [P]
+94. Lead concluído não entra nos sinais. [P]
+95. Contagem por sinal alimenta o filtro do funil, a faixa do painel e o selo da aba Hoje. [P]
+96. Rótulos dos sinais vêm do servidor, em português. [S]
+97. Tela: chips no cartão do funil (Pátio, orçamento, esperando, horário, retorno, tarefa atrasada, tentativas). [N]
+98. Tela: filtro do funil por sinal, com a contagem só dos leads que aparecem naquele funil. [N]
+99. Tela: botões rápidos "📞 Contato" e "⏰ Retorno" no cartão. [N]
+100. Tela: tecla C no cartão abre o registro de contato (A abre o mesmo diálogo já pedindo o retorno). [N]
+101. Tela: teclas 1 a 7 movem o cartão para a etapa (a 2 leva para "Em contato"). [N]
+102. 🔗 Tela: tecla P abre o Pátio e Q abre o orçamento do lead, cada um na sua aba nomeada (O abre a ficha 360). [N]
+103. Tela: faixa "Agora" no painel com atalhos para os problemas do momento. [N]
+
+## Aba Hoje (fila do dia)
+104. `GET /api/fila-do-dia`: lead por lead, ordenado por urgência, com o motivo principal e até 3 motivos. [S]
+105. Prioridade por pontos: cliente esperando (100+) vem antes de carro entregue (90+), que vem antes de lead parado (40+); a pontuação é a do motivo mais forte. [P]
+106. Lead parado sem nenhum sinal entra com o motivo "parado há N dias" conforme a etapa. [P]
+107. Lead sem motivo nenhum não entra na fila (pontuação zero). [P]
+108. Atendente vê só os leads dele e os sem dono; gestor vê todos; escopo "sem responsável" disponível. [S]
+109. A fila diz quantos contatos a pessoa já registrou hoje (aparece no resumo da aba). [N]
+110. Cada item traz uma mensagem sugerida, sem preço e sem as palavras proibidas ("prezado", "efetuar", "comparecer", "veículo"). [P]
+111. Mensagem usa o primeiro nome; para cadastro tipo "Família" não usa nome. [P]
+112. Mensagem de agendamento traz o horário da casa (segunda a sábado, 8h às 17h30). [P]
+113. Mensagem de pós-venda fecha com o slogan "Quem conhece, Indyca! 🏎". [P]
+114. Tela: aba "Hoje" na navegação, com selo de pendências. [N]
+115. Tela: cada linha tem "Mensagem sugerida", WhatsApp já com o texto, Registrar, Adiar e Abrir. [N]
+116. 🔗 Tela: links contextuais por linha — Pátio, Orçamento, Conversa (Atendimento) e Agendar (Agenda). [N]
+117. Tela: chips por motivo filtram a fila; "limpar filtro" volta. [N]
+118. Tela: teclas J e K andam pela fila; C abre o registro de contato do lead em foco (Enter abre o lead, A adia). [N]
+
+## Carros entregues para concluir
+119. 🔗 `GET /api/entregues-sem-fechar`: leads abertos cujo carro já saiu do Pátio, do mais antigo para o mais novo. [S]
+120. 🔗 Valor sugerido ao concluir: orçamento aprovado + extras aprovados do Pátio (e, depois, só o orçamento, o orçado + extras, o orçado e o valor da Agenda), sem repetir. [P]
+121. 🔗 A resposta traz os extras aprovados somados e o orçamento aprovado do cliente. [S]
+122. Cada item diz se a pessoa pode editar aquele lead. [S]
+123. Tela: bloco "Carros entregues: falta concluir" na aba Hoje, com botão Concluir. [N]
+
+## Retorno por campanha (cruza o Ads, só gestor)
+124. 🔗 `GET /api/roi/campanhas` lê o gasto diário do Ads e casa com os leads pela campanha (utm). [S]
+125. O casamento ignora acento, colchetes e maiúsculas e aceita nome contido no outro (mínimo de 5 letras). [P]
+126. Custo por lead, custo por venda e retorno (faturado ÷ gasto) por campanha. [P]
+127. Veredito de cada campanha: dá lucro, gasta mais do que traz, sem venda, sem lead, sem gasto. [P]
+128. Resumo por canal (Meta e Google). [P]
+129. Leads do Meta/Google que chegaram sem campanha são contados à parte. [P]
+130. Campanhas dos leads que não aparecem no Ads são listadas. [P]
+131. 🔗 Alertas do Ads ainda não lidos entram na resposta. [S]
+132. Marca "dados de demonstração" quando a origem das métricas é demo. [S]
+133. Período padrão é o mês; período invertido ou acima de ~1 ano devolve 400. [S]
+134. Atendente leva 403 (é dinheiro da casa). [S]
+135. Tela: card "Retorno por campanha" na aba Origem, só para gestor. [N]
+
+## Qualidade dos dados (gestor)
+136. Telefones repetidos em leads abertos, agrupados. [P]
+137. Leads sem telefone válido. [P]
+138. Leads do Ads sem campanha (utm). [P]
+139. Orçamento ou agendado sem valor orçado. [P]
+140. Leads sem carro nem placa. [P]
+141. Leads abertos sem responsável. [P]
+142. Leads parados há mais de 60 dias e criados há mais de 90. [P]
+143. Concluídos sem valor pago (cortesia declarada não conta). [P]
+144. `GET /api/qualidade` só para gestor (403 para atendente). [S]
+145. Tela: "Qualidade dos dados" no Dono, lista o que falta nos leads. [N]
+
+## Resumo do dono (gestor)
+146. Ritmo da meta do mês: realizado, % da meta, projeção pelos dias úteis, quanto falta por dia útil e risco. [P]
+147. Meta batida e meta zerada (sem %) tratadas. [P]
+148. Comparação semana contra semana anterior (leads, vendas, faturamento, conversão). [P]
+149. 🔗 Pátio: carros agora, prontos, entregues hoje, entregues sem concluir e extras pendentes. [S]
+150. 🔗 Orçador: orçamentos enviados, parados (valor) e aprovados sem horário. [S]
+151. 🔗 Atendimento: clientes esperando resposta e a maior espera em horas. [S]
+152. 🔗 Pátio: nota média das avaliações dos últimos 30 dias e detratores. [S]
+153. 🔗 Ads: gasto do mês, leads, vendas, faturado, retorno e alertas sem leitura. [S]
+154. 🔗 Agenda: percentual de faltas dos últimos 30 dias. [S]
+155. Por que perdemos (motivos dos últimos 30 dias) e quem vendeu no mês. [S]
+156. Frases do que mudou e pede atenção (faturamento caiu/subiu 15% ou mais, poucos leads, conversão em queda, ritmo abaixo da meta, conversa esperando, orçamento parado, carro pronto, entregue sem concluir, nota baixa, campanha sem venda, alertas do Ads, leads sem dono). [P]
+157. Texto pronto para o WhatsApp do dono, com no máximo 4 pontos de atenção e sem palavras proibidas. [P]
+158. Atendente leva 403 e não vê a aba. [S]
+159. Tela: aba "Dono" (só gestor) com barra da meta, KPIs, atenção, anúncios, vendedores, perdas e o botão "Copiar resumo". [N]
+
+## Ficha 360 do cliente e ecossistema do lead
+160. 🔗 `GET /api/leads/:id/ecossistema` monta, numa chamada, a ficha 360 (rpc `cliente_360`) + sinais + links + próxima ação. [S]
+161. A ficha 360 ganha avaliações do Pátio com a nota média. [S]
+162. A ficha 360 ganha o valor de extras aprovados por ordem. [S]
+163. Segmento do cliente: na oficina, risco (muita falta), VIP, recorrente, sumido, primeira compra e novo. [P]
+164. Lifetime (quanto já gastou), ticket médio, dias sem visita, revisão vencida (180 dias) e aniversário. [P]
+165. Linha do tempo única do cliente (leads, horários, pátio, orçamentos, Comunicar, mensagens, indicações e avaliações), mais nova primeiro. [P]
+166. 🔗 Correção: o link do orçamento na ficha abria o Orçador na tela errada (`/?orcamento=`); agora é `/#/orcamento/<id>`. [S]
+167. 🔗 "Novo orçamento" já leva cliente, telefone e nome para o Orçador. [S]
+168. Próxima ação sugerida no topo do lead, com mensagem pronta, copiar e WhatsApp. [S]
+169. Tela: no lead, faixa do ecossistema (Pátio, orçamento, conversa, horário) com botão para cada app. [N]
+170. Tela: select "Cadência de tarefas" no lead. [N]
+171. Tela: histórico de contatos dentro do lead. [N]
+
+## Ligações entre apps e aparência
+172. 🔗 Todo link para outro app abre na aba nomeada do app (`indycar-patio`, `indycar-orcador`, …), reaproveitando a aba, com `opener` nulo (conferido com P e Q no funil). [N]
+173. Funciona solto e montado em `/crm/` na Central. [N]
+174. Service worker v11 com `rodada6.js` e `rodada6.css`; página carrega os dois. [S]
+175. CSS novo só com variáveis do tema (claro e escuro conferidos nas capturas) e com `[hidden]{display:none!important}`. [S]
+176. 375 px sem rolagem lateral (funil, ficha, Hoje, Dono, painel com a faixa). [N]
+177. Zero erro de console nas quatro combinações (gestor 1440, atendente 375, gestor em `/crm/` 1440 e 375). [N]
+178. Atendente não vê a aba Dono e leva 403 nas rotas de gestor. [N]
+179. Servidor falso ganhou todas as rotas novas, com os mesmos contratos. [N]
+
+## Como verifiquei
+- `npm test`: 187 passando (167 anteriores + `testes/r6-puras.test.cjs` com 19 + `testes/r6-servidor.test.cjs` com 11); `npm run segredos` sem achados.
+- Navegador (puppeteer-core + Chrome) em `testes/r6-navegador.mjs`: 113 verificações em 4 roteiros (gestor 1440, atendente 375, gestor em `/crm/` 1440 e 375).
+- Banco real (projeto `nppfqhavqahapmugnyng`): migrações `r6_c2_atividades_followup`, `r6_c2_lead_acompanha_patio`, `r6_c2_atividades_politicas` e `r6_c2_retornos_e_tarefas`; provas só com bloco revertido; `get_advisors` sem aviso novo.
+- Nada foi publicado (a Central é publicada pelo coordenador). O WhatsApp real continua recusado: o resumo do dono é só texto para copiar.
+
+## Pendências
+- O Pátio ainda não envia, por conta própria, o `lead_id` em toda ordem: quando falta, o gatilho acha o lead aberto do mesmo cliente (se houver mais de um, vale o mais novo). Pedido ao dono do Pátio: gravar `lead_id` ao abrir a OS.
+- O Orçador poderia gravar `lead_id` em `orc_orcamentos` (hoje o casamento cai para cliente/telefone).
+- O resumo do dono não sai sozinho no WhatsApp: falta a chave do WhatsApp liberada; hoje é copiar e colar.
+- Os números do Ads ainda são de demonstração (`so_demonstracao` aparece na tela).
+- Sem E2E: o "Desfazer" do retorno em lote, o "Concluir" da aba Hoje com o valor sugerido, o aviso periódico de 45 s e o link do cliente do Pátio dentro do lead (o servidor falso não devolve a ficha completa); cobertos só por teste de servidor ou leitura do código.
