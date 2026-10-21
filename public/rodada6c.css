@@ -54,3 +54,10 @@
   body.imprimindo-quadro { background: #fff !important; color: #000 !important; }
   body.imprimindo-quadro .qd-card { background: #fff !important; color: #000 !important; border-color: #888 !important; break-inside: avoid; }
 }
+
+/* ---- lote 4: mesma pessoa, repetir, avisar ---- */
+.qd-card.mesmo { outline: 2px dashed #5b8cff; outline-offset: 1px; background: rgba(91,140,255,.12); }
+.qd-avisar { text-decoration: none; }
+.act.avisar-pronto { text-decoration: none; font-size: 16px; }
+[hidden] { display: none !important; }
+@media (max-width: 720px) { .qd-acoes .btn.mini, .qd-avisar { min-height: 44px; min-width: 44px; } .act.avisar-pronto { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; } }

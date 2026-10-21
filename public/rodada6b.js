@@ -505,7 +505,7 @@
       document.addEventListener('keydown', (ev) => {
         if (state.route !== 'quadro' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
         const t = ev.target; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t?.isContentEditable) return;
-        if (document.querySelector('.modal-backdrop:not([hidden]) .modal, #modal:not([hidden]) .modal')) return;
+        if (typeof modalAberto === 'function' && modalAberto()) return;
         if (ev.key === 'Escape' && _q.movendo) { pararMover(); return; }
         const ir = (iso) => { _q.data = iso; _q._rolou = false; $('#qdData') && ($('#qdData').value = iso); atualizar(true); };
         if (ev.key === 'ArrowLeft') { ev.preventDefault(); ir(maisDias(_q.data, -1)); }

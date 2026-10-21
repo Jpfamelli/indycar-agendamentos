@@ -236,6 +236,7 @@
       $$('[data-qd-atr-abrir]', painel).forEach((b) => b.addEventListener('click', () => openAgendamentoModal(b.dataset.qdAtrAbrir)));
     }
     desenharSemana(d.data);
+    if (root.R6d) root.R6d.aposDesenhar(d);
     if (!lerLS(LS_TOUR)) setTimeout(() => { if (state.route === 'quadro' && !document.querySelector('#tour, .modal-backdrop:not([hidden])')) tourDoQuadro(); }, 700);
   }
 

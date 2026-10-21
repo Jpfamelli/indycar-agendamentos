@@ -425,7 +425,7 @@ function corpoDoCartao(a, agora, botoes) {
   const [seloCls, seloTxt] = seloDoCartao(a);
   return `
   <article class="appt s-${esc(a.status)}${rel && rel.tom === 'atrasado' ? ' is-atrasado' : ''}"
-           data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}"${/^\s*PR[ÉE]-?\s*AGENDAMENTO/i.test(a.observacoes || '') ? ' data-pre="1"' : ''}>
+           data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}" data-tel="${esc(a.telefone || '')}" data-veic="${esc(a.veiculo || '')}" data-placa="${esc(a.placa || '')}"${/^\s*PR[ÉE]-?\s*AGENDAMENTO/i.test(a.observacoes || '') ? ' data-pre="1"' : ''}>
     <div class="appt-when">
       <span class="appt-hora">${esc(a.hora)}</span>
       <span class="appt-dia${a.data === agora.data ? ' hoje' : ''}">${esc(rotuloDia(a.data, agora.data))}</span>
@@ -3192,7 +3192,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
   const orcamentoDeOrigem = !id && pre && /^[0-9a-f-]{36}$/i.test(String(pre.orcamento_id || '')) ? pre.orcamento_id : null;
   const servicos = await api('GET','/servicos').catch(()=>[]);
   state.servicos = servicos;
-  let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:hojeSP(),
+  let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:(state.route === 'quadro' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(window.R6b?.estado?.data || '') ? window.R6b.estado.data : hojeSP()),
             hora:'09:00',consultor_id:'',origem:'Google',observacoes:'',status:'aguardando',confirmado:0 };
   if (id) a = await api('GET',`/agendamentos/${id}`).catch(()=>null) || a;
   else if (pre && typeof pre === 'object') {
