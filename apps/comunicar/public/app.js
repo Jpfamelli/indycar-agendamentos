@@ -119,7 +119,7 @@ const EXEMPLO = { nome:'Maria Aparecida Souza', carro:'HB20 2019', placa:'FHR6F1
 
 // ---- estado -----------------------------------------------------------------
 const state = { route:'inicio', perfil:null, cfg:null, cfgEdit:{}, regras:null, modelos:null, segmentos:null,
-  msg:{ status:'todas', tipo:'todos', q:'', de:'', ate:'', intencao:'todas' }, cliQ:'', saude:null };
+  msg:{ status:'todas', tipo:'todos', q:'', de:'', ate:'', intencao:'todas', origem:'todas' }, cliQ:'', saude:null };
 
 // ---- API --------------------------------------------------------------------
 let sb = null, CONFIG = null;
@@ -794,6 +794,7 @@ async function renderMensagens({ quieto } = {}) {
   if (f.de) q.set('de', f.de);
   if (f.ate) q.set('ate', f.ate);
   if (f.intencao !== 'todas') q.set('intencao', f.intencao);
+  if (f.origem && f.origem !== 'todas') q.set('origem', f.origem);
   state._qMsg = new URLSearchParams(q);
   /* rodada 4: páginas de 100 (antes vinham 300 de uma vez) */
   const POR_PAGINA = 100;
@@ -801,8 +802,8 @@ async function renderMensagens({ quieto } = {}) {
   const lista = await api('GET', '/envios?' + q);
   state._msgLista = lista; state._msgFim = lista.length < POR_PAGINA;
   const htmlLista = () => lista.length ? lista.map(cartaoEnvio).join('')
-    : vazio(I.wa, f.q || f.de || f.ate || f.intencao !== 'todas' || f.status !== 'todas' || f.tipo !== 'todos' ? 'Nada com esse filtro' : 'Nenhuma mensagem ainda',
-        f.q || f.de || f.ate || f.intencao !== 'todas' || f.status !== 'todas' || f.tipo !== 'todos' ? 'Tente outro status, tipo, período ou busca.' : 'As automáticas aparecem sozinhas quando você ligar as réguas; campanhas e avulsas também caem aqui.');
+    : vazio(I.wa, f.q || f.de || f.ate || f.intencao !== 'todas' || f.origem !== 'todas' || f.status !== 'todas' || f.tipo !== 'todos' ? 'Nada com esse filtro' : 'Nenhuma mensagem ainda',
+        f.q || f.de || f.ate || f.intencao !== 'todas' || f.origem !== 'todas' || f.status !== 'todas' || f.tipo !== 'todos' ? 'Tente outro status, tipo, período ou busca.' : 'As automáticas aparecem sozinhas quando você ligar as réguas; campanhas e avulsas também caem aqui.');
 
   /* Atualização quieta (filtro, busca, cancelar…): só a lista e os contadores
      mudam — o campo de busca continua com o foco e o cursor de quem digita. */
@@ -831,6 +832,7 @@ async function renderMensagens({ quieto } = {}) {
       <select id="intMsg" class="inp" style="width:auto" aria-label="Filtrar pela intenção lida pela IA">
         <option value="todas">✨ Qualquer resposta</option><option value="qualquer" ${f.intencao === 'qualquer' ? 'selected' : ''}>✨ Lidas pela IA</option>
         ${Object.entries(INTENCAO).map(([k, x]) => `<option value="${k}" ${f.intencao === k ? 'selected' : ''}>${x[0]} ${esc(x[1])}</option>`).join('')}</select>
+      <select id="origemMsg" class="inp" style="width:auto" aria-label="Filtrar pelo sistema de onde veio">${[['todas', 'Qualquer origem'], ['agenda', '📅 Da Agenda'], ['patio', '🚗 Do Pátio'], ['orcador', '🧾 Do Orçador'], ['crm', '🎯 Do CRM']].map(([k, r]) => `<option value="${k}" ${f.origem === k ? 'selected' : ''}>${r}</option>`).join('')}</select>
       ${pode('exportar') ? `<button type="button" class="btn btn-mini" id="btnCSV" style="margin-left:auto">${svg(I.upload)} Exportar CSV</button>` : ''}
     </div>
     <div class="pilulas" role="tablist">
@@ -863,6 +865,7 @@ async function renderMensagens({ quieto } = {}) {
   $('#deMsg').addEventListener('change', mudarPeriodo); $('#ateMsg').addEventListener('change', mudarPeriodo);
   $('#limparPeriodo').addEventListener('click', () => { $('#deMsg').value = ''; $('#ateMsg').value = ''; mudarPeriodo(); });
   $('#intMsg').addEventListener('change', e => { state.msg.intencao = e.target.value; route(null, { quieto:true }); });
+  $('#origemMsg').addEventListener('change', e => { state.msg.origem = e.target.value; route(null, { quieto:true }); });
   $('#btnCSV')?.addEventListener('click', async (e) => {
     const b = e.currentTarget; b.disabled = true;
     try { await baixarCSV(state._qMsg || new URLSearchParams()); toast('CSV baixado — abre direto no Excel.'); }

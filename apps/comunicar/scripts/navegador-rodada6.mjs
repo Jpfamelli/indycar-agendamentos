@@ -60,6 +60,13 @@ for (const larg of [1440, 375]) {
     const ag = await page.evaluate(() => ({ dias: document.querySelectorAll('.r6-dia').length, itens: document.querySelectorAll('.r6-itens li').length, rolagem: document.querySelector('.modal').scrollWidth <= document.querySelector('.modal').clientWidth + 1 }));
     ok(larg, 'gestor: Agenda de envios lista os dias com mensagens e cabe na tela', ag.dias >= 1 && ag.itens >= 1 && ag.rolagem, JSON.stringify(ag));
     await page.screenshot({ path: path.join(SAIDA, `agenda-${larg}.png`) });
+    const diaBtn = await page.evaluate(() => document.querySelectorAll('[data-r6-adiar-dia]').length);
+    ok(larg, 'gestor: cada dia da Agenda tem "Adiar o dia todo"', diaBtn === (await page.evaluate(() => document.querySelectorAll('.r6-dia').length)) && diaBtn >= 1, String(diaBtn));
+    await page.evaluate(() => document.querySelector('[data-r6-adiar-dia]').click()); await espera(500);
+    const adDia = await page.evaluate(() => ({ ops: document.querySelectorAll('.modal [data-r6-quando]').length, cabe: document.querySelector('.modal').scrollWidth <= document.querySelector('.modal').clientWidth + 1 }));
+    ok(larg, 'gestor: Adiar o dia todo oferece 3 atalhos, escolha livre e cabe na tela', adDia.ops === 3 && adDia.cabe, JSON.stringify(adDia));
+    await page.evaluate(() => document.querySelector('.modal [data-r6-quando]').click()); await espera(900);
+    ok(larg, 'gestor: Adiar o dia todo avisa quantas foram e volta para a agenda', /adiada/.test(await texto(page, 'body')) && (await page.evaluate(() => document.querySelectorAll('.r6-dia').length)) >= 1);
     await page.evaluate(() => document.querySelector('.modal [data-fechar]')?.click()); await espera(300);
     // Simular
     await page.evaluate(() => document.querySelector('#r6Simular').click()); await espera(1000);
@@ -71,10 +78,12 @@ for (const larg of [1440, 375]) {
     await page.evaluate(() => document.querySelector('#r6Resultados').click()); await espera(1000);
     const rs = await page.evaluate(() => ({ linhas: document.querySelectorAll('.r6-res-linha').length, funil: document.querySelectorAll('#r6ResModal .r6-passo').length }));
     ok(larg, 'gestor: Resultados mostra o funil e uma linha por tipo/campanha', rs.linhas >= 2 && rs.funil === 5, JSON.stringify(rs));
+    ok(larg, 'gestor: Resultados lista quem voltou e oferece a planilha', (await page.evaluate(() => document.querySelectorAll('#r6ResModal .r6-itens li').length)) >= 1 && (await visivel(page, '#r6ResCsv')));
     await page.screenshot({ path: path.join(SAIDA, `resultados-${larg}.png`) });
     await page.evaluate(() => { const d = document.querySelector('#r6ResDe'); d.value = '2030-01-01'; d.dispatchEvent(new Event('change', { bubbles: true })); }); await espera(500);
     ok(larg, 'Resultados: período invertido avisa em vez de calcular', /antes do/.test(await texto(page, '#r6ResModal')));
     await page.evaluate(() => document.querySelector('.modal [data-fechar]')?.click()); await espera(300);
+    ok(larg, 'gestor Mensagens: filtro por origem com 5 opções', (await page.evaluate(() => document.querySelectorAll('#origemMsg option').length)) === 5);
     ok(larg, 'gestor Mensagens: sem rolagem lateral', await semRolagem(page));
 
     // Réguas
@@ -111,6 +120,12 @@ for (const larg of [1440, 375]) {
     const { ctx, page, erros } = await abrir(larg, 'atendente');
     await ir(page, 'mensagens');
     ok(larg, 'atendente Mensagens: vê Agenda e Resultados, não vê Simular rodada', (await visivel(page, '#r6Agenda')) && (await visivel(page, '#r6Resultados')) && !(await page.evaluate(() => !!document.querySelector('#r6Simular'))));
+    await page.evaluate(() => document.querySelector('#r6Resultados').click()); await espera(900);
+    ok(larg, 'atendente: Resultados abre mas sem o botão da planilha (só gestor exporta)', (await page.evaluate(() => document.querySelectorAll('#r6ResModal .r6-passo').length)) === 5 && !(await page.evaluate(() => !!document.querySelector('#r6ResCsv'))));
+    await page.evaluate(() => document.querySelector('.modal [data-fechar]')?.click()); await espera(300);
+    await page.evaluate(() => document.querySelector('#r6Agenda').click()); await espera(900);
+    ok(larg, 'atendente: Agenda sem "Adiar o dia todo"', (await page.evaluate(() => document.querySelectorAll('.r6-dia').length)) >= 1 && !(await page.evaluate(() => !!document.querySelector('[data-r6-adiar-dia]'))));
+    await page.evaluate(() => document.querySelector('.modal [data-fechar]')?.click()); await espera(300);
     await ir(page, 'reguas');
     ok(larg, 'atendente Réguas: painel novo aparece só para olhar (tudo desabilitado)', await page.evaluate(() => { const c = [...document.querySelectorAll('#painelR6Reguas [data-r6cfg]')]; return c.length >= 11 && c.every((x) => x.disabled); }));
     await ir(page, 'campanhas');

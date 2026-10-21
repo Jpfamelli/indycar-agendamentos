@@ -16,7 +16,7 @@ const agora = new Date().toISOString();
 const stats = { enviadas: 2, responderam: 1, agendaram: 1, voltaram: 1, aprovaram: 0, faturou: 120, taxaResposta: 50, taxaVoltou: 50, porMensagem: 60 };
 const RESP = {
   '/api/conexoes': { em: agora, itens: [{ id: P, app: P, rotulo: P, valor: 3, detalhe: P, ligada: true, lido: true }] },
-  '/api/resultados': { periodo: { de: P, ate: P }, janelaDias: 30, total: stats, porTipo: { [P]: stats }, porLote: { [ID]: { ...stats, tipo: P, quando: agora, texto: P } }, regra: P },
+  '/api/resultados': { periodo: { de: P, ate: P }, janelaDias: 30, total: stats, porTipo: { [P]: stats }, porLote: { [ID]: { ...stats, tipo: P, quando: agora, texto: P } }, quemVoltou: [{ id: P, tipo: P, nome: P, telefone: P, enviado_em: agora, voltou: true, aprovou: true, faturou: 100 }], quantosVoltaram: 99, regra: P },
   '/api/agenda': { dias: [{ data: '2026-10-21', total: 1, atrasadas: 0, porTipo: { [P]: 1 }, porHora: {}, domingo: false, feriado: P, limite: 300, excede: false, itens: [{ id: P, nome: P, telefone: P, tipo: P, enviar_em: agora, corpo: P, motivo_pulado: P }] }], atrasadas: 0, total: 1, limite: 300, cfg: { hora_envio: P, envia_domingo: false, limite_por_dia: 300 } },
   porque: { envio: { id: ID, nome: P, tipo: P, status: 'pendente' }, quando: agora, passos: [{ nivel: P, texto: P }, { nivel: 'bloqueio', texto: P }], resumo: P, bloqueios: 1, esperas: 0 },
   '/api/rodada/simular': { simulado: true, bloqueado: false, aviso: P, retomada: { motivo: P, limite: 3 }, enviaria: [{ id: P, tipo: P, nome: P, telefone: P, corpo: P }], pularia: [{ id: P, tipo: P, nome: P, motivo: P }], adiaria: [{ id: P, tipo: P, nome: P, motivo: P, quando: P }], reagendaria: [{ id: P, tipo: P, nome: P, motivo: P }], atualizaria: [] },
@@ -56,6 +56,7 @@ for (const larg of [1440, 375]) {
   await page.evaluate(() => document.querySelector('.modal [data-fechar]')?.click()); await espera(300);
   await page.evaluate(() => document.querySelector('#r6Resultados').click()); await espera(1000);
   await limpo('Resultados'); await cabe('Resultados');
+  ok(larg, 'Resultados: quem voltou mostra o nome malicioso como texto', await page.evaluate(() => /<img src=x/.test(document.querySelector('#r6ResModal .r6-itens')?.textContent || '')));
   await page.evaluate(() => document.querySelector('.modal [data-fechar]')?.click()); await espera(300);
   // "Por que" a partir de uma mensagem da lista
   await page.evaluate(() => document.querySelector('.pilula[data-filtro="pendente"]')?.click()); await espera(700);

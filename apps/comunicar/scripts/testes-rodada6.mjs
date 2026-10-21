@@ -380,3 +380,41 @@ test('datas: 31/02, mês 13 e dia 45 viram null em vez de estourar no banco (dat
   assert.equal(dataBanco('2026-10-20T14:00:00Z'), '2026-10-20', 'aceita ISO completo');
   assert.equal(C.diaValido('2026-02-31'), null); assert.equal(C.diaValido('2026-10-20'), '2026-10-20'); assert.equal(C.diaValido("2026-10-20'--"), null); assert.equal(C.diaValido(null), null);
 });
+
+// ---------------------------------------------------------------- projeção do mês com o Orçador
+import { projetarMes } from '../projecao.js';
+const CFG_PROJ = { envia_domingo: true, dias_orcamento: 3, usa_orcador: true, ativo_orcamento: true, intervalo_minimo_dias: 0, horas_lembrete: 20, limite_por_hora: 60, janela_inicio: 8, janela_fim: 20 };
+const ORC = (n, extra = {}) => ({ id: ID(n), status: 'enviado', cliente_id: ID(500 + n), cliente_nome: `Cli ${n}`, cliente_telefone: `(12) 99999-${String(1000 + n)}`, enviado_em: '2026-10-20T14:00:00Z', decidido_em: null, validade: '2026-11-30', token_publico: 'abcdefghijklmnop1234', lead_id: null, ...extra });
+
+test('projeção: orçamento do Orçador entra no dia certo (enviado + N dias), com a origem marcada', () => {
+  const p = projetarMes({ hoje: '2026-10-21', cfg: CFG_PROJ, orcamentos: [ORC(1)], agora: new Date('2026-10-21T14:00:00Z') });
+  assert.equal(p.porRegua.orcamento.total, 1);
+  const item = p.itens.find((i) => i.tipo === 'orcamento');
+  assert.equal(item.data, '2026-10-23');
+  assert.equal(item.origem, 'orcador');
+});
+
+test('projeção: sem link público não entra (avisa), decidido não entra, validade vencida não entra, Orçador desligado ignora tudo', () => {
+  const orcs = [ORC(1, { token_publico: null }), ORC(2, { decidido_em: '2026-10-21T10:00:00Z' }), ORC(3, { validade: '2026-10-22' }), ORC(4, { status: 'aprovado' })];
+  const p = projetarMes({ hoje: '2026-10-21', cfg: CFG_PROJ, orcamentos: orcs, agora: new Date('2026-10-21T14:00:00Z') });
+  assert.equal(p.porRegua.orcamento.total, 0);
+  assert.ok(p.avisos.some((a) => /sem link público/.test(a)));
+  const desligado = projetarMes({ hoje: '2026-10-21', cfg: { ...CFG_PROJ, usa_orcador: false }, orcamentos: [ORC(5)], agora: new Date('2026-10-21T14:00:00Z') });
+  assert.equal(desligado.porRegua.orcamento.total, 0);
+});
+
+test('projeção: o lead do CRM que nasceu de um orçamento do Orçador não conta em dobro', () => {
+  const lead = { id: ID(900), cliente_id: ID(501), nome: 'Cli 1', telefone: '(12) 99999-1001', status: 'orcamento', updated_at: '2026-10-20T14:00:00Z' };
+  const com = projetarMes({ hoje: '2026-10-21', cfg: CFG_PROJ, leads: [lead], orcamentos: [ORC(1, { lead_id: ID(900) })], agora: new Date('2026-10-21T14:00:00Z') });
+  assert.equal(com.porRegua.orcamento.total, 1, 'um só lembrete');
+  const sem = projetarMes({ hoje: '2026-10-21', cfg: CFG_PROJ, leads: [lead], orcamentos: [], agora: new Date('2026-10-21T14:00:00Z') });
+  assert.equal(sem.porRegua.orcamento.total, 1, 'sem Orçador o lead continua valendo');
+  const desligado = projetarMes({ hoje: '2026-10-21', cfg: { ...CFG_PROJ, usa_orcador: false }, leads: [lead], orcamentos: [ORC(1, { lead_id: ID(900) })], agora: new Date('2026-10-21T14:00:00Z') });
+  assert.equal(desligado.porRegua.orcamento.total, 1, 'com o Orçador desligado o lead volta a valer');
+});
+
+test('projeção: cliente que não aceita mensagens fica fora, também no Orçador', () => {
+  const clientes = [{ id: ID(501), nome: 'Cli 1', telefone: '(12) 99999-1001', aceita_mensagens: false }];
+  const p = projetarMes({ hoje: '2026-10-21', cfg: CFG_PROJ, clientes, orcamentos: [ORC(1)], agora: new Date('2026-10-21T14:00:00Z') });
+  assert.equal(p.porRegua.orcamento.total, 0);
+});

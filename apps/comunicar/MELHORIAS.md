@@ -743,3 +743,41 @@ Lote 4 — três passadas de caça a bug (celular 375 px · atacante · ponta a 
 161. 🔗 Bug real de ponta a ponta: o "ficou tudo certo?" da Agenda saía POR CIMA da nota baixa que o cliente deu no Pátio (e do convite do Google já mandado) quando o horário era o mesmo, porque os geradores rodavam na ordem errada. Agora o Pátio vai primeiro e segura a mesma chave `posvenda:<horário>` (pulado com o motivo), também na prévia; 3 testes que falham sem a correção.
 162. 🔗 Formato do telefone conferido no banco real: `telefone_e164` dos envios e das mensagens é o número SEM o 55 — as conferências (reclamação, texto repetido) e os testes usam esse formato.
 163. 🔗 Reclamação aberta confirmada contra os dados reais: `tarefas.status = 'aberta'` e `posvenda_envios.resposta_tipo = 'negativa'` são os valores que a conferência usa.
+
+Lote 5 — orçamento aberto, prontidão e datas
+
+164. 🔗 **Orçamento esperando resposta segura a reativação e o "não fechou"** (48 h, e só enquanto o orçamento está dentro da validade): ninguém recebe "sumiu?" de quem está com proposta na mão. Teste puro e teste do carteiro com banco falso.
+165. 🔗 Migração `r6_c4_orcamento_aberto`: coluna `bloquear_com_orcamento_aberto` (padrão ligado) em `posvenda_config`; aditiva, cópia em `scripts/sql/` e em `indycar-ferramentas/sql/`; `get_advisors` sem alerta novo.
+166. O interruptor novo aparece em Réguas › Cuidado com o cliente (agora 8 interruptores) e o roteiro do navegador conta os 8.
+167. 🔗 A conferência de orçamento aberto usa a validade do orçamento no dia de São Paulo: orçamento vencido não segura mais ninguém.
+168. 🔗 **Prontidão: textos novos** — o checklist de prontidão aponta qual dos três textos tem erro (variável inexistente, falta de link) e leva direto para Réguas.
+169. 🔗 **Prontidão: orçamentos parados** com o lembrete desligado, e orçamento enviado **sem link público** (esse não recebe lembrete) com a contagem.
+170. 🔗 **Prontidão: pós-venda dos carros entregues no Pátio** — avisa quando há entrega recente e a régua está desligada, ou quando só a Agenda alimenta o pós-venda.
+171. 🔗 **Prontidão: leitura do Pátio/Orçador** — se a leitura falhou, diz qual e que a régua segue sem aquela conferência.
+172. **Prontidão: retomada gradual** do WhatsApp aparece como aviso ("sai devagar de propósito") em vez de parecer defeito.
+173. A rota `/api/pronto` devolve o fato `r6` (itens, semLink, retomada) e os itens só existem quando o fato vem — telas antigas não quebram.
+174. Bug real: `GET /api/resultados?de=2026-13-45` (e `ate=2026-02-31`, e `ate=2026-99-99`) estourava 500 no banco; agora `diaValido` barra e a rota responde 400 "Data inválida: use o formato AAAA-MM-DD.".
+175. Bug real: `dataBanco` aceitava 31/02 e 31/04 vindos de planilha e mandava ao banco; agora valida o calendário (bissexto incluso) e devolve nulo. Teste com 8 datas impossíveis e 4 válidas.
+176. A contagem de orçamentos sem link (`semLink`) entra em "Ligações" do Início e na prontidão com o mesmo número.
+
+Lote 6 — adiar o dia, resultados em planilha, origem, projeção
+
+177. **Adiar o dia todo** (`POST /api/agenda/adiar-dia`): todas as mensagens que ainda não saíram naquele dia (fuso da oficina) vão para o novo horário numa só ação; as que estão sendo enviadas e as já enviadas não mudam.
+178. A mensagem que passaria da validade **fica onde está** e a resposta diz quantas foram e quantas ficaram ("3 ficaram onde estavam: passariam da validade").
+179. Só quem pode cancelar qualquer mensagem (gestor) adia o dia; atendente leva 403; cada uso entra na auditoria (`dia_adiado`, com o dia, o destino e as contagens).
+180. Dia inexistente (31/02), horário já passado, texto qualquer e mais de 60 dias à frente viram 400 com o motivo — nunca 500.
+181. Botão **"Adiar o dia todo"** em cada dia da Agenda (só gestor): três atalhos (amanhã, 2 dias, semana que vem às 9h30) ou data e hora; volta para a Agenda atualizada. Conferido no navegador a 1440 e 375 px.
+182. Teste de ponta a ponta na API: mexe só no dia certo, deixa a mensagem de validade curta, o outro dia e a já enviada intactos.
+183. 🔗 **Resultados › "Quem voltou"**: os 40 primeiros clientes que voltaram depois da mensagem (Agenda, Pátio, orçamento aprovado ou serviço pago), quem faturou primeiro, com o tipo e "orçamento aprovado" quando for o caso.
+184. A lista completa de clientes nunca sai pelo JSON: sem `detalhe=1` a resposta não tem nome nem telefone, e com ele só vêm os que voltaram (teste confere que `linhas` não vaza).
+185. 🔗 **Planilha dos resultados** (`/api/resultados.csv`, botão "Baixar planilha"): uma linha por mensagem com respondeu / agendou / voltou / aprovou / faturou; só gestor baixa (mesma regra do CSV do histórico), com auditoria.
+186. A planilha abre direto no Excel pt-BR: separador `;`, BOM, vírgula decimal, e nome de cliente que começa com `=` vira texto (`'=SOMA(A1)`) — sem injeção de fórmula.
+187. Planilha e tela respondem 400 a data inválida, período invertido e régua inventada; o atendente nem vê o botão (conferido no navegador).
+188. 🔗 **Mensagens › "De onde veio"**: filtro por Agenda, Pátio, Orçador ou CRM, usando a ordem de serviço, o orçamento ou o lead ligado à mensagem (a "Agenda" exclui as que nasceram no Pátio e no Orçador).
+189. Origem inventada ou com injeção de filtro (`patio)or(1.eq.1`) dá 400 — na lista e na planilha do histórico, que respeita o mesmo filtro.
+190. 🔗 **Projeção do mês enxerga o Orçador**: orçamento enviado e sem decisão entra no dia certo (envio + N dias) com a origem marcada, como o gerador faz de verdade.
+191. 🔗 Fora da projeção, de propósito: orçamento sem link público (com aviso e contagem), já decidido, com validade vencida antes do dia e com o Orçador desligado.
+192. 🔗 O lead do CRM que nasceu de um orçamento do Orçador não conta em dobro na projeção (e volta a contar se o Orçador for desligado) — mesma regra do gerador.
+193. 🔗 A leitura da projeção traz do Orçador só o que espera decisão (teste com enviado, decidido e aprovado).
+194. Bug que eu mesmo criei e o navegador pegou: ao colar o código novo, `$$` virou `$` (substituição de texto) e quebrou o botão "Adiar" da Agenda; corrigido e o roteiro agora cobre o clique de cada botão novo.
+195. Roteiro do navegador ampliado: adiar o dia (3 atalhos, cabe na tela), quem voltou + planilha (gestor), sem planilha nem "dia todo" para o atendente, filtro de origem com 5 opções; e o roteiro do atacante cobre o nome malicioso em "quem voltou".

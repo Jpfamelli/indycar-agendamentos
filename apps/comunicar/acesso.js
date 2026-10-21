@@ -177,9 +177,11 @@ export const ROTAS = [
   // rodada 6
   ['GET',    '/api/agenda',                              { perm: 'ver' }],
   ['POST',   `/api/envios/${U}/adiar`,                  { perm: 'cancelar_proprio' }],
+  ['POST',   '/api/agenda/adiar-dia',                    { perm: 'cancelar_qualquer' }],
   ['GET',    `/api/envios/${U}/porque`,                 { perm: 'ver' }],
   ['POST',   '/api/rodada/simular',                      { perm: 'rodar', caro: true }],
   ['GET',    '/api/resultados',                          { perm: 'ver' }],
+  ['GET',    '/api/resultados.csv',                      { perm: 'exportar', caro: true }],
   ['GET',    `/api/lotes/${U}/resultado`,               { perm: 'ver' }],
   ['GET',    '/api/conexoes',                            { perm: 'ver' }],
   ['POST',   '/api/campanhas/previa',                    { perm: 'ver', caro: true }],

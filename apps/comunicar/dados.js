@@ -694,7 +694,8 @@ export async function listarModelos() {
 
 /* rodada 4: colunas explícitas (antes select=*) — é o que a tela e o CSV usam */
 const CAMPOS_ENVIO = 'id,cliente_id,agendamento_id,lead_id,telefone,nome,tipo,corpo,enviar_em,enviado_em,status,erro,erro_classe,tentativas,motivo_pulado,chave_unica,criado_por,criado_por_id,campanha_id,lote,resposta,resposta_tipo,respondido_em,agendou_depois_id,intencao,intencao_em,intencao_resumo,encaminhado_em,tarefa_id,expira_em,conversa_id,mensagem_id,os_id,orcamento_id,created_at';
-export async function listarEnvios({ status, tipo, q, de, ate, intencao, limite = 300, offset = 0 } = {}) {
+export const ORIGENS_ENVIO = ['agenda', 'patio', 'orcador', 'crm'];
+export async function listarEnvios({ status, tipo, q, de, ate, intencao, origem, limite = 300, offset = 0 } = {}) {
   const p = new URLSearchParams(`select=${CAMPOS_ENVIO}`);
   const desloc = Math.max(0, Math.min(Number(offset) || 0, 100000));
   if (desloc) p.set('offset', String(desloc));
@@ -707,6 +708,11 @@ export async function listarEnvios({ status, tipo, q, de, ate, intencao, limite 
   if (dIni) p.append('enviar_em', `gte.${instanteSP(dIni, '00:00').toISOString()}`);
   if (dFim) p.append('enviar_em', `lt.${instanteSP(somarDias(dFim, 1), '00:00').toISOString()}`);
   if (tipo && tipo !== 'todos') p.set('tipo', `eq.${tipo}`);
+  // de onde veio o motivo da mensagem: Agenda, Pátio (ordem de serviço), Orçador (orçamento) ou CRM (lead)
+  if (origem === 'patio') p.set('os_id', 'not.is.null');
+  else if (origem === 'orcador') p.set('orcamento_id', 'not.is.null');
+  else if (origem === 'crm') p.set('lead_id', 'not.is.null');
+  else if (origem === 'agenda') { p.set('agendamento_id', 'not.is.null'); p.set('os_id', 'is.null'); p.set('orcamento_id', 'is.null'); }
   if (q) {
     const t = termoBusca(q);
     const dig = soDigitos(q);
@@ -2438,15 +2444,16 @@ export async function textosComAniversario() {
 /** Tudo que a prévia do mês precisa (cache curto em rotas.js). */
 export async function dadosDaProjecao() {
   const desde = somarDias(hoje(), -(36 * 30 + 40));
-  const [cfg, regras, agendamentos, clientes, leads, taxa] = await Promise.all([
+  const [cfg, regras, agendamentos, clientes, leads, taxa, orcamentos] = await Promise.all([
     obterConfig(),
     listarRegras(),
     selecionarTudo(T.agendamentos, `select=id,cliente_id,cliente_nome,telefone,servico,data,hora,status&data=gte.${desde}`),
     selecionarTudo(T.clientes, 'select=id,nome,telefone,nascimento,aceita_mensagens'),
     selecionarTudo(T.leads, 'select=id,cliente_id,nome,telefone,status,updated_at&status=eq.orcamento'),
     taxaDeAvaliacao(),
+    selecionarTudo('orc_orcamentos', 'select=id,status,cliente_id,cliente_nome,cliente_telefone,validade,enviado_em,decidido_em,token_publico,lead_id&status=eq.enviado&decidido_em=is.null').catch(() => []),
   ]);
-  return { cfg, regras, agendamentos, clientes, leads, taxaAvaliacao: taxa };
+  return { cfg, regras, agendamentos, clientes, leads, orcamentos, taxaAvaliacao: taxa };
 }
 
 /** Fração dos pós-vendas enviados que viraram avaliação (180 dias); null sem histórico. */
@@ -2836,6 +2843,29 @@ export async function adiarManual(id, quandoIso) {
   return { ok: true, quando: v.quando };
 }
 
+/** Muda o horário de TODAS as mensagens que ainda não saíram num dia (fuso da oficina) — a que passaria da validade fica onde está. */
+export async function adiarDia(dia, quandoIso) {
+  const d = conexoes.diaValido(dia);
+  if (!d) return { ok: false, erro: 'Dia inválido: use o formato AAAA-MM-DD.' };
+  const q = Date.parse(quandoIso);
+  if (!Number.isFinite(q)) return { ok: false, erro: 'Escolha uma data e hora válidas.' };
+  if (q < Date.now() - 60000) return { ok: false, erro: 'Escolha um horário que ainda não passou.' };
+  if (q > Date.now() + 60 * 86400000) return { ok: false, erro: 'No máximo 60 dias à frente.' };
+  const p = new URLSearchParams('select=id,status,enviando_em,expira_em,tipo');
+  p.set('status', 'eq.pendente'); p.set('enviando_em', 'is.null'); p.set('order', 'enviar_em.asc'); p.set('limit', '1000');
+  p.append('enviar_em', `gte.${instanteSP(d, '00:00').toISOString()}`);
+  p.append('enviar_em', `lt.${instanteSP(somarDias(d, 1), '00:00').toISOString()}`);
+  const lista = await selecionar(T.envios, p);
+  let adiadas = 0, ficaram = 0;
+  for (const e of lista) {
+    const v = conexoes.validarAdiamento(e, quandoIso);
+    if (!v.ok) { ficaram++; continue; }
+    await atualizarUm(T.envios, `id=eq.${e.id}&status=eq.pendente&enviando_em=is.null`, { enviar_em: v.quando, motivo_pulado: null });
+    adiadas++;
+  }
+  return { ok: true, adiadas, ficaram, total: lista.length, quando: new Date(q).toISOString(), aviso: ficaram ? `${ficaram} ficaram onde estavam: passariam da validade.` : null };
+}
+
 /** "Por que esta mensagem ainda não saiu?" — monta o contexto de AGORA e usa a mesma ordem de decisão do carteiro. */
 export async function explicarEnvio(id) {
   if (!ehUuid(id)) return null;
@@ -2904,12 +2934,32 @@ function descreverLotes(porLote, envios) {
   for (const [lote, resumo] of Object.entries(porLote)) Object.assign(resumo, vistos.get(lote) || {});
   return porLote;
 }
+/** Uma linha por mensagem enviada com o que veio depois (para a planilha e para "quem voltou"). */
+export function linhasDeResultado(envios, porEnvio) {
+  return envios.map((e) => {
+    const v = porEnvio.get(e.id) || {};
+    return { id: e.id, tipo: e.tipo, nome: e.nome || '', telefone: e.telefone || '', enviado_em: e.enviado_em, lote: e.lote || null,
+      respondeu: !!v.respondeu, agendou: !!v.agendou, voltou: !!v.voltou, aprovou: !!v.aprovou, faturou: Number(v.faturou) || 0 };
+  }).sort((a, b) => (b.faturou - a.faturou) || String(b.enviado_em).localeCompare(String(a.enviado_em)));
+}
+const sim = (b) => (b ? 'sim' : 'não');
+export const COLUNAS_CSV_RESULTADOS = [
+  { rotulo: 'Enviada em', valor: (e) => dataHoraSP(e.enviado_em) },
+  { rotulo: 'Tipo', valor: (e) => ROTULO_TIPO[e.tipo] || e.tipo },
+  { rotulo: 'Cliente', campo: 'nome' },
+  { rotulo: 'Telefone', campo: 'telefone' },
+  { rotulo: 'Respondeu', valor: (e) => sim(e.respondeu) },
+  { rotulo: 'Agendou', valor: (e) => sim(e.agendou) },
+  { rotulo: 'Voltou', valor: (e) => sim(e.voltou) },
+  { rotulo: 'Orçamento aprovado', valor: (e) => sim(e.aprovou) },
+  { rotulo: 'Faturou (R$)', valor: (e) => String(e.faturou).replace('.', ',') },
+];
 const TOTAL_VAZIO = { enviadas: 0, responderam: 0, agendaram: 0, voltaram: 0, aprovaram: 0, faturou: 0, taxaResposta: null, taxaVoltou: null, porMensagem: 0 };
 /** Resposta → agendou → voltou → faturou por tipo e por lote. Janela de 30 dias para o crédito. */
-export async function resultados({ de = null, ate = null, tipo = null, lote = null, janelaDias = 30 } = {}) {
+export async function resultados({ de = null, ate = null, tipo = null, lote = null, janelaDias = 30, detalhe = false } = {}) {
   const h = hoje();
   const dIni = dataBanco(de) || somarDias(h, -30), dFim = dataBanco(ate) || h;
-  const p = new URLSearchParams('select=id,tipo,cliente_id,telefone,enviado_em,respondido_em,agendou_depois_id,lote,campanha_id,os_id,orcamento_id,criado_por,corpo');
+  const p = new URLSearchParams('select=id,tipo,nome,cliente_id,telefone,enviado_em,respondido_em,agendou_depois_id,lote,campanha_id,os_id,orcamento_id,criado_por,corpo');
   p.set('status', 'eq.enviado');
   p.append('enviado_em', `gte.${instanteSP(dIni, '00:00').toISOString()}`);
   p.append('enviado_em', `lt.${instanteSP(somarDias(dFim, 1), '00:00').toISOString()}`);
@@ -2923,6 +2973,7 @@ export async function resultados({ de = null, ate = null, tipo = null, lote = nu
     total: conexoes.resumirResultados(envios, porEnvio, () => 'total').total || TOTAL_VAZIO,
     porTipo: conexoes.resumirResultados(envios, porEnvio),
     porLote: descreverLotes(conexoes.resumirResultados(envios, porEnvio, (e) => e.lote || null), envios),
+    ...(detalhe ? { linhas: linhasDeResultado(envios, porEnvio) } : {}),
     regra: 'Cada visita, orçamento aprovado ou serviço pago é creditado à ÚLTIMA mensagem enviada ao cliente nos 30 dias antes dele. Faturou = o maior entre agenda, CRM e orçamento (o mesmo serviço aparece nos três).',
   };
 }

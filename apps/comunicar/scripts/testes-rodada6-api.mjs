@@ -34,7 +34,7 @@ async function subir({ simular = null } = {}) {
     const r = await fetch(base + caminho, { method: metodo, headers: { 'Content-Type': 'application/json', ...(perfil ? { 'x-teste-perfil': perfil } : {}) }, body: corpo === undefined ? undefined : JSON.stringify(corpo) });
     return { status: r.status, json: await r.json().catch(() => null) };
   };
-  return { chamar, fechar: () => new Promise((ok) => srv.close(ok)) };
+  return { base, chamar, fechar: () => new Promise((ok) => srv.close(ok)) };
 }
 test.after(() => banco.restaurar());
 
@@ -206,6 +206,97 @@ test('API atacante: prévia de campanha limita o texto, o "não repetir", o núm
     r = await s.chamar('atendente', 'POST', '/api/campanhas/previa', { corpo: 'Oi {primeiro_nome}', destinos: muitos });
     assert.equal(r.status, 200); assert.ok(r.json.total <= 2000, `total ${r.json.total}`); assert.ok(r.json.linhas.length <= 8);
     r = await s.chamar('atendente', 'POST', '/api/campanhas/previa', { corpo: 'Oi', segmento: { filtro: 'inventado' } });
+    assert.equal(r.status, 400);
+  } finally { await s.fechar(); }
+});
+
+test('API: adiar o dia todo — gestor move só as do dia, a que passaria da validade fica, atendente 403, dia inválido 400', async () => {
+  const s = await subir();
+  try {
+    const dia = real.somarDias(H, 10);
+    const cedo = real.instanteSP(dia, '09:30').toISOString();
+    const longe = real.instanteSP(real.somarDias(H, 14), '09:30').toISOString();
+    const curta = real.instanteSP(real.somarDias(H, 11), '09:30').toISOString();
+    const longa = real.instanteSP(real.somarDias(H, 30), '09:30').toISOString();
+    tabelas.posvenda_envios.push(
+      { id: ID(61), status: 'pendente', tipo: 'campanha', nome: 'A', telefone: '12999990061', corpo: 'a', enviar_em: cedo, expira_em: longa },
+      { id: ID(62), status: 'pendente', tipo: 'campanha', nome: 'B', telefone: '12999990062', corpo: 'b', enviar_em: cedo, expira_em: curta },
+      { id: ID(63), status: 'pendente', tipo: 'campanha', nome: 'C', telefone: '12999990063', corpo: 'c', enviar_em: longe, expira_em: longa },
+      { id: ID(64), status: 'enviado', tipo: 'campanha', nome: 'D', telefone: '12999990064', corpo: 'd', enviar_em: cedo, expira_em: longa },
+    );
+    const alvo = real.instanteSP(real.somarDias(H, 12), '09:30').toISOString();
+    let r = await s.chamar('atendente', 'POST', '/api/agenda/adiar-dia', { dia, enviar_em: alvo });
+    assert.equal(r.status, 403);
+    r = await s.chamar('gestor', 'POST', '/api/agenda/adiar-dia', { dia: '2026-02-31', enviar_em: alvo });
+    assert.equal(r.status, 400);
+    r = await s.chamar('gestor', 'POST', '/api/agenda/adiar-dia', { dia, enviar_em: 'ontem' });
+    assert.equal(r.status, 400);
+    r = await s.chamar('gestor', 'POST', '/api/agenda/adiar-dia', { dia, enviar_em: new Date(Date.now() - 86400000).toISOString() });
+    assert.equal(r.status, 400, 'passado');
+    r = await s.chamar('gestor', 'POST', '/api/agenda/adiar-dia', { dia, enviar_em: alvo });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.adiadas, 1); assert.equal(r.json.ficaram, 1); assert.match(r.json.aviso, /validade/);
+    const por = (id) => tabelas.posvenda_envios.find((e) => e.id === ID(id));
+    assert.equal(new Date(por(61).enviar_em).toISOString(), alvo, 'a do dia foi');
+    assert.equal(por(62).enviar_em, cedo, 'a que passaria da validade ficou');
+    assert.equal(por(63).enviar_em, longe, 'outro dia intocado');
+    assert.equal(por(64).enviar_em, cedo, 'já enviada intocada');
+  } finally { await s.fechar(); }
+});
+
+test('API: resultados.csv — só gestor baixa, datas ruins dão 400, vem como arquivo; detalhe=1 traz quem voltou sem telefone de quem não voltou', async () => {
+  const s = await subir();
+  try {
+    tabelas.posvenda_envios.length = 0;
+    tabelas.agendamentos = [{ id: ID(81), cliente_id: ID(181), telefone: '12999990081', data: real.somarDias(H, -1), status: 'concluido', valor: 200, created_at: new Date(Date.now() - 3 * 86400000).toISOString() }];
+    tabelas.posvenda_envios.push(
+      { id: ID(71), status: 'enviado', tipo: 'campanha', nome: 'Voltou', cliente_id: ID(181), telefone: '12999990081', telefone_e164: '12999990081', enviado_em: new Date(Date.now() - 4 * 86400000).toISOString(), criado_por: 'joao' },
+      { id: ID(72), status: 'enviado', tipo: 'campanha', nome: 'Calado', cliente_id: ID(182), telefone: '12999990082', telefone_e164: '12999990082', enviado_em: new Date(Date.now() - 4 * 86400000).toISOString(), criado_por: 'joao' });
+    let r = await s.chamar('atendente', 'GET', '/api/resultados.csv');
+    assert.equal(r.status, 403);
+    r = await s.chamar('gestor', 'GET', '/api/resultados.csv?de=2026-13-45');
+    assert.equal(r.status, 400);
+    r = await s.chamar('gestor', 'GET', '/api/resultados.csv?regua=inventada');
+    assert.equal(r.status, 400);
+    const bruto = await fetch(s.base + '/api/resultados.csv', { headers: { 'x-teste-perfil': 'gestor' } });
+    assert.equal(bruto.status, 200);
+    assert.match(bruto.headers.get('content-type'), /text\/csv/);
+    assert.match(bruto.headers.get('content-disposition'), /comunicar-resultados-\d{4}-\d{2}-\d{2}\.csv/);
+    const texto = await bruto.text();
+    assert.ok(texto.includes('Voltou') && texto.includes('Calado'));
+    r = await s.chamar('atendente', 'GET', '/api/resultados?detalhe=1');
+    assert.equal(r.status, 200);
+    assert.equal(r.json.quantosVoltaram, 1);
+    assert.equal(r.json.quemVoltou.length, 1);
+    assert.equal(r.json.quemVoltou[0].nome, 'Voltou');
+    assert.equal(r.json.linhas, undefined, 'a lista completa nunca sai pelo JSON');
+    r = await s.chamar('atendente', 'GET', '/api/resultados');
+    assert.equal(r.json.quemVoltou, undefined, 'sem detalhe, sem nomes');
+  } finally { await s.fechar(); }
+});
+
+test('API: filtro de mensagens por origem (Agenda, Pátio, Orçador, CRM) — e origem inventada é 400, também na planilha', async () => {
+  const s = await subir();
+  try {
+    tabelas.posvenda_envios.length = 0;
+    const base = { status: 'enviado', tipo: 'posvenda', corpo: 'x', enviar_em: new Date().toISOString() };
+    tabelas.posvenda_envios.push(
+      { ...base, id: ID(91), nome: 'DaAgenda', telefone: '12999990091', agendamento_id: ID(901) },
+      { ...base, id: ID(92), nome: 'DoPatio', telefone: '12999990092', os_id: ID(902), agendamento_id: ID(901) },
+      { ...base, id: ID(93), nome: 'DoOrcador', telefone: '12999990093', orcamento_id: ID(903), tipo: 'orcamento' },
+      { ...base, id: ID(94), nome: 'DoCrm', telefone: '12999990094', lead_id: ID(904), tipo: 'nao_fechou' },
+      { ...base, id: ID(95), nome: 'Avulsa', telefone: '12999990095', tipo: 'avulsa' });
+    const nomes = async (origem) => (await s.chamar('atendente', 'GET', `/api/envios?origem=${origem}`)).json.map((e) => e.nome).sort();
+    assert.deepEqual(await nomes('agenda'), ['DaAgenda']);
+    assert.deepEqual(await nomes('patio'), ['DoPatio']);
+    assert.deepEqual(await nomes('orcador'), ['DoOrcador']);
+    assert.deepEqual(await nomes('crm'), ['DoCrm']);
+    assert.equal((await nomes('todas')).length, 5);
+    let r = await s.chamar('atendente', 'GET', '/api/envios?origem=hacker');
+    assert.equal(r.status, 400);
+    r = await s.chamar('atendente', 'GET', '/api/envios?origem=patio)or(1.eq.1');
+    assert.equal(r.status, 400);
+    r = await s.chamar('gestor', 'GET', '/api/envios.csv?origem=hacker');
     assert.equal(r.status, 400);
   } finally { await s.fechar(); }
 });

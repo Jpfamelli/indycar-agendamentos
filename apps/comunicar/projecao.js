@@ -38,11 +38,12 @@ export function diaDeSaida(iso, tipo, enviaDomingo) {
  * @param {Array}  p.agendamentos  id, cliente_id, cliente_nome, telefone, servico, data, hora, status
  * @param {Array}  p.clientes      id, nome, telefone, nascimento, aceita_mensagens
  * @param {Array}  p.leads         id, cliente_id, nome, telefone, status, updated_at
+ * @param {Array}  [p.orcamentos]  Orçador: status, cliente_id, cliente_nome, cliente_telefone, enviado_em, decidido_em, validade, token_publico, lead_id
  * @param {number} [p.taxaAvaliacao] fração dos pós-vendas que viram avaliação (histórico)
  * @param {number} [p.dias=30]
  * @param {Date}   [p.agora]
  */
-export function projetarMes({ hoje, cfg, regras = [], agendamentos = [], clientes = [], leads = [], taxaAvaliacao = null, dias = 30, agora = new Date() }) {
+export function projetarMes({ hoje, cfg, regras = [], agendamentos = [], clientes = [], leads = [], orcamentos = [], taxaAvaliacao = null, dias = 30, agora = new Date() }) {
   const fim = somarDias(hoje, dias);             // exclusivo
   const dentro = (d) => d >= hoje && d < fim;
   const fichas = new Map(clientes.map((c) => [c.id, c]));
@@ -141,14 +142,31 @@ export function projetarMes({ hoje, cfg, regras = [], agendamentos = [], cliente
   // ---- orçamento parado: N dias depois da última mexida no lead
   const dOrc = Number(cfg.dias_orcamento) || 3;
   let orcamentosAntigos = 0;
+  // rodada 6: o Orçador manda primeiro — o lead do CRM que nasceu de um orçamento dele não conta duas vezes
+  const cobertos = new Set(cfg.usa_orcador ? orcamentos.map((o) => o.lead_id).filter(Boolean) : []);
   for (const l of leads) {
-    if (l.status !== 'orcamento' || !l.updated_at) continue;
+    if (l.status !== 'orcamento' || !l.updated_at || cobertos.has(l.id)) continue;
     let d = somarDias(diaSP(new Date(l.updated_at)), dOrc);
     if (d < somarDias(hoje, -7)) { if (!fora(l.cliente_id, l.telefone) && soDigitos(l.telefone)) orcamentosAntigos++; continue; }
     if (d < hoje) d = hoje;
     add('orcamento', d, { cliente_id: l.cliente_id, nome: l.nome, telefone: l.telefone });
   }
   if (orcamentosAntigos) avisos.push(`${orcamentosAntigos} orçamento(s) parado(s) há mais de ${dOrc + 7} dias ficam fora da régua (ela pega os de ${dOrc} a ${dOrc + 7} dias). Para esses, uma campanha "fizeram um serviço" ou uma ligação.`);
+
+  // ---- orçamento do Orçador (rodada 6): enviado, sem decisão, com link público e ainda na validade
+  let orcSemLink = 0;
+  if (cfg.usa_orcador) {
+    for (const o of orcamentos) {
+      if (o.status !== 'enviado' || o.decidido_em || !o.enviado_em) continue;
+      let d = somarDias(diaSP(new Date(o.enviado_em)), dOrc);
+      if (d < somarDias(hoje, -7)) continue;
+      if (d < hoje) d = hoje;
+      if (!o.token_publico) { orcSemLink++; continue; }
+      if (o.validade && o.validade < d) continue;
+      add('orcamento', d, { cliente_id: o.cliente_id, nome: o.cliente_nome, telefone: o.cliente_telefone }, { origem: 'orcador' });
+    }
+    if (orcSemLink) avisos.push(`${orcSemLink} orçamento(s) do Orçador sem link público: não entram na projeção porque o lembrete não sairia. Reenvie pelo Orçador para gerar o link.`);
+  }
 
   // ---- não fechou: N dias depois da visita, se não voltou
   const dNF = Number(cfg.dias_nao_fechou) || 7;

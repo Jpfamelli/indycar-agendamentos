@@ -224,6 +224,40 @@ test('resultados: respondeu, agendou depois, voltou e faturou ficam no funil; me
   assert.ok(Array.isArray(r.porLote) || typeof r.porLote === 'object');
 });
 
+test('resultados com detalhe: linha por mensagem, quem voltou primeiro, planilha em pt-BR sem fórmula solta', async () => {
+  limpar(); config();
+  tabelas.posvenda_envios = [
+    { id: ID(1), status: 'enviado', tipo: 'campanha', nome: '=SOMA(A1)', cliente_id: ID(101), telefone: tel(1), telefone_e164: tel(1), enviado_em: diaSP(-5), respondido_em: diaSP(-4), lote: ID(50), criado_por: 'joao' },
+    { id: ID(2), status: 'enviado', tipo: 'campanha', nome: 'Bia', cliente_id: ID(102), telefone: tel(2), telefone_e164: tel(2), enviado_em: diaSP(-5), lote: ID(50), criado_por: 'joao' },
+  ];
+  tabelas.agendamentos = [{ id: ID(60), cliente_id: ID(101), telefone: tel(1), data: D.somarDias(H, -2), status: 'concluido', valor: 1234.5, created_at: diaSP(-4) }];
+  const r = await D.resultados({ detalhe: true });
+  assert.equal(r.linhas.length, 2);
+  assert.equal(r.linhas[0].nome, '=SOMA(A1)', 'quem faturou vem primeiro');
+  assert.equal(r.linhas[0].voltou, true); assert.equal(r.linhas[0].faturou, 1234.5);
+  assert.equal(r.linhas[1].voltou, false);
+  assert.equal((await D.resultados({})).linhas, undefined, 'sem detalhe a resposta não carrega telefone nenhum');
+  const csv = D.paraCSV(r.linhas, D.COLUNAS_CSV_RESULTADOS);
+  assert.equal(csv.charCodeAt(0), 0xFEFF, 'BOM para o Excel');
+  assert.ok(csv.includes("'=SOMA(A1)"), 'fórmula neutralizada');
+  assert.match(csv, /1234,5/, 'vírgula decimal');
+  assert.match(csv, /;sim;/);
+});
+
+test('projeção lê do Orçador só o que espera decisão (enviado, sem decidido_em) e a conta sai junto com o resto', async () => {
+  limpar(); config();
+  tabelas.orc_orcamentos = [
+    { id: ID(1), status: 'enviado', decidido_em: null, cliente_nome: 'A', cliente_telefone: '12999990001', enviado_em: diaSP(-1), token_publico: 'abcdefghijklmnop1234' },
+    { id: ID(2), status: 'enviado', decidido_em: diaSP(-1), cliente_nome: 'B', cliente_telefone: '12999990002', enviado_em: diaSP(-1), token_publico: 'abcdefghijklmnop1235' },
+    { id: ID(3), status: 'aprovado', decidido_em: diaSP(-1), cliente_nome: 'C', cliente_telefone: '12999990003', enviado_em: diaSP(-3), token_publico: 'abcdefghijklmnop1236' },
+  ];
+  const d = await D.dadosDaProjecao();
+  assert.deepEqual(d.orcamentos.map((o) => o.id), [ID(1)]);
+  const { projetarMes } = await import('../projecao.js');
+  const p = projetarMes({ hoje: H, ...d, cfg: { ...d.cfg, usa_orcador: true, dias_orcamento: 3 } });
+  assert.equal(p.porRegua.orcamento.total, 1);
+});
+
 test('conexões: lê os números reais dos outros sistemas e diz o que está ligado', async () => {
   limpar(); config();
   tabelas.patio_os = [os(1), os(2, { etapa: 'em_execucao', entregue_em: null })];

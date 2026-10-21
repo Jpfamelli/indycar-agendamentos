@@ -695,11 +695,30 @@ http.createServer(async (req, res) => {
       porLote: Object.fromEntries(Object.entries(porLote).map(([id, l]) => [id, { ...soma(l), tipo: l[0].tipo, quando: l[0].enviado_em, texto: String(l[0].corpo || '').slice(0, 90) }])),
       regra: 'Cada visita, orçamento aprovado ou serviço pago é creditado à ÚLTIMA mensagem enviada ao cliente nos 30 dias antes dele. Faturou = o maior entre agenda, CRM e orçamento (o mesmo serviço aparece nos três).' };
     if (p !== '/api/resultados') { const id = p.split('/')[3]; return json(res, 200, { lote: id, ...(res6.porLote[id] || res6.total), periodo: res6.periodo, regra: res6.regra }); }
+    if (url.searchParams.get('detalhe') === '1') {
+      const quem = env7.filter((e) => e.agendou_depois_id).map((e) => ({ id: e.id, tipo: e.tipo, nome: e.nome, telefone: e.telefone, enviado_em: e.enviado_em, voltou: true, aprovou: false, faturou: 460 }));
+      return json(res, 200, { ...res6, quemVoltou: quem.slice(0, 40), quantosVoltaram: quem.length });
+    }
     return json(res, 200, res6);
+  }
+  if (p === '/api/resultados.csv') {
+    if (!ehGestor()) return json(res, 403, { erro: 'Só gestor exporta o histórico.' });
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8' }); return res.end('Cliente;Voltou;A;sim');
   }
   if (p === '/api/agenda') {
     const pend = ENVIOS.filter((e) => e.status === 'pendente');
     return json(res, 200, { ...conexoes.montarAgendaDeEnvios(pend, CFG, hoje(), { feriado: () => null }), cfg: { hora_envio: CFG.hora_envio, envia_domingo: CFG.envia_domingo, limite_por_dia: CFG.limite_por_dia } });
+  }
+  if (p === '/api/agenda/adiar-dia' && m === 'POST') {
+    if (!ehGestor()) return json(res, 403, { erro: 'Sem permissão.' });
+    const d = conexoes.diaValido(body.dia);
+    if (!d) return json(res, 400, { erro: 'Dia inválido: use o formato AAAA-MM-DD.' });
+    let adiadas = 0, ficaram = 0;
+    for (const e of ENVIOS.filter((x) => x.status === 'pendente' && String(x.enviar_em).slice(0, 10) === d)) {
+      const v = conexoes.validarAdiamento(e, body.enviar_em);
+      if (v.ok) { e.enviar_em = v.quando; adiadas++; } else ficaram++;
+    }
+    return json(res, 200, { ok: true, adiadas, ficaram, aviso: ficaram ? ficaram + ' ficaram onde estavam: passariam da validade.' : null });
   }
   let mm6;
   if ((mm6 = /^\/api\/envios\/([0-9a-f-]{36})\/(porque|adiar)$/.exec(p))) {

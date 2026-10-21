@@ -167,12 +167,43 @@
       return `<details class="r6-dia${d.excede ? ' excede' : ''}"${i === 0 ? ' open' : ''}>
         <summary><span class="r6-dia-nome">${esc(rotuloDia(d.data) === dataBR(d.data) ? diaLongo(d.data) : `${rotuloDia(d.data)} · ${dataCurta(d.data)}`)}</span>
           <b>${plural(d.total, 'mensagem', 'mensagens')}</b><span class="r6-barra" aria-hidden="true"><i style="width:${larg}%"></i></span></summary>
-        <div class="r6-dia-corpo">${avisos ? `<div class="r6-avisos">${avisos}</div>` : ''}<div class="r6-tipos">${linhaTipos(d)}</div>
+        <div class="r6-dia-corpo">${avisos ? `<div class="r6-avisos">${avisos}</div>` : ''}<div class="r6-tipos">${linhaTipos(d)}</div>${pode('cancelar_qualquer') && d.total ? `<div class="r6-dia-acoes"><button type="button" class="btn btn-mini ghost" data-r6-adiar-dia="${esc(d.data)}" data-r6-dia-qtd="${d.total}">${svg(I.clock)} Adiar o dia todo</button></div>` : ''}
           <ul class="r6-itens">${(d.itens || []).map(it => `<li><span class="r6-hora">${esc(hhmm(it.enviar_em))}</span><span class="r6-it-txt"><b>${EMOJI(it.tipo)} ${esc(it.nome || telBR(it.telefone))}</b><small>${esc(it.corpo)}</small>${it.motivo_pulado ? `<small class="r6-motivo">⏭ ${esc(it.motivo_pulado)}</small>` : ''}</span>
             <span class="r6-it-acoes"><button type="button" class="btn btn-mini ghost" data-r6-porque="${esc(it.id)}">${svg(I.olho)} Por quê</button>${pode('cancelar_qualquer') ? `<button type="button" class="btn btn-mini ghost" data-r6-adiar-ag="${esc(it.id)}">${svg(I.clock)} Adiar</button>` : ''}</span></li>`).join('')}</ul>
           ${d.total > (d.itens || []).length ? `<small class="muted">mostrando as ${(d.itens || []).length} primeiras de ${d.total}</small>` : ''}</div></details>`;
     }).join('')}</div>`;
     $$('[data-r6-adiar-ag]', modal).forEach(b => b.addEventListener('click', () => R6.abrirAdiar(b.dataset.r6AdiarAg, '', () => R6.abrirAgenda())));
+    $$('[data-r6-adiar-dia]', modal).forEach(b => b.addEventListener('click', () => R6.abrirAdiarDia(b.dataset.r6AdiarDia, Number(b.dataset.r6DiaQtd) || 0)));
+  };
+
+  // ---- adiar o dia inteiro (gestor) ----------------------------------------
+  R6.abrirAdiarDia = function (dia, qtd) {
+    const h = hojeSP();
+    const base = dia > h ? dia : h;
+    const manha = (n) => new Date(`${somaDias(base, n)}T09:30:00-03:00`);
+    const opcoes = [['Amanhã às 9h30', manha(1)], ['Em 2 dias às 9h30', manha(2)], ['Na semana que vem às 9h30', manha(7)]];
+    openModal(`<div class="modal-head"><h3>${svg(I.clock)} Adiar o dia todo</h3>${fechar}</div>
+      <div class="modal-body">
+        <p class="dica">As ${plural(qtd, 'mensagem', 'mensagens')} de ${esc(dataBR(dia))} que ainda não saíram vão para o novo horário. A que passaria da validade fica onde está, e tudo continua respeitando a janela, os limites e o PARAR.</p>
+        <div class="r6-adiar-op">${opcoes.map(([r, d]) => `<button type="button" class="btn" data-r6-quando="${esc(d.toISOString())}">${esc(r)}</button>`).join('')}</div>
+        <div class="field"><label for="r6DataDia">Ou escolha o dia e a hora</label><input id="r6DataDia" type="datetime-local" class="inp"></div>
+        <p class="form-msg erro" id="r6AdiarDiaErro" hidden></p>
+      </div>
+      <div class="modal-foot"><button type="button" class="btn" data-fechar>Cancelar</button><button type="button" class="btn primary" id="r6AdiarDiaOk">${svg(I.check)} Adiar para a data escolhida</button></div>`);
+    const enviar = async (iso, btn) => {
+      const erro = $('#r6AdiarDiaErro'); erro.hidden = true;
+      if (btn) btn.disabled = true;
+      try {
+        const r = await api('POST', '/agenda/adiar-dia', { dia, enviar_em: iso });
+        closeModal(); toast(r.aviso ? `${plural(r.adiadas, 'mensagem adiada', 'mensagens adiadas')}. ${r.aviso}` : `${plural(r.adiadas, 'mensagem adiada', 'mensagens adiadas')}.`);
+        R6.abrirAgenda();
+      } catch (e) { erro.textContent = e.message; erro.hidden = false; if (btn) btn.disabled = false; }
+    };
+    $$('[data-r6-quando]', modal).forEach(b => b.addEventListener('click', () => enviar(b.dataset.r6Quando, b)));
+    $('#r6AdiarDiaOk').addEventListener('click', (ev) => {
+      const v = $('#r6DataDia').value; if (!v) { const er = $('#r6AdiarDiaErro'); er.textContent = 'Escolha o dia e a hora.'; er.hidden = false; return; }
+      enviar(new Date(v).toISOString(), ev.currentTarget);
+    });
   };
 
   // ---- simular a rodada ---------------------------------------------------
@@ -207,13 +238,27 @@
         </div>
         <div id="r6ResModal"><div class="skel" style="height:220px"></div></div>
       </div>
-      <div class="modal-foot"><button type="button" class="btn primary" data-fechar>Fechar</button></div>`, { larga: true });
+      <div class="modal-foot">${pode('exportar') ? `<button type="button" class="btn" id="r6ResCsv">${svg(I.upload)} Baixar planilha</button>` : ''}<button type="button" class="btn primary" data-fechar>Fechar</button></div>`, { larga: true });
+    const consulta = () => { const q = new URLSearchParams(); if (f.de) q.set('de', f.de); if (f.ate) q.set('ate', f.ate); if (f.regua !== 'todas') q.set('regua', f.regua); return q; };
+    const csv = $('#r6ResCsv');
+    if (csv) csv.addEventListener('click', async () => {
+      f.regua = $('#r6ResRegua').value; f.de = $('#r6ResDe').value; f.ate = $('#r6ResAte').value;
+      if (f.de && f.ate && f.de > f.ate) { toast('O "de" precisa vir antes do "até".'); return; }
+      csv.disabled = true;
+      try {
+        const r = await fetch(API + '/resultados.csv?' + consulta(), { headers: await authCabecalhos() });
+        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.erro || 'Não deu para exportar.'); }
+        const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = `comunicar-resultados-${hojeSP()}.csv`;
+        document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        toast('Planilha baixada — abre direto no Excel.');
+      } catch (e) { toast(e.message); } finally { csv.disabled = false; }
+    });
     const carregar = async () => {
       const caixa = $('#r6ResModal'); if (!caixa) return;
       f.regua = $('#r6ResRegua').value; f.de = $('#r6ResDe').value; f.ate = $('#r6ResAte').value;
       if (f.de && f.ate && f.de > f.ate) { caixa.innerHTML = '<p class="form-msg erro">O "de" precisa vir antes do "até".</p>'; return; }
       caixa.innerHTML = '<div class="skel" style="height:220px"></div>';
-      const q = new URLSearchParams(); if (f.de) q.set('de', f.de); if (f.ate) q.set('ate', f.ate); if (f.regua !== 'todas') q.set('regua', f.regua);
+      const q = consulta(); q.set('detalhe', '1');
       let r; try { r = await api('GET', '/resultados?' + q); } catch (e) { caixa.innerHTML = erroHtml(e); return; }
       if (!$('#r6ResModal')) return;
       const tipos = Object.entries(r.porTipo || {}).sort((a, b) => b[1].enviadas - a[1].enviadas);
@@ -223,6 +268,7 @@
       caixa.innerHTML = `${htmlFunil(r)}
         ${tipos.length ? `<h4 class="r6-sub">Por tipo de mensagem</h4>${tipos.map(([t, s]) => linha(`${EMOJI(t)} ${esc(ROT(t))}`, s)).join('')}` : ''}
         ${lotes.length ? `<h4 class="r6-sub">Por campanha</h4>${lotes.map(([l, s]) => linha(`${EMOJI(s.tipo || 'campanha')} ${s.quando ? esc(dataBR(diaSP(s.quando))) : 'campanha'}`, s, esc(s.texto || ''))).join('')}` : ''}
+        ${(r.quemVoltou || []).length ? `<h4 class="r6-sub">Quem voltou${r.quantosVoltaram > r.quemVoltou.length ? ` (${n0(r.quemVoltou.length)} de ${n0(r.quantosVoltaram)})` : ''}</h4><ul class="r6-itens">${r.quemVoltou.map(l => `<li><span class="r6-hora">${esc(dataCurta(diaSP(l.enviado_em)))}</span><span class="r6-it-txt"><b>${EMOJI(l.tipo)} ${esc(l.nome || telBR(l.telefone))}</b><small>${esc(ROT(l.tipo))}${l.aprovou ? ' · orçamento aprovado' : ''}${l.faturou ? ` · ${esc(dinheiro(l.faturou))}` : ''}</small></span></li>`).join('')}</ul>` : ''}
         <details class="r6-regra"><summary>Como contamos</summary><p>${esc(r.regra || '')}</p><p>Mensagens de teste não entram. "Voltaram" conta visita na Agenda, carro no Pátio, orçamento aprovado ou serviço pago.</p></details>`;
     };
     $('#r6ResRegua').addEventListener('change', carregar);

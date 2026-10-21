@@ -409,6 +409,13 @@ export function criarApi(deps) {
     auditar(usuario, 'envio_adiado', 'posvenda_envios', id, { para: r.quando });
     return ok(res, r);
   });
+  rota('POST', '/api/agenda/adiar-dia', async ({ res, usuario, body }) => {
+    const r = await dados.adiarDia(String(body.dia || ''), body.enviar_em);
+    if (!r.ok) return bad(res, r.erro);
+    esquecerCache('agenda', 'fila', 'resumo');
+    auditar(usuario, 'dia_adiado', 'posvenda_envios', null, { dia: body.dia, para: r.quando, adiadas: r.adiadas, ficaram: r.ficaram });
+    return ok(res, r);
+  });
   rota('GET', `/api/envios/${U}/porque`, async ({ res, url }) => {
     const r = await dados.explicarEnvio(idDe(url.pathname));
     return r ? ok(res, r) : naoAchou(res);
@@ -429,7 +436,22 @@ export function criarApi(deps) {
     if (p.invertido) return bad(res, 'O "de" precisa vir antes do "até".');
     const tipo = url.searchParams.get('regua') || null;
     if (tipo && tipo !== 'todas' && !dados.TIPOS_ENVIO.includes(tipo)) return bad(res, 'Régua desconhecida.');
-    return ok(res, await emCache(`res:${p.de}:${p.ate}:${tipo}`, 60_000, () => dados.resultados({ de: p.de, ate: p.ate, tipo })));
+    const detalhe = url.searchParams.get('detalhe') === '1';
+    const out = await emCache(`res:${p.de}:${p.ate}:${tipo}:${detalhe ? 'd' : ''}`, 60_000, () => dados.resultados({ de: p.de, ate: p.ate, tipo, detalhe }));
+    if (!detalhe) return ok(res, out);
+    const { linhas = [], ...resto } = out;
+    return ok(res, { ...resto, quemVoltou: linhas.filter((l) => l.voltou).slice(0, 40), quantosVoltaram: linhas.filter((l) => l.voltou).length });
+  });
+  rota('GET', '/api/resultados.csv', async ({ res, usuario, url }) => {
+    const p = periodoDe(url);
+    if (p.invalido) return bad(res, 'Data inválida: use o formato AAAA-MM-DD.');
+    if (p.invertido) return bad(res, 'O "de" precisa vir antes do "até".');
+    const tipo = url.searchParams.get('regua') || null;
+    if (tipo && tipo !== 'todas' && !dados.TIPOS_ENVIO.includes(tipo)) return bad(res, 'Régua desconhecida.');
+    const out = await dados.resultados({ de: p.de, ate: p.ate, tipo, detalhe: true });
+    auditar(usuario, 'exportar_csv', 'posvenda_envios', null, { linhas: out.linhas.length, resultados: true, periodo: out.periodo });
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="comunicar-resultados-${dados.hoje()}.csv"`, 'Cache-Control': 'no-store', ...seguros, ...(res.__cors || {}) });
+    return res.end(dados.paraCSV(out.linhas, dados.COLUNAS_CSV_RESULTADOS));
   });
   rota('GET', `/api/lotes/${U}/resultado`, async ({ res, url }) => {
     const lote = idDe(url.pathname);
@@ -443,10 +465,11 @@ export function criarApi(deps) {
   // ---- fila ----
   const filtrosEnvios = (sp, limite) => ({
     status: sp.get('status') || undefined, tipo: sp.get('tipo') || undefined, q: String(sp.get('q') || '').slice(0, 80) || undefined,
-    de: sp.get('de') || undefined, ate: sp.get('ate') || undefined, intencao: sp.get('intencao') || undefined, limite, offset: Number(sp.get('offset')) || 0,
+    de: sp.get('de') || undefined, ate: sp.get('ate') || undefined, intencao: sp.get('intencao') || undefined, origem: sp.get('origem') || undefined, limite, offset: Number(sp.get('offset')) || 0,
   });
+  const origemRuim = (sp) => { const o = sp.get('origem'); return !!o && o !== 'todas' && !dados.ORIGENS_ENVIO.includes(o); };
   rota('GET', '/api/envios', async ({ res, url }) =>
-    ok(res, await dados.listarEnvios(filtrosEnvios(url.searchParams, Math.min(Number(url.searchParams.get('limite')) || 300, 1000)))));
+    origemRuim(url.searchParams) ? bad(res, 'Origem desconhecida.') : ok(res, await dados.listarEnvios(filtrosEnvios(url.searchParams, Math.min(Number(url.searchParams.get('limite')) || 300, 1000)))));
 
   /* Avulsa (1 cliente, qualquer um da equipe), campanha (gestor: sai direto) ou
      proposta (atendente com 2+ clientes: espera o gestor aprovar). */
@@ -587,6 +610,7 @@ export function criarApi(deps) {
   });
 
   rota('GET', '/api/envios.csv', async ({ res, usuario, url }) => {
+    if (origemRuim(url.searchParams)) return bad(res, 'Origem desconhecida.');
     const filtros = filtrosEnvios(url.searchParams, 5000);
     const lista = await dados.listarEnvios(filtros);
     auditar(usuario, 'exportar_csv', 'posvenda_envios', null, { linhas: lista.length, filtros: { ...filtros, limite: undefined } });
