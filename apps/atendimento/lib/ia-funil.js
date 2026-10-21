@@ -28,8 +28,11 @@
 'use strict';
 
 const CTX = require('./contexto.js');
+const R6 = require('../public/r6-regras.js');
 
 const HUMANO_RECENTE_MIN = 30;
+/* Rodada 6: trava contra laço — a IA não manda mais que isto por conversa por hora (o resto vira proposta para a equipe). */
+const LIMITE_IA_POR_HORA = 6;
 const INTERVALO_FILA_MS = 15_000;
 const LOTE = 8;
 
@@ -56,7 +59,9 @@ function precisaHumano(textos = []) {
   if (RE_RECLAMACAO.test(t)) return 'reclamacao';
   if (RE_PESSOA.test(t)) return 'pediu_pessoa';
   if (RE_PRECO.test(t)) return 'preco';
-  return null;
+  /* Rodada 6: regras extras (sem acento, mais palavras): pedido de ligação, só áudio/foto, nota fiscal, cancelar. */
+  const extra = R6.motivoParaHumano(textos);
+  return extra === 'pessoa' ? 'pediu_pessoa' : extra;
 }
 
 /* Contrato do Site (rodada 5): a mensagem do botão do site começa com "Olá! Vim pelo site" e, com
@@ -103,7 +108,7 @@ function etapaAgendadoPendente(ficha = {}) {
   return primeira && primeira.id === atual.id ? alvo : null;
 }
 
-function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = console.error } = {}) {
+function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = console.error, zapParado = () => ({ parado: false }), enviarMensagem = null } = {}) {
   if (!sb || !copiloto || !contexto) throw new Error('funil sem banco, copiloto ou contexto');
   let processando = false, relogio = null, pedidoPendente = null;
 
@@ -205,13 +210,50 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     const site = origemDoSite(textos);
     const instrucao = site ? `O CLIENTE VEIO PELO SITE${site.campanha ? ` (campanha ${site.campanha})` : ''}${site.servico ? ` pedindo orçamento de "${site.servico}": não pergunte o serviço; chame "registrar_interesse" com ele` : ''}. Pergunte só o carro (se a ficha não tiver) e ofereça o diagnóstico digital gratuito com duas opções de horário.` : null;
     // humano assumiu (botão Assumir grava assumida_em) OU escreveu há pouco: a IA só sugere, não envia
-    const podeResponder = !conv.assumida_em && !humanoEscreveuRecentemente(f.mensagens || [], agora());
+    let podeResponder = !conv.assumida_em && !humanoEscreveuRecentemente(f.mensagens || [], agora());
+    // Rodada 6: WhatsApp fora do ar → nada sai sozinho (vira proposta para a equipe), sem insistir nem gastar cota
+    const zap = (() => { try { return zapParado() || { parado: false }; } catch { return { parado: false }; } })();
+    if (zap.parado) podeResponder = false;
+    // Rodada 6: trava contra laço — muitas mensagens da IA seguidas nesta conversa
+    let limiteHora = false;
+    if (podeResponder) {
+      const desde = new Date(agora().getTime() - 3600_000).toISOString();
+      const { data: ultimas } = await sb.from('whatsapp_mensagens').select('id').eq('conversa_id', conversaId).eq('direcao', 'saida').eq('gerada_por_ia', true).gte('created_at', desde).limit(LIMITE_IA_POR_HORA + 1);
+      if ((ultimas || []).length >= LIMITE_IA_POR_HORA) { podeResponder = false; limiteHora = true; }
+    }
+    // Rodada 6: oficina fechada → a IA sabe e não promete resposta imediata
+    const expediente = R6.oficinaAberta(agora());
+    const instrucaoFinal = [instrucao, !expediente.aberta ? `A oficina está FECHADA agora (reabre ${expediente.reabre}, seg–sáb 8h às 17h30): diga isso com naturalidade e não prometa resposta imediata de consultor.` : null].filter(Boolean).join(' ') || null;
 
     // 4) a IA conduz
     let r;
-    try { r = await copiloto.rodar({ conversaId, perfil: null, funil: { humano, podeResponder, origem, instrucao, site } }); }
+    try { r = await copiloto.rodar({ conversaId, perfil: null, funil: { humano, podeResponder, origem, instrucao: instrucaoFinal, site } }); }
     catch (e) { return { ok: false, status: 'erro', motivo: e.message || 'falha na IA', feitas }; }
     if (!r.ok) return { ok: false, status: r.status === 429 || r.status === 503 ? 'pulada' : 'erro', motivo: r.erro || 'IA não respondeu', feitas };
+
+    /* 4b) Rodada 6: caso de gente e a IA não respondeu o cliente (calada, recusou, só propôs): o cliente nunca fica no vácuo.
+       Sai a mensagem de encaminhamento do SISTEMA (sem preço, uma pergunta) e a conversa fica "aguardando consultor". */
+    let encaminhou = null;
+    const niveisR = r.niveis || {};
+    if (humano && podeResponder && typeof enviarMensagem === 'function' && niveisR.responder === 'automatico'
+        && !(r.enviadas || []).length && !(r.para_confirmar || []).some(p => p.tipo === 'responder')) {
+      try {
+        const nome = f.cliente?.nome || conv.nome || '';
+        const texto = R6.textoDeEncaminhamento(humano === 'pediu_pessoa' ? 'pessoa' : humano, nome, !expediente.aberta);
+        if (!R6.textoTemPreco(texto)) {
+          const env = await enviarMensagem({ conversa: conv, cliente_id: conv.cliente_id || f.cliente?.id || null, texto });
+          if (env && env.mensagem_id) {
+            await registrar({ tipo: 'responder', conversa_id: conversaId, cliente_id: conv.cliente_id || null, perfil_id: null,
+              resumo: `Encaminhei para o consultor (${R6.MOTIVO_HUMANO[humano === 'pediu_pessoa' ? 'pessoa' : humano]?.rotulo || humano})`,
+              entrada: { texto, fallback: 'encaminhamento', motivo: humano }, saida: { enviada: true, automatica: true, mensagem_id: env.mensagem_id, entregue: !!env.ok } });
+            encaminhou = env.mensagem_id;
+            if (niveisR.humano !== 'sugerir') {
+              await sb.from('conversas').update({ aguardando_consultor: true, aguardando_desde: agora().toISOString() }).eq('id', conversaId);
+            }
+          }
+        }
+      } catch (e) { log('funil encaminhar:', e.message); }
+    }
 
     // 5) nível "confirmar": avisa quem está com a conversa
     let avisos = 0;
@@ -219,7 +261,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     contexto.invalidar(conversaId);
 
     return {
-      ok: true, status: 'feita', run_id: r.id, humano, podeResponder, site, feitas,
+      ok: true, status: 'feita', run_id: r.id, humano, podeResponder, site, feitas, zap_parado: !!zap.parado, limite_hora: limiteHora, encaminhou,
       enviadas: (r.enviadas || []).length, para_confirmar: (r.para_confirmar || []).length, avisos,
       executadas: (r.acoes || []).filter(a => a.status === 'executada').map(a => a.tipo),
       propostas: (r.acoes || []).filter(a => a.status === 'proposta').map(a => a.tipo),

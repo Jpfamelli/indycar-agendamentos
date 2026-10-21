@@ -30,6 +30,12 @@ const AUT  = require('./lib/automacoes.js');
 const { criarRotasEquipe } = require('./lib/rotas-equipe.js');
 // Rodada 4: entrega que não duplica quando a tela tenta de novo (servidor acordando)
 const { criarEntregador, semConfirmacaoDoErro, PREFIXO_SEM_CONFIRMACAO } = require('./lib/entrega.js');
+// Rodada 6 (C3): disjuntor do WhatsApp, fila priorizada, painel conectado, respostas por situação
+const { criarZap } = require('./lib/zap-estado.js');
+const R6REGRAS = require('./public/r6-regras.js');
+const { criarR6 } = require('./lib/r6-dados.js');
+const { criarRotasR6 } = require('./lib/rotas-r6.js');
+const ZAP = criarZap();
 
 // Configuração via .env (sem depender do Registro do Windows)
 try {
@@ -543,7 +549,7 @@ function funilIA() {
   if (process.env.IA_FUNIL === '0') return null;
   const cop = copiloto();
   if (!cop) return null;
-  if (!FUNIL_IA) FUNIL_IA = FUN.criarFunil({ sb: adminSupabase(), copiloto: cop, contexto: CONTEXTO });
+  if (!FUNIL_IA) FUNIL_IA = FUN.criarFunil({ sb: adminSupabase(), copiloto: cop, contexto: CONTEXTO, zapParado: () => ZAP.estado(), enviarMensagem: enviarPelaIA });
   return FUNIL_IA;
 }
 /**
@@ -557,6 +563,8 @@ async function enviarPelaIA({ conversa, cliente_id = null, texto, acao_id = null
   if (!sb) return { ok: false, status: 503, erro: 'Servidor sem a chave do banco.' };
   const corpo = String(texto || '').trim().slice(0, 4000);
   if (!corpo) return { ok: false, status: 400, erro: 'Mensagem vazia.' };
+  /* Rodada 6: última barreira — nada que cite valor sai pela IA, qualquer que seja o caminho que chegou aqui. */
+  if (R6REGRAS.textoTemPreco(corpo)) return { ok: false, status: 422, erro: 'A mensagem cita preço ou valor: a IA não passa valor. Reescreva sem valor.', codigo: 'preco_na_mensagem' };
   const { data: linha, error } = await sb.from('whatsapp_mensagens').insert({
     conversa_id: conversa.id, cliente_id: cliente_id || conversa.cliente_id || null, telefone: conversa.telefone, nome: conversa.nome || null,
     corpo, direcao: 'saida', status: 'pendente', gerada_por_ia: true,
@@ -1202,7 +1210,21 @@ function ligarSincronizacaoPeriodica() {
   setTimeout(rodar, 8_000);   // uma logo depois de subir, sem atrasar o boot
 }
 
-async function enviarPeloCodeWords({ telefone, corpo, nome, conversaId }) {
+/* Rodada 6: se já sabemos que o WhatsApp está parado (chave recusada, celular desconectado, cota), o envio falha
+   NA HORA com o motivo — sem rede, sem gastar cota e sem virar "sem confirmação". Uma sondagem por janela passa
+   para descobrir se voltou. Nada é reenviado sozinho. */
+async function enviarPeloCodeWords(dados) {
+  const passe = ZAP.passar();
+  if (!passe.tentar) return { ok: false, erro: passe.texto, codigo: 'whatsapp_parado', parado: true, motivo: passe.codigo };
+  let r;
+  try { r = await enviarPeloCodeWordsDeVerdade(dados); }
+  catch (e) { ZAP.fimDaSondagem(); throw e; }
+  if (r && r.ok) ZAP.limpar();
+  else if (r && ZAP.ehPararTudo(r.codigo)) ZAP.marcar(r.codigo);
+  else if (passe.sondagem) ZAP.fimDaSondagem();
+  return r;
+}
+async function enviarPeloCodeWordsDeVerdade({ telefone, corpo, nome, conversaId }) {
   const sb = adminSupabase();
   // "desligado" = ainda não configurado; a mensagem fica registrada aqui e o
   // chat não fica reclamando a cada envio.
@@ -2058,6 +2080,9 @@ async function lerSaude() {
     texto: COM.textoDaSaude(problema, data?.ultimo_resumo),
   };
   SAUDE_CACHE = { em: Date.now(), dados };
+  // Rodada 6: o vigia já sabe que o WhatsApp parou (servidor acabou de subir?): o disjuntor também fica sabendo
+  const doVigia = { 'codewords-fora': 'codewords-401', 'whatsapp-fora': 'whatsapp-desconectado' }[problema];
+  if (doVigia && !ZAP.estado().parado) ZAP.marcar(doVigia);
   return dados;
 }
 
@@ -2213,6 +2238,7 @@ async function salvarChaveCodeWords(chave, { testar = true } = {}) {
   const avisos = [];
   if (r2.error) avisos.push(`Gravou aqui, mas não na Agenda (agenda_ia_config): ${r2.error.message}`);
   SAUDE_CACHE = { em: 0, dados: null };   // a faixa de saúde deve reavaliar logo
+  ZAP.limpar();                            // chave nova: a próxima mensagem tenta de verdade
   return { ok: true, mascara: COM.mascararChave(k), salvoEm: ['codewords_config', ...(r2.error ? [] : ['agenda_ia_config'])],
            teste, avisos };
 }
@@ -2235,6 +2261,20 @@ const ROTAS_IA = criarRotasIA({
     return typeof data?.token_webhook === 'string' ? data.token_webhook.trim() : null;
   },
   ipDe: req => IP_DE(req),
+});
+
+/* Rodada 6 (C3): fila priorizada, painel conectado (Pátio, Orçador, Agenda, CRM), WhatsApp parado. */
+let _R6 = null;
+function R6DADOS() {
+  if (!_R6) _R6 = criarR6({ sb: adminSupabase(), patio: patioDoServidor(), auditar: (...a) => AUDITORIA().registrar(...a) });
+  return _R6;
+}
+const ROTAS_R6 = criarRotasR6({
+  getSb: adminSupabase, usuarioLogado, dentroDoLimite, readBody,
+  dados: () => R6DADOS(), zap: ZAP,
+  copiloto: () => copiloto(),
+  contexto: () => (copiloto(), CONTEXTO),
+  auditar: (...a) => AUDITORIA().registrar(...a),
 });
 
 /* ------------------------------------------------------------
@@ -3010,6 +3050,8 @@ const handler = async (req, res) => {
 
     // ---- Copiloto da IA + conectividade (lib/rotas-ia.js) ----
     if (await ROTAS_IA(req, res, pathname, parametros)) return;
+    // ---- Rodada 6: fila priorizada, painel conectado, WhatsApp parado (lib/rotas-r6.js) ----
+    if (await ROTAS_R6(req, res, pathname, parametros)) return;
 
     if (pathname.startsWith('/api/')) return json(res, 404, { erro: 'rota não encontrada' });
 

@@ -55,6 +55,7 @@ const PALAVRAS_PROIBIDAS = [
   [/\bcomparecer\b/gi, 'vir'], [/\bcompareça\b/gi, 'venha'], [/\bveículos\b/gi, 'carros'], [/\bveículo\b/gi, 'carro'],
   [/\bveiculos\b/gi, 'carros'], [/\bveiculo\b/gi, 'carro'],
 ];
+const R6REGRAS = require('../public/r6-regras.js');
 const TEM_PRECO = /R\$\s*\d|\b\d+(?:[.,]\d+)?\s*(?:reais|real|conto|pila)\b|\b(?:por|a)\s+\d{2,}\s*(?:,|\.|$)|\bsai\s+(?:por|a)\s+\d|\b\d+(?:[.,]\d+)?\s*(?:%|por\s*cento)\s*(?:de\s+)?(?:desconto|off|mais\s+barato|a\s+menos)|\b(?:dou|damos|fa[cç]o|faremos|concedo|conseguimos|garanto|garantimos)\s+(?:um\s+|o\s+)?(?:desconto|abatimento)\b|\bdesconto\s+de\s+\d/i;
 
 /* ------------------------------------------------------------
@@ -251,7 +252,8 @@ function revisarTexto(texto) {
   let t = String(texto ?? '').replace(/\r/g, '').trim();
   for (const [re, troca] of PALAVRAS_PROIBIDAS) t = t.replace(re, troca);
   t = t.replace(/[ \t]{2,}/g, ' ').replace(/^\s*,\s*/, '').trim();
-  return { texto: t, temPreco: TEM_PRECO.test(t) };
+  // Rodada 6: a guarda compartilhada (public/r6-regras.js) pega também "trezentos reais", "3x de 120", "1.200,50"…
+  return { texto: t, temPreco: TEM_PRECO.test(t) || R6REGRAS.textoTemPreco(t) };
 }
 
 /* ---- Rodada 4: qualidade da resposta sugerida (avaliação com 10 conversas reais) ---- */
