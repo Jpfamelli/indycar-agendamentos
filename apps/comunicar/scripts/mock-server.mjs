@@ -437,6 +437,7 @@ window.supabase={createClient:function(){return{auth:{
     unenroll:async function(a){fatores=fatores.filter(function(f){return f.id!==a.factorId});return{data:{},error:null}}}}}}};})();</script>`;
 
 /** Status do WhatsApp conforme ?whatsapp= (rodada 5) ou ?saude= */
+let RETOMADA = false;
 function statusWA() {
   const modo = WA_MODO || (SAUDE_OK ? 'ok' : 'recusada');
   if (modo === 'ok') return { ok:true, conectado:true, numero:'5512997000000' };
@@ -484,6 +485,7 @@ http.createServer(async (req, res) => {
       LOGADO = url.searchParams.get('logado') !== '0';
       if (url.searchParams.get('semente') === '1') { semearEnvios(); semearR3(); semearSegmentos(); WA_MODO = null; for (const c of CLIENTES) c.nascimento = NASC0.get(c.id) ?? null; }
       if (url.searchParams.has('saude')) SAUDE_OK = url.searchParams.get('saude') === 'ok';
+      if (url.searchParams.has('retomada')) RETOMADA = url.searchParams.get('retomada') === '1';
       if (url.searchParams.has('ia')) IA_LIGADA = url.searchParams.get('ia') !== 'off';
       // rodada 4: ?dormir=20 → por 20 s toda a API responde 503 em HTML (como o Render acordando)
       if (url.searchParams.has('dormir')) DORMIR_ATE = Date.now() + (Number(url.searchParams.get('dormir')) || 20) * 1000;
@@ -614,7 +616,7 @@ http.createServer(async (req, res) => {
     const pend = ENVIOS.filter((e) => e.status === 'pendente');
     const duvida = ENVIOS.filter((e) => e.status === 'falhou' && e.erro_classe === 'sem_confirmacao').length;
     const s = montarSaude({ status: statusWA(), falhas24h: falhas, fila: { pendentes: pend.length, atrasados: pend.filter((e) => e.enviar_em <= horasAtras(2)).length }, carteiro: { ultimaEm: ultimaRodada.em, falhas24h: 3 }, estadoGravado: CFG.whatsapp, semConfirmacao: duvida });
-    return json(res, 200, { ...s, cadencia: { porMinuto: CFG.limite_por_minuto, porHora: CFG.limite_por_hora, porDia: CFG.limite_por_dia, mesmoCliente: CFG.intervalo_mesmo_cliente_min, janela: { inicio: CFG.janela_inicio, fim: CFG.janela_fim }, soHorarioComercial: !!CFG.so_horario_comercial }, conferidoEm: agora() });
+    return json(res, 200, { ...s, retomada: RETOMADA ? { motivo: 'o WhatsApp acabou de voltar (chave recusada): retomada gradual.', maximo: 8, restam: 5 } : null, cadencia: { porMinuto: CFG.limite_por_minuto, porHora: CFG.limite_por_hora, porDia: CFG.limite_por_dia, mesmoCliente: CFG.intervalo_mesmo_cliente_min, janela: { inicio: CFG.janela_inicio, fim: CFG.janela_fim }, soHorarioComercial: !!CFG.so_horario_comercial }, conferidoEm: agora() });
   }
   if (p === '/api/segmentos/salvos' && m === 'GET') return json(res, 200, SEGMENTOS_SALVOS.slice().sort((a, b) => String(b.usado_em || '').localeCompare(String(a.usado_em || '')) || (a.created_at < b.created_at ? 1 : -1)));
   if (p === '/api/segmentos/salvos' && m === 'POST') {

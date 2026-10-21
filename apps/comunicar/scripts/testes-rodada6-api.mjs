@@ -19,14 +19,16 @@ const PERFIS = {
 tabelas.posvenda_config = [{ id: true, hora_envio: '09:30' }];
 tabelas.posvenda_envios = [];
 
-async function subir({ simular = null } = {}) {
-  const api = criarApi({
+async function subir({ simular = null, livre = false } = {}) {
+  const deps = {
+    ...(livre ? { limiteCaro: { tentar: () => ({ ok: true }) } } : {}),
     dados: real, versao: 'teste', runnerToken: 'tok', log: { error() {} }, prefixo: '',
     autenticar: async (req) => { const p = PERFIS[req.headers['x-teste-perfil']]; if (!p) return { status: 401, codigo: 'sem_login', erro: 'Faça login.' };
       const v = A.verificarAcesso(p); return v.ok ? { usuario: { ...p, email: 'x@t' } } : v; },
     whatsapp: { enviar: async () => ({ ok: true }), status: async () => ({ ok: true, conectado: true }), reconferir() {} },
     carteiro: { rodar: async () => ({ ok: true }), lerRespostas: async () => ({ lidas: 0 }), ultimaRodada: () => null, ...(simular ? { simular } : {}) },
-  });
+  };
+  const api = criarApi(deps);
   const srv = http.createServer((req, res) => { const url = new URL(req.url, 'http://x'); api.api(req, res, url).catch((e) => api.erroInterno(res, e)); });
   await new Promise((ok) => srv.listen(0, ok));
   const base = `http://127.0.0.1:${srv.address().port}`;
@@ -34,7 +36,7 @@ async function subir({ simular = null } = {}) {
     const r = await fetch(base + caminho, { method: metodo, headers: { 'Content-Type': 'application/json', ...(perfil ? { 'x-teste-perfil': perfil } : {}) }, body: corpo === undefined ? undefined : JSON.stringify(corpo) });
     return { status: r.status, json: await r.json().catch(() => null) };
   };
-  return { base, chamar, fechar: () => new Promise((ok) => srv.close(ok)) };
+  return { base, api, deps, chamar, fechar: () => new Promise((ok) => srv.close(ok)) };
 }
 test.after(() => banco.restaurar());
 
@@ -298,5 +300,59 @@ test('API: filtro de mensagens por origem (Agenda, Pátio, Orçador, CRM) — e 
     assert.equal(r.status, 400);
     r = await s.chamar('gestor', 'GET', '/api/envios.csv?origem=hacker');
     assert.equal(r.status, 400);
+  } finally { await s.fechar(); }
+});
+
+test('API: saúde do WhatsApp mostra a retomada gradual (quanto ainda cabe) logo depois da volta, e some quando passa ou foi desligada', async () => {
+  const s = await subir();
+  try {
+    const minutos = (n) => new Date(Date.now() - n * 60000).toISOString();
+    tabelas.posvenda_envios.length = 0;
+    tabelas.posvenda_config = [{ id: true, hora_envio: '09:30', whatsapp_estado: 'ok', whatsapp_estado_em: minutos(5), whatsapp_estado_anterior: 'chave_recusada' }];
+    for (let i = 0; i < 3; i++) tabelas.posvenda_envios.push({ id: ID(120 + i), status: 'enviado', tipo: 'campanha', telefone: `1299999012${i}`, corpo: 'x', enviado_em: minutos(2), enviar_em: minutos(3) });
+    let r = await s.chamar('gestor', 'POST', '/api/whatsapp/reconferir', {});
+    assert.equal(r.status, 200);
+    assert.ok(r.json.retomada, 'logo depois da volta há retomada');
+    assert.equal(r.json.retomada.maximo, 8); assert.equal(r.json.retomada.restam, 5, '3 já saíram dos 8 da primeira meia hora');
+    assert.match(r.json.retomada.motivo, /chave recusada/);
+    tabelas.posvenda_config[0].whatsapp_estado_em = minutos(300);
+    r = await s.chamar('gestor', 'POST', '/api/whatsapp/reconferir', {});
+    assert.equal(r.json.retomada, null, 'passadas as 2 horas, sem freio');
+    tabelas.posvenda_config[0].whatsapp_estado_em = minutos(5);
+    tabelas.posvenda_config[0].retomada_gradual = false;
+    r = await s.chamar('gestor', 'POST', '/api/whatsapp/reconferir', {});
+    assert.equal(r.json.retomada, null, 'desligada nas Réguas, sem freio');
+  } finally { await s.fechar(); }
+});
+
+test('API: resultados é rota "cara" (20 por minuto por pessoa, depois 429) e o cache de leituras tem teto, mesmo girando as datas', async () => {
+  const s = await subir();
+  try {
+    let ultimo = null;
+    for (let i = 0; i < 22; i++) ultimo = (await s.chamar('atendente', 'GET', `/api/resultados?de=2026-01-${String((i % 28) + 1).padStart(2, '0')}`)).status;
+    assert.equal(ultimo, 429, 'a 22ª consulta seguida leva 429');
+    const g = await s.chamar('gestor', 'GET', '/api/resultados'); assert.equal(g.status, 200, 'o limite é por pessoa: ' + JSON.stringify(g.json));
+  } finally { await s.fechar(); }
+  const livre = await subir({ livre: true });
+  try {
+    for (let m = 1; m <= 9; m++) for (let d = 1; d <= 28; d++) {
+      const dia = `2025-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const r = await livre.chamar('gestor', 'GET', `/api/resultados?de=${dia}&ate=2026-12-31&detalhe=1`);
+      assert.equal(r.status, 200);
+    }
+    assert.ok(livre.deps.tamanhoDoCache() <= 200, `o cache parou em ${livre.deps.tamanhoDoCache()}`);
+  } finally { await livre.fechar(); }
+});
+
+test('API: o checklist de prontidão mostra a retomada gradual logo depois da volta do WhatsApp', async () => {
+  const s = await subir();
+  try {
+    const minutos = (n) => new Date(Date.now() - n * 60000).toISOString();
+    tabelas.posvenda_envios.length = 0;
+    tabelas.posvenda_config = [{ id: true, hora_envio: '09:30', whatsapp_estado: 'ok', whatsapp_estado_em: minutos(5), whatsapp_estado_anterior: 'desconectado' }];
+    let r = await s.chamar('gestor', 'GET', '/api/pronto');
+    assert.equal(r.status, 200);
+    const item = (j) => (j.itens || j.checklist || []).find?.((i) => i.id === 'r6_retomada');
+    assert.ok(item(r.json), 'o item da retomada aparece logo depois da volta');
   } finally { await s.fechar(); }
 });

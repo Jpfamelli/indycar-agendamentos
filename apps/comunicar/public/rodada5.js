@@ -29,7 +29,7 @@
     const classes = (s.classes || []).length ? `<div class="sw-classes">${s.classes.map(c => `<span class="badge-pill ${c.classe === 'numero_invalido' ? 'bp-gray' : c.classe === 'chave_recusada' ? 'bp-red' : 'bp-orange'}" title="${esc(c.ultimoErro || '')}">${esc(c.rotulo)} · <b>${c.total}</b></span>`).join('')}</div>` : '';
     const cad = s.cadencia ? `<small class="sw-cad">cadência: até <b>${s.cadencia.porMinuto}/min</b>, <b>${s.cadencia.porHora}/h</b>, <b>${s.cadencia.porDia}/dia</b> · ${s.cadencia.mesmoCliente} min entre avisos ao mesmo cliente · ${s.cadencia.janela?.inicio}h–${s.cadencia.janela?.fim}h${s.cadencia.soHorarioComercial ? ' · só horário da loja' : ''}</small>` : '';
     return `<div class="sw-topo"><span class="sw-dot ${cls}" aria-hidden="true"></span>
-        <div class="sw-txt"><b>${esc(s.titulo)}</b><p>${esc(s.motivo)}</p>${s.fazer ? `<p class="sw-fazer">${esc(s.fazer)}</p>` : ''}</div>
+        <div class="sw-txt"><b>${esc(s.titulo)}</b><p>${esc(s.motivo)}</p>${s.fazer ? `<p class="sw-fazer">${esc(s.fazer)}</p>` : ''}${s.retomada ? `<p class="sw-fazer">🐢 ${esc(s.retomada.motivo)} Ainda cabem ${esc(String(s.retomada.restam))} nesta fase.</p>` : ''}</div>
         <div class="sw-acoes">${acao}${pode('rodar') ? `<button type="button" class="btn btn-mini" id="swReconferir" title="Esquece a chave em cache e pergunta de novo ao CodeWords">${svg(I.refresh)} Conferir agora</button>` : ''}</div></div>
       ${(s.detalhes || []).length ? `<div class="sw-det">${s.detalhes.map(d => `<span>${esc(d)}</span>`).join('')}</div>` : ''}${classes}${cad}`;
   }

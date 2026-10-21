@@ -373,3 +373,123 @@ test('ficha do cliente: "na fila" traz o que ainda vai sair pelo cadastro OU pel
   assert.equal(f.envios.length, 3, 'o histórico continua como antes (só pelo cadastro)');
   assert.deepEqual((await D.fichaCliente(ID(121))).programadas.map((e) => e.id), [ID(4)]);
 });
+
+// ---------------------------------------------------------------- públicos de campanha que nascem nos outros sistemas
+test('segmento "deram nota 4 ou 5 no Pátio": só nota alta dentro do prazo; nota baixa e avaliação velha ficam de fora', async () => {
+  limpar(); config();
+  tabelas.patio_os = [os(30), os(31), os(32)];
+  tabelas.clientes = [cliente(30), cliente(31), cliente(32)];
+  tabelas.patio_avaliacoes = [
+    { os_id: ID(30), cliente_id: ID(130), nota: 5, created_at: diaSP(-10) },
+    { os_id: ID(31), cliente_id: ID(131), nota: 2, created_at: diaSP(-10) },
+    { os_id: ID(32), cliente_id: ID(132), nota: 4, created_at: diaSP(-200) },
+  ];
+  const r = await D.segmentar('nota_alta_patio', 60);
+  assert.deepEqual(r.map((c) => c.nome), ['Cliente 30']);
+  assert.deepEqual((await D.segmentar('nota_alta_patio', 400)).map((c) => c.nome).sort(), ['Cliente 30', 'Cliente 32']);
+  tabelas.patio_avaliacoes.length = 0;
+  assert.deepEqual(await D.segmentar('nota_alta_patio', 60), [], 'sem avaliação não quebra a consulta');
+});
+
+test('segmento "recusaram um extra no Pátio": traz o serviço recusado como assunto e respeita quem pediu para parar', async () => {
+  limpar(); config();
+  tabelas.patio_os = [os(33), os(34)];
+  tabelas.clientes = [cliente(33), cliente(34, { aceita_mensagens: false })];
+  tabelas.patio_extras = [
+    { os_id: ID(33), descricao: 'trocar pastilhas', status: 'recusado', decidido_em: diaSP(-5) },
+    { os_id: ID(34), descricao: 'alinhamento', status: 'recusado', decidido_em: diaSP(-5) },
+    { os_id: ID(33), descricao: 'velho', status: 'recusado', decidido_em: diaSP(-300) },
+    { os_id: ID(33), descricao: 'ainda não decidiu', status: 'pendente', decidido_em: null },
+  ];
+  const r = await D.segmentar('extra_recusado_patio', 90);
+  assert.equal(r.length, 1, 'quem pediu PARAR fica de fora');
+  assert.equal(r[0].nome, 'Cliente 33');
+  assert.equal(r[0].servico, 'trocar pastilhas');
+});
+
+test('segmentos do Orçador: sem resposta há mais de N dias e recusados; decidido, novo e de outro status não entram', async () => {
+  limpar(); config();
+  tabelas.clientes = [cliente(40)];
+  const orc = (n, extra = {}) => ({ id: ID(n), status: 'enviado', decidido_em: null, enviado_em: diaSP(-6), cliente_id: null, cliente_nome: `Orc ${n}`, cliente_telefone: `(12) 98888-${String(1000 + n)}`, veiculo: { montadora: 'Fiat', modelo: 'Uno', ano: 2012 }, pedido: 'freios', ...extra });
+  tabelas.orc_orcamentos = [
+    orc(41), orc(42, { enviado_em: diaSP(-1) }), orc(43, { decidido_em: diaSP(-2) }), orc(44, { status: 'aprovado', decidido_em: diaSP(-2) }),
+    orc(45, { cliente_id: ID(140), cliente_nome: 'Orc 45' }), orc(46, { status: 'recusado', decidido_em: diaSP(-7) }), orc(47, { status: 'recusado', decidido_em: diaSP(-200) }),
+  ];
+  const sem = await D.segmentar('orcamento_sem_resposta', 3);
+  assert.deepEqual(sem.map((c) => c.nome).sort(), ['Cliente 40', 'Orc 41'], 'o 45 é o cliente cadastrado; o 42 é novo; o 43/44 já foram decididos');
+  const avulso = sem.find((c) => c.nome === 'Orc 41');
+  assert.equal(avulso.carro, 'Fiat Uno 2012'); assert.equal(avulso.servico, 'freios');
+  assert.deepEqual((await D.segmentar('orcamento_recusado', 60)).map((c) => c.nome), ['Orc 46']);
+  assert.equal((await D.segmentar('orcamento_sem_resposta', 7)).length, 0, 'janela maior: ninguém tem tanto tempo parado');
+});
+
+test('segmentos do CRM: leads parados em "orçamento" ou "perdido" há mais de N dias, e quem indicou amigos', async () => {
+  limpar(); config();
+  tabelas.clientes = [cliente(50), cliente(51)];
+  const lead = (n, extra = {}) => ({ id: ID(n), status: 'orcamento', updated_at: diaSP(-10), cliente_id: null, nome: `Lead ${n}`, telefone: tel(n), carro_modelo: 'Gol', placa: 'ABC1D23', servico: 'revisão', ...extra });
+  tabelas.leads = [lead(60), lead(61, { updated_at: diaSP(-2) }), lead(62, { status: 'perdido', updated_at: diaSP(-90) }), lead(63, { status: 'perdido', updated_at: diaSP(-5) }), lead(64, { status: 'novo' })];
+  assert.deepEqual((await D.segmentar('leads_orcamento', 7)).map((c) => c.nome), ['Lead 60']);
+  assert.deepEqual((await D.segmentar('leads_perdidos', 60)).map((c) => c.nome), ['Lead 62']);
+  tabelas.indicacoes = [{ indicado_por: ID(150) }, { indicado_por: ID(150) }, { indicado_por: null }];
+  assert.deepEqual((await D.segmentar('indicaram')).map((c) => c.nome), ['Cliente 50'], 'quem indicou duas vezes aparece uma só');
+});
+
+test('segmento desconhecido ou valor absurdo não derruba nem escapa: erro claro e limites aplicados', async () => {
+  limpar(); config();
+  await assert.rejects(() => D.segmentar('inventado', 1), /Segmento desconhecido/);
+  tabelas.patio_os = [os(70)]; tabelas.clientes = [cliente(70)];
+  const r = await D.segmentar('entregues_patio', '999999');
+  assert.ok(Array.isArray(r), 'dias absurdos viram o teto de 730 em vez de data impossível');
+  assert.ok(Array.isArray(await D.segmentar('entregues_patio', 'abc')));
+  assert.ok(Array.isArray(await D.segmentar('orcamento_sem_resposta', '-5')));
+});
+
+// ---------------------------------------------------------------- "por que não saiu?" diz o que o carteiro vai conferir com os outros sistemas
+const textosDe = (x) => x.passos.map((p) => `${p.nivel}: ${p.texto}`).join(' | ');
+const pendente = (n, extra = {}) => ({ id: ID(n), status: 'pendente', tipo: 'posvenda', nome: `P${n}`, telefone: tel(n), telefone_e164: tel(n), corpo: `Oi ${n}`, enviar_em: diaSP(-0.04), created_at: diaSP(-1), expira_em: diaSP(3), ...extra });
+
+test('"por que não saiu": aviso de pronto do Pátio com o carro já entregue diz que será pulado', async () => {
+  limpar(); config();
+  tabelas.patio_os = [os(80)]; tabelas.patio_extras = [];
+  tabelas.posvenda_envios = [pendente(80, { tipo: 'patio_pronto', chave_unica: `patio_pronto:${ID(80)}`, created_at: new Date().toISOString() })];
+  const t = textosDe(await D.explicarEnvio(ID(80)));
+  assert.match(t, /bloqueio: Será pulada: o carro já foi entregue/);
+});
+
+test('"por que não saiu": lembrete de orçamento com o orçamento já aprovado no Orçador diz que será pulado', async () => {
+  limpar(); config();
+  tabelas.orc_orcamentos = [{ id: ID(91), status: 'aprovado', decidido_em: diaSP(-1) }, { id: ID(92), status: 'enviado', decidido_em: null }];
+  tabelas.posvenda_envios = [pendente(81, { tipo: 'orcamento', orcamento_id: ID(91) }), pendente(82, { tipo: 'orcamento', orcamento_id: ID(92) })];
+  assert.match(textosDe(await D.explicarEnvio(ID(81))), /Será pulada: o cliente já aprovou o orçamento/);
+  assert.doesNotMatch(textosDe(await D.explicarEnvio(ID(82))), /Será pulada/, 'orçamento ainda aberto não segura');
+});
+
+test('"por que não saiu": convite de revisão de quem já voltou à oficina diz que será pulado', async () => {
+  limpar(); config();
+  tabelas.clientes = [cliente(83)];
+  tabelas.agendamentos = [{ id: ID(93), cliente_id: ID(183), telefone: tel(83), data: D.somarDias(H, -1), status: 'concluido', valor: 100, created_at: diaSP(-1) }];
+  tabelas.patio_os = [];
+  tabelas.posvenda_envios = [pendente(83, { tipo: 'retorno', cliente_id: ID(183), created_at: diaSP(-10) })];
+  assert.match(textosDe(await D.explicarEnvio(ID(83))), /Será pulada: o cliente já voltou à oficina/);
+});
+
+test('"por que não saiu": cliente esperando o consultor no Atendimento faz as automáticas esperarem 3 horas; o lembrete não espera', async () => {
+  limpar(); config();
+  tabelas.conversas = [{ id: ID(95), telefone_e164: tel(84), aguardando_consultor: true }];
+  tabelas.posvenda_envios = [pendente(84, { tipo: 'campanha' }), pendente(85, { tipo: 'lembrete', telefone: tel(84), telefone_e164: tel(84) })];
+  assert.match(textosDe(await D.explicarEnvio(ID(84))), /espera: Alguém está atendendo este cliente agora \(o cliente está esperando o consultor no Atendimento\)/);
+  assert.doesNotMatch(textosDe(await D.explicarEnvio(ID(85))), /Alguém está atendendo/);
+});
+
+test('agenda de envios: fila acima do limite de leitura avisa que foi cortada (em vez de contar a menos em silêncio)', async () => {
+  limpar(); config();
+  const mil = (n) => Array.from({ length: n }, (_, i) => ({ id: ID(10000 + i), status: 'pendente', tipo: 'campanha', nome: `N${i}`, telefone: tel(i % 9000), corpo: 'x', enviar_em: diaSP(1) }));
+  tabelas.posvenda_envios = mil(D.LIMITE_AGENDA + 5);
+  const a = await D.agendaDeEnvios();
+  assert.equal(a.cortada, true); assert.equal(a.total, D.LIMITE_AGENDA); assert.equal(a.limiteLeitura, D.LIMITE_AGENDA);
+  tabelas.posvenda_envios = mil(40);
+  const b = await D.agendaDeEnvios();
+  assert.equal(b.cortada, false); assert.equal(b.total, 40);
+  tabelas.posvenda_envios = mil(D.LIMITE_AGENDA);
+  assert.equal((await D.agendaDeEnvios()).cortada, false, 'exatamente no limite ainda cabe');
+});

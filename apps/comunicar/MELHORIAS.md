@@ -799,3 +799,38 @@ Lote 7 — nota baixa que não se perde, ficha com a fila, teto por cliente
 208. Bug de português corrigido: "já recebeu 1 mensagens hoje" virou "1 mensagem" no motivo da fila e no "Por que não saiu?".
 209. "Por que não saiu?" mostra o teto que está configurado, não um número fixo: com teto 2 e uma mensagem hoje, não segura nada.
 210. Roteiro do navegador confere o campo novo (1 a 10, vem com 3, editável pelo gestor) e o do atendente continua só olhando.
+
+Lote 8 — "por que não saiu?" completo, retomada na Saúde, limites
+
+211. 🔗 **"Por que não saiu?" agora diz o que o carteiro vai conferir no Pátio**: aviso de "pronto" com o carro já entregue, ordem cancelada ou apagada, aviso velho — "Será pulada: …". Antes a tela mostrava "nada segura" e o carteiro pulava a mensagem.
+212. 🔗 O mesmo para o **Orçador**: lembrete de orçamento já aprovado, recusado, expirado ou apagado diz que será pulado; orçamento ainda aberto não aparece como problema.
+213. 🔗 O mesmo para a **Agenda e o Pátio juntos**: convite de revisão de quem já voltou à oficina (horário ou nova ordem) diz que será pulado.
+214. 🔗 O mesmo para o **Atendimento**: cliente esperando o consultor faz as automáticas esperarem 3 horas ("Alguém está atendendo este cliente agora"); o lembrete de horário não espera. Quatro testes novos, um por sistema.
+215. 🔗 **Saúde do WhatsApp mostra a retomada gradual**: logo depois da volta de uma queda séria a tela diz "a fila sai devagar de propósito" e quanto ainda cabe naquela fase (os 8 da primeira meia hora menos os que já saíram).
+216. A linha some sozinha passadas as 2 horas ou quando a retomada é desligada em Réguas (teste de API com os três cenários).
+217. Conferido no navegador a 1440 e 375 px: a linha da retomada aparece na Saúde do Início, com "Ainda cabem 5", sem rolagem lateral.
+218. Bug real (memória): o cache de leituras do servidor nunca esquecia nada e as chaves de Resultados vêm da URL — girar as datas encheria a memória. Agora tem teto de 200 entradas (descarta as vencidas e depois as mais antigas); teste com 252 consultas diferentes.
+219. Resultados e o resultado de cada campanha viraram rotas "caras": 20 consultas por minuto por pessoa e depois 429 com o tempo de espera; outra pessoa não é afetada (teste).
+220. A Agenda de envios não conta mais a menos em silêncio: acima de 3.000 mensagens na fila a resposta vem com `cortada: true` e o limite (teste nos três casos: acima, abaixo, exatamente no limite).
+221. A tela da Agenda avisa em vermelho "a fila é maior que 3.000 mensagens: os dias mais distantes não aparecem aqui" (conferido no roteiro do atacante).
+222. Cobertura (sem mudança de código, nenhum erro achado): os sete públicos de campanha que nascem no Pátio, no Orçador e no CRM (nota alta, extra recusado, orçamento sem resposta, orçamento recusado, leads parados, leads perdidos, quem indicou) tinham zero teste; agora cada um tem — prazo, status, quem pediu PARAR, valor absurdo e fila vazia.
+
+### Como verifiquei
+
+- **131 melhorias numeradas (92 a 222), 61 com ligação entre sistemas (🔗).** O item 222 é só cobertura de teste; os outros mudam o comportamento ou a tela.
+- `npm test`: **253 testes verdes** (os da Rodada 6 estão em `testes-rodada6.mjs` regras puras, `-geradores` pós-venda/revisão/orçamento/extra/nota baixa/segmentos/ficha/resultados/"por que", `-carteiro` a rodada de envio de ponta a ponta e `-api` as rotas com permissão). Tudo roda contra o **banco falso** (`scripts/banco-falso.mjs`), que recusa qualquer chamada para fora da própria máquina.
+- Cada bug que encontrei entrou como teste que falhava antes da correção: mensagem do pós-venda da Agenda por cima da nota baixa do Pátio, link "pelado" na campanha, prévia sem limite de texto, datas impossíveis dando 500, cache sem teto, "1 mensagens".
+- **Navegador de verdade** (Chrome + puppeteer-core, 1440 px e 375 px, gestor e atendente): `scripts/navegador-rodada6.mjs` (fluxos completos, sem rolagem lateral, zero erro de console) e `scripts/navegador-rodada6-ataque.mjs` (respostas da API recheadas de HTML e JavaScript: nada executa, nada vira elemento). Um erro meu (`$$` virando `$` ao colar código) foi pego aqui e corrigido.
+- **Banco real, só leitura ou revertido:** colunas usadas pelas leituras novas conferidas em `information_schema` (Pátio, Orçador, CRM, Agenda, tarefas, envios); `tarefa` criada com os campos da nota baixa nasce "aberta"; o teto por cliente grava 5 e o `check` barra 11 (bloco `DO` terminado em `TESTE_REVERTIDO`). Nenhuma linha foi criada.
+- **Migrações:** `r6_c4_conexoes`, `r6_c4_orcamento_aberto`, `r6_c4_limite_cliente_dia` (aditivas; cópias em `scripts/sql/` e `indycar-ferramentas/sql/`); `get_advisors` sem alerta novo (só o aviso antigo e proposital de RLS sem política).
+- **Nada foi publicado**; nenhum usuário de teste foi criado; nenhuma mensagem real saiu.
+
+### Pendências
+
+- **Chave do WhatsApp:** continua recusada até o João trocar. Quando voltar: a retomada gradual segura a fila (8 mensagens na primeira meia hora, 25 até duas horas), "sem confirmação" nunca reenvia sozinha e as chaves únicas impedem mensagem em dobro — tudo testado, mas só dá para ver ao vivo depois da troca.
+- **Dados reais ainda vazios:** `patio_os`, `patio_extras` e `orc_orcamentos` estão sem linhas em produção. As ligações foram provadas com o banco falso e com o esquema real; no primeiro dia use "Simular a rodada" e "Por que não saiu?" antes de confiar.
+- **"Repetir esta campanha":** não fiz. O texto guardado já vem com o nome de cada cliente dentro; repetir mandaria o nome do primeiro para todos. Precisa guardar o modelo (com as variáveis) junto do lote.
+- **Pedido ao Pátio:** o gatilho `patio_os_encerra_avisos_v3` não cancela os lembretes de extra (`patio_extra_lembrete:`); o Comunicar já pula na hora de enviar ("o cliente já decidiu os extras"), mas o ideal é o gatilho cancelar também.
+- **Pedido ao Atendimento:** o botão "Conferir agora" da Saúde aponta para `?aba=integracoes`; o Atendimento precisa abrir essa aba (hoje abre na página inicial).
+- **Tarefa da nota baixa** vai para o primeiro gestor que recebe reclamação; se quiserem por rodízio ou para o consultor da ordem, é só trocar o responsável em `cuidarNotaBaixa` (dados.js).
+- **Publicar:** é com o coordenador (Central). Depois de publicar, rodar uma vez `Simular a rodada` e olhar a Agenda de envios.

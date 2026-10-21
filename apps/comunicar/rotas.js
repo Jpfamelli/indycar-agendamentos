@@ -167,13 +167,21 @@ export function criarApi(deps) {
   /* Cache curto no servidor (por processo): telas que várias pessoas abrem ao
      mesmo tempo não repetem as mesmas leituras pesadas. */
   const cache = new Map();
+  const CACHE_MAX = 200;
   async function emCache(chave, ms, fn) {
     const c = cache.get(chave);
     if (c && relogio() - c.em < ms) return c.valor;
     const valor = await fn();
-    cache.set(chave, { valor, em: relogio() });
+    cache.set(chave, { valor, em: relogio(), ms });
+    /* rodada 6: as chaves de resultados vêm da URL (datas, tipo): sem limite, alguém girando as datas encheria a memória do servidor */
+    if (cache.size > CACHE_MAX) {
+      const agora = relogio();
+      for (const [k, v] of cache) if (agora - v.em >= (v.ms ?? 0)) cache.delete(k);
+      while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+    }
     return valor;
   }
+  deps.tamanhoDoCache = () => cache.size;
   const esquecerCache = (...chaves) => { for (const k of chaves) cache.delete(k); };
   deps.esquecerCache = esquecerCache;
 
@@ -278,7 +286,11 @@ export function criarApi(deps) {
       Promise.resolve(dados.contarSemConfirmacao?.()).catch(() => 0),
     ]);
     const s = montarSaude({ status, falhas24h: falhas || {}, fila: fila || {}, carteiro: { ultimaEm: cart.ultimaEm, falhas24h: cart.falhas24h }, estadoGravado: cfg.whatsapp || null, agora: relogio(), semConfirmacao: Number(duvida) || 0 });
-    return { ...s, semConfirmacao: Number(duvida) || 0, cadencia: { porMinuto: cfg.limite_por_minuto, porHora: cfg.limite_por_hora, porDia: cfg.limite_por_dia, mesmoCliente: cfg.intervalo_mesmo_cliente_min, janela: { inicio: cfg.janela_inicio, fim: cfg.janela_fim }, soHorarioComercial: !!cfg.so_horario_comercial }, conferidoEm: new Date(relogio()).toISOString() };
+    // rodada 6: o WhatsApp acabou de voltar? a fila sai devagar de propósito — a tela diz quanto ainda cabe
+    const ret = cfg.whatsapp?.em && cfg.retomada_gradual !== false && cfg.whatsapp?.estado === 'ok'
+      ? conexoes.limiteDeRetomada({ ligada: true, estado: cfg.whatsapp.estado, estadoEm: cfg.whatsapp.em, anterior: cfg.whatsapp.anterior, agora: relogio(), enviadasDesde: Number(await Promise.resolve(dados.enviadasDesde?.(cfg.whatsapp.em)).catch(() => 0)) || 0 })
+      : null;
+    return { ...s, retomada: ret ? { motivo: ret.motivo, maximo: ret.maximo, restam: ret.limite } : null, semConfirmacao: Number(duvida) || 0, cadencia: { porMinuto: cfg.limite_por_minuto, porHora: cfg.limite_por_hora, porDia: cfg.limite_por_dia, mesmoCliente: cfg.intervalo_mesmo_cliente_min, janela: { inicio: cfg.janela_inicio, fim: cfg.janela_fim }, soHorarioComercial: !!cfg.so_horario_comercial }, conferidoEm: new Date(relogio()).toISOString() };
   }
   rota('GET', '/api/whatsapp/saude', async ({ res }) => ok(res, await emCache('wa-saude', 20_000, () => saudeDoWhatsapp(false))));
   rota('POST', '/api/whatsapp/reconferir', async ({ res, usuario }) => {
@@ -841,7 +853,7 @@ export function criarApi(deps) {
         dados.filaDoPatio?.().catch(() => ({})) ?? {},
         dados.statusDasConexoes?.().catch(() => null) ?? null,
       ]);
-      const retomada = conexoes.limiteDeRetomada({ ligada: cfg.retomada_gradual !== false, estado: cfg.whatsapp?.estado, estadoEm: cfg.whatsapp?.em, anterior: cfg.whatsapp?.anterior, agora: relogio(), enviadasDesde: 0 });
+      const retomada = conexoes.limiteDeRetomada({ ligada: cfg.retomada_gradual !== false, estado: cfg.whatsapp?.estado, estadoEm: cfg.whatsapp?.em, anterior: cfg.whatsapp?.anterior, agora: relogio(), enviadasDesde: cfg.whatsapp?.em ? (Number(await Promise.resolve(dados.enviadasDesde?.(cfg.whatsapp.em)).catch(() => 0)) || 0) : 0 });
       return { cfg, whatsapp: wa || {}, carteiro: carteiroR, aniversarios: { comData, total }, ia: { ativo: iaCfg.ativo, temChave: !!chave }, teste: { ultimoOkEm: testeOk },
         patio: { cfg: patioCfg, fila: patioFila },
         r6: con ? { itens: con.itens, semLink: con.semLink, retomada: retomada ? { motivo: retomada.motivo } : null } : undefined };

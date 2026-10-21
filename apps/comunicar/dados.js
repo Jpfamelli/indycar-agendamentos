@@ -18,7 +18,7 @@ import {
   inserir, inserirUm, atualizar, atualizarUm, remover, contar, rpc,
 } from './supabase.js';
 import { validadeDoEnvio, esperaDaTentativa, LIMITE_ATRASO_H } from './carteiro.js';
-import { TIPOS_PATIO, ROTULO_PATIO, VALIDADE_PATIO_H, linkArea, linkOs, usaLinkArea, usaLinkOs, PATIO_URL } from './patio.js';
+import { TIPOS_PATIO, ROTULO_PATIO, VALIDADE_PATIO_H, linkArea, linkOs, usaLinkArea, usaLinkOs, PATIO_URL, conferirPatio, osIdDaChave } from './patio.js';
 import { mesclarPreferencias, LINKS } from './acesso.js';
 import { classificarErro } from './whatsapp.js';
 import * as conexoes from './conexoes.js';
@@ -2886,13 +2886,17 @@ export async function enviadasDesde(iso) {
 // RODADA 6 · lote 2 — agenda de envios, "por que não saiu", resultados, conexões
 // ============================================================================
 
+export const LIMITE_AGENDA = 3000;
 /** Agenda de envios: tudo que está na fila agrupado por dia (fuso da oficina), com teto diário, domingo e feriado. */
 export async function agendaDeEnvios() {
   const cfg = await obterConfig();
   const p = new URLSearchParams('select=id,nome,telefone,tipo,corpo,enviar_em,motivo_pulado,expira_em');
-  p.set('status', 'eq.pendente'); p.set('order', 'enviar_em.asc'); p.set('limit', '3000');
-  const lista = await selecionar(T.envios, p);
-  return { ...conexoes.montarAgendaDeEnvios(lista, cfg, hoje(), { feriado }), cfg: { hora_envio: cfg.hora_envio, envia_domingo: cfg.envia_domingo, limite_por_dia: cfg.limite_por_dia } };
+  p.set('status', 'eq.pendente'); p.set('order', 'enviar_em.asc'); p.set('limit', String(LIMITE_AGENDA + 1));
+  const lida = await selecionar(T.envios, p);
+  // passou do que a tela dá conta: avisa em vez de contar a menos sem dizer
+  const cortada = lida.length > LIMITE_AGENDA;
+  const lista = cortada ? lida.slice(0, LIMITE_AGENDA) : lida;
+  return { ...conexoes.montarAgendaDeEnvios(lista, cfg, hoje(), { feriado }), cortada, limiteLeitura: LIMITE_AGENDA, cfg: { hora_envio: cfg.hora_envio, envia_domingo: cfg.envia_domingo, limite_por_dia: cfg.limite_por_dia } };
 }
 
 /** Muda o horário de UMA mensagem que ainda não saiu (nunca além da validade). */
@@ -2929,6 +2933,31 @@ export async function adiarDia(dia, quandoIso) {
   return { ok: true, adiadas, ficaram, total: lista.length, quando: new Date(q).toISOString(), aviso: ficaram ? `${ficaram} ficaram onde estavam: passariam da validade.` : null };
 }
 
+/** As conferências que o carteiro faz com os outros sistemas ANTES de enviar, para o "por que não saiu?" dizer o mesmo. */
+async function conferenciasDoEnvio(e, agora) {
+  const saida = [];
+  const pula = (c) => c && c.acao === 'pular' && saida.push({ nivel: 'bloqueio', texto: `Será pulada: ${c.motivo}.` });
+  if (String(e.tipo).startsWith('patio_')) {
+    const osId = osIdDaChave(e.chave_unica);
+    const ordens = osId ? await ordensDoPatio([osId]).catch(() => null) : null;
+    const os = osId && ordens ? (ordens.get(osId) || null) : undefined;
+    pula(conferirPatio(e, os, os?.extras || [], agora));
+  }
+  if (e.tipo === 'orcamento' && e.orcamento_id) {
+    const o = await orcamentosPorIds([e.orcamento_id]).catch(() => null);
+    if (o) pula(conexoes.conferirOrcamento(e, o.get(e.orcamento_id)));
+  }
+  if (e.tipo === 'retorno' && e.cliente_id) {
+    const v = await voltouDepois([{ cliente_id: e.cliente_id, apos: conexoes.diaSP(e.created_at) }]).catch(() => null);
+    if (v?.has(e.cliente_id)) pula(conexoes.conferirRetorno(e, v.get(e.cliente_id)));
+  }
+  if (TIPOS_ESPERAM_ATENDIMENTO.has(e.tipo)) {
+    const ocup = await ocupacaoDaConversa(e.telefone).catch(() => null);
+    if (ocup?.ocupada) saida.push({ nivel: 'espera', texto: `Alguém está atendendo este cliente agora (${ocup.motivo || 'conversa aberta'}): a mensagem espera 3 horas para não atravessar a conversa.` });
+  }
+  return saida;
+}
+
 /** "Por que esta mensagem ainda não saiu?" — monta o contexto de AGORA e usa a mesma ordem de decisão do carteiro. */
 export async function explicarEnvio(id) {
   if (!ehUuid(id)) return null;
@@ -2947,6 +2976,7 @@ export async function explicarEnvio(id) {
     cfg.evitar_texto_repetido_h ? textosRecentes([e.telefone], cfg.evitar_texto_repetido_h).catch(() => new Map()) : new Map(),
   ]);
   const repetido = !!conexoes.repetidoRecente(e.corpo, recentes.get(tel) || [], { horas: cfg.evitar_texto_repetido_h, agora });
+  const conferencias = await conferenciasDoEnvio(e, agora).catch(() => []);
   return {
     envio: { id: e.id, tipo: e.tipo, nome: e.nome, status: e.status, enviar_em: e.enviar_em },
     ...conexoes.explicarPendente(e, {
@@ -2954,7 +2984,7 @@ export async function explicarEnvio(id) {
       whatsapp: cfg.whatsapp, clienteFora: !!((e.cliente_id && fora.ids.has(e.cliente_id)) || (tel && fora.tels.has(tel))),
       ultimoDoCliente: contatos.ultimos.get(tel) || null, hojeDoCliente: contatos.contagem.get(tel) || 0, maxPorDia: cfg.max_mensagens_cliente_dia,
       feriado: feriado(hoje()), tiposSeguramFeriado: [...TIPOS_SEGURAM_NO_FERIADO], situacao: sit.get(tel) || {},
-      osDoLembrete: ordens.get?.(e.agendamento_id) || null, repetido,
+      osDoLembrete: ordens.get?.(e.agendamento_id) || null, repetido, conferencias,
     }),
   };
 }

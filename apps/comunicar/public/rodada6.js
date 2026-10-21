@@ -160,7 +160,7 @@
     const topo = `<div class="r6-ag-topo"><span class="badge-pill bp-gray">${plural(a.total, 'mensagem na fila', 'mensagens na fila')}</span>
         ${a.atrasadas ? `<span class="badge-pill bp-orange" title="Programadas há mais de 2 horas e ainda não saíram">${plural(a.atrasadas, 'atrasada', 'atrasadas')}</span>` : ''}
         <span class="badge-pill bp-gray">teto de ${n0(cfg.limite_por_dia || a.limite)} por dia</span>
-        <span class="badge-pill bp-gray">campanhas saem às ${esc(cfg.hora_envio || '09:30')}</span></div>`;
+        <span class="badge-pill bp-gray">campanhas saem às ${esc(cfg.hora_envio || '09:30')}</span></div>${a.cortada ? `<p class="form-msg erro">A fila é maior que ${n0(a.limiteLeitura)} mensagens: os dias mais distantes não aparecem aqui. As contagens são das primeiras ${n0(a.limiteLeitura)}.</p>` : ''}`;
     if (!dias.length) { $('#r6AgCorpo').innerHTML = topo + vazio(I.calendar, 'Nada programado', 'Quando as réguas e campanhas colocarem mensagens na fila, elas aparecem aqui por dia.'); return; }
     const linhaTipos = (d) => Object.entries(d.porTipo || {}).sort((x, y) => y[1] - x[1]).map(([t, n]) => `<span class="chip">${EMOJI(t)} ${esc(ROT(t))} · ${n}</span>`).join('');
     $('#r6AgCorpo').innerHTML = topo + `<div class="r6-dias">${dias.map((d, i) => {

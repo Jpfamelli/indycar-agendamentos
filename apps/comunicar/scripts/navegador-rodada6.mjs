@@ -36,6 +36,10 @@ for (const larg of [1440, 375]) {
     const ini = await page.evaluate(() => ({ cons: document.querySelectorAll('#painelR6Con .r6-con').length, funil: document.querySelectorAll('#painelR6Con .r6-passo').length, sem: [...document.querySelectorAll('#painelR6Con .r6-con')].filter((c) => /sem leitura/.test(c.textContent)).length }));
     ok(larg, 'gestor Início: 7 ligações com os outros apps, funil de 5 passos e a que não leu diz "sem leitura"', ini.cons === 7 && ini.funil === 5 && ini.sem === 1, JSON.stringify(ini));
     ok(larg, 'gestor Início: sem rolagem lateral', await semRolagem(page));
+    await page.goto(`${BASE}/?papel=gestor&semente=1&saude=ok&retomada=1&tour=0`, { waitUntil: 'networkidle0' }); await espera(1200);
+    ok(larg, 'gestor Início: a Saúde do WhatsApp diz que a fila sai devagar e quanto ainda cabe', /retomada gradual/.test(await texto(page, '#painelSaudeWA')) && /Ainda cabem 5/.test(await texto(page, '#painelSaudeWA')));
+    ok(larg, 'gestor Início: com a retomada na tela continua sem rolagem lateral', await semRolagem(page));
+    await page.goto(`${BASE}/?papel=gestor&semente=1&saude=ok&retomada=0&tour=0`, { waitUntil: 'networkidle0' }); await espera(900);
     await page.screenshot({ path: path.join(SAIDA, `inicio-${larg}.png`) });
 
     // Mensagens

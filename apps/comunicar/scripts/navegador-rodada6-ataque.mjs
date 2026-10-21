@@ -17,7 +17,7 @@ const stats = { enviadas: 2, responderam: 1, agendaram: 1, voltaram: 1, aprovara
 const RESP = {
   '/api/conexoes': { em: agora, itens: [{ id: P, app: P, rotulo: P, valor: 3, detalhe: P, ligada: true, lido: true }] },
   '/api/resultados': { periodo: { de: P, ate: P }, janelaDias: 30, total: stats, porTipo: { [P]: stats }, porLote: { [ID]: { ...stats, tipo: P, quando: agora, texto: P } }, quemVoltou: [{ id: P, tipo: P, nome: P, telefone: P, enviado_em: agora, voltou: true, aprovou: true, faturou: 100 }], quantosVoltaram: 99, regra: P },
-  '/api/agenda': { dias: [{ data: '2026-10-21', total: 1, atrasadas: 0, porTipo: { [P]: 1 }, porHora: {}, domingo: false, feriado: P, limite: 300, excede: false, itens: [{ id: P, nome: P, telefone: P, tipo: P, enviar_em: agora, corpo: P, motivo_pulado: P }] }], atrasadas: 0, total: 1, limite: 300, cfg: { hora_envio: P, envia_domingo: false, limite_por_dia: 300 } },
+  '/api/agenda': { dias: [{ data: '2026-10-21', total: 1, atrasadas: 0, porTipo: { [P]: 1 }, porHora: {}, domingo: false, feriado: P, limite: 300, excede: false, itens: [{ id: P, nome: P, telefone: P, tipo: P, enviar_em: agora, corpo: P, motivo_pulado: P }] }], atrasadas: 0, total: 1, limite: 300, cortada: true, limiteLeitura: 3000, cfg: { hora_envio: P, envia_domingo: false, limite_por_dia: 300 } },
   porque: { envio: { id: ID, nome: P, tipo: P, status: 'pendente' }, quando: agora, passos: [{ nivel: P, texto: P }, { nivel: 'bloqueio', texto: P }], resumo: P, bloqueios: 1, esperas: 0 },
   '/api/rodada/simular': { simulado: true, bloqueado: false, aviso: P, retomada: { motivo: P, limite: 3 }, enviaria: [{ id: P, tipo: P, nome: P, telefone: P, corpo: P }], pularia: [{ id: P, tipo: P, nome: P, motivo: P }], adiaria: [{ id: P, tipo: P, nome: P, motivo: P, quando: P }], reagendaria: [{ id: P, tipo: P, nome: P, motivo: P }], atualizaria: [] },
   '/api/campanhas/previa': { simulado: true, total: 1, pulados: 1, puladosDetalhe: { nao_quer: 1 }, dias: 2, porDia: { '2026-10-21': 1, '2026-10-22': P }, limitePorDia: 300, linhas: [{ nome: P, telefone: P, corpo: P, enviar_em: agora }], linksForaDaCasa: [P] },
@@ -49,6 +49,7 @@ for (const larg of [1440, 375]) {
   await page.evaluate(() => document.querySelector('.nav-item[data-route="mensagens"]').click()); await espera(900);
   await page.evaluate(() => document.querySelector('#r6Agenda').click()); await espera(900);
   await limpo('Agenda'); await cabe('Agenda');
+  ok(larg, 'Agenda: fila cortada no limite de leitura avisa em vez de contar a menos', await page.evaluate(() => /maior que 3.000 mensagens/.test(document.querySelector('#r6AgCorpo')?.textContent || '')));
   await page.evaluate(() => document.querySelector('.modal [data-r6-porque]')?.click()); await espera(500);
   await page.evaluate(() => document.querySelector('.modal [data-fechar]')?.click()); await espera(300);
   await page.evaluate(() => document.querySelector('#r6Simular').click()); await espera(900);

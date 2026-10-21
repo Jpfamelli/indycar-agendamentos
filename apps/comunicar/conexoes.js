@@ -339,6 +339,8 @@ export function explicarPendente(envio, ctx = {}) {
     const c = conferirLembreteComOrdem(envio, ctx.osDoLembrete);
     if (c.acao === 'pular') add('bloqueio', `Será pulada: ${c.motivo}.`);
   }
+  // conferências de AGORA com os outros sistemas (Pátio, Orçador, Agenda, Atendimento): as mesmas que o carteiro faz antes de enviar
+  for (const c of ctx.conferencias || []) if (c && c.texto) add(c.nivel === 'espera' ? 'espera' : 'bloqueio', c.texto);
   if (ctx.repetido) add('bloqueio', 'O mesmo texto já foi para este número há pouco (pelo Comunicar ou pelo Atendimento): será pulada para não repetir.');
 
   const bloqueios = passos.filter((p) => p.nivel === 'bloqueio').length;
