@@ -7,6 +7,8 @@
    GET  /api/r6/sugestoes/:conversaId      respostas prontas para o que o cliente acabou de pedir
    GET  /api/r6/conversas/:id/ia           o que a IA está fazendo nesta conversa e por quê
    POST /api/r6/conversas/:id/passar-consultor   {motivo}  aguardando consultor + tarefa
+   GET  /api/r6/c5/conversa/:conversaId        Orçador AO VIVO (com o JWT de quem está logado) + pré-agendamentos + ações do 360
+   GET  /api/r6/c5/carros                  carros no pátio sem conversa aberta (patio_carros_abertos)
    GET  /api/r6/zap                        o WhatsApp está parado? quantas mensagens não saíram
    GET  /api/r6/nao-sairam                 mensagens de saída que falharam (para decidir uma a uma)
    POST /api/r6/nao-sairam/resolver        {mensagemId, nota?} "resolvi por telefone"
@@ -20,7 +22,7 @@ const R6 = require('../public/r6-regras.js');
 const { ORIGENS_ECOSSISTEMA } = require('./seguranca.js');
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function criarRotasR6({ getSb, usuarioLogado, dentroDoLimite, readBody, dados, zap, funil = null, copiloto = null, contexto = null, auditar = async () => ({ ok: true }) }) {
+function criarRotasR6({ getSb, usuarioLogado, dentroDoLimite, readBody, dados, zap, funil = null, copiloto = null, contexto = null, c5 = null, tokenDe = () => null, auditar = async () => ({ ok: true }) }) {
   const enviar = (req, res, code, data) => {
     const corpo = JSON.stringify(data);
     const cab = { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(corpo),
@@ -137,6 +139,39 @@ function criarRotasR6({ getSb, usuarioLogado, dentroDoLimite, readBody, dados, z
       const motivo = Object.keys(R6.MOTIVO_HUMANO).includes(corpo?.motivo) ? corpo.motivo : 'preco';
       const r = await D().passarParaConsultor({ conversaId: id, perfil: quem, motivo });
       return enviar(req, res, r.ok ? 200 : (r.status || 503), r);
+    }
+
+    m = /^\/api\/r6\/c5\/conversa\/([^/]+)$/.exec(pathname);
+    if (m && req.method === 'GET') {
+      const quem = await exigir(req, res); if (!quem) return true;
+      const id = decodeURIComponent(m[1]);
+      if (!RE_UUID.test(id)) return enviar(req, res, 400, { ok: false, erro: 'id de conversa inválido' });
+      if (!limitar(req, res, `r6c5-con:${quem.id}`, 180)) return true;
+      const sb = getSb(); if (!sb || !c5) return semBanco();
+      const { data: cv } = await sb.from('conversas').select('id,cliente_id,nome,telefone,telefone_e164').eq('id', id).maybeSingle();
+      if (!cv) return enviar(req, res, 404, { ok: false, erro: 'Conversa não encontrada.' });
+      let painel = null;
+      if (cv.cliente_id) { painel = await D().painelCliente(cv.cliente_id).catch(() => null); if (painel && !painel.ok) painel = null; }
+      const telefone = painel?.cliente?.telefone || cv.telefone_e164 || cv.telefone;
+      const live = await c5.orcamentosAoVivo({ token: tokenDe(req), telefone, leadId: painel?.lead?.id || null });
+      const mesclados = R6.mesclarOrcamentos(painel?.orcamentos || [], live.orcamentos);
+      const principal = R6.orcamentoQueImporta(mesclados, new Date());
+      const pre = await c5.preAgendamentos({ clienteId: cv.cliente_id, telefone });
+      const AVISOS = { sem_permissao: 'Seu acesso não enxerga o Orçador agora. Peça ao administrador para conferir seu perfil.', sem_telefone: null,
+        sem_token: 'Sua sessão expirou: entre de novo para ver o Orçador ao vivo.', rede: 'O Orçador não respondeu agora. Mostrando o que já sabíamos.' };
+      const aviso = live.ok ? (live.parcial ? 'O Orçador respondeu só em parte agora. Pode faltar algum orçamento.' : null) : (live.motivo in AVISOS ? AVISOS[live.motivo] : 'Não consegui ler o Orçador agora. Mostrando o que já sabíamos.');
+      return enviar(req, res, 200, { ok: true, gerado_em: new Date().toISOString(), ao_vivo: live.ok, aviso, orcamentos: mesclados.slice(0, 8),
+        orcamento_principal: principal ? principal.id : null, pre_agendamentos: pre, acoes: painel?.acoes || [],
+        cliente: { nome: painel?.cliente?.nome || cv.nome || null, carro: painel?.cliente?.carro || null, placa: painel?.cliente?.placa || null },
+        link_novo_orcamento: R6.linkNovoOrcamento({ conversaId: id, telefone, nome: painel?.cliente?.nome || cv.nome, placa: painel?.cliente?.placa, veiculo: painel?.cliente?.carro, leadId: painel?.lead?.id }) });
+    }
+
+    if (pathname === '/api/r6/c5/carros' && req.method === 'GET') {
+      const quem = await exigir(req, res); if (!quem) return true;
+      if (!limitar(req, res, `r6c5-carros:${quem.id}`, 60)) return true;
+      if (!getSb() || !c5) return semBanco();
+      const r = await c5.carrosSemConversa();
+      return enviar(req, res, r.ok ? 200 : 503, r);
     }
 
     if (pathname === '/api/r6/zap' && req.method === 'GET') {

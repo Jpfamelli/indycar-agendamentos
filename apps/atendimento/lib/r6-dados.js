@@ -20,6 +20,7 @@
 const R6 = require('../public/r6-regras.js');
 const PAT = require('./patio.js');
 const COM = require('./comunicar.js');
+const C5 = require('./r6c5.js');
 
 const ABERTAS = PAT.ABERTAS;
 const DIA = 86_400_000;
@@ -75,7 +76,8 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
     const desde3 = new Date(t0.getTime() - 3 * DIA).toISOString();
     const desde90 = new Date(t0.getTime() - 90 * DIA).toISOString();
 
-    const [convs, oss, orcs, falhas] = await Promise.all([
+    const desde14 = new Date(t0.getTime() - 14 * DIA).toISOString();
+    const [convs, oss, orcs, falhas, preAg] = await Promise.all([
       ler('conversas', sb.from('conversas')
         .select('id,cliente_id,telefone,telefone_e164,nao_lidas,aguardando_consultor,aguardando_desde,ultima_mensagem_em,atribuida_a')
         .eq('tipo', 'atendimento').is('desfecho', null).gte('ultima_mensagem_em', desde7)
@@ -85,9 +87,12 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
         .in('etapa', ABERTAS).limit(300), avisos),
       ler('orçamentos', sb.from('orc_orcamentos')
         .select('id,numero,status,cliente_id,cliente_telefone,enviado_em,visualizado_em,decidido_em,validade,agendamento_id,created_at,token_publico')
-        .in('status', ['enviado', 'aprovado']).gte('created_at', desde90).limit(400), avisos),
+        .in('status', ['enviado', 'aprovado', 'recusado']).gte('created_at', desde90).limit(400), avisos),
       ler('mensagens que falharam', sb.from('whatsapp_mensagens')
         .select('id,conversa_id,erro,created_at').eq('direcao', 'saida').eq('status', 'falhou').gte('created_at', desde3).limit(500), avisos),
+      ler('pré-agendamentos', sb.from('agendamentos')
+        .select('id,cliente_id,telefone,telefone_e164,data,hora,status,observacoes')
+        .ilike('observacoes', '%agendamento pedido pelo cliente%').in('status', ['aguardando', 'pendente', 'pre_agendado']).gte('data', desde3.slice(0, 10)).limit(200), avisos),
     ]);
 
     const ids = convs.map(x => x.id);
@@ -114,9 +119,18 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
       const k = chaveTel(o.telefone); if (k && !osPorTel.has(k)) osPorTel.set(k, o);
     }
     const orcPorCliente = new Map(), orcPorTel = new Map();
-    const pesoOrc = o => { const s = R6.situacaoOrcamento(o, t0); return ['aprovado_sem_horario', 'visualizado', 'parado', 'enviado', 'aprovado'].indexOf(s.cod); };
+    // recusado só conta nos últimos 14 dias (depois disso o cliente já seguiu em frente)
+    const pesoOrc = o => { if (o.status === 'recusado') return String(o.decidido_em || o.created_at) >= desde14 ? 5 : -1; const s = R6.situacaoOrcamento(o, t0); return ['aprovado_sem_horario', 'visualizado', 'parado', 'enviado', 'aprovado'].indexOf(s.cod); };
     const guardaOrc = (mapa, k, o) => { if (!k) return; const a = mapa.get(k); if (!a || (pesoOrc(o) >= 0 && (pesoOrc(a) < 0 || pesoOrc(o) < pesoOrc(a)))) mapa.set(k, o); };
-    for (const o of orcs) { guardaOrc(orcPorCliente, o.cliente_id, o); guardaOrc(orcPorTel, chaveTel(o.cliente_telefone), o); }
+    for (const o of orcs) { if (o.status === 'recusado' && String(o.decidido_em || o.created_at) < desde14) continue; guardaOrc(orcPorCliente, o.cliente_id, o); guardaOrc(orcPorTel, chaveTel(o.cliente_telefone), o); }
+
+    const preCliente = new Map(), preTel = new Map();
+    for (const a of preAg) {
+      if (!R6.ehPreAgendamento(a.observacoes)) continue;
+      const item = { id: a.id, data: a.data, hora: a.hora ? String(a.hora).slice(0, 5) : null };
+      if (a.cliente_id && !preCliente.has(a.cliente_id)) preCliente.set(a.cliente_id, item);
+      const k = chaveTel(a.telefone_e164 || a.telefone); if (k && !preTel.has(k)) preTel.set(k, item);
+    }
 
     const falhaPorConversa = new Map();
     for (const f of falhas) {
@@ -142,12 +156,14 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
       }
       if (orc) {
         const s = R6.situacaoOrcamento(orc, t0);
-        item.orc = { id: orc.id, numero: orc.numero, status: orc.status, enviado_em: orc.enviado_em, visualizado_em: orc.visualizado_em,
+        item.orc = { id: orc.id, decidido_em: orc.decidido_em || null, numero: orc.numero, status: orc.status, enviado_em: orc.enviado_em, visualizado_em: orc.visualizado_em,
           validade: orc.validade, agendamento_id: orc.agendamento_id, created_at: orc.created_at, rotulo: s.rotulo, cod: s.cod };
       }
       const fl = falhaPorConversa.get(cv.id);
       if (fl) item.falhas = fl;
-      if (item.sem_resposta || item.patio || item.orc || item.falhas) conversas[cv.id] = item;
+      const pre = preCliente.get(cv.cliente_id) || preTel.get(chaveTel(cv.telefone_e164 || cv.telefone)) || null;
+      if (pre) item.pre = pre;
+      if (item.sem_resposta || item.patio || item.orc || item.falhas || item.pre) conversas[cv.id] = item;
     }
     const resumo = { conversas: Object.keys(conversas).length, no_patio: oss.length,
       orcamentos_abertos: orcs.length, mensagens_que_nao_sairam: [...falhaPorConversa.values()].reduce((s, a) => s + a.nao_saiu + a.sem_confirmacao, 0) };
@@ -275,6 +291,7 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
       resumo: { total_gasto: resumo.total_gasto ?? null, servicos_feitos: resumo.servicos_feitos ?? 0, nota_media: resumo.nota_media ?? null, dias_desde_ultima_visita: resumo.dias_desde_ultima_visita ?? null,
         orcamentos_esperando: resumo.orcamentos_esperando ?? 0, extras_pendentes: resumo.extras_pendentes ?? 0 },
       indicacoes: r360.indicacoes || null,
+      acoes: C5.acoesDoR360(r360.acoes_sugeridas),
       timeline: linha, eventos_orcamento: eventosOrc, links,
     };
     return guarda('painel:' + clienteId, out);

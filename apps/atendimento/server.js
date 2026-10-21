@@ -35,6 +35,7 @@ const { criarZap } = require('./lib/zap-estado.js');
 const R6REGRAS = require('./public/r6-regras.js');
 const { criarR6 } = require('./lib/r6-dados.js');
 const { criarRotasR6 } = require('./lib/rotas-r6.js');
+const { criarC5 } = require('./lib/r6c5.js');
 const ZAP = criarZap();
 
 // Configuração via .env (sem depender do Registro do Windows)
@@ -2269,11 +2270,18 @@ function R6DADOS() {
   if (!_R6) _R6 = criarR6({ sb: adminSupabase(), patio: patioDoServidor(), auditar: (...a) => AUDITORIA().registrar(...a) });
   return _R6;
 }
+function preguicosoC5() {
+  let c5 = null;
+  const faz = () => (c5 ||= criarC5({ sb: adminSupabase(), fetch, supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY }));
+  return new Proxy({}, { get: (_, k) => faz()[k] });
+}
 const ROTAS_R6 = criarRotasR6({
   getSb: adminSupabase, usuarioLogado, dentroDoLimite, readBody,
   dados: () => R6DADOS(), zap: ZAP,
   copiloto: () => copiloto(),
   contexto: () => (copiloto(), CONTEXTO),
+  // C5: o Orçador ao vivo é chamado com o JWT de quem está logado (as RPCs checam auth.uid())
+  c5: preguicosoC5(), tokenDe: req => ACS.tokenDe(req),
   auditar: (...a) => AUDITORIA().registrar(...a),
 });
 

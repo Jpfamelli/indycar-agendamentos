@@ -125,7 +125,7 @@
     urgencia: 100, reclamacao: 80, pessoa: 70, ligacao: 50, preco: 55, so_midia: 20, cancelar: 45,
     estado_carro: 30, orc_status: 30, aprovou: 50, remarcar: 25, nota_fiscal: 15,
     carro_pronto: 60, extra_pendente: 55, extra_pendente_antigo: 70,
-    orc_aprovado_sem_horario: 45, orc_visualizado: 35, orc_parado: 25,
+    orc_aprovado_sem_horario: 45, orc_visualizado: 35, orc_parado: 25, orc_recusado: 40, pre_agendamento: 75,
     aguardando_consultor: 40, sem_dono: 10, meu: 8, de_colega: -25,
     agendada: -15, ia_respondendo: -20, fixada: 500, adiada: -300, agradecimento: -30,
   };
@@ -201,7 +201,10 @@
       if (s.cod === 'aprovado_sem_horario') somar('orc_aprovado_sem_horario', 'Orçamento aprovado e sem horário', '✅');
       else if (s.cod === 'visualizado') somar('orc_visualizado', 'O cliente abriu o orçamento e não respondeu', '👀');
       else if (s.cod === 'parado') somar('orc_parado', 'Orçamento enviado sem resposta', '📄');
+      else if (s.cod === 'recusado') somar('orc_recusado', 'O cliente recusou o orçamento', '🙅');
     }
+    // 🔗 pré-agendamento pedido pela página do orçamento (Orçador → Agenda)
+    if (ctx.pre) somar('pre_agendamento', 'Pediu horário pela página do orçamento', '📅');
 
     if (!c.atribuida_a) somar('sem_dono', 'Ninguém é dono', '★');
     else if (opc.meuId && c.atribuida_a === opc.meuId) somar('meu', 'É seu', '★');
@@ -353,6 +356,10 @@
     const veiculo = limparTexto(d.veiculo || d.carro, 60);
     if (veiculo) p.set('veiculo', veiculo);
     if (RE_UUID.test(String(d.leadId || ''))) p.set('lead', d.leadId);
+    const servico = limparTexto(d.servico, 60);
+    if (servico) p.set('servico', servico);
+    if (RE_UUID.test(String(d.osId || ''))) p.set('os', d.osId);
+    if (RE_UUID.test(String(d.agendamentoId || ''))) p.set('agendamento', d.agendamentoId);
     if (!p.has('conversa') && !p.has('tel')) return null;      // sem conversa nem telefone o Orçador não sabe de quem é
     return `${String(base).replace(/\/+$/, '')}/#/cotacao?${p.toString()}`;
   }
@@ -522,6 +529,92 @@
     return out;
   }
 
+  /* ---------------- 11) Rodada 6, segunda leva (C5): Orçador ao vivo, pré-agendamento, carros sem conversa ---------------- */
+  const HOSTS_CASA = ['indycar-orcador.netlify.app', 'indycar-patio.netlify.app', 'indycar-agendamentos.onrender.com', 'indycar-atendimento.onrender.com',
+    'indycar-crm.onrender.com', 'indycar-posvenda.onrender.com', 'indycar-ads.onrender.com', 'indycar-taubate.netlify.app'];
+  /** Só http(s) dos domínios da casa (sem usuário:senha, sem domínio parecido). Devolve a URL limpa ou null. */
+  function linkSeguroCasa(u) {
+    try {
+      const x = new URL(String(u ?? '').trim());
+      if (!/^https?:$/.test(x.protocol) || x.username || x.password) return null;
+      return HOSTS_CASA.includes(x.hostname.toLowerCase()) ? x.href : null;
+    } catch { return null; }
+  }
+  const ehPreAgendamento = (obs) => /^\s*pre-?\s*agendamento\b/.test(semAcento(obs));
+  /** "Orçamento nº 0087 (Orçador)" dentro da observação do pré-agendamento → 87. */
+  function numeroDoPreAgendamento(obs) {
+    const m = /or[cç]amento\s*n[ºo°.]*\s*0*(\d{1,7})/i.exec(String(obs ?? ''));
+    return m ? Number(m[1]) : null;
+  }
+  /** O motivo que o cliente escreveu ao recusar (orc_eventos.detalhe pode ser texto, JSON ou objeto). Sem texto livre perigoso. */
+  function motivoDaRecusa(detalhe) {
+    let d = detalhe;
+    if (typeof d === 'string') { const s = d.trim(); if (s.startsWith('{')) { try { d = JSON.parse(s); } catch { /* segue como texto */ } } }
+    let t = d && typeof d === 'object' ? (d.motivo ?? d.motivo_recusa ?? d.texto ?? d.detalhe ?? '') : String(d ?? '');
+    t = limparTexto(String(t).replace(/^\s*motivo\s*[:\-–—]\s*/i, ''), 120);
+    return t || null;
+  }
+  /** "viu há 2 h" / "viu agora há pouco" a partir de visualizado_em. */
+  function rotuloVisto(iso, agora = new Date()) {
+    const min = minutosEntre(iso, agora);
+    if (min === null) return '';
+    return min < 5 ? 'viu agora há pouco' : `viu há ${rotuloMinutos(min)}`;
+  }
+  /** Uma linha de orc_status_por_telefone / orc_status_por_lead → cartão do painel (preço some se o papel não vê). */
+  function classificarLive(r = {}, agora = new Date()) {
+    const s = situacaoOrcamento({ status: r.status, visualizado_em: r.visualizado_em, enviado_em: r.enviado_em, created_at: r.criado_em || r.created_at,
+      agendamento_id: r.agendamento_id, motivo_recusa: r.motivo_recusa }, agora);
+    const aprovadoParcial = !!r.aprovado_parcial;
+    const total = r.status === 'aprovado' && aprovadoParcial && r.total_aprovado != null ? Number(r.total_aprovado) : (r.total != null ? Number(r.total) : null);
+    return {
+      id: RE_UUID.test(String(r.id || '')) ? r.id : null, numero: Number.isFinite(Number(r.numero)) ? Number(r.numero) : null,
+      status: r.status, cod: s.cod, rotulo: aprovadoParcial && r.status === 'aprovado' ? 'Aprovado em parte' : s.rotulo, tom: s.tom,
+      acao: s.acao, total: Number.isFinite(total) ? total : null, parcial: aprovadoParcial,
+      enviado_em: r.enviado_em || null, visualizado_em: r.visualizado_em || null, decidido_em: r.decidido_em || null,
+      visto: rotuloVisto(r.visualizado_em, agora), carro: limparTexto(r.carro, 60) || null, placa: limparTexto(r.placa, 10) || null,
+      servicos: Array.isArray(r.servicos) ? r.servicos.slice(0, 4).map((x) => limparTexto(typeof x === 'string' ? x : x?.nome || x?.descricao, 50)).filter(Boolean) : [],
+      abrir: linkOrcamento(r.id), link_cliente: linkSeguroCasa(r.link_cliente) || linkOrcamentoDoCliente(r.token_publico),
+      movere: r.movere_status || null, agendamento_id: r.agendamento_id || null, lead_id: r.lead_id || null,
+    };
+  }
+  /** Junta o que o painel já tinha (r6_cliente_360) com o que o Orçador respondeu agora: o do Orçador manda no status. */
+  function mesclarOrcamentos(painel = [], live = []) {
+    const porId = new Map((painel || []).map((o) => [o.id, o]));
+    const out = [];
+    for (const l of live || []) {
+      if (!l.id) continue;
+      const antigo = porId.get(l.id);
+      porId.delete(l.id);
+      out.push({ ...(antigo || {}), ...l, pedido: antigo?.pedido ?? null, created_at: antigo?.created_at ?? l.enviado_em, validade: antigo?.validade ?? null, ao_vivo: true,
+        total: l.total ?? antigo?.total ?? null, link_cliente: l.link_cliente || antigo?.link_cliente || null });
+    }
+    for (const o of porId.values()) out.push(o);
+    const peso = (o) => { const i = ['aprovado_sem_horario', 'visualizado', 'recente', 'parado', 'enviado', 'recusado', 'aprovado', 'vencido', 'aberto'].indexOf(o.cod); return i < 0 ? 99 : i; };
+    return out.sort((a, b) => peso(a) - peso(b) || String(b.created_at || b.enviado_em || '').localeCompare(String(a.created_at || a.enviado_em || '')));
+  }
+  /** Texto pronto (sem preço, uma pergunta) para o que aconteceu com o orçamento. */
+  function respostaDoOrcador(cod, ficha = {}) {
+    const n = saudacao(ficha.nome);
+    const num = ficha.numero ? ` nº ${ficha.numero}` : '';
+    switch (cod) {
+      case 'recusado': return `${n}vi que o orçamento${num} não fez sentido para você agora, tudo bem! Posso saber o que pesou, para eu ver se consigo ajustar o serviço?`;
+      case 'visualizado': case 'recente': return `${n}vi que você já olhou o orçamento${num}. Ficou alguma dúvida que eu possa tirar?`;
+      case 'parado': case 'enviado': return `${n}passando para saber se o orçamento${num} chegou direitinho. Quer que eu tire alguma dúvida?`;
+      case 'aprovado_sem_horario': return `${n}que bom que você aprovou o orçamento${num}! ${(ficha.horarios || []).length ? `Tenho ${ficha.horarios.slice(0, 2).join(' ou ')}. Qual fica melhor para você?` : 'Qual dia e horário ficam melhores para você?'}`;
+      case 'vencido': return `${n}o orçamento${num} passou da validade. Quer que eu peça para o consultor refazer com você?`;
+      case 'pre_agendamento': return `${n}recebi o seu pedido de horário${ficha.quando ? ' para ' + ficha.quando : ''}! Vou conferir na agenda e já te confirmo por aqui. Pode ser?`;
+      default: return '';
+    }
+  }
+  /** Carros no pátio que NÃO têm conversa aberta, na ordem de quem merece um aviso primeiro (pronto > aprovação > peça > resto). */
+  function carrosSemConversa(carros = [], conversas = [], chaveTelefone = (t) => soDigitos(t).slice(-8)) {
+    const abertas = new Set(), porCliente = new Set();
+    for (const c of conversas || []) { const k = chaveTelefone(c.telefone_e164 || c.telefone); if (k) abertas.add(k); if (c.cliente_id) porCliente.add(c.cliente_id); }
+    const peso = (c) => (c.etapa === 'pronto' ? 0 : c.etapa === 'aguardando_aprovacao' ? 1 : c.etapa === 'aguardando_peca' ? 2 : 3);
+    return (carros || []).filter((c) => c && c.etapa !== 'entregue' && !(c.cliente_id && porCliente.has(c.cliente_id)) && !abertas.has(chaveTelefone(c.telefone)))
+      .sort((a, b) => peso(a) - peso(b) || String(a.etapa_em || '').localeCompare(String(b.etapa_em || '')));
+  }
+
   const API = {
     semAcento, soDigitos, primeiroNome, minutosEntre, rotuloMinutos,
     textoTemPreco, PADROES_PRECO,
@@ -532,6 +625,7 @@
     BASES, NOME_ABA, linkNovoOrcamento, linkOrcamento, linkOrcamentoDoCliente, relCrmLead, relAgendamento, relPatioOs,
     respostasRapidas, progressoDoFunil,
     textoWhatsappParado, classificarNaoSairam, textoDeEncaminhamento, oficinaAberta, lerFormularioSite,
+    HOSTS_CASA, linkSeguroCasa, ehPreAgendamento, numeroDoPreAgendamento, motivoDaRecusa, rotuloVisto, classificarLive, mesclarOrcamentos, respostaDoOrcador, carrosSemConversa,
   };
   raiz.R6 = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
