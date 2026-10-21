@@ -28,10 +28,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 try { process.loadEnvFile(join(__dirname, '.env')); } catch { /* produção: variáveis do Render */ }
 
-export const VERSAO_CENTRAL = '2026-10-16-central-1';
+export const VERSAO_CENTRAL = '2026-10-21-central-r6';
 const PORT = Number(process.env.PORT) || 3000;
 const NO_AR_DESDE = new Date().toISOString();
 const EM_PRODUCAO = !!process.env.RENDER;
+/* Endereços dos dois apps que moram fora da Central (Netlify). Só https; qualquer outra coisa volta ao padrão. */
+const PATIO_PADRAO = 'https://indycar-patio.netlify.app';
+const ORCADOR_PADRAO = 'https://indycar-orcador.netlify.app';
+export function urlDeApp(valor, padrao) {
+  try { const u = new URL(String(valor || '')); return u.protocol === 'https:' && !u.username && !u.password ? u.origin : padrao; } catch { return padrao; }
+}
 
 /* ---------------------------------------------------------------------------
    Carregar os quatro apps (cada um isolado num try)
@@ -120,7 +126,7 @@ function cabecalhos(res, extra = {}) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.setHeader('Content-Security-Policy', CSP_CASA);
   res.setHeader('X-IndyCar-App', 'central');
   for (const [k, v] of Object.entries(extra)) res.setHeader(k, v);
@@ -189,7 +195,10 @@ export async function handler(req, res) {
   }
   if (caminho === '/api/central/config') {
     // só o que é público por definição (a chave anon do Supabase vai para todo navegador)
-    return json(res, 200, { supabaseUrl: process.env.SUPABASE_URL || '', supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '', versao: VERSAO_CENTRAL });
+    return json(res, 200, {
+      supabaseUrl: process.env.SUPABASE_URL || '', supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '', versao: VERSAO_CENTRAL,
+      apps: { patio: urlDeApp(process.env.PATIO_URL, PATIO_PADRAO), orcador: urlDeApp(process.env.ORCADOR_URL, ORCADOR_PADRAO) },
+    });
   }
 
   // 2) os quatro apps por prefixo
@@ -205,6 +214,8 @@ export async function handler(req, res) {
     const item = CASA.get(caminho);
     if (item) return servirCasa(req, res, item, caminho);
   }
+  // /casa/<arquivo que não existe>: 404 da Casa (antes caía na Agenda e devolvia a página dela no lugar do arquivo)
+  if (caminho === '/casa' || caminho.startsWith('/casa/')) return json(res, 404, { erro: 'Arquivo da Casa não encontrado.' });
 
   // 4) o resto da raiz continua sendo a Agenda sem prefixo (/confirmar/, /api/*, feed ICS, webhook…)
   const ag = APPS.agenda;

@@ -14,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/casa/casa.css" />
+  <link rel="stylesheet" href="/casa/painel.css?v=3" />
 </head>
 <body>
   <!-- ======================= ENTRADA (login único) ======================= -->
@@ -25,7 +26,7 @@
 
     <form id="fLogin" class="cartao entrada-cartao" novalidate>
       <h1 class="entrada-titulo">Entrar na <em>Central</em></h1>
-      <p class="entrada-sub">Um login só para Agenda, Atendimento, CRM e Comunicar.</p>
+      <p class="entrada-sub">Um login só para Agenda, Atendimento, CRM, Comunicar, Pátio e Orçador.</p>
       <label class="campo"><span>E-mail</span>
         <input id="lEmail" type="email" autocomplete="username" inputmode="email" required />
       </label>
@@ -81,12 +82,19 @@
 
   <!-- ======================= CASA ======================= -->
   <div id="casa" class="casa" hidden>
+    <a class="pular" href="#miolo">Pular para o conteúdo</a>
     <header class="topo">
       <a class="topo-marca" href="/" aria-label="IndyCar Central">
         <img src="/casa/logo.png" alt="" class="topo-logo" />
         <span class="topo-nome">Central</span>
       </a>
+      <button id="bBusca" class="busca-topo" type="button" aria-label="Buscar por telefone, nome ou placa em todos os sistemas" aria-keyshortcuts="Control+K /">
+        <span aria-hidden="true">🔎</span>
+        <span class="busca-topo-txt">Telefone, nome ou placa…</span>
+        <kbd aria-hidden="true">Ctrl K</kbd>
+      </button>
       <div class="topo-acoes">
+        <button id="bAjuda" class="btn-ico" type="button" aria-label="Atalhos do teclado" title="Atalhos (?)">?</button>
         <button id="bTema" class="btn-ico" type="button" aria-label="Trocar tema claro/escuro" title="Tema">◐</button>
         <button id="bSino" class="btn-ico sino" type="button" aria-label="Notificações" aria-expanded="false" aria-controls="painelSino">
           <span aria-hidden="true">🔔</span><span id="sinoNum" class="sino-num" hidden>0</span>
@@ -104,37 +112,97 @@
     <aside id="painelSino" class="painel-sino" hidden aria-label="Notificações">
       <div class="painel-topo">
         <strong>Notificações</strong>
-        <button id="bLerTodas" class="btn-link" type="button">Marcar todas como lidas</button>
+        <span class="painel-topo-acoes">
+          <label class="marcar marcar-mini"><input id="sinoSoNovas" type="checkbox" /> só não lidas</label>
+          <button id="bLerTodas" class="btn-link" type="button">Marcar todas como lidas</button>
+        </span>
       </div>
-      <ul id="listaNotif" class="lista-notif"></ul>
+      <div id="sinoFiltros" class="sino-filtros" role="group" aria-label="Filtrar por app"></div>
+      <div id="sinoAtencao" class="sino-atencao" hidden></div>
+      <div id="listaNotif" class="lista-notif"></div>
+      <div id="sinoRodape" class="sino-rodape"></div>
     </aside>
 
-    <main class="miolo">
+    <main id="miolo" class="miolo" tabindex="-1">
       <section class="saudacao">
         <p id="hoje" class="saudacao-data"></p>
         <h1 class="saudacao-titulo"><span id="ola">Olá</span>, <em id="nomeCurto">equipe</em>.</h1>
         <p class="saudacao-sub">Quem conhece, Indyca! 🏎</p>
       </section>
 
-      <section id="agora" class="agora" aria-label="Agora na oficina">
-        <a id="aConversas" class="agora-cartao c-conversas" href="/atendimento/" hidden>
-          <span class="agora-rotulo">Conversas esperando</span>
-          <span class="agora-num" data-num>—</span>
-          <span class="agora-det" data-det>carregando…</span>
-          <ul class="agora-lista" data-lista></ul>
-        </a>
-        <a id="aPatio" class="agora-cartao c-patio" href="https://indycar-patio.netlify.app/" hidden>
-          <span class="agora-rotulo">Carros no pátio</span>
-          <span class="agora-num" data-num>—</span>
-          <span class="agora-det" data-det>carregando…</span>
-          <ul class="agora-lista" data-lista></ul>
-        </a>
-        <a id="aHoje" class="agora-cartao c-hoje" href="/agenda/" hidden>
-          <span class="agora-rotulo">Horários de hoje</span>
-          <span class="agora-num" data-num>—</span>
-          <span class="agora-det" data-det>carregando…</span>
-          <ul class="agora-lista" data-lista></ul>
-        </a>
+      <div id="avisoRede" class="aviso-rede" role="status" hidden></div>
+
+      <div class="barra-painel">
+        <div id="seletorVisao" class="seletor" role="tablist" aria-label="Visão do painel" hidden>
+          <button type="button" role="tab" data-visao="operacao" aria-selected="true">Operação</button>
+          <button type="button" role="tab" data-visao="dono" aria-selected="false">Visão do dono</button>
+        </div>
+        <div class="vivo" aria-live="polite">
+          <span id="vivoPonto" class="vivo-ponto" aria-hidden="true"></span>
+          <span id="vivoTxt">carregando…</span>
+          <button id="bAtualizar" class="btn-link" type="button" aria-label="Atualizar o painel agora">atualizar</button>
+        </div>
+      </div>
+
+      <section id="acoes" class="acoes" aria-label="Ações rápidas"></section>
+
+      <section id="atencao" class="atencao" aria-label="Pede atenção agora" hidden>
+        <h2 class="atencao-titulo">Pede atenção agora</h2>
+        <ul id="atencaoLista" class="atencao-lista"></ul>
+      </section>
+
+      <div id="visaoOperacao">
+        <section id="agora" class="agora" aria-label="Agora na oficina">
+          <article id="cPatio" class="agora-cartao c-patio" hidden>
+            <header class="agora-cab"><span class="agora-rotulo">Carros no pátio</span><span class="agora-num" data-num>—</span></header>
+            <p class="agora-det" data-det>carregando…</p>
+            <div class="chips-etapa" data-etapas></div>
+            <ul class="agora-lista" data-lista></ul>
+            <footer class="agora-pe"><a data-abrir href="#">Abrir o Pátio ↗</a><a data-tv href="#">Modo TV ↗</a><a data-nova href="#">+ Nova entrada ↗</a></footer>
+          </article>
+          <article id="cOrc" class="agora-cartao c-orc" hidden>
+            <header class="agora-cab"><span class="agora-rotulo">Orçamentos esperando resposta</span><span class="agora-num" data-num>—</span></header>
+            <p class="agora-det" data-det>carregando…</p>
+            <ul class="agora-lista" data-lista></ul>
+            <footer class="agora-pe"><a data-abrir href="#">Abrir o Orçador ↗</a><a data-nova href="#">+ Novo orçamento ↗</a></footer>
+          </article>
+          <article id="cConversas" class="agora-cartao c-conversas" hidden>
+            <header class="agora-cab"><span class="agora-rotulo">Conversas esperando</span><span class="agora-num" data-num>—</span></header>
+            <p class="agora-det" data-det>carregando…</p>
+            <ul class="agora-lista" data-lista></ul>
+            <footer class="agora-pe"><a data-abrir href="#">Abrir o Atendimento</a></footer>
+          </article>
+          <article id="cHoje" class="agora-cartao c-hoje" hidden>
+            <header class="agora-cab"><span class="agora-rotulo">Horários de hoje</span><span class="agora-num" data-num>—</span></header>
+            <p class="agora-det" data-det>carregando…</p>
+            <ul class="agora-lista" data-lista></ul>
+            <footer class="agora-pe"><a data-abrir href="#">Abrir a Agenda</a><a data-nova href="#">+ Novo horário</a></footer>
+          </article>
+          <article id="cLeads" class="agora-cartao c-leads" hidden>
+            <header class="agora-cab"><span class="agora-rotulo">Leads novos</span><span class="agora-num" data-num>—</span></header>
+            <p class="agora-det" data-det>carregando…</p>
+            <footer class="agora-pe"><a data-abrir href="#">Abrir o CRM</a></footer>
+          </article>
+        </section>
+      </div>
+
+      <section id="visaoDono" class="dono" aria-label="Visão do dono" hidden>
+        <div id="donoTiles" class="dono-tiles"></div>
+        <div class="dono-duas">
+          <div class="cartao dono-bloco">
+            <h3 class="dono-h">Faturamento dos últimos 7 dias</h3>
+            <div id="donoBarras" class="barras" role="img" aria-label="Faturamento por dia"></div>
+            <p id="donoNota" class="dono-nota" hidden></p>
+          </div>
+          <div class="cartao dono-bloco">
+            <h3 class="dono-h">Conversão (30 dias)</h3>
+            <div id="donoConv" class="conv"></div>
+          </div>
+        </div>
+        <div class="cartao dono-bloco">
+          <h3 class="dono-h">Gargalos</h3>
+          <ul id="donoGargalos" class="gargalos"></ul>
+        </div>
       </section>
 
       <section class="bloco" aria-labelledby="tApps">
@@ -149,18 +217,55 @@
         </div>
         <form id="fTarefa" class="nova-tarefa">
           <input id="tTitulo" maxlength="200" placeholder="Nova tarefa para mim… (Enter grava)" aria-label="Nova tarefa" />
+          <select id="tPrazo" aria-label="Prazo da tarefa">
+            <option value="">sem prazo</option>
+            <option value="hoje">hoje até 17h30</option>
+            <option value="amanha">amanhã 9h</option>
+            <option value="semana">em 7 dias</option>
+          </select>
+          <label class="marcar marcar-mini"><input id="tUrgente" type="checkbox" /> urgente</label>
           <button class="btn" type="submit">Criar</button>
         </form>
         <ul id="listaTarefas" class="lista-tarefas"></ul>
       </section>
     </main>
-    <footer class="rodape">IndyCar Central · <span id="versao"></span> · tudo em um endereço só</footer>
+    <footer class="rodape">IndyCar Central · <span id="versao"></span> · <span id="saude">tudo em um endereço só</span></footer>
+  </div>
+
+  <!-- ======================= BUSCA GLOBAL (Ctrl+K) ======================= -->
+  <div id="busca" class="modal-fundo" hidden>
+    <div class="modal busca-caixa" role="dialog" aria-modal="true" aria-label="Busca em todos os sistemas">
+      <div class="busca-campo">
+        <span aria-hidden="true">🔎</span>
+        <input id="buscaInput" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Telefone, nome, placa ou nº da OS/orçamento…" aria-label="Buscar" aria-controls="buscaLista" />
+        <button id="buscaFechar" class="btn-link" type="button">Esc</button>
+      </div>
+      <p id="buscaDica" class="busca-dica"></p>
+      <div id="buscaLista" class="busca-lista" role="listbox" aria-label="Resultados"></div>
+      <footer class="busca-pe"><span><kbd>↑</kbd><kbd>↓</kbd> escolher</span><span><kbd>Enter</kbd> abrir em outra aba</span><span><kbd>Esc</kbd> fechar</span></footer>
+    </div>
+  </div>
+
+  <!-- ======================= AJUDA DE ATALHOS ======================= -->
+  <div id="ajuda" class="modal-fundo" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ajudaTit">
+      <h2 id="ajudaTit" class="bloco-titulo">Atalhos do teclado</h2>
+      <dl id="ajudaLista" class="ajuda-lista"></dl>
+      <button id="ajudaFechar" class="btn" type="button">Fechar</button>
+    </div>
   </div>
 
   <div id="carregando" class="carregando" role="status"><span class="giro" aria-hidden="true"></span> Abrindo a Central…</div>
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
-  <script src="/casa/casa.js?v=2"></script>
+  <script src="/casa/logica.js?v=3"></script>
+  <script src="/casa/sino.js?v=3"></script>
+  <script src="/casa/painel.js?v=3"></script>
+  <script src="/casa/tarefas.js?v=3"></script>
+  <script src="/casa/busca.js?v=3"></script>
+  <script src="/casa/atalhos.js?v=3"></script>
+  <script src="/casa/casa.js?v=3"></script>
 </body>
 </html>

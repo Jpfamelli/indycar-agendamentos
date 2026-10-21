@@ -48,7 +48,8 @@ test('Casa em / com CSP própria, sem inline; sw.js com escopo raiz; config só 
   const sw = await pega('/sw.js');
   assert.equal(sw.headers.get('service-worker-allowed'), '/');
   const cfg = await (await pega('/api/central/config')).json();
-  assert.deepEqual(Object.keys(cfg).sort(), ['supabaseAnonKey', 'supabaseUrl', 'versao']);
+  assert.deepEqual(Object.keys(cfg).sort(), ['apps', 'supabaseAnonKey', 'supabaseUrl', 'versao']);
+  assert.deepEqual(cfg.apps, { patio: 'https://indycar-patio.netlify.app', orcador: 'https://indycar-orcador.netlify.app' });
   assert.doesNotMatch(JSON.stringify(cfg), /srv-de-teste/);
   const etag = r.headers.get('etag');
   assert.equal((await pega('/', { headers: { 'If-None-Match': 'W/' + etag } })).status, 304);

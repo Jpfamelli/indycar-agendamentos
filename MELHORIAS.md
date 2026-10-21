@@ -605,3 +605,70 @@ Pendências: script inline do index.html ainda exige 'unsafe-inline' na CSP; can
 - O aviso de "Não veio" (`enviarViaGowa`) soltava o carimbo `no_show_notificado_em` em QUALQUER falha, inclusive timeout — o próximo clique em "Não veio" mandava de novo, mesmo se o primeiro tivesse chegado. Agora timeout/conexão caída depois do pedido (`regras.js#semConfirmacaoDoErro`) devolve `semConfirmacao` e o carimbo **fica**; a tela diz "não sabemos se o aviso chegou — confira na conversa do cliente antes de mandar de novo". Recusa antes de enviar e 5xx com resposta continuam soltando o carimbo (próximo clique tenta de novo). A leitura do corpo agora também cai no mesmo tratamento.
 - Bug achado no caminho: salvar um agendamento pela edição com "Não veio" mostrava sempre "sem telefone — nenhum aviso enviado" (passava o aviso em vez da resposta para `recadoDeAusencia`). Corrigido.
 - Testes em `tests/servidor.test.mjs` (timeout e conexão caída não reenviam; conexão recusada e 500 liberam o novo clique).
+
+## Rodada 6 (21/10/2026) — Casa e Agenda (C1)
+
+### Busca global da Casa (Ctrl+K)
+437. 🔗 Busca em TODOS os sistemas numa chamada só (`r6_busca_global`, do X3 — fonte única; a primeira versão do C1 foi removida): clientes, Agenda, Pátio, Orçador, Atendimento, CRM e envios do Comunicar — telefone, nome, placa ou nº da OS/orçamento.
+438. A função do X3 é SECURITY INVOKER: o RLS de cada tabela decide o que cada pessoa vê (mecânico só enxerga o Pátio; testado com perfis reais).
+439. Telefone com máscara/parcial (`12 99182`), placa antiga e Mercosul (`ABC-1D23`), `#31` (OS/orçamento) e nome sem acento — o texto digitado é classificado antes de ir ao banco (vazio/curto nem chama).
+440. 🔗 Cada resultado abre na aba nomeada do app dele já no registro certo (`/agenda/?agendamento=`, `/crm/?lead=`, `/atendimento/?conversa=`, Pátio `?os=`, Orçador `#/historico/<id>`, Comunicar `?tel=`).
+441. 🔗 O cliente achado traz atalhos para as outras telas: CRM, Conversa, Comunicar e "Novo orçamento" já com telefone e nome (o Orçador aceita `?tel=&nome=`).
+442. 🔗 O horário achado mostra a etapa do carro no Pátio (`Pátio #31`) e dá o atalho para ele.
+443. 🔗 Telefone sem resultado oferece "Marcar horário / Abrir conversa / Novo orçamento / Ver no CRM" com o número já preenchido.
+444. Ctrl+K (ou ⌘K) abre e fecha, até com o cursor num campo; "/" também abre; Esc fecha e devolve o foco a quem estava; a rolagem da página trava só enquanto a caixa está aberta.
+445. Setas movem a seleção, Enter abre na aba do app, Tab não escapa da caixa (foco preso), leitor de tela recebe `role=listbox/option` e `aria-activedescendant`.
+446. Resposta atrasada é descartada (número de sequência): digitar rápido não mostra resultado de uma busca velha; debounce de 220 ms.
+447. O trecho digitado fica destacado (`<mark>`), com o texto escapado (nome com `<img onerror>` aparece como texto — testado).
+448. Busca vazia mostra as últimas 6 buscas e os atalhos "Ir para" só dos apps liberados.
+449. Botão de busca no topo (em 375 px vira só a lupa) e botão "Buscar cliente" nas ações rápidas.
+
+### "Agora" — painel de comando
+450. O "Agora" vem de `r6_agora` (X3) mais `r6_c1_agora_extras` (leads sem dono, recusados, não lidas, orçamento de cada horário) em vez de três consultas separadas: Pátio, orçamentos, conversas, agenda de hoje e leads no mesmo instante.
+451. 🔗 Carros no pátio com a etapa ao vivo, tempo parado na etapa (verde/laranja/vermelho pelo limite de cada etapa), extras esperando o cliente e previsão de entrega vencida; cada carro abre a OS na aba `indycar-patio`.
+452. Chips por etapa (Diagnóstico 2 · Em execução 1 · Pronto 1…) e resumo "1 pronto para retirar · 1 com previsão vencida · 2 extras esperando aprovação".
+453. 🔗 Orçamentos esperando resposta: valor, idade, selo "visto" quando o cliente abriu o link, aprovados sem horário e recusados da semana; abre o orçamento na aba `indycar-orcador`.
+454. Conversas esperando o consultor: espera colorida (>30 min laranja, >2 h vermelho), prévia da mensagem e telefone formatado quando não há nome; as de mais de 7 dias entram só como número.
+455. 🔗 Horários de hoje mostram a etapa do carro (🔧 Pronto) e o orçamento ligado ao horário (🧾 aprovado) em cada linha.
+456. Horários de hoje com filtro Todos / Por vir / Na oficina e contagem de "sem confirmar" e "não veio".
+457. Leads novos sem responsável (7 dias) e quantos chegaram hoje, com atalho para o CRM.
+458. "Pede atenção agora": lista priorizada (pronto parado >4 h, previsão vencida, conversa >2 h, extras, aprovado sem horário, sem confirmar, lead sem dono) — cada item abre a tela certa.
+459. 🔗 Ações rápidas por permissão: Novo horário, Nova entrada no pátio, Novo orçamento, Modo TV do pátio.
+460. 🔗 Selo vivo nos atalhos de cada app (Atendimento 2, Pátio 5, Orçador 3, Agenda 4, CRM 3).
+461. Tempo real: Pátio, extras, orçamentos, conversas e agendamentos (a tabela `agendamentos` entrou na publicação realtime) atualizam o painel com debounce de 0,7 s; relógio de reserva de 60 s.
+462. Indicador "ao vivo · atualizado há N min" com ponto verde/laranja/vermelho e botão atualizar; recarrega ao voltar para a aba.
+463. Sem internet aparece faixa clara e o painel mantém o último que carregou; volta sozinho quando a conexão volta.
+464. Falha de um cartão não derruba os outros: mensagem + "tentar de novo".
+465. Os tempos de etapa/espera andam sozinhos a cada minuto sem ir ao banco.
+
+### Visões por papel e visão do dono
+466. Visão do dono (admin/gestor): faturamento de hoje, da semana (com ▲/▼ sobre a semana passada), do mês e orçamentos aprovados (`r6_c1_painel_dono`, só gestor — o atendente recebe erro 42501, testado).
+467. Gráfico de faturamento dos últimos 7 dias, acessível (aria-label com os valores) e sem `style=""` (a CSP da Casa não deixa; alturas pelo CSSOM).
+468. Conversão de 30 dias: leads que agendaram/fecharam, quem veio e fechou, faltas e orçamentos aprovados.
+469. 🔗 Gargalos ranqueados (carro parado além do limite da etapa, pronto >4 h, conversa >2 h, orçamento >24 h, lead sem dono, horário sem desfecho), cada um abre a tela do problema.
+470. Aviso quando há fechamentos sem valor ("o faturamento está subestimado") com link para a Agenda.
+471. Seletor Operação / Visão do dono lembrado por aparelho; gestor abre na visão do dono, atendente na operação.
+472. Mecânico vê só "Meus carros no pátio" (os dele), sem modo de nova entrada; recepção (Franklin) vê o Pátio e o cartão "abra a Agenda para marcar presença".
+
+### Sino unificado e tarefas
+473. Sino com filtro por app (com contagem de não lidas de cada um), "só não lidas" e grupos Hoje / Ontem / Esta semana / Antes.
+474. Marcar uma como lida (✓) e "Marcar todas" respeitando o filtro do app; se falhar, desfaz na tela.
+475. Contagem no título da aba `(3) IndyCar Central`.
+476. Aviso do navegador opcional (botão no sino) quando chega aviso novo com a Central em segundo plano.
+477. Topo do sino repete as 3 coisas que mais pedem atenção.
+478. Links de notificação: `javascript:`, `//outro.com` e domínio de fora caem na raiz do app (teste unitário).
+479. Tarefas: prazo (hoje 17h30 / amanhã 9h / 7 dias) e "urgente" na hora de criar; depois das 17h30 "hoje" vira amanhã cedo para não nascer vencida.
+480. Tarefas urgentes e vencidas primeiro, selo "N vencidas".
+481. 🔗 Cada tarefa tem "abrir conversa / lead / horário / cliente" na aba do app de origem.
+482. Concluir tarefa tem "Desfazer" por 6 s.
+
+### Teclado, acessibilidade, servidor
+483. Atalhos: `g` + `a/t/c/m/p/o` abre cada app na aba dele, `n` nova tarefa, `s` sino, `r` atualizar, `?` ajuda — nunca disparam digitando num campo.
+484. Janela "Atalhos do teclado" (botão `?` no topo e tecla `?`).
+485. "Pular para o conteúdo", foco visível e `aria-live` no indicador ao vivo.
+486. Atalhos da grade de apps na ordem fixa Agenda → Atendimento → CRM → Comunicar → Pátio → Orçador, com o cargo do perfil no menu.
+487. `/api/central/config` entrega os endereços do Pátio e do Orçador (variáveis `PATIO_URL`/`ORCADOR_URL`, só https, sem usuário/senha) — a Casa deixa de ter URL fixa.
+488. `/casa/<arquivo inexistente>` responde 404 da Casa (antes caía na Agenda e devolvia a página dela no lugar do script).
+489. COOP da Casa passou de `same-origin` para `same-origin-allow-popups` (necessário para reaproveitar abas nomeadas). Achado: Pátio e Orçador mandam `same-origin` no Netlify, então o navegador não reencontra a aba deles — pedido a P1/O2.
+490. Service worker da Casa v3 guarda os novos módulos para abrir sem rede.
+491. 16 testes novos das regras puras (`tests/casa-r6.test.mjs`) + roteiro puppeteer da Casa (`npm run qa:casa`, 42 conferências) com usuário de teste criado e apagado.
