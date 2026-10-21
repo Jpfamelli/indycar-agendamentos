@@ -191,3 +191,43 @@ export function lerParametros(sp) {
   const dias = Math.min(30, Math.max(1, Number(g('dias')) || 7));
   return { data, servico, consultor_id, ignorar, dias, dataInvalida: !!g('data') && !data };
 }
+
+/* ---------------------------------------------------------------------------
+   Rodada 6 (C1b): ENCAIXE com horários livres reais. A lista de espera guarda uma PREFERÊNCIA
+   ("Manhã", "Tarde", "Começo do dia", "Fim do dia", "Sábado", "Qualquer horário"); estas funções
+   PURAS dizem se um horário livre serve e montam os melhores candidatos entre os dias livres.
+   --------------------------------------------------------------------------- */
+export function casaComPreferencia(preferencia, hora, data) {
+  const p = normalizar(preferencia);
+  const m = minutos(hora);
+  if (m === null) return false;
+  if (!p || p === 'qualquer horario') return true;
+  if (p === 'manha') return m < 12 * 60;
+  if (p === 'tarde') return m >= 12 * 60;
+  if (p === 'comeco do dia') return m <= 10 * 60;
+  if (p === 'fim do dia') return m >= 15 * 60;
+  if (p === 'sabado') return diaDaSemana(data) === 6;
+  return true;
+}
+
+/**
+ * Os melhores horários livres para UMA pessoa da espera.
+ *   dias        [{ data, aberto, horarios:[{ hora, consultores_livres:[id] }] }]  (saída de livresDoDia)
+ *   preferencia texto da espera;  de/ate  janela de datas da espera (podem ser null)
+ *   max         quantos candidatos devolver (padrão 6); no máximo 3 por dia, para mostrar dias diferentes
+ * Devolve [{ data, hora, consultor_id }] em ordem cronológica.
+ */
+export function candidatosDaEspera({ dias = [], preferencia = null, de = null, ate = null, max = 6 } = {}) {
+  const saida = [];
+  for (const d of dias) {
+    if (!d || !d.aberto || (de && d.data < de) || (ate && d.data > ate)) continue;
+    let doDia = 0;
+    for (const h of d.horarios || []) {
+      if (!casaComPreferencia(preferencia, h.hora, d.data)) continue;
+      saida.push({ data: d.data, hora: h.hora, consultor_id: (h.consultores_livres || [])[0] || null });
+      if (++doDia >= 3) break;
+    }
+    if (saida.length >= max) break;
+  }
+  return saida.slice(0, max);
+}

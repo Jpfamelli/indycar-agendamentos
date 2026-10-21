@@ -18,6 +18,7 @@ import {
 } from './supabase.js';
 import { randomBytes } from 'node:crypto';
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, PATIO_URL } from './patio.js';
+import { situacaoDoLembrete, textoDoLembrete, chaveDoLembrete, validadeDoLembrete } from './lembretes.js';
 import { orcamentoPorAgendamento, aprovadoParaAgendar, baseDoOrcador } from './orcador.js';
 
 // Tabelas de configuração ganharam o prefixo agenda_ no banco compartilhado.
@@ -2401,7 +2402,7 @@ export async function entreguesNoPatioSemDesfecho({ dias = 60, limite = 100 } = 
 // confirmação do cliente, ficha 360, aniversários e a recepção.
 // ============================================================================
 import {
-  livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana as diaDaSemanaH, somaDias as somaDiasH,
+  livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana as diaDaSemanaH, somaDias as somaDiasH, candidatosDaEspera,
 } from './horarios.js';
 
 const SEL_LIVRES = 'select=id,data,hora,status,consultor_id';
@@ -2720,4 +2721,95 @@ export async function buscarEspera(q, limite = 6) {
   p.set('or', `(${f.join(',')})`); p.set('status', 'eq.aberta'); p.set('limit', '30');
   const linhas = await selecionar('ag_lista_espera', p).catch(() => []);
   return linhas.filter((r) => casaBusca([r.cliente_nome, r.placa, r.servico], termo, r.telefone)).slice(0, limite);
+}
+
+/* ---- rodada 6 (C1b): lembretes da Agenda ligados ao Comunicar -------------------------------------
+   A Agenda LÊ a fila (posvenda_envios) e a config do Comunicar para dizer a verdade sobre cada horário
+   e, a pedido da recepção, coloca UM lembrete na MESMA fila (chave `lembrete:<id>`, a do gerador do
+   Comunicar: se o gerador rodar depois, o índice único impede o envio duplicado). */
+export async function configDoLembrete() {
+  const c = await selecionarUm('posvenda_config', 'select=ativo_lembrete,horas_lembrete,pausa_geral,msg_lembrete&' + LINHA_UNICA).catch(() => null);
+  return c || {};
+}
+/** Envio de lembrete mais recente de cada horário: Map(agendamento_id -> linha). */
+export async function enviosDeLembrete(ids) {
+  const mapa = new Map();
+  const validos = [...new Set((ids || []).filter(ehUuid))].slice(0, 300);
+  for (let i = 0; i < validos.length; i += 100) {
+    const p = new URLSearchParams('select=id,agendamento_id,status,erro,motivo_pulado,resposta,resposta_tipo,enviar_em,enviado_em,expira_em,chave_unica,created_at');
+    p.set('tipo', 'eq.lembrete'); p.set('agendamento_id', `in.(${validos.slice(i, i + 100).join(',')})`); p.set('order', 'created_at.desc');
+    for (const l of await selecionar(T.envios, p).catch(() => [])) if (!mapa.has(l.agendamento_id)) mapa.set(l.agendamento_id, l);
+  }
+  return mapa;
+}
+async function clientesAceitam(lista) {
+  const ids = [...new Set(lista.map((a) => a.cliente_id).filter(ehUuid))].slice(0, 300);
+  const mapa = new Map();
+  for (let i = 0; i < ids.length; i += 100) {
+    const p = new URLSearchParams('select=id,aceita_mensagens'); p.set('id', `in.(${ids.slice(i, i + 100).join(',')})`);
+    for (const c of await selecionar(T.clientes, p).catch(() => [])) mapa.set(c.id, c);
+  }
+  return mapa;
+}
+/** Situação do lembrete de todos os horários de um dia (para a faixa do Início e o Quadro). */
+export async function lembretesDoDia(data, agora = Date.now()) {
+  const lista = (await listarAgendamentos({ data })).filter((a) => ['aguardando', 'confirmado'].includes(a.status));
+  const [cfg, envios, aceitam] = await Promise.all([configDoLembrete(), enviosDeLembrete(lista.map((a) => a.id)), clientesAceitam(lista)]);
+  const itens = lista.map((a) => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome,
+    situacao: situacaoDoLembrete({ a, envio: envios.get(a.id) || null, cfg, cliente: aceitam.get(a.cliente_id) || null, agora }) }));
+  return { data, itens, cfg: { ativo_lembrete: cfg.ativo_lembrete !== false, horas_lembrete: Number(cfg.horas_lembrete) || 20, pausa_geral: !!cfg.pausa_geral } };
+}
+export async function lembreteDoAgendamento(a, agora = Date.now()) {
+  const [cfg, envios, aceitam] = await Promise.all([configDoLembrete(), enviosDeLembrete([a.id]), clientesAceitam([a])]);
+  const envio = envios.get(a.id) || null;
+  return { situacao: situacaoDoLembrete({ a, envio, cfg, cliente: aceitam.get(a.cliente_id) || null, agora }), envio: envio && { status: envio.status, enviado_em: envio.enviado_em, enviar_em: envio.enviar_em, resposta: envio.resposta ? String(envio.resposta).slice(0, 160) : null, resposta_tipo: envio.resposta_tipo || null },
+    cfg: { ativo_lembrete: cfg.ativo_lembrete !== false, horas_lembrete: Number(cfg.horas_lembrete) || 20 } };
+}
+/** Coloca o lembrete na fila AGORA. { ok, repetido?, reativado?, reenvio?, motivo? } — nunca duplica e respeita as travas. */
+export async function enfileirarLembrete(a, usuario = null, { reenviar = false, hojeIso, agora = Date.now() } = {}) {
+  const atual = await lembreteDoAgendamento(a, agora);
+  const sit = atual.situacao;
+  if (sit.codigo === 'enviado' && !reenviar) return { ok: false, jaEnviado: true, motivo: 'O lembrete já foi enviado. Para mandar de novo, confirme o reenvio.' };
+  if (!sit.podeMandar && !(sit.codigo === 'enviado' && reenviar)) return { ok: !!(sit.codigo === 'na_fila'), repetido: sit.codigo === 'na_fila', motivo: sit.motivo || sit.rotulo };
+  const cfg = await configDoLembrete();
+  const texto = textoDoLembrete(cfg.msg_lembrete, a, hojeIso);
+  const reenvio = sit.codigo === 'enviado';
+  const chave = chaveDoLembrete(a.id, { reenvio, agora });
+  const existente = await selecionarUm(T.envios, `select=id,status&chave_unica=eq.${encodeURIComponent(chave)}`).catch(() => null);
+  if (existente) {
+    if (['pendente', 'enviando'].includes(existente.status)) return { ok: true, repetido: true };
+    if (['cancelado', 'falhou', 'pulado'].includes(existente.status)) {
+      await atualizar(T.envios, `id=eq.${existente.id}`, { status: 'pendente', corpo: texto, enviar_em: new Date(agora).toISOString(), erro: null, motivo_pulado: null, tentativas: 0, expira_em: validadeDoLembrete(a) });
+      return { ok: true, reativado: true, texto };
+    }
+    return { ok: false, jaEnviado: true, motivo: 'O lembrete já foi enviado.' };
+  }
+  const linha = { cliente_id: uuidOuNulo(a.cliente_id), agendamento_id: a.id, lead_id: uuidOuNulo(a.lead_id), telefone: soDigitos(a.telefone), nome: a.cliente_nome || null,
+    tipo: 'lembrete', corpo: texto, status: 'pendente', enviar_em: new Date(agora).toISOString(), chave_unica: chave, criado_por: 'agenda' + (usuario?.email ? ` (${usuario.email})` : ''),
+    criado_por_id: uuidOuNulo(usuario?.id), expira_em: validadeDoLembrete(a) };
+  await inserirUm(T.envios, limparParaGravar(linha), 'select=id');
+  return { ok: true, reenvio, texto };
+}
+
+/** Horários livres de verdade para uma pessoa da lista de espera (serviço, janela de datas, preferência, consultor livre). */
+export async function horariosDaEspera(e, { max = 6, diasMax = 14 } = {}) {
+  const agora = agoraSP();
+  const desde = e.de && e.de > agora.data ? e.de : agora.data;
+  let n = diasMax;
+  if (e.ate) { const dif = Math.round((Date.parse(e.ate + 'T12:00:00Z') - Date.parse(desde + 'T12:00:00Z')) / 864e5) + 1; n = Math.min(diasMax, dif); }
+  if (n < 1) return { itens: [], motivo: 'A janela de datas dessa espera já passou.' };
+  const base = await baseDosHorarios();
+  const vivos = await vivosEntre(desde, somaDiasH(desde, n));
+  const porDia = new Map();
+  for (const a of vivos) { if (!porDia.has(a.data)) porDia.set(a.data, []); porDia.get(a.data).push(a); }
+  const dur = duracaoDoServico(e.servico, base.servicos);
+  const dias = [];
+  for (let i = 0; i < n; i++) {
+    const data = somaDiasH(desde, i);
+    dias.push(livresDoDia({ data, agora, agendamentos: porDia.get(data) || [], consultores: base.consultores, duracao: dur, janelas: janelasDoServico(e.servico, base.janelas, diaDaSemanaH(data)) }));
+  }
+  const nomes = new Map(base.consultores.map((c) => [c.id, c.nome]));
+  const itens = candidatosDaEspera({ dias, preferencia: e.preferencia, de: e.de, ate: e.ate, max })
+    .map((c) => ({ ...c, consultor_nome: nomes.get(c.consultor_id) || null }));
+  return { itens, duracao_min: dur, motivo: itens.length ? null : 'Nenhum horário livre combina com o que essa pessoa pediu nos próximos dias.' };
 }

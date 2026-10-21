@@ -16,6 +16,7 @@ import {
 } from './regras.js';
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento } from './patio.js';
+import { resumoDosLembretes } from './lembretes.js';
 import { lerParametros as lerParametrosDeHorario, resumoDoDia } from './horarios.js';
 
 /* A camada de dados é trocável SÓ nos testes (tests/servidor.test.mjs injeta
@@ -1516,6 +1517,14 @@ async function api(req, res, url) {
     const e = await dados.criarEspera({ ...body, criado_por: usuario.id });
     return send(res, 201, e);
   }
+  /* rodada 6 (C1b): encaixe com horários livres REAIS — os melhores horários para essa pessoa da espera (serviço, datas, preferência) */
+  if ((mm = pathname.match(new RegExp(`^/api/espera/${UUID}/horarios$`))) && m === 'GET') {
+    if (!dentroDoLimite(`espera-horarios:${usuario.id}`, 60, 60_000)) return send(res, 429, { erro: 'Muitos pedidos seguidos. Espere um minuto.' });
+    const e = await dados.obterEspera(mm[1]);
+    if (!e) return notFound(res);
+    if (e.status !== 'aberta') return send(res, 200, { itens: [], motivo: 'Essa pessoa já saiu da lista de espera.' }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, await dados.horariosDaEspera(e), { 'Cache-Control': 'no-store' });
+  }
   if ((mm = pathname.match(new RegExp(`^/api/espera/${UUID}$`)))) {
     const atual = await dados.obterEspera(mm[1]);
     if (!atual) return notFound(res);
@@ -1572,6 +1581,47 @@ async function api(req, res, url) {
     const r = dados.enfileirarAvisoDeRemarcacao ? await dados.enfileirarAvisoDeRemarcacao(a, texto, usuario).catch((e) => ({ ok: false, motivo: e?.message })) : { ok: false, motivo: 'fila indisponível' };
     if (r.ok) await dados.auditar(usuario.id, 'avisou_remarcacao', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora, via: 'comunicar' });
     return send(res, 200, { enfileirado: !!r.ok, whatsapp, motivo: r.ok ? null : (r.motivo || 'A fila do Comunicar não aceitou agora — abri o WhatsApp com o texto pronto.') }, { 'Cache-Control': 'no-store' });
+  }
+
+  /* ---- RODADA 6 (C1b): LEMBRETES ligados ao Comunicar -------------------------------------------
+     GET  /api/agendamentos/:id/lembrete  → { situacao, envio, cfg }  (a verdade: na fila? enviado? respondeu? por que não sai?)
+     POST /api/agendamentos/:id/lembrete  → coloca UM lembrete na fila do Comunicar agora ({reenviar:true} só com o aval da pessoa)
+     GET  /api/lembretes?data=            → situação de todos os horários do dia (padrão: amanhã útil) + resumo
+     POST /api/lembretes/lote {data}      → lembra todos os que podem receber e ainda não foram lembrados */
+  if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/lembrete$`)))) {
+    const a = await dados.obterAgendamento(mm[1]);
+    if (!a) return notFound(res);
+    if (m === 'GET') return send(res, 200, await dados.lembreteDoAgendamento(a), { 'Cache-Control': 'no-store' });
+    if (m === 'POST') {
+      if (!dentroDoLimite(`lembrete:${usuario.id}`, 40, 60_000)) return send(res, 429, { erro: 'Muitos lembretes seguidos. Espere um minuto.' });
+      const r = await dados.enfileirarLembrete(a, usuario, { reenviar: body.reenviar === true, hojeIso: hoje() }).catch((e) => ({ ok: false, motivo: e?.message || 'A fila do Comunicar não aceitou agora.' }));
+      if (r.ok && !r.repetido) await dados.auditar(usuario.id, r.reenvio ? 'reenviou_lembrete' : 'pediu_lembrete', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora });
+      return send(res, r.jaEnviado ? 409 : 200, { ...r, ...(await dados.lembreteDoAgendamento(a).catch(() => ({}))) }, { 'Cache-Control': 'no-store' });
+    }
+  }
+  if (pathname === '/api/lembretes' && m === 'GET') {
+    let d = searchParams.get('data');
+    if (d && !dados.dataBanco(d)) return bad(res, 'Data inválida.');
+    d = d ? dados.dataBanco(d) : proximoDiaUtil(hoje());
+    const r = await dados.lembretesDoDia(d);
+    return send(res, 200, { ...r, resumo: resumoDosLembretes(r.itens) }, { 'Cache-Control': 'no-store' });
+  }
+  if (pathname === '/api/lembretes/lote' && m === 'POST') {
+    if (!dentroDoLimite(`lembrete-lote:${usuario.id}`, 6, 60_000)) return send(res, 429, { erro: 'Espere um minuto antes de lembrar o dia inteiro de novo.' });
+    const d = dados.dataBanco(body.data || '');
+    if (!d) return bad(res, 'Informe a data (AAAA-MM-DD).');
+    if (d < hoje()) return bad(res, 'Esse dia já passou.');
+    const dia = await dados.lembretesDoDia(d);
+    const alvo = dia.itens.filter((i) => i.situacao.podeMandar && i.situacao.codigo !== 'enviado').slice(0, 60);
+    const saida = { pedidos: 0, na_fila: 0, falhas: 0, pulados: dia.itens.length - alvo.length };
+    for (const i of alvo) {
+      const a = await dados.obterAgendamento(i.id);
+      const r = a ? await dados.enfileirarLembrete(a, usuario, { hojeIso: hoje() }).catch(() => ({ ok: false })) : { ok: false };
+      saida.pedidos++;
+      if (r.ok) saida.na_fila++; else saida.falhas++;
+    }
+    await dados.auditar(usuario.id, 'lembrou_o_dia', 'agendamentos', null, { data: d, ...saida });
+    return send(res, 200, saida, { 'Cache-Control': 'no-store' });
   }
 
   /* ---- RODADA 5: ficha 360 (rpc cliente_360 da base) e aniversários ---- */
