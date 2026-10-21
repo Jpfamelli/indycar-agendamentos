@@ -80,7 +80,7 @@ for (const larg of [1440, 375]) {
     // Réguas
     await ir(page, 'reguas');
     const rg = await page.evaluate(() => ({ painel: !!document.querySelector('#painelR6Reguas'), sw: document.querySelectorAll('#painelR6Reguas input[type=checkbox][data-r6cfg]').length, textos: document.querySelectorAll('#painelR6Reguas textarea').length, bolhas: [...document.querySelectorAll('#painelR6Reguas .bolha')].map((b) => b.textContent.length > 20) }));
-    ok(larg, 'gestor Réguas: 7 interruptores, 3 textos com prévia', rg.painel && rg.sw === 7 && rg.textos === 3 && rg.bolhas.every(Boolean), JSON.stringify(rg));
+    ok(larg, 'gestor Réguas: 8 interruptores, 3 textos com prévia', rg.painel && rg.sw === 8 && rg.textos === 3 && rg.bolhas.every(Boolean), JSON.stringify(rg));
     await page.evaluate(() => { const t = document.querySelector('#r6t_msg_orcador_visto'); t.value = 'Oi, ficou alguma dúvida do orçamento? Estou aqui.'; t.dispatchEvent(new Event('input', { bubbles: true })); }); await espera(300);
     const er = await page.evaluate(() => ({ erro: document.querySelector('#r6e_msg_orcador_visto')?.textContent || '', visivel: !document.querySelector('#r6e_msg_orcador_visto').hidden, barra: !document.querySelector('#barraSalvar').hidden }));
     ok(larg, 'gestor Réguas: texto sem {link_orcamento} avisa na hora e liga a barra de salvar', er.visivel && /link_orcamento/.test(er.erro) && er.barra, er.erro);
@@ -112,7 +112,7 @@ for (const larg of [1440, 375]) {
     await ir(page, 'mensagens');
     ok(larg, 'atendente Mensagens: vê Agenda e Resultados, não vê Simular rodada', (await visivel(page, '#r6Agenda')) && (await visivel(page, '#r6Resultados')) && !(await page.evaluate(() => !!document.querySelector('#r6Simular'))));
     await ir(page, 'reguas');
-    ok(larg, 'atendente Réguas: painel novo aparece só para olhar (tudo desabilitado)', await page.evaluate(() => { const c = [...document.querySelectorAll('#painelR6Reguas [data-r6cfg]')]; return c.length >= 10 && c.every((x) => x.disabled); }));
+    ok(larg, 'atendente Réguas: painel novo aparece só para olhar (tudo desabilitado)', await page.evaluate(() => { const c = [...document.querySelectorAll('#painelR6Reguas [data-r6cfg]')]; return c.length >= 11 && c.every((x) => x.disabled); }));
     await ir(page, 'campanhas');
     await page.evaluate(() => document.querySelector('#btnNovaCamp').click()); await page.waitForSelector('#segPrevia .n', { timeout: 8000 }); await espera(300);
     await page.evaluate(() => document.querySelector('#campAvancar').click()); await espera(500);

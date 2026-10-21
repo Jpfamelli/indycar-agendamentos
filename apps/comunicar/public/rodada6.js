@@ -263,6 +263,7 @@
   const ANTISPAM = [
     { campo: 'bloquear_com_carro_na_oficina', titulo: 'Esperar enquanto o carro está na oficina', desc: 'Aniversário, reativação, revisão e orçamento não chegam com o carro do cliente dentro do Pátio.' },
     { campo: 'bloquear_com_reclamacao', titulo: 'Esperar enquanto há reclamação sem resolver', desc: 'Resposta negativa recente com tarefa aberta segura as mensagens automáticas de relacionamento.', numero: { campo: 'dias_reclamacao_aberta', antes: 'olhar os últimos', depois: 'dias', min: 1, max: 60 } },
+    { campo: 'bloquear_com_orcamento_aberto', titulo: 'Esperar enquanto há orçamento aberto', desc: 'Reativação ("sumiu") e "não fechou" esperam enquanto o cliente tem orçamento enviado e sem resposta no Orçador — quem está negociando fala com ele.' },
     { campo: 'retomada_gradual', titulo: 'Retomada gradual do WhatsApp', desc: 'Quando o WhatsApp volta de uma queda, a primeira meia hora sai devagar (poucas mensagens) em vez de soltar a fila inteira de uma vez.' },
   ];
   const NUMEROS = [

@@ -143,7 +143,7 @@ const CFG = {
   msg_reativacao:'Oi {primeiro_nome}, tudo bem? Faz um tempo que a gente não vê o {carro} por aqui. Que tal um check-up gratuito de 30 min com scanner? É só responder por aqui para agendar. 🏁',
   // rodada 6
   usa_patio_posvenda:true, usa_patio_revisao:true, usa_orcador:true, ativo_extra_lembrete:true, horas_extra_lembrete:3,
-  bloquear_com_carro_na_oficina:true, bloquear_com_reclamacao:true, dias_reclamacao_aberta:14, evitar_texto_repetido_h:48, campanha_repetir_dias:14, retomada_gradual:true,
+  bloquear_com_carro_na_oficina:true, bloquear_com_reclamacao:true, bloquear_com_orcamento_aberto:true, dias_reclamacao_aberta:14, evitar_texto_repetido_h:48, campanha_repetir_dias:14, retomada_gradual:true,
   msg_extra_lembrete:'Oi {primeiro_nome}! O {carro} ainda tem {itens} esperando o seu OK. Veja e aprove ou recuse por aqui: {link_os}',
   msg_orcador_novisto:'Oi {primeiro_nome}, aqui é da IndyCar! Mandei o orçamento do {carro} e queria saber se você conseguiu abrir: {link_orcamento}',
   msg_orcador_visto:'Oi {primeiro_nome}! Vi que você olhou o orçamento do {carro}. Ficou alguma dúvida? Se quiser, ajusto o que for preciso: {link_orcamento}',
@@ -779,6 +779,7 @@ http.createServer(async (req, res) => {
           carteiro: resumirCarteiro({ batidas: BATIDAS(), chamadas: CHAMADAS() }), aniversarios: { comData: CLIENTES.filter((c) => c.nascimento).length, total: CLIENTES.filter((c) => c.telefone).length },
           ia: { ativo: IA_LIGADA, temChave: true }, teste: { ultimoOkEm: null } };
     fatos.patio = { cfg: { avisar_pronto: true, avisar_extra: true, enviar_link_entrada: true }, fila: { pendentes: ENVIOS.filter((e) => e.status === 'pendente' && e.tipo?.startsWith('patio_')).length, maisAntigoEm: null } };
+    fatos.r6 = { itens: [{ id: 'patio_entregas', rotulo: 'Carros entregues nos últimos 7 dias', valor: 6, lido: true }, { id: 'orc_parados', rotulo: 'Orçamentos esperando decisão', valor: 4, lido: true }, { id: 'orc_enviados', rotulo: 'Orçamentos enviados (7 dias)', valor: null, lido: false }], semLink: 2, retomada: null };
     return json(res, 200, { ...montarProntidao(fatos), gestor: ehGestor() });
   }
   if (p === '/api/projecao') {

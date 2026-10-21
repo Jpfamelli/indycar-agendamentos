@@ -125,3 +125,25 @@ test('sem confirmação nunca reenvia sozinho: a rodada para e o envio sai da fi
   assert.equal(status(a).status, 'falhou', 'a rodada seguinte não reenviou o que ficou sem confirmação');
   assert.ok(r2.enviados >= 1);
 });
+
+test('orçamento aberto no Orçador: reativação e não-fechou esperam (adiadas), o aniversário do mesmo cliente sai', async () => {
+  limpar();
+  const t = tel(903);
+  tabelas.orc_orcamentos = [{ id: ID(551), numero: 12, status: 'enviado', decidido_em: null, cliente_telefone: `(12) ${t.slice(2, 7)}-${t.slice(7)}`, validade: real.somarDias(H, 5), enviado_em: horas(-30) }];
+  const a = envio({ tipo: 'reativacao', telefone: t, cliente_id: ID(313), enviar_em: horas(-3) });
+  const b = envio({ tipo: 'nao_fechou', telefone: t, cliente_id: ID(313), enviar_em: horas(-2) });
+  const c = envio({ tipo: 'aniversario', telefone: t, cliente_id: ID(313), enviar_em: horas(-1) });
+  const { w } = await rodar({ intervalo_mesmo_cliente_min: 0 });
+  assert.equal(w.saiu.length, 1);
+  assert.equal(status(c).status, 'enviado');
+  for (const x of [a, b]) { assert.equal(status(x).status, 'pendente'); assert.match(status(x).motivo_pulado || '', /orçamento nº 12/); assert.ok(Date.parse(status(x).enviar_em) > AGORA.getTime()); }
+});
+
+test('orçamento aberto com o interruptor desligado: a reativação sai normalmente', async () => {
+  limpar();
+  const t = tel(904);
+  tabelas.orc_orcamentos = [{ id: ID(552), numero: 13, status: 'enviado', decidido_em: null, cliente_telefone: t, validade: null, enviado_em: horas(-30) }];
+  const a = envio({ tipo: 'reativacao', telefone: t, cliente_id: ID(314), enviar_em: horas(-3) });
+  await rodar({ bloquear_com_orcamento_aberto: false });
+  assert.equal(status(a).status, 'enviado');
+});

@@ -174,7 +174,7 @@ test('API: salvar as réguas com os campos da rodada 6 — gestor salva; atenden
 test('API atacante: datas, tipos e ids com lixo ou injeção de filtro nunca viram 500 nem vazam outros lotes', async () => {
   const s = await subir();
   try {
-    for (const q of ["de=2026-10-01'--&ate=x", 'de=%27%29%3Bdrop%20table%20posvenda_envios%3B--', 'de=9999-99-99&ate=0000-00-00', 'de=&ate=']) {
+    for (const q of ["de=2026-10-01'--&ate=x", 'de=%27%29%3Bdrop%20table%20posvenda_envios%3B--', 'de=9999-99-99&ate=0000-00-00', 'de=2026-13-45', 'ate=2026-02-31', 'de=2026-10-01&ate=2026-99-99', 'de=&ate=']) {
       const r = await s.chamar('atendente', 'GET', `/api/resultados?${q}`);
       assert.ok(r.status === 200 || r.status === 400, `${q} → ${r.status}`);
     }

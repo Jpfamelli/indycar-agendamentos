@@ -117,25 +117,23 @@ function termoBusca(q) {
   return `"*${limpo}*"`;
 }
 
-/** 'YYYY-MM-DD' válida ou null (aceita DD/MM/AAAA e DD/MM da planilha). */
+/** 'YYYY-MM-DD' que EXISTE no calendário, ou null (aceita DD/MM/AAAA e DD/MM da planilha). 31/02 e 2026-13-45 viram null. */
 export function dataBanco(d) {
   if (d === null || d === undefined) return null;
   const t = String(d).trim();
   if (!t) return null;
+  const p2 = (n) => String(n).padStart(2, '0');
+  const existe = (a, m, dia) => {
+    const x = new Date(Date.UTC(Number(a), Number(m) - 1, Number(dia)));
+    return x.getUTCFullYear() === Number(a) && x.getUTCMonth() === Number(m) - 1 && x.getUTCDate() === Number(dia);
+  };
   let m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  if (m) return existe(m[1], m[2], m[3]) ? `${m[1]}-${m[2]}-${m[3]}` : null;
   m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) {
-    const p = (n) => String(n).padStart(2, '0');
-    return `${m[3]}-${p(m[2])}-${p(m[1])}`;
-  }
+  if (m) return existe(m[3], m[2], m[1]) ? `${m[3]}-${p2(m[2])}-${p2(m[1])}` : null;
   // só dia/mês ('12/05'): para parabéns o ano não importa. 1904 (bissexto) é o marcador.
   m = t.match(/^(\d{1,2})\/(\d{1,2})$/);
-  if (m) {
-    const p = (n) => String(n).padStart(2, '0');
-    const mes = Number(m[2]), dia = Number(m[1]);
-    if (mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) return `1904-${p(mes)}-${p(dia)}`;
-  }
+  if (m && existe(1904, m[2], m[1])) return `1904-${p2(m[2])}-${p2(m[1])}`;
   return null;
 }
 
@@ -531,7 +529,7 @@ export const PADRAO_NUM = {
   horas_extra_lembrete: 3, dias_reclamacao_aberta: 14, evitar_texto_repetido_h: 48, campanha_repetir_dias: 14,
 };
 /** Rodada 6: interruptores das ligações novas (todos ligados por padrão; o que depende de uma régua só age com ela ligada). */
-export const BOOLEANOS_R6 = ['usa_patio_posvenda', 'usa_patio_revisao', 'usa_orcador', 'ativo_extra_lembrete', 'bloquear_com_carro_na_oficina', 'bloquear_com_reclamacao', 'retomada_gradual'];
+export const BOOLEANOS_R6 = ['usa_patio_posvenda', 'usa_patio_revisao', 'usa_orcador', 'ativo_extra_lembrete', 'bloquear_com_carro_na_oficina', 'bloquear_com_reclamacao', 'bloquear_com_orcamento_aberto', 'retomada_gradual'];
 /** Rodada 6: textos novos e as variáveis que cada um aceita (qualquer outra fica vazia no cliente — a tela e a API barram). */
 export const TEXTOS_R6 = {
   msg_extra_lembrete: { rotulo: 'Lembrete do extra do Pátio', vars: ['nome', 'primeiro_nome', 'carro', 'placa', 'itens', 'link_os'], obrigatorias: ['link_os'] },
@@ -2751,13 +2749,19 @@ export async function orcamentosPorIds(ids = []) {
  */
 export async function situacaoDosClientes(telefones = [], { diasReclamacao = 14 } = {}) {
   const tels = [...new Set(telefones.map(telefoneNacional).filter((t) => t && t.length >= 10))];
-  const mapa = new Map(tels.map((t) => [t, { os: null, reclamacao: null }]));
+  const mapa = new Map(tels.map((t) => [t, { os: null, reclamacao: null, orcamento: null }]));
   if (!tels.length) return mapa;
   // ordens ativas: poucas por vez; o telefone da OS é digitado à mão, então compara os dígitos nacionais
   const oss = await selecionar('patio_os', `select=numero,etapa,telefone&etapa=in.(${conexoes.ETAPAS_ATIVAS.join(',')})&telefone=not.is.null&limit=1000`).catch(() => []);
   for (const o of oss) {
     const t = telefoneNacional(o.telefone);
     if (t && mapa.has(t) && !mapa.get(t).os) mapa.get(t).os = { numero: o.numero, etapa: o.etapa };
+  }
+  // orçamentos enviados e sem decisão (o telefone do Orçador é digitado: compara os dígitos nacionais)
+  const orcs = await selecionar('orc_orcamentos', 'select=numero,cliente_telefone,validade,enviado_em&status=eq.enviado&decidido_em=is.null&order=enviado_em.desc&limit=1000').catch(() => []);
+  for (const o of orcs) {
+    const t = telefoneNacional(o.cliente_telefone);
+    if (t && mapa.has(t) && !mapa.get(t).orcamento) mapa.get(t).orcamento = { numero: o.numero, validade: o.validade };
   }
   const desde = new Date(Date.now() - diasReclamacao * 86400000).toISOString();
   for (let i = 0; i < tels.length; i += 60) {
@@ -2927,7 +2931,7 @@ export async function resultados({ de = null, ate = null, tipo = null, lote = nu
 export async function statusDasConexoes() {
   const agora = Date.now();
   const sete = encodeURIComponent(new Date(agora - 7 * 86400000).toISOString());
-  const [entregues7, osAtivas, extrasPend, orcEnv, orcParados, avaliacoes7, leadsOrc, cfg] = await Promise.all([
+  const [entregues7, osAtivas, extrasPend, orcEnv, orcParados, avaliacoes7, leadsOrc, cfg, orcSemLink] = await Promise.all([
     contar('patio_os', `etapa=eq.entregue&entregue_em=gte.${sete}`).catch(() => null),
     contar('patio_os', `etapa=in.(${conexoes.ETAPAS_ATIVAS.join(',')})`).catch(() => null),
     contar('patio_extras', 'status=eq.pendente').catch(() => null),
@@ -2936,10 +2940,12 @@ export async function statusDasConexoes() {
     contar('patio_avaliacoes', `created_at=gte.${sete}`).catch(() => null),
     contar(T.leads, 'status=eq.orcamento').catch(() => null),
     obterConfig(),
+    contar('orc_orcamentos', 'status=eq.enviado&decidido_em=is.null&token_publico=is.null').catch(() => null),
   ]);
   const item = (id, app, rotulo, valor, detalhe, ligada) => ({ id, app, rotulo, valor, detalhe, ligada: !!ligada, lido: valor !== null });
   return {
     em: new Date(agora).toISOString(),
+    semLink: orcSemLink,
     itens: [
       item('patio_entregas', 'patio', 'Carros entregues nos últimos 7 dias', entregues7, 'alimentam o pós-venda, a avaliação e a revisão', cfg.usa_patio_posvenda && cfg.ativo_posvenda),
       item('patio_ativas', 'patio', 'Carros na oficina agora', osAtivas, 'seguram aniversário, reativação e outras réguas de relacionamento', cfg.bloquear_com_carro_na_oficina),

@@ -7,7 +7,7 @@
 // estado: 'ok' (pronto) · 'falta' (impede de funcionar) · 'aviso' (funciona, mas…)
 // acao.tipo: 'rota' (abre uma tela do Comunicar) · 'link' (outro app) · 'modal'
 // -----------------------------------------------------------------------------
-import { REGUAS, ROTULO_TIPO } from './dados.js';
+import { REGUAS, ROTULO_TIPO, TEXTOS_R6, validarTextoR6 } from './dados.js';
 import { itemPatioProntidao } from './patio.js';
 import { APPS, LINKS } from './acesso.js';
 
@@ -114,6 +114,36 @@ export function montarProntidao(f) {
   if (f.patio !== undefined) {
     const it = itemPatioProntidao(f.patio?.cfg ?? null, f.patio?.fila || {}, agora);
     item(it.id, it.titulo, it.estado, it.texto, it.acao);
+  }
+
+  // 13. rodada 6 — ligações com o Pátio e o Orçador (só aparece quando o servidor junta os fatos)
+  if (f.r6) {
+    const por = Object.fromEntries((f.r6.itens || []).map((i) => [i.id, i]));
+    const ruins = Object.keys(TEXTOS_R6).filter((k) => validarTextoR6(k, cfg[k]));
+    if (ruins.length) item('r6_textos', 'Textos novos (Orçador e extra do Pátio)', 'falta', `${ruins.map((k) => TEXTOS_R6[k].rotulo).join('; ')}: o texto tem um erro e a mensagem não sai. Corrija em Réguas › Ligações com Pátio e Orçador.`, { tipo: 'rota', alvo: 'reguas', rotulo: 'Corrigir os textos' });
+    else item('r6_textos', 'Textos novos (Orçador e extra do Pátio)', 'ok', 'Os três textos novos estão certos (variáveis e link).');
+
+    const parados = por.orc_parados;
+    const orcLigado = !!(cfg.usa_orcador !== false && cfg.ativo_orcamento);
+    if (parados?.lido && parados.valor > 0 && !orcLigado) {
+      item('r6_orcamentos', 'Lembrete de orçamento do Orçador', 'aviso', `${parados.valor} orçamento(s) esperando resposta e o lembrete está desligado: ligue a régua "Orçamento parado" para o Orçador lembrar sozinho.`, { tipo: 'rota', alvo: 'reguas', rotulo: 'Ligar o lembrete' });
+    } else if (orcLigado && Number(f.r6.semLink) > 0) {
+      item('r6_orcamentos', 'Lembrete de orçamento do Orçador', 'aviso', `${f.r6.semLink} orçamento(s) enviado(s) sem link público no Orçador: esses não recebem lembrete. Reenvie pelo Orçador para gerar o link.`);
+    } else if (orcLigado) {
+      item('r6_orcamentos', 'Lembrete de orçamento do Orçador', 'ok', 'Orçamento enviado e sem resposta vira lembrete com o link do orçamento.');
+    }
+
+    const entregas = por.patio_entregas;
+    if (entregas?.lido && entregas.valor > 0 && !cfg.ativo_posvenda) {
+      item('r6_posvenda_patio', 'Pós-venda dos carros entregues no Pátio', 'aviso', `${entregas.valor} carro(s) entregue(s) nos últimos 7 dias e a régua Pós-venda está desligada: ninguém recebe o "ficou tudo certo?".`, { tipo: 'rota', alvo: 'reguas', rotulo: 'Ligar o pós-venda' });
+    } else if (cfg.ativo_posvenda && cfg.usa_patio_posvenda === false) {
+      item('r6_posvenda_patio', 'Pós-venda dos carros entregues no Pátio', 'aviso', 'O pós-venda só olha a Agenda: carro entregue no Pátio sem horário marcado não recebe a pergunta (e a nota baixa do Pátio não segura nada).', { tipo: 'rota', alvo: 'reguas', rotulo: 'Ver as ligações' });
+    }
+
+    const semLeitura = (f.r6.itens || []).filter((i) => i.lido === false);
+    if (semLeitura.length) item('r6_leitura', 'Leitura do Pátio e do Orçador', 'aviso', `Não consegui ler agora: ${semLeitura.map((i) => i.rotulo).join('; ')}. As réguas que dependem deles seguem sem essa conferência até a leitura voltar.`);
+
+    if (f.r6.retomada) item('r6_retomada', 'Retomada gradual do WhatsApp', 'aviso', `O WhatsApp voltou há pouco: ${f.r6.retomada.motivo}. A fila sai devagar nesse começo — é de propósito.`);
   }
 
   const prontos = itens.filter((i) => i.estado === 'ok').length;

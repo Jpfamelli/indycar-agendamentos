@@ -196,6 +196,13 @@ export function bloqueioDeRelacionamento(envio, situacao = {}, cfg = {}, agora =
       return { acao: 'adiar', causa: 'reclamacao', ate: new Date(agora + 24 * 3600000).toISOString(), motivo: `reclamou há ${Math.max(1, Math.round(idade))} dia(s) e a equipe ainda não resolveu: nenhuma mensagem automática de relacionamento até lá` };
     }
   }
+  /* orçamento esperando resposta: quem está negociando fala com ele; "sumiu há meses" ou "não fechou" por cima seria desastre */
+  if (cfg.bloquear_com_orcamento_aberto !== false && situacao.orcamento && ['reativacao', 'nao_fechou'].includes(envio.tipo)) {
+    const validade = situacao.orcamento.validade ? String(situacao.orcamento.validade).slice(0, 10) : null;
+    if (!validade || validade >= diaSP(new Date(agora).toISOString())) {
+      return { acao: 'adiar', causa: 'orcamento', ate: new Date(agora + 48 * 3600000).toISOString(), motivo: `ele tem o orçamento ${situacao.orcamento.numero ? `nº ${situacao.orcamento.numero} ` : ''}esperando resposta no Orçador: quem está negociando fala com ele, nada de "sumiu" por cima` };
+    }
+  }
   return { acao: 'seguir' };
 }
 
@@ -486,3 +493,11 @@ export function descreverCarro(v) {
 }
 
 export const ehUuid = (v) => typeof v === 'string' && UUID.test(v);
+
+/** 'AAAA-MM-DD' que existe no calendário (2026-02-31 e 2026-13-45 não) — senão null. */
+export function diaValido(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v ?? '').trim());
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]) ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}

@@ -303,3 +303,80 @@ test('links de fora: pega https, www e endereço "pelado" (bit.ly/x, evil.com/of
   assert.equal(fora('Frase com ponto final em evil.com.').length, 1);
   assert.equal(fora('').length + fora(null).length, 0);
 });
+
+// ---------------------------------------------------------------- orçamento aberto segura "sumiu" e "não fechou"
+test('orçamento esperando resposta no Orçador segura reativação e não-fechou por 48 h (aniversário e revisão seguem)', () => {
+  const sit = { orcamento: { numero: 37, validade: '2026-12-01' } };
+  const r = C.bloqueioDeRelacionamento({ tipo: 'reativacao' }, sit, {}, AGORA);
+  assert.equal(r.acao, 'adiar'); assert.equal(r.causa, 'orcamento'); assert.match(r.motivo, /orçamento nº 37/);
+  assert.equal(Date.parse(r.ate) - AGORA, 48 * 3600000);
+  assert.equal(C.bloqueioDeRelacionamento({ tipo: 'nao_fechou' }, sit, {}, AGORA).acao, 'adiar');
+  assert.equal(C.bloqueioDeRelacionamento({ tipo: 'aniversario' }, sit, {}, AGORA).acao, 'seguir', 'parabéns não atrapalha a negociação');
+  assert.equal(C.bloqueioDeRelacionamento({ tipo: 'retorno' }, sit, {}, AGORA).acao, 'seguir');
+  assert.equal(C.bloqueioDeRelacionamento({ tipo: 'orcamento' }, sit, {}, AGORA).acao, 'seguir', 'o próprio lembrete do orçamento sai');
+});
+
+test('orçamento aberto: vencido não segura; interruptor desligado não segura; sem número ainda explica', () => {
+  assert.equal(C.bloqueioDeRelacionamento({ tipo: 'reativacao' }, { orcamento: { numero: 1, validade: '2026-10-01' } }, {}, AGORA).acao, 'seguir', 'validade já passou');
+  assert.equal(C.bloqueioDeRelacionamento({ tipo: 'reativacao' }, { orcamento: { numero: 1, validade: '2026-12-01' } }, { bloquear_com_orcamento_aberto: false }, AGORA).acao, 'seguir');
+  assert.match(C.bloqueioDeRelacionamento({ tipo: 'nao_fechou' }, { orcamento: { numero: null, validade: null } }, {}, AGORA).motivo, /esperando resposta no Orçador/);
+  const por = C.explicarPendente({ tipo: 'reativacao', status: 'pendente', telefone: '12999990001', enviar_em: new Date(AGORA - 3600000).toISOString() }, { cfg: { janela_inicio: 0, janela_fim: 24 }, agora: AGORA, hoje: { data: '2026-10-20', hora: 11, minuto: 0, diaSemana: 2 }, situacao: { orcamento: { numero: 5, validade: null } } });
+  assert.ok(por.passos.some((p) => /orçamento nº 5/.test(p.texto)), 'o "por que não saiu" também explica');
+});
+
+// ---------------------------------------------------------------- "Pronto para ligar" com as ligações novas
+import { montarProntidao } from '../prontidao.js';
+const BASE_PRONTO = {
+  cfg: { ativo_posvenda: true, ativo_lembrete: true, msg_posvenda: 'x', msg_lembrete: 'x', link_avaliacao: 'https://g.page/r/x', telefone_teste: '12999990000', carteiro_configurado: true, cfg: {},
+    usa_orcador: true, usa_patio_posvenda: true, ativo_orcamento: true,
+    msg_extra_lembrete: 'Oi {primeiro_nome}, falta seu OK em {itens}: {link_os}', msg_orcador_novisto: 'Oi {primeiro_nome}: {link_orcamento}', msg_orcador_visto: 'Oi {primeiro_nome}, dúvida? {link_orcamento}' },
+  whatsapp: { ok: true, conectado: true }, carteiro: {}, aniversarios: { comData: 10, total: 20 }, ia: {}, teste: {}, agora: Date.parse('2026-10-20T14:00:00Z'),
+};
+const itensR6 = (extra = []) => [{ id: 'patio_entregas', rotulo: 'Carros entregues', valor: 4, lido: true }, { id: 'orc_parados', rotulo: 'Orçamentos esperando decisão', valor: 2, lido: true }, ...extra];
+const ach = (r, id) => r.itens.find((i) => i.id === id);
+
+test('prontidão R6: sem os fatos novos nada muda (os testes antigos continuam valendo)', () => {
+  assert.ok(!montarProntidao(BASE_PRONTO).itens.some((i) => i.id.startsWith('r6_')));
+});
+test('prontidão R6: textos novos com erro viram "falta" com o nome do texto; certos, "ok"', () => {
+  let r = montarProntidao({ ...BASE_PRONTO, r6: { itens: itensR6(), semLink: 0 } });
+  assert.equal(ach(r, 'r6_textos').estado, 'ok');
+  r = montarProntidao({ ...BASE_PRONTO, cfg: { ...BASE_PRONTO.cfg, msg_orcador_visto: 'Oi, ficou alguma dúvida do orçamento? Estou aqui.' }, r6: { itens: itensR6(), semLink: 0 } });
+  assert.equal(ach(r, 'r6_textos').estado, 'falta'); assert.match(ach(r, 'r6_textos').texto, /cliente abriu e não decidiu/);
+  assert.equal(r.pronto, montarProntidao(BASE_PRONTO).pronto, 'texto novo ruim não derruba o "pronto" das réguas antigas');
+});
+test('prontidão R6: orçamento parado com o lembrete desligado avisa; sem link público avisa; ligado e certo é ok', () => {
+  let r = montarProntidao({ ...BASE_PRONTO, cfg: { ...BASE_PRONTO.cfg, ativo_orcamento: false }, r6: { itens: itensR6(), semLink: 0 } });
+  assert.equal(ach(r, 'r6_orcamentos').estado, 'aviso'); assert.match(ach(r, 'r6_orcamentos').texto, /2 orçamento\(s\) esperando resposta/);
+  r = montarProntidao({ ...BASE_PRONTO, r6: { itens: itensR6(), semLink: 3 } });
+  assert.equal(ach(r, 'r6_orcamentos').estado, 'aviso'); assert.match(ach(r, 'r6_orcamentos').texto, /3 orçamento\(s\) enviado\(s\) sem link/);
+  r = montarProntidao({ ...BASE_PRONTO, r6: { itens: itensR6(), semLink: 0 } });
+  assert.equal(ach(r, 'r6_orcamentos').estado, 'ok');
+  r = montarProntidao({ ...BASE_PRONTO, cfg: { ...BASE_PRONTO.cfg, ativo_orcamento: false }, r6: { itens: [{ id: 'orc_parados', valor: 0, lido: true }], semLink: 0 } });
+  assert.ok(!ach(r, 'r6_orcamentos'), 'nada parado e régua desligada: não incomoda');
+});
+test('prontidão R6: carro entregue com o pós-venda desligado, ou pós-venda sem olhar o Pátio, avisa', () => {
+  let r = montarProntidao({ ...BASE_PRONTO, cfg: { ...BASE_PRONTO.cfg, ativo_posvenda: false }, r6: { itens: itensR6(), semLink: 0 } });
+  assert.match(ach(r, 'r6_posvenda_patio').texto, /4 carro\(s\) entregue\(s\)/);
+  r = montarProntidao({ ...BASE_PRONTO, cfg: { ...BASE_PRONTO.cfg, usa_patio_posvenda: false }, r6: { itens: itensR6(), semLink: 0 } });
+  assert.equal(ach(r, 'r6_posvenda_patio').estado, 'aviso'); assert.match(ach(r, 'r6_posvenda_patio').texto, /só olha a Agenda/);
+  r = montarProntidao({ ...BASE_PRONTO, r6: { itens: itensR6(), semLink: 0 } });
+  assert.ok(!ach(r, 'r6_posvenda_patio'));
+});
+test('prontidão R6: sistema que não respondeu e retomada gradual aparecem como aviso', () => {
+  const r = montarProntidao({ ...BASE_PRONTO, r6: { itens: itensR6([{ id: 'orc_enviados', rotulo: 'Orçamentos enviados (7 dias)', valor: null, lido: false }]), semLink: 0, retomada: { motivo: 'no máximo 8 mensagens nos primeiros 30 min' } } });
+  assert.match(ach(r, 'r6_leitura').texto, /Orçamentos enviados/);
+  assert.equal(ach(r, 'r6_retomada').estado, 'aviso'); assert.match(ach(r, 'r6_retomada').texto, /de propósito/);
+});
+
+// ---------------------------------------------------------------- datas que não existem no calendário
+import { dataBanco } from '../dados.js';
+test('datas: 31/02, mês 13 e dia 45 viram null em vez de estourar no banco (dataBanco e diaValido)', () => {
+  for (const ruim of ['2026-13-45', '2026-02-31', '2026-00-10', '31/02/2026', '31/04', '30/02', '0/5/2026', '2026-10-32']) assert.equal(dataBanco(ruim), null, ruim);
+  assert.equal(dataBanco('2026-10-20'), '2026-10-20');
+  assert.equal(dataBanco('20/10/2026'), '2026-10-20');
+  assert.equal(dataBanco('29/02/2028'), '2028-02-29', 'bissexto');
+  assert.equal(dataBanco('29/02'), '1904-02-29', 'dia/mês de planilha usa o ano bissexto de marcação');
+  assert.equal(dataBanco('2026-10-20T14:00:00Z'), '2026-10-20', 'aceita ISO completo');
+  assert.equal(C.diaValido('2026-02-31'), null); assert.equal(C.diaValido('2026-10-20'), '2026-10-20'); assert.equal(C.diaValido("2026-10-20'--"), null); assert.equal(C.diaValido(null), null);
+});

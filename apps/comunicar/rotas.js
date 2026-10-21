@@ -421,10 +421,11 @@ export function criarApi(deps) {
   });
   const periodoDe = (url) => {
     const de = url.searchParams.get('de') || null, ate = url.searchParams.get('ate') || null;
-    return { de, ate, invertido: !!(de && ate && de > ate) };
+    return { de, ate, invalido: !!((de && !conexoes.diaValido(de)) || (ate && !conexoes.diaValido(ate))), invertido: !!(de && ate && de > ate) };
   };
   rota('GET', '/api/resultados', async ({ res, url }) => {
     const p = periodoDe(url);
+    if (p.invalido) return bad(res, 'Data inválida: use o formato AAAA-MM-DD.');
     if (p.invertido) return bad(res, 'O "de" precisa vir antes do "até".');
     const tipo = url.searchParams.get('regua') || null;
     if (tipo && tipo !== 'todas' && !dados.TIPOS_ENVIO.includes(tipo)) return bad(res, 'Régua desconhecida.');
@@ -432,7 +433,9 @@ export function criarApi(deps) {
   });
   rota('GET', `/api/lotes/${U}/resultado`, async ({ res, url }) => {
     const lote = idDe(url.pathname);
-    const r = await dados.resultados({ de: url.searchParams.get('de') || '2020-01-01', ate: url.searchParams.get('ate') || null, lote });
+    const p = periodoDe(url);
+    if (p.invalido) return bad(res, 'Data inválida: use o formato AAAA-MM-DD.');
+    const r = await dados.resultados({ de: p.de || '2020-01-01', ate: p.ate || null, lote });
     return ok(res, { lote, ...(r.porLote[lote] || r.total), periodo: r.periodo, regra: r.regra });
   });
   rota('GET', '/api/conexoes', async ({ res }) => ok(res, await emCache('conexoes', 30_000, () => dados.statusDasConexoes())));
@@ -801,7 +804,7 @@ export function criarApi(deps) {
 
   rota('GET', '/api/pronto', async ({ res, usuario }) => {
     const fatos = await emCache('pronto', 30_000, async () => {
-      const [cfg, wa, carteiroR, comData, total, iaCfg, chave, testeOk, patioCfg, patioFila] = await Promise.all([
+      const [cfg, wa, carteiroR, comData, total, iaCfg, chave, testeOk, patioCfg, patioFila, con] = await Promise.all([
         dados.obterConfig(),
         Promise.resolve(whatsapp.status?.()).catch(() => ({ ok: false })),
         resumoDoCarteiro().catch(() => ({})),
@@ -812,9 +815,12 @@ export function criarApi(deps) {
         dados.ultimoTesteOk().catch(() => null),
         dados.patioConfig?.().catch(() => null) ?? null,
         dados.filaDoPatio?.().catch(() => ({})) ?? {},
+        dados.statusDasConexoes?.().catch(() => null) ?? null,
       ]);
+      const retomada = conexoes.limiteDeRetomada({ ligada: cfg.retomada_gradual !== false, estado: cfg.whatsapp?.estado, estadoEm: cfg.whatsapp?.em, anterior: cfg.whatsapp?.anterior, agora: relogio(), enviadasDesde: 0 });
       return { cfg, whatsapp: wa || {}, carteiro: carteiroR, aniversarios: { comData, total }, ia: { ativo: iaCfg.ativo, temChave: !!chave }, teste: { ultimoOkEm: testeOk },
-        patio: { cfg: patioCfg, fila: patioFila } };
+        patio: { cfg: patioCfg, fila: patioFila },
+        r6: con ? { itens: con.itens, semLink: con.semLink, retomada: retomada ? { motivo: retomada.motivo } : null } : undefined };
     });
     const r = prontidao.montarProntidao({ ...fatos, agora: relogio() });
     return ok(res, { ...r, gestor: A.ehGestor(usuario) });
