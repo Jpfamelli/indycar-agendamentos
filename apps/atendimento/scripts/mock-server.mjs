@@ -666,9 +666,9 @@ http.createServer(async (req, res) => {
   if (p === '/api/_dormir') { DORMINDO_ATE = Date.now() + Number(body.segundos || 0) * 1000; return json(res, 200, { ok: true }); }
   if (p === '/api/_envios') return json(res, 200, { envios: ENVIOS_FEITOS });
   if (p === '/api/_c5') {
-    const C5 = (globalThis.__c5 ||= { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, token: null, vistoNovo: false, semPreco: false, xss: false, tokens: [] });
-    if (body.reset) Object.assign(C5, { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, vistoNovo: false, semPreco: false, xss: false, tokens: [] });
-    for (const k of ['orc', 'negado', 'caiu', 'pre', 'parar', 'carros', 'vistoNovo', 'semPreco', 'xss']) if (k in body) C5[k] = body[k];
+    const C5 = (globalThis.__c5 ||= { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, token: null, vistoNovo: false, semPreco: false, xss: false, tokens: [], funil: 'ok' });
+    if (body.reset) Object.assign(C5, { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, vistoNovo: false, semPreco: false, xss: false, tokens: [], funil: 'ok' });
+    for (const k of ['orc', 'negado', 'caiu', 'pre', 'parar', 'carros', 'vistoNovo', 'semPreco', 'xss', 'funil']) if (k in body) C5[k] = body[k];
     return json(res, 200, { ok: true, ...C5 });
   }
   if (p === '/api/_r6_etapa') { const E = (globalThis.__r6 ||= { etapa: 'em_execucao', passadas: new Set(), resolvidas: new Set() }); E.etapa = body.etapa || 'pronto'; if (body.reset) { E.passadas.clear(); E.resolvidas.clear(); DB.r6_c3_marcas.length = 0; } return json(res, 200, { ok: true }); }
@@ -968,7 +968,7 @@ http.createServer(async (req, res) => {
   }
   /* ---------- Rodada 6 (C3): fila priorizada, painel conectado, WhatsApp parado ---------- */
   /* ---------- Rodada 6, segunda leva (C5): Orçador ao vivo, pré-agendamento, carros sem conversa ---------- */
-  const C5 = (globalThis.__c5 ||= { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, token: null, vistoNovo: false, semPreco: false, xss: false, tokens: [] });
+  const C5 = (globalThis.__c5 ||= { orc: 'visto', negado: false, caiu: false, pre: true, parar: false, carros: 'dois', chamadas: 0, token: null, vistoNovo: false, semPreco: false, xss: false, tokens: [], funil: 'ok' });
   if (p.startsWith('/api/r6/c5/')) {
     const iso5 = (min) => new Date(Date.now() - min * 60000).toISOString();
     let m5 = /^\/api\/r6\/c5\/conversa\/([^/]+)$/.exec(p);
@@ -1003,10 +1003,19 @@ http.createServer(async (req, res) => {
         cliente: { nome: ehCamila ? 'Camila Rodrigues' : cv.nome, carro: ehCamila ? 'Corolla 2018' : null, placa: ehCamila ? 'ABC1D23' : null },
         link_novo_orcamento: 'https://indycar-orcador.netlify.app/#/cotacao?origem=atendimento&conversa=' + m5[1] + '&tel=55' + String(cv.telefone_e164 || '').replace(/\D/g, '') });
     }
+    if (p === '/api/r6/c5/funil') {
+      if (!['admin', 'gestor'].includes(quem.papel)) return erro(res, 403, undefined, 'Só gestor ou administrador vê o desempenho do Orçador.');
+      if (C5.funil === 'erro') return json(res, 503, { ok: false, erro: 'Não consegui ver o Orçador agora.' });
+      const vazio = C5.funil === 'vazio';
+      return json(res, 200, { ok: true, periodo_dias: Number(url.searchParams.get('dias')) || 30, criados: vazio ? 0 : 14, enviados: vazio ? 0 : 10, vistos: 4, decididos: 5, aprovados: 3, recusados: 2, expirados: 1, em_espera: 3, nunca_enviados: 4,
+        taxa_visto: 40, taxa_aprovacao: 30, valor_enviado: 12000, valor_aprovado: 3500.5, valor_perdido: 1800, valor_em_espera: 4000, mediana_ver_h: 2.5, mediana_decidir_h: 20,
+        seguimento: { hoje: 1, atrasados: 2 }, por_motivo: [{ codigo: 'preco', rotulo: 'Preço', quantidade: 3, valor: 1500 }, { codigo: 'prazo', rotulo: 'Prazo', quantidade: 1, valor: 300 }],
+        insights: ['4 orçamentos foram montados e nunca enviados ao cliente.', 'O motivo de recusa mais comum é "preço" (3).'] });
+    }
     if (p === '/api/r6/c5/carros') {
       if (C5.carros === 'erro') return json(res, 503, { ok: false, erro: 'Não consegui ler os carros do pátio agora.', carros: [] });
       const todos = [
-        { os_id: 'd0000000-0000-4000-8000-000000000001', numero: 413, etapa: 'pronto', etapa_rotulo: 'Pronto para retirar', min_na_etapa: 20, placa: 'XYZ9K88', cliente_id: null, nome: 'José Lima', carro: 'Gol 2015', telefone: '5512991234567', previsao_entrega: null, abrir: '/?os=d0000000-0000-4000-8000-000000000001' },
+        { os_id: 'd0000000-0000-4000-8000-000000000001', numero: 413, etapa: 'pronto', etapa_rotulo: 'Pronto para retirar', min_na_etapa: 20, placa: 'XYZ9K88', cliente_id: null, nome: C5.xss ? '<img src=x onerror="window.__xss=2">José Lima' : 'José Lima', carro: 'Gol 2015', telefone: '5512991234567', previsao_entrega: null, abrir: '/?os=d0000000-0000-4000-8000-000000000001' },
         { os_id: 'd0000000-0000-4000-8000-000000000002', numero: 414, etapa: 'em_execucao', etapa_rotulo: 'Em execução', min_na_etapa: 300, placa: 'QWE1R23', cliente_id: null, nome: null, carro: null, telefone: null, previsao_entrega: null, abrir: '/?os=d0000000-0000-4000-8000-000000000002' },
       ];
       const carros = C5.carros === 'nenhum' ? [] : C5.carros === 'um' ? todos.slice(0, 1) : todos;

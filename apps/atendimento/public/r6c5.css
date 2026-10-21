@@ -36,6 +36,14 @@
 .c5-carro.c5-pronto{border-color:rgba(37,211,102,.55)}
 .c5-lidas{flex:0 0 auto;font-size:.78rem}
 
+/* o × das janelas do Rodada 6 ficava solto em cima do texto (a 375 px caía no meio do conteúdo): cabeçalho em linha */
+.r6-modal .modal-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.r6-modal .modal-topo h3{margin:0;min-width:0;overflow-wrap:anywhere}
+.r6-modal .modal-topo .modal-x{position:static;float:none;margin:0;flex:0 0 auto}
+
+.c5-insights{margin:8px 0 0;padding-left:18px;font-size:.84rem;line-height:1.5}
+.c5-rel .kpis{margin-top:6px}
+
 @media (max-width:480px){
   .c5-faixa{flex-direction:column;align-items:stretch}
   .c5-faixa .c5-botoes,.c5-acao .c5-botoes{width:100%}

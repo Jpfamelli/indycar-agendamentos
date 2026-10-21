@@ -259,6 +259,9 @@ test('acoesDoR360: link só da casa, texto com preço some, título sem marcas, 
   assert.strictEqual(r[0].titulo, 'Cobrar orçamento'); assert.ok(r[0].link.startsWith('https://indycar-orcador'));
   assert.strictEqual(r[1].link, null); assert.strictEqual(r[1].texto, null);
   assert.ok(r.some((a) => a.codigo === 'nao_mandar_mensagens'));
+  assert.strictEqual(r[0].app, 'orcador');
+  const estranho = acoesDoR360([{ codigo: 'x', titulo: 't', app: '__proto__' }, { codigo: 'y', titulo: 't', app: 'javascript:alert(1)' }, { codigo: 'z', titulo: 't', app: 'crm' }]);
+  assert.deepStrictEqual(estranho.map((a) => a.app), ['', '', 'crm'], 'o nome da aba só pode ser de um app da casa');
   assert.deepStrictEqual(acoesDoR360(null), []);
 });
 
@@ -295,7 +298,7 @@ test('filaContexto: recusado de até 14 dias aparece, mais velho não; pré-agen
 });
 
 /* ---------------- rotas ---------------- */
-async function subirRotas({ semBanco = false, limite = null, fetchResp = {}, rpc = {}, tabelas = {} } = {}) {
+async function subirRotas({ semBanco = false, limite = null, fetchResp = {}, rpc = {}, tabelas = {}, papel = 'atendente' } = {}) {
   const sb = criarSbFalso({
     conversas: [
       { id: CONV, cliente_id: CLI, nome: 'Camila', telefone: '5512988660661', telefone_e164: '5512988660661', tipo: 'atendimento', desfecho: null },
@@ -310,7 +313,7 @@ async function subirRotas({ semBanco = false, limite = null, fetchResp = {}, rpc
   const dados = criarR6({ sb, agora: () => AGORA, log: () => {} });
   const chamadas = {};
   const rotas = criarRotasR6({
-    getSb: () => (semBanco ? null : sb), usuarioLogado: async (req) => (req.headers.authorization ? { id: 'p1', nome: 'Ana', papel: 'atendente' } : null),
+    getSb: () => (semBanco ? null : sb), usuarioLogado: async (req) => (req.headers.authorization ? { id: 'p1', nome: 'Ana', papel } : null),
     dentroDoLimite: (k) => { chamadas[k] = (chamadas[k] || 0) + 1; return limite ? chamadas[k] <= limite : true; },
     readBody: async () => ({}), dados, zap: criarZap({ agora: () => AGORA.getTime() }), c5,
     tokenDe: (req) => (/^Bearer (\S+)$/.exec(req.headers.authorization || '') || [])[1] || null, auditar: async () => ({ ok: true }),
@@ -403,4 +406,48 @@ test('rota c5/carros: lista os carros sem conversa, exige login e esconde erro t
   } finally { s.fechar(); }
   const ruim = await subirRotas({ rpc: { patio_carros_abertos: () => ({ data: null, error: { message: 'relation "x" does not exist' } }) } });
   try { const r = await ruim.chamar('/api/r6/c5/carros'); assert.strictEqual(r.status, 503); assert.ok(!/relation/.test(r.texto)); } finally { ruim.fechar(); }
+});
+
+test('motivo da recusa: vem do próprio orçamento (código + texto do cliente) e cai nos eventos só se faltar', async () => {
+  const f = fetchFalso({ orc_status_por_telefone: [linhaOrc({ id: ORC1, status: 'recusado', decidido_em: iso(60) }), linhaOrc({ id: ORC2, numero: 88, status: 'recusado', decidido_em: iso(50) })] });
+  const sb = criarSbFalso({
+    orc_orcamentos: [{ id: ORC1, motivo_cod: 'preco', motivo_recusa: 'achei caro' }, { id: ORC2, motivo_cod: null, motivo_recusa: null }],
+    orc_eventos: [{ orcamento_id: ORC2, tipo: 'recusado', detalhe: 'fechei com outro', created_at: iso(50) }] });
+  const c5 = criarC5({ sb, fetch: f, supabaseUrl: 'https://x', anonKey: ANON, agora: () => AGORA, log: () => {} });
+  const r = await c5.orcamentosAoVivo({ token: TOKEN, telefone: '12988660661' });
+  assert.strictEqual(r.orcamentos.find((o) => o.id === ORC1).motivo_recusa, 'preço · achei caro');
+  assert.strictEqual(r.orcamentos.find((o) => o.id === ORC2).motivo_recusa, 'fechei com outro');
+  assert.strictEqual(R.motivoDaRecusa({ cod: 'outro_lugar', texto: '' }), 'vai fazer em outro lugar');
+  assert.strictEqual(R.motivoDaRecusa({ cod: 'xyz', texto: '' }), null);
+});
+
+test('funil do Orçador: só gestor/admin, chamado com o JWT do gestor, dias entre 1 e 90, taxas calculadas e sem token na resposta', async () => {
+  const funil = { periodo_dias: 30, criados: 14, enviados: 10, vistos: 4, decididos: 5, aprovados: 3, recusados: 2, nunca_enviados: 4, valor_aprovado: 3500.456, mediana_ver_seg: 9000,
+    por_motivo: [{ codigo: 'preco', quantidade: 3, valor: 1500 }, { codigo: '<b>x</b>', quantidade: 1 }], seguimento: { hoje: 1, atrasados: 2 } };
+  const ate = await subirRotas({ papel: 'atendente', fetchResp: { orc_funil: funil } });
+  try { const r = await ate.chamar('/api/r6/c5/funil'); assert.strictEqual(r.status, 403); assert.strictEqual(ate.f.chamadas.length, 0, 'atendente nem chega a perguntar ao Orçador'); } finally { ate.fechar(); }
+  const g = await subirRotas({ papel: 'gestor', fetchResp: { orc_funil: funil } });
+  try {
+    assert.strictEqual((await g.chamar('/api/r6/c5/funil', { logado: false })).status, 401);
+    const r = await g.chamar('/api/r6/c5/funil?dias=500');
+    assert.strictEqual(r.status, 200); assert.strictEqual(g.f.chamadas[0].corpo.p_dias, 90);
+    assert.strictEqual(g.f.chamadas[0].opc.headers.Authorization, 'Bearer ' + TOKEN);
+    assert.deepStrictEqual([r.j.enviados, r.j.taxa_visto, r.j.taxa_aprovacao, r.j.valor_aprovado, r.j.mediana_ver_h], [10, 40, 30, 3500.46, 2.5]);
+    assert.strictEqual(r.j.por_motivo[0].rotulo, 'Preço'); assert.strictEqual(r.j.por_motivo[1].rotulo, 'x');
+    assert.ok(r.j.insights.some((t) => /nunca enviados/.test(t)) && r.j.insights.some((t) => /motivo de recusa mais comum/.test(t)));
+    assert.ok(!r.texto.includes(TOKEN));
+    await g.chamar('/api/r6/c5/funil?dias=0'); assert.strictEqual(g.f.chamadas[1].corpo.p_dias, 30, 'dias 0 volta ao padrão');
+  } finally { g.fechar(); }
+  const neg = await subirRotas({ papel: 'admin', fetchResp: { orc_funil: () => ({ ok: false, status: 403, json: async () => ({}) }) } });
+  try { const r = await neg.chamar('/api/r6/c5/funil'); assert.strictEqual(r.status, 503); assert.match(r.j.erro, /não tem acesso ao Orçador/); } finally { neg.fechar(); }
+  const caiu = await subirRotas({ papel: 'admin', fetchResp: { orc_funil: new Error('ECONNRESET') } });
+  try { const r = await caiu.chamar('/api/r6/c5/funil'); assert.strictEqual(r.status, 503); assert.ok(!/ECONNRESET/.test(r.texto)); } finally { caiu.fechar(); }
+});
+
+test('insightsOrcador: sem envio não inventa frase; poucas amostras não alarmam', () => {
+  const { prepararFunilOrcador, insightsOrcador } = require('../lib/r6c5.js');
+  assert.deepStrictEqual(insightsOrcador(prepararFunilOrcador({})), []);
+  assert.deepStrictEqual(insightsOrcador(prepararFunilOrcador({ enviados: 3, vistos: 0, por_motivo: [{ codigo: 'preco', quantidade: 1 }] })), []);
+  const f = prepararFunilOrcador({ enviados: 10, vistos: 2, seguimento: { atrasados: 1 } });
+  assert.ok(insightsOrcador(f).some((x) => /Só 20% /.test(x)) && insightsOrcador(f).some((x) => /1 retorno de orçamento atrasado /.test(x)));
 });

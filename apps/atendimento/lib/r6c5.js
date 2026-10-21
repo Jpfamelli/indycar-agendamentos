@@ -54,16 +54,23 @@ function criarC5({ sb, fetch: fetchFn = (typeof fetch === 'function' ? fetch : n
     } catch (e) { log('rpc', nome, e.message); return { ok: false, motivo: 'rede' }; }
   }
 
-  /** Motivo da recusa de cada orçamento, lido dos eventos do Orçador (service key; texto sanitizado). */
+  /** Motivo da recusa de cada orçamento: o código + o texto que o cliente escreveu (orc_orcamentos); se não houver, o evento do Orçador. */
   async function motivosDeRecusa(ids) {
     const lim = (ids || []).filter((x) => RE_UUID.test(String(x))).slice(0, 12);
-    if (!lim.length) return new Map();
+    const m = new Map();
+    if (!lim.length) return m;
     try {
-      const { data } = await sb.from('orc_eventos').select('orcamento_id,tipo,detalhe,created_at').in('orcamento_id', lim).eq('tipo', 'recusado').order('created_at', { ascending: false }).limit(24);
-      const m = new Map();
-      for (const e of data || []) if (!m.has(e.orcamento_id)) m.set(e.orcamento_id, R6.motivoDaRecusa(e.detalhe));
-      return m;
-    } catch (e) { log('motivo recusa', e.message); return new Map(); }
+      const { data } = await sb.from('orc_orcamentos').select('id,motivo_cod,motivo_recusa').in('id', lim);
+      for (const o of data || []) { const t = R6.motivoDaRecusa({ cod: o.motivo_cod, texto: o.motivo_recusa }); if (t) m.set(o.id, t); }
+    } catch (e) { log('motivo recusa', e.message); }
+    const faltam = lim.filter((id) => !m.has(id));
+    if (faltam.length) {
+      try {
+        const { data } = await sb.from('orc_eventos').select('orcamento_id,tipo,detalhe,created_at').in('orcamento_id', faltam).eq('tipo', 'recusado').order('created_at', { ascending: false }).limit(24);
+        for (const e of data || []) if (!m.has(e.orcamento_id)) { const t = R6.motivoDaRecusa(e.detalhe); if (t) m.set(e.orcamento_id, t); }
+      } catch (e) { log('motivo recusa (eventos)', e.message); }
+    }
+    return m;
   }
 
   /**
@@ -134,9 +141,19 @@ function criarC5({ sb, fetch: fetchFn = (typeof fetch === 'function' ? fetch : n
     };
   }
 
-  return { rpcComoUsuario, orcamentosAoVivo, preAgendamentos, carrosSemConversa, motivosDeRecusa };
+  /** Funil do Orçador (orc_funil) nos últimos N dias, chamado como o gestor logado. */
+  async function funilOrcador({ token, dias = 30 }) {
+    const d = Math.max(1, Math.min(90, Math.round(Number(dias)) || 30));
+    const r = await rpcComoUsuario(token, 'orc_funil', { p_dias: d });
+    if (!r.ok) return { ok: false, motivo: r.motivo };
+    const funil = prepararFunilOrcador(r.dados);
+    return { ok: true, ...funil, insights: insightsOrcador(funil) };
+  }
+
+  return { rpcComoUsuario, orcamentosAoVivo, preAgendamentos, carrosSemConversa, motivosDeRecusa, funilOrcador };
 }
 
+const APPS_DA_CASA = ['crm', 'atendimento', 'agenda', 'comunicar', 'orcador', 'patio', 'ads', 'site', 'central'];
 const limpo = (t, max) => String(t ?? '').replace(/<[^>]*>/g, ' ').replace(/[\p{C}<>]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
 /** acoes_sugeridas do r6_cliente_360 → só o que é seguro mostrar (link da casa, sem preço no texto). */
@@ -144,7 +161,7 @@ function acoesDoR360(lista) {
   return (Array.isArray(lista) ? lista : []).slice(0, 6).map((a) => {
     const texto = typeof a?.texto === 'string' && !R6.textoTemPreco(a.texto) ? String(a.texto).replace(/[\p{C}]/gu, ' ').trim().slice(0, 500) : null;
     return {
-      codigo: String(a?.codigo || '').slice(0, 40), app: String(a?.app || '').slice(0, 20),
+      codigo: String(a?.codigo || '').slice(0, 40), app: APPS_DA_CASA.includes(a?.app) ? a.app : '',
       titulo: limpo(a?.titulo, 90),
       motivo: limpo(a?.motivo, 140),
       link: R6.linkSeguroCasa(a?.link), texto,
@@ -152,4 +169,34 @@ function acoesDoR360(lista) {
   }).filter((a) => a.titulo);
 }
 
-module.exports = { criarC5, chaveTel, telefoneParaRpc, bearerDe, acoesDoR360 };
+/* ---------------- funil do Orçador ---------------- */
+const MOTIVOS_ORC = { preco: 'Preço', prazo: 'Prazo', desistiu: 'Desistiu do serviço', outro_lugar: 'Vai fazer em outro lugar', sem_urgencia: 'Sem urgência', sem_motivo: 'Não disse o motivo', outro: 'Outro motivo' };
+const r2 = (x) => (x == null || !Number.isFinite(Number(x)) ? null : Math.round(Number(x) * 100) / 100);
+function prepararFunilOrcador(r) {
+  const n = (k) => Number(r?.[k]) || 0;
+  const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
+  const horas = (s) => (s != null && Number.isFinite(Number(s)) ? Math.round(Number(s) / 360) / 10 : null);
+  const enviados = n('enviados');
+  return {
+    periodo_dias: n('periodo_dias'), criados: n('criados'), enviados, vistos: n('vistos'), decididos: n('decididos'), aprovados: n('aprovados'),
+    recusados: n('recusados'), expirados: n('expirados'), em_espera: n('em_espera'), nunca_enviados: n('nunca_enviados'),
+    taxa_visto: pct(n('vistos'), enviados), taxa_aprovacao: pct(n('aprovados'), enviados),
+    valor_enviado: r2(r?.valor_enviado), valor_aprovado: r2(r?.valor_aprovado), valor_perdido: r2(r?.valor_perdido), valor_em_espera: r2(r?.valor_em_espera),
+    mediana_ver_h: horas(r?.mediana_ver_seg), mediana_decidir_h: horas(r?.mediana_decidir_seg),
+    seguimento: { hoje: Number(r?.seguimento?.hoje) || 0, atrasados: Number(r?.seguimento?.atrasados) || 0 },
+    por_motivo: (Array.isArray(r?.por_motivo) ? r.por_motivo : []).slice(0, 8).map((x) => ({
+      codigo: limpo(x?.codigo, 20), rotulo: MOTIVOS_ORC[x?.codigo] || limpo(x?.codigo, 40) || 'Sem motivo', quantidade: Number(x?.quantidade) || 0, valor: r2(x?.valor) })),
+  };
+}
+function insightsOrcador(f) {
+  const out = [];
+  if (!f || !f.enviados) return out;
+  if (f.nunca_enviados >= 3) out.push(`${f.nunca_enviados} orçamentos foram montados e nunca enviados ao cliente.`);
+  if (f.taxa_visto != null && f.taxa_visto < 60 && f.enviados >= 5) out.push(`Só ${f.taxa_visto}% dos orçamentos enviados foram abertos: vale conferir se o link está chegando.`);
+  const top = f.por_motivo[0];
+  if (top && top.quantidade >= 2) out.push(`O motivo de recusa mais comum é "${top.rotulo.toLowerCase()}" (${top.quantidade}).`);
+  if (f.seguimento.atrasados) out.push(`${f.seguimento.atrasados} retorno${f.seguimento.atrasados === 1 ? '' : 's'} de orçamento atrasado${f.seguimento.atrasados === 1 ? '' : 's'} no Orçador.`);
+  return out;
+}
+
+module.exports = { criarC5, chaveTel, telefoneParaRpc, bearerDe, acoesDoR360, prepararFunilOrcador, insightsOrcador };

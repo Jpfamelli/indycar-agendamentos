@@ -180,12 +180,32 @@ const atalho = async (p, codigo) => { await p.keyboard.down('Alt'); await p.keyb
       await abrirConv(p, 'Camila');
       ok(`[${w}] ao voltar, tudo reaparece`, await ate(p, () => !!document.querySelector('#r6Painel .c5-pre') && !!document.querySelector('#r6Painel .c5-visto')));
 
+      /* ---------- atacante: endereços e HTML que não podem passar ---------- */
+      const tentativas = await p.evaluate(() => {
+        window.__abertos = [];
+        const ruins = ['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>', '//evil.com/x', 'https://evil.com/', 'https://indycar-orcador.netlify.app@evil.com/', 'https://usuario:senha@indycar-orcador.netlify.app/', 'https://indycar-orcador.netlify.app.evil.com/', 'ftp://indycar-orcador.netlify.app/', 'vbscript:x', ''];
+        for (const u of ruins) window.R6C5.abrirSeguro('orcador', u);
+        const abertosRuins = window.__abertos.length;
+        window.R6C5.abrirSeguro('orcador', 'HTTPS://INDYCAR-ORCADOR.NETLIFY.APP/#/historico/x');
+        window.R6C5.abrirSeguro('agenda', '/?agendamento=a1');
+        return { abertosRuins, bons: window.__abertos.map(a => a.n + ' ' + a.u) };
+      });
+      ok(`[${w}] endereços de fora, javascript:, data:, usuário:senha e domínio parecido NÃO abrem; os da casa abrem na aba certa`, tentativas.abertosRuins === 0 && tentativas.bons.length === 2 && /^indycar-orcador https:\/\/indycar-orcador\.netlify\.app/.test(tentativas.bons[0]) && /^indycar-agenda https:\/\/indycar-agendamentos\.onrender\.com/.test(tentativas.bons[1]), JSON.stringify(tentativas));
+      await c5({ xss: true });
+      await p.evaluate(() => window.R6C5.carregarCarros({ forcar: true }));
+      await p.evaluate(() => window.R6C5.abrirCarros());
+      ok(`[${w}] nome de cliente com HTML na janela dos carros vira texto e não executa`, await ate(p, () => /<img/.test(document.querySelector('#c5Carros .c5-carro')?.textContent || '')) && await p.evaluate(() => window.__xss !== 2 && !document.querySelector('#c5Carros img')));
+      await p.evaluate(() => document.getElementById('c5Carros').classList.remove('aberto'));
+      await c5({ xss: false });
+      await p.evaluate(() => window.R6C5.carregarCarros({ forcar: true }));
+
       /* ---------- carros sem conversa ---------- */
       ok(`[${w}] barra "carros sem conversa" mostra 2 carros e 1 pronto`, await ate(p, () => { const b = document.getElementById('c5Barra'); return b && !b.hidden && /2 carros sem conversa/.test(b.textContent) && /1 pronto/.test(b.textContent); }));
       await p.evaluate(() => document.querySelector('#c5Barra [data-c5="carros"]').click());
       ok(`[${w}] a janela lista o carro pronto primeiro, com nome, carro, placa e etapa`, await ate(p, () => { const m = document.getElementById('c5Carros'); const c = m && m.querySelector('.c5-carro'); return m && m.classList.contains('aberto') && c && /José Lima/.test(c.textContent) && /Pronto para retirar/.test(c.textContent) && /Gol 2015/.test(c.textContent) && /XYZ9K88/.test(c.textContent); }));
       ok(`[${w}] carro sem telefone: "Abrir conversa" desabilitado e sem "Copiar telefone"`, await p.evaluate(() => { const c = document.querySelectorAll('#c5Carros .c5-carro')[1]; return c && /Cliente sem nome/.test(c.textContent) && c.querySelector('[data-c5="carro-conversa"]').disabled && !c.querySelector('[data-c5="carro-copiar"]'); }));
       if (w === 375) await p.screenshot({ path: OUT + 'carros-375.png' });
+      ok(`[${w}] o × da janela fica no cabeçalho, sem cobrir o texto (bug do 375 px)`, await p.evaluate(() => { const x = document.querySelector('#c5Carros .modal-x').getBoundingClientRect(), t = document.querySelector('#c5Carros .modal-topo h3').getBoundingClientRect(), c = document.querySelector('#c5Carros .modal-corpo').getBoundingClientRect(); return x.bottom <= c.top + 2 && x.left >= t.right - 1; }));
       ok(`[${w}] a janela cabe na tela (sem rolagem lateral)`, await p.evaluate(() => { const m = document.querySelector('#c5Carros .modal').getBoundingClientRect(); return m.left >= 0 && m.right <= innerWidth + 1; }));
       await p.evaluate(() => { window.__abertos = []; document.querySelector('#c5Carros [data-c5="carro-patio"]').click(); });
       ok(`[${w}] "Abrir no Pátio" vai para a OS na aba indycar-patio`, await p.evaluate(() => { const a = window.__abertos[0]; return a && a.n === 'indycar-patio' && /\?os=d0000000/.test(a.u) && /^https:\/\/indycar-patio\.netlify\.app/.test(a.u); }));
@@ -196,6 +216,9 @@ const atalho = async (p, codigo) => { await p.keyboard.down('Alt'); await p.keyb
       ok(`[${w}] Alt+G abre a janela dos carros e Esc fecha`, await ate(p, () => document.getElementById('c5Carros').classList.contains('aberto'), null, 3000));
       await p.keyboard.press('Escape');
       ok(`[${w}] Esc fecha a janela dos carros`, await ate(p, () => !document.getElementById('c5Carros').classList.contains('aberto'), null, 3000));
+      await p.evaluate(() => document.querySelector('#r6Zap [data-r6="nao-sairam"]')?.click());
+      ok(`[${w}] o mesmo vale para a janela "mensagens que não saíram" (× no cabeçalho, sem cobrir o texto)`, await ate(p, () => { const m = document.getElementById('r6NaoSairam'); if (!m || !m.classList.contains('aberto')) return false; const x = m.querySelector('.modal-x').getBoundingClientRect(), c = m.querySelector('.modal-corpo').getBoundingClientRect(); return x.bottom <= c.top + 2; }, null, 6000));
+      await p.evaluate(() => document.getElementById('r6NaoSairam')?.classList.remove('aberto'));
       await c5({ carros: 'nenhum' });
       await p.evaluate(() => window.R6C5.carregarCarros({ forcar: true }));
       ok(`[${w}] sem carros soltos a barra some (não ocupa espaço)`, await ate(p, () => document.getElementById('c5Barra').hidden));
@@ -210,6 +233,20 @@ const atalho = async (p, codigo) => { await p.keyboard.down('Alt'); await p.keyb
       const naoLidasAntes = await p.evaluate(() => conversasFiltradas().filter(c => c.nao_lidas > 0).length);
       await p.evaluate(() => document.getElementById('c5Lidas').click());
       ok(`[${w}] "✓✓" marca como lidas as conversas visíveis (eram ${naoLidasAntes})`, naoLidasAntes > 0 && await ate(p, () => conversasFiltradas().every(c => !(c.nao_lidas > 0)), null, 4000));
+
+      /* ---------- relatórios: funil do Orçador (gestor) ---------- */
+      await p.evaluate(() => document.querySelector('.nav-item[data-aba="relatorios"]')?.click());
+      ok(`[${w}] relatórios do administrador mostram o bloco "Orçamentos no Orçador" com enviados, abriram, aprovados e recusados`, await ate(p, () => { const s = document.getElementById('c5RelOrc'); const t = s?.textContent || ''; return s && /Enviados/.test(t) && /Abriram/.test(t) && /Aprovados/.test(t) && /Recusados/.test(t) && /40% dos enviados/.test(t) && /3\.500,50/.test(t); }, null, 15000));
+      ok(`[${w}] o bloco diz por que recusam e traz as frases do funil`, await p.evaluate(() => { const t = document.getElementById('c5RelOrc')?.textContent || ''; return /Por que recusam: Preço \(3\)/.test(t) && /nunca enviados/.test(t) && /motivo de recusa mais comum/.test(t); }));
+      if (w === 1440) await p.screenshot({ path: OUT + 'relatorio-1440.png' });
+      await c5({ funil: 'erro' });
+      await p.evaluate(() => { document.getElementById('c5RelOrc').remove(); });
+      ok(`[${w}] funil com erro: mensagem clara e "Tentar de novo"`, await ate(p, () => { const s = document.getElementById('c5RelOrc'); return s && /Não consegui ver o Orçador agora/.test(s.textContent) && !!s.querySelector('[data-c5="funil-recarregar"]'); }));
+      await c5({ funil: 'vazio' });
+      await p.evaluate(() => document.querySelector('#c5RelOrc [data-c5="funil-recarregar"]').click());
+      ok(`[${w}] funil sem orçamentos no período: diz que não houve nenhum`, await ate(p, () => /Nenhum orçamento foi montado nesse período/.test(document.getElementById('c5RelOrc')?.textContent || '')));
+      await c5({ funil: 'ok' });
+      await p.evaluate(() => document.querySelector('.nav-item[data-aba="conversas"]')?.click());
 
       ok(`[${w}] sem rolagem lateral`, await semRolagemX(p));
       ok(`[${w}] botões novos têm pelo menos 36 px de altura (dedo no celular)`, await p.evaluate(() => [...document.querySelectorAll('#r6Painel .c5-faixa .r6-btn, #r6Painel .c5-acao .r6-btn')].every(b => b.getBoundingClientRect().height >= 35)));

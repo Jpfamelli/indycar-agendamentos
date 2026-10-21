@@ -31,7 +31,9 @@
 
   /** Abre outro sistema da casa em aba nomeada. Só endereço http(s) dos domínios da casa; o resto não abre. */
   function abrirSeguro(app, url) {
-    const limpo = R.linkSeguroCasa(url) || (window.IndyCarApps && url && !/^[a-z][a-z0-9+.-]*:/i.test(url) ? window.IndyCarApps.link(app, url) : null);
+    // só caminho relativo de verdade (/…, ?…, #…): nada de //dominio nem /dominio, que o navegador trata como outro site
+    const relativo = typeof url === 'string' && /^(\/(?![\/\\])|\?|#)/.test(url);
+    const limpo = R.linkSeguroCasa(url) || (window.IndyCarApps && relativo ? window.IndyCarApps.link(app, url) : null);
     const ok = limpo && R.linkSeguroCasa(limpo);
     if (!ok) return toast('⚠️ Esse endereço não é de um sistema da casa — não abri.');
     const w = window.IndyCarApps ? window.IndyCarApps.abrir(app, ok) : null;
@@ -305,6 +307,49 @@
     atualizarFilaAgora();
   }
 
+  /* ======================= RELATÓRIOS: funil do Orçador (gestor) ======================= */
+  const diasDoPeriodo = () => {
+    const de = document.getElementById('relDe')?.value, ate = document.getElementById('relAte')?.value;
+    const a = Date.parse(de + 'T12:00:00'), b = Date.parse(ate + 'T12:00:00');
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return 30;
+    return Math.max(1, Math.min(90, Math.round((b - a) / 86400000) + 1));
+  };
+  const pct = (x) => (x == null ? '—' : String(x).replace('.', ',') + '%');
+  const cabFunil = (sub) => `<div class="bloco-cab"><div><h2>🧾 Orçamentos no Orçador</h2><p class="bloco-sub">${esc(sub)}</p></div><button type="button" class="btn btn-ghost sm" data-c5="abrir-orcador">Abrir o Orçador ↗</button></div>`;
+  const kpiFunil = (cor, titulo, valor, sub) => `<div class="kpi ${cor}"><span>${esc(titulo)}</span><b>${esc(valor)}</b><small>${esc(sub)}</small></div>`;
+  async function pintarFunilRelatorio() {
+    const corpo = document.getElementById('relCorpo');
+    if (!corpo || !corpo.querySelector('.kpis') || corpo.querySelector('#c5RelOrc')) return;
+    if (typeof perfil === 'undefined' || !perfil || !['admin', 'gestor'].includes(perfil.papel)) return;
+    const dias = diasDoPeriodo();
+    const sec = document.createElement('section');
+    sec.className = 'bloco-rel c5-rel'; sec.id = 'c5RelOrc'; sec.setAttribute('data-c5-inj', '');
+    sec.innerHTML = '<div class="bloco-cab"><div><h2>🧾 Orçamentos no Orçador</h2><p class="bloco-sub">Carregando…</p></div></div>';
+    corpo.querySelector('.kpis').insertAdjacentElement('afterend', sec);
+    const r = await api('/api/r6/c5/funil?dias=' + dias).catch(() => ({ ok: false, status: 0 }));
+    if (!sec.isConnected) return;
+    if (!r.ok) {
+      const msg = !navigator.onLine ? 'Sem internet agora.' : r.status === 403 ? 'Só gestor ou administrador vê o desempenho do Orçador.' : (r.erro || 'Não consegui ver o Orçador agora.');
+      sec.innerHTML = cabFunil('Últimos ' + dias + ' dias') + `<div class="grafico-vazio">⚠️ ${esc(msg)}<br><br><button type="button" class="btn btn-ghost sm" data-c5="funil-recarregar">Tentar de novo</button></div>`;
+      return;
+    }
+    if (!r.enviados && !r.criados) { sec.innerHTML = cabFunil('Últimos ' + dias + ' dias') + '<div class="grafico-vazio">Nenhum orçamento foi montado nesse período.</div>'; return; }
+    const motivos = r.por_motivo.map((m) => esc(m.rotulo) + ' (' + esc(m.quantidade) + ')').join(' · ');
+    sec.innerHTML = cabFunil('Últimos ' + (r.periodo_dias || dias) + ' dias, contados de hoje. Vem direto do Orçador.')
+      + '<div class="kpis">'
+      + kpiFunil('roxa', 'Enviados', String(r.enviados), r.nunca_enviados ? r.nunca_enviados + ' montados e nunca enviados' : 'ao cliente')
+      + kpiFunil('laranja', 'Abriram', String(r.vistos), pct(r.taxa_visto) + ' dos enviados' + (r.mediana_ver_h != null ? ' · em ' + String(r.mediana_ver_h).replace('.', ',') + ' h' : ''))
+      + kpiFunil('verde', 'Aprovados', String(r.aprovados), pct(r.taxa_aprovacao) + ' dos enviados' + (r.valor_aprovado != null ? ' · ' + reais(r.valor_aprovado) : ''))
+      + kpiFunil('vermelha', 'Recusados', String(r.recusados), r.valor_perdido != null ? reais(r.valor_perdido) + ' deixados na mesa' : 'no período')
+      + '</div>'
+      + (r.por_motivo.length ? `<p class="bloco-sub"><b>Por que recusam:</b> ${motivos}</p>` : '')
+      + (r.insights.length ? `<ul class="c5-insights">${r.insights.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : '');
+  }
+  function observarRelatorios() {
+    const corpo = document.getElementById('relCorpo');
+    if (corpo) new MutationObserver(() => { if (!corpo.querySelector('#c5RelOrc')) pintarFunilRelatorio(); }).observe(corpo, { childList: true });
+  }
+
   /* ======================= CLIQUES ======================= */
   const porId = (id) => (C.dados?.orcamentos || []).find((o) => o.id === id);
   async function acao(nome, alvo) {
@@ -336,6 +381,8 @@
       case 'carro-patio': { const x = C.carros.carros[Number(alvo.dataset.i)]; return abrirSeguro('patio', x?.abrir); }
       case 'carro-copiar': { const x = C.carros.carros[Number(alvo.dataset.i)]; return copiarTexto(x?.telefone ? '+' + x.telefone : '', '📋 Telefone copiado'); }
       case 'lidas': return marcarVisiveisComoLidas();
+      case 'abrir-orcador': return abrirSeguro('orcador', window.R6.BASES.orcador + '/');
+      case 'funil-recarregar': { document.getElementById('c5RelOrc')?.remove(); return pintarFunilRelatorio(); }
       case 'copiar-telefone': { const c = conversaAberta(); return copiarTexto(c?.telefone_e164 || c?.telefone || '', '📋 Telefone copiado'); }
       default:
     }
@@ -385,6 +432,7 @@
     if (typeof perfil === 'undefined' || !perfil) return;
     C.iniciou = true;
     observar();
+    observarRelatorios();
     const lista = document.querySelector('.lista-ferramentas');
     if (lista && !document.getElementById('c5Lidas')) {
       const b = document.createElement('button');
@@ -405,5 +453,5 @@
   window.addEventListener('indycar:pronto', iniciar);
   setTimeout(iniciar, 2800);
 
-  window.R6C5 = { estado: C, carregar, pintar, abrirCarros, carregarCarros, acao, marcarVisiveisComoLidas };
+  window.R6C5 = { abrirSeguro, estado: C, carregar, pintar, abrirCarros, carregarCarros, acao, marcarVisiveisComoLidas };
 })();

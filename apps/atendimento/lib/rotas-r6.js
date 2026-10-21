@@ -9,6 +9,7 @@
    POST /api/r6/conversas/:id/passar-consultor   {motivo}  aguardando consultor + tarefa
    GET  /api/r6/c5/conversa/:conversaId        Orçador AO VIVO (com o JWT de quem está logado) + pré-agendamentos + ações do 360
    GET  /api/r6/c5/carros                  carros no pátio sem conversa aberta (patio_carros_abertos)
+   GET  /api/r6/c5/funil?dias=             (gestor/admin) funil do Orçador (orc_funil, com o JWT do gestor)
    GET  /api/r6/zap                        o WhatsApp está parado? quantas mensagens não saíram
    GET  /api/r6/nao-sairam                 mensagens de saída que falharam (para decidir uma a uma)
    POST /api/r6/nao-sairam/resolver        {mensagemId, nota?} "resolvi por telefone"
@@ -164,6 +165,17 @@ function criarRotasR6({ getSb, usuarioLogado, dentroDoLimite, readBody, dados, z
         orcamento_principal: principal ? principal.id : null, pre_agendamentos: pre, acoes: painel?.acoes || [],
         cliente: { nome: painel?.cliente?.nome || cv.nome || null, carro: painel?.cliente?.carro || null, placa: painel?.cliente?.placa || null },
         link_novo_orcamento: R6.linkNovoOrcamento({ conversaId: id, telefone, nome: painel?.cliente?.nome || cv.nome, placa: painel?.cliente?.placa, veiculo: painel?.cliente?.carro, leadId: painel?.lead?.id }) });
+    }
+
+    if (pathname === '/api/r6/c5/funil' && req.method === 'GET') {
+      const quem = await exigir(req, res); if (!quem) return true;
+      if (!['admin', 'gestor'].includes(quem.papel)) return enviar(req, res, 403, { ok: false, erro: 'Só gestor ou administrador vê o desempenho do Orçador.' });
+      if (!limitar(req, res, `r6c5-funil:${quem.id}`, 20)) return true;
+      if (!c5) return semBanco();
+      const dias = Number(new URL(req.url, 'http://x').searchParams.get('dias')) || 30;
+      const r = await c5.funilOrcador({ token: tokenDe(req), dias });
+      if (!r.ok) return enviar(req, res, 503, { ok: false, erro: r.motivo === 'sem_permissao' ? 'Seu usuário não tem acesso ao Orçador.' : r.motivo === 'sem_token' ? 'Sua sessão expirou: entre de novo.' : 'Não consegui ver o Orçador agora.' });
+      return enviar(req, res, 200, r);
     }
 
     if (pathname === '/api/r6/c5/carros' && req.method === 'GET') {

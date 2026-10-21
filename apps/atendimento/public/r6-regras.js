@@ -553,9 +553,16 @@
     return m ? Number(m[1]) : null;
   }
   /** O motivo que o cliente escreveu ao recusar (orc_eventos.detalhe pode ser texto, JSON ou objeto). Sem texto livre perigoso. */
+  const ROTULO_MOTIVO = { preco: 'preço', prazo: 'prazo', desistiu: 'desistiu do serviço', outro_lugar: 'vai fazer em outro lugar', sem_urgencia: 'sem urgência', outro: 'outro motivo' };
   function motivoDaRecusa(detalhe) {
     let d = detalhe;
     if (typeof d === 'string') { const s = d.trim(); if (s.startsWith('{')) { try { d = JSON.parse(s); } catch { /* segue como texto */ } } }
+    if (d && typeof d === 'object' && ('cod' in d || 'texto' in d) && !('motivo' in d)) {
+      // vindo de orc_orcamentos: código (preco, prazo…) + o texto livre do cliente
+      const rot = ROTULO_MOTIVO[String(d.cod || '')] || '';
+      const livre = limparTexto(String(d.texto ?? '').replace(/^\s*motivo\s*[:\-–—]\s*/i, ''), 100);
+      return limparTexto([rot, livre].filter(Boolean).join(' · '), 120) || null;
+    }
     let t = d && typeof d === 'object' ? (d.motivo ?? d.motivo_recusa ?? d.texto ?? d.detalhe ?? '') : String(d ?? '');
     t = limparTexto(String(t).replace(/^\s*motivo\s*[:\-–—]\s*/i, ''), 120);
     return t || null;
