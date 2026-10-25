@@ -23,7 +23,7 @@ import { mesclarPreferencias, LINKS } from './acesso.js';
 import { classificarErro } from './whatsapp.js';
 import * as conexoes from './conexoes.js';
 import * as r7 from './r7.js';
-import { reabordarRecusados } from './dados7.js';
+import { reabordarRecusados, numerosRuins, campanhasRecebidas30d } from './dados7.js';
 
 const T = {
   clientes: 'clientes',
@@ -3001,6 +3001,29 @@ async function conferenciasDoEnvio(e, agora) {
 }
 
 /** "Por que esta mensagem ainda não saiu?" — monta o contexto de AGORA e usa a mesma ordem de decisão do carteiro. */
+/** Rodada 7: as travas novas do carteiro, explicadas na ordem em que ele as aplica (celular, número ruim, horário de marketing, teto de campanhas, retomada, rodapé). */
+export async function conferenciasR7(e, cfg, agora) {
+  const saida = [];
+  if (cfg.validar_celular !== false) {
+    const v = r7.validarCelular(e.telefone);
+    if (!v.ok) saida.push({ nivel: 'bloqueio', texto: `Será pulada: ${v.motivo}.` });
+    else if ((await numerosRuins([e.telefone]).catch(() => new Set())).has(v.nacional)) saida.push({ nivel: 'bloqueio', texto: 'Será pulada: este número já falhou como "sem WhatsApp" antes.' });
+  }
+  const hm = r7.decidirHorarioMarketing({ tipo: e.tipo, hora: agoraSP(new Date(agora)).hora, fim: cfg.marketing_fim });
+  if (hm.segura) saida.push({ nivel: 'espera', texto: `Segurada de propósito: ${hm.motivo}.` });
+  if (['campanha', 'area_cliente'].includes(e.tipo) && Number(cfg.max_campanhas_30d) > 0) {
+    const n = (await campanhasRecebidas30d([e.telefone]).catch(() => new Map())).get(telefoneNacional(e.telefone)) || 0;
+    const t = r7.decidirTetoCampanhas({ tipo: e.tipo, recebidas: Math.max(0, n - 1), max: cfg.max_campanhas_30d });
+    if (t.segura) saida.push({ nivel: 'bloqueio', texto: `Será pulada: ${t.motivo}.` });
+  }
+  const w = cfg.whatsapp || {};
+  if (cfg.retomada_gradual !== false && cfg.retomada_so_essencial !== false && w.estado === 'ok' && w.em && conexoes.QUEDAS_SERIAS.includes(w.anterior)
+    && agora - Date.parse(w.em) < 120 * 60000 && r7.ehMarketing(e.tipo)) saida.push({ nivel: 'espera', texto: 'O WhatsApp acabou de voltar: campanhas esperam as primeiras 2 horas (só o essencial sai).' });
+  const rp = r7.aplicarRodape('x', e.tipo, cfg);
+  if (rp.aplicou && !/parar/i.test(e.corpo || '')) saida.push({ nivel: 'info', texto: 'Na hora de sair ganha o rodapé "responda PARAR".' });
+  return saida;
+}
+
 export async function explicarEnvio(id) {
   if (!ehUuid(id)) return null;
   const e = await selecionarUm(T.envios, `select=${CAMPOS_ENVIO}&id=eq.${id}`);
@@ -3019,6 +3042,7 @@ export async function explicarEnvio(id) {
   ]);
   const repetido = !!conexoes.repetidoRecente(e.corpo, recentes.get(tel) || [], { horas: cfg.evitar_texto_repetido_h, agora });
   const conferencias = await conferenciasDoEnvio(e, agora).catch(() => []);
+  conferencias.push(...await conferenciasR7(e, cfg, agora).catch(() => []));
   return {
     envio: { id: e.id, tipo: e.tipo, nome: e.nome, status: e.status, enviar_em: e.enviar_em },
     ...conexoes.explicarPendente(e, {
