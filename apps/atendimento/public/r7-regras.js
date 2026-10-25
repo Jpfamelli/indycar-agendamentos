@@ -167,7 +167,7 @@
     if (!b) { const oposto = a.periodo === 'manhã' ? primeiro.tarde[0] : primeiro.manha[0]; if (oposto) b = { ...oposto, data: primeiro.data, rotulo: primeiro.rotulo }; }
     return [{ ...a, data: primeiro.data, rotulo: primeiro.rotulo }, ...(b ? [b] : [])];
   }
-  const textoOpcao = (o) => `${o.rotulo.replace(/^(\S+) /, (_, d) => ({ seg: 'segunda', ter: 'terça', qua: 'quarta', qui: 'quinta', sex: 'sexta', 'sáb': 'sábado', dom: 'domingo' })[d] + ', ')} às ${o.hora.replace(':00', 'h').replace(/:(\d\d)/, 'h$1')}`;
+  const textoOpcao = (o) => `${o.rotulo.replace(/^(\S+) /, (_, d) => ({ seg: 'segunda', ter: 'terça', qua: 'quarta', qui: 'quinta', sex: 'sexta', 'sáb': 'sábado', dom: 'domingo' })[d] + ', ')} às ${o.hora.replace(/^0/, '').replace(':00', 'h').replace(/:(\d\d)/, 'h$1')}`;
   /** O horário escolhido ainda tem vaga? { livre, motivo, alternativas } — usado antes de gravar. */
   function conferirEscolha(diaResumo, hora) {
     if (!diaResumo) return { livre: false, motivo: 'sem_dados' };

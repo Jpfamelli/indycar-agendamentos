@@ -36,7 +36,11 @@ const R6REGRAS = require('./public/r6-regras.js');
 const { criarR6 } = require('./lib/r6-dados.js');
 const { criarRotasR6 } = require('./lib/rotas-r6.js');
 const { criarC5 } = require('./lib/r6c5.js');
-const ZAP = criarZap();
+const { criarR7Dados } = require('./lib/r7-dados.js');
+const { criarRotasR7 } = require('./lib/rotas-r7.js');
+const { criarRetomada } = require('./lib/r7-retomada.js');
+// Rodada 7: quando o WhatsApp para ou volta, o banco guarda (sobrevive a reinício) e a equipe é avisada no sino
+const ZAP = criarZap({ aoMudar: ev => { try { zapMudou(ev); } catch (e) { console.error('zap aoMudar:', e.message); } } });
 const R7ENVIO = require('./lib/r7-envio.js');
 const RITMO_IA = R7ENVIO.criarRitmo({ intervaloMs: Number(process.env.IA_INTERVALO_ENVIO_MS) || 2500 });   // Rodada 7: a IA manda uma por vez, nunca em enxurrada
 
@@ -2095,6 +2099,7 @@ async function lerSaude() {
   // Rodada 6: o vigia já sabe que o WhatsApp parou (servidor acabou de subir?): o disjuntor também fica sabendo
   const doVigia = { 'codewords-fora': 'codewords-401', 'whatsapp-fora': 'whatsapp-desconectado' }[problema];
   if (doVigia && !ZAP.estado().parado) ZAP.marcar(doVigia);
+  else if (!problema && ZAP.estado().parado && ['codewords-401', 'whatsapp-desconectado'].includes(ZAP.estado().codigo) && !(ZAP.estado().sondando)) ZAP.limpar();
   return dados;
 }
 
@@ -2286,6 +2291,35 @@ function preguicosoC5() {
   const faz = () => (c5 ||= criarC5({ sb: adminSupabase(), fetch, supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY }));
   return new Proxy({}, { get: (_, k) => faz()[k] });
 }
+/* Rodada 7 (C4): WhatsApp parou/voltou (persistência + sino), retomada calma e dados conectados. */
+async function zapMudou(ev) {
+  const sb = adminSupabase();
+  if (!sb) return;
+  const agoraIso = new Date().toISOString();
+  if (ev.tipo === 'parou') await sb.from('r7_c4_zap').upsert({ id: true, parado: true, codigo: ev.codigo, desde: ev.desde, voltou_em: null, atualizado_em: agoraIso });
+  else await sb.from('r7_c4_zap').upsert({ id: true, parado: false, codigo: ev.codigo, desde: ev.desde, voltou_em: agoraIso, ultima_parada_min: ev.minutos, atualizado_em: agoraIso });
+  const { data: gente } = await sb.from('perfis').select('id,papel').eq('ativo', true).in('papel', ['admin', 'gestor']);
+  const titulo = ev.tipo === 'parou' ? '⚠ O WhatsApp parou de enviar' : '✅ O WhatsApp voltou: reenvie com calma';
+  const corpo = ev.tipo === 'parou' ? 'As mensagens ficam guardadas. Nada se perde; quando voltar eu aviso.' : `Ficou parado ${ev.minutos} min. Abra o aviso para ver o que pode sair, o que precisa do seu olho e o que fica de fora.`;
+  for (const p of gente || []) {
+    try { await sb.rpc('notificar', { p_perfil: p.id, p_tipo: 'whatsapp', p_titulo: titulo, p_corpo: corpo, p_link: '/?retomada=1', p_app: 'atendimento', p_chave: `zap-${ev.tipo}:${ev.desde}` }); } catch { /* sem sino */ }
+  }
+}
+async function restaurarZap() {
+  const sb = adminSupabase();
+  if (!sb) return;
+  try {
+    const { data } = await sb.from('r7_c4_zap').select('parado,codigo,desde').eq('id', true).maybeSingle();
+    if (data?.parado && data.codigo && data.desde) ZAP.restaurar({ codigo: data.codigo, desde: data.desde });
+  } catch (e) { console.error('restaurar zap:', e.message); }
+}
+setTimeout(restaurarZap, 1500).unref?.();
+let _R7D = null, _R7RET = null;
+function R7DADOS() { return _R7D || (_R7D = criarR7Dados({ sb: adminSupabase, c5: preguicosoC5() })); }
+function R7RETOMADA() {
+  return _R7RET || (_R7RET = criarRetomada({ sb: adminSupabase(), zap: ZAP, entregar: (d, id) => ENTREGADOR.entregar(d, id), auditar: (...a) => AUDITORIA().registrar(...a) }));
+}
+const ROTAS_R7 = criarRotasR7({ getSb: adminSupabase, usuarioLogado, dentroDoLimite, readBody, retomada: R7RETOMADA, dados: R7DADOS, zap: ZAP, tokenDe: req => ACS.tokenDe(req) });
 const ROTAS_R6 = criarRotasR6({
   getSb: adminSupabase, usuarioLogado, dentroDoLimite, readBody,
   dados: () => R6DADOS(), zap: ZAP,
@@ -3071,6 +3105,7 @@ const handler = async (req, res) => {
     if (await ROTAS_IA(req, res, pathname, parametros)) return;
     // ---- Rodada 6: fila priorizada, painel conectado, WhatsApp parado (lib/rotas-r6.js) ----
     if (await ROTAS_R6(req, res, pathname, parametros)) return;
+    if (await ROTAS_R7(req, res, pathname, parametros)) return;
 
     if (pathname.startsWith('/api/')) return json(res, 404, { erro: 'rota não encontrada' });
 
