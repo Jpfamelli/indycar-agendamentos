@@ -1718,7 +1718,7 @@ const AJUDA = {
     ['Distribuir horários sem consultor', 'Menu EQUIPE › "Distribuir": dá os horários do dia sem consultor para quem tem menos carros.'],
   ],
 };
-const ATALHOS_TELA = { i: 'inicio', a: 'agenda', q: 'quadro', e: 'espera', c: 'clientes', f: 'followup', h: 'historico', p: 'pendencias' };
+const ATALHOS_TELA = { i: 'inicio', a: 'agenda', q: 'quadro', e: 'espera', c: 'clientes', f: 'followup', h: 'historico', p: 'pendencias', r: 'dono' };
 const ATALHOS = [['N', 'novo agendamento'], ['Ctrl + K', 'buscar em tudo (↑ ↓ e Enter nos resultados)'], ['I', 'início'], ['A', 'agenda'], ['S', 'semana'], ['Q', 'quadro por consultor'], ['E', 'lista de espera'],
   ['C', 'clientes'], ['F', 'follow-up'], ['H', 'histórico'], ['P', 'pendências (gestor)'], ['/', 'ir para a busca da tela'], ['?', 'esta ajuda'], ['Esc', 'fechar janela']];
 
@@ -3927,7 +3927,7 @@ const PREFERENCIAS_ESPERA = ['Qualquer horário', 'Manhã', 'Tarde', 'Começo do
 function itemEspera(e, hoje) {
   const quando = e.de || e.ate ? `${e.de ? 'de ' + rotuloDia(e.de, hoje) : ''}${e.ate ? ' até ' + rotuloDia(e.ate, hoje) : ''}`.trim() : 'qualquer dia';
   const dias = Math.max(0, diasEntre(String(e.created_at).slice(0, 10), hoje));
-  return `<div class="espera-item ${esc(e.status)}" data-id="${esc(e.id)}" data-nome="${esc(e.cliente_nome)}">
+  return `<div class="espera-item ${esc(e.status)}" data-id="${esc(e.id)}" data-nome="${esc(e.cliente_nome)}" data-dias="${dias}" data-tel="${esc(String(e.telefone || '').replace(/\D/g, ''))}" data-servico="${esc(e.servico)}">
     <div class="quem"><span class="espera-desde">${e.status === 'aberta' ? (dias ? `esperando há ${dias} ${dias === 1 ? 'dia' : 'dias'}` : 'entrou hoje') : STATUS_ESPERA[e.status] || e.status}</span><br>
       <b>${esc(e.cliente_nome)}</b> <span class="muted">· ${esc(e.servico)}</span>
       <small>${e.telefone ? `<a href="${esc(linkTel(e.telefone))}">${esc(mascaraTelefone(e.telefone))}</a>` : 'sem telefone'}${e.veiculo || e.placa ? ' · ' + esc([e.veiculo, e.placa].filter(Boolean).join(' ')) : ''}</small>
@@ -3956,6 +3956,7 @@ async function renderEspera(opts = {}) {
         : 'As esperas agendadas ou canceladas aparecem aqui.');
     ligarEspera(box);
     window.R6b?.espera(box);
+    window.R7?.decorarEspera(box);
     if (state.esperaFoco) { const el = $(`.espera-item[data-id="${state.esperaFoco}"]`, box); if (el) { el.classList.add('tour-alvo'); el.scrollIntoView({ block: 'center' }); setTimeout(() => el.classList.remove('tour-alvo'), 2500); } state.esperaFoco = null; }
   };
   if (opts.quieto && $('#esperaLista')) return pintarLista_();

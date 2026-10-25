@@ -958,7 +958,7 @@ Numeração continua da C1b (a partir de 618). Total verificado: **108 itens (61
 ## Rodada 7 (25/10/2026) — C2 (Agenda)
 
 Numeração própria `C2-N` (o C1 numera a Casa no mesmo arquivo; assim as duas séries não se atropelam). 🔗 = conexão entre sistemas.
-Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador contra o servidor de mentira (`scripts/qa-r7-*.mjs`, porta própria).
+Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador contra o servidor de mentira (`scripts/qa-r7c2-*.mjs`, porta própria).
 
 ### Lote 1 — "Chegou" abre a entrada pronta no Pátio, "Orçar" e "Avisar: pronto"
 - C2-1. 🔗 "Chegou" (PATCH /status) devolve a ENTRADA PRONTA do Pátio: `?entrada=1&agendamento=<uuid>&orcamento=<uuid>` (contrato do Pátio, `patio.js › linkEntradaPatio`)
@@ -1060,6 +1060,27 @@ Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador cont
 - C2-97. Módulo `relatorios.js` (regras puras, lido igual pelo servidor, pelo servidor de mentira e pelos testes)
 - C2-98. 12 testes novos (`tests/c2-lote6.test.mjs`): contas conferidas à mão, entrada hostil, rota por HTTP com papéis
 - C2-99. Roteiro de navegador do lote (`scripts/qa-r7c2-lote6.mjs`, 26 conferências em 1440, recepção e 375 px)
+- C2-100. Espera: quem espera há 3 dias ganha faixa laranja e há 7 dias ou mais faixa vermelha
+- C2-101. Espera: resumo no topo "1 esperando há 7 dias ou mais (a mais antiga, 9 d) — ligue para elas primeiro"
+- C2-102. 🔗 Espera: "Mais antigas primeiro" reordena a lista e a escolha fica lembrada neste aparelho
+- C2-103. 🔗 Espera: cada horário livre sugerido ganha o 💬 que o oferece à pessoa pelo WhatsApp (nome, serviço, dia, hora e consultor no recado)
+- C2-104. 🔗 Falta: quando alguém falta, a folha do motivo mostra "A vaga de amanhã às 10:30 abriu" e quem da lista de espera serve (a mais antiga primeiro; respeita a janela do serviço)
+- C2-105. 🔗 Falta: 💬 oferece a vaga pelo WhatsApp e "Encaixar" abre o horário novo já com nome, carro, serviço, dia, hora e consultor
+- C2-106. Falta: a vaga só é oferecida se ainda é de hoje em diante e a recepção (papel agenda), que só marca presença, nem consulta a espera
+- C2-107. 🔗 Confirmação: "📨 Fila" põe o lembrete do cliente na fila do Comunicar (que respeita quem pediu para parar) e vira "Na fila"
+- C2-108. Nomes hostis (HTML, aspas, imagem com onerror) em painéis, folha do motivo, pré-agendamentos e espera: nenhum script roda, o texto aparece puro
+- C2-109. Varredura de 6 telas (Início, Agenda, Quadro, Espera, Relatórios, Semana) em 1440 e 375 px: sem rolagem lateral e botões novos com 44 px ou mais
+- C2-110. 🔗 Relatórios: "Baixar planilha" entrega um .csv com o período no nome (por dia, por consultor e motivos de falta)
+- C2-111. Planilha protegida: célula que começa com =, +, - ou @ vira texto (nada de fórmula escondida) e aspas e ponto e vírgula são tratados
+- C2-112. Planilha pronta para o Excel em português: BOM UTF-8, separador ;, vírgula decimal e quebra de linha CRLF
+- C2-113. Atalho de teclado R abre os relatórios do dono (listado na ajuda de atalhos)
+- C2-114. 🔗 Recepção (papel agenda): o "Não veio" também abre a folha do motivo e o motivo é gravado, sem nenhuma consulta que o papel não pode fazer
+- C2-115. 5 + 3 testes novos (`tests/c2-lote7.test.mjs` e planilha em `c2-lote6`) e roteiro de navegador do lote (`scripts/qa-r7c2-lote7.mjs`, 44 conferências)
+- C2-116. Roteiros de navegador de todos os lotes (`scripts/qa-r7c2-lote1..7.mjs`) usam porta própria e servidor de mentira; nenhum toca o banco real
+
+**Como verifiquei (C2):** `npm test` (434 testes, 0 falhas) e `npm run check` verdes; sete roteiros de navegador (Chrome real, `scripts/qa-r7c2-lote1..7.mjs`, 36+36+30+27+22+26+44 conferências) em 1440, recepção e 375 px; tudo contra o servidor de mentira em portas 3207 a 3213, encerrado pelo PID. Migração `r7_c2_motivo_falta` aplicada no banco real (coluna nova com lista fechada; cópia em `indycar-ferramentas/sql/2026-10-25_r7_c2_motivo_falta.sql`; `get_advisors` de segurança sem aviso novo).
+
+**Pendências (C2):** (1) publicar a Central no Render (nada foi publicado); (2) as funções do PARAR e do motivo da falta só aparecem com a Central nova no ar; (3) o relatório do dono carrega até 180 dias de uma vez, se ficar lento vale uma função no banco; (4) o 💬 do WhatsApp é manual (a pessoa aperta enviar), por isso a regra do PARAR é aplicada na tela e na consulta ao banco; (5) a hora do pré-agendamento do Orçador só é "provisória" enquanto for 08:00 ou 13:00, a hora que o banco grava por padrão.
 <!-- C2-R7-FIM -->
 
 ## Rodada 7 (25/10/2026) — C1 (Casa: painel de comando por papel)

@@ -21,7 +21,7 @@ import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../re
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
 import { motivoDeFaltaValido, aceitaMotivo, rotuloDoMotivo } from '../faltas.js';
 import { descreverPre, ordenarPre, ehPreAgendamento } from '../preagenda.js';
-import { periodoPedido, relatorioDoDono, textoDoResumo } from '../relatorios.js';
+import { periodoPedido, relatorioDoDono, textoDoResumo, csvDoRelatorio } from '../relatorios.js';
 const PARAROS = new Map();   // telefone nacional -> 'parar' | 'optout' (QA do PARAR)
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento, entradaDoChegou } from '../patio.js';
 import { orcamentoPorAgendamento } from '../orcador.js';
@@ -448,7 +448,7 @@ http.createServer(async (req, res) => {
     const ant = { inicio: somaDias(per.inicio, -per.dias), fim: somaDias(per.inicio, -1) };
     const rAnt = relatorioDoDono({ lista: AGENDA, consultores: CONS, servicos: SERVICOS_MOCK, ...ant });
     const rel = relatorioDoDono({ lista: AGENDA, consultores: CONS, servicos: SERVICOS_MOCK, inicio: per.inicio, fim: per.fim, anterior: rAnt.totais });
-    return json(res, 200, { ...rel, anterior: { ...ant, totais: rAnt.totais }, texto: textoDoResumo(rel) });
+    return json(res, 200, { ...rel, anterior: { ...ant, totais: rAnt.totais }, texto: textoDoResumo(rel), csv: csvDoRelatorio(rel) });
   }
   if (p === '/api/__parar' && m === 'POST') { PARAROS.clear(); for (const t of body.telefones || []) PARAROS.set(String(t).replace(/\D/g, ''), body.motivo || 'parar'); return json(res, 200, { ok: true }); }
   if (p === '/api/parar' && m === 'POST') {

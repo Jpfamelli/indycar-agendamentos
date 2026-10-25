@@ -144,3 +144,24 @@ test('GET /api/relatorios/dono: período torto cai no padrão sem quebrar e nunc
   const g = await chamar('gestor', '/api/relatorios/dono?inicio=2000-01-01&fim=2026-10-25');
   assert.equal(g.j.periodo.dias, 180);
 });
+
+test('celulaCsv: vírgula decimal, aspas dobradas e nada de fórmula escondida', () => {
+  assert.equal(R.celulaCsv(9.6), '9,6'); assert.equal(R.celulaCsv(null), ''); assert.equal(R.celulaCsv(0), '0');
+  assert.equal(R.celulaCsv('a;b'), '"a;b"'); assert.equal(R.celulaCsv('diz "oi"'), '"diz ""oi"""');
+  assert.equal(R.celulaCsv('=HYPERLINK("http://x")'), `"'=HYPERLINK(""http://x"")"`);
+  assert.equal(R.celulaCsv('+55 12 9'), "'+55 12 9"); assert.equal(R.celulaCsv('@soma'), "'@soma"); assert.equal(R.celulaCsv('-5'), '-5', 'número negativo segue número');
+});
+test('csvDoRelatorio: tabelas por dia, consultor e motivo, linhas com CRLF e acentos', () => {
+  const csv = R.csvDoRelatorio(REL);
+  const l = csv.split('\r\n');
+  assert.equal(l[0], 'Dia;Data;Horários;Ocupação %;Faltas;Minutos ocupados;Minutos de expediente');
+  assert.equal(l[1], 'seg;2026-10-26;3;13,2;1;150;1140');
+  assert.ok(l.includes('') && l.some((x) => x.startsWith('Consultor;Horários;Vieram;Faltas')));
+  assert.ok(l.some((x) => x === 'Gabriel;3;1;2;66,7;3,5;200'));
+  assert.ok(l.includes('Esqueceu;1') && l.includes('Sem motivo anotado;1'));
+  assert.doesNotThrow(() => R.csvDoRelatorio({}));
+});
+test('a rota devolve o csv junto com o relatório', async () => {
+  const r = await chamar('gestor', '/api/relatorios/dono?inicio=2026-10-26&fim=2026-10-28');
+  assert.match(r.j.csv, /^Dia;Data;Horários/);
+});

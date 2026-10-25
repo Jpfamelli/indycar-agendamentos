@@ -189,3 +189,22 @@ export function textoDoResumo(r, nomeOficina = 'IndyCar') {
   for (const d of r.destaques.slice(0, 3)) linhas.push(`→ ${d}`);
   return linhas.join('\n');
 }
+
+/** Uma célula de planilha: aspas dobradas, vírgula decimal e sem "fórmula escondida" (=, +, -, @ no começo viram texto). */
+export function celulaCsv(v) {
+  let t = v === null || v === undefined ? '' : typeof v === 'number' ? String(v).replace('.', ',') : String(v);
+  if (/^[=+\-@\t\r]/.test(t) && !/^-?\d+([.,]\d+)?$/.test(t)) t = `'${t}`;
+  return /[;"\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+}
+/** O relatório em planilha (abre direto no Excel em português: separador ;). Duas tabelas: por dia e por consultor. */
+export function csvDoRelatorio(r) {
+  const L = (...c) => c.map(celulaCsv).join(';');
+  const linhas = [L('Dia', 'Data', 'Horários', 'Ocupação %', 'Faltas', 'Minutos ocupados', 'Minutos de expediente')];
+  for (const d of r.porDia || []) linhas.push(L(d.dow, d.data, d.marcados, d.pct, d.faltas, d.ocupado_min, d.capacidade_min));
+  linhas.push('', L('Consultor', 'Horários', 'Vieram', 'Faltas', 'Taxa de falta %', 'Ocupação %', 'Fechado (R$)'));
+  for (const c of r.porConsultor || []) linhas.push(L(c.consultor, c.marcados, c.vieram, c.faltas, c.taxa_falta, c.pct, c.faturado));
+  linhas.push('', L('Motivo da falta', 'Quantidade'));
+  for (const m of (r.faltas && r.faltas.porMotivo) || []) linhas.push(L(m.rotulo, m.n));
+  linhas.push(L('Sem motivo anotado', (r.faltas && r.faltas.semMotivo) || 0));
+  return linhas.join('\r\n');
+}

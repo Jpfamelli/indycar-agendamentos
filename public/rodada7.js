@@ -281,12 +281,25 @@
     return `${n ? 'Oi ' + n + '!' : 'Olá!'} Seu ${carroDe(x)} está pronto aqui na IndyCar${desde ? ' desde ' + desde : ''}. Quando consegue passar para retirar? Atendemos até as 17h30.`;
   }
 
+  /* ------------------------------ Lote 7: lista de espera com idade, vaga que abre, fila do Comunicar ------------------------------ */
+  /** Cor da espera pela idade: 3 dias avisa, 7 dias é urgente. */
+  const idadeDaEspera = (dias) => { const n = Number(dias); return !Number.isFinite(n) ? 'ok' : n >= 7 ? 'ruim' : n >= 3 ? 'aviso' : 'ok'; };
+  function resumoDaEspera(itens) {
+    const l = (Array.isArray(itens) ? itens : []).map((x) => (x && x.dias !== null && x.dias !== '' ? Number(x.dias) : NaN)).filter((n) => Number.isFinite(n) && n >= 0);
+    return { total: l.length, avisos: l.filter((n) => n >= 3 && n < 7).length, urgentes: l.filter((n) => n >= 7).length, muitoAntigas: l.filter((n) => n >= 14).length, maisAntiga: l.length ? Math.max(...l) : 0 };
+  }
+  /** Mais antigas primeiro (empate: ordem que já estava). */
+  const ordenarEsperaPorIdade = (itens) => (Array.isArray(itens) ? itens : []).map((x, i) => [x, i]).sort((a, b) => (Number(b[0].dias) || 0) - (Number(a[0].dias) || 0) || a[1] - b[1]).map((p) => p[0]);
+  /** Linha da folha de baixo quando um horário vaga: "Vaga das 09:00 abriu — oferecer a: Joana". */
+  function rotuloDaVaga(data, hora, hoje) { return `${rotuloDoDiaFalado(data, hoje)} às ${String(hora || '').slice(0, 5)}`; }
+
   const PURO = { digitos, semFone, emMin, hm, maisDias, primeiroNome, rotuloDaEntrada, deveOferecerOrcar, linkDeEntradaSeguro,
     minutosDesde, tempoCurto, LIMITES_ETAPA, tomDaEtapa, ordenarPatio, mensagemProntoOS, linkWhatsApp, avisadoDe,
     rotuloDia, proximoDiaAberto, atalhosDeRemarcar, botoesDeHorario, rotuloDoBotao, botoesDeDias, textoDeOferta,
     MOTIVOS, rotuloDoMotivo, semConfirmacaoDoDia, placarDeConfirmacao, textoDeReagendar, textoDeConfirmar,
     sugerirHorarioParaPre, textoDePropor, resumoDePre, telDoLinkWa, textoBloqueado,
-    rotuloPrevisao, situacaoDoPatio, filtrarPatio, resumoDoPatio, mensagemCobrarExtras, mensagemProntoEsquecido, FILTROS_PATIO };
+    rotuloPrevisao, situacaoDoPatio, filtrarPatio, resumoDoPatio, mensagemCobrarExtras, mensagemProntoEsquecido, FILTROS_PATIO,
+    idadeDaEspera, resumoDaEspera, ordenarEsperaPorIdade, rotuloDaVaga };
   root.R7Puro = PURO;
   if (typeof document === 'undefined') return;
 
@@ -536,6 +549,7 @@
       } catch (e) { $$('[data-r7m]', f).forEach((x) => { x.disabled = false; }); toast(e.message || 'Não consegui anotar o motivo', 'err'); }
     }));
     _motivoTimer = setTimeout(fecharMotivo, 25000);
+    ofertaDeVaga(id, f).catch(() => { /* sem oferta: a folha segue só com os motivos */ });
   }
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && $('#r7Motivo')) fecharMotivo(); });
 
@@ -570,6 +584,7 @@
         return `<li data-r7c-id="${escH(a.id)}"><b>${escH(String(a.hora).slice(0, 5))}</b> <span class="r7c-nome">${escH(a.cliente_nome)}</span> <small class="muted">${escH(a.servico || '')}${a.consultor_nome ? ' · ' + escH(primeiroNome(a.consultor_nome)) : ''}</small>
           <span class="r7c-acoes">${wa ? `<a class="btn mini" href="${escH(wa)}" target="_blank" rel="noopener" title="Pedir a confirmação pelo WhatsApp (texto pronto)">💬 Pedir</a>` : '<small class="muted">sem telefone</small>'}
           ${comLink && a.telefone && typeof window.pedirConfirmacao === 'function' ? `<button type="button" class="btn mini" data-r7c-link title="Gerar o link em que o cliente toca em Confirmo">🔗 Link</button>` : ''}
+          ${comLink && a.telefone ? `<button type="button" class="btn mini" data-r7c-fila title="Pôr o lembrete na fila do Comunicar (respeita quem pediu para parar)">📨 Fila</button>` : ''}
           <button type="button" class="btn mini primary" data-r7c-ok title="O cliente já confirmou (por telefone ou conversa)">Já confirmou</button></span></li>`;
       }).join('')}</ul>` : ''}`;
     $('[data-r7c-alt]', host).addEventListener('click', () => { if (!pend.length) return; gravarLS(LS_ABERTO, aberto ? '0' : '1'); painelConfirmacao(d); });
@@ -581,6 +596,11 @@
         toast('Confirmado ✅'); painelConfirmacao(d);
         if (window.R6b && R6b.redesenhar) R6b.redesenhar();
       } catch (e) { b.disabled = false; toast(e.message || 'Não consegui marcar', 'err'); }
+    }));
+    $$('[data-r7c-fila]', host).forEach((b) => b.addEventListener('click', async () => {
+      const id = b.closest('[data-r7c-id]').dataset.r7cId; b.disabled = true;
+      try { const x = await api('POST', `/agendamentos/${id}/lembrete`, {}, { repetir: false }); toast(x.ok ? (x.repetido ? 'Já estava na fila do Comunicar' : 'Lembrete na fila do Comunicar ✅') : (x.motivo || 'Não deu para mandar'), x.ok ? 'ok' : 'err'); b.textContent = x.ok ? '📨 Na fila' : '📨 Fila'; b.disabled = !!x.ok; }
+      catch (e) { b.disabled = false; toast(e.message || 'Não consegui pôr na fila', 'err'); }
     }));
     $$('[data-r7c-link]', host).forEach((b) => b.addEventListener('click', () => window.pedirConfirmacao(b.closest('[data-r7c-id]').dataset.r7cId)));
   }
@@ -777,6 +797,62 @@
     el.innerHTML = ` · 🔧 <b>${r.total}</b> no pátio${r.prontos ? ` · <span class="r7-verde">${r.prontos} pronto${r.prontos > 1 ? 's' : ''}</span>` : ''}${r.parados ? ` · <span class="r7-laranja">${r.parados} parado${r.parados > 1 ? 's' : ''}</span>` : ''}${r.extras ? ` · ${r.extras} extra${r.extras > 1 ? 's' : ''} esperando o cliente` : ''}`;
   }
 
-  root.R7 = { filtroDoPatio, definirFiltroPatio, chipsDoPatio, linhaExtraDoPatio, aposExtras, limparParar: () => _par.clear(), painelPre, carregarPre, limparPre, ligarGuardaParar, estadoParar, pedirMotivo, fecharMotivo, faltaHtml, linkDeReagendar, painelConfirmacao, abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
+  /* ---- Lote 7: lista de espera com idade em cor, ordem por antiguidade e 💬 em cada horário livre ---- */
+  const LS_ESP_ORD = 'indycar_r7_espera_antigas';
+  function decorarEspera(box) {
+    if (!box) return;
+    const itens = $$('.espera-item.aberta', box);
+    for (const el of itens) {
+      const cls = idadeDaEspera(el.dataset.dias);
+      el.classList.remove('r7-esp-aviso', 'r7-esp-ruim');
+      if (cls !== 'ok') el.classList.add('r7-esp-' + cls);
+    }
+    let barra = $('#r7EsperaResumo');
+    if (!itens.length) { if (barra) barra.remove(); return; }
+    const r = resumoDaEspera(itens.map((e) => ({ dias: Number(e.dataset.dias) })));
+    if (!barra) { barra = document.createElement('div'); barra.id = 'r7EsperaResumo'; barra.className = 'r7-esp-resumo'; box.parentNode.insertBefore(barra, box); }
+    const antigas = lerLS(LS_ESP_ORD) === '1';
+    barra.innerHTML = `<span>${r.urgentes ? `<b class="r7-esp-urg">${r.urgentes} esperando há 7 dias ou mais</b> (a mais antiga, ${r.maisAntiga} d) — ligue para elas primeiro` : r.avisos ? `${r.avisos} esperando há 3 dias ou mais` : 'Todas entraram nos últimos dias'}</span>
+      <button type="button" class="btn mini ${antigas ? 'primary' : ''}" data-r7-esp-ord aria-pressed="${antigas}">Mais antigas primeiro</button>`;
+    $('[data-r7-esp-ord]', barra).addEventListener('click', () => { gravarLS(LS_ESP_ORD, antigas ? '0' : '1'); if (antigas) route(); else decorarEspera(box); });
+    if (antigas) {
+      const ord = ordenarEsperaPorIdade(itens.map((e) => ({ dias: Number(e.dataset.dias), el: e })));
+      ord.forEach((o) => box.appendChild(o.el));
+    }
+  }
+  /** Ao lado de cada horário livre sugerido para alguém da espera, o 💬 que oferece aquele horário. */
+  function ofertasNosHorarios(area, item, slots) {
+    const tel = item && item.dataset.tel; if (!tel) return;
+    const chips = $$('.r6b-slot', area);
+    chips.forEach((c, i) => {
+      const s = slots[i]; if (!s) return;
+      const wa = linkWhatsApp(tel, textoDeOferta({ cliente_nome: item.dataset.nome, servico: item.dataset.servico }, s.data, s.hora, s.consultor_nome || ''));
+      if (!wa || c.nextElementSibling && c.nextElementSibling.hasAttribute('data-r7-oferta')) return;
+      c.insertAdjacentHTML('afterend', `<a class="btn mini r7-oferta" data-r7-oferta href="${escH(wa)}" target="_blank" rel="noopener" title="Oferecer este horário pelo WhatsApp">💬</a>`);
+    });
+  }
+  /** Vaga que abriu (alguém faltou/cancelou): quem da espera serve, com 💬 e "Encaixar". Aparece dentro da folha do motivo. */
+  async function ofertaDeVaga(id, folha) {
+    if (semAcessoDeEquipe()) return;          // a recepção só marca presença: não consulta a espera
+    let a; try { a = await api('GET', `/agendamentos/${id}`, null, { repetir: false }); } catch (e) { return; }
+    const hoje = typeof agoraSP === 'function' ? agoraSP().data : '';
+    if (!a || !a.data || (hoje && String(a.data).slice(0, 10) < hoje)) return;
+    const qs = new URLSearchParams({ data: String(a.data).slice(0, 10), hora: String(a.hora).slice(0, 5) }); if (a.consultor_id) qs.set('consultor_id', a.consultor_id);
+    let r; try { r = await api('GET', '/espera/cabe?' + qs, null, { repetir: false }); } catch (e) { return; }
+    if (!r || !r.itens || !r.itens.length || !folha.isConnected || !$('.r7m-chips', folha)) return;
+    const cons = ((typeof state !== 'undefined' && state.consultores) || []).find((c) => c.id === a.consultor_id);
+    const data = String(a.data).slice(0, 10), hora = String(a.hora).slice(0, 5);
+    const bloco = document.createElement('div'); bloco.className = 'r7m-vaga';
+    bloco.innerHTML = `<b>A vaga de ${escH(rotuloDaVaga(data, hora, hoje))} abriu.</b> <span class="muted">Quem da espera serve:</span>
+      ${r.itens.slice(0, 4).map((e) => { const wa = linkWhatsApp(e.telefone, textoDeOferta(e, data, hora, cons ? cons.nome : '')); return `<span class="qde-item"><button type="button" class="btn mini primary" data-r7m-encaixar="${escH(e.id)}">${escH(primeiroNome(e.cliente_nome) || e.cliente_nome)} · ${escH(String(e.servico || '').slice(0, 24))}</button>${wa ? `<a class="btn mini" href="${escH(wa)}" target="_blank" rel="noopener" title="Oferecer a vaga pelo WhatsApp">💬</a>` : ''}</span>`; }).join(' ')}`;
+    folha.appendChild(bloco);
+    $$('[data-r7m-encaixar]', bloco).forEach((b) => b.addEventListener('click', () => {
+      const e = r.itens.find((x) => x.id === b.dataset.r7mEncaixar); if (!e) return;
+      fecharMotivo();
+      if (typeof openAgendamentoModal === 'function') openAgendamentoModal(null, { cliente_nome: e.cliente_nome, telefone: e.telefone || '', veiculo: e.veiculo || '', placa: e.placa || '', servico: e.servico, cliente_id: e.cliente_id || '', data, hora, consultor_id: a.consultor_id || '', espera_id: e.id, origem: 'WhatsApp' });
+    }));
+  }
+
+  root.R7 = { decorarEspera, ofertasNosHorarios, ofertaDeVaga, filtroDoPatio, definirFiltroPatio, chipsDoPatio, linhaExtraDoPatio, aposExtras, limparParar: () => _par.clear(), painelPre, carregarPre, limparPre, ligarGuardaParar, estadoParar, pedirMotivo, fecharMotivo, faltaHtml, linkDeReagendar, painelConfirmacao, abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
   try { ligarGuardaParar(); } catch (e) { /* sem guarda, o botão segue como sempre */ }
 })(typeof globalThis !== 'undefined' ? globalThis : window);

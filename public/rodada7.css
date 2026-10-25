@@ -138,3 +138,17 @@
   .sidebar, .topbar, .r7r-filtros, .r7r-acoes { display: none !important; }
   .r7r-grade { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---- Lote 7: espera com idade, vaga que abre ---- */
+.espera-item.r7-esp-aviso { border-left: 4px solid #e8892b; }
+.espera-item.r7-esp-ruim { border-left: 4px solid #d64545; background: rgba(214, 69, 69, .06); }
+.r7-esp-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 8px; }
+.r7-esp-resumo .btn { margin-left: auto; }
+.r7-esp-urg { color: #d64545; }
+.r7-oferta { margin-left: 4px; }
+.r7m-vaga { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border, #d8dbe0); }
+.r7-esp-resumo[hidden], .r7m-vaga[hidden] { display: none !important; }
+@media (max-width: 720px) {
+  .r7-esp-resumo .btn, .r7-oferta, .r7m-vaga .btn { min-height: 44px; }
+  .r7-esp-resumo .btn { margin-left: 0; width: 100%; }
+}

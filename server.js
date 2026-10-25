@@ -19,7 +19,7 @@ import { idsDeAgendamento, entradaDoChegou } from './patio.js';
 import { resumoDosLembretes } from './lembretes.js';
 import { motivoDeFaltaValido, aceitaMotivo, rotuloDoMotivo } from './faltas.js';
 import { descreverPre, ordenarPre } from './preagenda.js';
-import { periodoPedido, relatorioDoDono, textoDoResumo } from './relatorios.js';
+import { periodoPedido, relatorioDoDono, textoDoResumo, csvDoRelatorio } from './relatorios.js';
 import { somaDias as somaDiasRel } from './horarios.js';
 import { lerParametros as lerParametrosDeHorario, resumoDoDia } from './horarios.js';
 
@@ -1433,7 +1433,7 @@ async function api(req, res, url) {
       dados.listarConsultores(), dados.listarServicos(true)]);
     const rAnt = relatorioDoDono({ lista: listaAnt, consultores, servicos, ...ant });
     const rel = relatorioDoDono({ lista, consultores, servicos, inicio: per.inicio, fim: per.fim, anterior: rAnt.totais });
-    return send(res, 200, { ...rel, anterior: { ...ant, totais: rAnt.totais }, texto: textoDoResumo(rel) }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, { ...rel, anterior: { ...ant, totais: rAnt.totais }, texto: textoDoResumo(rel), csv: csvDoRelatorio(rel) }, { 'Cache-Control': 'no-store' });
   }
 
   /* rodada 7 (C2): o PARAR do Comunicar vale para os botões de WhatsApp da Agenda. Recebe telefones, devolve só os bloqueados. */

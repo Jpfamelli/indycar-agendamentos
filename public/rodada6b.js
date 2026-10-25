@@ -163,6 +163,7 @@
       area.innerHTML = r.itens.map((s, i) => `<button type="button" class="chip-sugestao r6b-slot" data-i="${i}" title="Encaixar neste horário">
         ${esc(rotuloDia(s.data, hoje))} ${esc(s.hora)}${s.consultor_nome ? ` · ${esc(s.consultor_nome)}` : ''}</button>`).join('')
         + `<small class="muted">${r.duracao_min ? `serviço de ~${r.duracao_min} min` : ''}</small>`;
+      if (window.R7) R7.ofertasNosHorarios(area, item, r.itens);
       $$('.r6b-slot', area).forEach((c) => c.addEventListener('click', async () => {
         const s = r.itens[Number(c.dataset.i)];
         const lista = await api('GET', '/espera?status=aberta').catch(() => []);

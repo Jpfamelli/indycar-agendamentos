@@ -69,7 +69,7 @@
     const serv = r.porServico.length ? `<table class="r7r-tab"><thead><tr><th>Serviço</th><th>Horários</th><th>Faltas</th></tr></thead><tbody>${r.porServico.slice(0, 8).map((o) => `<tr><td>${escH(o.servico)}</td><td>${escH(o.marcados)}</td><td>${escH(o.faltas)}</td></tr>`).join('')}</tbody></table>` : '';
     return `<div class="r7r-kpis">${kpis}</div>
       <section class="panel r7r-sec"><div class="panel-head"><h3>Em poucas palavras</h3>
-          <span class="r7r-acoes"><button type="button" class="btn mini primary" data-r7r-copiar>Copiar resumo</button> <button type="button" class="btn mini" data-r7r-imprimir>Imprimir</button></span></div>
+          <span class="r7r-acoes"><button type="button" class="btn mini primary" data-r7r-copiar>Copiar resumo</button> <button type="button" class="btn mini" data-r7r-csv>Baixar planilha</button> <button type="button" class="btn mini" data-r7r-imprimir>Imprimir</button></span></div>
         <div class="panel-body"><ul class="r7r-dest">${dest}</ul></div></section>
       <div class="r7r-grade">
         <section class="panel r7r-sec"><div class="panel-head"><h3>Ocupação por dia</h3><small class="muted">minutos de serviço ÷ expediente de todos os consultores</small></div><div class="panel-body">${dias}</div></section>
@@ -109,6 +109,11 @@
       gravarLS(LS, JSON.stringify({ inicio: de, fim: ate })); route('dono');
     });
     $('[data-r7r-copiar]', view).addEventListener('click', async () => { toast((await copiarTexto(_ultimo.texto)) ? 'Resumo copiado — cole no WhatsApp' : 'Não consegui copiar', 'ok'); });
+    $('[data-r7r-csv]', view).addEventListener('click', () => {
+      const blob = new Blob([String.fromCharCode(0xFEFF) + (_ultimo.csv || '')], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `relatorio-agenda-${_ultimo.periodo.inicio}-a-${_ultimo.periodo.fim}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    });
     $('[data-r7r-imprimir]', view).addEventListener('click', () => window.print());
   }
 
