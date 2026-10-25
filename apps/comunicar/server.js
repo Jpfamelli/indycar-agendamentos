@@ -32,7 +32,7 @@ import { selecionarUm, conferirConfiguracao } from './supabase.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
 const PORT = process.env.PORT || 3500;
-export const VERSAO = '6.0.0';
+export const VERSAO = '7.0.0';
 
 /* Token do carteiro externo (GitHub Actions e o pg_cron do Supabase chamam
    /api/rodar de fora, para o caso do servidor gratuito do Render estar dormindo). */
@@ -147,13 +147,16 @@ async function registrarEstadoWhatsapp(cfg, status = undefined) {
 async function umaRodada() {
   const cfg = await dados.obterConfig();
   if (await dados.contarPendentes().catch(() => 0)) await registrarEstadoWhatsapp(cfg).catch(() => {});
+  // rodada 7: campanha com muita gente pedindo PARAR é freada sozinha; e os gestores sabem quando o WhatsApp caiu/voltou (cada aviso uma vez)
+  const freios = await dados.avaliarFreios(cfg).catch(() => []);
+  await dados.avisarWhatsapp(await dados.obterConfig().catch(() => cfg)).catch(() => null);
   // 1. o que ficou para trás e não faz mais sentido, e envios presos de um servidor que caiu
   const presos = await dados.soltarReservasPresas(carteiro.ERRO_RESERVA_PRESA, carteiro.RESERVA_PRESA_MIN).catch(() => 0);
   const expirados = (await dados.expirarVencidos(carteiro.MOTIVO_EXPIRADO).catch(() => 0))
     + (await dados.expirarAtrasados(carteiro.MOTIVO_ATRASADO).catch(() => 0));
   // 2. as réguas geram (idempotente: chave única por cliente/agendamento)
   const gerado = await dados.gerarTudo({ cfg, recuperarOntem: ontemSemRodada(cfg.ultima_rodada_em) });
-  const base = { ok: true, gerado, enviados: 0, falhas: 0, adiados: 0, reagendados: 0, expirados, presos, versao: VERSAO };
+  const base = { ok: true, gerado, enviados: 0, falhas: 0, adiados: 0, reagendados: 0, expirados, presos, freios: freios.length, versao: VERSAO };
 
   // a IA lê as respostas novas (independe da janela: ninguém recebe nada por isso)
   base.ia = await lerRespostasComIA().catch((e) => ({ erro: String(e?.message || e) }));

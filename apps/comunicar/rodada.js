@@ -19,6 +19,7 @@
 // -----------------------------------------------------------------------------
 
 import * as conexoes from './conexoes.js';
+import * as r7 from './r7.js';
 
 export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms) => new Promise((r) => setTimeout(r, ms)), agora = new Date(), log = console }) {
   const { hora, minuto, diaSemana, data } = dados.agoraSP(agora);
@@ -40,7 +41,10 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   let vagasFinal = vagas, retomada = null;
   if (cfg.whatsapp?.estado === 'ok' && cfg.whatsapp?.em && cfg.retomada_gradual !== false) {
     const desdeVolta = await (dados.enviadasDesde?.(cfg.whatsapp.em) ?? Promise.resolve(0)).catch(() => 0);
-    retomada = conexoes.limiteDeRetomada({ ligada: true, estado: cfg.whatsapp.estado, estadoEm: cfg.whatsapp.em, anterior: cfg.whatsapp.anterior, agora: agora.getTime(), enviadasDesde: desdeVolta });
+    retomada = conexoes.limiteDeRetomada({
+      ligada: true, estado: cfg.whatsapp.estado, estadoEm: cfg.whatsapp.em, anterior: cfg.whatsapp.anterior, agora: agora.getTime(), enviadasDesde: desdeVolta,
+      etapas: [{ ateMin: 30, maximo: Number(cfg.retomada_max_30min) || 8 }, { ateMin: 120, maximo: Number(cfg.retomada_max_2h) || 25 }],   // rodada 7: o gestor ajusta
+    });
     if (retomada) {
       if (retomada.limite <= 0) return { bloqueado: true, aviso: `Retomada gradual: ${retomada.motivo}. O resto sai quando a primeira meia hora passar.`, retomada };
       vagasFinal = Math.min(vagas, retomada.limite);
@@ -72,6 +76,18 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     }
     candidatos.push(e);
   }
+  /* rodada 7: número que não é celular (fixo, DDD que não existe, dígitos de mentira) ou que já falhou como inexistente não gasta cadência */
+  if (cfg.validar_celular !== false && candidatos.length) {
+    const ruins = await (dados.numerosRuins?.(candidatos.map((e) => e.telefone)) ?? Promise.resolve(new Set())).catch(() => new Set());
+    for (let i = candidatos.length - 1; i >= 0; i--) {
+      const e = candidatos[i];
+      const v = r7.validarCelular(e.telefone);
+      const motivo = !v.ok ? `número não recebe WhatsApp: ${v.motivo}` : (ruins.has(carteiro.telDe(e.telefone)) ? 'esse número já falhou antes como inexistente no WhatsApp' : null);
+      if (!motivo) continue;
+      await dados.marcarEnvio(e.id, 'pulado', null, undefined, { motivo_pulado: motivo }).catch(() => {});
+      candidatos.splice(i, 1); pulados++;
+    }
+  }
 
   // o mesmo cliente: intervalo e teto por dia valem também ENTRE rodadas (o que já saiu hoje conta)
   const hist = await dados.contatosDoDia(Math.max(Number(cfg.intervalo_mesmo_cliente_min) || 0, 0));
@@ -90,11 +106,15 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   /* rodada 6: conferências de AGORA com o Orçador, o Pátio e o Atendimento (cada uma tolera falhar: sem leitura, segue como antes) */
   const nulo = () => null;
   const porTipo = (tipo) => fila.filter((e) => e.tipo === tipo);
-  const [orcamentos, situacao, voltaram, recentes] = await Promise.all([
-    dados.orcamentosPorIds?.(porTipo('orcamento').map((e) => e.orcamento_id).filter(Boolean)).catch(nulo),
+  const [orcamentos, situacao, voltaram, recentes, faltas, campanhas] = await Promise.all([
+    dados.orcamentosPorIds?.(fila.filter((e) => e.tipo === 'orcamento' || e.tipo === 'aprovou').map((e) => e.orcamento_id).filter(Boolean)).catch(nulo),
     dados.situacaoDosClientes?.(fila.filter((e) => conexoes.TIPOS_AUTOMATICOS_RELACIONAMENTO.has(e.tipo)).map((e) => e.telefone), { diasReclamacao: cfg.dias_reclamacao_aberta }).catch(nulo),
     dados.voltouDepois?.(porTipo('retorno').map((e) => ({ cliente_id: e.cliente_id, apos: conexoes.diaSP(e.created_at) }))).catch(nulo),
     Number(cfg.evitar_texto_repetido_h) !== 0 ? dados.textosRecentes?.(fila.map((e) => e.telefone), cfg.evitar_texto_repetido_h ?? 48).catch(nulo) : null,
+    dados.agendamentosPorIds?.(porTipo('faltou').map((e) => e.agendamento_id).filter(Boolean)).catch(nulo),
+    // rodada 7: quantas campanhas cada cliente já recebeu em 30 dias (teto configurável)
+    Number(cfg.max_campanhas_30d) > 0 && fila.some((e) => e.tipo === 'campanha' || e.tipo === 'area_cliente')
+      ? dados.campanhasRecebidas30d?.(fila.filter((e) => e.tipo === 'campanha' || e.tipo === 'area_cliente').map((e) => e.telefone)).catch(nulo) : null,
   ]);
   const ordemDoLembrete = agendas ? await dados.ordensPorAgendamento?.(porTipo('lembrete').map((e) => e.agendamento_id).filter(Boolean)).catch(nulo) : null;
 
@@ -103,6 +123,19 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   for (const envio of fila) {
     if (enviados >= vagasFinal) break;
     if (carteiro.envioVencido(envio, agora.getTime())) continue; // a faxina do começo pega na próxima
+    /* rodada 7: campanha e relacionamento não saem depois do horário de marketing (padrão 18h): esperam o próximo dia */
+    const hm = r7.decidirHorarioMarketing({ tipo: envio.tipo, hora, fim: cfg.marketing_fim ?? 18 });
+    if (hm.segura) { await dados.adiarEnvio(envio.id, proximoDia(), hm.motivo).catch(() => {}); adiados++; continue; }
+    /* rodada 7: nas duas primeiras horas depois da volta do WhatsApp só sai o dia a dia (lembrete, pátio, pós-venda…) */
+    if (retomada && cfg.retomada_so_essencial !== false && !r7.ehEssencial(envio.tipo)) {
+      await dados.adiarEnvio(envio.id, new Date(Date.parse(cfg.whatsapp.em) + 121 * 60000).toISOString(), 'retomada do WhatsApp: campanhas e mensagens de relacionamento esperam as duas primeiras horas').catch(() => {});
+      adiados++; continue;
+    }
+    // rodada 7: teto de campanhas por cliente em 30 dias
+    if (campanhas) {
+      const t = r7.decidirTetoCampanhas({ tipo: envio.tipo, recebidas: Math.max(0, (campanhas.get(carteiro.telDe(envio.telefone)) || 0) - 1), max: cfg.max_campanhas_30d });
+      if (t.segura) { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: t.motivo }).catch(() => {}); pulados++; continue; }
+    }
     // feriado nacional: régua de relacionamento espera o próximo dia útil
     if (nomeFeriado && dados.TIPOS_SEGURAM_NO_FERIADO.has(envio.tipo)) {
       await dados.adiarEnvio(envio.id, proximoDia(), `feriado (${nomeFeriado})`).catch(() => {});
@@ -127,6 +160,23 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     if (envio.tipo === 'orcamento' && envio.orcamento_id && orcamentos) {
       const c = conexoes.conferirOrcamento(envio, orcamentos.get(envio.orcamento_id));
       if (c.acao === 'pular') { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {}); pulados++; continue; }
+    }
+    // rodada 7 · Orçador → Agenda: o cliente que aprovou já marcou o horário (ou abriu ordem) enquanto a mensagem esperava?
+    if (envio.tipo === 'aprovou' && envio.orcamento_id && orcamentos) {
+      const marcou = await (dados.agendamentoDepois?.(envio.telefone, envio.cliente_id, envio.created_at) ?? Promise.resolve(false)).catch(() => false);
+      const c = r7.conferirAprovou(envio, orcamentos.get(envio.orcamento_id), { temAgendamentoDepois: !!marcou });
+      if (c.acao === 'pular') { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {}); pulados++; continue; }
+    }
+    // rodada 7 · Agenda: quem faltou já remarcou (ou a Agenda mudou o horário)?
+    if (envio.tipo === 'faltou' && faltas) {
+      const marcou = await (dados.agendamentoDepois?.(envio.telefone, envio.cliente_id, envio.created_at) ?? Promise.resolve(false)).catch(() => false);
+      const c = r7.conferirFaltou(envio, faltas.get(envio.agendamento_id), { remarcou: !!marcou });
+      if (c.acao === 'pular') { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {}); pulados++; continue; }
+    }
+    // rodada 7 · Orçador: reabordagem de recusado não vai para quem já recebeu um orçamento novo
+    if (String(envio.chave_unica || '').startsWith('reabordar:')) {
+      const novo = await (dados.orcamentoNovoDepois?.(envio.telefone, envio.created_at) ?? Promise.resolve(null)).catch(() => null);
+      if (novo) { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: `o cliente já tem um orçamento novo (nº ${novo.numero ?? '—'}): a reabordagem sobra` }).catch(() => {}); pulados++; continue; }
     }
     // revisão: o cliente voltou depois (nova ordem no Pátio ou horário na Agenda)? então não incomoda
     if (envio.tipo === 'retorno' && voltaram?.has(envio.cliente_id)) {
@@ -164,6 +214,8 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     const reservado = await dados.reservarEnvio(envio.id).catch(() => null);
     if (!reservado) continue;
 
+    /* rodada 7: mensagem de campanha/relacionamento leva o rodapé "responda PARAR" (o texto guardado na fila continua o original) */
+    envio.corpo = r7.aplicarRodape(envio.corpo, envio.tipo, cfg).corpo;
     const r = await wa.enviar(envio.telefone, envio.corpo);
     const tentativas = (Number(envio.tentativas) || 0) + 1;
     if (r.ok) {

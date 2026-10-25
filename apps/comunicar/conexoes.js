@@ -242,11 +242,11 @@ export const ETAPAS_RETOMADA = [{ ateMin: 30, maximo: 8 }, { ateMin: 120, maximo
  * { limite, motivo } com quantas ainda podem sair (já descontadas as `enviadasDesde` a volta) ou null (sem freio).
  * Só vale quando o estado ATUAL é 'ok' e o anterior não era (chave recusada, aparelho caído…).
  */
-export function limiteDeRetomada({ ligada = true, estado, estadoEm, anterior, agora = Date.now(), enviadasDesde = 0 } = {}) {
+export function limiteDeRetomada({ ligada = true, estado, estadoEm, anterior, agora = Date.now(), enviadasDesde = 0, etapas = ETAPAS_RETOMADA } = {}) {
   if (!ligada || estado !== 'ok' || !anterior || !QUEDAS_SERIAS.includes(anterior) || !estadoEm) return null;
   const min = minutos(agora, Date.parse(estadoEm));
   if (!Number.isFinite(min) || min < 0) return null;
-  for (const f of ETAPAS_RETOMADA) {
+  for (const f of etapas) {
     if (min < f.ateMin) {
       const sobra = Math.max(0, f.maximo - (Number(enviadasDesde) || 0));
       return { limite: sobra, maximo: f.maximo, motivo: `o WhatsApp acabou de voltar (${anterior.replace(/_/g, ' ')}): retomada gradual, no máximo ${f.maximo} mensagens nos primeiros ${f.ateMin} min` };

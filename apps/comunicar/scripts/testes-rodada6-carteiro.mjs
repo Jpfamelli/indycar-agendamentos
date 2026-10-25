@@ -94,7 +94,8 @@ test('texto idêntico ao que acabou de ir para o mesmo número é pulado (não r
 
 test('retomada gradual: acabou de voltar do erro, só uma amostra sai e o resto espera', async () => {
   limpar();
-  for (let i = 0; i < 12; i++) envio({ tipo: 'campanha', telefone: tel(2000 + i), enviar_em: horas(-3) });
+  // rodada 7: na retomada só o dia a dia sai (pós-venda é dia a dia; campanha espera — veja testes-rodada7-carteiro)
+  for (let i = 0; i < 12; i++) envio({ tipo: 'posvenda', telefone: tel(2000 + i), enviar_em: horas(-3) });
   const { r, w } = await rodar({ whatsapp: { estado: 'ok', em: new Date(AGORA.getTime() - 60000).toISOString(), anterior: 'chave_recusada' } });
   assert.ok(r.retomada, 'retomada ativa');
   assert.ok(w.saiu.length > 0 && w.saiu.length < 12, `saíram ${w.saiu.length}`);

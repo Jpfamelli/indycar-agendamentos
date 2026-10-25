@@ -185,6 +185,23 @@ export const ROTAS = [
   ['GET',    `/api/lotes/${U}/resultado`,               { perm: 'ver', caro: true }],
   ['GET',    '/api/conexoes',                            { perm: 'ver' }],
   ['POST',   '/api/campanhas/previa',                    { perm: 'ver', caro: true }],
+  // rodada 7
+  ['GET',    '/api/lotes',                               { perm: 'ver' }],
+  ['GET',    `/api/lotes/${U}/modelo`,                  { perm: 'ver' }],
+  ['GET',    '/api/reabordar',                           { perm: 'ver', caro: true }],
+  ['POST',   '/api/reabordar/enviar',                    { perm: 'campanha_aprovar', caro: true }],
+  ['GET',    '/api/patio/fila',                          { perm: 'ver' }],
+  ['GET',    '/api/antispam',                            { perm: 'ver' }],
+  ['GET',    '/api/previa/exata',                        { perm: 'ver', caro: true }],
+  ['GET',    `/api/envios/${U}/quando`,                 { perm: 'ver' }],
+  ['GET',    '/api/agenda/por-hora',                     { perm: 'ver' }],
+  ['POST',   `/api/envios/${U}/antecipar`,              { perm: 'cancelar_proprio' }],
+  ['GET',    '/api/agenda.csv',                          { perm: 'exportar', caro: true }],
+  ['GET',    '/api/retomada',                            { perm: 'ver' }],
+  ['POST',   '/api/retomada/triagem',                    { perm: 'cancelar_qualquer' }],
+  ['POST',   '/api/retomada/encerrar',                   { perm: 'rodar' }],
+  ['GET',    '/api/resultados/avancados',                { perm: 'ver', caro: true }],
+  ['GET',    '/api/respostas/pendentes',                 { perm: 'ver' }],
 ].map(([metodo, padrao, regra]) => ({ metodo, padrao, re: new RegExp(`^${padrao}$`), ...regra }));
 
 /** A regra da rota (ou null = não existe). `metodoErrado` quando o caminho existe com outro método. */

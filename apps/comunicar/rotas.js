@@ -21,6 +21,8 @@ import * as aniv from './aniversarios.js';
 import * as patio from './patio.js';
 import * as conexoes from './conexoes.js';
 import { montarSaude } from './whatsapp.js';
+import * as r7 from './r7.js';
+import { registrarRotas7 } from './rotas7.js';
 
 const LIMITE_AREA = 300;      // convite da Área do Cliente: um link (rpc) por pessoa
 const LIMITE_CORPO = 2_000_000; // importação de planilha pode ser grande
@@ -87,7 +89,7 @@ export function criarApi(deps) {
     Promise.resolve(dados.auditar?.(u?.id || null, acao, tabela, registro, detalhes)).catch(() => null);
 
   /** Enfileira a campanha (já aprovada ou feita por gestor). Rodada 5: respeita o limite diário (escalona nos dias seguintes). */
-  async function executarCampanha({ corpo, detalhe, destinos, enviarEm, criador, campanhaId = null, simular = false, evitarDias = 0 }) {
+  async function executarCampanha({ corpo, detalhe, destinos, enviarEm, criador, campanhaId = null, simular = false, evitarDias = 0, segmento = null, repeteLote = null, origem = 'comunicar', variante = null, abGrupo = null }) {
     const cfg = (await Promise.resolve(dados.obterConfig?.()).catch(() => null)) || {};
     const porteiro = await dados.carregarPorteiro({ intervalo_minimo_dias: 0 });
     const lote = randomUUID();
@@ -99,12 +101,17 @@ export function criarApi(deps) {
     const tipo = area ? 'area_cliente' : 'campanha';
     const links = area ? (simular ? new Map(destinos.map((d) => [d.cliente_id ?? d.id ?? null, `${patio.PATIO_URL}/minha/?c=(link-do-cliente)`])) : await linksDaArea(destinos)) : null;
     const vistosTel = new Set();
+    // rodada 7: teto de campanhas por cliente em 30 dias (0 = sem teto)
+    const teto = Number(cfg.max_campanhas_30d) > 0 && dados.campanhasRecebidas30d ? await dados.campanhasRecebidas30d(destinos.map((x) => x.telefone)).catch(() => null) : null;
     for (const d of destinos) {
       const clienteId = d.cliente_id ?? d.id ?? null;
       const digs = String(d.telefone ?? '').replace(/\D/g, '');
       const telN = digs.length >= 12 && digs.startsWith('55') ? digs.slice(2) : digs;
       // telefone repetido (dois cadastros do mesmo número, lista com duplicata) recebe UMA vez só; número curto demais não é WhatsApp
       if (!telN || telN.length < 10 || vistosTel.has(telN)) { pulados.total++; pulados.invalido = (pulados.invalido || 0) + 1; continue; }
+      // rodada 7: fixo, DDD que não existe e número de mentira nunca entram na campanha
+      if (cfg.validar_celular !== false && !r7.validarCelular(d.telefone).ok) { pulados.total++; pulados.celular = (pulados.celular || 0) + 1; continue; }
+      if (teto && (teto.get(telN) || 0) >= Number(cfg.max_campanhas_30d)) { pulados.total++; pulados.teto = (pulados.teto || 0) + 1; continue; }
       const v = porteiro.podeReceber({ cliente_id: clienteId, telefone: d.telefone, tipo });
       if (!v.ok) { pulados.total++; pulados.nao_quer++; continue; }
       // rodada 6: quem recebeu campanha há pouco fica de fora quando a pessoa pediu "não repetir"
@@ -126,8 +133,15 @@ export function criarApi(deps) {
       limitePorDia: cfg.limite_por_dia || 300, jaHoje, inicioIso: enviarEm, hoje: diaDoEnvio,
       horaEnvio: cfg.hora_envio || '09:30', enviaDomingo: !!cfg.envia_domingo, feriado: dados.feriado || (() => null),
     });
-    if (simular) return { simulado: true, total: dist.linhas.length, pulados: pulados.total, puladosDetalhe: pulados, dias: dist.dias, porDia: dist.porDia, limitePorDia: cfg.limite_por_dia || 300, tipo, linhas: dist.linhas.slice(0, 8).map((l) => ({ nome: l.nome, telefone: l.telefone, corpo: l.corpo, enviar_em: l.enviar_em })) };
+    if (simular) {
+      return { simulado: true, total: dist.linhas.length, pulados: pulados.total, puladosDetalhe: pulados, dias: dist.dias, porDia: dist.porDia, limitePorDia: cfg.limite_por_dia || 300, tipo,
+        rodape: r7.aplicarRodape('x', tipo, cfg).aplicou, marketing_fim: cfg.marketing_fim ?? 18,
+        linhas: dist.linhas.slice(0, 8).map((l) => ({ nome: l.nome, telefone: l.telefone, corpo: r7.aplicarRodape(l.corpo, tipo, cfg).corpo, enviar_em: l.enviar_em })) };
+    }
     const enfileirados = dist.linhas.length ? await dados.enfileirarVarios(dist.linhas) : 0;
+    // rodada 7: o MODELO fica guardado (com {primeiro_nome}…), nunca o texto já preenchido do primeiro cliente: é o que o "Repetir" usa
+    await Promise.resolve(dados.guardarLote?.({ lote, modelo: corpo, detalhe, segmento, origem, evitar_dias: evitarDias, total: destinos.length, enfileirados, pulados: pulados.total,
+      criado_por_id: criador?.id, criado_por_nome: criador?.nome, repete_lote: repeteLote, variante, ab_grupo: abGrupo })).catch(() => null);
     return { enfileirados, pulados: pulados.total, puladosDetalhe: pulados, lote, dias: dist.dias, porDia: dist.porDia, limitePorDia: cfg.limite_por_dia || 300 };
   }
 
@@ -406,7 +420,7 @@ export function criarApi(deps) {
     if (!destinos.length) return bad(res, 'Escolha pelo menos um cliente.');
     const enviarEm = body.enviar_em ? new Date(body.enviar_em) : new Date(relogio());
     if (Number.isNaN(enviarEm.getTime())) return bad(res, 'Data de envio inválida.');
-    const r = await executarCampanha({ corpo, detalhe: body.detalhe ? String(body.detalhe).slice(0, 200) : '', destinos, enviarEm: enviarEm.toISOString(), criador: usuario, simular: true, evitarDias: Math.min(Math.max(Number(body.evitar_dias) || 0, 0), 90) });
+    const r = await executarCampanha({ corpo, detalhe: body.detalhe ? String(body.detalhe).slice(0, 200) : '', destinos, enviarEm: enviarEm.toISOString(), criador: usuario, simular: true, evitarDias: Math.min(Math.max(Number(body.evitar_dias) || 0, 0), 90), segmento: body.segmento || null });
     return ok(res, { ...r, linksForaDaCasa: conexoes.linksForaDaCasa(corpo), caminho: auto.destinoDoPedido(usuario, destinos.length) });
   });
 
@@ -422,7 +436,7 @@ export function criarApi(deps) {
     return ok(res, r);
   });
   rota('POST', '/api/agenda/adiar-dia', async ({ res, usuario, body }) => {
-    const r = await dados.adiarDia(String(body.dia || ''), body.enviar_em);
+    const r = await dados.adiarDia(String(body.dia || ''), body.enviar_em, dados.TIPOS_ENVIO.includes(body.tipo) ? body.tipo : null);
     if (!r.ok) return bad(res, r.erro);
     esquecerCache('agenda', 'fila', 'resumo');
     auditar(usuario, 'dia_adiado', 'posvenda_envios', null, { dia: body.dia, para: r.quando, adiadas: r.adiadas, ficaram: r.ficaram });
@@ -533,6 +547,10 @@ export function criarApi(deps) {
       if (!A.ehGestor(usuario) && !limAvulsa.tentar(`avulsa:${usuario.id}`).ok)
         return send(res, 429, { erro: 'Muitas mensagens avulsas nesta hora. Para muita gente, monte uma campanha.' });
       const d = destinos[0];
+      // rodada 7: fixo/DDD inexistente não vira mensagem; o mesmo texto para o mesmo número em minutos é duplo clique
+      const cfgA = (await Promise.resolve(dados.obterConfig?.()).catch(() => null)) || {};
+      if (cfgA.validar_celular !== false) { const vc = r7.validarCelular(d.telefone); if (!vc.ok) return ok(res, { ok: true, enfileirados: 0, pulados: 1, motivo: vc.motivo || 'esse número não parece um celular com WhatsApp' }); }
+      if (await Promise.resolve(dados.envioIgualRecente?.(d.telefone, corpo, cfgA.dedupe_avulsa_min ?? 10)).catch(() => null)) return send(res, 409, { erro: 'Essa mesma mensagem já foi para esse número há poucos minutos. Confira na fila antes de repetir.', codigo: 'mensagem_repetida' });
       const porteiro = await dados.carregarPorteiro({ intervalo_minimo_dias: 0 });
       const v = porteiro.podeReceber({ cliente_id: d.cliente_id ?? d.id ?? null, telefone: d.telefone, tipo: 'avulsa' });
       if (!v.ok) return ok(res, { ok: true, enfileirados: 0, pulados: 1, motivo: v.motivo || 'cliente fora da lista' });
@@ -549,7 +567,22 @@ export function criarApi(deps) {
     }
 
     esquecerCache('resumo', 'fila');
-    const r = await executarCampanha({ corpo, detalhe, destinos, enviarEm: enviarEm.toISOString(), criador: usuario, evitarDias });
+    const segmentoGuardado = body.segmento?.filtro && segmentoValido(String(body.segmento.filtro)) ? { filtro: String(body.segmento.filtro), valor: body.segmento.valor ?? null } : null;
+    const repeteLote = dados.ehUuid(body.repete_lote) ? body.repete_lote : null;
+    const corpoB = typeof body.corpo_b === 'string' ? body.corpo_b.trim() : '';
+    let r;
+    if (corpoB) {
+      /* rodada 7: teste A/B. Metade recebe cada texto (a divisão é estável por telefone) e os resultados comparam os dois */
+      if (corpoB.length > 2000) return bad(res, 'O texto B é longo demais (máximo 2.000 caracteres).');
+      if (destinos.length < 40) return bad(res, 'Para comparar dois textos precisa de pelo menos 40 clientes (20 em cada). Para menos gente, mande um texto só.');
+      const { A: ladoA, B: ladoB } = r7.dividirAB(destinos);
+      const ab = randomUUID();
+      const ra = await executarCampanha({ corpo, detalhe, destinos: ladoA, enviarEm: enviarEm.toISOString(), criador: usuario, evitarDias, segmento: segmentoGuardado, repeteLote, variante: 'A', abGrupo: ab });
+      const rb = await executarCampanha({ corpo: corpoB, detalhe, destinos: ladoB, enviarEm: enviarEm.toISOString(), criador: usuario, evitarDias, segmento: segmentoGuardado, repeteLote, variante: 'B', abGrupo: ab });
+      r = { enfileirados: ra.enfileirados + rb.enfileirados, pulados: ra.pulados + rb.pulados, lote: ra.lote, loteB: rb.lote, ab, dias: Math.max(ra.dias, rb.dias), porDia: ra.porDia, limitePorDia: ra.limitePorDia, puladosDetalhe: ra.puladosDetalhe, ladoA: ra.enfileirados, ladoB: rb.enfileirados };
+    } else {
+      r = await executarCampanha({ corpo, detalhe, destinos, enviarEm: enviarEm.toISOString(), criador: usuario, evitarDias, segmento: segmentoGuardado, repeteLote, origem: repeteLote ? 'repeticao' : 'comunicar' });
+    }
     if (dados.ehUuid(body.segmento_salvo_id)) dados.marcarSegmentoUsado?.(body.segmento_salvo_id).catch(() => null);
     auditar(usuario, 'campanha_enviada', 'posvenda_envios', r.lote, { total: destinos.length, enfileirados: r.enfileirados, pulados: r.pulados, dias: r.dias, segmento: body.segmento || null });
     return ok(res, { ok: true, ...r });
@@ -648,7 +681,7 @@ export function criarApi(deps) {
     if (!marcada) return send(res, 409, { erro: 'Outra pessoa decidiu essa campanha agora há pouco.' });
     const quando = c.enviar_em && new Date(c.enviar_em).getTime() > relogio() ? c.enviar_em : new Date(relogio()).toISOString();
     const r = await executarCampanha({ corpo: c.corpo, detalhe: c.detalhe, destinos: destinos || [], enviarEm: quando,
-      criador: { id: c.criado_por, nome: c.criado_por_nome }, campanhaId: id });
+      criador: { id: c.criado_por, nome: c.criado_por_nome }, campanhaId: id, segmento: c.segmento || null });
     const final = await dados.completarCampanha(id, { lote: r.lote, enfileirados: r.enfileirados, pulados: r.pulados }) || { ...marcada, ...r };
     await auto.avisarDecisaoDeCampanha({ campanha: final, loja: dados }).catch(() => null);
     auditar(usuario, 'campanha_aprovada', 'comunicar_campanhas', id, { enfileirados: r.enfileirados, pulados: r.pulados, criado_por: c.criado_por });
@@ -683,7 +716,7 @@ export function criarApi(deps) {
   });
   rota('GET', '/api/previa', async ({ res, url }) => {
     const so = url.searchParams.get('regua') || null;
-    if (so && !dados.REGUAS.includes(so)) return bad(res, 'Régua desconhecida.');
+    if (so && !dados.REGUAS.includes(so) && !r7.R7_REGUAS.some((x) => x.id === so)) return bad(res, 'Régua desconhecida.');
     return ok(res, await dados.gerarTudo({ simular: true, so }));
   });
 
@@ -696,10 +729,16 @@ export function criarApi(deps) {
       const erro = dados.validarTextoR6(k, body[k]);
       if (erro) return bad(res, erro, { campo: k });
     }
+    for (const k of Object.keys(r7.TEXTOS_R7)) {   // rodada 7: textos das réguas dos eventos reais
+      if (body?.[k] === undefined) continue;
+      const erro = r7.validarTextoR7(k, body[k]);
+      if (erro) return bad(res, erro, { campo: k });
+    }
+    if (body?.texto_rodape_parar !== undefined && !/parar/i.test(String(body.texto_rodape_parar))) return bad(res, 'O rodapé precisa dizer como sair: inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
     const antes = await dados.obterConfig();
     const depois = await dados.salvarConfig(body);
     esquecerCache('resumo', 'pronto', 'projecao', 'carteiro');
-    for (const r of dados.REGUAS) {
+    for (const r of [...dados.REGUAS, ...r7.R7_REGUAS.map((x) => x.id)]) {
       const k = `ativo_${r}`;
       if (antes[k] !== depois[k]) auditar(usuario, depois[k] ? 'regua_ligada' : 'regua_desligada', 'posvenda_config', r, { regua: r });
     }
@@ -935,6 +974,9 @@ export function criarApi(deps) {
     const gestor = A.ehGestor(usuario);
     return ok(res, { dias, gestor, pessoas: gestor ? todos : todos.filter((p) => p.perfil_id === usuario.id) });
   });
+
+  // ---- rodada 7: reabordar, repetir, fila do Pátio, anti-spam, retomada, resultados… ----
+  registrarRotas7({ rota, ok, bad, send, naoAchou, proibido, idDe, U, auditar, dados, A, emCache, esquecerCache, relogio, executarCampanha, carteiro, conexoes });
 
   // ---- o porteiro ------------------------------------------------------------------
   async function api(req, res, url) {

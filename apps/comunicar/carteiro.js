@@ -147,7 +147,7 @@ export async function comTentativas(fn, { vezes = 3, esperaMs = 700 } = {}) {
 /** Ordem de saída quando a fila acumulou: quem o cliente está esperando sai primeiro. */
 export const PRIORIDADE = {
   patio_pronto: 1, patio_extra: 2, lembrete: 3, remarcacao: 3, patio_entrada: 4, avaliacao: 5, posvenda: 6,
-  area_cliente: 7, avulsa: 8, retorno: 9, orcamento: 10, nao_fechou: 11, aniversario: 12, reativacao: 13, campanha: 14,
+  area_cliente: 7, avulsa: 8, aprovou: 8, faltou: 8, retorno: 9, orcamento: 10, nao_fechou: 11, aniversario: 12, reativacao: 13, campanha: 14,
 };
 export const prioridadeDe = (tipo) => PRIORIDADE[tipo] ?? 20;
 
@@ -214,7 +214,7 @@ export function separarMesmoCliente(fila = [], { minutos = 60, agora = Date.now(
  * sentido: depois deste atraso, contado desde a hora marcada, viram 'pulado'.
  * Réguas com validade própria (expira_em) já cuidam de si; isto cobre as que não têm.
  */
-export const LIMITE_ATRASO_H = { campanha: 72, area_cliente: 72, avulsa: 48, avaliacao: 48, remarcacao: 24 };
+export const LIMITE_ATRASO_H = { campanha: 72, area_cliente: 72, avulsa: 48, avaliacao: 48, remarcacao: 24, aprovou: 72, faltou: 48 };
 export const MOTIVO_ATRASADO = 'ficou na fila por tempo demais (o WhatsApp esteve fora do ar) e perdeu o sentido';
 
 /** Horário comercial da oficina (seg–sáb 8h–17h30) — quem quiser "só no horário da loja" liga isto. */

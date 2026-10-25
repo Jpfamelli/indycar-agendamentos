@@ -22,6 +22,8 @@ import { TIPOS_PATIO, ROTULO_PATIO, VALIDADE_PATIO_H, linkArea, linkOs, usaLinkA
 import { mesclarPreferencias, LINKS } from './acesso.js';
 import { classificarErro } from './whatsapp.js';
 import * as conexoes from './conexoes.js';
+import * as r7 from './r7.js';
+import { reabordarRecusados } from './dados7.js';
 
 const T = {
   clientes: 'clientes',
@@ -50,7 +52,7 @@ export const REGUAS = [
 ];
 /** Tipos que contam como "relacionamento" para o intervalo mínimo entre mensagens. */
 const TIPOS_RELACIONAMENTO = new Set(['aniversario', 'retorno', 'reativacao', 'orcamento', 'nao_fechou', 'campanha', 'avulsa']);
-export const TIPOS_ENVIO = ['aniversario', 'posvenda', 'retorno', 'campanha', 'avulsa', 'lembrete', 'remarcacao', 'orcamento', 'nao_fechou', 'reativacao', 'avaliacao', ...TIPOS_PATIO];
+export const TIPOS_ENVIO = ['aniversario', 'posvenda', 'retorno', 'campanha', 'avulsa', 'lembrete', 'remarcacao', 'orcamento', 'nao_fechou', 'reativacao', 'avaliacao', 'aprovou', 'faltou', ...TIPOS_PATIO];
 
 // ============================================================================
 // UTILIDADES PURAS (sem banco) — testáveis com `npm test`
@@ -207,6 +209,7 @@ export const ROTULO_TIPO = {
   lembrete: 'Lembrete de horário', posvenda: 'Pós-venda', avaliacao: 'Avaliação no Google',
   retorno: 'Revisão', aniversario: 'Aniversário', orcamento: 'Orçamento parado',
   nao_fechou: 'Não fechou', reativacao: 'Reativação', campanha: 'Campanha', avulsa: 'Avulsa',
+  aprovou: 'Aprovou, falta o horário', faltou: 'Faltou ao horário', // rodada 7: eventos do Orçador e da Agenda
   remarcacao: 'Horário remarcado', // rodada 5: aviso que a Agenda manda quando remarca (antes entrava como avulsa)
   ...ROTULO_PATIO,   // Pátio (16/10/2026): avisos da oficina e convite da Área do Cliente
 };
@@ -580,6 +583,12 @@ export async function obterConfig() {
   // rodada 6: ligações com o Pátio e o Orçador, anti-spam e retomada gradual (ligados por padrão)
   for (const k of BOOLEANOS_R6) cfg[k] = c[k] !== false;
   for (const k of Object.keys(TEXTOS_R6)) cfg[k] = c[k] || '';
+  // rodada 7: réguas dos eventos reais, anti-spam e retomada configurável
+  for (const k of r7.BOOLEANOS_R7) cfg[k] = k.startsWith('ativo_') ? !!c[k] : c[k] !== false;
+  for (const [k, padrao] of Object.entries(r7.PADRAO_R7)) cfg[k] = Number(c[k] ?? padrao);
+  for (const k of Object.keys(r7.TEXTOS_R7)) cfg[k] = c[k] || '';
+  cfg.texto_rodape_parar = c.texto_rodape_parar || r7.RODAPE_PADRAO;
+  cfg.retomada_aviso_em = c.retomada_aviso_em || null;
   return cfg;
 }
 
@@ -626,6 +635,20 @@ export async function salvarConfig(dados) {
   for (const k of BOOLEANOS_R6) if (dados[k] !== undefined) campos[k] = dados[k] === true;
   for (const k of Object.keys(TEXTOS_R6)) {
     if (dados[k] !== undefined && !validarTextoR6(k, dados[k])) campos[k] = String(dados[k]).trim();
+  }
+  // rodada 7
+  for (const k of r7.BOOLEANOS_R7) if (dados[k] !== undefined) campos[k] = dados[k] === true;
+  for (const [k, [min, max]] of Object.entries(r7.FAIXAS_R7)) {
+    if (dados[k] === undefined) continue;
+    const n = Number(dados[k]);
+    if (Number.isInteger(n) && n >= min && n <= max) campos[k] = n;
+  }
+  for (const k of Object.keys(r7.TEXTOS_R7)) {
+    if (dados[k] !== undefined && !r7.validarTextoR7(k, dados[k])) campos[k] = String(dados[k]).trim();
+  }
+  if (dados.texto_rodape_parar !== undefined) {
+    const t = String(dados.texto_rodape_parar || '').replace(/\s+/g, ' ').trim();
+    if (t.length >= 10 && t.length <= 140 && /parar/i.test(t)) campos.texto_rodape_parar = t;
   }
   if (dados.telefone_teste !== undefined) {
     const t = soDigitos(dados.telefone_teste);
@@ -922,6 +945,16 @@ async function entregarAoPorteiro(porteiro, dados, ctx) {
     ctx.vistas ||= new Set();
     if (ctx.vistas.has(dados.chave_unica)) return null;
     ctx.vistas.add(dados.chave_unica);
+  }
+  /* rodada 7: número que não é celular de verdade (fixo, DDD que não existe, dígitos repetidos) nunca entra na fila */
+  if (ctx.cfg?.validar_celular !== false) {
+    const v = r7.validarCelular(dados.telefone);
+    if (!v.ok) {
+      const anotado = { ...dados, motivo: `número não recebe WhatsApp: ${v.motivo}`, definitivo: true };
+      if (!ctx.simular) { const p = await enfileirar({ ...dados, status: 'pulado', motivo_pulado: anotado.motivo }); if (!p) return null; }
+      ctx.pulados.push(anotado);
+      return null;
+    }
   }
   const veredito = porteiro.podeReceber(dados);
   if (!veredito.ok) {
@@ -1245,6 +1278,7 @@ export async function gerarReativacao(cfg, porteiro, ctx) {
 }
 
 const GERADORES = {
+  aprovou: gerarAprovou, faltou: gerarFaltou, vencendo: gerarVencendo, pronto_lembrete: gerarProntoLembrete,   // rodada 7: eventos reais
   lembrete: gerarLembretes, posvenda: gerarPosvenda, retorno: gerarRetornos, aniversario: gerarAniversarios,
   orcamento: gerarOrcamentos, nao_fechou: gerarNaoFechou, reativacao: gerarReativacao,
   extra_lembrete: gerarExtraLembrete,   // rodada 6: extra do Pátio esperando o OK do cliente
@@ -1259,7 +1293,7 @@ const GERADORES = {
 export async function gerarTudo({ cfg = null, simular = false, so = null, recuperarOntem = false } = {}) {
   cfg = cfg || await obterConfig();
   const [porteiro, regras] = await Promise.all([carregarPorteiro(cfg), listarRegras()]);
-  const ctx = { simular, recuperarOntem, criados: [], pulados: [], adiados: [], previa: [], erros: [] };
+  const ctx = { simular, recuperarOntem, cfg, criados: [], pulados: [], adiados: [], previa: [], erros: [] };
   const porRegua = {};
   for (const [tipo, gerar] of Object.entries(GERADORES)) {
     if (so && so !== tipo) continue;
@@ -1310,6 +1344,8 @@ export const SEGMENTOS = [
   { id: 'leads_orcamento', rotulo: 'Leads em "orçamento" no CRM há mais de N dias', valor: 7, unidade: 'dias', fonte: 'crm' },
   { id: 'leads_perdidos', rotulo: 'Leads perdidos no CRM há mais de N dias', valor: 60, unidade: 'dias', fonte: 'crm' },
   { id: 'indicaram', rotulo: 'Clientes que indicaram amigos (para agradecer)', fonte: 'crm' },
+  // rodada 7: o Orçador entrega os recusados que ainda dá para recuperar (motivo preço, prazo ou sem urgência)
+  { id: 'orcamento_recuperavel', rotulo: 'Orçamentos recusados que ainda dá para recuperar, nos últimos N dias (Orçador)', valor: 30, unidade: 'dias', fonte: 'orcador' },
 ];
 
 /** Cliente "de mentira" para quem só existe no Pátio/Orçador/CRM (sem cadastro em clientes): o telefone é a chave. */
@@ -1403,6 +1439,11 @@ async function candidatosDoSegmento(filtro, valor) {
       const status = filtro === 'leads_perdidos' ? 'perdido' : 'orcamento';
       const leads = await selecionarTudo(T.leads, `select=cliente_id,nome,telefone,carro_modelo,placa,servico&status=eq.${status}&updated_at=lte.${encodeURIComponent(new Date(Date.now() - dias * 86400000).toISOString())}&updated_at=gte.${encodeURIComponent(new Date(Date.now() - 400 * 86400000).toISOString())}`);
       return candidatosPorOrigem(leads.map((l) => ({ cliente_id: l.cliente_id, nome: l.nome, telefone: l.telefone, carro: l.carro_modelo, placa: l.placa, servico: l.servico })));
+    }
+    case 'orcamento_recuperavel': {
+      const dias = Math.min(Math.max(Number(valor) || 30, 1), 180);
+      const r = await reabordarRecusados({ dias, limite: 500 }).catch(() => ({ candidatos: [] }));
+      return candidatosPorOrigem(r.candidatos.map((c) => ({ cliente_id: c.cliente_id, nome: c.nome, telefone: c.telefone, carro: c.carro, placa: c.placa, servico: null })));
     }
     case 'indicaram': {
       const ind = await selecionarTudo('indicacoes', 'select=indicado_por&indicado_por=not.is.null');
@@ -1630,7 +1671,7 @@ export const feriado = (dataIso) => FERIADOS[String(dataIso || '').slice(0, 10)]
 /** Réguas que esperam o feriado passar (lembrete, aniversário e avaliação saem no dia; campanha é decisão de gente). */
 export const TIPOS_SEGURAM_NO_FERIADO = new Set(['posvenda', 'retorno', 'reativacao', 'orcamento', 'nao_fechou']);
 /** Réguas que esperam quando alguém está atendendo o cliente agora. */
-export const TIPOS_ESPERAM_ATENDIMENTO = new Set(['posvenda', 'retorno', 'reativacao', 'orcamento', 'nao_fechou', 'aniversario', 'campanha']);
+export const TIPOS_ESPERAM_ATENDIMENTO = new Set(['posvenda', 'retorno', 'reativacao', 'orcamento', 'nao_fechou', 'aniversario', 'campanha', 'aprovou', 'faltou']);
 
 /** Próximo dia (a partir de amanhã) que não é feriado nem domingo (se domingo não envia), às HH:MM. */
 export function proximoDiaDeEnvio(dataIso, horaHM = '09:30', enviaDomingo = false) {
@@ -2782,7 +2823,7 @@ export async function orcamentosPorIds(ids = []) {
   const lista = [...new Set(ids.filter(ehUuid))];
   const mapa = new Map();
   for (let i = 0; i < lista.length; i += 60) {
-    for (const o of await selecionar('orc_orcamentos', `select=id,numero,status,decidido_em,validade&id=in.(${lista.slice(i, i + 60).join(',')})`)) mapa.set(o.id, o);
+    for (const o of await selecionar('orc_orcamentos', `select=id,numero,status,decidido_em,validade,agendamento_id&id=in.(${lista.slice(i, i + 60).join(',')})`)) mapa.set(o.id, o);
   }
   return mapa;
 }
@@ -2911,7 +2952,7 @@ export async function adiarManual(id, quandoIso) {
 }
 
 /** Muda o horário de TODAS as mensagens que ainda não saíram num dia (fuso da oficina) — a que passaria da validade fica onde está. */
-export async function adiarDia(dia, quandoIso) {
+export async function adiarDia(dia, quandoIso, tipo = null) {
   const d = conexoes.diaValido(dia);
   if (!d) return { ok: false, erro: 'Dia inválido: use o formato AAAA-MM-DD.' };
   const q = Date.parse(quandoIso);
@@ -2920,6 +2961,7 @@ export async function adiarDia(dia, quandoIso) {
   if (q > Date.now() + 60 * 86400000) return { ok: false, erro: 'No máximo 60 dias à frente.' };
   const p = new URLSearchParams('select=id,status,enviando_em,expira_em,tipo');
   p.set('status', 'eq.pendente'); p.set('enviando_em', 'is.null'); p.set('order', 'enviar_em.asc'); p.set('limit', '1000');
+  if (tipo) { if (!TIPOS_ENVIO.includes(tipo)) return { ok: false, erro: 'Tipo de mensagem desconhecido.' }; p.set('tipo', `eq.${tipo}`); }   // rodada 7: adiar só as campanhas (ou só um tipo) do dia
   p.append('enviar_em', `gte.${instanteSP(d, '00:00').toISOString()}`);
   p.append('enviar_em', `lt.${instanteSP(somarDias(d, 1), '00:00').toISOString()}`);
   const lista = await selecionar(T.envios, p);
@@ -3101,3 +3143,132 @@ export async function statusDasConexoes() {
     ],
   };
 }
+
+// ============================================================================
+// RODADA 7 (25/10/2026) · réguas ligadas aos eventos reais dos outros sistemas
+//   aprovou (Orçador → Agenda) · faltou (Agenda) · vencendo (Orçador) · pronto_lembrete (Pátio)
+// As decisões são puras (r7.js); aqui só se lê o banco e se entrega ao porteiro.
+// ============================================================================
+const SEL_ORC7 = 'id,numero,status,cliente_id,cliente_nome,cliente_telefone,veiculo,pedido,total,validade,enviado_em,visualizado_em,decidido_em,token_publico,lead_id,agendamento_id';
+const mesmoCliente = (a, b) => {
+  if (a.cliente_id && b.cliente_id && a.cliente_id === b.cliente_id) return true;
+  const ta = telefoneNacional(a.telefone || a.cliente_telefone), tb = telefoneNacional(b.telefone || b.cliente_telefone);
+  return !!(ta && tb && ta.length >= 10 && ta === tb);
+};
+
+/** Orçamento aprovado no Orçador, sem horário na Agenda e sem ordem no Pátio: depois de N horas, convida a marcar. */
+export async function gerarAprovou(cfg, porteiro, ctx) {
+  const agora = Date.now();
+  const p = new URLSearchParams(`select=${SEL_ORC7}`);
+  p.set('status', 'eq.aprovado');
+  p.append('decidido_em', `gte.${new Date(agora - 8 * 86400000).toISOString()}`);
+  p.append('decidido_em', `lte.${new Date(agora - cfg.horas_aprovou * 3600000).toISOString()}`);
+  const orcs = await selecionar('orc_orcamentos', p);
+  if (!orcs.length) return;
+  const desde = encodeURIComponent(new Date(agora - 9 * 86400000).toISOString());
+  const [agds, oss] = await Promise.all([
+    selecionar(T.agendamentos, `select=id,cliente_id,telefone,status,created_at&created_at=gte.${desde}&status=neq.cancelado&limit=2000`).catch(() => []),
+    selecionar('patio_os', `select=id,cliente_id,telefone,orcamento_id,created_at,etapa&created_at=gte.${desde}&etapa=neq.cancelado&limit=2000`).catch(() => []),
+  ]);
+  for (const o of orcs) {
+    const temAgendamentoDepois = agds.some((a) => a.status !== 'nao_veio' && a.created_at > o.decidido_em && mesmoCliente(a, o));
+    const temOrdem = oss.some((x) => x.orcamento_id === o.id || (x.created_at > o.decidido_em && mesmoCliente(x, o)));
+    const d = r7.decidirAprovou(o, { agora, horas: cfg.horas_aprovou, temAgendamentoDepois, temOrdem });
+    if (!d.elegivel) continue;
+    if (!soDigitos(o.cliente_telefone)) continue;
+    const corpo = renderTemplate(cfg.msg_aprovou, { nome: o.cliente_nome, carro: conexoes.descreverCarro(o.veiculo), placa: o.veiculo?.placa || '', servico: o.pedido || 'o serviço' });
+    await entregarAoPorteiro(porteiro, {
+      cliente_id: o.cliente_id, lead_id: o.lead_id, telefone: o.cliente_telefone, nome: o.cliente_nome, tipo: 'aprovou', corpo,
+      enviar_em: new Date(agora).toISOString(), chave_unica: d.chave, criado_por: 'gerador', orcamento_id: o.id,
+      expira_em: new Date(agora + 5 * 86400000).toISOString(),
+    }, ctx);
+  }
+}
+
+/** Cliente que não veio ao horário da Agenda: N horas depois, convida a remarcar (uma vez por horário). */
+export async function gerarFaltou(cfg, porteiro, ctx) {
+  const agora = Date.now(), h = hoje();
+  const p = new URLSearchParams(A_SEL);
+  p.set('status', 'eq.nao_veio');
+  p.set('data', `gte.${somarDias(h, -3)}`);
+  p.append('data', `lte.${h}`);
+  const lista = await selecionar(T.agendamentos, p);
+  if (!lista.length) return;
+  const outros = await selecionar(T.agendamentos, `select=id,cliente_id,telefone,status,data,created_at&data=gte.${somarDias(h, -3)}&status=in.(aguardando,confirmado,concluido,em_atendimento)&limit=2000`).catch(() => []);
+  for (const a of lista) {
+    if (!soDigitos(a.telefone)) continue;
+    const marcado = instanteSP(a.data, String(a.hora || '08:00').slice(0, 5)).toISOString();
+    const remarcou = outros.some((x) => x.id !== a.id && mesmoCliente(x, a) && (x.created_at > marcado || x.data > a.data));
+    const d = r7.decidirFaltou(a, { agora, horas: cfg.horas_faltou, remarcou });
+    if (!d.elegivel) continue;
+    const corpo = await corpoDaRegua(cfg.msg_faltou, {
+      nome: a.cliente_nome, carro: a.veiculo, placa: a.placa, servico: a.servico || 'o atendimento', quando: quandoRelativo(a.data, a.hora, h),
+    }, { cliente_id: a.cliente_id, agendamento_id: a.id }, ctx, { tipo: 'faltou', nome: a.cliente_nome, telefone: a.telefone, cliente_id: a.cliente_id });
+    if (corpo === null) continue;
+    await entregarAoPorteiro(porteiro, {
+      cliente_id: a.cliente_id, agendamento_id: a.id, lead_id: a.lead_id, telefone: a.telefone, nome: a.cliente_nome, tipo: 'faltou', corpo,
+      enviar_em: new Date(agora).toISOString(), chave_unica: d.chave, criado_por: 'gerador', expira_em: new Date(agora + 3 * 86400000).toISOString(),
+    }, ctx);
+  }
+}
+
+/** Orçamento enviado que vence em até N dias: avisa a validade com o link (não repete o lembrete de "parado" de hoje). */
+export async function gerarVencendo(cfg, porteiro, ctx) {
+  const h = hoje(), agora = Date.now();
+  const p = new URLSearchParams(`select=${SEL_ORC7}`);
+  p.set('status', 'eq.enviado'); p.set('decidido_em', 'is.null');
+  p.append('validade', `gte.${h}`);
+  p.append('validade', `lte.${somarDias(h, cfg.dias_vencendo)}`);
+  const orcs = await selecionar('orc_orcamentos', p);
+  if (!orcs.length) return;
+  const paradas = new Map();
+  const chaves = orcs.map((o) => `"${conexoes.chaveOrcamento(o)}"`).join(',');
+  for (const e of await selecionar(T.envios, `select=chave_unica,enviado_em&status=eq.enviado&chave_unica=in.(${chaves})`).catch(() => [])) paradas.set(e.chave_unica, e.enviado_em);
+  for (const o of orcs) {
+    const d = r7.decidirVencendo(o, { hojeIso: h, dias: cfg.dias_vencendo, lembreteParadoEm: paradas.get(conexoes.chaveOrcamento(o)) || null, agora });
+    if (!d.elegivel) continue;
+    const info = { tipo: 'orcamento', nome: o.cliente_nome, telefone: o.cliente_telefone, cliente_id: o.cliente_id };
+    const link = conexoes.linkOrcamentoCliente(conexoes.ORCADOR_URL, o.token_publico);
+    if (!link) { ctx.pulados.push({ ...info, motivo: 'o orçamento ainda não tem link público (token) no Orçador', definitivo: false }); continue; }
+    const corpo = renderTemplate(cfg.msg_vencendo, {
+      nome: o.cliente_nome, carro: conexoes.descreverCarro(o.veiculo), placa: o.veiculo?.placa || '', servico: o.pedido || 'o serviço',
+      validade: `${d.validade.slice(8, 10)}/${d.validade.slice(5, 7)}`, link_orcamento: link,
+    });
+    await entregarAoPorteiro(porteiro, {
+      cliente_id: o.cliente_id, lead_id: o.lead_id, agendamento_id: o.agendamento_id, telefone: o.cliente_telefone, nome: o.cliente_nome,
+      tipo: 'orcamento', corpo, enviar_em: new Date(agora).toISOString(), chave_unica: d.chave, criado_por: 'gerador',
+      expira_em: instanteSP(d.validade, '23:59').toISOString(), orcamento_id: o.id,
+    }, ctx);
+  }
+}
+
+/** Carro pronto e não retirado há N horas: um lembrete com o link de acompanhar (depois que o aviso de pronto saiu). */
+export async function gerarProntoLembrete(cfg, porteiro, ctx) {
+  const pc = await patioConfig().catch(() => null);
+  if (pc && pc.avisar_pronto === false) return;
+  const agora = Date.now();
+  const p = new URLSearchParams(`select=${OS_SEL},etapa_em`);
+  p.set('etapa', 'eq.pronto');
+  p.append('etapa_em', `lte.${new Date(agora - cfg.horas_pronto_lembrete * 3600000).toISOString()}`);
+  p.append('etapa_em', `gte.${new Date(agora - 14 * 86400000).toISOString()}`);
+  const ordens = await selecionar('patio_os', p);
+  if (!ordens.length) return;
+  const avisos = [];
+  for (let i = 0; i < ordens.length; i += 60) {
+    avisos.push(...await selecionar(T.envios, `select=os_id,status,chave_unica&tipo=eq.patio_pronto&os_id=in.(${ordens.slice(i, i + 60).map((o) => o.id).join(',')})`).catch(() => []));
+  }
+  for (const os of ordens) {
+    const d = r7.decidirProntoLembrete(os, avisos.filter((a) => a.os_id === os.id), { agora, horas: cfg.horas_pronto_lembrete });
+    if (!d.elegivel) continue;
+    const link = linkOs(pc?.link_base || PATIO_URL, os.token_publico);
+    if (!link) continue;
+    const corpo = renderTemplate(cfg.msg_pronto_lembrete, { nome: os.cliente_nome, carro: os.veiculo, placa: os.placa, servico: os.servico || '', link_os: link });
+    await entregarAoPorteiro(porteiro, {
+      cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, lead_id: os.lead_id, telefone: os.telefone, nome: os.cliente_nome, os_id: os.id,
+      tipo: 'patio_pronto', corpo, enviar_em: new Date(agora).toISOString(), chave_unica: d.chave, criado_por: 'gerador',
+      expira_em: new Date(agora + 24 * 3600000).toISOString(),
+    }, ctx);
+  }
+}
+
+export * from './dados7.js';
