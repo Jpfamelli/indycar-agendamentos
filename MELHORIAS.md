@@ -1001,4 +1001,18 @@ Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador cont
 - C2-38. Encaixe: o formulário já abre com nome, carro, serviço, data, hora e consultor da pessoa da espera; sem ninguém que sirva, abre direto
 - C2-39. 14 testes novos (`tests/c2-lote2.test.mjs`): botões, faixa de dias, atalhos, espera que serve, rota por HTTP
 - C2-40. Roteiro de navegador do lote (`scripts/qa-r7c2-lote2.mjs`, 36 conferências em 1440 e 375 px)
+- C2-41. 🔗 Migração `r7_c2_motivo_falta`: coluna `agendamentos.motivo_falta` com lista fechada (esqueceu, imprevisto, remarcou por outro canal, sem resposta, resolveu em outro lugar, outro) conferida pelo próprio banco
+- C2-42. 🔗 Nova rota `PATCH /api/agendamentos/:id/motivo-falta`: só em quem faltou ou cancelou, lista fechada no servidor, vazio limpa, fica na auditoria; a recepção (papel agenda) também pode anotar
+- C2-43. Falta: depois de "Não veio"/"Faltou" (Início, recepção e Quadro) abre uma folha de baixo "Por que não veio?" com 6 motivos de um toque; "Depois" ou Esc fecham sem anotar; some sozinha
+- C2-44. Falta: o cartão de quem faltou mostra o motivo (ou o botão "Motivo?" para anotar depois), no Quadro e no Início
+- C2-45. 🔗 Falta: "💬 Reagendar" no cartão abre o WhatsApp do cliente com o recado pronto ("Sentimos sua falta... quer que a gente remarque?")
+- C2-46. 🔗 Quadro: placar do dia "7 de 10 confirmados · 3 sem confirmar" (inclui quem confirmou pelo link), mais quantos pediram remarcar e quantos avisaram que não vêm
+- C2-47. Quadro: o placar abre a lista de quem falta confirmar, em ordem de hora, com consultor e serviço (lembra aberto/fechado neste aparelho)
+- C2-48. 🔗 Confirmação: "💬 Pedir" abre o WhatsApp com o texto pronto ("amanhã às 09:00... responda SIM"), valendo também para a recepção
+- C2-49. 🔗 Confirmação: "🔗 Link" gera o link em que o cliente toca em Confirmo (resposta aparece no cartão) e "Já confirmou" registra confirmação feita por telefone, sem sair do Quadro
+- C2-50. Módulo novo `faltas.js` (regras puras): motivos, quem está sem confirmar, placar, recado de reagendar e resumo de faltas (taxa, por motivo, dia, hora, serviço e consultor) para o relatório do dono
+- C2-51. Servidor de mentira ganha a rota do motivo (com as mesmas regras) e o painel do Quadro é isolado: se falhar, o Quadro segue inteiro
+- C2-52. Celular 375 px: placar, lista, folha do motivo e botões com 44 px, sem rolagem lateral
+- C2-53. 12 testes novos (`tests/c2-lote3.test.mjs`): motivos, hostis/SQL, rota por HTTP (papéis, 409, 404), navegador e servidor calculando igual
+- C2-54. Roteiro de navegador do lote (`scripts/qa-r7c2-lote3.mjs`, 30 conferências em 1440 e 375 px)
 <!-- C2-R7-FIM -->

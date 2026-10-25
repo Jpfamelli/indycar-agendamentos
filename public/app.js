@@ -450,6 +450,7 @@ function corpoDoCartao(a, agora, botoes) {
             <button type="button" class="copiar" data-copiar="${esc(a.telefone)}" title="Copiar telefone" aria-label="Copiar telefone de ${esc(a.cliente_nome)}">${svg(I.copiar)}</button></span>` : ''}
         ${a.origem ? `<span>${svg(I.pin)} ${esc(a.origem)}</span>` : ''}
         ${a.consultor_nome ? `<span>${svg(I.user)} ${esc(a.consultor_nome)}</span>` : ''}
+        ${a.status === 'nao_veio' && window.R7 ? R7.faltaHtml(a, R7.linkDeReagendar(a)) : ''}
       </div>
     </div>
     <div class="appt-actions">${botoes}</div>
@@ -650,6 +651,7 @@ async function marcarDesfecho(card, id, act) {
     const acoes = [{ rotulo: 'Remarcar', fn: () => abrirRemarcar(id) }];
     if (r.espera?.length) acoes.push({ rotulo: `${r.espera.length} na espera`, fn: () => { state.esperaFoco = r.espera[0]?.id; route('espera'); } });
     toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok', { acoes, duracao: 9000 });
+    window.R7?.pedirMotivo(id, nome);
   } else {
     /* Desfazer devolve o horário ao status de antes; o gatilho do banco reabre o
        lead no CRM (só quando foi a própria Agenda que o fechou). */
@@ -699,6 +701,7 @@ function bindApptActions(root) {
         if (act === 'editar')   return openAgendamentoModal(id);
         if (act === 'remarcar') return abrirRemarcar(id);
         if (act === 'confirmar') return pedirConfirmacao(id);
+        if (act === 'motivo') return window.R7?.pedirMotivo(id, card.querySelector('.appt-nome, .nome')?.textContent || '');
         if (act === 'whatsapp') return openWhatsappModal(id);
         if (act === 'excluir') {
           if (!confirm('Excluir este agendamento?')) return;
@@ -3900,7 +3903,7 @@ async function marcarNaRecepcao(card, marca, o = {}) {
         toast(`Desfeito — ${nome} voltou para "Agendados"${des?.patio_aberta ? `. A OS nº ${des.patio_aberta.numero ?? '?'} continua aberta no Pátio: se foi engano, cancele lá` : ''}`, 'ok', des?.patio_aberta ? { duracao: 12000, acoes: [{ rotulo: 'Abrir no Pátio', fn: () => window.open(des.patio_aberta.abrir, '_blank', 'noopener') }] } : {}); route();
       } }] });
     }
-    else toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok');
+    else { toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok'); window.R7?.pedirMotivo(id, nome); }
     state._recPintar?.(false);
   } catch (e) {
     if (navigator.onLine === false || e instanceof TypeError || e?.fora) {

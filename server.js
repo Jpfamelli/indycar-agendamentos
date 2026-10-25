@@ -17,6 +17,7 @@ import {
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento, entradaDoChegou } from './patio.js';
 import { resumoDosLembretes } from './lembretes.js';
+import { motivoDeFaltaValido, aceitaMotivo, rotuloDoMotivo } from './faltas.js';
 import { lerParametros as lerParametrosDeHorario, resumoDoDia } from './horarios.js';
 
 /* A camada de dados é trocável SÓ nos testes (tests/servidor.test.mjs injeta
@@ -1417,6 +1418,18 @@ async function api(req, res, url) {
   // Pendências antigas: passou há mais de 7 dias sem desfecho (só lista; resolve pelos botões)
   if (pathname === '/api/pendencias-antigas' && m === 'GET') {
     return send(res, 200, await dados.pendenciasAntigas(), { 'Cache-Control': 'no-store' });
+  }
+
+  /* rodada 7 (C2): o MOTIVO da falta (depois do "Não veio"): lista fechada, só em quem faltou/cancelou, auditado. Vazio limpa. */
+  if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/motivo-falta$`))) && m === 'PATCH') {
+    const motivo = body.motivo === null || body.motivo === undefined ? '' : String(body.motivo).trim();
+    if (!motivoDeFaltaValido(motivo)) return bad(res, 'Motivo inválido.');
+    const a = await dados.obterAgendamento(mm[1]);
+    if (!a) return notFound(res);
+    if (!aceitaMotivo(a)) return send(res, 409, { erro: 'Só dá para registrar o motivo de quem não veio ou cancelou.' });
+    const atualizado = await dados.atualizarAgendamento(a.id, { motivo_falta: motivo || null });
+    await dados.auditar(usuario?.id, 'motivo_falta', 'agendamentos', a.id, { cliente: a.cliente_nome, motivo: motivo || null });
+    return send(res, 200, { ok: true, motivo_falta: atualizado?.motivo_falta ?? (motivo || null), rotulo: rotuloDoMotivo(motivo) }, { 'Cache-Control': 'no-store' });
   }
 
   /* rodada 7 (C2): a entrada pronta no Pátio de um horário (ficha, cartão de quem já chegou). Sem dado pessoal na resposta. */

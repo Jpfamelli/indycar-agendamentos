@@ -222,6 +222,7 @@
       <div class="qd-serv">${esc(a.servico || '')}${a.veiculo || a.placa ? ` · ${esc([a.veiculo, a.placa].filter(Boolean).join(' '))}` : ''}</div>
       ${window.R6c ? window.R6c.duracaoHtml(a, _q.dados?.duracoes) : ''}
       <div class="qd-selos">${passou ? `<span class="badge-pill bp-orange" title="Já passou do horário e o cliente não chegou">atrasado ${atraso} min</span>` : ''}${typeof seloConfirmacao === 'function' ? seloConfirmacao(a) : ''}${ehPre(a) && a.status === 'aguardando' ? SELO_PRE : ''}${lemb}${!a.telefone ? '<span class="badge-pill bp-gray">sem telefone</span>' : ''}${orc ? window.R6.seloOrc(orc) : ''}${os ? seloPatioHtml(os) : ''}</div>
+      ${a.status === 'nao_veio' && window.R7 ? R7.faltaHtml(a, R7.linkDeReagendar(a)) : ''}
       <div class="qd-acoes">
         ${vivo ? `${ehPre(a) && a.status === 'aguardando' ? '<button type="button" class="btn mini primary" data-qd="confirmarpre" title="Confirmar o horário do pré-agendamento">Confirmar</button>' : ''}<button type="button" class="btn mini primary" data-qd="chegou" title="O cliente chegou — abre a OS no Pátio">Chegou</button>
           <button type="button" class="btn mini" data-qd="mover" title="Mover para outro horário ou consultor">⇄ Mover</button>
@@ -403,6 +404,7 @@
     const nome = primeiro(a.cliente_nome);
     try {
       if (acao === 'abrir') return openAgendamentoModal(a.id);
+      if (acao === 'motivo') return R7.pedirMotivo(a.id, nome);
       if (acao === 'confirmarpre') { await confirmarPre(a.id, nome); return atualizar(true); }
       if (acao === 'mover') { if (_q.movendo === a.id) return pararMover(); return iniciarMover(a); }
       if (acao === 'lembrar') {
@@ -429,6 +431,7 @@
         const acoes = [{ rotulo: 'Remarcar', fn: () => abrirRemarcar(a.id) }];
         if (r.espera?.length) acoes.push({ rotulo: `${r.espera.length} na espera`, fn: () => { state.esperaFoco = r.espera[0]?.id; route('espera'); } });
         toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok', { acoes, duracao: 9000 });
+        if (window.R7) R7.pedirMotivo(a.id, nome);
         return atualizar(true);
       }
     } catch (e) { card.classList.remove('ocupado'); toast(e.message, 'err'); }

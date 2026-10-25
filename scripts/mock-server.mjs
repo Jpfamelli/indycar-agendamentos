@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional, casaBusca, cargaDoDia, sugerirConsultor } from '../dados.js';
 import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../regras.js';
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
+import { motivoDeFaltaValido, aceitaMotivo, rotuloDoMotivo } from '../faltas.js';
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento, entradaDoChegou } from '../patio.js';
 import { orcamentoPorAgendamento } from '../orcador.js';
 import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia, candidatosDaEspera, esperaQueServePara } from '../horarios.js';
@@ -434,6 +435,14 @@ http.createServer(async (req, res) => {
     const itens = PATIO.filter(o => !['entregue', 'cancelado'].includes(o.etapa)).map(o => { const a = AGENDA.find(x => x.id === o.agendamento_id) || {};
       return { ...resumoDaOs(o, EXTRAS, 'https://indycar-patio.netlify.app'), cliente_nome: a.cliente_nome || '', veiculo: a.veiculo || '', placa: a.placa || '', telefone: a.telefone || '' }; });
     return json(res, 200, { itens });
+  }
+  if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/motivo-falta$/)) && m === 'PATCH') {
+    const motivo = body.motivo === null || body.motivo === undefined ? '' : String(body.motivo).trim();
+    if (!motivoDeFaltaValido(motivo)) return json(res, 400, { erro: 'Motivo inválido.' });
+    const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro: 'Não encontrado' });
+    if (!aceitaMotivo(a)) return json(res, 409, { erro: 'Só dá para registrar o motivo de quem não veio ou cancelou.' });
+    a.motivo_falta = motivo || null;
+    return json(res, 200, { ok: true, motivo_falta: a.motivo_falta, rotulo: rotuloDoMotivo(motivo) });
   }
   if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/entrada-patio$/)) && m === 'GET') {
     const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro: 'Não encontrado' });

@@ -37,3 +37,26 @@
 @media (prefers-reduced-motion: reduce) { .qd-cel.recem-movido { animation: none; outline: 2px solid #35c486; } }
 
 .qd-cel { scroll-margin-top: 120px; scroll-margin-bottom: 40px; }
+
+/* ---- Lote 3: motivo da falta e painel de confirmação ---- */
+.r7-motivo { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 90; width: min(640px, calc(100vw - 24px)); background: var(--card, #fff); color: var(--text, #111); border: 1px solid var(--border, #d8dbe0); border-radius: 14px; box-shadow: 0 10px 34px rgba(0,0,0,.28); padding: 12px 14px; }
+.r7m-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 8px; }
+.r7m-topo .btn { margin-left: auto; }
+.r7m-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.r7m-chip { min-height: 44px; padding: 8px 14px; }
+.r7-falta { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.r7-conf { margin: 8px 0; border: 1px solid var(--border, #d8dbe0); border-radius: 12px; background: var(--card, #fff); }
+.r7c-cab { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; text-align: left; background: transparent; border: 0; padding: 10px 14px; color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
+.r7c-cab.pend { border-left: 4px solid #e8892b; border-radius: 12px; }
+.r7c-cab.ok { border-left: 4px solid #2e9d5b; border-radius: 12px; }
+.r7c-seta { margin-left: auto; opacity: .6; }
+.r7c-lista { list-style: none; margin: 0; padding: 4px 10px 10px; display: grid; gap: 6px; }
+.r7c-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 4px; border-top: 1px solid var(--border, #e6e8ec); }
+.r7c-nome { font-weight: 600; }
+.r7c-acoes { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.r7-conf[hidden], .r7-motivo[hidden] { display: none !important; }
+@media (max-width: 720px) {
+  .r7-motivo { bottom: 8px; }
+  .r7c-acoes { margin-left: 0; width: 100%; }
+  .r7c-acoes .btn, .r7c-cab, .r7-falta .btn, .r7m-topo .btn { min-height: 44px; }
+}

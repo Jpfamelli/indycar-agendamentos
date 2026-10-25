@@ -532,6 +532,8 @@ export async function atualizarAgendamento(id, dados) {
   // valor é NOT NULL no Postgres: null viraria erro 23502
   if (dados.valor !== undefined) campos.valor = Number(dados.valor ?? 0) || 0;
   if (dados.observacoes !== undefined) campos.observacoes = dados.observacoes || null;
+  // rodada 7 (C2): por que não veio (lista fechada em faltas.js; o banco também confere)
+  if (dados.motivo_falta !== undefined) campos.motivo_falta = dados.motivo_falta || null;
   // carimbo do aviso de ausência (dedupe do "Não veio" — ver server.js)
   if (dados.no_show_notificado_em !== undefined) campos.no_show_notificado_em = dados.no_show_notificado_em;
 

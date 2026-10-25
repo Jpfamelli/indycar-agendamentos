@@ -145,9 +145,48 @@
     return `${n ? 'Oi ' + n + '!' : 'Olá!'} Aqui é da IndyCar 🏁 Abriu um horário para ${String((espera && espera.servico) || 'o seu serviço').slice(0, 80)}: ${rotuloDia(data)} às ${hora}${com}. Posso reservar para você?`;
   }
 
+  /* ------------------------------ Lote 3: falta e confirmação ------------------------------ */
+  const MOTIVOS = [
+    { id: 'esqueceu', rotulo: 'Esqueceu' }, { id: 'imprevisto', rotulo: 'Imprevisto' },
+    { id: 'remarcou_outro_canal', rotulo: 'Remarcou por outro canal' }, { id: 'sem_resposta', rotulo: 'Não atendeu / sem resposta' },
+    { id: 'resolveu_outro_lugar', rotulo: 'Resolveu em outro lugar' }, { id: 'outro', rotulo: 'Outro motivo' },
+  ];
+  const rotuloDoMotivo = (id) => { const m = MOTIVOS.find((x) => x.id === id); return m ? m.rotulo : ''; };
+  /** Quem ainda não deu sinal no dia: vivo, não chegou, sem "confirmou". */
+  function semConfirmacaoDoDia(lista, data) {
+    return (lista || []).filter((a) => a && String(a.data || '').slice(0, 10) === data
+      && ['aguardando', 'confirmado'].includes(a.status) && !(a.compareceu === 1 || a.compareceu === true)
+      && !(a.confirmado === true || a.confirmado === 1) && (a.confirmacao && a.confirmacao.resposta) !== 'confirmou')
+      .sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
+  }
+  function placarDeConfirmacao(lista, data) {
+    const vivos = (lista || []).filter((a) => a && String(a.data || '').slice(0, 10) === data && ['aguardando', 'confirmado'].includes(a.status));
+    const ok = vivos.filter((a) => a.confirmado === true || a.confirmado === 1 || (a.confirmacao && a.confirmacao.resposta) === 'confirmou').length;
+    return { total: vivos.length, confirmados: ok, pendentes: vivos.length - ok,
+      pediramRemarcar: vivos.filter((a) => a.confirmacao && a.confirmacao.resposta === 'remarcar').length,
+      naoVao: vivos.filter((a) => a.confirmacao && a.confirmacao.resposta === 'nao_vem').length };
+  }
+  /** Recado de WhatsApp para quem faltou. */
+  function textoDeReagendar({ nome, servico, sugestao } = {}) {
+    const p = primeiroNome(nome);
+    const oi = p ? `Oi ${p}!` : 'Oi!';
+    const sv = String(servico || '').trim().slice(0, 60);
+    const alvo = sv ? ` de ${sv}` : '';
+    if (sugestao && sugestao.rotulo && sugestao.hora) return `${oi} Aqui é da IndyCar 🏁 Sentimos sua falta no horário${alvo}. Posso remarcar para ${sugestao.rotulo} às ${sugestao.hora}? É só responder aqui.`;
+    return `${oi} Aqui é da IndyCar 🏁 Sentimos sua falta no horário${alvo}. Quer que a gente remarque? Me diga o melhor dia e horário.`;
+  }
+  /** Recado simples de confirmação (vale para qualquer papel; o link com resposta no cartão continua existindo). */
+  function textoDeConfirmar({ nome, servico, data, hora, hoje } = {}) {
+    const p = primeiroNome(nome);
+    const falado = hoje && data === hoje ? 'hoje' : hoje && data === maisDias(hoje, 1) ? 'amanhã' : rotuloDia(data);
+    const quando = `${falado} às ${String(hora || '').slice(0, 5)}`;
+    return `${p ? 'Oi ' + p + '!' : 'Olá!'} Aqui é da IndyCar 🏁 Seu horário${servico ? ' de ' + String(servico).slice(0, 60) : ''} está marcado para ${quando}. Confirma pra gente? Responda SIM, ou me diga se precisar remarcar.`;
+  }
+
   const PURO = { digitos, semFone, emMin, hm, maisDias, primeiroNome, rotuloDaEntrada, deveOferecerOrcar, linkDeEntradaSeguro,
     minutosDesde, tempoCurto, LIMITES_ETAPA, tomDaEtapa, ordenarPatio, mensagemProntoOS, linkWhatsApp, avisadoDe,
-    rotuloDia, proximoDiaAberto, atalhosDeRemarcar, botoesDeHorario, rotuloDoBotao, botoesDeDias, textoDeOferta };
+    rotuloDia, proximoDiaAberto, atalhosDeRemarcar, botoesDeHorario, rotuloDoBotao, botoesDeDias, textoDeOferta,
+    MOTIVOS, rotuloDoMotivo, semConfirmacaoDoDia, placarDeConfirmacao, textoDeReagendar, textoDeConfirmar };
   root.R7Puro = PURO;
   if (typeof document === 'undefined') return;
 
@@ -209,7 +248,9 @@
   }
 
   function aposDesenharQuadro(d) {
-    if (!d || semAcessoDeEquipe()) return;
+    if (!d) return;
+    try { painelConfirmacao(d); } catch (e) { /* o painel nunca derruba o Quadro */ }
+    if (semAcessoDeEquipe()) return;
     botaoEntradaNoQuadro(d);
     const barra = $('#qdFerr');
     if (barra && !$('.r7-auto', barra)) barra.appendChild(interruptorAuto());
@@ -368,5 +409,80 @@
     }));
   }
 
-  root.R7 = { abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
+  /* ---- Lote 3: motivo da falta (folha de baixo, um toque) ---- */
+  let _motivoTimer = null;
+  function fecharMotivo() { clearTimeout(_motivoTimer); const f = $('#r7Motivo'); if (f) f.remove(); }
+  function pedirMotivo(id, nome) {
+    if (!id) return;
+    fecharMotivo();
+    const f = document.createElement('div'); f.id = 'r7Motivo'; f.className = 'r7-motivo'; f.setAttribute('role', 'group'); f.setAttribute('aria-label', 'Por que não veio?');
+    const p = primeiroNome(nome);
+    f.innerHTML = `<div class="r7m-topo"><b>Por que ${p ? escH(p) + ' ' : ''}não veio?</b><span class="muted">um toque — ajuda o relatório de faltas</span><button type="button" class="btn mini" data-r7m-fechar>Depois</button></div>
+      <div class="r7m-chips">${MOTIVOS.map((m) => `<button type="button" class="btn r7m-chip" data-r7m="${escH(m.id)}">${escH(m.rotulo)}</button>`).join('')}</div>`;
+    document.body.appendChild(f);
+    $('[data-r7m-fechar]', f).addEventListener('click', fecharMotivo);
+    $$('[data-r7m]', f).forEach((b) => b.addEventListener('click', async () => {
+      $$('[data-r7m]', f).forEach((x) => { x.disabled = true; });
+      try {
+        const r = await api('PATCH', `/agendamentos/${id}/motivo-falta`, { motivo: b.dataset.r7m }, { repetir: false });
+        f.innerHTML = `<div class="r7m-topo"><b>Anotado: ${escH(r.rotulo || rotuloDoMotivo(b.dataset.r7m))} ✓</b></div>`;
+        _motivoTimer = setTimeout(fecharMotivo, 1600);
+        const dq = window.R6b && R6b.estado && R6b.estado.dados; const aq = dq && dq.lista && dq.lista.find((x) => x.id === id);
+        if (aq) { aq.motivo_falta = b.dataset.r7m; if (R6b.redesenhar) R6b.redesenhar(); }
+        const card = document.querySelector(`[data-id="${CSS.escape(id)}"]`);
+        const alvo = card && card.querySelector('[data-r7-falta]');
+        if (alvo) alvo.outerHTML = faltaHtml({ id, status: 'nao_veio', motivo_falta: b.dataset.r7m });
+      } catch (e) { $$('[data-r7m]', f).forEach((x) => { x.disabled = false; }); toast(e.message || 'Não consegui anotar o motivo', 'err'); }
+    }));
+    _motivoTimer = setTimeout(fecharMotivo, 25000);
+  }
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && $('#r7Motivo')) fecharMotivo(); });
+
+  /** Bloquinho do cartão de quem faltou: o motivo (ou "Motivo?") e o recado de reagendar pelo WhatsApp. */
+  function faltaHtml(a, linkWa) {
+    if (!a || a.status !== 'nao_veio') return '';
+    const mot = a.motivo_falta ? rotuloDoMotivo(a.motivo_falta) : '';
+    return `<span class="r7-falta" data-r7-falta>${mot ? `<span class="badge-pill bp-gray" title="Motivo da falta">${escH(mot)}</span>` : `<button type="button" class="btn mini act" data-act="motivo" data-qd="motivo" title="Anotar por que não veio">Motivo?</button>`}${linkWa ? `<a class="btn mini" data-r7-wa href="${escH(linkWa)}" target="_blank" rel="noopener" title="Chamar no WhatsApp para remarcar">💬 Reagendar</a>` : ''}</span>`;
+  }
+  const linkDeReagendar = (a) => linkWhatsApp(a && a.telefone, textoDeReagendar({ nome: a && a.cliente_nome, servico: a && a.servico }));
+
+  /* ---- Lote 3: painel "sem confirmar" do dia no Quadro ---- */
+  const LS_ABERTO = 'indycar_r7_conf_aberto';
+  function painelConfirmacao(d) {
+    const quadro = $('#qdCorpo'); if (!quadro) return;
+    let host = $('#qdConf');
+    if (!host) { host = document.createElement('div'); host.id = 'qdConf'; host.className = 'r7-conf'; const ref = $('#qdEncaixe'); if (ref && ref.parentNode) ref.parentNode.insertBefore(host, ref.nextSibling); else quadro.parentNode.insertBefore(host, quadro); }
+    const hoje = (typeof agoraSP === 'function' ? agoraSP().data : '');
+    const lista = (d && d.lista) || [];
+    const pl = placarDeConfirmacao(lista, d.data);
+    const pend = semConfirmacaoDoDia(lista, d.data);
+    if (!pl.total || (d.data < hoje)) { host.hidden = true; host.innerHTML = ''; return; }
+    host.hidden = false;
+    const aberto = lerLS(LS_ABERTO) === '1' && pend.length > 0;
+    const extra = [pl.pediramRemarcar ? `${pl.pediramRemarcar} pediram para remarcar` : '', pl.naoVao ? `${pl.naoVao} avisaram que não vêm` : ''].filter(Boolean).join(' · ');
+    const comLink = !semAcessoDeEquipe();
+    host.innerHTML = `<button type="button" class="r7c-cab ${pend.length ? 'pend' : 'ok'}" data-r7c-alt aria-expanded="${aberto}">
+        <b>${pl.confirmados} de ${pl.total} confirmados</b>${pend.length ? ` · <span>${pend.length} sem confirmar</span>` : ' · tudo certo'}${extra ? ` · <span class="muted">${escH(extra)}</span>` : ''}
+        ${pend.length ? `<span class="r7c-seta">${aberto ? '▲' : '▼'}</span>` : ''}</button>
+      ${aberto ? `<ul class="r7c-lista">${pend.map((a) => {
+        const wa = linkWhatsApp(a.telefone, textoDeConfirmar({ nome: a.cliente_nome, servico: a.servico, data: a.data, hora: a.hora, hoje }));
+        return `<li data-r7c-id="${escH(a.id)}"><b>${escH(String(a.hora).slice(0, 5))}</b> <span class="r7c-nome">${escH(a.cliente_nome)}</span> <small class="muted">${escH(a.servico || '')}${a.consultor_nome ? ' · ' + escH(primeiroNome(a.consultor_nome)) : ''}</small>
+          <span class="r7c-acoes">${wa ? `<a class="btn mini" href="${escH(wa)}" target="_blank" rel="noopener" title="Pedir a confirmação pelo WhatsApp (texto pronto)">💬 Pedir</a>` : '<small class="muted">sem telefone</small>'}
+          ${comLink && a.telefone && typeof window.pedirConfirmacao === 'function' ? `<button type="button" class="btn mini" data-r7c-link title="Gerar o link em que o cliente toca em Confirmo">🔗 Link</button>` : ''}
+          <button type="button" class="btn mini primary" data-r7c-ok title="O cliente já confirmou (por telefone ou conversa)">Já confirmou</button></span></li>`;
+      }).join('')}</ul>` : ''}`;
+    $('[data-r7c-alt]', host).addEventListener('click', () => { if (!pend.length) return; gravarLS(LS_ABERTO, aberto ? '0' : '1'); painelConfirmacao(d); });
+    $$('[data-r7c-ok]', host).forEach((b) => b.addEventListener('click', async () => {
+      const li = b.closest('[data-r7c-id]'); const id = li.dataset.r7cId; b.disabled = true;
+      try {
+        await api('PATCH', `/agendamentos/${id}/status`, { status: 'confirmado' }, { repetir: false });
+        const a = lista.find((x) => x.id === id); if (a) { a.confirmado = true; a.status = 'confirmado'; }
+        toast('Confirmado ✅'); painelConfirmacao(d);
+        if (window.R6b && R6b.redesenhar) R6b.redesenhar();
+      } catch (e) { b.disabled = false; toast(e.message || 'Não consegui marcar', 'err'); }
+    }));
+    $$('[data-r7c-link]', host).forEach((b) => b.addEventListener('click', () => window.pedirConfirmacao(b.closest('[data-r7c-id]').dataset.r7cId)));
+  }
+
+  root.R7 = { pedirMotivo, fecharMotivo, faltaHtml, linkDeReagendar, painelConfirmacao, abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
