@@ -43,7 +43,6 @@ await cenario7('gestor', 1440, async ({ page, browser, estado }) => {
   await page.evaluate(() => window.Casa.saude.atualizar());
   await page.waitForFunction(() => /Todos os sistemas em ordem|Movere|pedem/.test(document.querySelector('#saudeTxt').textContent), { timeout: 8000 });
   conf(/Todos os sistemas em ordem/.test(await texto(page, '#saudeTxt') || ''), 'saúde: quando o monitor limpa, a faixa diz "Todos os sistemas em ordem"');
-  conf(/WhatsApp voltou ao normal/.test(await page.$eval('#toast', (t) => t.textContent).catch(() => '')) || true, 'saúde: aviso de volta ao normal (toast)');
   estado.rpc.r7_c1_saude_sistemas = RPC_SAUDE({ whatsapp: { estado: 'chave_recusada', desde: iso(30) } });
   await page.evaluate(() => window.Casa.saude.atualizar());
   await page.waitForFunction(() => /WhatsApp com problema/.test(document.querySelector('#saudeTxt').textContent), { timeout: 8000 });
@@ -51,6 +50,65 @@ await cenario7('gestor', 1440, async ({ page, browser, estado }) => {
   await page.keyboard.press('h');
   await page.keyboard.press('h');
   await page.screenshot({ path: new URL('../capturas-r7/saude.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') }).catch(() => {});
+}, { ajustar: (e) => { e.rpc.r6_agora = dadosComTelefones(); } });
+
+// =============================================================== PARAR: botões de WhatsApp
+await cenario7('gestor', 1440, async ({ page, browser, estado }) => {
+  await aguardaOrc(page);
+  await page.evaluate(() => window.Casa.painel.trocarVisao('operacao'));
+  await page.waitForSelector('.wa-parar', { timeout: 15000 }).catch(() => {});
+  const rpcsParar = () => estado.chamadasRpc.filter((c) => c.nome === 'r7_c1_parar');
+  conf((await page.$$eval('.wa-parar', (l) => l.length)) >= 1, 'PARAR: quem pediu para parar tem o botão trocado por aviso');
+  const txt = await page.$eval('.wa-parar', (e) => e.innerText).catch(() => '');
+  conf(/Pediu para parar/.test(txt), 'PARAR: o aviso diz "Pediu para parar": ' + JSON.stringify(txt));
+  conf((await page.$eval('.wa-parar', (e) => e.tagName).catch(() => '')) === 'SPAN', 'PARAR: o aviso não é link');
+  conf((await page.$eval('.wa-parar .wa-parar-ver', (a) => a.getAttribute('target')).catch(() => '')) === 'indycar-comunicar', 'PARAR: "Comunicar" abre a aba indycar-comunicar');
+  const livres = await page.$$eval('a.wa-mini[href^="https://wa.me/"]', (l) => l.length);
+  conf(livres >= 1, 'PARAR: quem não pediu continua com o botão (' + livres + ')');
+  conf(rpcsParar().length >= 1 && rpcsParar().length <= 3, 'PARAR: telefones perguntados em lote (' + rpcsParar().length + ' chamadas)');
+  const corpo = JSON.parse(rpcsParar()[0].corpo);
+  conf(Array.isArray(corpo.p_telefones) && corpo.p_telefones.every((t) => /^\d{10,11}$/.test(t)) && new Set(corpo.p_telefones).size === corpo.p_telefones.length, 'PARAR: só DDD+número, sem repetir: ' + corpo.p_telefones.join(','));
+  const antes = rpcsParar().length;
+  await page.evaluate(() => window.Casa.painel.redesenhar && window.Casa.painel.redesenhar());
+  await dorme(600);
+  conf(rpcsParar().length === antes, 'PARAR: redesenhar não pergunta de novo (cache)');
+  const urlBloq = await abaNova(browser, () => page.click('.wa-parar'), 1500);
+  conf(urlBloq === null, 'PARAR: clicar no aviso não abre aba');
+  const urlLivre = await abaNova(browser, () => page.click('a.wa-mini[href^="https://wa.me/"]'));
+  conf(!!urlLivre && /(wa\.me\/|phone=)55/.test(urlLivre), 'PARAR: clicar no livre abre o WhatsApp: ' + urlLivre);
+  await page.bringToFront();
+}, { ajustar: (e) => { e.rpc.r6_agora = dadosComTelefones(); e.rpc.r7_c1_parar = (req) => { const t = (JSON.parse(req.postData() || '{}').p_telefones) || []; return Object.fromEntries(t.filter((x) => x === '12988887777').map((x) => [x, 'optout'])); }; } });
+
+// =============================================================== tarefas do Orçador
+await cenario7('gestor', 1440, async ({ page, browser, estado }) => {
+  await aguardaOrc(page);
+  await page.waitForSelector('#listaTarefas .tarefa', { timeout: 15000 });
+  await page.waitForSelector('#listaTarefas .pil-orc', { timeout: 10000 }).catch(() => {});
+  const itens = await page.$$eval('#listaTarefas .tarefa', (l) => l.map((e) => ({ id: e.dataset.tid, origem: e.dataset.origem, ico: e.querySelector('.t-ico')?.textContent, selo: e.querySelector('.pil-orc')?.textContent || '', tit: e.querySelector('.t-texto')?.textContent })));
+  const rea = itens.find((i) => /Reabordar Marcos/.test(i.tit));
+  conf(!!rea && rea.selo === 'Reabordar', 'tarefas: reabordar do Orçador tem o selo "Reabordar": ' + JSON.stringify(rea));
+  conf(!!itens.find((i) => /Acompanhar orçamento/.test(i.tit) && i.selo === 'Acompanhar'), 'tarefas: acompanhar tem o selo');
+  conf(itens.every((i) => !!i.ico), 'tarefas: toda tarefa tem ícone de origem');
+  conf(new Set(itens.map((i) => i.ico)).size >= 2, 'tarefas: origens diferentes têm ícones diferentes');
+  const abrirOrc = await page.$eval('[data-tid="' + U(101) + '"] .t-abrir', (a) => [a.getAttribute('target'), a.getAttribute('href')]).catch(() => []);
+  conf(abrirOrc[0] === 'indycar-orcador' && (abrirOrc[1] || '').endsWith('/historico/' + U(12)), 'tarefas: "abrir orçamento" leva ao orçamento na aba indycar-orcador: ' + abrirOrc.join(' | '));
+  const desc = (await texto(page, '[data-tid="' + U(101) + '"] .t-desc')) || '';
+  conf(/Recusou por preço/.test(desc) && !/https?:/.test(desc), 'tarefas: descrição sem o endereço solto');
+  const wa = await page.$eval('[data-tid="' + U(101) + '"] .wa-tarefa', (a) => decodeURIComponent(a.getAttribute('href'))).catch(() => '');
+  conf(/wa\.me\/5512991821234\?text=/.test(wa) && !/ve[ií]culo/i.test(wa), 'tarefas: botão Reabordar abre o WhatsApp do cliente sem "veículo"');
+  conf((await page.$$eval('[data-tid="' + U(103) + '"] .wa-tarefa', (l) => l.length)) === 0, 'tarefas: tarefa de outra origem não oferece WhatsApp');
+  const chips = await page.$$eval('#tFiltros button', (b) => b.map((x) => x.textContent.replace(/\s+/g, ' ').trim()));
+  conf(chips.some((c) => /Do Orçador/.test(c)), 'tarefas: filtro "Do Orçador": ' + chips.join(' | '));
+  await page.click('#tFiltros [data-filtro-t="orcador"]');
+  const so = await page.$$eval('#listaTarefas .tarefa', (l) => l.map((e) => e.dataset.origem));
+  conf(so.length >= 2 && so.every((o) => o === 'orcador'), 'tarefas: o filtro mostra só as do Orçador');
+  await page.click('[data-tid="' + U(102) + '"] [data-adiar-mais]');
+  await dorme(400);
+  conf(estado.escritas.some((w) => w.tabela === 'tarefas' && w.metodo === 'PATCH' && /vence_em/.test(w.corpo || '')), 'tarefas: "+3 dias" grava o novo prazo');
+  const aba = await abaNova(browser, () => page.click('[data-tid="' + U(101) + '"] .wa-tarefa'));
+  conf(!!aba && /(wa\.me\/|phone=)5512991821234/.test(aba), 'tarefas: o botão abre o WhatsApp');
+  await page.bringToFront();
+  await page.waitForFunction(() => /Concluir a tarefa/.test(document.querySelector('#toast')?.textContent || ''), { timeout: 4000 }).then(() => conf(true, 'tarefas: oferta "Concluir a tarefa" depois do WhatsApp'), () => conf(false, 'tarefas: oferta de concluir'));
 }, { ajustar: (e) => { e.rpc.r6_agora = dadosComTelefones(); } });
 
 fim();
