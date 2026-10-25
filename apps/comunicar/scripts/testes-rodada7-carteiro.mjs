@@ -196,3 +196,41 @@ test('freio automático: campanha em que muita gente pediu PARAR é cancelada no
   assert.deepEqual(await real.avaliarFreios({ ...CFG, freio_optout_pct: 5, freio_min_envios: 20 }), []);
   assert.deepEqual(await real.avaliarFreios({ ...CFG, freio_optout_pct: 0 }), [], 'freio desligado');
 });
+
+test('aviso do WhatsApp: queda com fila avisa os gestores; volta de queda avisa o plano; WhatsApp normal não avisa; a chave evita repetir', async () => {
+  limpar();
+  const em = horas(-1);
+  assert.equal(await real.avisarWhatsapp({ ...CFG, whatsapp: { estado: 'desconectado', em, motivo: 'aparelho offline' } }), null, 'sem nada na fila não incomoda');
+  tabelas.posvenda_envios.push({ id: ID(6000), status: 'pendente', tipo: 'lembrete', telefone: tel(1), enviar_em: horas(1), corpo: 'x' });
+  let r = await real.avisarWhatsapp({ ...CFG, whatsapp: { estado: 'desconectado', em, motivo: 'aparelho offline' } });
+  assert.equal(r.tipo, 'whatsapp_caiu'); assert.equal(r.avisados, 2);
+  assert.equal(notificacoes.at(-1).p_chave, `whatsapp_caiu:${em}`, 'a mesma queda tem a mesma chave: o sino não repete');
+  r = await real.avisarWhatsapp({ ...CFG, retomada_max_30min: 8, retomada_max_2h: 25, retomada_so_essencial: true, whatsapp: { estado: 'ok', anterior: 'desconectado', em } });
+  assert.equal(r.tipo, 'whatsapp_voltou'); assert.match(notificacoes.at(-1).p_corpo, /8/);
+  assert.equal(await real.avisarWhatsapp({ ...CFG, whatsapp: { estado: 'ok', anterior: 'ok', em } }), null);
+});
+
+test('reabordar: a lista do Orçador é peneirada (PARAR e celular ruim) e o que já foi enfileirado não repete', async () => {
+  limpar();
+  const t = (n) => `1299777${String(n).padStart(4, '0')}`;
+  const base = (id, n, extra = {}) => ({ id, numero: id, cliente_id: ID(9000 + id), nome: `Cliente ${id}`, telefone_55: `55${t(n)}`, motivo: 'preco', valor: 1000, decidido_em: horas(-24 * 5), dias_desde: 5, carro: 'Gol', placa: 'AAA1A11', link: null, ...extra });
+  const lista = [base(1, 1), base(2, 2), base(3, 3), base(4, 4), { ...base(5, 5), telefone_55: '551236211234' }];
+  banco.restaurar();
+  const b2 = instalarBancoFalso(tabelas, { rpcs: { ...rpcs, orc_recusados_recuperaveis: () => lista } });
+  tabelas.posvenda_config = [{ id: true }];
+  tabelas.clientes = [{ id: ID(9002), telefone_e164: t(2), aceita_mensagens: false }];
+  tabelas.patio_os = [];
+  const r = await real.reabordarRecusados({ dias: 30, limite: 100 });
+  assert.equal(r.fora.nao_quer, 1, 'cliente 2 pediu para não receber');
+  assert.equal(r.fora.celular_ruim, 1, 'o fixo fica de fora');
+  assert.deepEqual(r.candidatos.map((c) => c.nome).sort(), ['Cliente 1', 'Cliente 3', 'Cliente 4']);
+  const cand = r.candidatos.slice(0, 1);
+  const textos = { preco: 'Oi, {primeiro_nome}! O orçamento do {carro} ainda está com a gente.' };
+  const a = await real.enfileirarReabordagem({ candidatos: cand, textos, enviarEm: horas(1), criador: { id: ID(2), nome: 'Gi' }, lote: ID(777), cfg: CFG });
+  const b = await real.enfileirarReabordagem({ candidatos: cand, textos, enviarEm: horas(1), criador: { id: ID(2), nome: 'Gi' }, lote: ID(778), cfg: CFG });
+  assert.equal(a.enfileirados, 1); assert.equal(b.enfileirados, 0); assert.equal(b.repetidos, 1);
+  assert.match(tabelas.posvenda_envios[0].corpo, /Oi, Cliente! O orçamento do Gol|Oi, Cliente/);
+  const r2 = await real.reabordarRecusados({ dias: 30, limite: 100 });
+  assert.equal(r2.fora.ja_reabordado, 1);
+  b2.restaurar();
+});

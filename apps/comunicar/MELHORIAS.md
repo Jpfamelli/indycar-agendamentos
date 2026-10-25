@@ -834,3 +834,173 @@ Lote 8 — "por que não saiu?" completo, retomada na Saúde, limites
 - **Pedido ao Atendimento:** o botão "Conferir agora" da Saúde aponta para `?aba=integracoes`; o Atendimento precisa abrir essa aba (hoje abre na página inicial).
 - **Tarefa da nota baixa** vai para o primeiro gestor que recebe reclamação; se quiserem por rodízio ou para o consultor da ordem, é só trocar o responsável em `cuidarNotaBaixa` (dados.js).
 - **Publicar:** é com o coordenador (Central). Depois de publicar, rodar uma vez `Simular a rodada` e olhar a Agenda de envios.
+
+## Rodada 7 (25/10/2026) — C5
+
+Foco: os três pedidos abertos da Rodada 6 (reabordar recusados, fila de verdade para o Pátio, Repetir sem mandar o nome do primeiro cliente para todos), réguas ligadas a todos os eventos reais, anti-spam, hora exata de saída, resultados e o dia em que o WhatsApp volta. Regras puras em `r7.js`; camada de dados em `dados7.js`; rotas em `rotas7.js`; tela em `public/rodada7.js`. Migrações `r7_c5_comunicar_base`, `r7_c5_regras_extra`, `r7_c5_lotes_politica` (cópias em `indycar-ferramentas/sql/2026-10-25_r7_c5_*.sql`; contrato em `indycar-ferramentas/r6/CONTRATOS.md`, seção 15).
+
+Lote 1 — pedidos abertos: reabordar recusados
+
+223. 🔗 **Campanha "Reabordar recusados"**: lê os orçamentos recusados que ainda dá para recuperar direto do Orçador (`orc_recusados_recuperaveis`) e mostra quantos podem receber e quanto dinheiro está em jogo (teste de API e navegador: "3 podem receber", "R$ 4.200").
+224. 🔗 A lista vem agrupada **por motivo da recusa** (valor, prazo, sem urgência, sem motivo), cada grupo com o seu total e o seu valor.
+225. 🔗 Cada motivo tem um texto próprio e editável; os quatro modelos padrão passam na validação (teste puro).
+226. O texto nunca promete preço, desconto ou promoção, não aceita variável inventada e evita "prezado/efetuar/comparecer/veículo" (testes puros e de API: 400 com o campo que errou).
+227. O erro do texto aparece **embaixo do campo certo**, não só como aviso solto (navegador, gestor, 1440 e 375).
+228. 🔗 Fora da lista, com a contagem: quem pediu PARAR, quem tem reclamação aberta, quem está com o carro na oficina (Pátio) e quem tem celular ruim.
+229. 🔗 Orçamento reabordado uma vez nunca recebe a segunda (chave `reabordar:orc:<id>`; teste: repetir o envio não duplica).
+230. 🔗 **Na hora de sair**, se o cliente já ganhou um orçamento novo (enviado ou aprovado) depois do recusado, a reabordagem é pulada com o motivo (teste do carteiro).
+231. Só o gestor enfileira (atendente recebe 403 e nem vê o botão de enfileirar; teste de API e navegador).
+232. A lista é **recalculada no servidor** na hora de enfileirar: o navegador só diz quais motivos e quais textos, nunca quem (teste: sem candidatos devolve 400 `sem_candidatos`).
+233. 🔗 O público "orçamento recuperável" também virou segmento das campanhas normais (aparece junto dos outros públicos).
+234. A reabordagem aparece no histórico como lote de origem `recusados`, com os textos usados.
+235. Intervalo de 1 a 180 dias para olhar para trás, com limite de 500 por vez.
+
+Lote 1 — pedidos abertos: fila de verdade para o Pátio
+
+236. 🔗 **Função `r7_c5_fila_do_patio`**: o Pátio conta as mensagens na fila de cada ordem (na fila, prontas para sair, programadas, seguradas, falharam, enviadas) em vez de só ver o que ele mesmo gravou. Testada no banco real, como gestor, dentro de uma transação revertida.
+237. 🔗 Roda como o usuário logado (INVOKER) e uma policy estreita deixa ler a fila só quem é da equipe ou tem acesso ao Pátio; não criou nenhum aviso novo no linter (conferido com `get_advisors`).
+238. 🔗 Devolve, por ordem, a próxima hora de saída e os itens (tipo, status, quando), para a tela da ordem mostrar "a mensagem de pronto sai às 15h".
+239. 🔗 Também por HTTP (`GET /api/patio/fila`), com validação: identificador que não é UUID, mais de 300 ordens ou data inválida viram 400, não erro interno (teste de API).
+240. Índice novo em `posvenda_envios(os_id)` para a consulta não varrer a tabela.
+
+Lote 1 — pedidos abertos: Repetir pelo modelo
+
+241. **A campanha passa a guardar o MODELO** (com `{primeiro_nome}`, `{carro}`…), nunca o texto já preenchido do primeiro cliente (tabela `comunicar_lotes`; teste de API).
+242. O botão **Repetir** no histórico abre a campanha com o modelo e o público da original (navegador, 1440 e 375, gestor e atendente: o texto chega com `{primeiro_nome}`).
+243. A repetição guarda de quem veio (`repete_lote`) e entra no histórico como `repeticao`.
+244. Se a campanha original foi para uma lista escolhida na mão, o Repetir avisa que é preciso escolher para quem vai, em vez de mandar para todo mundo.
+245. Lote de antes do Repetir devolve 404 com a explicação ("é de antes do Repetir, escreva de novo"), não um erro seco (teste de API).
+
+Lote 2 — réguas ligadas a todos os eventos reais
+
+246. 🔗 **Régua "Aprovou, falta o horário"**: orçamento aprovado no Orçador há N horas (padrão 4), sem horário na Agenda, convida a marcar. Rodar de novo não duplica (chave `aprovou:orc:<id>`).
+247. 🔗 Não convida se o cliente já marcou horário depois de aprovar (Agenda), se o carro já tem ordem no Pátio, se aprovou há pouco ou há mais de 7 dias, ou se a régua está desligada (quatro testes).
+248. 🔗 **Na hora de sair**, se o cliente marcou horário enquanto a mensagem esperava, ela é pulada com o motivo.
+249. 🔗 **Régua "Faltou ao horário"**: N horas depois do horário perdido (padrão 2, até 48 h), convida a remarcar, sem cobrança.
+250. 🔗 Quem remarcou ou veio não recebe; na hora de sair o carteiro confere de novo.
+251. 🔗 **Régua "Orçamento vencendo"**: orçamento enviado e sem decisão que vence em até N dias (padrão 1) ganha o aviso da validade com o link e a data.
+252. 🔗 Não repete o lembrete de "orçamento parado" do mesmo dia; decidido, vencido ou longe do vencimento não entra.
+253. 🔗 Sem link público no orçamento ele não é inventado: a mensagem fica de fora com o motivo.
+254. 🔗 **Régua "Carro pronto esperando"**: só depois que o aviso de pronto do Pátio saiu, N horas depois (padrão 24), com o link de acompanhar; respeita o "avisar pronto" do próprio Pátio.
+255. 🔗 O lembrete usa a chave que o Pátio já entende (`patio_pronto_lembrete:<os>`), então a fila dele aparece na ordem certa.
+256. Cada uma das quatro réguas liga e desliga sozinha, com o número de horas/dias que o gestor quer, dentro de uma faixa validada (testes de configuração).
+257. Os quatro textos novos são validados: variável que não existe, falta do link obrigatório, promessa de preço e vocabulário proibido são recusados com a mensagem em português (testes puros e de API: 400 com o campo).
+258. Navegador: o painel "Eventos reais" mostra as quatro réguas com texto e variáveis clicáveis, e um texto sem o link obrigatório mostra o erro na hora (1440 e 375).
+259. Atendente vê o painel de réguas mas todos os campos ficam desativados (navegador).
+
+Lote 3 — anti-spam
+
+260. **Rodapé "responda PARAR"** em campanha e réguas de marketing, acrescentado só na hora de sair (o texto guardado na fila continua o original; teste do carteiro).
+261. Lembrete de horário e avisos do carro não levam rodapé; texto que já diz PARAR não ganha o segundo; o rodapé nunca estoura as 2.000 letras (testes puros).
+262. Frase do rodapé editável; precisa conter PARAR (400 com o campo se não tiver; navegador mostra o erro ao digitar).
+263. **Só celular de verdade**: telefone fixo, DDD que não existe, número curto/longo e número de mentira (dígitos repetidos) ficam de fora com o motivo, antes de gastar cadência (testes puros e do carteiro).
+264. 🔗 Número que já falhou como "sem WhatsApp" no Atendimento/WhatsApp no último ano não é tentado de novo.
+265. A campanha e a prévia contam à parte os pulados por celular ruim (teste de API).
+266. **Campanha não sai depois das 18h** (configurável, 8 a 24): espera o dia seguinte; pós-venda e avisos continuam saindo (teste do carteiro).
+267. **Teto de campanhas por cliente em 30 dias** (padrão 3, 0 desliga): a quarta é pulada com o motivo (teste do carteiro e na criação da campanha).
+268. **Freio automático**: se 5% (configurável) de quem recebeu a campanha pediu PARAR, o que falta é cancelado no meio, o lote é marcado e os gestores são chamados uma vez só (teste do carteiro).
+269. 🔗 O aviso do freio cai no sino da Casa de cada gestor e de quem criou a campanha.
+270. **Mensagem avulsa repetida** (mesmo texto, mesmo número, nos últimos 10 minutos) é recusada com 409: era o duplo clique que mandava duas vezes (teste puro).
+271. Avulsa para fixo ou DDD inexistente não vira mensagem; devolve o motivo.
+272. 🔗 **VOLTAR pelo WhatsApp**: quem saiu respondendo PARAR e depois escreve "VOLTAR / quero receber / pode mandar / reativar" volta à lista sozinho (gatilho no banco, testado em transação revertida).
+273. 🔗 O gatilho não volta quem a equipe tirou na mão e não reage a texto comum (testado no banco).
+274. **Painel "Cuidado com o cliente"** no Início: pediram PARAR, taxa, voltaram pelo WhatsApp, barrados por motivo (pediu para parar, número ruim, texto repetido, teto de campanhas) e campanhas freadas, com o nível (ok, atenção, alto) em português (navegador, 1440 e 375).
+275. A taxa de PARAR acima de 3% fica em vermelho com o que fazer ("revise os textos e o público").
+276. Rodapé, celular, teto, horário de marketing, freio e duplicata ficam configuráveis nas Réguas, com faixa validada no servidor.
+277. Simular a rodada mostra o texto final com o rodapé e não grava nada (teste).
+
+Lote 4 — hora exata de saída, agenda e resultados
+
+278. **Prévia exata**: roda as réguas em simulação e mostra, para cada mensagem, o texto final (com rodapé) e **a hora exata em que ela sai**, respeitando janela, domingo, feriado, limites por rodada, por hora e por dia (navegador).
+279. A simulação reproduz o carteiro rodada a rodada: rodadas de 15 em 15 minutos, lote máximo de 25, prioridade por tipo e depois pela hora (testes puros).
+280. Teto de mensagens por cliente por dia e feriado entram na conta (teste puro).
+281. A prévia diz também quem ficaria de fora e por quê, e que "nada foi gravado nem enviado".
+282. **"Quando sai?"** em cada mensagem da fila: "hoje às 15:05, nº 4 da fila", com a ressalva de que é estimativa.
+283. **Agenda por hora**: quantas saem em cada hora do dia e de que tipo, e quantas não cabem nos próximos dias (navegador).
+284. Planilha da fila com o texto final e a hora estimada, só para quem exporta (gestor; atendente não vê o botão e a rota dá 403).
+285. **Antecipar**: traz uma mensagem pendente para a próxima rodada (só gestor ou quem criou; recusa a que já foi pega pelo carteiro ou venceu).
+286. Adiar o dia inteiro agora aceita um **tipo** ("adiar só as campanhas de sexta").
+287. **Melhor horário e melhor dia** para enviar, calculados com as respostas reais e só quando há amostra mínima (teste puro).
+288. **Tempo típico até responder** (mediana).
+289. **Comparação com o período anterior** de mesmo tamanho: enviadas, responderam, agendaram e pediram PARAR, com a variação em % (verde/vermelho).
+290. **Teste A/B** na campanha: metade recebe cada texto, a divisão é estável por telefone e equilibrada, e exige 40 clientes (teste de API: 400 com menos).
+291. Os dois lados do A/B ficam ligados no mesmo grupo e aparecem nos Resultados com o vencedor só quando a diferença não é sorte (testes puros).
+292. Ranking das campanhas com mais resposta no período.
+293. 🔗 **Respostas que ninguém atendeu**: cliente respondeu a uma campanha ou régua e a conversa do Atendimento não tem resposta da equipe depois; lista no Início com o tempo de espera (PARAR não entra).
+294. Todos os filtros novos de data e tipo viram 400 claro quando inválidos (teste de API com cinco casos).
+
+Lote 5 — o dia em que o WhatsApp volta
+
+295. 🔗 **Plano da retomada**: quantas saem na primeira meia hora (8), até 2 horas (25), quando a última sai e quanto sairia sem o freio (teste puro e navegador).
+296. Os limites da retomada passaram a ser configuráveis (1–100 e 1–300) em vez de fixos no código.
+297. 🔗 **Nas primeiras 2 horas só o essencial**: campanhas esperam; lembrete de horário e avisos do carro saem (teste do carteiro).
+298. 🔗 **Triagem da fila acumulada**: por tipo, quanto espera há tempo demais e perdeu o sentido (lembrete do dia anterior, por exemplo), com sugestão de cancelar ou manter.
+299. O gestor cancela só o que perdeu o sentido nos tipos marcados (confirmação antes; atendente só lê; navegador).
+300. 🔗 **Aviso aos gestores**: "o WhatsApp parou, N mensagens esperando" e "o WhatsApp voltou, a fila sai devagar", uma vez por queda e uma por volta, no sino.
+301. Banner no Início enquanto a retomada está em andamento, com o plano e o botão "ver o plano".
+302. O gestor pode **encerrar a retomada** quando vê que o WhatsApp está firme (rota restrita a quem roda o carteiro).
+303. "Por que não saiu?" agora explica a retomada: "o WhatsApp acabou de voltar, campanhas esperam as 2 primeiras horas".
+
+Lote 6 — "por que não saiu" e detalhes de tela
+
+304. "Por que não saiu?" explica celular que não é celular e número que já falhou como "sem WhatsApp" (teste de API).
+305. Explica a campanha segurada depois das 18h e o teto de campanhas em 30 dias.
+306. Diz, em tom de aviso e não de bloqueio, que a mensagem vai ganhar o rodapé PARAR na hora de sair (teste de API; nível `info`).
+307. Corrigido: um passo de "informação" na explicação era mostrado como bloqueio; agora o nível `info` é respeitado.
+308. O app passa a mostrar o campo que errou quando o servidor recusa um texto (o erro da API carrega o `campo`), usado nos textos das réguas e da reabordagem.
+309. Servidor e app na versão 7.0.0 (cache e service worker novos; `rodada7.js` entra no cache offline).
+
+Lote 7 — telas no celular e no ataque
+
+310. Todos os painéis e janelas novos sem rolagem lateral a 375 px (Início, Mensagens, Campanhas, Réguas, prévia exata, por hora, retomada, reabordar; navegador).
+311. **Ataque**: nome de cliente, resposta e texto com `<img onerror>`, `<script>` e `<b>` vindos do servidor aparecem como texto, nunca como elemento (navegador, pessoa com HTML no nome).
+312. O atendente vê tudo o que é leitura (painel, prévia, por hora, retomada, reabordar) mas não vê o que é de gestor: planilha, cancelar na triagem, enfileirar (navegador, 1440 e 375).
+313. Zero erro de console em todos os roteiros (gestor e atendente, 1440 e 375).
+314. Rotas novas só existem com regra em `acesso.js`; sem login dão 401 e com papel errado, 403 (testes de API para oito rotas).
+315. As rotas caras (prévia exata, reabordar, resultados avançados, planilha) entram no limite de 20 por minuto.
+316. Nenhum segredo novo no código (`npm run segredos` sem achado novo).
+
+Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteiro)
+
+317. 🔗 A prévia exata roda com as quatro réguas novas (aprovou, faltou, vencendo, carro pronto esperando), testadas uma por uma.
+318. A tela de prévia antiga (`/api/previa?regua=`) também aceita as réguas novas; régua inventada dá 400.
+319. Antecipar uma mensagem que o carteiro já pegou dá 409, sem mexer nela.
+320. Antecipar uma mensagem vencida dá 409.
+321. Antecipar uma mensagem que não existe dá 404.
+322. Antecipar: o atendente só mexe na que ele mesmo criou (403 na dos outros, 200 na dele).
+323. A triagem cancela o lembrete velho que perdeu o sentido e **mantém** a campanha que ainda vale.
+324. Encerrar a retomada: atendente recebe 403, gestor 200.
+325. 🔗 A fila do Pátio por HTTP responde no formato `versao: r7` (teste de API).
+326. A lista de lotes guardados responde para a equipe (sem devolver o texto inteiro de cada um).
+327. Reabordar com `dias=9999` olha no máximo 180 dias.
+328. 🔗 Aviso do WhatsApp: se não há nada na fila, uma queda não incomoda ninguém.
+329. 🔗 Com fila, a queda avisa os dois gestores (teste do carteiro).
+330. 🔗 A chave do aviso é a da queda: o sino não repete o mesmo aviso a cada rodada.
+331. 🔗 O aviso de volta diz os limites da primeira meia hora (8).
+332. 🔗 WhatsApp normal não gera aviso nenhum.
+333. 🔗 Reabordar: quem pediu para não receber fica de fora da lista (teste com banco falso).
+334. Reabordar: o telefone fixo fica de fora da lista.
+335. Reabordar: enfileirar de novo o mesmo orçamento não cria a segunda mensagem (1 criada, 1 repetida).
+336. 🔗 Depois de enfileirar, a leitura seguinte já conta o orçamento como "já reabordado".
+337. As rotas caras (prévia exata, resultados, planilha) dão 429 depois de 20 por minuto.
+338. O limite é por pessoa: o atendente continua usando enquanto o gestor espera.
+339. "Quando sai?" responde pela API com o rótulo da saída.
+340. A agenda por hora responde com as horas e o tamanho da fila.
+341. A planilha da fila abre para o gestor (200).
+
+### Como verifiquei
+
+- **119 melhorias numeradas (223 a 341), 39 com ligação entre sistemas (🔗).** Os itens 223 a 245 são os três pedidos abertos.
+- `npm test`: **307 testes verdes** (253 de antes + 54 desta rodada: 19 de regras puras em `testes-rodada7.mjs`, 7 de geradores, 13 do carteiro e 15 de API). O teste de versão da Rodada 5 foi atualizado para 7.0.0.
+- `npm run check` limpo (inclui `rotas7.js`, `r7.js`, `dados7.js`, `public/rodada7.js` e o roteiro de navegador).
+- **Navegador de verdade** (Chrome + puppeteer-core, 1440 px e 375 px, gestor e atendente, porta 3951 com o mock): `scripts/navegador-rodada7.mjs`, 82 verificações, sem rolagem lateral e sem erro de console.
+- **Banco real, só leitura ou revertido:** VOLTAR e a função da fila do Pátio testados em blocos que terminam em `RAISE EXCEPTION 'TESTE_REVERTIDO'`; `get_advisors` de segurança sem alerta novo (só os 3 avisos que já existiam).
+- **Migrações:** `r7_c5_comunicar_base`, `r7_c5_regras_extra`, `r7_c5_lotes_politica`.
+- **Nada foi publicado**; nenhum usuário de teste criado; nenhuma mensagem real saiu.
+
+### Pendências
+
+- **Prontidão e projeção** (painéis do Início) ainda não conhecem as quatro réguas novas; elas funcionam e aparecem na prévia exata.
+- **Pátio:** passar a chamar `r7_c5_fila_do_patio` na tela da ordem (contrato na seção 15 do CONTRATOS.md).
+- **Atendimento:** abrir a conversa direto pelo `conversa_id` da lista de respostas sem atender.
+- **Publicar:** é com o coordenador (Central); depois rodar "Prévia exata" uma vez e olhar a retomada se o WhatsApp tiver caído.

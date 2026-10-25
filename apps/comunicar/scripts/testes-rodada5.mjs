@@ -343,7 +343,7 @@ test('frontend: nenhum caminho absoluto para o próprio app (api, sw, manifest, 
   const pub = (n) => readFileSync(join(RAIZ, 'public', n), 'utf8');
   const html = pub('index.html');
   assert.doesNotMatch(html, /(href|src)="\/(?!\/)/, 'index.html sem href="/…"');
-  assert.match(html, /src="apps\.js\?v=/); assert.match(html, /src="rodada5\.js\?v=/); assert.match(html, /src="rodada6\.js\?v=6\.0\.0/);
+  assert.match(html, /src="apps\.js\?v=/); assert.match(html, /src="rodada5\.js\?v=/); assert.match(html, /src="rodada6\.js\?v=7\.0\.0/); assert.match(html, /src="rodada7\.js\?v=7\.0\.0/);
   for (const f of ['app.js', 'conta.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'acordar.js']) {
     const s = pub(f);
     assert.doesNotMatch(s, /fetch\((['"`])\/api/, `${f}: fetch('/api…')`);
@@ -356,7 +356,7 @@ test('frontend: nenhum caminho absoluto para o próprio app (api, sw, manifest, 
   assert.ok(man.icons.every((i) => i.src.startsWith('./'))); assert.ok(man.shortcuts.every((s) => s.url.startsWith('./')));
   const sw = pub('sw.js');
   assert.match(sw, /const BASE = new URL\('\.\/', self\.location\.href\)\.pathname/);
-  assert.doesNotMatch(sw, /'\/api\//); assert.match(sw, /VERSAO = '6\.0\.0'/); assert.match(sw, /rodada5\.js/); assert.match(sw, /rodada6\.js/);
+  assert.doesNotMatch(sw, /'\/api\//); assert.match(sw, /VERSAO = '7\.0\.0'/); assert.match(sw, /rodada5\.js/); assert.match(sw, /rodada6\.js/); assert.match(sw, /rodada7\.js/);
 });
 
 test('server.js: exporta handler/iniciar sem dar listen; o handler tira o prefixo (/comunicar) e /api/config devolve o prefixo', async () => {
