@@ -34,6 +34,14 @@ const HUMANO_RECENTE_MIN = 30;
 /* Rodada 6: trava contra laço — a IA não manda mais que isto por conversa por hora (o resto vira proposta para a equipe). */
 const LIMITE_IA_POR_HORA = 6;
 const INTERVALO_FILA_MS = 15_000;
+/* Rodada 7 (C4): a IA não responde sozinha mensagem velha (o cliente pode ter resolvido por outro meio, e depois de dias
+   com o WhatsApp parado isso viraria uma enxurrada de "bom dia" atrasados): vira proposta para uma pessoa revisar. */
+const ANTIGA_MIN = 12 * 60;
+/* Passou de 2 h esperando: a resposta começa pedindo desculpa pela demora. */
+const DEMORA_DESCULPA_MIN = 120;
+/* Cliente mandando mensagem em rajada (colando texto, robô, brincadeira): a IA para e uma pessoa olha. */
+const RAJADA_MENSAGENS = 8;
+const RAJADA_JANELA_MIN = 3;
 const LOTE = 8;
 
 /* Regras do sistema para passar para gente (a IA também julga, mas isto não depende dela).
@@ -55,9 +63,11 @@ function pediuParar(textos = []) {
 function precisaHumano(textos = []) {
   const t = (Array.isArray(textos) ? textos : [textos]).map(x => String(x || '')).join('\n');
   if (!t.trim()) return null;
+  if (R6.detectarManipulacao(t).suspeita) return 'manipulacao';   // Rodada 7: ordem escondida em mensagem de cliente
   if (RE_URGENCIA.test(t)) return 'urgencia';
   if (RE_RECLAMACAO.test(t)) return 'reclamacao';
   if (RE_PESSOA.test(t)) return 'pediu_pessoa';
+  if (R6.oQueOClientePediu([t]).includes('negociacao')) return 'negociacao';   // Rodada 7: negociar valor é com o consultor
   if (RE_PRECO.test(t)) return 'preco';
   /* Rodada 6: regras extras (sem acento, mais palavras): pedido de ligação, só áudio/foto, nota fiscal, cancelar. */
   const extra = R6.motivoParaHumano(textos);
@@ -84,6 +94,23 @@ function textosSemResposta(mensagens = []) {
     if (m.direcao === 'entrada') out.unshift(String(m.corpo || ''));
   }
   return out;
+}
+
+/** Rodada 7: há quantos minutos o cliente espera (primeira mensagem dele depois da última resposta da loja). null = não espera. */
+function minutosEsperando(mensagens = [], agora = new Date()) {
+  let primeira = null;
+  for (let i = mensagens.length - 1; i >= 0; i--) {
+    const m = mensagens[i];
+    if (!m) continue;
+    if (m.direcao === 'saida') break;
+    if (m.direcao === 'entrada' && Number.isFinite(Date.parse(m.created_at || ''))) primeira = m;
+  }
+  return primeira ? Math.max(0, Math.round((Number(agora) - Date.parse(primeira.created_at)) / 60000)) : null;
+}
+/** Rodada 7: rajada de mensagens do cliente nos últimos minutos. */
+function emRajada(mensagens = [], agora = new Date(), { minimo = RAJADA_MENSAGENS, janelaMin = RAJADA_JANELA_MIN } = {}) {
+  const limite = Number(agora) - janelaMin * 60_000;
+  return (mensagens || []).filter(m => m && m.direcao === 'entrada' && Date.parse(m.created_at || '') >= limite).length >= minimo;
 }
 
 /** Um atendente humano (não a IA) escreveu nos últimos `min` minutos? */
@@ -137,6 +164,39 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
       if (!error && data) avisos++;
     }
     return avisos;
+  }
+
+  /** Rodada 7: a mensagem tenta dar ordens à IA/sistema. Nada de IA, nada de ação: marca, avisa quem cuida e (se der) manda o texto neutro. */
+  async function bloquearManipulacao({ conversaId, conv, f, textos, podeResponder, cfg, expediente, feitas }) {
+    const manip = R6.detectarManipulacao((textos || []).join(String.fromCharCode(10)));
+    const trecho = R6.campoSeguro((textos || []).join(' '), 120) || '(texto suspeito omitido)';
+    const a = await registrar({ tipo: 'bloqueio_manipulacao', conversa_id: conversaId, cliente_id: conv.cliente_id || null, perfil_id: null,
+      resumo: 'Mensagem tentou dar ordens à IA: bloqueada, uma pessoa assume', entrada: { motivos: manip.motivos, nivel: manip.nivel, trecho },
+      saida: { automatica: true, bloqueada: true } });
+    feitas.push({ tipo: 'bloqueio_manipulacao', id: a?.id || null });
+    const niveis = cfg.funil_niveis || {};
+    if (niveis.humano !== 'sugerir') {
+      await sb.from('conversas').update({ aguardando_consultor: true, aguardando_desde: conv.aguardando_consultor ? undefined : agora().toISOString() }).eq('id', conversaId);
+    }
+    let avisos = 0;
+    try {
+      const nome = R6.nomeSeguro(f.cliente?.nome || conv.nome || '') || conv.telefone || 'Cliente';
+      for (const id of await destinosDoAviso(conv)) {
+        const { data, error } = await sb.rpc('notificar', { p_perfil: id, p_tipo: 'ia', p_titulo: `🛡 Mensagem suspeita de ${nome}: a IA não leu`.slice(0, 140),
+          p_corpo: 'A mensagem tenta dar ordens à IA. Nada foi feito; confira e responda você mesmo.', p_link: `/?conversa=${conversaId}`, p_app: 'atendimento', p_chave: `ia-manip:${conversaId}:${a?.id || Date.now()}` });
+        if (!error && data) avisos++;
+      }
+    } catch (e) { log('funil manipulação:', e.message); }
+    let encaminhou = null;
+    if (podeResponder && typeof enviarMensagem === 'function' && niveis.responder === 'automatico') {
+      try {
+        const texto = R6.textoDeEncaminhamento('manipulacao', R6.nomeSeguro(f.cliente?.nome || conv.nome || ''), !expediente.aberta);
+        const env = await enviarMensagem({ conversa: conv, cliente_id: conv.cliente_id || f.cliente?.id || null, texto });
+        if (env && env.mensagem_id) encaminhou = env.mensagem_id;
+      } catch (e) { log('funil manipulação envio:', e.message); }
+    }
+    contexto.invalidar(conversaId);
+    return { ok: true, status: 'pulada', motivo: 'mensagem suspeita: a IA não leu', manipulacao: manip, humano: 'manipulacao', encaminhou, avisos, feitas };
   }
 
   /**
@@ -225,9 +285,22 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     const expediente = R6.oficinaAberta(agora());
     const instrucaoFinal = [instrucao, !expediente.aberta ? `A oficina está FECHADA agora (reabre ${expediente.reabre}, seg–sáb 8h às 17h30): diga isso com naturalidade e não prometa resposta imediata de consultor.` : null].filter(Boolean).join(' ') || null;
 
+    // 3b) Rodada 7: mensagem velha e rajada não saem sozinhas; demora grande pede desculpa
+    const esperaMin = minutosEsperando(f.mensagens || [], agora());
+    let antiga = false, rajada = false;
+    if (esperaMin !== null && esperaMin > ANTIGA_MIN && podeResponder) { podeResponder = false; antiga = true; }
+    if (emRajada(f.mensagens || [], agora()) && podeResponder) { podeResponder = false; rajada = true; }
+    const instrucaoDemora = !antiga && esperaMin !== null && esperaMin > DEMORA_DESCULPA_MIN
+      ? `O cliente espera há ${R6.rotuloMinutos(esperaMin)}: comece pedindo desculpa pela demora, em meia frase e sem exagero.` : null;
+
+    // 3c) Rodada 7: tentativa de dar ordens à IA pela mensagem → a IA nem lê; uma pessoa assume
+    if (humano === 'manipulacao') {
+      return bloquearManipulacao({ conversaId, conv, f, textos, podeResponder, cfg, expediente, feitas });
+    }
+
     // 4) a IA conduz
     let r;
-    try { r = await copiloto.rodar({ conversaId, perfil: null, funil: { humano, podeResponder, origem, instrucao: instrucaoFinal, site } }); }
+    try { r = await copiloto.rodar({ conversaId, perfil: null, funil: { humano, podeResponder, origem, instrucao: [instrucaoFinal, instrucaoDemora].filter(Boolean).join(' ') || null, site } }); }
     catch (e) { return { ok: false, status: 'erro', motivo: e.message || 'falha na IA', feitas }; }
     if (!r.ok) return { ok: false, status: r.status === 429 || r.status === 503 ? 'pulada' : 'erro', motivo: r.erro || 'IA não respondeu', feitas };
 
@@ -261,7 +334,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     contexto.invalidar(conversaId);
 
     return {
-      ok: true, status: 'feita', run_id: r.id, humano, podeResponder, site, feitas, zap_parado: !!zap.parado, limite_hora: limiteHora, encaminhou,
+      ok: true, status: 'feita', run_id: r.id, humano, podeResponder, site, feitas, antiga, rajada, espera_min: esperaMin, zap_parado: !!zap.parado, limite_hora: limiteHora, encaminhou,
       enviadas: (r.enviadas || []).length, para_confirmar: (r.para_confirmar || []).length, avisos,
       executadas: (r.acoes || []).filter(a => a.status === 'executada').map(a => a.tipo),
       propostas: (r.acoes || []).filter(a => a.status === 'proposta').map(a => a.tipo),
@@ -402,4 +475,4 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
   return { conduzir, processarFila, acordar, ligar, desligar, estado, hoje, pendentes, recuperarTravadas };
 }
 
-module.exports = { pediuParar, criarFunil, precisaHumano, origemDoSite, textosSemResposta, humanoEscreveuRecentemente, etapaAgendadoPendente, HUMANO_RECENTE_MIN };
+module.exports = { minutosEsperando, emRajada, ANTIGA_MIN, DEMORA_DESCULPA_MIN, RAJADA_MENSAGENS, pediuParar, criarFunil, precisaHumano, origemDoSite, textosSemResposta, humanoEscreveuRecentemente, etapaAgendadoPendente, HUMANO_RECENTE_MIN };

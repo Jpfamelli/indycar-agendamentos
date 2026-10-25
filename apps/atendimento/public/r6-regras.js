@@ -78,6 +78,15 @@
     nota_fiscal: /\b(nota\s+fiscal|nfe?|recibo|comprovante|cupom\s+fiscal)\b/,
     pensar: /\b(vou\s+pensar|vou\s+ver|depois\s+(eu\s+)?(vejo|falo|te\s+falo|retorno)|deixa\s+eu\s+(ver|pensar|falar)|preciso\s+(falar|ver)\s+com|vou\s+falar\s+com\s+(minha|meu)|te\s+aviso|qualquer\s+coisa\s+(eu\s+)?(chamo|falo))\b/,
     audio_foto: /\[(?:audio|foto|video|documento|imagem)\]/,
+    /* Rodada 7 (C4) */
+    negociacao: /\b(faz\s+por|fecha\s+por|fechar\s+por|fechado\s+por|mais\s+barato|abaixa\s+o|baixa\s+o\s+(preco|valor)|melhora\s+o\s+(preco|valor)|ultimo\s+(preco|valor)|pechinch\w*|negoci\w+|outro\s+lugar|concorrente|achei\s+mais\s+barato|(me\s+)?(faz|da|faca|de)\s+um\s+desconto|precinho|a\s+vista\s+tem\s+desconto|so\s+tenho\s+\d+)\b/,
+    prazo: /\b(quanto\s+tempo|em\s+quanto\s+tempo|demora\s+(muito|quanto)?|leva\s+quanto|fica\s+pronto\s+(quando|em)|prazo|pra\s+quando|que\s+dia\s+fica|termina\s+hoje|da\s+pra\s+fazer\s+hoje|fica\s+pronto\s+hoje)\b/,
+    peca: /\b(tem\s+(a\s+|o\s+|as\s+|os\s+)?(pecas?|pastilhas?|disco|discos|amortecedor\w*|correia|bateria|pneus?|filtros?|velas?|lampadas?|palhetas?|juntas?|bombas?|bieletas?|terminais|buchas?|kit)\b|tem\s+em\s+estoque|estoque|trabalham\s+com\s+pecas?|pecas?\s+(original|paralela)|(eu\s+)?(compro|levo|trago)\s+a\s+peca|trazer\s+a\s+peca)\b/,
+    chegou: /\b(cheguei|ja\s+cheguei|estou\s+chegando|to\s+chegando|ja\s+to\s+(ai|na\s+porta|aqui)|estou\s+(ai|na\s+porta|na\s+frente)|na\s+porta|to\s+indo\s+ai|a\s+caminho|saindo\s+(de\s+casa|agora)\s+pra\s+ai)\b/,
+    indicacao: /\b(fui\s+indicad[oa]|indicacao|me\s+indicaram|me\s+indicou|vim\s+(por|pela)\s+indicacao|um\s+amigo\s+indicou)\b/,
+    reenviar_link: /\b(manda\s+(de\s+novo|novamente)|reenvia|reenviar|nao\s+(consegui|consigo)\s+abrir|link\s+nao\s+abre|perdi\s+o\s+link|nao\s+recebi\s+o\s+link|manda\s+o\s+link)\b/,
+    saudacao: /^\s*(?:(?:oi+e?|ola+|opa|e\s+ai|bom\s+dia|boa\s+tarde|boa\s+noite)(?:[\s,!.]+(?:tudo\s+(?:bem|certo|joia)|td\s+bem|como\s+vai))?|tudo\s+(?:bem|certo|joia)|td\s+bem|como\s+vai)[\s!.,?]*$/,
+    placa_sozinha: /^\s*[a-z]{3}\s?-?\s?\d[a-z0-9]\d{2}\s*$/,
   };
   const RE_AGRADECIMENTO = /^\s*(ok(ay)?|blz|beleza|show|valeu|obrigad[oa]|vlw|top|perfeito|combinado|fechou|certo|entendi|ta\s+bom|tudo\s+bem)[\s.!]*(muito\s+)?(obrigad[oa])?[\s.!]*$/;
   const SO_EMOJI = /^[\s\p{Extended_Pictographic}️]+$/u;
@@ -89,10 +98,14 @@
     if (!limpo) return [];
     const t = semAcento(bruto);
     const achou = [];
-    for (const chave of ['urgencia', 'reclamacao', 'pessoa', 'ligacao', 'preco', 'estado_carro', 'orc_status', 'aprovou',
-      'remarcar', 'cancelar', 'horario', 'endereco', 'garantia', 'pagamento', 'nota_fiscal', 'pensar']) {
+    /* Rodada 7: tentativa de manipular a IA vem primeiro (a decisão de gente vem antes de tudo) */
+    if (detectarManipulacao(bruto).suspeita) achou.push('manipulacao');
+    for (const chave of ['urgencia', 'reclamacao', 'pessoa', 'ligacao', 'negociacao', 'preco', 'estado_carro', 'orc_status', 'aprovou',
+      'remarcar', 'cancelar', 'chegou', 'reenviar_link', 'horario', 'endereco', 'garantia', 'pagamento', 'nota_fiscal', 'prazo', 'peca', 'indicacao', 'pensar']) {
       if (RE[chave].test(t)) achou.push(chave);
     }
+    if (RE.placa_sozinha.test(t.trim())) achou.push('placa');
+    if (!achou.length && RE.saudacao.test(t.trim())) achou.push('saudacao');
     // "AGORA" em maiúsculas (grito) também é urgência
     if (!achou.includes('urgencia') && /\bAGORA\b/.test(bruto)) achou.unshift('urgencia');
     if (RE.audio_foto.test(t) && t.replace(/\[[^\]]+\]/g, '').trim().length < 3) achou.push('so_midia');
@@ -109,10 +122,13 @@
     so_midia: { rotulo: 'Mandou áudio/foto', icone: '🎤', texto: 'Cliente mandou só áudio ou foto (a IA não ouve nem enxerga)' },
     nota_fiscal: { rotulo: 'Nota fiscal', icone: '🧾', texto: 'Cliente pediu nota fiscal ou comprovante' },
     cancelar: { rotulo: 'Quer cancelar', icone: '✖', texto: 'Cliente quer cancelar' },
+    negociacao: { rotulo: 'Quer negociar', icone: '🤝', texto: 'Cliente quer negociar o valor (a IA nunca negocia)' },
+    manipulacao: { rotulo: 'Tentou manipular a IA', icone: '🛡', texto: 'A mensagem tenta dar ordens à IA ou ao sistema (bloqueada, só uma pessoa responde)' },
+    peca: { rotulo: 'Perguntou de peça', icone: '🔩', texto: 'Cliente perguntou de peça ou estoque (a IA não confirma estoque)' },
   };
   MOTIVO_HUMANO.pediu_pessoa = MOTIVO_HUMANO.pessoa;   // nome que o funil da rodada 5 já usava
   /** Ordem em que o sistema decide passar a conversa para uma pessoa (antes do julgamento da IA). */
-  const ORDEM_HUMANO = ['urgencia', 'reclamacao', 'pessoa', 'ligacao', 'preco', 'so_midia', 'nota_fiscal', 'cancelar'];
+  const ORDEM_HUMANO = ['manipulacao', 'urgencia', 'reclamacao', 'pessoa', 'ligacao', 'negociacao', 'preco', 'peca', 'so_midia', 'nota_fiscal', 'cancelar'];
   /** Primeiro motivo para passar a gente, ou null. */
   function motivoParaHumano(textos = []) {
     const pedidos = oQueOClientePediu(textos);
@@ -128,6 +144,9 @@
     orc_aprovado_sem_horario: 45, orc_visualizado: 35, orc_parado: 25, orc_recusado: 40, pre_agendamento: 75,
     aguardando_consultor: 40, sem_dono: 10, meu: 8, de_colega: -25,
     agendada: -15, ia_respondendo: -20, fixada: 500, adiada: -300, agradecimento: -30,
+    /* Rodada 7 */
+    manipulacao: 90, negociacao: 60, peca: 35, chegou: 70, prazo: 20, reenviar_link: 30, indicacao: 12, placa: 15, saudacao: 5,
+    avaliacao_ruim: 65, primeiro_contato: 18, zap_parado_conversa: 0,
   };
   const LIMIAR = { agora: 100, logo: 60, hoje: 30 };
 
@@ -205,6 +224,10 @@
     }
     // 🔗 pré-agendamento pedido pela página do orçamento (Orçador → Agenda)
     if (ctx.pre) somar('pre_agendamento', 'Pediu horário pela página do orçamento', '📅');
+    // 🔗 Rodada 7: nota ruim no Pátio esperando resposta, e primeiro contato (o primeiro minuto decide a venda)
+    if (ctx.avaliacao_ruim) somar('avaliacao_ruim', `Avaliou o serviço com nota ${ctx.avaliacao_ruim.nota} e ninguém respondeu`, '⭐');
+    if (ctx.primeiro_contato && semResposta) somar('primeiro_contato', 'Primeiro contato: responda rápido', '🆕');
+    if (ctx.manipulacao && !(ctx.pedidos || []).includes('manipulacao')) somar('manipulacao', 'Tentou manipular a IA (bloqueada)', '🛡');
 
     if (!c.atribuida_a) somar('sem_dono', 'Ninguém é dono', '★');
     else if (opc.meuId && c.atribuida_a === opc.meuId) somar('meu', 'É seu', '★');
@@ -223,8 +246,9 @@
     estado_carro: 'Perguntou do carro', orc_status: 'Perguntou do orçamento', aprovou: 'Parece ter aprovado',
     remarcar: 'Quer remarcar', cancelar: 'Quer cancelar', horario: 'Falou de horário', endereco: 'Pediu o endereço',
     garantia: 'Falou de garantia', pagamento: 'Falou de pagamento', pensar: 'Vai pensar', nota_fiscal: 'Pediu nota fiscal',
+    chegou: 'Está chegando / chegou', prazo: 'Perguntou o prazo', reenviar_link: 'Pediu o link de novo', indicacao: 'Veio por indicação', placa: 'Mandou a placa', saudacao: 'Só cumprimentou', negociacao: 'Quer negociar', manipulacao: 'Tentou manipular a IA', peca: 'Perguntou de peça',
   };
-  const ICONE_PEDIDO = { estado_carro: '🚗', orc_status: '📄', aprovou: '✅', remarcar: '📅', cancelar: '✖', nota_fiscal: '🧾' };
+  const ICONE_PEDIDO = { estado_carro: '🚗', orc_status: '📄', aprovou: '✅', remarcar: '📅', cancelar: '✖', nota_fiscal: '🧾', chegou: '📍', prazo: '⏳', reenviar_link: '🔗', indicacao: '🤝', placa: '🔎', saudacao: '👋' };
 
   /** Ordena do mais urgente ao menos. Empate: quem espera há mais tempo; depois o mais recente. */
   function ordenarPorPrioridade(lista = [], ctxPor = {}, opc = {}) {
@@ -377,6 +401,11 @@
 
   /* ---------------- 7) Respostas rápidas por situação ---------------- */
   function saudacao(nome, h) { const n = primeiroNome(nome); return n ? `${n}, ` : ''; }
+  /** Bom dia / Boa tarde / Boa noite pelo relógio de São Paulo. */
+  function bomDiaDe(agora) {
+    const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(agora ? new Date(agora) : new Date())) % 24;
+    return h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  }
 
   /**
    * Respostas prontas para o que o cliente acabou de pedir (sem IA, SEM preço).
@@ -433,6 +462,30 @@
         add('pensar', 'Vai pensar', `${n}combinado, sem pressa! Se quiser, deixo um horário reservado sem compromisso. Prefere de manhã ou à tarde?`);
       } else if (p === 'so_midia') {
         add('midia', 'Recebi o áudio/foto', `${n}recebi aqui! Já vou ver com calma e te respondo. Pode me dizer em uma frase o que está acontecendo com ${carro}?`);
+      } else if (p === 'manipulacao') {
+        add('manipulacao', 'Passar ao consultor', textoDeEncaminhamento('manipulacao', ficha.nome, !!ficha.foraDoHorario), { acao: 'passar-consultor' });
+      } else if (p === 'negociacao') {
+        add('negociacao', 'Valor com o consultor', `${n}entendo! Valor e condições quem combina é o consultor, depois de ver ${carro}, para não te passar nada errado. O diagnóstico digital é gratuito. ${doisHorarios}`, { acao: 'passar-consultor' });
+      } else if (p === 'peca') {
+        add('peca', 'Peça com o consultor', `${n}sobre a peça, o consultor confirma a disponibilidade certinho, para eu não te prometer o que não tenho certeza. Posso pedir para ele te chamar?`, { acao: 'passar-consultor' });
+      } else if (p === 'prazo') {
+        add('prazo', 'Sobre o prazo', `${n}o tempo depende do que o diagnóstico mostrar, e eu não quero te prometer um prazo que não vou cumprir. O diagnóstico digital leva uns 30 minutos e é gratuito. ${doisHorarios}`);
+      } else if (p === 'chegou') {
+        if (ficha.foraDoHorario) add('chegou', 'Está chegando', `${n}no momento estamos fora do horário (seg–sáb, 8h às 17h30), mas a equipe te recebe assim que abrir. Você consegue passar amanhã cedo?`);
+        else add('chegou', 'Está chegando', `${n}pode vir! Já avisei a equipe que você está chegando. Qual é a placa do carro, para eu deixar anotado?`, { acao: 'abrir-entrada-patio' });
+      } else if (p === 'indicacao') {
+        add('indicacao', 'Veio por indicação', `Que bom que te indicaram${primeiroNome(ficha.nome) ? ', ' + primeiroNome(ficha.nome) : ''}! Quem foi que indicou? Quero agradecer também.`);
+      } else if (p === 'reenviar_link') {
+        if (ficha.patio && ficha.patio.etapa !== 'entregue') add('link_de_novo', 'Mandar o link de novo', `${n}claro, te mando o link de novo para acompanhar o carro. Abriu certinho aí?`, { acao: 'colar-link-patio' });
+        else if (ficha.orc && ficha.orc.numero) add('link_de_novo', 'Mandar o link de novo', `${n}claro, te mando o link do orçamento nº ${ficha.orc.numero} de novo. Abriu certinho aí?`, { acao: 'colar-link-orcamento' });
+        else add('link_de_novo', 'Mandar o link de novo', `${n}qual link você precisa: o do carro ou o do orçamento?`);
+      } else if (p === 'placa') {
+        add('placa', 'Recebi a placa', `${n}anotei a placa${ficha.placa ? ' ' + ficha.placa : ''}! Qual serviço você precisa para o carro?`);
+      } else if (p === 'saudacao') {
+        const bd = bomDiaDe(ficha.agora);
+        add('saudacao', 'Cumprimentar', ficha.clienteDaCasa
+          ? `${bd}${primeiroNome(ficha.nome) ? ', ' + primeiroNome(ficha.nome) : ''}! Em que posso ajudar com ${carro} hoje?`
+          : `${bd}${primeiroNome(ficha.nome) ? ', ' + primeiroNome(ficha.nome) : ''}! Aqui é o atendimento da IndyCar. Como posso ajudar com o seu carro?`);
       } else if (p === 'agradecimento') {
         add('agradece', 'De nada', `Por nada${n ? ', ' + primeiroNome(ficha.nome) : ''}! Qualquer coisa é só chamar. Quem conhece, Indyca! 🏎`);
       }
@@ -491,6 +544,9 @@
       case 'preco': return `${n}o valor certinho o consultor confirma depois de ver o carro, para não te passar nada errado.${fora} O diagnóstico digital é gratuito: quer que eu veja um horário?`;
       case 'so_midia': return `${n}recebi seu envio! Já passei para um consultor ver com calma.${fora} Pode me contar em uma frase o que está acontecendo?`;
       case 'nota_fiscal': return `${n}vou pedir para a equipe separar a nota e te mando por aqui.${fora} Qual o nome ou CPF/CNPJ da nota?`;
+      case 'negociacao': return `${n}entendo! Valor e condições quem combina é o consultor, depois de ver o carro.${fora} Quer que eu peça para ele te chamar?`;
+      case 'manipulacao': return `${n}recebi a sua mensagem. Já passei para um consultor, que responde você em seguida.${fora}`;
+      case 'peca': return `${n}a disponibilidade da peça o consultor confirma, para eu não te prometer o que não tenho certeza.${fora} Qual é o carro (modelo e ano)?`;
       case 'cancelar': return `${n}tudo bem. Um consultor vai falar com você sobre isso.${fora} Aconteceu alguma coisa que a gente possa resolver?`;
       default: return `${n}já chamei um consultor para te ajudar.${fora}`;
     }
@@ -628,7 +684,77 @@
       .sort((a, b) => peso(a) - peso(b) || String(a.etapa_em || '').localeCompare(String(b.etapa_em || '')));
   }
 
+  /* ---------------- 12) Rodada 7 (C4): texto do cliente é DADO, nunca ordem ----------------
+     Quem escreve no WhatsApp pode tentar mexer na IA ("ignore as instruções", "marque como pago",
+     "<system>…"). A IA já recebe a conversa cercada, mas a regra mais segura é não deixar que isso
+     chegue a ela: mensagem suspeita vai para uma pessoa, sem IA e sem ação nenhuma. */
+  const RE_MANIPULA = [
+    ['ignorar_regras', /\b(ignor\w+|desconsider\w+|esquec\w+|desobede\w+|descart\w+)\b[^.\n]{0,40}\b(instruc\w+|regras?|ordens?|orientac\w+|comandos?|prompt|restric\w+)\b/],
+    ['novo_papel', /\b(a\s+partir\s+de\s+agora|de\s+agora\s+em\s+diante)\s+(voce|vc|tu)\b|\b(finja|simule|aja|atue|haja|comporte-?se|responda)\s+(que\s+)?(como|voce\s+(e|eh|era)|vc\s+(e|eh))\b/],
+    ['papel_sistema', /(^|\n)\s*(system|assistant|developer|sistema|desenvolvedor|assistente)\s*:|<\s*\/?\s*(system|assistant|conversa|instruc\w*|tool\w*|ferramenta|regras?|prompt)\b|\[\s*(system|inst|sys)\s*\]|conversa_[a-f0-9]{4,}/],
+    ['revelar_prompt', /\b(mostr\w+|revel\w+|repit\w+|diga|passa|imprim\w+|exib\w+|vaz\w+)\b[^.\n]{0,30}\b(seu|teu|o|as|suas)\s+(prompt|instruc\w+|regras|configurac\w+|system)\b|\bprompt\s+(do\s+sistema|inicial|original|interno)\b/],
+    ['modo_especial', /\bmodo\s+(desenvolvedor|dev|admin|administrador|deus|debug|manutencao|sem\s+(restric\w+|filtro))\b|\bjailbreak\b|\bsudo\b/i],
+    ['chamar_ferramenta', /\b(chame|chama|use|usa|execute|rode|acione|invoque|dispare)\s+(a\s+|o\s+)?(ferramenta|funcao|tool|api|comando|acao)\b|\b(tool_use|tool_result|function_call|tool_calls?)\b|"\s*(name|tool)\s*"\s*:/],
+    ['comando_sistema', /\b(marque|marca|mude|muda|altere|atualize|coloque|poe|ponha|defina)\b[^.\n]{0,30}\b(como\s+(pago|ganho|concluido|quitado|aprovado|vip)|(etapa|status|lead|funil|saldo|credito)\s+(para|como|pra))\b/],
+    ['apagar_dados', /\b(apague|apaga|delete|deleta|exclua|exclui|remova|remove|limpe)\b[^.\n]{0,30}\b(historico|conversa|cadastro|dados|todas?|registro|mensagens)\b/],
+    ['autorizar_se', /\b(autorizo|autorizado|aprovado)\s+(por|pelo)\s+(o\s+)?(dono|gerente|joao|sistema|admin)\b|\b(o\s+)?(dono|gerente|joao)\s+(mandou|autorizou|disse\s+para)\s+(voce|vc|a\s+ia)\b/],
+    ['desconto_total', /\b(100|cem)\s*%\s*(de\s+)?(desconto|off)\b|\bde\s+graca\s+(pra|para)\s+mim\b|\bgratis\s+(pra|para)\s+mim\b/],
+  ];
+  /** O texto tenta dar ordem à IA / ao sistema? { suspeita, nivel:'alta'|'media'|null, motivos:[cod] }. Roda sem acento e sem caixa. */
+  function detectarManipulacao(texto) {
+    const bruto = String(texto ?? '');
+    if (!bruto.trim()) return { suspeita: false, nivel: null, motivos: [] };
+    const t = semAcento(bruto);
+    const motivos = [];
+    for (const [cod, re] of RE_MANIPULA) { if (re.test(cod === 'modo_especial' ? bruto.normalize('NFD').replace(/[̀-ͯ]/g, '') : t)) motivos.push(cod); }
+    // texto enorme, cheio de símbolos de formato, tem cara de colagem de prompt
+    const simbolos = (bruto.match(/[<>{}\[\]`]/g) || []).length;
+    if (bruto.length > 700 && simbolos >= 12) motivos.push('colagem_de_prompt');
+    const fortes = new Set(['ignorar_regras', 'papel_sistema', 'revelar_prompt', 'modo_especial', 'chamar_ferramenta', 'colagem_de_prompt', 'autorizar_se']);
+    const nivel = !motivos.length ? null : (motivos.some((m) => fortes.has(m)) || motivos.length >= 2 ? 'alta' : 'media');
+    return { suspeita: motivos.length > 0, nivel, motivos };
+  }
+  /** Nome do WhatsApp/cadastro seguro para entrar num prompt ou numa tela: só letras, números e pontuação de nome. */
+  function nomeSeguro(nome, max = 40) {
+    let n = String(nome ?? '').normalize('NFC').replace(/[\p{C}\p{Zl}\p{Zp}]/gu, ' ').replace(/[<>{}\[\]`\\|^~*_=+@#$%&]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!n) return '';
+    if (detectarManipulacao(n).suspeita || /\b(system|assistant|prompt|ignore|instruc)/i.test(semAcento(n))) return '(nome oculto)';
+    if (n.length > max) n = n.slice(0, max).replace(/\s+\S*$/, '') || n.slice(0, max);
+    return n;
+  }
+  /** Campo curto que veio do cliente (formulário do site, carro, serviço) → texto seguro para o prompt, ou ''. */
+  function campoSeguro(texto, max = 60) {
+    const t = limparTexto(texto, max * 2).replace(/[{}\[\]`\\|^~]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!t || detectarManipulacao(t).suspeita) return '';
+    return t.slice(0, max);
+  }
+
+  /* A IA não promete o que a oficina não prometeu: prazo, estoque de peça, gratuidade fora do diagnóstico,
+     garantia diferente de 12 meses, leva-e-traz e parcelamento. Devolve [{cod, trecho}]. */
+  const RE_PROMESSA = [
+    ['prazo', /\b(fica|ficara|estara|sera|esta|deve\s+ficar|vai\s+ficar)\s+pront[oa]s?\s+(hoje|amanha|ate|em\s+\d|ainda\s+hoje|na\s+(segunda|terca|quarta|quinta|sexta|sabado)|ja\s+ja)|\bentrego\s+(hoje|amanha|ate\s|em\s+\d)|\b(garanto|prometo|garantimos|prometemos)\b[^.\n]{0,25}\b(fica|entrega|entregamos|termina|terminamos|pront\w+|prazo)|\bpront[oa]s?\s+em\s+\d+\s*(h\b|hora|min|dias?)|\bem\s+(\d+|uma|duas|tres|quatro)\s+horas?\s+(fica|esta|ja\s+esta)\s+pront/],
+    ['estoque', /\b(tenho|temos|tem)\s+(a\s+|essa\s+|esta\s+)?pecas?\s+(em\s+estoque|disponivel|aqui|pronta|na\s+loja)|\btemos\s+(isso\s+)?em\s+estoque|\bpeca\s+(ja\s+)?(esta\s+)?reservada|\bposso\s+reservar\s+a\s+peca|\bchega\s+(hoje|amanha|em\s+\d)/],
+    ['garantia', /\bgarantia\s+(vitalicia|total|de\s+fabrica|estendida)|\bgarantia\s+de\s+(?!12\s+meses)\d+\s*(dias?|meses|anos?)|\b(6|seis|24|vinte\s+e\s+quatro|18)\s+meses\s+de\s+garantia/],
+    ['leva_e_traz', /\b(leva\s+e\s+traz|busco\s+(o\s+seu\s+)?carro|buscamos\s+(o\s+seu\s+)?carro|guincho\s+(gratis|incluso|por\s+nossa\s+conta)|levamos\s+(o\s+)?carro\s+ate\s+voce)\b/],
+    ['parcelamento', /\b(parcel\w+|em\s+\d+\s*x\b|sem\s+juros|no\s+boleto|financi\w+)\b/],
+  ];
+  function textoPrometeDemais(texto) {
+    const out = [];
+    const bruto = String(texto ?? '');
+    if (!bruto.trim()) return out;
+    const t = semAcento(bruto);
+    for (const [cod, re] of RE_PROMESSA) { const m = re.exec(t); if (m) out.push({ cod, trecho: m[0].slice(0, 60) }); }
+    // gratuidade: só o diagnóstico é de graça
+    for (const frase of t.split(/(?<=[.!?\n])\s+/)) {
+      if (/\b(de\s+graca|gratuit[oa]s?|gratis|sem\s+custo|sem\s+cobrar|cortesia|por\s+nossa\s+conta|nao\s+paga\s+nada)\b/.test(frase) && !/\bdiagnostic\w*/.test(frase)) { out.push({ cod: 'gratuidade', trecho: frase.slice(0, 60) }); break; }
+    }
+    return out;
+  }
+  const MOTIVO_PROMESSA = { prazo: 'prometeu prazo de entrega', estoque: 'prometeu peça em estoque', garantia: 'citou garantia diferente de 12 meses',
+    leva_e_traz: 'prometeu buscar o carro', parcelamento: 'falou de parcelamento', gratuidade: 'prometeu algo de graça além do diagnóstico' };
+
   const API = {
+    detectarManipulacao, nomeSeguro, campoSeguro, textoPrometeDemais, MOTIVO_PROMESSA, bomDiaDe,
     semAcento, soDigitos, primeiroNome, minutosEntre, rotuloMinutos,
     textoTemPreco, PADROES_PRECO,
     RE_PEDIDO: RE, oQueOClientePediu, motivoParaHumano, MOTIVO_HUMANO, ORDEM_HUMANO, ROTULO_PEDIDO,

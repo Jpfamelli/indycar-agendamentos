@@ -37,6 +37,8 @@ const { criarR6 } = require('./lib/r6-dados.js');
 const { criarRotasR6 } = require('./lib/rotas-r6.js');
 const { criarC5 } = require('./lib/r6c5.js');
 const ZAP = criarZap();
+const R7ENVIO = require('./lib/r7-envio.js');
+const RITMO_IA = R7ENVIO.criarRitmo({ intervaloMs: Number(process.env.IA_INTERVALO_ENVIO_MS) || 2500 });   // Rodada 7: a IA manda uma por vez, nunca em enxurrada
 
 // Configuração via .env (sem depender do Registro do Windows)
 try {
@@ -566,6 +568,15 @@ async function enviarPelaIA({ conversa, cliente_id = null, texto, acao_id = null
   if (!corpo) return { ok: false, status: 400, erro: 'Mensagem vazia.' };
   /* Rodada 6: última barreira — nada que cite valor sai pela IA, qualquer que seja o caminho que chegou aqui. */
   if (R6REGRAS.textoTemPreco(corpo)) return { ok: false, status: 422, erro: 'A mensagem cita preço ou valor: a IA não passa valor. Reescreva sem valor.', codigo: 'preco_na_mensagem' };
+  /* Rodada 7: a IA não promete prazo, peça em estoque, brinde, garantia diferente nem parcelamento — última barreira também. */
+  const promessas = R6REGRAS.textoPrometeDemais(corpo);
+  if (promessas.length) return { ok: false, status: 422, erro: 'A mensagem ' + promessas.map(x => R6REGRAS.MOTIVO_PROMESSA[x.cod]).join(', ') + '. A IA não promete isso: reescreva.', codigo: 'promessa_na_mensagem' };
+  /* Rodada 7: a mesma frase não sai duas vezes, e não vira uma segunda cópia na fila enquanto o WhatsApp está parado. */
+  const igual = await R7ENVIO.acharIgual(sb, { conversaId: conversa.id, corpo }).catch(() => null);
+  if (igual) return igual.tipo === 'ja_na_fila'
+    ? { ok: false, status: 409, codigo: 'ja_na_fila', mensagem_id: igual.id, erro: 'Essa mensagem já está esperando para sair (o WhatsApp está parado). Ela sai na revisão, sem repetir.' }
+    : { ok: false, status: 409, codigo: 'repetida', erro: 'Essa mesma mensagem acabou de ir para o cliente.' };
+  await RITMO_IA.vez();   // uma por vez, com intervalo
   const { data: linha, error } = await sb.from('whatsapp_mensagens').insert({
     conversa_id: conversa.id, cliente_id: cliente_id || conversa.cliente_id || null, telefone: conversa.telefone, nome: conversa.nome || null,
     corpo, direcao: 'saida', status: 'pendente', gerada_por_ia: true,

@@ -484,6 +484,9 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
         const r = revisarTexto(limpar(P.texto, 1500));
         if (!r.texto) return { erro: 'Texto vazio.' };
         if (r.temPreco) return { erro: 'A mensagem cita preço/valor. A IA não passa preço: reescreva oferecendo o diagnóstico gratuito ou dizendo que o consultor confirma o valor.' };
+        /* Rodada 7: a IA não promete o que a oficina não prometeu (prazo, estoque de peça, brinde, garantia diferente de 12 meses, leva-e-traz, parcelamento) */
+        const promessas = R6REGRAS.textoPrometeDemais(r.texto);
+        if (promessas.length) return { erro: `A mensagem ${promessas.map(x => R6REGRAS.MOTIVO_PROMESSA[x.cod]).join(', ')}. A IA não promete isso: diga que o consultor confirma depois de ver o carro, ou ofereça o diagnóstico digital gratuito (30 minutos) com dois horários.` };
         if (r.texto.length > 900) return { erro: 'Mensagem longa demais para WhatsApp (máx. 900 caracteres). Encurte.' };
         // rodada 4: a loja já falou nesta conversa? sem "Aqui é o atendimento da IndyCar" de novo
         const lojaJaFalou = (ficha.mensagens || []).some(m => m.direcao === 'saida' && String(m.corpo || '').trim());

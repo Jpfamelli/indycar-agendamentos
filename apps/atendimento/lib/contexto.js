@@ -17,6 +17,7 @@
    ============================================================ */
 'use strict';
 
+
 const COM = require('./comunicar.js');
 const H = require('./horarios.js');
 const PAT = require('./patio.js');
@@ -351,8 +352,8 @@ function textoParaIA(ficha, { cerca = 'CONVERSA', maxMensagens = MAX_MENSAGENS }
   const L = [];
   L.push('FICHA DO CLIENTE');
   if (c) {
-    L.push(`- Nome: ${c.nome || f.conversa?.nome || '—'}`);
-    if (c.carro_modelo) L.push(`- Carro: ${c.carro_modelo}${c.carro_ano ? ` ${c.carro_ano}` : ''}${c.placa ? ` · placa ${c.placa}` : ''}`);
+    L.push(`- Nome: ${R6.nomeSeguro(c.nome) || R6.nomeSeguro(f.conversa?.nome) || '—'}`);
+    if (c.carro_modelo) L.push(`- Carro: ${R6.campoSeguro(c.carro_modelo, 60) || 'informado'}${c.carro_ano ? ` ${Number(c.carro_ano) || ''}` : ''}${c.placa ? ` · placa ${R6.campoSeguro(c.placa, 10)}` : ''}`);
     else L.push('- Carro: não sabemos ainda (pergunte qual é)');
     if (c.email) L.push('- E-mail: cadastrado');
     if (c.nascimento) L.push(`- Aniversário: ${String(c.nascimento).slice(8, 10)}/${String(c.nascimento).slice(5, 7)}`);
@@ -362,11 +363,11 @@ function textoParaIA(ficha, { cerca = 'CONVERSA', maxMensagens = MAX_MENSAGENS }
     if (f.clienteDaCasa) L.push('- É CLIENTE DA CASA: fale como quem já o conhece (pelo nome, citando o carro).');
     if (c.aceita_mensagens === false) L.push('- NÃO aceita mensagens automáticas (pediu para parar) — não proponha retorno automático.');
   } else {
-    L.push(`- Cliente sem cadastro ainda (nome no WhatsApp: ${f.conversa?.nome || 'desconhecido'}).`);
+    L.push(`- Cliente sem cadastro ainda (nome no WhatsApp: ${R6.nomeSeguro(f.conversa?.nome) || 'desconhecido'}).`);
   }
   if (f.formularioSite && Object.keys(f.formularioSite).length) {
     const fs_ = f.formularioSite;
-    L.push(`- O cliente preencheu o formulário do site${fs_.placa ? ` · placa ${fs_.placa}` : ''}${fs_.carro ? ` · carro ${fs_.carro}` : ''}${fs_.servico ? ` · serviço ${fs_.servico}` : ''}${fs_.horario ? ` · horário que prefere: ${fs_.horario}` : ''} — NÃO pergunte de novo o que já veio no formulário; confirme e siga.`);
+    L.push(`- O cliente preencheu o formulário do site${fs_.placa ? ` · placa ${R6.campoSeguro(fs_.placa, 10)}` : ''}${R6.campoSeguro(fs_.carro) ? ` · carro ${R6.campoSeguro(fs_.carro)}` : ''}${R6.campoSeguro(fs_.servico) ? ` · serviço ${R6.campoSeguro(fs_.servico)}` : ''}${R6.campoSeguro(fs_.horario) ? ` · horário que prefere: ${R6.campoSeguro(fs_.horario)}` : ''} — NÃO pergunte de novo o que já veio no formulário; confirme e siga.`);
   }
   if (f.ultimoServico) L.push(`- Último serviço: ${f.ultimoServico.servico || '—'} em ${f.ultimoServico.data}`);
   if (f.revisao) L.push(`- Próxima revisão prevista: ${f.revisao.rotulo} em ${String(f.revisao.prevista).slice(0, 10)}`
@@ -377,7 +378,7 @@ function textoParaIA(ficha, { cerca = 'CONVERSA', maxMensagens = MAX_MENSAGENS }
   L.push('CRM (leads, sem valores)');
   if (f.leads?.length) {
     for (const l of f.leads.slice(0, 5)) {
-      L.push(`- ${l.servico || 'sem serviço'} · ${ROTULO_STATUS_LEAD[l.status] || l.status} · origem ${l.origem || '—'} · há ${l.ha_dias ?? '?'} dia(s)${l.id === f.leadAberto?.id ? ' · ABERTO' : ''}`);
+      L.push(`- ${R6.campoSeguro(l.servico, 80) || 'sem serviço'} · ${ROTULO_STATUS_LEAD[l.status] || l.status} · origem ${l.origem || '—'} · há ${l.ha_dias ?? '?'} dia(s)${l.id === f.leadAberto?.id ? ' · ABERTO' : ''}`);
     }
   } else L.push('- nenhum lead');
 
@@ -419,7 +420,7 @@ function textoParaIA(ficha, { cerca = 'CONVERSA', maxMensagens = MAX_MENSAGENS }
 
   L.push('');
   L.push(textoDaSituacao(situacaoDaConversa(f.mensagens || [], f.geradoEm ? new Date(f.geradoEm) : new Date()),
-    { clienteDaCasa: !!f.clienteDaCasa, nome: c?.nome || '' }));
+    { clienteDaCasa: !!f.clienteDaCasa, nome: R6.nomeSeguro(c?.nome) || '' }));
 
   L.push('');
   const ms = (f.mensagens || []).slice(-maxMensagens);

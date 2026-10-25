@@ -23,7 +23,10 @@ const TEXTO = {
   cota: 'WhatsApp parado: a cota do CodeWords acabou. Renove o plano ou aguarde virar o mês',
 };
 
-function criarZap({ agora = () => Date.now(), pausaMs = 90_000, sondagemMs = 30_000 } = {}) {
+/* Rodada 7 (C4): `aoMudar({tipo:'parou'|'voltou', codigo, desde, minutos})` avisa quando o WhatsApp para e quando volta, para o servidor
+   guardar no banco (sobrevive a reinício), avisar a equipe no sino e conferir quantas mensagens esperam. `restaurar` recoloca o estado
+   guardado depois de o servidor reiniciar (o Render dorme) sem avisar de novo. */
+function criarZap({ agora = () => Date.now(), pausaMs = 90_000, sondagemMs = 30_000, aoMudar = null } = {}) {
   let estado = null;            // { codigo, desde, ultimaTentativa, vezes }
   let sondando = false;
 
@@ -35,17 +38,39 @@ function criarZap({ agora = () => Date.now(), pausaMs = 90_000, sondagemMs = 30_
       if (!CODIGOS_QUE_PARAM.has(codigo)) return false;
       const t = agora();
       if (estado && estado.codigo === codigo) { estado.ultimaTentativa = t; estado.vezes++; }
-      else estado = { codigo, desde: t, ultimaTentativa: t, vezes: 1 };
+      else {
+        const mudou = !estado || estado.codigo !== codigo;
+        estado = { codigo, desde: estado ? estado.desde : t, ultimaTentativa: t, vezes: 1 };
+        if (mudou && typeof aoMudar === 'function') { try { aoMudar({ tipo: 'parou', codigo, desde: new Date(estado.desde).toISOString(), minutos: 0 }); } catch { /* aviso não derruba o envio */ } }
+      }
       sondando = false;
       return true;
     },
 
-    limpar() { const tinha = !!estado; estado = null; sondando = false; return tinha; },
+    limpar() {
+      const antes = estado;
+      estado = null; sondando = false;
+      if (antes && typeof aoMudar === 'function') {
+        try { aoMudar({ tipo: 'voltou', codigo: antes.codigo, desde: new Date(antes.desde).toISOString(), minutos: Math.max(0, Math.round((agora() - antes.desde) / 60000)) }); } catch { /* idem */ }
+      }
+      return !!antes;
+    },
+
+    /** Servidor reiniciou: recoloca o que o banco guardou (sem avisar de novo). Não sobrescreve um estado mais novo. */
+    restaurar({ codigo, desde } = {}) {
+      if (estado || !CODIGOS_QUE_PARAM.has(codigo)) return false;
+      const d = Date.parse(desde || '');
+      const t = Number.isFinite(d) ? d : agora();
+      // a última tentativa é "agora": deixa passar UMA sondagem depois da pausa, em vez de insistir no primeiro envio
+      estado = { codigo, desde: t, ultimaTentativa: agora(), vezes: 1 };
+      sondando = false;
+      return true;
+    },
 
     /** { parado, codigo, desde, texto } — sem efeito colateral. */
     estado() {
       if (!estado) return { parado: false };
-      return { parado: true, codigo: estado.codigo, desde: new Date(estado.desde).toISOString(), vezes: estado.vezes,
+      return { parado: true, codigo: estado.codigo, desde: new Date(estado.desde).toISOString(), vezes: estado.vezes, minutos_parado: Math.max(0, Math.round((agora() - estado.desde) / 60000)),
         texto: TEXTO[estado.codigo] || 'WhatsApp parado.' };
     },
 
