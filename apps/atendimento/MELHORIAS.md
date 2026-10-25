@@ -1092,3 +1092,86 @@ Rotas testadas por HTTP de verdade em `test/r6-rotas.test.js` (11 testes) e dado
 - Os eventos do Orçador (`orc_eventos`) ainda estão vazios no banco real: a lista aparece na ficha quando o O1 começar a gravar `conexao`, `enviado`, `aprovado` e `recusado`.
 - O formulário do site precisa mandar linhas "Placa: …" e "Horário: …" (combinado com o X1); a leitura já está pronta e testada.
 - A resposta pronta "Endereço" usa o endereço fixo da oficina (Av. Bandeirantes, 875); se mudar, trocar em `lib/contexto.js` e `public/r6-regras.js`.
+
+
+## Rodada 6 — segunda leva (C5): conexões ao vivo e o dia a dia do atendente
+
+Numeração continua após a 262. 🔗 = liga o Atendimento a outro sistema. Total desta leva: 58 itens, 41 com 🔗. Código novo: `lib/r6c5.js`, `public/r6c5.js` e `.css`, `test/r6c5.test.js`, `scripts/roteiro-r6c5.cjs`.
+
+### Orçador ao vivo e pré-agendamento
+263. 🔗 Orçador AO VIVO na ficha pelo telefone: `orc_status_por_telefone` chamado com o JWT de quem está logado (chave pública + token; com a chave de serviço voltaria vazio). Rota nova `GET /api/r6/c5/conversa/:id`.
+264. 🔗 Também pelo lead (`orc_status_por_lead`, argumento `p_lead`), sem repetir orçamento.
+265. 🔗 Cliente SEM cadastro também vê o Orçador, pelo telefone da conversa.
+266. 🔗 O token e a chave pública nunca voltam na resposta (testado).
+267. 🔗 Avisos em português: sem permissão no Orçador, sessão expirada, Orçador fora do ar; a ficha continua com o que já sabia e há "Tentar de novo".
+268. 🔗 Se só uma das duas consultas falhar, mostra o que veio e avisa "pode faltar algum orçamento".
+269. 🔗 Motivo da recusa lido do próprio orçamento (código + texto do cliente, ex.: "preço · achei caro"), com plano B nos eventos.
+270. 🔗 Faixa "👀 Abriu o orçamento nº X (viu há 3 h) e não respondeu" com "💬 Dar um retorno".
+271. 🔗 Faixa "🙅 Recusou o orçamento nº X — motivo" com "💬 Perguntar o motivo" (texto sem desconto, sem preço, uma pergunta).
+272. 🔗 Aprovado em parte mostra só o valor aprovado.
+273. 🔗 Papel que não vê preço: o cartão não mostra valor nenhum.
+274. 🔗 "Abrir no Orçador ↗" vai para `#/historico/<id>` na aba `indycar-orcador`.
+275. 🔗 "📋 Colar link do cliente" (só enviado/aprovado).
+276. 🔗 Orçamento vencido: "🧾 Refazer no Orçador ↗" abre uma cotação nova com o cliente.
+277. 🔗 Orçamentos antigos ficam em "Anteriores (n)"; o bloco diz "🟢 ao vivo · atualizado há N s".
+278. 🔗 Pré-agendamento pedido pela página do orçamento: faixa verde com dia, hora e nº do orçamento + "Confirmar na Agenda ↗".
+279. 🔗 "💬 Responder" ao pré-agendamento põe o texto no campo (sem preço).
+280. 🔗 Fila: chip "pediu horário", filtro novo "📅 Pediu horário" e +75 pontos (conferência `Pediu horário` aparece uma vez só na linha).
+281. 🔗 Fila: orçamento recusado nos últimos 14 dias (chip, filtro "🙅 Recusou", +40 pontos); recusado mais velho não puxa; orçamento em andamento ganha do recusado.
+282. 🔗 O orçamento "principal" passa a considerar: recusado recente vem antes de aprovado antigo.
+283. 🔗 Chip do cabeçalho do chat vira "👀 Nº 87 · viu há 3 h" / "🙅 Nº 87 recusou" e ganha "📅 pediu 22/10 09:00".
+284. 🔗 Avisos na tela quando, com a conversa aberta, o cliente abre, aprova ou recusa, ou pede horário.
+285. 🔗 A ficha reconsulta o Orçador a cada 30 s e quando chega mensagem do cliente.
+286. 🔗 "💡 O sistema sugere": ações do `r6_cliente_360` com "Abrir ↗" (só link da casa) e "Colar texto" (texto com preço é descartado).
+287. 🔗 Faixa de aviso quando o 360 diz que o cliente pediu para não receber mensagens automáticas.
+
+### Pátio sem conversa, relatórios e teclado
+288. 🔗 Barra "🚗 N carros sem conversa · M pronto" sobre a lista (`patio_carros_abertos`, sem quem já tem conversa); some quando não há.
+289. 🔗 Janela dos carros: o pronto vem primeiro, com nome, carro, placa, etapa e há quanto tempo; erro vira aviso sem texto técnico.
+290. 🔗 "💬 Abrir conversa": vai para a conversa existente ou abre "Nova conversa" já com telefone e nome; sem telefone fica desabilitado.
+291. 🔗 "Abrir no Pátio ↗" (aba `indycar-patio`) e "📋 Copiar telefone".
+292. 🔗 Alt+O abre o orçamento do cliente no Orçador (sem orçamento, abre um novo).
+293. 🔗 Alt+L cola o link para o cliente acompanhar o carro.
+294. 🔗 Alt+G abre os carros sem conversa (avisa se não há).
+295. 🔗 Relatórios (gestor/admin): bloco "🧾 Orçamentos no Orçador" com enviados, abriram, aprovados, recusados, valores, motivos e frases, via `orc_funil` com o JWT do gestor; atendente leva 403.
+296. 🔗 O bloco do funil tem estados de erro (com "Tentar de novo") e de período sem orçamento.
+
+### Links e segurança
+297. 🔗 "Criar orçamento" leva serviço, OS e agendamento além de conversa, telefone, placa, veículo e lead; conferido contra o leitor REAL do Orçador (`entradaDoHash`): origem, os, lead, conversa, agendamento, placa, carro e pedido chegam certos.
+298. 🔗 Allow-list de links: só http(s) das casas; `javascript:`, `data:`, `//evil.com`, usuário:senha, domínio parecido e `ftp:` não abrem (testado no servidor e no navegador); caminho relativo só `/…`, `?…`, `#…`.
+299. 🔗 O nome da aba só pode ser de um app da casa (`__proto__` e `javascript:` viram vazio).
+300. Texto de cliente com HTML (motivo, nome do cliente nos carros) aparece como texto e não executa (conferido no navegador).
+301. Banco real: anon é negado em todas as funções e tabelas usadas; usuário logado fora da equipe recebe 0 linhas ou "sem permissão".
+302. 🔗 Migração `r6_c5_orc_avisa_conversa`: quem está com a conversa recebe no sino (link `/?conversa=`) aviso de orçamento aberto, recusado, aprovado e de pré-agendamento.
+303. 🔗 O aviso não duplica: cala se a pessoa já é o responsável pelo lead (CRM avisa) ou quem montou o orçamento (Orçador avisa); testado em bloco revertido.
+304. 🔗 `?filtro=r6_pre` abre direto o filtro; `?conversa=` (link do sino) abre a conversa já com o Orçador ao vivo.
+305. 🔗 `?aba=integracoes` conferido de forma PERMANENTE no roteiro: abre Integrações, foca a chave e limpa o endereço; atendente recebe aviso.
+306. BUG achado na conferência: o argumento do `orc_status_por_lead` é `p_lead`, não `p_lead_id` (dava 404 e "respondeu só em parte" para todo cliente com lead). Corrigido; o dublê agora reproduz o 404 do banco (teste de contrato).
+307. BUG achado no banco real: `agendamentos.status` é enum sem "pendente"/"pre_agendado"; a consulta inteira da fila falhava. Corrigido para `aguardando`; o dublê agora valida o enum.
+
+### Operador
+308. Texto pronto não apaga mais o que o atendente já escrevia: entra embaixo, separado por linha em branco (vale para todas as frases prontas da Rodada 6).
+309. Filtros da fila ganham texto próprio quando vazios (Urgentes, Pátio, Orçamento, Não saiu, Recusou, Pediu horário).
+310. Erro ao abrir a ficha diz o motivo certo (sem internet, sessão expirada, muitos pedidos).
+311. Alt+R atualiza a ficha na hora.
+312. Botão ✓✓ marca como lidas as conversas visíveis (até 100), com confirmação.
+313. Lista de atalhos (`?`) e Ajuda "Como faço…" atualizadas (5 respostas novas).
+314. BUG a 375 px: o × das janelas "não saíram" e "carros" caía sobre o texto; cabeçalho em linha, conferido nas duas.
+315. A 375 px as faixas viram coluna e os botões novos têm pelo menos 36 px de altura; sem rolagem lateral.
+316. Respostas prontas do Orçador (`respostaDoOrcador`): sem preço, sem "prezado/efetuar/comparecer/veículo", no máximo uma pergunta (testado em 8 situações × 3 fichas).
+317. Service worker v19 com `r6c5.js` e `r6c5.css` no CORE.
+318. Mock `scripts/mock-server.mjs` com rotas e ganchos `/api/_c5` para reproduzir cada situação.
+319. `scripts/conferir-r6c5-real.mjs`: conferência SÓ LEITURA no banco real (carros, fila, ficha, pré-agendamentos).
+320. 28 testes novos em `test/r6c5.test.js` (suíte 323/323) e `scripts/roteiro-r6c5.cjs` com 124 conferências em 1440 e 375 px, mais o atendente.
+
+### Como verifiquei
+- `npm test`: 323/323. `scripts/roteiro-r6c5.cjs` (mock na porta 3360): 124/124. Regressões com mock novo: roteiro-rodada6 62/62, roteiro-tela 220/220, roteiro-rodada4 145/145, roteiro-rodada5 74/74.
+- Banco real, só leitura ou bloco revertido: anon negado; forasteiro 0 linhas; gestor e atendente chamam `orc_status_por_telefone`, `patio_carros_abertos`, `r6_cliente_360` e `orc_funil`; migração testada com orçamento e agendamento de mentira revertidos; `get_advisors` sem menção a `r6_c5`.
+- `node --env-file=../../.env scripts/conferir-r6c5-real.mjs`: fila, carros, ficha e pré-agendamentos sem erro.
+
+### Pendências
+- `orc_orcamentos` está vazio no banco real: o Orçador ao vivo foi provado com dublê, com bloco SQL como gestor/atendente e com o leitor real do Orçador, ainda não com orçamento de verdade pela tela.
+- No banco, o atendente também consegue chamar `orc_funil` e ver o total (decisão do Orçador); aqui o funil continua só para gestor/admin.
+- `roteiro-casca.cjs` usa a porta 3230 e exige o Supabase real (preconnect): 2 de 13 falham no mock, sem relação com esta leva.
+- A cópia SQL das migrações está em `indycar-ferramentas/sql/` (fora do repositório).
+- Não publicado: quem publica a Central é o coordenador.

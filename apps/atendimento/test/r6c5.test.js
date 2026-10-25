@@ -156,12 +156,37 @@ test('orcamentoQueImporta: recusado recente passa na frente do aprovado antigo; 
   assert.strictEqual(R.orcamentoQueImporta([recente, enviado], AGORA).numero, 88, 'em andamento ganha do recusado');
 });
 
+/* Valores REAIS do enum agendamento_status no banco (pg_enum). Valor fora da lista derruba a consulta inteira com
+   "invalid input value for enum" — foi o que aconteceu com 'pendente' na primeira versão (pego pela conferência no banco real). */
+const STATUS_AGENDAMENTO = ['aguardando', 'confirmado', 'em_atendimento', 'compareceu', 'nao_veio', 'concluido', 'nao_fechou', 'cancelado'];
+function comEnumDoBanco(sb) {
+  const de = sb.from.bind(sb);
+  sb.from = (tabela) => {
+    const q = de(tabela);
+    if (tabela !== 'agendamentos') return q;
+    for (const op of ['eq', 'neq', 'in']) {
+      const original = q[op].bind(q);
+      q[op] = (coluna, v) => {
+        if (coluna === 'status' && [].concat(v).some((x) => !STATUS_AGENDAMENTO.includes(x))) throw new Error('invalid input value for enum agendamento_status: ' + JSON.stringify(v));
+        return original(coluna, v);
+      };
+    }
+    return q;
+  };
+  return sb;
+}
+
 /* ---------------- servidor: Orçador como o usuário ---------------- */
+/* Argumentos REAIS das funções do Orçador no banco (conferido em pg_proc). O PostgREST devolve 404 quando o nome do argumento não existe —
+   foi assim que o p_lead_id (o certo é p_lead) passou batido na primeira versão. */
+const ARGUMENTOS_DO_BANCO = { orc_status_por_telefone: ['p_telefone'], orc_status_por_lead: ['p_lead'], orc_funil: ['p_dias'] };
 function fetchFalso(respostas = {}) {
   const chamadas = [];
   const f = async (url, opc = {}) => {
     chamadas.push({ url, opc, corpo: opc.body ? JSON.parse(opc.body) : null });
     const nome = String(url).split('/rpc/')[1];
+    const esperados = ARGUMENTOS_DO_BANCO[nome];
+    if (esperados && Object.keys(chamadas[chamadas.length - 1].corpo || {}).some((k) => !esperados.includes(k))) return { ok: false, status: 404, json: async () => ({ code: 'PGRST202', message: 'Could not find the function ' + nome }) };
     const r = respostas[nome];
     if (r instanceof Error) throw r;
     if (typeof r === 'function') return r(opc);
@@ -202,7 +227,7 @@ test('orcamentosAoVivo: telefone vira 55+DDD, junta telefone e lead sem repetir,
     { orcamento_id: ORC1, tipo: 'recusado', detalhe: 'antigo', created_at: iso(5000) }] });
   const c5 = criarC5({ sb, fetch: f, supabaseUrl: 'https://x', anonKey: ANON, agora: () => AGORA, log: () => {} });
   const r = await c5.orcamentosAoVivo({ token: TOKEN, telefone: '(12) 98866-0661', leadId: LEAD });
-  assert.ok(r.ok); assert.strictEqual(f.chamadas[0].corpo.p_telefone, '5512988660661'); assert.strictEqual(f.chamadas[1].corpo.p_lead_id, LEAD);
+  assert.ok(r.ok); assert.strictEqual(f.chamadas[0].corpo.p_telefone, '5512988660661'); assert.strictEqual(f.chamadas[1].corpo.p_lead, LEAD);
   assert.strictEqual(r.orcamentos.length, 2);
   const rec = r.orcamentos.find((o) => o.id === ORC1);
   assert.strictEqual(rec.motivo_recusa, 'achei caro'); assert.strictEqual(rec.acao, 'Recusou: achei caro');
@@ -224,7 +249,7 @@ test('preAgendamentos: só os pedidos pela página do orçamento, ainda aguardan
     { id: 'a5', cliente_id: 'outro', telefone: '12911112222', data: '2026-10-22', status: 'aguardando', observacoes: obs },
     { id: 'a6', cliente_id: CLI, data: '2026-09-01', status: 'aguardando', observacoes: obs },
   ] });
-  const c5 = criarC5({ sb, agora: () => AGORA, log: () => {} });
+  const c5 = criarC5({ sb: comEnumDoBanco(sb), agora: () => AGORA, log: () => {} });
   const r = await c5.preAgendamentos({ clienteId: CLI, telefone: '12 98866-0661' });
   assert.deepStrictEqual(r.map((x) => x.id), [AG, 'a2']);
   assert.strictEqual(r[0].hora, '09:00'); assert.strictEqual(r[0].numero_orcamento, 87); assert.strictEqual(r[0].abrir, `/?agendamento=${AG}`);
@@ -289,8 +314,9 @@ test('filaContexto: recusado de até 14 dias aparece, mais velho não; pré-agen
     agendamentos: [{ id: AG, cliente_id: CLI, data: '2026-10-22', hora: '09:00', status: 'aguardando', observacoes: obs }],
     whatsapp_mensagens: [], patio_os: [], patio_extras: [],
   }, { relogio: () => AGORA });
-  const d = criarR6({ sb, agora: () => AGORA, log: () => {} });
+  const d = criarR6({ sb: comEnumDoBanco(sb), agora: () => AGORA, log: () => {} });
   const f = await d.filaContexto({ forcar: true });
+  assert.deepStrictEqual(f.avisos, [], 'nenhuma consulta da fila falhou (enum do banco)');
   assert.strictEqual(f.conversas[CONV].orc.cod, 'recusado');
   assert.deepStrictEqual([f.conversas[CONV].pre.id, f.conversas[CONV].pre.hora], [AG, '09:00']);
   assert.ok(!f.conversas['c-velho'], 'recusado de 20 dias não entra na fila');
@@ -450,4 +476,16 @@ test('insightsOrcador: sem envio não inventa frase; poucas amostras não alarma
   assert.deepStrictEqual(insightsOrcador(prepararFunilOrcador({ enviados: 3, vistos: 0, por_motivo: [{ codigo: 'preco', quantidade: 1 }] })), []);
   const f = prepararFunilOrcador({ enviados: 10, vistos: 2, seguimento: { atrasados: 1 } });
   assert.ok(insightsOrcador(f).some((x) => /Só 20% /.test(x)) && insightsOrcador(f).some((x) => /1 retorno de orçamento atrasado /.test(x)));
+});
+
+test('contrato com o banco: os três RPCs do Orçador são chamados só com os argumentos que existem (p_telefone, p_lead, p_dias)', async () => {
+  const f = fetchFalso({ orc_status_por_telefone: [linhaOrc()], orc_status_por_lead: [linhaOrc({ id: ORC2, numero: 9 })], orc_funil: { enviados: 1 } });
+  const c5 = criarC5({ sb: criarSbFalso({}), fetch: f, supabaseUrl: 'https://x', anonKey: ANON, agora: () => AGORA, log: () => {} });
+  const r = await c5.orcamentosAoVivo({ token: TOKEN, telefone: '12988660661', leadId: LEAD });
+  assert.ok(r.ok && !r.parcial, 'as duas consultas respondem (nada de "só em parte" por argumento errado)');
+  assert.strictEqual(r.orcamentos.length, 2);
+  assert.ok((await c5.funilOrcador({ token: TOKEN, dias: 30 })).ok);
+  for (const c of f.chamadas) assert.ok(Object.keys(c.corpo).every((k) => ARGUMENTOS_DO_BANCO[c.url.split('/rpc/')[1]].includes(k)), c.url);
+  const errado = await c5.rpcComoUsuario(TOKEN, 'orc_status_por_lead', { p_lead_id: LEAD });
+  assert.deepStrictEqual([errado.ok, errado.motivo], [false, 'erro_404'], 'o dublê reproduz o 404 do banco para argumento inexistente');
 });

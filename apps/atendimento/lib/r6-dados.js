@@ -92,7 +92,7 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
         .select('id,conversa_id,erro,created_at').eq('direcao', 'saida').eq('status', 'falhou').gte('created_at', desde3).limit(500), avisos),
       ler('pré-agendamentos', sb.from('agendamentos')
         .select('id,cliente_id,telefone,telefone_e164,data,hora,status,observacoes')
-        .ilike('observacoes', '%agendamento pedido pelo cliente%').in('status', ['aguardando', 'pendente', 'pre_agendado']).gte('data', desde3.slice(0, 10)).limit(200), avisos),
+        .ilike('observacoes', '%agendamento pedido pelo cliente%').eq('status', 'aguardando').gte('data', desde3.slice(0, 10)).limit(200), avisos),
     ]);
 
     const ids = convs.map(x => x.id);

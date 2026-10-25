@@ -52,6 +52,17 @@ const atalho = async (p, codigo) => { await p.keyboard.down('Alt'); await p.keyb
       await q.ctx.close();
     }
 
+    /* ---------- links que OUTROS sistemas e o sino usam para chegar aqui ---------- */
+    {
+      await c5({ reset: true });
+      const p = await abrir('admin', 1440, '&filtro=r6_pre');
+      ok('[?filtro=r6_pre] o endereço abre direto o filtro "Pediu horário", com o chip marcado', await ate(p, () => { const c = document.querySelector('.chip[data-status="r6_pre"]'); const l = [...document.querySelectorAll('.conversa')]; return c && c.classList.contains('ativo') && l.length === 1 && l[0].textContent.includes('Camila'); }));
+      await p.ctx.close();
+      const q = await abrir('admin', 1440, '&conversa=c0000000-0000-4000-8000-000000000001');
+      ok('[?conversa=] o link do aviso do sino abre a conversa já com o Orçador ao vivo e o pedido de horário', await ate(q, () => !!document.querySelector('#r6Painel .c5-visto') && !!document.querySelector('#r6Painel .c5-pre')));
+      await q.ctx.close();
+    }
+
     for (const w of [1440, 375]) {
       await c5({ reset: true });
       await fetch(BASE + '/api/_r6_etapa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ etapa: 'em_execucao', reset: true }) });

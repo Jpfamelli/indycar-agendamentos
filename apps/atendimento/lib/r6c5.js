@@ -81,7 +81,7 @@ function criarC5({ sb, fetch: fetchFn = (typeof fetch === 'function' ? fetch : n
     const tel = telefoneParaRpc(telefone);
     const chamadas = [];
     if (tel) chamadas.push(rpcComoUsuario(token, 'orc_status_por_telefone', { p_telefone: tel }));
-    if (leadId && RE_UUID.test(String(leadId))) chamadas.push(rpcComoUsuario(token, 'orc_status_por_lead', { p_lead_id: leadId }));
+    if (leadId && RE_UUID.test(String(leadId))) chamadas.push(rpcComoUsuario(token, 'orc_status_por_lead', { p_lead: leadId }));
     if (!chamadas.length) return { ok: true, orcamentos: [], motivo: 'sem_telefone' };
     const rs = await Promise.all(chamadas);
     if (rs.every((r) => !r.ok)) return { ok: false, orcamentos: [], motivo: rs[0].motivo };
@@ -109,7 +109,7 @@ function criarC5({ sb, fetch: fetchFn = (typeof fetch === 'function' ? fetch : n
         .select('id,cliente_id,telefone,telefone_e164,data,hora,servico,status,observacoes,created_at')
         .ilike('observacoes', '%agendamento pedido pelo cliente%').gte('data', desde).order('data', { ascending: true }).limit(60);
       const k = chaveTel(telefone);
-      return (data || []).filter((a) => R6.ehPreAgendamento(a.observacoes) && ['aguardando', 'pendente', 'pre_agendado'].includes(a.status)
+      return (data || []).filter((a) => R6.ehPreAgendamento(a.observacoes) && a.status === 'aguardando'
         && ((clienteId && a.cliente_id === clienteId) || (k && chaveTel(a.telefone_e164 || a.telefone) === k)))
         .slice(0, 3).map((a) => ({ id: a.id, data: a.data, hora: a.hora ? String(a.hora).slice(0, 5) : null, servico: a.servico || null,
           numero_orcamento: R6.numeroDoPreAgendamento(a.observacoes), pedido_em: a.created_at, abrir: R6.relAgendamento(a.id) }));

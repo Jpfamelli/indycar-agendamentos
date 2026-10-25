@@ -1075,3 +1075,82 @@ O CRM passa a enxergar o que acontece nos outros sistemas: o carro no Pátio, o 
 - O resumo do dono não sai sozinho no WhatsApp: falta a chave do WhatsApp liberada; hoje é copiar e colar.
 - Os números do Ads ainda são de demonstração (`so_demonstracao` aparece na tela).
 - Sem E2E: o "Desfazer" do retorno em lote, o "Concluir" da aba Hoje com o valor sugerido, o aviso periódico de 45 s e o link do cliente do Pátio dentro do lead (o servidor falso não devolve a ficha completa); cobertos só por teste de servidor ou leitura do código.
+
+
+## Rodada 6 — segunda leva (C5): conexões ao vivo e o dia a dia do operador
+
+Numeração continua após a 179. 🔗 = liga o CRM a outro sistema. Tudo abaixo tem teste (`testes/r6c-puras.test.cjs`, `testes/r6c-servidor.test.cjs`) ou conferência no navegador (`testes/r6c-navegador.mjs`, 144 conferências em gestor 1440, atendente 375, /crm 1440 e 375). Código novo: `lib/rodada6c.js`, `public/rodada6c.js` e `.css`.
+
+### Orçador, Pátio, Agenda e site dentro do lead
+180. 🔗 Status do orçamento AO VIVO na ficha: as RPCs `orc_status_por_telefone` e `orc_status_por_lead` só respondem para a pessoa logada, então o servidor as chama com o JWT de quem pediu (chave pública + token; com a chave de serviço voltariam vazias). O token nunca aparece na resposta (testado).
+181. 🔗 Situação clara: enviado, visto, aprovado, recusado, vencido, com valor e motivo da recusa.
+182. 🔗 "Abrir no Orçador ↗" vai para `#/historico/<id>` na aba `indycar-orcador`.
+183. 🔗 "Copiar link do cliente" do orçamento.
+184. 🔗 Faixa "🚗 CARRO NO PÁTIO AGORA" (etapa, desde quando, previsão, atraso, nº da OS) atualizada a cada 30 s.
+185. 🔗 Copiar o link de acompanhamento do carro, com aviso se o cliente já abriu.
+186. 🔗 Extras esperando aprovação do cliente aparecem na faixa do carro.
+187. 🔗 Quando o carro já saiu, a observação "CARRO NO PÁTIO AGORA" que veio do site vira aviso de "saiu do pátio".
+188. 🔗 "Cliente já cadastrado na oficina" e "Horário escolhido: …" (observações do site) ganham destaque.
+189. 🔗 Pré-agendamentos criados pelo Orçador ("PRÉ-AGENDAMENTO…") com "Confirmar na Agenda ↗".
+190. 🔗 Ações sugeridas do `r6_cliente_360` na ficha, com plano B no `cliente_360` antigo.
+191. 🔗 Mensagens prontas (link do carro, link do orçamento, confirmar horário) que vão ao campo e NUNCA citam preço.
+192. 🔗 Sinal `orcamento_visto` na fila do dia (abriu há 1 dia ou mais e não respondeu).
+193. 🔗 Sinal `orcamento_recusado` (14 dias, só se não houver orçamento mais novo em andamento).
+194. 🔗 Sinal `pre_agendamento` (peso 78, quase no topo).
+195. Chips "viu", "recusou", "confirmar horário" e 3 filtros novos de sinal.
+196. Scripts sugeridos novos para esses três sinais, sem preço.
+197. 🔗 Hoje: carros no pátio SEM lead, com "Criar lead" já preenchido.
+198. 🔗 Ctrl+K também busca em Pátio, Orçador, Agenda e Atendimento (`r6_busca_global`), abrindo em abas nomeadas.
+199. 🔗 "Agora na casa" no painel do dono (`r6_agora`).
+200. 🔗 Ligações quebradas entre sistemas (`r6_ligacoes_quebradas`, só gestor) com botão no Dono.
+201. 🔗 Funil do Orçador no Dono (`orc_funil`, só gestor, 1 a 90 dias) com frases.
+202. 🔗 Três links antigos `#/orcamento/` trocados por `#/historico/` (o canônico).
+203. 🔗 Lista de links permitidos: só http(s) das casas; `javascript:`, `data:`, usuário:senha e domínio parecido não abrem (testado).
+204. 🔗 Novo lead avisa quando telefone ou placa já existem em outro sistema.
+205. 🔗 Avisos na tela quando o orçamento ou a etapa do carro muda com o lead aberto.
+206. 🔗 Migração `r6_c5_orc_avisa_lead`: dois gatilhos avisam no sino o responsável pelo lead quando o cliente abre ou recusa o orçamento (idempotente por chave; testado em bloco revertido).
+207. 🔗 `wa.me` abre com `noopener`; abas nomeadas só para casa.
+208. 🔗 Aba "Hoje": carros sem lead somem quando o lead é criado.
+209. 🔗 Pedido sem permissão do Orçador mostra aviso em português e o resto da ficha continua.
+210. 🔗 Falha do Orçador não derruba a ficha: aviso + "Tentar de novo".
+211. 🔗 Busca entre sistemas respeita o login (RPC com o JWT).
+212. 🔗 Telefone vai para o Orçador com 55 + DDD; link "Criar orçamento" leva lead, placa, veículo e serviço.
+213. 🔗 Orçamento visto/recusado ordena a fila com desempate pelo valor orçado.
+214. 🔗 Recusado "velho" (fora dos 14 dias) não puxa a fila.
+215. 🔗 `r6_cliente_360` com timeline e links do contrato X3 usados na ficha do cliente.
+216. 🔗 `fichaDoCliente` único para as três rotas que leem o 360.
+217. 🔗 Orçamento que o Orçador conhece e o 360 não, aparece mesmo assim.
+218. 🔗 Eventos de recusa/visto entram na linha do tempo da ficha.
+219. 🔗 Cartão de orçamento mostra carro e placa quando o Orçador informa.
+
+### Operador e gestor
+220. Contato em lote (1 a 100 leads): pula lead de colega e lead encerrado, audita `lead_contato_lote`; atendente só edita o que é dele ou sem dono (testado).
+221. Linha "último contato" em cada item da fila.
+222. "Por hoje não": esconde o item só no dia, com "mostrar ocultos".
+223. "Copiar lista para ligar".
+224. "📵 Não atendeu" em um clique.
+225. Tempo até o primeiro contato (mediana e média) por pessoa no painel do dono.
+226. Lista de qualidade dos dados clicável.
+227. Atalhos na ficha: C, W, P, Q.
+228. Título da aba mostra quantos pendentes há hoje.
+229. O diálogo de contato lembra o último tipo usado.
+230. Ctrl+Enter salva o contato.
+231. Botão "Tentar de novo" em todos os erros novos.
+232. Estados vazios com texto próprio e "mostrando X de Y".
+233. Painel de atalhos (`#dlgAtalhos`) atualizado com tudo da rodada.
+234. Service worker v12 com os arquivos novos no CORE.
+235. A 375 px: faixas e botões em coluna, sem rolagem lateral (conferido).
+236. Tudo escapado com `esc()`; HTML no texto do cliente vira texto (conferido).
+237. `[hidden]{display:none!important}` nos CSS novos.
+238. Mock do navegador com ganchos `/__mock/orc-visto` e `/__mock/etapa-lead` para reproduzir mudanças ao vivo.
+239. 39 testes novos (21 puros + 18 de servidor); suíte do CRM 227/227.
+
+### Como verifiquei
+- `npm test` do CRM: 227/227. `node testes/r6-navegador.mjs`: 113/113. `node testes/r6c-navegador.mjs`: 144/144. `npm run segredos` limpo.
+- Banco real: migração `r6_c5_orc_avisa_lead` aplicada; bloco revertido deu `visto=1 recusa_dono=1 recusa_criador=0`; `get_advisors` sem menção a `r6_c5`.
+
+### Pendências
+- Tabela `orc_orcamentos` estava vazia no banco real: o ao vivo foi provado com dublê e com bloco SQL revertido, ainda não com orçamento de verdade.
+- A cópia SQL da migração está em `indycar-ferramentas/sql/` (fora do repositório).
+- O resumo do dono continua sem sair sozinho no WhatsApp (falta a chave).
+- A contagem acima (39 testes + conferências de navegador) é a verificada; não inclui nada que só rodou na cabeça.
