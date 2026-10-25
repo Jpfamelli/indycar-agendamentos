@@ -99,6 +99,14 @@ const foto = async (p, nome) => { try { await p.screenshot({ path: OUT + nome + 
       ok('[agendar] mostra a sugestão de duas opções para oferecer', await ate(p, () => /Sugestão para oferecer/.test(document.getElementById('agendarHorariosLista')?.textContent || '')));
       await p.evaluate(() => document.querySelector('#agendarHorariosLista .chip.horario').click());
       ok('[agendar] tocar num horário preenche data e hora do formulário', await p.evaluate(() => { const f = document.getElementById('formAgendar'); return !!f.data.value && /^\d\d:\d\d/.test(f.hora.value); }));
+      // horário que a Agenda não mostra livre: pergunta antes de gravar (e cancelar não grava)
+      const perguntas = [];
+      p.removeAllListeners('dialog');
+      p.on('dialog', d => { perguntas.push(d.message()); d.dismiss(); });
+      await p.evaluate(() => { const f = document.getElementById('formAgendar'); f.hora.value = '10:00'; window.__antes = document.getElementById('modalAgendarBg').classList.contains('aberto'); const sv = document.getElementById('agendarServico'); if (!sv.value && sv.options[1]) sv.value = sv.options[1].value; f.requestSubmit(); });
+      await espera(700);
+      ok('[agendar] horário fora da Agenda pergunta antes de gravar e mostra os livres', perguntas.length === 1 && /não aparece livre na Agenda/.test(perguntas[0]) && /livres: \d\d:\d\d/.test(perguntas[0]), JSON.stringify(perguntas));
+      ok('[agendar] ao cancelar, o modal continua aberto e nada foi gravado', await p.evaluate(() => document.getElementById('modalAgendarBg').classList.contains('aberto')));
       await foto(p, 'agendar-1440');
       await p.ctx.close();
     }

@@ -103,6 +103,7 @@
 
   /* ======================= AGENDAR COM HORÁRIOS REAIS ======================= */
   let agendarVez = 0;
+  let diasAgenda = [];      // a última resposta da Agenda: serve para conferir o horário antes de gravar
   async function horariosReais() {
     const caixa = Q('#agendarHorarios'), lista = Q('#agendarHorariosLista'), sel = Q('#agendarServico');
     if (!caixa || !lista || !sel) return;
@@ -120,6 +121,7 @@
     const nomeServ = sel.value ? sel.selectedOptions[0]?.textContent : '';
     const r = await api(`/api/r7/horarios?dias=5&servico=${encodeURIComponent(nomeServ || '')}${cons?.value ? '&consultor=' + encodeURIComponent(cons.value) : ''}`);
     if (vez !== agendarVez || !r.ok) return;   // sem a Agenda, o formulário e a sugestão antiga continuam como estavam
+    diasAgenda = r.dias;
     const dias = r.dias.filter((x) => x.total > 0 || !x.aberto);
     const sug = new Set((r.sugestoes || []).map((s) => s.data + ' ' + s.hora));
     lista.innerHTML = `<div class="r7-hor" aria-label="Horários livres da Agenda">${dias.map((x) => !x.aberto
@@ -132,6 +134,17 @@
   document.addEventListener('click', (ev) => {
     if (ev.target.closest('#btnAgendar')) setTimeout(horariosReais, 450);
   });
+  /* Antes de gravar: o horário digitado ainda tem vaga? Se a Agenda já mostrava o dia e o horário não está livre, pergunta (encaixe é decisão de gente). */
+  document.addEventListener('submit', (ev) => {
+    const f = ev.target;
+    if (!f || f.id !== 'formAgendar' || !diasAgenda.length) return;
+    const dia = diasAgenda.find((d) => d.data === f.data.value);
+    if (!dia) return;
+    const c = R7.conferirEscolha(dia, f.hora.value);
+    if (c.livre) return;
+    const motivo = c.motivo === 'domingo' ? 'A oficina não abre aos domingos.' : c.motivo === 'fechado' ? 'A oficina está fechada neste dia.' : `Este horário não aparece livre na Agenda${c.alternativas?.length ? ' (livres: ' + c.alternativas.join(', ') + ')' : ''}.`;
+    if (!confirm(motivo + ' Agendar mesmo assim, como encaixe?')) { ev.preventDefault(); ev.stopImmediatePropagation(); }
+  }, true);
   document.addEventListener('change', (ev) => { if (ev.target.id === 'agendarServico' || ev.target.id === 'agendarConsultor') horariosReais(); });
 
   /* ======================= RETOMADA DO WHATSAPP ======================= */
