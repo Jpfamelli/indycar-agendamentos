@@ -179,7 +179,7 @@ test('tela: rodada6c está na página e no service worker v12, [hidden] protegid
   const pub = f => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
   const html = pub('index.html'), sw = pub('sw.js'), css = pub('rodada6c.css'), js = pub('rodada6c.js');
   assert.match(html, /<script src="rodada6c\.js">/); assert.match(html, /href="rodada6c\.css"/);
-  assert.match(sw, /indycar-crm-v12/); assert.match(sw, /'rodada6c\.js'/); assert.match(sw, /'rodada6c\.css'/);
+  assert.match(sw, /indycar-crm-v1[23]/); assert.match(sw, /'rodada6c\.js'/); assert.match(sw, /'rodada6c\.css'/);
   assert.ok(css.includes('[hidden]{display:none!important}'));
   assert.ok(!/\bfetch\(\s*['"`]\//.test(js));
   assert.ok(html.indexOf('rodada6c.js') > html.indexOf('rodada6.js'), 'carrega depois da rodada6.js');

@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
+import {criarRotasMockR7} from './mock-r7.mjs';
 const PATIO = createRequire(import.meta.url)('../lib/patio-crm.js');
 const R5 = createRequire(import.meta.url)('../lib/rodada5.js');
 const R6 = createRequire(import.meta.url)('../lib/rodada6.js');
@@ -338,6 +339,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
     return null;
   };
 
+  const rotasR7 = criarRotasMockR7({getLeads: () => leads, getClientes: () => clientes, ativ, getTarefas: () => tarefas, indicacoes: INDICACOES_FALSAS, EU, equipeDe: equipe});
   const filtros = new Map();      // papel → filtros salvos (rodada 5)
   const campanhas = [];
   return http.createServer(async (req, res) => {
@@ -498,6 +500,8 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
         const aberto = ls.find(l => !['concluido','perdido'].includes(l.status)) || null;
         return json({cliente, leads: ls, aberto, lead: aberto || ls[0] || null});
       }
+      /* ---------- rodada 7 (C3) ---------- */
+      await rotasR7({p, req, url, d, json, pp, gestor}); if (res.headersSent) return;
       /* ---------- rodada 6, segunda leva (C5): conexões vivas ---------- */
       {
         const agora = Date.now(), abertos = leads.filter(l => !['concluido','perdido'].includes(l.status));
@@ -549,9 +553,10 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
         if (p === '/api/fila-do-dia') {
           let esc = url.searchParams.get('escopo') || (gestor ? 'todos' : 'meus'); if (!gestor && esc === 'todos') esc = 'meus';
           const itens = [];
-          for (const l of abertos) { if (esc === 'meus' && l.responsavel_id !== EU && l.responsavel_id) continue; if (esc === 'sem' && l.responsavel_id) continue; const pr = R6.prioridadeFila(l, sinais[l.id], agora); if (!pr.score) continue; itens.push({lead: l, score: pr.score, motivos: pr.motivos.slice(0, 3), principal: pr.principal.codigo, texto: pr.principal.texto, script: R6.scriptSugerido(pr.principal.codigo, l), sinais: {}}); }
+          const termoQ = String(url.searchParams.get('q') || '').trim().toLowerCase(), origemQ = String(url.searchParams.get('origem') || '');
+          for (const l of abertos) { if (esc === 'meus' && l.responsavel_id !== EU && l.responsavel_id) continue; if (esc === 'sem' && l.responsavel_id) continue; if (origemQ && l.origem !== origemQ) continue; if (termoQ && ![l.nome, l.placa, l.carro_modelo, l.servico, l.telefone].join(' ').toLowerCase().includes(termoQ)) continue; const pr = R6.prioridadeFila(l, sinais[l.id], agora); if (!pr.score) continue; itens.push({lead: l, score: pr.score, motivos: pr.motivos.slice(0, 3), principal: pr.principal.codigo, texto: pr.principal.texto, script: R6.scriptSugerido(pr.principal.codigo, l), sinais: {}}); }
           itens.sort((a, b) => b.score - a.score); const por = {}; for (const i of itens) por[i.principal] = (por[i.principal] || 0) + 1;
-          return json({escopo: esc, total: itens.length, itens: itens.slice(0, 80), por_motivo: por, feitos_hoje: ativ.filter(a => a.criado_por === EU).length, gerado_em: agoraIso()});
+          return json({escopo: esc, total: itens.length, itens: itens.slice(0, 80), por_motivo: por, feitos_hoje: ativ.filter(a => a.criado_por === EU && a.tipo !== 'sistema').length, meta_dia: 12, falta_para_meta: Math.max(0, 12 - ativ.filter(a => a.criado_por === EU && a.tipo !== 'sistema').length), proximo: itens[0]?.lead.id || null, filtros: {q: termoQ || null, origem: origemQ || null}, gerado_em: agoraIso()});
         }
         if (p === '/api/entregues-sem-fechar') {
           const itens = abertos.filter(l => sinais[l.id]?.entregue).map(l => { const os = sinais[l.id].entregue; return {lead: l, os: {id: os.id, numero: os.numero, entregue_em: os.entregue_em, dias: os.dias}, extras_aprovados: 0, orcamento: null, sugestoes: R6.sugestaoValorEntregue({lead: l}), pode_editar: gestor || !l.responsavel_id || l.responsavel_id === EU}; });

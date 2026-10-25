@@ -1,0 +1,77 @@
+/* Rodada 7 (25/10/2026, C3): painel do lead, funil que se mexe, retornos, Hoje, Dono, Origem. Só variáveis do tema. */
+[hidden]{display:none!important}
+.r7-painel{display:grid;gap:8px;margin-bottom:12px}
+.r7-bloco{padding:8px 10px;border-radius:10px;background:var(--superficie);border:1px solid var(--line-2);font-size:.88rem;line-height:1.45}
+.r7-topo{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.r7-tempo{color:var(--texto-suave);font-size:.84rem}
+.r7-saude{position:relative;display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;border:1px solid currentColor;font-weight:600;font-size:.84rem;cursor:help;outline-offset:2px}
+.r7-quente{color:var(--verde-txt,#4ade80)}
+.r7-morno{color:var(--warn)}
+.r7-frio{color:var(--texto-suave)}
+.r7-dica{position:absolute;left:0;top:calc(100% + 6px);z-index:5;min-width:220px;max-width:min(320px,80vw);display:none;gap:3px;padding:8px 10px;border-radius:10px;background:var(--superficie-2);color:var(--texto);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.25);font-weight:400}
+.r7-saude:hover .r7-dica,.r7-saude:focus .r7-dica,.r7-saude:focus-within .r7-dica{display:grid}
+.r7-dicas-linha{color:var(--texto-suave);font-size:.84rem}
+.r7-mov{border-left:3px solid var(--red);padding-left:8px}
+.r7-nota{margin:6px 0 0;font-size:.8rem;color:var(--texto-suave)}
+.r7-auto summary{cursor:pointer;color:var(--texto-suave);font-size:.84rem}
+.r7-auto ol{margin:6px 0 0;padding-left:18px;display:grid;gap:3px;font-size:.84rem}
+.r7-auto time{color:var(--texto-suave);margin-right:4px}
+.r6-hist li.r7-sis{color:var(--texto-suave)}
+.r7-faixa{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--superficie);border:1px solid var(--red);font-size:.9rem}
+.r7-lista{max-height:min(60vh,520px);overflow:auto}
+.mv-extra{margin-top:6px}
+.mv-extra input,.mv-extra select{font:inherit;font-size:.86rem;min-height:36px;border-radius:8px;border:1px solid var(--line);background:var(--campo-fundo);color:var(--texto);padding:0 8px;max-width:100%}
+.mv-etapas{white-space:nowrap}
+.r7-sep td{background:var(--superficie-2);font-size:.84rem}
+.r7-hoje-barra{display:grid;gap:10px;margin:8px 0 10px}
+.r7-meta{display:grid;gap:4px;font-size:.86rem}
+.r7-meta-barra{height:10px;border-radius:99px;background:var(--superficie-2);overflow:hidden}
+.r7-meta-barra div{height:100%;width:0;background:var(--red);transition:width .3s}
+.r7-meta.feita .r7-meta-barra div{background:var(--verde-txt,#4ade80)}
+.r7-filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.r7-filtros input[type=search]{flex:1 1 200px;min-width:0;font:inherit;min-height:38px;border-radius:8px;border:1px solid var(--line);background:var(--campo-fundo);color:var(--texto);padding:0 10px}
+.r7-filtros select{font:inherit;min-height:38px;border-radius:8px;border:1px solid var(--line);background:var(--campo-fundo);color:var(--texto);padding:0 8px;max-width:100%}
+.r7-abas{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.r7-aba{font:inherit;font-size:.84rem;min-height:36px;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--superficie);color:var(--texto);cursor:pointer}
+.r7-aba b{margin-left:4px}
+.r7-aba.on,.r7-aba:hover,.r7-aba:focus-visible{border-color:var(--red);background:var(--superficie-2)}
+.r7-remarcar{font:inherit;font-size:.84rem;min-height:36px;border-radius:8px;border:1px solid var(--line);background:var(--campo-fundo);color:var(--texto);padding:0 6px;max-width:100%}
+.r7-ret-lista .r6-linha:first-child{border-top:1px solid var(--line-2)}
+.r7-sec>summary{cursor:pointer;list-style-position:inside}
+.r7-sec>summary h4{display:inline;margin:0}
+.r7-sec-corpo{margin-top:10px}
+.r7-guardado pre{margin:6px 0}
+.r7-nota-q{display:flex;align-items:baseline;gap:6px;font-size:1rem;padding:8px 12px;border-radius:10px;border:1px solid var(--line);margin-bottom:6px}
+.r7-nota-q b{font-size:1.8rem;line-height:1}
+.r7-nota-q.ok{color:var(--verde-txt,#4ade80)}
+.r7-nota-q.atencao{color:var(--warn)}
+.r7-nota-q.alerta{color:var(--red)}
+.r7-verif{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.r7-v{padding:8px 10px;border-radius:10px;border:1px solid var(--line-2);background:var(--superficie)}
+.r7-v summary{cursor:pointer}
+.r7-g-alta{border-color:var(--red)}
+.r7-motivos{display:grid;gap:6px;margin:10px 0}
+.r7-motivo{display:grid;grid-template-columns:minmax(120px,1.2fr) 2fr auto;gap:8px;align-items:center;font-size:.88rem}
+.r7-m-barra{height:8px;border-radius:99px;background:var(--superficie-2);overflow:hidden}
+.r7-m-barra div{height:100%;background:var(--red)}
+.r7-rec-ck{display:flex;align-items:flex-start;padding-top:4px}
+.r7-rec-ck input{width:20px;height:20px}
+.r7-bar-topo{display:flex;justify-content:flex-end;margin-bottom:6px}
+#r7Origens .table-wrap,#r7Qual .table-wrap{overflow-x:auto}
+@media (max-width:600px){
+  .r7-faixa{flex-direction:column;align-items:stretch}
+  .r7-faixa .btn{min-height:44px}
+  .r7-motivo{grid-template-columns:1fr auto}
+  .r7-m-barra{grid-column:1 / -1;order:3}
+  .r7-aba{min-height:40px}
+  .r7-filtros .btn,.r7-filtros select,.r7-filtros input{min-height:44px;flex:1 1 100%}
+  .r7-remarcar{min-height:40px}
+  .mv-etapas{white-space:normal}
+  .r7-dica{position:fixed;left:16px;right:16px;top:auto;bottom:16px;max-width:none}
+  .r7-ret .r6-acoes .acao,.r7-ret .r6-acoes select{flex:1 1 auto}
+}
+@media (prefers-reduced-motion:reduce){.r7-meta-barra div{transition:none}}
+.r7-rec-lista .r6-linha{flex-direction:row;flex-wrap:nowrap;align-items:flex-start;gap:8px}
+.r7-rec-lista .r6-corpo{flex:1 1 0;min-width:0}
+.r7-sec .ficha-kpi small{display:block}
+@media (max-width:600px){.r6-linha:not(.r7-rec-lista *)>.r6-corpo{flex:0 1 auto}}

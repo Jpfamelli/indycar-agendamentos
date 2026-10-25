@@ -167,7 +167,7 @@ test('tela: scripts e estilos novos estão na página, no service worker v11 e c
   const pub = f => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
   const html = pub('index.html'), sw = pub('sw.js'), css = pub('rodada6.css');
   assert.match(html, /<script src="rodada6\.js">/); assert.match(html, /href="rodada6\.css"/);
-  assert.match(sw, /indycar-crm-v1[12]/); assert.match(sw, /'rodada6\.js'/); assert.match(sw, /'rodada6\.css'/);
+  assert.match(sw, /indycar-crm-v1[123]/); assert.match(sw, /'rodada6\.js'/); assert.match(sw, /'rodada6\.css'/);
   assert.ok(css.includes('[hidden]{display:none!important}'));
   assert.ok(!/\bfetch\(\s*['"`]\//.test(pub('rodada6.js')) && !/(href|src)="\/[a-z]/.test(html));
 });
