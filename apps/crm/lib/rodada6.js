@@ -136,7 +136,7 @@ const SINAIS_ROTULO = {
   esperando: 'Cliente esperando resposta', patio: 'Carro na oficina', pronto_retirar: 'Carro pronto para retirar', entregue_fechar: 'Carro entregue: falta concluir',
   orcamento_parado: 'Orçamento sem resposta', orcamento_aprovado: 'Orçamento aprovado sem horário', tarefa_atrasada: 'Tarefa atrasada', sem_tarefa: 'Sem tarefa',
   followup_vencido: 'Follow-up vencido', primeiro_contato: 'Primeiro contato atrasado', extra_pendente: 'Extra esperando o cliente',
-  orcamento_visto: 'Cliente abriu o orçamento e não respondeu', orcamento_recusado: 'Orçamento recusado', pre_agendamento: 'Pré-agendamento para confirmar',
+  indicacao_nova: 'Indicação esperando o primeiro contato', orcamento_visto: 'Cliente abriu o orçamento e não respondeu', orcamento_recusado: 'Orçamento recusado', pre_agendamento: 'Pré-agendamento para confirmar',
 };
 const e164 = R5.normalizarTelefone;
 const MAX_ESPERA_PRIMEIRO_CONTATO_H = 2;
@@ -196,7 +196,7 @@ function construirSinais(leads, dados = {}, agora = Date.now()) {
     const ag = deAg(l).filter(a => ['aguardando', 'confirmado'].includes(a.status) && ms(a.inicio_em || `${a.data}T${String(a.hora || '00:00').slice(0, 5)}:00-03:00`) >= agora - 3600_000)
       .sort((a, b) => String(a.inicio_em || a.data).localeCompare(String(b.inicio_em || b.data)))[0];
     if (ag) s.agendamento = { id: ag.id, quando: ag.inicio_em || `${ag.data}T${String(ag.hora || '00:00').slice(0, 5)}:00-03:00`, status: ag.status };
-    const pre = deAg(l).filter(a => a.status === 'aguardando' && /^s*PR[ÉE]-AGENDAMENTO/i.test(String(a.observacoes || ''))).sort((a, b) => String(a.data).localeCompare(String(b.data)))[0];
+    const pre = deAg(l).filter(a => a.status === 'aguardando' && /^\s*PR[ÉE]-AGENDAMENTO/i.test(String(a.observacoes || ''))).sort((a, b) => String(a.data).localeCompare(String(b.data)))[0];
     if (pre) { s.pre_agendamento = { id: pre.id, quando: pre.inicio_em || `${pre.data}T${String(pre.hora || '00:00').slice(0, 5)}:00-03:00` }; s.flags.push('pre_agendamento'); }
     if (l.proximo_contato_em) {
       const vencido = ms(l.proximo_contato_em) <= agora;
@@ -206,6 +206,10 @@ function construirSinais(leads, dados = {}, agora = Date.now()) {
     if (l.status === 'novo' && !l.ultimo_contato_em && Number.isFinite(ms(l.created_at))) {
       const h = (agora - ms(l.created_at)) / 3600_000;
       if (h >= MAX_ESPERA_PRIMEIRO_CONTATO_H && h <= 72) { s.primeiro_contato_h = Math.round(h); s.flags.push('primeiro_contato'); }
+    }
+    if (l.origem === 'indicacao' && ['novo', 'contato'].includes(l.status) && !l.ultimo_contato_em && Number.isFinite(ms(l.created_at))) {
+      const h = (agora - ms(l.created_at)) / 3600_000;
+      if (h >= 1 && h <= 168) { s.indicacao_h = Math.round(h); s.flags.push('indicacao_nova'); }
     }
     if (l.ultimo_contato_em) s.ultimo_contato_dias = Math.max(0, Math.floor((agora - ms(l.ultimo_contato_em)) / DIA));
     if (Number(l.tentativas_contato) > 0) s.tentativas = Number(l.tentativas_contato);
@@ -229,6 +233,7 @@ function prioridadeFila(lead, s, agora = Date.now()) {
   const f = new Set(s?.flags || []);
   if (f.has('esperando')) add('esperando', 100 + Math.min(40, s.esperando.horas), `Cliente esperando resposta${s.esperando.horas ? ` há ${s.esperando.horas} h` : ''}`);
   if (f.has('entregue_fechar')) add('entregue_fechar', 90 + Math.min(9, s.entregue.dias), `Carro entregue${s.entregue.dias ? ` há ${s.entregue.dias} d` : ' hoje'}: concluir o lead com o valor pago`);
+  if (f.has('indicacao_nova')) add('indicacao_nova', 88, `Indicação de cliente esperando contato há ${s.indicacao_h} h`);
   if (f.has('primeiro_contato')) add('primeiro_contato', 85, `Lead novo sem contato há ${s.primeiro_contato_h} h`);
   if (f.has('orcamento_aprovado')) add('orcamento_aprovado', 75, 'Orçamento aprovado: marcar o horário');
   if (f.has('followup_vencido')) { const d = Math.max(0, Math.floor((agora - ms(lead.proximo_contato_em)) / DIA)); add('followup_vencido', 80 + Math.min(15, d), d ? `Retorno combinado venceu há ${d} d` : 'Retorno combinado para hoje'); }
@@ -254,6 +259,7 @@ function scriptSugerido(codigo, lead) {
   const carro = lead?.carro_modelo ? ` do seu ${lead.carro_modelo}` : '';
   switch (codigo) {
     case 'esperando': return `${oi} Aqui é da IndyCar. Desculpa a demora! Vi a sua mensagem e já te ajudo.`;
+    case 'indicacao_nova': return `${oi} Aqui é da IndyCar. Um amigo seu falou bem da gente e passou o seu contato${carro ? ' para cuidar' + carro : ''}. Como posso ajudar?`;
     case 'primeiro_contato': return `${oi} Aqui é da IndyCar. Vi que você nos procurou${carro ? ' para cuidar' + carro : ''}. Como posso ajudar?`;
     case 'followup_vencido': return `${oi} Aqui é da IndyCar. Combinamos de nos falar hoje${carro}. Ainda faz sentido pra você?`;
     case 'orcamento_parado': return `${oi} Aqui é da IndyCar. Conseguiu ver o orçamento${carro}? Qualquer dúvida eu te explico por aqui.`;
@@ -645,8 +651,12 @@ async function rotasR6(c) {
     if (!gestor && escopo === 'todos') escopo = 'meus';
     const doEscopo = l => escopo === 'sem' ? !l.responsavel_id : escopo === 'meus' ? (l.responsavel_id === quem.id || (!gestor && !l.responsavel_id)) : true;
     const itens = [];
+    const termo = String(url.searchParams.get('q') || '').trim().slice(0, 60), termoN = slug(termo), termoTel = termo.replace(/\D/g, '');
+    const origemF = String(url.searchParams.get('origem') || '').slice(0, 20);
     for (const l of s.leads) {
       if (!ABERTAS.includes(l.status) || !doEscopo(l)) continue;
+      if (origemF && l.origem !== origemF) continue;
+      if (termo && !(slug([l.nome, l.placa, l.carro_modelo, l.servico].join(' ')).includes(termoN) || (termoTel.length >= 4 && String(l.telefone || '').replace(/\D/g, '').includes(termoTel)))) continue;
       const sn = s.sinais[l.id]; const pr = prioridadeFila(l, sn, agora);
       if (!pr.score) continue;
       itens.push({ lead: { id: l.id, nome: l.nome, telefone: l.telefone, status: l.status, servico: l.servico || null, carro_modelo: l.carro_modelo || null, placa: l.placa || null, valor_orcado: Number(l.valor_orcado) || 0,
@@ -658,14 +668,15 @@ async function rotasR6(c) {
     // último contato registrado de cada lead da fila (quem ligou, quando, o que deu)
     const topo = itens.slice(0, 80), idsTopo = topo.map(i => i.lead.id);
     if (idsTopo.length) {
-      const ats = await lerSeguro(sb.from('crm_atividades').select('lead_id,tipo,resultado,texto,created_at,criado_por').in('lead_id', idsTopo).order('created_at', { ascending: false }).limit(800));
+      const ats = await lerSeguro(sb.from('crm_atividades').select('lead_id,tipo,resultado,texto,created_at,criado_por').in('lead_id', idsTopo).neq('tipo', 'sistema').order('created_at', { ascending: false }).limit(800));
       const nomes = await pessoas(ats.map(a => a.criado_por));
       const visto = new Set();
       for (const a of ats) { if (visto.has(a.lead_id)) continue; visto.add(a.lead_id); const it = topo.find(i => i.lead.id === a.lead_id); if (it) it.ultimo_contato = { tipo: a.tipo, resultado: a.resultado, resultado_rotulo: ROTULO_RESULTADO[a.resultado] || null, texto: a.texto ? String(a.texto).slice(0, 140) : null, quando: a.created_at, autor: nomes.get(a.criado_por) || null }; }
     }
-    const feitos = await lerSeguro(sb.from('crm_atividades').select('id').eq('criado_por', quem.id).gte('created_at', iso(inicioDiaBRT(agora))));
+    const feitos = await lerSeguro(sb.from('crm_atividades').select('id').eq('criado_por', quem.id).neq('tipo', 'sistema').gte('created_at', iso(inicioDiaBRT(agora))));
     const porMotivo = {}; for (const it of itens) porMotivo[it.principal] = (porMotivo[it.principal] || 0) + 1;
-    json(res, 200, { escopo, total: itens.length, mostrando: Math.min(80, itens.length), itens: itens.slice(0, 80), por_motivo: porMotivo, feitos_hoje: feitos.length, gerado_em: iso(agora) });
+    const metaDia = Math.max(1, Math.min(200, Number(process.env.CRM_META_CONTATOS_DIA) || 12));
+    json(res, 200, { escopo, total: itens.length, mostrando: Math.min(80, itens.length), itens: itens.slice(0, 80), por_motivo: porMotivo, feitos_hoje: feitos.length, meta_dia: metaDia, falta_para_meta: Math.max(0, metaDia - feitos.length), proximo: itens[0]?.lead.id || null, filtros: { q: termo || null, origem: origemF || null }, gerado_em: iso(agora) });
     return true;
   }
 
