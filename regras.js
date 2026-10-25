@@ -72,6 +72,8 @@ const ROTAS_DE_GESTOR = [
   ['GET', '/api/patio/entregues'],
   // rodada 5: apagar da lista de espera (cancelar/agendar é da equipe; apagar é do gestor); resumo das confirmações
   ['DELETE', '/api/espera/:id'], ['GET', '/api/confirmacoes/resumo'],
+  // rodada 7: relatório do dono (ocupação, faltas, por consultor)
+  ['GET', '/api/relatorios/dono'],
 ].map(([m, p]) => [m, casa(p)]);
 
 export function rotaDeGestor(metodo, rota) {

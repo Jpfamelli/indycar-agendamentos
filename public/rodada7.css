@@ -39,13 +39,13 @@
 .qd-cel { scroll-margin-top: 120px; scroll-margin-bottom: 40px; }
 
 /* ---- Lote 3: motivo da falta e painel de confirmação ---- */
-.r7-motivo { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 90; width: min(640px, calc(100vw - 24px)); background: var(--card, #fff); color: var(--text, #111); border: 1px solid var(--border, #d8dbe0); border-radius: 14px; box-shadow: 0 10px 34px rgba(0,0,0,.28); padding: 12px 14px; }
+.r7-motivo { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 90; width: min(640px, calc(100vw - 24px)); background: var(--panel-2, #fff); color: var(--text, #111); border: 1px solid var(--border, #d8dbe0); border-radius: 14px; box-shadow: 0 10px 34px rgba(0,0,0,.28); padding: 12px 14px; }
 .r7m-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 8px; }
 .r7m-topo .btn { margin-left: auto; }
 .r7m-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .r7m-chip { min-height: 44px; padding: 8px 14px; }
 .r7-falta { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.r7-conf { margin: 8px 0; border: 1px solid var(--border, #d8dbe0); border-radius: 12px; background: var(--card, #fff); }
+.r7-conf { margin: 8px 0; border: 1px solid var(--border, #d8dbe0); border-radius: 12px; background: var(--panel-2, #fff); }
 .r7c-cab { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; text-align: left; background: transparent; border: 0; padding: 10px 14px; color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
 .r7c-cab.pend { border-left: 4px solid #e8892b; border-radius: 12px; }
 .r7c-cab.ok { border-left: 4px solid #2e9d5b; border-radius: 12px; }
@@ -62,7 +62,7 @@
 }
 
 /* ---- Lote 4: pré-agendamentos do Orçador e PARAR ---- */
-.r7-pre { margin: 8px 0; border: 1px solid var(--border, #d8dbe0); border-radius: 12px; background: var(--card, #fff); }
+.r7-pre { margin: 8px 0; border: 1px solid var(--border, #d8dbe0); border-radius: 12px; background: var(--panel-2, #fff); }
 .r7p-cab { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; text-align: left; background: transparent; border: 0; border-left: 4px solid #8a63d2; border-radius: 12px; padding: 10px 14px; color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
 .r7p-cab.urg { border-left-color: #d64545; }
 .r7p-urg { color: #d64545; font-weight: 600; }
@@ -90,4 +90,51 @@
 .r7-fpatio[hidden], .r7-patio-resumo[hidden] { display: none !important; }
 @media (max-width: 720px) {
   .r7-fpatio .pilula, .r7-patio-extra .btn { min-height: 44px; }
+}
+
+/* ---- Lote 6: relatórios do dono ---- */
+.r7r { display: grid; gap: 14px; }
+.r7r-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.r7r-livre { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.r7r-livre input { min-height: 36px; }
+.r7r-sub { margin: 0; }
+.r7r-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.r7r-kpi { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--border, #d8dbe0); border-radius: 12px; background: var(--panel-2, #fff); }
+.r7r-kpi-rot { font-size: .8em; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #6b7280); }
+.r7r-kpi-val { font-size: 1.9em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.r7r-delta { font-size: .8em; }
+.r7r-delta.bom { color: #2e9d5b; }
+.r7r-delta.ruim, .r7r-ruim { color: #d64545; }
+.r7r-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.r7r-larga { grid-column: 1 / -1; }
+.r7r-dest { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
+.r7r-acoes { margin-left: auto; display: inline-flex; gap: 6px; }
+.r7r-dias, .r7r-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.r7r-dias li { display: grid; grid-template-columns: 78px 1fr 52px auto; align-items: center; gap: 8px; }
+.r7r-lista li { display: grid; grid-template-columns: minmax(90px, 40%) 1fr 36px; align-items: center; gap: 8px; }
+.r7r-horas li { grid-template-columns: 40px 1fr 30px; }
+.r7r-trilho { display: block; height: 12px; border-radius: 6px; background: var(--border, #e6e8ec); overflow: hidden; min-width: 40px; }
+.r7r-barra { display: block; height: 100%; border-radius: 6px; background: #6c8cd5; }
+.r7r-barra.cheio { background: #d64545; }
+.r7r-barra.bom { background: #2e9d5b; }
+.r7r-barra.vazio { background: #b0b6c2; }
+.r7r-barra.ruim { background: #d64545; }
+.r7r-dia-val, .r7r-val { text-align: right; font-variant-numeric: tabular-nums; }
+.r7r-tab { width: 100%; border-collapse: collapse; }
+.r7r-tab th, .r7r-tab td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border, #e6e8ec); vertical-align: middle; }
+.r7r-tab td .r7r-trilho { display: inline-block; width: 90px; vertical-align: middle; }
+.r7r-conf { margin: 10px 0 0; }
+.r7r [hidden] { display: none !important; }
+@media (max-width: 720px) {
+  .r7r-livre { margin-left: 0; width: 100%; }
+  .r7r-filtros .pilula, .r7r-livre .btn, .r7r-acoes .btn { min-height: 44px; }
+  .r7r-grade { grid-template-columns: 1fr; }
+  .r7r-dias li { grid-template-columns: 64px 1fr 44px; }
+  .r7r-dias li small { grid-column: 2 / -1; }
+  .r7r-tab { font-size: .9em; }
+  .r7r-tab td .r7r-trilho { width: 56px; }
+}
+@media print {
+  .sidebar, .topbar, .r7r-filtros, .r7r-acoes { display: none !important; }
+  .r7r-grade { grid-template-columns: 1fr 1fr; }
 }

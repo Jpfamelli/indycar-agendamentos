@@ -1041,6 +1041,25 @@ Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador cont
 - C2-78. Servidor de mentira aceita tempo na etapa, previsão e extras pendentes no `__patio`, para o roteiro montar o pátio inteiro
 - C2-79. Celular 375 px: chips do pátio e botões de WhatsApp com 44 px, sem rolagem lateral
 - C2-80. 6 testes novos (`tests/c2-lote5.test.mjs`) e roteiro de navegador (`scripts/qa-r7c2-lote5.mjs`, 22 conferências em 1440 e 375 px)
+- C2-81. Nova tela "Relatórios" (só gestor, no menu) e nova rota `GET /api/relatorios/dono`: o dono vê a agenda inteira em uma página; recepção e atendente levam 403; 30 consultas por minuto
+- C2-82. Período validado no servidor: padrão últimos 30 dias, datas invertidas são trocadas, 30/02 e lixo caem no padrão, nunca passa de 180 dias
+- C2-83. Ocupação da agenda de verdade: minutos de serviço (duração de cada serviço, cortada no fechamento) ÷ expediente de todos os consultores ativos, dia a dia e no total
+- C2-84. Faltas separadas da ocupação: "horas de oficina paradas por faltas" e quanto da agenda elas comeram
+- C2-85. Por dia da semana: ocupação média e faltas de cada dia, para ver a terça cheia e a quarta vazia
+- C2-86. 🔗 Por consultor: horários, ocupação, faltas com a taxa e quanto fechou (valor que o CRM e o "Veio e fechou" gravam)
+- C2-87. 🔗 "Por que faltaram": os motivos anotados no cartão (lote 3), quantas ficaram sem motivo e a taxa de falta de quem confirmou × quem não confirmou
+- C2-88. "Horários que enchem": quantos clientes por hora do dia, para achar onde sobra espaço
+- C2-89. 🔗 "De onde vêm": origem do horário (Google, Instagram, WhatsApp, Orçador...) com marcados e taxa de falta de cada uma
+- C2-90. Serviços mais marcados com as faltas de cada um
+- C2-91. 🔗 Cada número do topo compara com o período de antes do mesmo tamanho (▲/▼ verde ou vermelho conforme for bom ou ruim)
+- C2-92. "Em poucas palavras": até 8 frases que só aparecem se os números sustentam (dia mais cheio × mais vazio, confirmar na véspera funciona, motivo mais comum, distribuir entre consultores, origem que mais falta)
+- C2-93. 🔗 "Copiar resumo": texto pronto para colar no WhatsApp do dono, e "Imprimir" com a página limpa
+- C2-94. Atalhos de período (7 dias, 30 dias, este mês, mês passado) e período livre De/até; a escolha fica lembrada neste aparelho
+- C2-95. Gráficos de barras em CSS com o número escrito ao lado (nada depende só de cor), legíveis no escuro e no claro
+- C2-96. Correção de contraste: os painéis dos lotes 1 a 5 usavam uma cor de fundo que o app não tem (saíam brancos no tema escuro); passaram a usar a cor de painel do app
+- C2-97. Módulo `relatorios.js` (regras puras, lido igual pelo servidor, pelo servidor de mentira e pelos testes)
+- C2-98. 12 testes novos (`tests/c2-lote6.test.mjs`): contas conferidas à mão, entrada hostil, rota por HTTP com papéis
+- C2-99. Roteiro de navegador do lote (`scripts/qa-r7c2-lote6.mjs`, 26 conferências em 1440, recepção e 375 px)
 <!-- C2-R7-FIM -->
 
 ## Rodada 7 (25/10/2026) — C1 (Casa: painel de comando por papel)
