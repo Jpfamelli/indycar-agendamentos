@@ -134,7 +134,7 @@
           `<span class="l-b">${pilula(L.rotuloAg(x.status), x.status === 'nao_veio' ? 'ruim' : L.CHEGARAM.includes(x.status) ? 'bom' : x.confirmado ? 'bom' : '')}` +
           `${x.patio_etapa ? ' ' + pilula('🔧 ' + L.rotuloEtapa(x.patio_etapa), x.patio_etapa === 'pronto' ? 'bom' : 'aviso') : ''}` +
           `${x.orc_id ? ' ' + pilula('🧾 ' + L.rotuloOrc(x.orc_status), x.orc_status === 'aprovado' ? 'bom' : x.orc_status === 'recusado' ? 'ruim' : '') : ''}</span>` +
-          `<span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`), x.status === 'aguardando' && !x.confirmado ? waBtn('lembrar', { ...x, data: a.hoje || undefined }, hojeIso(), a.hoje || hojeIso()) : '')).join('')
+          `<span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`), (x.status === 'aguardando' && !x.confirmado ? waBtn('lembrar', { ...x, data: a.hoje || undefined }, hojeIso(), a.hoje || hojeIso()) : '') + (L.CHEGARAM.includes(x.status) && !x.orc_id && x.telefone && C.podeUsar('orcador') ? `<a class="wa-mini wa-orcar" href="${C.esc(links.novoOrcamento({ telefone: x.telefone, nome: x.nome }))}" target="${C.esc(L.nomeDaAba('orcador'))}" aria-label="Criar orçamento para ${C.esc(x.nome || 'cliente')} no Orçador">🧾 Orçar</a>` : ''))).join('')
           : (a.total ? '<li class="vazio">Nenhum horário nesse filtro.</li>' : '')),
     });
     rodapeLinks('#cHoje', { '[data-abrir]': [links.agenda(), 'agenda'], '[data-nova]': [links.agendaNovo(), 'agenda'] });

@@ -407,7 +407,7 @@
         const antes = a.status;
         const r = await api('PATCH', `/agendamentos/${a.id}/status`, { status: 'compareceu' });
         const os = recadoDaOs(nome, r);
-        toast(os.msg, 'ok', { duracao: 9000, acoes: [os.acao, { rotulo: 'Desfazer', fn: async () => {
+        toast(os.msg, 'ok', { duracao: 9000, acoes: [os.acao, (window.R6 && R6.linkNovoOrcamento(a)) ? { rotulo: 'Orçar', fn: () => IndyCarApps.abrir(R6.linkNovoOrcamento(a)) } : null, { rotulo: 'Desfazer', fn: async () => {
           const des = await api('PATCH', `/agendamentos/${a.id}/status`, { status: ['aguardando', 'confirmado'].includes(antes) ? antes : 'aguardando' });
           toast(`Desfeito — ${nome} voltou para "Agendados"${des?.patio_aberta ? `. A OS nº ${des.patio_aberta.numero ?? '?'} continua aberta no Pátio: se foi engano, cancele lá` : ''}`, 'ok');
           atualizar(true);

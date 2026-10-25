@@ -31,6 +31,11 @@ await cenario('gestor', 1280, async ({ page, estado }) => {
   conf(/^Oi Img! Passando para lembrar do seu horário amanhã às 10:30 na IndyCar \(Revisão\)/.test(msg), 'Bom dia: recado pronto cita o dia e o serviço (' + msg.slice(0, 60) + ')');
   conf(await page.$eval('#manhaLembrar .wa-sem', (e) => /sem telefone/.test(e.textContent)).catch(() => false), 'Bom dia: horário sem telefone mostra "sem telefone" em vez de botão quebrado');
   conf(await page.evaluate(() => window.__xss === undefined), 'Bom dia: nome com HTML não executa nada');
+  // ontem sem baixa
+  const baixaWa = await hrefs(page, '#manhaBaixa a.wa-mini');
+  conf(baixaWa.length === 1 && baixaWa[0].href.includes('5512955554444') && /Ontem você tinha um horário/.test(decodeURIComponent(baixaWa[0].href)), '🔗 Ontem sem baixa: WhatsApp neutro ("deu tudo certo?") para o cliente certo');
+  const baixaAg = await hrefs(page, '#manhaBaixa a.linha');
+  conf(baixaAg.length === 1 && /agendamento=a0000000-0000-4000-8000-000000000001/.test(baixaAg[0].href) && baixaAg[0].alvo === 'indycar-agenda', '🔗 Ontem sem baixa: abre o horário na Agenda (aba nomeada) para marcar o desfecho');
   // linhas do Agora
   await page.waitForSelector('#cPatio .wa-mini', { timeout: 10000 });
   const pat = await hrefs(page, '#cPatio .wa-mini');
@@ -42,8 +47,10 @@ await cenario('gestor', 1280, async ({ page, estado }) => {
   conf(orc.some((o) => /Chamar/.test(o.t) && o.href.includes('5512977776666')), 'Orçamentos: aprovado sem horário tem "Chamar"');
   const marcar = await hrefs(page, '#cOrc .wa-agenda');
   conf(marcar.length === 1 && /tel=5512977776666/.test(marcar[0].href) && marcar[0].alvo === 'indycar-agenda', '🔗 Orçador→Agenda: "Marcar" abre a Agenda já com o telefone');
-  const hoje = await hrefs(page, '#cHoje .wa-mini');
+  const hoje = await hrefs(page, '#cHoje .wa-mini:not(.wa-orcar)');
   conf(hoje.length === 1 && hoje[0].href.includes('5512966665555') && /Lembrar/.test(hoje[0].t), 'Hoje: só quem não confirmou tem "Lembrar"');
+  const orcar = await hrefs(page, '#cHoje .wa-orcar');
+  conf(orcar.length === 1 && /tel=5512900001111/.test(orcar[0].href) && /nome=Marcos/.test(orcar[0].href) && orcar[0].alvo === 'indycar-orcador', '🔗 Hoje: quem já chegou e não tem orçamento ganha "Orçar" (Orçador com telefone e nome)');
   await page.screenshot({ path: SAIDA + 'c1c-manha-1280.png', fullPage: true });
   // dispensar
   await page.click('#manhaFechar'); await dorme(200);

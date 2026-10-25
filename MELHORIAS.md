@@ -828,3 +828,128 @@ Continuação do C1. Numeração a partir de 521. 🔗 = conexão entre sistemas
 - O lembrete automático (`ativo_lembrete`) está DESLIGADO no banco real: só liga o gestor no Comunicar; até lá a recepção usa o botão "Mandar lembrete agora".
 - Nada foi publicado nem enviado (push): os commits estão só locais; o coordenador faz o `pull --rebase`, o push e a publicação da Central.
 - Pedido a P1/O2: `Cross-Origin-Opener-Policy: same-origin-allow-popups` nos dois apps para a aba nomeada ser reaproveitada.
+
+## Rodada 6 — Casa e Agenda (C1c) (21/10/2026)
+
+Numeração continua da C1b (a partir de 618). Total verificado: **108 itens (618–725), 26 com 🔗**.
+
+- 618. Casa inteira conferida em 375 px (12 telas e janelas): nenhuma rolagem lateral, nada passa da borda
+- 619. Topo/marca com alvo de toque de 44 px
+- 620. Busca do topo com 44 px
+- 621. Botões de ícone com 44 px
+- 622. Avatar e menu do perfil com 44 px
+- 623. Seletor Operação/Dono com 44 px
+- 624. Ações rápidas com 44 px
+- 625. Itens do menu do perfil com 44 px
+- 626. Botão do olho (senha) com 44 px
+- 627. Entradas "marcar" com 44 px
+- 628. Linhas das listas do Agora com 44 px
+- 629. Rodapé dos cartões do Agora com 44 px
+- 630. Filtro "Hoje" (todos/por vir/na oficina) com 44 px
+- 631. Filtros do sino com 44 px
+- 632. Itens "pede atenção" do sino com 44 px
+- 633. Atalhos e "ir para" da busca com 44 px
+- 634. Caixa de marcar tarefa com 44 px
+- 635. BUG: caixa de editar o título da tarefa saía com 22x22 px; agora 44 px e largura total
+- 636. QA da Casa em 375 px (scripts/qa-r6c-casa375.mjs, 34 conferências, usuário de teste criado e apagado)
+- 637. Quadro: duração do serviço no cartão ("~1h30 · até 10:30")
+- 638. Quadro: faixa "cauda" nas meias horas seguintes mostra o tamanho do serviço (célula continua livre)
+- 639. Quadro: a cauda para no próximo cartão da coluna e no fechamento (17h30)
+- 640. Quadro: carga de cada consultor em minutos
+- 641. Quadro: busca por nome, placa ou telefone
+- 642. Quadro: filtro "só quem falta chegar"
+- 643. Quadro: faixa dos próximos dias com lotação (GET /api/quadro/semana, uma ida só)
+- 644. Quadro: painel de atrasados do dia
+- 645. 🔗 Atrasado: botão "Perguntar se vem" abre o WhatsApp com o recado pronto
+- 646. Quadro: "Copiar o dia" em texto para o WhatsApp da equipe
+- 647. Quadro: imprimir o dia
+- 648. Novo horário: "Marcar rápido" (uma linha vira nome, telefone, serviço, dia, hora, placa e carro)
+- 649. Marcar rápido diz o que ainda falta e leva o cursor ao campo certo
+- 650. 🔗 Novo horário: aviso "este cliente já tem horário" (agenda do próprio sistema)
+- 651. 🔗 Novo horário: aviso "o carro já está no Pátio" com botão para abrir a OS
+- 652. 🔗 Novo horário: aviso de orçamento do Orçador esperando, com botão para abrir
+- 653. GET /api/contexto-cliente (só equipe, limite de 120 pedidos/min por pessoa)
+- 654. Tour curto do Quadro (reaparece pelo botão "? Tour")
+- 655. BUG: resumo do Quadro dizia "2 chegouram"; agora "chegaram"
+- 656. /api/quadro devolve as durações junto (sem pedido extra)
+- 657. 17 testes de regras puras do Quadro e do contexto (tests/c1c-agenda.test.mjs)
+- 658. QA da Agenda no navegador contra o servidor de mentira (31 conferências)
+- 659. Cache do app (service worker) renovado para o Quadro novo
+- 660. Casa: faixa "Bom dia" com o que ficou de ontem e o que vem amanhã (RPC r6_c1c_manha)
+- 661. Bom dia: frase de ontem (quantos vieram, fecharam, faltaram; valor em R$ só para gestor)
+- 662. Bom dia: frase de amanhã (total, primeiro horário, quantos sem confirmar)
+- 663. Bom dia: pendências em ordem de gravidade (sem baixa, prontos parados, sem telefone, sem confirmar)
+- 664. 🔗 Bom dia: cada pendência abre o app certo na aba nomeada dele
+- 665. 🔗 Bom dia: quem não confirmou amanhã tem botão de WhatsApp com o recado pronto
+- 666. Bom dia: horário sem telefone mostra aviso em vez de botão quebrado
+- 667. Bom dia: "dispensar por hoje" (guarda só o dia)
+- 668. Bom dia: recepção vê sem valor em dinheiro
+- 669. Bom dia: mecânico não vê a faixa
+- 670. Bom dia: dia sem horário e sem pendência não mostra nada
+- 671. Migração r6_c1c_manha (SECURITY INVOKER, anon sem acesso, advisors sem alerta)
+- 672. 🔗 Agora/Pátio: carro pronto ganha "Avisar" no WhatsApp com o carro e a placa
+- 673. 🔗 Agora/Orçamentos: orçamento parado há mais de 6 h ganha "Cobrar" (o de 1h30 não)
+- 674. 🔗 Agora/Orçamentos: aprovado sem horário aparece na lista com "Chamar" no WhatsApp
+- 675. 🔗 Orçador→Agenda: "Marcar" abre a Agenda com o telefone do aprovado
+- 676. 🔗 Agora/Hoje: quem não confirmou ganha "Lembrar" no WhatsApp
+- 677. BUG: no celular o "Bom dia" alargava a página inteira com nome comprido (479 px); corrigido
+- 678. Primeiro nome do recado só com letras (nome com HTML ou número não vira texto estranho)
+- 679. BUG: horário sem data quebrava o texto "quando" do recado; agora cai em "às HH:MM"
+- 680. Link do WhatsApp só aceita número válido e corta texto longo
+- 681. Nome com HTML não executa nada na faixa (testado no navegador)
+- 682. Rotas novas por HTTP: sem login 401, recepção 403, gestor e atendente 200
+- 683. Rota da semana: dias limitado a 1..14 e data estranha cai em hoje
+- 684. Contexto: telefone, placa e "ignorar" hostis cortados antes de chegar ao banco
+- 685. Contexto: limite de 120/min devolve 429 e não afeta outra pessoa
+- 686. Casa passa o telefone do cliente (Pátio, orçamentos, agenda) e os aprovados sem horário
+- 687. 🔗 Bom dia: "ontem sem baixa" abre o horário na Agenda para marcar o desfecho
+- 688. 🔗 Bom dia: "ontem sem baixa" tem WhatsApp neutro ("deu tudo certo?")
+- 689. 🔗 Agora/Hoje: quem já chegou e não tem orçamento ganha "Orçar" (Orçador com telefone e nome)
+- 690. 🔗 Agenda: todo link para outro sistema (Pátio, CRM, Atendimento, Comunicar, Orçador) abre na aba nomeada
+- 691. 🔗 Agenda: links do WhatsApp abrem na aba indycar-whatsapp
+- 692. Quadro: passar o mouse/foco num cartão destaca os outros horários da mesma pessoa
+- 693. Destaque da mesma pessoa volta sozinho quando o quadro se redesenha debaixo do mouse
+- 694. Quadro: "Repetir" abre novo horário com cliente, telefone, carro e serviço
+- 695. 🔗 Repetir já mostra o contexto (horários que a pessoa tem)
+- 696. Atalho "/" foca a busca do Quadro
+- 697. Atalho "N" no Quadro abre o horário novo no dia que está na tela
+- 698. BUG (da C1b): com a ficha aberta, as setas ←/→ trocavam o dia do Quadro por trás; o guarda de modal nunca valia
+- 699. 🔗 Quadro: carro pronto no Pátio ganha "Avisar: pronto" no WhatsApp
+- 700. 🔗 Lista do dia: o mesmo botão "Avisar" ao lado do ícone do Pátio
+- 701. Botões dos cartões com 44 px no celular
+- 702. 7 testes das regras novas da Agenda (tests/c1c-lote4.test.mjs) e QA de 18 conferências
+- 703. 🔗 Quadro: botão "Conversa" abre o Atendimento no telefone do cliente
+- 704. 🔗 Quadro: depois de "Chegou", "Orçar" abre o Orçador com telefone (55…) e nome
+- 705. BUG: Enter repetido (3 cliques seguidos) em Chegou/Faltou mandava vários pedidos; agora um só
+- 706. Duplo clique em Salvar manda um pedido só e cria um horário só (verificado)
+- 707. Sem internet: a ficha continua aberta com tudo digitado e avisa
+- 708. Voltou a internet: o horário vai uma vez só
+- 709. Ataque: telefone/placa hostis chegam ao banco só como dígitos/letras (testado em 11 entradas)
+- 710. Ataque: busca livre hostil fica presa entre aspas no filtro (nada escapa)
+- 711. Ataque: data suja vira AAAA-MM-DD limpo ou nada
+- 712. Ataque: só UUID de verdade passa como id
+- 713. Meta do mês compartilhada: tabela casa_metas (migração r6_c1c_meta_do_mes), só gestor/admin
+- 714. RLS da meta testado em DO-block revertido: gestor lê/escreve; atendente, recepção e anon não; autor forjado, mês e valor inválidos barrados
+- 715. Meta definida em um aparelho aparece em outro sem nada guardado no aparelho
+- 716. Meta que só existia no navegador sobe para o banco uma vez
+- 717. Meta com texto ou valor absurdo é recusada; vazio tira a meta
+- 718. QA da meta (13 conferências)
+- 719. 🔗 Contrato: "Marcar horário" da Casa chega na Agenda com o telefone nacional certo em 5 formatos
+- 720. Contrato: telefone incompleto ou lixo não vira link que abre errado
+- 721. 🔗 Contrato: "novo orçamento" leva telefone com 55 e nome curto ao Orçador
+- 722. 🔗 Contrato: o mesmo telefone chega equivalente nos dois sentidos (Atendimento, CRM, Comunicar)
+- 723. 🔗 Contrato: Casa e Agenda montam o mesmo endereço de WhatsApp
+- 724. Contrato: nome vindo de link é limpo e cortado; o telefone sai da barra depois de usado
+- 725. 🔗 Ponta a ponta Casa→Agenda: o "Marcar" abre o horário novo com telefone, nome e carro e avisa que o cliente já tem horário (8 conferências)
+
+## Como verifiquei (C1c)
+- `npm test` 296 passando e `npm run check` limpo (testes novos: c1c-agenda, c1c-rotas, c1c-casa, c1c-lote4, c1c-ataque, c1c-contrato).
+- Navegador de verdade (puppeteer-core + Chrome): scripts/qa-r6c-casa375, qa-r6c-manha, qa-r6c-meta, qa-r6c-e2e (Casa em servidor local com banco de mentira), qa-r6c-agenda, qa-r6c-lote4, qa-r6c-lote5 (Agenda contra scripts/mock-server.mjs). Usuários de teste criados e apagados.
+- Migrações r6_c1c_manha e r6_c1c_meta_do_mes aplicadas (cópias em indycar-ferramentas/sql; teste de RLS em teste_r6_c1c_meta.sql, revertido); get_advisors sem alerta nas duas.
+
+## Pendências (C1c)
+- Total honesto: 108 itens, 26 com 🔗 — abaixo da meta de 120/30 em 🔗. Não feito: lista de horários livres em chips no "Mover", Agenda Início com WhatsApp nos prontos.
+- Não verificado no navegador: o botão "Orçar" dentro do aviso (toast) do "Chegou".
+- Os recados de WhatsApp são manuais (o consultor aperta enviar); não passam pelo "PARAR" do Comunicar.
+- Pedido a P1/O2: `Cross-Origin-Opener-Policy: same-origin-allow-popups` no Pátio e no Orçador para a aba nomeada ser reaproveitada.
+- Nada publicado: o coordenador publica a Central.

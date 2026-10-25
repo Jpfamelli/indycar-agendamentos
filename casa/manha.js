@@ -38,6 +38,16 @@
       return `<li class="com-acao">${ver}<span class="l-a"><b>${C.esc(L.hora5(x.hora))}</b> ${C.esc(x.cliente || 'Cliente')}</span><span class="l-b">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>${C.podeUsar('agenda') ? '</a>' : '</span>'}` +
         (a ? `<a class="wa-mini" href="${C.esc(a.url)}" target="${C.esc(L.nomeDaAba('whatsapp'))}" rel="noopener noreferrer" aria-label="Lembrar ${C.esc(x.cliente || 'cliente')} pelo WhatsApp">💬 ${C.esc(a.rotulo)}</a>` : '<span class="wa-mini wa-sem">sem telefone</span>') + '</li>';
     }).join('')}</ul>` : '';
+    // ontem sem baixa: abre o horário na Agenda para marcar o desfecho e deixa o recado neutro pronto
+    const semBaixa = (m.ontem && m.ontem.sem_baixa_lista) || [];
+    const caixa2 = $('#manhaBaixa');
+    caixa2.hidden = !semBaixa.length;
+    caixa2.innerHTML = semBaixa.length ? `<h3>Ontem, sem baixa</h3><ul class="manha-lista">${semBaixa.map((x) => {
+      const a = W.acaoDaLinha('remarcar', x, hoje, m.ontem.data);
+      const ver = C.podeUsar('agenda') ? `<a class="linha" href="${C.esc(C.links.agenda(x.id))}" target="${C.esc(L.nomeDaAba('agenda'))}">` : '<span class="linha">';
+      return `<li class="com-acao">${ver}<span class="l-a"><b>${C.esc(L.hora5(x.hora))}</b> ${C.esc(x.cliente || 'Cliente')}</span><span class="l-b">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>${C.podeUsar('agenda') ? '</a>' : '</span>'}` +
+        (a ? `<a class="wa-mini" href="${C.esc(a.url)}" target="${C.esc(L.nomeDaAba('whatsapp'))}" rel="noopener noreferrer" aria-label="Perguntar a ${C.esc(x.cliente || 'cliente')} como foi, pelo WhatsApp">💬 ${C.esc(a.rotulo)}</a>` : '<span class="wa-mini wa-sem">sem telefone</span>') + '</li>';
+    }).join('')}</ul>` : '';
     sec.hidden = false;
   }
 

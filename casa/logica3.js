@@ -37,7 +37,7 @@
       case 'orcamento': return `${oi} Conseguiu ver o orçamento${i.numero ? ' ' + L.numeroOrc?.(i.numero) : ''} que enviamos? Se tiver qualquer dúvida, é só me dizer.`;
       case 'aprovado': return `${oi} Vimos que você aprovou o orçamento. Vamos marcar o melhor horário para fazer o serviço?`;
       case 'lembrar': return `${oi} Passando para lembrar do seu horário ${quando(i.data, i.hora, hoje)} na IndyCar${i.servico ? ' (' + i.servico + ')' : ''}. Posso confirmar a sua presença?`;
-      case 'remarcar': return `${oi} Ontem você tinha horário com a gente e não conseguimos nos encontrar. Está tudo bem? Quer remarcar?`;
+      case 'remarcar': return `${oi} Ontem você tinha um horário com a gente na IndyCar. Deu tudo certo? Se precisar remarcar, é só me avisar.`;
       default: return oi;
     }
   }
@@ -75,7 +75,7 @@
   /** Item (lista de amanhã / de ontem sem baixa) vira a linha com o botão certo de WhatsApp. */
   function acaoDaLinha(tipo, i, hoje, dataDoItem) {
     const url = linkWhatsApp(i.telefone_55 || i.telefone, mensagemWa(tipo, { ...i, data: dataDoItem }, { hoje }));
-    return url ? { url, rotulo: { lembrar: 'Lembrar', remarcar: 'Remarcar', pronto: 'Avisar', orcamento: 'Cobrar', aprovado: 'Chamar' }[tipo] || 'WhatsApp' } : null;
+    return url ? { url, rotulo: { lembrar: 'Lembrar', remarcar: 'Perguntar', pronto: 'Avisar', orcamento: 'Cobrar', aprovado: 'Chamar' }[tipo] || 'WhatsApp' } : null;
   }
 
   root.CasaLogica3 = Object.freeze({ linkWhatsApp, mensagemWa, quando, resumoManha, acaoDaLinha, primeiroNome });
