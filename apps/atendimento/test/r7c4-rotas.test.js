@@ -23,13 +23,13 @@ function livres(dia) {
     { hora: '14:00:00', fim: '15:00:00', livres: 1, consultores_livres: [] }] };
 }
 
-async function subir({ msgEntrada = 'Quero fazer troca de óleo e alinhamento', quem = ATENDENTE, patio = [] } = {}) {
+async function subir({ msgEntrada = 'Quero fazer troca de óleo e alinhamento', quem = ATENDENTE, patio = [], lead = [], agd = [] } = {}) {
   const sb = criarSbFalso({
     conversas: [{ id: CONV, cliente_id: CLI, nome: 'Camila', telefone: '12988660661', telefone_e164: '5512988660661', atribuida_a: null }],
     whatsapp_mensagens: [{ id: 'm1', conversa_id: CONV, direcao: 'entrada', corpo: msgEntrada, created_at: iso(5), status: 'recebido' }],
     clientes: [{ id: CLI, nome: 'Camila', carro_modelo: 'Onix', carro_ano: 2020, placa: 'ABC1D23' }],
     servicos: [{ id: 's1', nome: 'Troca de óleo', duracao_min: 60, ativo: true }, { id: 's2', nome: 'Alinhamento', duracao_min: 60, ativo: true }],
-    leads: [], agendamentos: [], patio_os: patio, patio_avaliacoes: [], ia_acoes: [], r7_c4_retomadas: [],
+    leads: lead, agendamentos: agd, patio_os: patio, patio_avaliacoes: [], ia_acoes: [], r7_c4_retomadas: [],
   }, { relogio: () => AGORA });
   const c5 = { rpcComoUsuario: async (token, nome, args) => {
     if (!token) return { ok: false, motivo: 'sem_token' };
@@ -151,4 +151,19 @@ test('[OS NNN] de OUTRO telefone, fora do começo ou com texto junto não liga n
     assert.strictEqual(r.j.os_marcada, null, msg);
     s.fechar();
   }
+});
+
+test('links: lead aberto e agendamento futuro do cliente vão junto (CRM e Agenda), lead perdido não', async () => {
+  const L1 = '5c1f0b1e-0000-4000-8000-000000000001', A1 = '5c1f0b1e-0000-4000-8000-000000000002', L0 = '5c1f0b1e-0000-4000-8000-000000000003';
+  const s = await subir({
+    lead: [{ id: L0, cliente_id: CLI, status: 'perdido', servico: 'x', created_at: iso(900) }, { id: L1, cliente_id: CLI, status: 'orcamento', servico: 'Alinhamento', created_at: iso(300) }],
+    agd: [{ id: A1, cliente_id: CLI, status: 'confirmado', data: '2026-10-28', hora: '09:00:00', servico_id: 's2' }],
+  });
+  const r = await s.chamar(`/api/r7/links/${CONV}`);
+  assert.strictEqual(r.j.lead.id, L1);
+  assert.strictEqual(r.j.agendamento.id, A1);
+  assert.match(r.j.nova_cotacao, new RegExp('lead=' + L1));
+  assert.match(r.j.nova_cotacao, new RegExp('agendamento=' + A1));
+  assert.match(r.j.entrada_patio, new RegExp('agendamento=' + A1));
+  s.fechar();
 });

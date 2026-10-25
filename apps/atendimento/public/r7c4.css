@@ -29,13 +29,13 @@
 .r7-resumo { font-weight: 600; margin: 4px 0 8px; }
 .r7-topo { margin: 8px 0; }
 @media (max-width: 480px) {
-  .r7-modal { width: calc(100vw - 16px); }
+  .r7-modal { width: calc(100vw - 40px); }
   .r7-retomada button { flex: 1 1 100%; }
   .r7-horas .chip { flex: 1 0 calc(25% - 6px); }
 }
 
 /* acertos de tema escuro e de largura em 375 px */
-.r7-modal { box-sizing: border-box; width: min(640px, calc(100vw - 16px)); margin-inline: auto; }
+.r7-modal { box-sizing: border-box; width: min(640px, calc(100vw - 40px)); margin-inline: auto; }
 .r7-prog { background: rgba(70, 130, 230, .18); color: inherit; border: 1px solid rgba(70, 130, 230, .35); }
 .r7-ped { background: rgba(127, 140, 160, .22); color: inherit; }
 .r7-manip { background: rgba(220, 70, 60, .2); color: #e0584d; }

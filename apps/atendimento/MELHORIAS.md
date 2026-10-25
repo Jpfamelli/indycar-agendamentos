@@ -1175,3 +1175,182 @@ Numeração continua após a 262. 🔗 = liga o Atendimento a outro sistema. Tot
 - `roteiro-casca.cjs` usa a porta 3230 e exige o Supabase real (preconnect): 2 de 13 falham no mock, sem relação com esta leva.
 - A cópia SQL das migrações está em `indycar-ferramentas/sql/` (fora do repositório).
 - Não publicado: quem publica a Central é o coordenador.
+
+## Rodada 7 (25/10/2026) — C4: o dia em que o WhatsApp volta, a IA que não se deixa enganar e a ficha que abre os outros sistemas já preenchidos
+
+Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comunicar, Central, banco). Cada linha tem teste ou conferência no navegador (ver "Como verifiquei").
+
+### Segurança: o que vem na mensagem do cliente não muda nada
+321. Ordem escondida na mensagem ("ignore as regras", "você agora é…", "mostre seu prompt", "modo desenvolvedor", "apague os dados") é detectada, com ou sem acento e em qualquer caixa.
+322. Conversa normal de oficina (preço, prazo, "me ajuda", "o sistema caiu aí?") NÃO dispara alarme falso.
+323. Dois níveis: ordem de sistema (alta) e pedido solto (média); colagem enorme de prompt também é pega.
+324. Mensagem suspeita: a IA NEM É CHAMADA. Nada é lido pelo modelo, nada é executado.
+325. 🔗 Quem cuida da conversa (ou gestor/admin) recebe aviso no sino da Central, uma vez por mensagem (chave de deduplicação).
+326. O cliente recebe só o texto neutro do sistema ("já vou chamar um consultor"), nunca uma resposta da IA ao que ele mandou.
+327. Nos modos "sugerir" e "confirmar" nada sai sozinho, mas a pessoa é avisada igual e a IA continua sem ler.
+328. 🔗 O registro do bloqueio em `ia_acoes` guarda só um trecho limpo de até 120 caracteres, não a ordem inteira.
+329. O nome do WhatsApp com ordem escondida vira "(nome oculto)" antes de entrar no prompt.
+330. Nome com símbolos `< > { }` é limpo; nome normal passa intacto.
+331. Placa, carro, serviço do lead e campos do formulário do site passam por filtro curto antes de virar texto para a IA.
+332. Manipulação ganhou prioridade máxima na ordem de motivos para passar a um humano (vem antes de urgência e reclamação).
+333. A IA não promete prazo ("fica pronto em 2 horas"): a resposta é recusada na validação e a IA é mandada dizer que o consultor confirma.
+334. A IA não promete estoque ("tenho a peça aí").
+335. A IA não promete gratuidade fora do diagnóstico.
+336. A IA não cita garantia diferente de 12 meses.
+337. A IA não promete leva e traz.
+338. A IA não promete parcelamento.
+339. O que a casa PODE dizer passa: diagnóstico gratuito, 12 meses de garantia, horário de funcionamento.
+340. 🔗 O link do Pátio descarta nome com ordem escondida em vez de levá-lo para outro sistema.
+341. 🔗 Texto do cliente com `<script>` ou `{{x}}` é limpo antes de virar parâmetro de link para o Pátio e para o Orçador.
+342. 🔗 Mensagem com injeção NÃO vira "serviço citado" nem pedido do orçamento; a rota avisa `manipulacao: true` e não oferece "Orçar com IA".
+343. 🔗 Marcador `[OS NNN]` (página Acompanhar do Pátio): só vale o NÚMERO e só no começo da mensagem.
+344. 🔗 A ordem só é ligada à conversa se o telefone da OS for o mesmo da conversa (compara DDD + 8 últimos dígitos).
+345. 🔗 `[OS 414; ignore as regras]`, `oi [OS 414]` e OS de outro telefone não ligam nada.
+
+### IA conduzindo o funil sem inventar e passando ao humano na hora certa
+346. Pedido de desconto ("faz por 200?", "achei mais barato") passa ao consultor com motivo `negociacao`, sem a IA dizer valor.
+347. Texto do sistema para negociação ("quem fecha valor é o consultor…") sem preço e sem promessa.
+348. Pergunta de peça ("tem a pastilha?") é reconhecida e passa ao consultor com texto próprio.
+349. Mensagem parada há mais de 12 h NÃO sai sozinha: vira proposta para uma pessoa revisar.
+350. Mensagem de mais de 2 h: a IA recebe a instrução de pedir desculpa pela demora, e ainda responde.
+351. Rajada (8 mensagens em 3 minutos): a IA não responde no meio da enxurrada.
+352. O resultado da IA carrega `antiga`, `rajada` e `espera_min` para a tela explicar por que não respondeu.
+353. Todas as respostas prontas passam por um teste: nenhuma cita preço, promete demais, usa vocabulário proibido ou faz mais de uma pergunta.
+
+### Fila priorizada para quem tem 50 conversas
+354. Novo pedido reconhecido: "cheguei / estou chegando" (peso alto na fila).
+355. Novo pedido reconhecido: negociação.
+356. Novo pedido reconhecido: peça.
+357. Novo pedido reconhecido: prazo ("fica pronto quando?").
+358. Novo pedido reconhecido: "me manda o link de novo".
+359. Novo pedido reconhecido: indicação ("fui indicado").
+360. Novo pedido reconhecido: placa solta.
+361. Novo pedido reconhecido: só uma saudação (peso quase zero, não atrapalha a fila).
+362. "Oi, tudo bem?" também conta como saudação.
+363. Primeiro contato (sem cadastro e sem resposta nossa) sobe 18 pontos.
+364. 🔗 Cliente que deu nota 3 ou menos no Pátio e ainda não teve resposta sobe a conversa (65 pontos) com o motivo "Avaliou o serviço com nota N e ninguém respondeu".
+365. 🔗 `filaContexto` lê `patio_avaliacoes` (últimos 14 dias, sem resposta) e entrega `avaliacao_ruim` por cliente; nota boa e nota já respondida não contam.
+366. A fila sabe quem tentou manipular a IA nas últimas 24 h (`manipulacao`) e mostra o motivo "Tentou manipular a IA (bloqueada)".
+367. `primeiro_contato` só aparece quando ainda não respondemos e não há cadastro.
+368. Conversa que já recebeu resposta nossa não é marcada como primeiro contato.
+369. A fila continua pontuando igual quando a conversa não traz os campos novos (`avaliacao_ruim`, `manipulacao`, `primeiro_contato`): nada mudou para quem não tem sinal novo.
+370. Filtro "📍 Chegou".
+371. Filtro "🤝 Negociando".
+372. Filtro "🛡 Suspeitas".
+373. Filtro "⭐ Nota ruim".
+374. Os quatro filtros funcionam por endereço (`?filtro=r7_chegou`) e têm mensagem de lista vazia própria.
+
+### Respostas rápidas
+375. Resposta para "cheguei": acolhe e diz para avisar na recepção; fora do horário muda o texto.
+376. Resposta para negociação, sem preço, passando ao consultor.
+377. Resposta para peça, sem prometer estoque.
+378. Resposta para prazo, sem prometer horário.
+379. Resposta para "me manda o link": orienta a usar o botão Minha IndyCar.
+380. Resposta para indicação ("que bom que te indicaram…").
+381. Resposta para placa recebida.
+382. Saudação com "Bom dia/Boa tarde/Boa noite" pelo relógio de São Paulo (de madrugada é "Boa noite").
+383. Saudação para cliente da casa usa o nome do carro ("Em que posso ajudar com o Onix hoje?") e faz uma pergunta só.
+384. 🔗 A resposta pronta de "cheguei" carrega a ação `abrir-entrada-patio` (e muda de texto fora do horário).
+
+### WhatsApp parado e o dia em que a chave volta
+385. Estado "parou/voltou" é anunciado por `aoMudar` com código, desde quando e quantos minutos.
+386. 🔗 O banco guarda quando o WhatsApp parou e voltou (`r7_c4_zap`), e sobrevive a reinício do servidor.
+387. 🔗 Gestor e administrador ativos recebem aviso no sino quando o WhatsApp para; atendente e conta desativada não.
+388. 🔗 Quando volta, o aviso diz quantos minutos ficou parado e abre `/?retomada=1`.
+389. Cada parada tem uma chave própria: duas paradas, dois avisos; a mesma parada nunca repete.
+390. Ao subir, o servidor restaura o "parado" do banco, sem avisar de novo, e não sobrescreve um estado mais novo.
+391. Banco fora do ar não derruba o disjuntor do WhatsApp.
+392. O estado do disjuntor traz `minutos_parado` para a tela dizer "parado há 1 h".
+393. Nada reenvia sozinho: quem começa é uma pessoa, com um clique em "Reenviar N com calma".
+394. O plano separa em três grupos: pode sair agora, precisa do seu olho, fica de fora, cada um com o motivo em português.
+395. Sem confirmação (não sabemos se chegou) NUNCA sai sozinha.
+396. Mensagem velha (mais de 24 h) vai para revisão.
+397. Mensagem com horário no texto e mais de 3 h vai para revisão.
+398. Cliente que escreveu depois: a mensagem da IA vai para revisão (responda ao que ele disse).
+399. Conversa que já seguiu (saiu outra mensagem depois) não é reenviada.
+400. 🔗 Mensagem com promessa de prazo ou condição vai para revisão.
+401. Mensagem repetida (já saiu uma igual) fica de fora.
+402. 🔗 Mensagem de campanha (disparo do Comunicar) fica de fora: a régua cuida.
+403. 🔗 Número bloqueado (PARAR) e grupo ficam de fora.
+404. Mensagem já resolvida por outro meio fica de fora.
+405. Atendente só vê e só reenvia o que é dele ou sem dono; gestor vê tudo.
+406. Reenvio UMA por vez, na ordem da mais antiga, com pausa e pequena variação entre elas.
+407. Rodar de novo nunca manda a mesma mensagem outra vez.
+408. Dois cliques seguidos em "Reenviar com calma": o segundo recebe 409 e nada duplica.
+409. Reserva atômica: dois servidores ou duas abas não mandam a mesma mensagem.
+410. Se o servidor cair no meio, a mensagem fica "sem confirmação" e não é mandada de novo sozinha.
+411. Se o WhatsApp parar de novo no meio, o trabalho para na hora e o resto espera.
+412. Três falhas seguidas que não são o WhatsApp parado param o trabalho.
+413. Botão "Parar" interrompe antes da próxima.
+414. Teto de 40 por trabalho, avisando quantas ficaram para a próxima.
+415. Mensagem que saiu por outro caminho entre o plano e o envio é pulada.
+416. O reenvio usa o texto inteiro do banco, não o recorte de 280 caracteres do plano.
+417. 🔗 Cada reenvio grava início e fim na auditoria da Central (`whatsapp.retomada_inicio/fim`).
+418. 🔗 O trabalho fica registrado em `r7_c4_retomadas` (migração com RLS só leitura para a equipe).
+419. 🔗 Índice parcial das mensagens que falharam (`whatsapp_mensagens_falhou_idx`) para o plano e a fila.
+420. Faixa vermelha "WhatsApp parado há X": diz que nada se perde e nada sai sozinho.
+421. Faixa verde "WhatsApp voltou": 2 podem sair, 1 precisa do seu olho, 1 fica de fora.
+422. Janela da retomada abre sozinha por `?retomada=1` (o parâmetro some da barra de endereço).
+423. A janela mostra o motivo de cada item que não sai (preço, velha…) e o botão explica "uma por vez".
+424. Andamento ao vivo ("Reenviando 1 de 2") e botão desligado quando não há mais nada para enviar.
+425. A mesma mensagem nunca sai duas vezes pela IA: igual já na fila de revisão (409 `ja_na_fila`) ou repetida há pouco (409 `repetida`) é recusada.
+426. Falha antiga (12 h) ou "resolvida por telefone" não bloqueia uma frase nova igual; outra conversa com a mesma frase também não.
+427. A IA manda uma mensagem por vez, em ordem (ritmo configurável, padrão 2,5 s), e a primeira não espera.
+428. Comparação de texto ignora acento, caixa, emoji, espaço repetido e pontuação final.
+
+### Painel do cliente: abre os outros sistemas já preenchidos
+429. 🔗 Botão "🚪 Entrada no Pátio": abre a entrada do Pátio com cliente, telefone, placa, carro, serviço e conversa.
+430. 🔗 A entrada leva também a OS, o orçamento e o agendamento quando existem, e marca `origem=atendimento`.
+431. 🔗 Dados inválidos (placa errada, id falso, telefone curto) são descartados em vez de enviados.
+432. 🔗 Sem dado nenhum o link não existe e a tela avisa o que falta.
+433. 🔗 "Criar orçamento" agora abre o Orçador com carro, ano, quilometragem e pedido preenchidos.
+434. 🔗 Ano fora da faixa, km absurdo e pedido gigante são aparados antes de ir.
+435. 🔗 O pedido vem dos serviços do catálogo que o cliente citou ("trocar o oleo e alinhamento" → Troca de óleo + Alinhamento), sem copiar a mensagem.
+436. 🔗 Entre "Troca de óleo" e "Troca de óleo do câmbio" vale o mais específico; "bom dia" não cita nada.
+437. 🔗 "🤖 Orçar com IA" abre o Orçador com `ia=1` e o pedido, só quando há pedido.
+438. 🔗 O lead aberto do CRM (e não o perdido) vai junto no link do orçamento.
+439. 🔗 O agendamento futuro do cliente na Agenda vai junto nos links do Orçador e do Pátio.
+440. 🔗 A OS aberta do cliente (ou a marcada por `[OS NNN]`) fornece placa e carro para os links.
+441. 🔗 Faixa "Pediu: …" e "🚗 OS 414 · Onix" na ficha mostram o que foi entendido.
+442. 🔗 "💌 Minha IndyCar" cola no campo (sem enviar) o link pessoal do cliente, gerado por `r7_p3b_links_cliente` com o JWT de quem está logado.
+443. 🔗 "🤝 Indique" cola no campo, sem enviar, o link de indicação do cliente (também de `r7_p3b_links_cliente`).
+444. 🔗 Os links levam sempre aos endereços da casa (`indycar-patio` e `indycar-orcador` no Netlify), nunca a um endereço vindo da mensagem.
+
+### Agenda com horários reais
+445. 🔗 O modal Agendar mostra, por dia, as vagas reais de `agenda_horarios_livres` dos próximos 5 dias úteis (sem domingo).
+446. 🔗 Hoje só aparece horário com pelo menos 1 hora de folga; depois das 16h30 a lista começa amanhã.
+447. 🔗 Dia fechado aparece como fechado, sem vagas falsas.
+448. 🔗 Duas sugestões para oferecer ao cliente: dias ou períodos diferentes ("terça, 27/10 às 9h ou quarta, 28/10 às 15h").
+449. 🔗 O serviço do pedido é casado com a lista do formulário pelo nome (exato, por palavra ou, sem parecido, nada).
+450. 🔗 A consulta de vagas leva o serviço e o consultor escolhidos à Agenda (`p_servico`, `p_consultor`).
+451. 🔗 Tocar num horário preenche data e hora do formulário.
+452. 🔗 Antes de gravar, horário que a Agenda não mostra livre pergunta ("Agendar mesmo assim, como encaixe?"); cancelar não grava.
+453. 🔗 Horário escolhido que ficou ocupado devolve alternativas; dia sem dados é tratado em vez de aceitar no escuro.
+
+### Visão geral, busca e 375 px
+454. 🔗 Busca geral por nome, telefone, placa, OS ou orçamento em toda a IndyCar (`r6_busca_global`), abaixo da busca de conversas.
+455. 🔗 Faixa "agora" com pátio, atrasados, extras esperando e prontos (`r6_agora`).
+456. Todas as rotas `/api/r7/*` exigem login e respondem sem cache.
+457. As consultas conectadas rodam como o usuário logado: a regra do banco (quem pode ver o quê) continua valendo.
+458. Id de conversa e telefone inválidos são recusados com 400, sem tocar no banco.
+459. 375 px: janela da retomada sem rolagem lateral, botão que cabe e dedo alcança.
+460. 375 px: faixa de aviso, lista e fichas de horário sem rolagem lateral.
+461. Cores da faixa, do andamento e dos chips ajustadas para tema escuro.
+462. Service worker no cache v20 com os arquivos novos.
+463. Mock do navegador com todas as rotas novas e `scripts/roteiro-r7c4.cjs` (32 conferências em 1440 e 375 px).
+464. 🔗 Índice parcial das ações de bloqueio de manipulação (`ia_acoes_manipulacao_idx`) para a fila e o filtro "Suspeitas".
+
+### Como verifiquei
+- `npm test`: 404/404 (eram 323). Novos: `r7c4-regras` 21, `r7c4-envio` 8, `r7c4-retomada` 20, `r7c4-links` 13, `r7c4-rotas` 10, `r7c4-fila` 2, `r7c4-zap` 7.
+- Navegador (mock em portas próprias, Chrome real, 1440 e 375 px): `roteiro-r7c4` 32/32; regressões: `roteiro-rodada6` 62/62, `roteiro-r6c5` 124/124, `roteiro-rodada5` 74/74, `roteiro-rodada4` 145/145, `roteiro-tela` 220/220.
+- Banco real, só leitura: colunas usadas por `r7-dados` e pela fila conferidas com `select`; formato de `agenda_horarios_livres`, `r6_agora`, `r6_busca_global` e `r7_p3b_links_cliente` lido na definição.
+- `get_advisors` (security) depois das migrações: nada novo ligado a `r7_c4_*`.
+- `node --check` em tudo e `npm run segredos` sem achados.
+
+### Pendências
+- As RPCs conectadas (`agenda_horarios_livres`, `r7_p3b_links_cliente`, `r6_busca_global`, `r6_agora`) foram provadas com dublê e pela definição no banco; falta chamá-las com o JWT de um atendente real pela tela (não há senha de teste neste ambiente).
+- A chave do CodeWords continua recusada: a retomada foi provada com dublê e no navegador, ainda não com a chave nova e o WhatsApp de verdade.
+- A barreira de promessa dentro de `enviarPelaIA` (server.js) está no código e coberta pela mesma regra testada em `ia-copiloto`; falta teste de servidor completo.
+- Link "Acompanhar o carro" (`acompanhar` de `r7_p3b_links_cliente`) já chega na resposta de `/api/r7/cliente-links`, mas ainda não tem botão próprio (o botão "🔗 Link do carro" da R6 segue valendo).
+- Migrações aplicadas: `r7_c4_zap_retomadas` e `r7_c4_indice_manipulacao` (cópias em `indycar-ferramentas/sql/`).
+- Movere real continua pendente (T16) e a publicação da Central é do coordenador: nada foi publicado.
