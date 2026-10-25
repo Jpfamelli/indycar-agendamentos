@@ -12,3 +12,28 @@
 .r7-parado.r7-tom-ruim { color: #ff6b6b; font-weight: 700; }
 .r7-pronto { box-shadow: inset 3px 0 0 #35c486; padding-left: 6px; }
 @media (max-width: 520px) { .r6-li > .r7-avisar { min-height: 44px; flex: 1 1 100%; justify-content: center; } }
+
+/* ---- Lote 2: Mover com horários livres em botões, atalhos do Remarcar, encaixe ---- */
+.qd-mover-painel { margin: 8px 0; padding: 10px 12px; border: 1px solid rgba(255,179,71,.45); border-radius: 12px; background: rgba(255,179,71,.07); display: grid; gap: 8px; }
+.qd-encaixe { border-color: rgba(53,196,134,.5); background: rgba(53,196,134,.07); }
+.qdm-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.qdm-topo .btn { margin-left: auto; }
+.qdm-dias { display: flex; flex-wrap: wrap; gap: 6px; }
+.qdm-dias .pilula { min-height: 36px; }
+.qdm-botoes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qdm-btn { min-height: 38px; font-variant-numeric: tabular-nums; }
+.qdm-btn.perto { border-color: #ffb347; box-shadow: 0 0 0 1px #ffb347 inset; font-weight: 700; }
+.qde-item { display: inline-flex; gap: 4px; align-items: center; }
+.qd-cel.recem-movido { animation: r7-flash 2.2s ease-out; }
+@keyframes r7-flash { 0% { background: rgba(53,196,134,.55); } 100% { background: transparent; } }
+.r7-atalhos { margin: 6px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.r7-atalhos .chip-sugestao.ativo { outline: 2px solid #35c486; }
+@media (max-width: 720px) {
+  .qdm-topo .qd-opt { min-height: 44px; }
+  .qdm-btn, .qdm-botoes .btn.mini, .qdm-dias .pilula, .qdm-topo .btn.mini { min-height: 44px; }
+  .qdm-botoes .qdm-btn { flex: 1 1 calc(33% - 6px); justify-content: center; }
+  .r7-atalhos .chip-sugestao { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .qd-cel.recem-movido { animation: none; outline: 2px solid #35c486; } }
+
+.qd-cel { scroll-margin-top: 120px; scroll-margin-bottom: 40px; }

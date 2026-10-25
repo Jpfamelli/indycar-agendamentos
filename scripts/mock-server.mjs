@@ -21,7 +21,7 @@ import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../re
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento, entradaDoChegou } from '../patio.js';
 import { orcamentoPorAgendamento } from '../orcador.js';
-import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia, candidatosDaEspera } from '../horarios.js';
+import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia, candidatosDaEspera, esperaQueServePara } from '../horarios.js';
 import { resumoDoContexto, semanaDoQuadro, duracoesDaLista } from '../contexto.js';
 import { situacaoDoLembrete, resumoDosLembretes, textoDoLembrete } from '../lembretes.js';
 import { esperaQueCabe, aniversariantes } from '../dados.js';
@@ -353,6 +353,15 @@ http.createServer(async (req, res) => {
       dias_livres: lista.map(x => ({ data: x.data, motivo: x.motivo, horarios: x.horarios.map(h => h.hora), total: x.horarios.length })), resumo: lista.map(resumoDoDia).join(' · ') });
   }
   /* ---- RODADA 5: lista de espera ---- */
+  /* rodada 7: quem da espera cabe neste horário livre (a função REAL de horarios.js) */
+  if (p === '/api/espera/cabe' && m === 'GET') {
+    const data = url.searchParams.get('data'), hora = url.searchParams.get('hora');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data || '') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora || '')) return json(res, 400, { erro: 'Informe data (AAAA-MM-DD) e hora (HH:MM).' });
+    const b = baseHor();
+    const itens = esperaQueServePara({ lista: ESPERA, data, hora, consultor_id: url.searchParams.get('consultor_id') || null, hojeIso: hoje(),
+      diaDoServico: (sv) => livresDoDia({ data, agora: agoraMock(), agendamentos: AGENDA, consultores: b.consultores, duracao: duracaoDoServico(sv, b.servicos), janelas: janelasDoServico(sv, b.janelas, diaDaSemana(data)) }) });
+    return json(res, 200, { itens });
+  }
   if (p === '/api/espera' && m === 'GET') {
     const st = url.searchParams.get('status') || 'aberta';
     let l = st === 'todas' ? ESPERA : ESPERA.filter(e => e.status === st);

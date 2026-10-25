@@ -351,24 +351,31 @@
     $('#qdCorpo .qd-grade')?.classList.add('modo-mover');
     _q.livres = await carregarLivresDe(a);
     marcarAlvos();
+    if (window.R7) window.R7.abrirPainelMover(a);          // rodada 7: horários livres em botões
   }
   function pararMover() {
     _q.movendo = null; _q.livres = null;
+    if (window.R7) window.R7.fecharPainelMover();
     const av = $('#qdAviso'); if (av) av.hidden = true;
     $$('#qdCorpo .qd-card.movendo').forEach((c) => c.classList.remove('movendo'));
     $('#qdCorpo .qd-grade')?.classList.remove('modo-mover');
     limparAlvos();
   }
-  async function moverPara(a, slot, consultorId) {
+  async function moverPara(a, slot, consultorId, dataAlvo) {
+    const dataFinal = dataAlvo || _q.data, outroDia = dataFinal !== _q.data;
     const L = _q.livres || await carregarLivresDe(a);
     const hora = hm(slot);
-    if (!L.ok.has(chaveCel(slot, consultorId))) { toast(`${hora} não cabe ${consultorId ? 'para esse consultor' : 'aí'}: já tem horário ou fora do expediente`, 'err'); return; }
+    if (!outroDia && !L.ok.has(chaveCel(slot, consultorId))) { toast(`${hora} não cabe ${consultorId ? 'para esse consultor' : 'aí'}: já tem horário ou fora do expediente`, 'err'); return; }
     const antes = { data: a.data, hora: String(a.hora).slice(0, 5), consultor_id: a.consultor_id || null };
-    if (antes.hora === hora && antes.consultor_id === (consultorId || null)) { pararMover(); return; }
-    const corpo = { data: _q.data, hora, consultor_id: consultorId || null };
+    if (!outroDia && antes.hora === hora && antes.consultor_id === (consultorId || null)) { pararMover(); return; }
+    const corpo = { data: dataFinal, hora, consultor_id: consultorId || null };
     try {
       await api('POST', `/agendamentos/${a.id}/mover`, corpo, { repetir: false });
-    } catch (e) { toast(e.message || 'Não consegui mover agora', 'err'); pararMover(); return atualizar(true); }
+    } catch (e) {
+      toast(e.message || 'Não consegui mover agora', 'err');
+      if (e && e.status === 409 && window.R7) { window.R7.aoConflitoDeMover(a); return atualizar(true); }   // a vaga acabou de ser ocupada: os botões se atualizam
+      pararMover(); return atualizar(true);
+    }
     esquecerDias();
     pararMover();
     const nomeCons = (state.consultores || []).find((c) => c.id === consultorId)?.nome;
@@ -380,11 +387,12 @@
         toast(r.motivo || 'Não deu para avisar por aqui', 'err');
       } catch (e) { toast(e.message, 'err'); }
     } } : null;
-    toast(`${primeiro(a.cliente_nome)}: ${hora}${nomeCons ? ' com ' + nomeCons : ''} ✅`, 'ok', { duracao: 10000, acoes: [avisar, { rotulo: 'Desfazer', fn: async () => {
+    toast(`${primeiro(a.cliente_nome)}: ${outroDia ? rotuloCurto(dataFinal) + ' ' : ''}${hora}${nomeCons ? ' com ' + nomeCons : ''} ✅`, 'ok', { duracao: 10000, acoes: [avisar, { rotulo: 'Desfazer', fn: async () => {
       await api('POST', `/agendamentos/${a.id}/mover`, antes).catch((e) => toast(e.message, 'err'));
-      esquecerDias(); toast(`Desfeito — ${primeiro(a.cliente_nome)} voltou para ${antes.hora}`); atualizar(true);
+      esquecerDias(); toast(`Desfeito — ${primeiro(a.cliente_nome)} voltou para ${antes.data !== _q.data ? rotuloCurto(antes.data) + ' ' : ''}${antes.hora}`); atualizar(true);
     } }] });
-    atualizar(true);
+    await atualizar(true);
+    if (window.R7 && !outroDia) window.R7.destacarCelula(slot, consultorId);
   }
 
   /* ---- ações do cartão ---- */
@@ -430,7 +438,9 @@
     $$('[data-qd]', host).forEach((b) => b.addEventListener('click', (ev) => { ev.stopPropagation(); acaoCartao(b.closest('.qd-card'), b.dataset.qd); }));
     $$('[data-qd-novo]', host).forEach((b) => b.addEventListener('click', () => {
       const cel = b.closest('.qd-cel');
-      openAgendamentoModal(null, { data: _q.data, hora: hm(Number(cel.dataset.slot)), consultor_id: cel.dataset.cons || '' });
+      const pre = { data: _q.data, hora: hm(Number(cel.dataset.slot)), consultor_id: cel.dataset.cons || '' };
+      if (window.R7 && window.R7.encaixarAqui) return window.R7.encaixarAqui(pre);     // rodada 7: quem da espera cabe aqui?
+      openAgendamentoModal(null, pre);
     }));
     $$('.qd-card', host).forEach((c) => {
       c.addEventListener('dblclick', () => openAgendamentoModal(c.dataset.id));
@@ -485,6 +495,8 @@
           <button type="button" class="btn" id="qdEspera" hidden title="Quem quer um horário e ainda não achou"></button>
           <button type="button" class="btn" id="qdNovo">${svg(I.plus)} Novo</button></div></div>
         <p class="aviso-campo" id="qdAviso" hidden role="status">${svg(I.alerta)} <span></span> <button type="button" class="btn mini" id="qdSoltar">Cancelar (Esc)</button></p>
+        <div id="qdMoverPainel" class="qd-mover-painel" hidden></div>
+        <div id="qdEncaixe" class="qd-mover-painel qd-encaixe" hidden></div>
         <div id="qdChips" class="qd-chips-wrap"></div>
         <div id="qdCorpo" class="qd-corpo"><div class="skel" style="height:260px"></div></div>
         <small class="muted">Arraste o cartão (ou toque em ⇄ Mover) para uma célula livre. Teclas: ← → muda o dia · T hoje · N novo · Esc cancela.</small>`;
@@ -526,5 +538,5 @@
     if (typeof ATALHOS_TELA !== 'undefined') ATALHOS_TELA.q = 'quadro';
   }
 
-  window.R6b = { decorarPre, ehPre, blocoLembreteNaFicha, inicio, espera, renderQuadro, estado: _q, redesenhar: () => { if (_q.dados) desenhar(_q.dados); } };
+  window.R6b = { decorarPre, ehPre, blocoLembreteNaFicha, inicio, espera, renderQuadro, estado: _q, mover: (a, hora, consultorId, data) => moverPara(a, emMin(hora), consultorId || null, data), redesenhar: () => { if (_q.dados) desenhar(_q.dados); } };
 })();

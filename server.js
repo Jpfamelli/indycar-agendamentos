@@ -1537,6 +1537,14 @@ async function api(req, res, url) {
     const e = await dados.criarEspera({ ...body, criado_por: usuario.id });
     return send(res, 201, e);
   }
+  /* rodada 7 (C2): "quem cabe aqui" — um horário livre do Quadro: quem da espera serve (data, hora, consultor, serviço, preferência) */
+  if (pathname === '/api/espera/cabe' && m === 'GET') {
+    if (!dentroDoLimite(`espera-cabe:${usuario.id}`, 90, 60_000)) return send(res, 429, { erro: 'Muitos pedidos seguidos. Espere um minuto.' });
+    const d = dados.dataBanco(searchParams.get('data') || ''), h = texto1(searchParams.get('hora'), 8);
+    if (!d || !/^([01]\d|2[0-3]):[0-5]\d$/.test(h)) return bad(res, 'Informe data (AAAA-MM-DD) e hora (HH:MM).');
+    const cons = texto1(searchParams.get('consultor_id'), 40);
+    return send(res, 200, await dados.esperaParaOHorario({ data: d, hora: h, consultor_id: dados.ehUuid(cons) ? cons : null }), { 'Cache-Control': 'no-store' });
+  }
   /* rodada 6 (C1b): encaixe com horários livres REAIS — os melhores horários para essa pessoa da espera (serviço, datas, preferência) */
   if ((mm = pathname.match(new RegExp(`^/api/espera/${UUID}/horarios$`))) && m === 'GET') {
     if (!dentroDoLimite(`espera-horarios:${usuario.id}`, 60, 60_000)) return send(res, 429, { erro: 'Muitos pedidos seguidos. Espere um minuto.' });

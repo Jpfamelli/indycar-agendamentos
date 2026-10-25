@@ -82,8 +82,72 @@
     return t;
   }
 
+  /* ------------------------------ Lote 2: Mover com horários livres em botões, remarcar com atalhos, encaixe ------------------------------ */
+  const DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const rotuloDia = (iso) => { const d = new Date(iso + 'T12:00:00Z'); return `${DOW[d.getUTCDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`; };
+  const dataValida = (iso) => /^\d{4}-\d{2}-\d{2}$/.test(String(iso || '')) && !Number.isNaN(Date.parse(iso + 'T12:00:00Z'));
+  /** Próximo dia em que a oficina abre (seg–sáb), depois de `iso`. */
+  function proximoDiaAberto(iso, n = 1) {
+    if (!dataValida(iso)) return null;
+    let d = iso;
+    for (let i = 0; i < n; i++) { do { d = maisDias(d, 1); } while (new Date(d + 'T12:00:00Z').getUTCDay() === 0); }
+    return d;
+  }
+  /** Atalhos do "Remarcar": amanhã, depois de amanhã e a mesma data na semana que vem (nunca domingo, nunca no passado). */
+  function atalhosDeRemarcar(dataAtual, hojeIso) {
+    if (!dataValida(hojeIso)) return [];
+    const base = dataValida(dataAtual) && dataAtual > hojeIso ? dataAtual : hojeIso;
+    const amanha = proximoDiaAberto(hojeIso, 1), depois = proximoDiaAberto(hojeIso, 2);
+    let semana = maisDias(base, 7); if (new Date(semana + 'T12:00:00Z').getUTCDay() === 0) semana = maisDias(semana, 1);
+    const lista = [{ rotulo: 'Amanhã', data: amanha }, { rotulo: 'Depois de amanhã', data: depois }, { rotulo: 'Semana que vem', data: semana }];
+    return lista.filter((x, i) => x.data && x.data !== dataAtual && lista.findIndex((y) => y.data === x.data) === i);
+  }
+  /**
+   * Botões de horário livre para MOVER um cartão. `horarios` = [{ hora, livres, consultores_livres:[id] }] do dia.
+   *   original { hora, consultor_id }   o que o cartão tem hoje (não vira botão)
+   *   soMesmo   só o consultor do cartão
+   * Cada botão é uma dupla hora + consultor; o mais perto da hora de hoje ganha `perto`. Ordem: cronológica.
+   */
+  function botoesDeHorario(horarios, opcoes) {
+    const { original: orig, consultores = [], soMesmo = false, max = 18, excluirOriginal = true } = opcoes || {};
+    const original = orig || {};
+    const nome = new Map((consultores || []).map((c) => [c.id, c.nome]));
+    const alvo = emMin(original.hora);
+    let todos = [];
+    for (const h of horarios || []) {
+      const ids = (h.consultores_livres || []).length ? h.consultores_livres : ((h.livres || 0) > 0 ? [null] : []);
+      for (const id of ids) {
+        if (soMesmo && original.consultor_id && id !== original.consultor_id) continue;
+        if (excluirOriginal && h.hora === String(original.hora || '').slice(0, 5) && (id || null) === (original.consultor_id || null)) continue;
+        todos.push({ hora: h.hora, consultor_id: id, consultor_nome: id ? (nome.get(id) || null) : null, dist: Number.isFinite(alvo) ? Math.abs(emMin(h.hora) - alvo) : 0 });
+      }
+    }
+    if (!todos.length) return { botoes: [], total: 0 };
+    const melhor = todos.reduce((m, x) => (x.dist < m.dist || (x.dist === m.dist && x.consultor_id === original.consultor_id && m.consultor_id !== original.consultor_id) ? x : m), todos[0]);
+    const total = todos.length;
+    const cron = (a, b) => a.hora.localeCompare(b.hora) || String(a.consultor_nome).localeCompare(String(b.consultor_nome));
+    let recorte = todos.slice().sort((a, b) => a.dist - b.dist || cron(a, b)).slice(0, max);
+    if (!recorte.includes(melhor)) recorte = [melhor, ...recorte.slice(0, max - 1)];
+    recorte.sort(cron);
+    return { botoes: recorte.map((x) => ({ hora: x.hora, consultor_id: x.consultor_id, consultor_nome: x.consultor_nome, perto: x === melhor })), total };
+  }
+  /** Texto do botão: "10:30 · Gabriel" (ou só a hora quando ninguém é nomeado). */
+  const rotuloDoBotao = (b) => `${b.hora}${b.consultor_nome ? ' · ' + primeiroNome(b.consultor_nome) : ''}`;
+  /** Dias com vaga (saída de /horarios-livres/proximos) viram botões "ter 27/10 · 5". */
+  function botoesDeDias(diasLivres, dataAtual, max = 6) {
+    return (diasLivres || []).filter((d) => d && d.total > 0 && dataValida(d.data) && d.data !== dataAtual).slice(0, max)
+      .map((d) => ({ data: d.data, rotulo: rotuloDia(d.data), total: d.total }));
+  }
+  /** Texto do WhatsApp que oferece um horário a quem está na espera. */
+  function textoDeOferta(espera, data, hora, consultorNome) {
+    const n = primeiroNome(espera && espera.cliente_nome);
+    const com = consultorNome ? ` com ${primeiroNome(consultorNome)}` : '';
+    return `${n ? 'Oi ' + n + '!' : 'Olá!'} Aqui é da IndyCar 🏁 Abriu um horário para ${String((espera && espera.servico) || 'o seu serviço').slice(0, 80)}: ${rotuloDia(data)} às ${hora}${com}. Posso reservar para você?`;
+  }
+
   const PURO = { digitos, semFone, emMin, hm, maisDias, primeiroNome, rotuloDaEntrada, deveOferecerOrcar, linkDeEntradaSeguro,
-    minutosDesde, tempoCurto, LIMITES_ETAPA, tomDaEtapa, ordenarPatio, mensagemProntoOS, linkWhatsApp, avisadoDe };
+    minutosDesde, tempoCurto, LIMITES_ETAPA, tomDaEtapa, ordenarPatio, mensagemProntoOS, linkWhatsApp, avisadoDe,
+    rotuloDia, proximoDiaAberto, atalhosDeRemarcar, botoesDeHorario, rotuloDoBotao, botoesDeDias, textoDeOferta };
   root.R7Puro = PURO;
   if (typeof document === 'undefined') return;
 
@@ -173,5 +237,136 @@
     if (a) setTimeout(() => marcarAvisado(a.dataset.r7Avisar), 0);
   }, true);
 
-  root.R7 = { aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
+  /* ---- Lote 2: Mover com horários livres em botões ---- */
+  const pm = { a: null, dia: null, soMesmo: true, porDia: new Map(), proximos: null, max: 18, vez: 0 };
+  const painelMover = () => $('#qdMoverPainel');
+  async function carregarDiaLivre(a, data) {
+    const hit = pm.porDia.get(data);
+    if (hit && Date.now() - hit.em < 20000) return hit.r;
+    const qs = new URLSearchParams({ data, ignorar: a.id }); if (a.servico) qs.set('servico', a.servico);
+    const r = await api('GET', '/horarios-livres/dia?' + qs, null, { repetir: false }).catch(() => null);
+    pm.porDia.set(data, { em: Date.now(), r });
+    return r;
+  }
+  async function carregarProximos(a) {
+    const qs = new URLSearchParams({ desde: maisDias(a.data, 1), dias: '14', quantosDias: '5' });
+    if (a.servico) qs.set('servico', a.servico);
+    if (pm.soMesmo && a.consultor_id) qs.set('consultor_id', a.consultor_id);
+    const r = await api('GET', '/horarios-livres/proximos?' + qs, null, { repetir: false }).catch(() => null);
+    return (r && r.dias_livres) || [];
+  }
+  async function abrirPainelMover(a) {
+    const eu = ++pm.vez;
+    Object.assign(pm, { a, dia: a.data, soMesmo: !!a.consultor_id, porDia: new Map(), proximos: null, max: 18 });
+    const el = painelMover(); if (!el) return;
+    el.hidden = false; el.innerHTML = '<span class="muted">Procurando horários livres…</span>';
+    const [, prox] = await Promise.all([carregarDiaLivre(a, a.data), carregarProximos(a)]);
+    if (eu !== pm.vez || !pm.a) return;
+    pm.proximos = prox;
+    desenharPainelMover();
+  }
+  function fecharPainelMover() {
+    pm.vez++; pm.a = null;
+    const el = painelMover(); if (el) { el.hidden = true; el.innerHTML = ''; }
+  }
+  function desenharPainelMover() {
+    const el = painelMover(); const a = pm.a; if (!el || !a) return;
+    const info = pm.porDia.get(pm.dia) && pm.porDia.get(pm.dia).r;
+    const consultores = (typeof state !== 'undefined' && state.consultores) || [];
+    const { botoes, total } = botoesDeHorario((info && info.horarios) || [], { original: { hora: String(a.hora).slice(0, 5), consultor_id: a.consultor_id || null }, consultores,
+      soMesmo: pm.soMesmo && !!a.consultor_id, max: pm.max, excluirOriginal: pm.dia === a.data });
+    const dias = botoesDeDias(pm.proximos, a.data);
+    const hoje = (typeof agoraSP === 'function' && agoraSP().data) || a.data;
+    const nomeCons = a.consultor_nome ? primeiroNome(a.consultor_nome) : '';
+    const vazio = info && info.aberto === false ? `A oficina não abre ${pm.dia === a.data ? 'neste dia' : 'em ' + rotuloDia(pm.dia)}.` : 'Nenhum horário livre aqui — tente outro dia ou desligue o filtro do consultor.';
+    el.innerHTML = `<div class="qdm-topo"><b>Horários livres para ${escH(primeiroNome(a.cliente_nome) || 'o cliente')}</b>
+        <span class="muted">toque para mover · hoje ele está às ${escH(String(a.hora).slice(0, 5))}</span>
+        ${a.consultor_id ? `<label class="qd-opt"><input type="checkbox" data-qdm-mesmo ${pm.soMesmo ? 'checked' : ''}> só com ${escH(nomeCons || 'o mesmo consultor')}</label>` : ''}
+        <button type="button" class="btn mini" data-qdm-fechar>Cancelar (Esc)</button></div>
+      <div class="qdm-dias" role="group" aria-label="Dia">
+        <button type="button" class="pilula ${pm.dia === a.data ? 'ativa' : ''}" data-qdm-dia="${escH(a.data)}" aria-pressed="${pm.dia === a.data}">${a.data === hoje ? 'Hoje' : escH(rotuloDia(a.data))}</button>
+        ${dias.map((d) => `<button type="button" class="pilula ${pm.dia === d.data ? 'ativa' : ''}" data-qdm-dia="${escH(d.data)}" aria-pressed="${pm.dia === d.data}">${escH(d.rotulo)} <em class="tab-num">${d.total}</em></button>`).join('')}
+      </div>
+      <div class="qdm-botoes" role="group" aria-label="Horários livres">${botoes.length ? botoes.map((b, i) => `<button type="button" class="btn mini qdm-btn${b.perto ? ' perto' : ''}" data-qdm-i="${i}" title="${b.perto ? 'O mais perto do horário de hoje' : 'Mover para este horário'}">${b.perto ? '★ ' : ''}${escH(rotuloDoBotao(b))}</button>`).join('') : `<span class="muted qdm-vazio">${escH(vazio)}</span>`}
+        ${total > botoes.length ? `<button type="button" class="btn mini" data-qdm-mais>+${total - botoes.length} horários</button>` : ''}</div>`;
+    el._botoes = botoes;
+    $('[data-qdm-fechar]', el).addEventListener('click', () => { const s = document.getElementById('qdSoltar'); if (s) s.click(); });
+    const mesmo = $('[data-qdm-mesmo]', el);
+    if (mesmo) mesmo.addEventListener('change', async () => { pm.soMesmo = mesmo.checked; pm.proximos = await carregarProximos(a); if (pm.a === a) desenharPainelMover(); });
+    $$('[data-qdm-dia]', el).forEach((b) => b.addEventListener('click', async () => {
+      pm.dia = b.dataset.qdmDia; b.disabled = true;
+      await carregarDiaLivre(a, pm.dia);
+      if (pm.a === a) desenharPainelMover();
+    }));
+    const mais = $('[data-qdm-mais]', el); if (mais) mais.addEventListener('click', () => { pm.max = 200; desenharPainelMover(); });
+    $$('[data-qdm-i]', el).forEach((b) => b.addEventListener('click', () => {
+      const x = el._botoes[Number(b.dataset.qdmI)]; if (!x) return;
+      $$('.qdm-btn', el).forEach((y) => { y.disabled = true; });
+      root.R6b.mover(a, x.hora, x.consultor_id, pm.dia);
+    }));
+  }
+  function aoConflitoDeMover() {
+    if (!pm.a) return;
+    pm.porDia.delete(pm.dia);
+    carregarDiaLivre(pm.a, pm.dia).then(() => { if (pm.a) desenharPainelMover(); });
+  }
+  function destacarCelula(slot, consultorId) {
+    const cel = document.querySelector(`#qdCorpo .qd-cel[data-slot="${Number(slot)}"][data-cons="${CSS.escape(consultorId || '')}"]`);
+    if (!cel) return;
+    try { cel.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch { /* sem rolagem */ }
+    cel.classList.add('recem-movido'); setTimeout(() => cel.classList.remove('recem-movido'), 2200);
+  }
+
+  /* ---- Lote 2: "Remarcar" com atalhos de data ---- */
+  function atalhosNoRemarcar() {
+    const data = document.getElementById('r_data'); if (!data || document.getElementById('r7Atalhos')) return;
+    const hoje = (typeof agoraSP === 'function' && agoraSP().data) || null; if (!hoje) return;
+    const lista = atalhosDeRemarcar(data.value, hoje); if (!lista.length) return;
+    const caixa = document.createElement('div'); caixa.id = 'r7Atalhos'; caixa.className = 'sugestoes r7-atalhos'; caixa.setAttribute('role', 'group'); caixa.setAttribute('aria-label', 'Atalhos de data');
+    caixa.innerHTML = '<span class="muted">Mesma hora:</span>' + lista.map((x) => `<button type="button" class="chip-sugestao" data-r7-data="${escH(x.data)}">${escH(x.rotulo)} <small class="muted">${escH(rotuloDia(x.data))}</small></button>`).join('');
+    const grid = data.closest('.grid2') || data.parentElement;
+    grid.parentNode.insertBefore(caixa, grid);
+    $$('[data-r7-data]', caixa).forEach((b) => b.addEventListener('click', () => {
+      data.value = b.dataset.r7Data; data.dispatchEvent(new Event('change', { bubbles: true }));
+      $$('[data-r7-data]', caixa).forEach((y) => y.classList.toggle('ativo', y === b));
+    }));
+  }
+  if (typeof root.abrirRemarcar === 'function' && !root.abrirRemarcar._r7) {
+    const original = root.abrirRemarcar;
+    const embrulhado = async function () { const r = await original.apply(this, arguments); try { atalhosNoRemarcar(); } catch { /* o modal segue como sempre */ } return r; };
+    embrulhado._r7 = true; root.abrirRemarcar = embrulhado;
+  }
+
+  /* ---- Lote 2: "Quem cabe aqui?" — encaixe a partir de uma célula livre do Quadro ---- */
+  function abrirNovoNaCelula(pre) { if (typeof openAgendamentoModal === 'function') openAgendamentoModal(null, pre); }
+  async function encaixarAqui(pre) {
+    const caixa = $('#qdEncaixe');
+    const nEsp = typeof state !== 'undefined' && state.contagens && typeof state.contagens.espera === 'number' ? state.contagens.espera : null;
+    if (!caixa || nEsp === 0 || semAcessoDeEquipe()) return abrirNovoNaCelula(pre);
+    const qs = new URLSearchParams({ data: pre.data, hora: pre.hora }); if (pre.consultor_id) qs.set('consultor_id', pre.consultor_id);
+    const r = await api('GET', '/espera/cabe?' + qs, null, { repetir: false }).catch(() => null);
+    if (!r || !r.itens || !r.itens.length) { caixa.hidden = true; return abrirNovoNaCelula(pre); }
+    const consultores = (typeof state !== 'undefined' && state.consultores) || [];
+    const cons = consultores.find((c) => c.id === pre.consultor_id);
+    const nomeCons = cons ? cons.nome : '';
+    caixa.hidden = false;
+    caixa.innerHTML = `<div class="qdm-topo"><b>${r.itens.length === 1 ? '1 pessoa da espera serve' : r.itens.length + ' pessoas da espera servem'} para ${escH(pre.hora)}${nomeCons ? ' com ' + escH(primeiroNome(nomeCons)) : ''}</b>
+        <span class="muted">encaixe com um toque</span><button type="button" class="btn mini" data-qde-fechar>Fechar</button></div>
+      <div class="qdm-botoes">${r.itens.map((e, i) => {
+        const wa = linkWhatsApp(e.telefone, textoDeOferta(e, pre.data, pre.hora, nomeCons));
+        return `<span class="qde-item"><button type="button" class="btn mini primary" data-qde="${i}" title="Encaixar ${escH(e.cliente_nome)} neste horário">${escH(primeiroNome(e.cliente_nome) || e.cliente_nome)} · ${escH(String(e.servico || '').slice(0, 28))}${e.dias_na_espera ? ` <small>${e.dias_na_espera} d</small>` : ''}</button>${wa ? `<a class="btn mini" href="${escH(wa)}" target="_blank" rel="noopener" title="Oferecer este horário pelo WhatsApp">💬</a>` : ''}</span>`;
+      }).join('')}
+        <button type="button" class="btn mini" data-qde-outro>Marcar outra pessoa</button></div>`;
+    caixa._itens = r.itens;
+    $('[data-qde-fechar]', caixa).addEventListener('click', () => { caixa.hidden = true; });
+    $('[data-qde-outro]', caixa).addEventListener('click', () => { caixa.hidden = true; abrirNovoNaCelula(pre); });
+    $$('[data-qde]', caixa).forEach((b) => b.addEventListener('click', () => {
+      const e = caixa._itens[Number(b.dataset.qde)]; if (!e) return;
+      caixa.hidden = true;
+      abrirNovoNaCelula({ cliente_nome: e.cliente_nome, telefone: e.telefone || '', veiculo: e.veiculo || '', placa: e.placa || '', servico: e.servico, cliente_id: e.cliente_id || '',
+        data: pre.data, hora: pre.hora, consultor_id: pre.consultor_id || '', espera_id: e.id, origem: 'WhatsApp' });
+    }));
+  }
+
+  root.R7 = { abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

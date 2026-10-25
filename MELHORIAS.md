@@ -986,4 +986,19 @@ Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador cont
 - C2-23. Servidor de mentira ganha orçamentos por horário, Pátio ao vivo com telefone e a rota da entrada
 - C2-24. 19 testes novos (`tests/c2-lote1.test.mjs`): link, hostis, rotas por HTTP, papéis, regras puras do navegador lidas de verdade
 - C2-25. Roteiro de navegador do lote (`scripts/qa-r7-lote1.mjs`, 36 conferências em 1440, recepção e 375 px)
+- C2-26. Quadro, "Mover": painel "Horários livres" com os horários vagos em botões de um toque (antes era digitar/arrastar)
+- C2-27. Mover: por padrão só o mesmo consultor; interruptor "só com Gabriel" mostra também os outros
+- C2-28. Mover: o horário mais perto do atual vem marcado com ★; o horário de hoje do cartão não vira botão
+- C2-29. 🔗 Mover: faixa com os próximos dias que têm vaga e quantas (tocar troca os botões para aquele dia)
+- C2-30. 🔗 Mover para OUTRO dia por botão, gravando data e hora pelo servidor; o recado diz o dia e oferece "Desfazer" (inclusive entre dias)
+- C2-31. Mover: se a vaga acabou de ser ocupada (409) o cartão não sai do lugar, o recado explica e os botões se atualizam
+- C2-32. Mover: a célula nova pisca depois de mover e a tela rola só o necessário (sem a barra do topo cobrir o botão); Esc fecha o painel
+- C2-33. 🔗 Remarcar: atalhos "Amanhã / Depois de amanhã / Semana que vem" que pulam fim de semana fechado e mantêm a hora
+- C2-34. 🔗 Nova rota `GET /api/espera/cabe` (data, hora, consultor): quem da lista de espera serve para aquela vaga, com limite de 90/min e validação de data e hora
+- C2-35. 🔗 Espera: respeita a janela e a duração de cada serviço (alinhamento só de 8h às 10h não é oferecido às 10:30) e a preferência de dia/período
+- C2-36. 🔗 Quadro: o "+" de uma vaga livre mostra quem da espera cabe ali (mais antigo primeiro, com "2 d") e encaixa com um toque
+- C2-37. 🔗 Encaixe: botão 💬 oferece o horário pelo WhatsApp com o recado pronto; "Marcar outra pessoa" abre o formulário em branco
+- C2-38. Encaixe: o formulário já abre com nome, carro, serviço, data, hora e consultor da pessoa da espera; sem ninguém que sirva, abre direto
+- C2-39. 14 testes novos (`tests/c2-lote2.test.mjs`): botões, faixa de dias, atalhos, espera que serve, rota por HTTP
+- C2-40. Roteiro de navegador do lote (`scripts/qa-r7c2-lote2.mjs`, 36 conferências em 1440 e 375 px)
 <!-- C2-R7-FIM -->

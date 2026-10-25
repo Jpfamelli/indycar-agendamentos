@@ -231,3 +231,31 @@ export function candidatosDaEspera({ dias = [], preferencia = null, de = null, a
   }
   return saida.slice(0, max);
 }
+
+/* ---------------------------------------------------------------------------
+   Rodada 7 (C2): "QUEM CABE AQUI" — um horário vagou (ou está livre no Quadro): quem da lista de espera serve
+   para ESTA data, ESTA hora e ESTE consultor? PURA.
+   O serviço da pessoa precisa caber (duração e janelas do serviço), a janela de datas e a preferência
+   ("Manhã", "Tarde"…) precisam bater. `diaDoServico(servico)` devolve o livresDoDia daquele serviço.
+   Devolve [{ id, ...espera, dias_na_espera }] — quem espera há mais tempo primeiro.
+   --------------------------------------------------------------------------- */
+export function esperaQueServePara({ lista = [], data, hora, consultor_id = null, diaDoServico, hojeIso = null } = {}) {
+  if (!dataValida(data) || minutos(hora) === null || typeof diaDoServico !== 'function') return [];
+  const memo = new Map();
+  const dia = (servico) => { const k = normalizar(servico); if (!memo.has(k)) memo.set(k, diaDoServico(servico)); return memo.get(k); };
+  const saida = [];
+  for (const e of lista || []) {
+    if (!e || e.status !== 'aberta') continue;
+    if ((e.de && e.de > data) || (e.ate && e.ate < data)) continue;
+    if (!casaComPreferencia(e.preferencia, hora, data)) continue;
+    const d = dia(e.servico);
+    if (!d || !d.aberto) continue;
+    const h = (d.horarios || []).find((x) => x.hora === hora);
+    if (!h) continue;
+    if (consultor_id && !(h.consultores_livres || []).includes(consultor_id)) continue;
+    const criado = e.created_at ? String(e.created_at).slice(0, 10) : null;
+    const dias = criado && hojeIso && dataValida(criado) ? Math.max(0, Math.round((Date.parse(`${hojeIso}T12:00:00Z`) - Date.parse(`${criado}T12:00:00Z`)) / 864e5)) : 0;
+    saida.push({ ...e, dias_na_espera: dias });
+  }
+  return saida.sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)));
+}

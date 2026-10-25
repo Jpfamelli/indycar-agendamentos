@@ -1,6 +1,6 @@
 // QA da Agenda (rodada 7, C2, lote 1): "Chegou" → entrada pronta no Pátio, "Orçar", "Avisar: pronto" no Início.
 // Navegador headless contra o servidor de MENTIRA em porta própria.   node scripts/qa-r7-lote1.mjs
-import { iniciarMock, cenario, conf, fim, dorme, api, hojeIso, horaAgora, irQuadro, card, abertos, textoToast, acoesToast, clicarToast, GAB, LEO, SAIDA } from './qa-r7-lib.mjs';
+import { iniciarMock, cenario, conf, fim, dorme, api, hojeIso, horaAgora, irQuadro, card, abertos, textoToast, acoesToast, clicarToast, GAB, LEO, SAIDA } from './qa-r7c2-lib.mjs';
 
 const mock = iniciarMock(3207);
 const HOJE = hojeIso();

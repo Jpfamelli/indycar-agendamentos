@@ -2402,7 +2402,7 @@ export async function entreguesNoPatioSemDesfecho({ dias = 60, limite = 100 } = 
 // confirmação do cliente, ficha 360, aniversários e a recepção.
 // ============================================================================
 import {
-  livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana as diaDaSemanaH, somaDias as somaDiasH, candidatosDaEspera,
+  livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana as diaDaSemanaH, somaDias as somaDiasH, candidatosDaEspera, esperaQueServePara,
 } from './horarios.js';
 
 const SEL_LIVRES = 'select=id,data,hora,status,consultor_id';
@@ -2812,6 +2812,23 @@ export async function horariosDaEspera(e, { max = 6, diasMax = 14 } = {}) {
   const itens = candidatosDaEspera({ dias, preferencia: e.preferencia, de: e.de, ate: e.ate, max })
     .map((c) => ({ ...c, consultor_nome: nomes.get(c.consultor_id) || null }));
   return { itens, duracao_min: dur, motivo: itens.length ? null : 'Nenhum horário livre combina com o que essa pessoa pediu nos próximos dias.' };
+}
+
+/** Rodada 7 (C2): quem da espera serve para este horário livre (data + hora + consultor). */
+export async function esperaParaOHorario({ data, hora, consultor_id = null } = {}) {
+  const d = dataBanco(data), h = horaBanco(hora);
+  if (!d || !h) throw new Error('Informe data e hora.');
+  const lista = await listarEspera({ status: 'aberta', limite: 100 });
+  if (!lista.length) return { itens: [] };
+  const base = await baseDosHorarios();
+  const vivos = await vivosEntre(d, d);
+  const agora = agoraSP();
+  const itens = esperaQueServePara({
+    lista, data: d, hora: h.slice(0, 5), consultor_id: ehUuid(consultor_id) ? consultor_id : null, hojeIso: agora.data,
+    diaDoServico: (servico) => livresDoDia({ data: d, agora, agendamentos: vivos, consultores: base.consultores,
+      duracao: duracaoDoServico(servico, base.servicos), janelas: janelasDoServico(servico, base.janelas, diaDaSemanaH(d)) }),
+  });
+  return { itens: itens.slice(0, 8) };
 }
 
 /* ---- rodada 6 (C1c): contexto de quem está sendo marcado, duração no Quadro e a semana ----------------- */
