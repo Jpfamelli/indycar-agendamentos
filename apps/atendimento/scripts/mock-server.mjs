@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 import PAT from '../lib/patio.js';
 import { createRequire } from 'node:module';
 const R6 = createRequire(import.meta.url)('../public/r6-regras.js');
+const R7 = createRequire(import.meta.url)('../public/r7-regras.js');
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3211);
@@ -1022,6 +1023,37 @@ http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, total_no_patio: carros.length + 1, carros });
     }
     return erro(res, 404, undefined, 'rota não encontrada');
+  }
+  // ---- Rodada 7 (C4) ----
+  if (p.startsWith('/api/r7/')) {
+    let m;
+    const E7 = (globalThis.__r7 ||= { trabalho: null, enviadas: 0, parado_desde: Date.now() - 95 * 60000 });
+    const item = (id, conv, nome, corpo, idade, motivo) => ({ id, conversa_id: conv, nome, telefone: '12996830111', corpo, idade_min: idade, motivo, ia: false });
+    const plano = () => ({ ok: true, enviar: E7.trabalho?.concluido ? [] : [item('m9', CONV.camila, 'Camila Rodrigues', 'Pode sim! Te espero às 9h.', 40), item('m10', CONV.camila, 'Camila Rodrigues', 'O carro está pronto para retirar.', 55)],
+      revisar: [item('m11', CONV.semcad, 'Contato novo', 'Fica R$ 300 o alinhamento.', 130, 'preco')], pular: [item('m12', CONV.camila, 'Camila Rodrigues', 'Bom dia!', 3000, 'velha')], whatsapp_parado: ultimoEnvio401, resumo: {} });
+    if (p === '/api/r7/retomada/plano') return json(res, 200, plano());
+    if (p === '/api/r7/retomada/estado') {
+      const t = E7.trabalho; if (t && !t.concluido) { t.enviadas = Math.min(t.total, Math.floor((Date.now() - t.ini) / 1500)); if (t.enviadas >= t.total) t.concluido = true; }
+      return json(res, 200, { ok: true, rodando: !!t && !t.concluido, trabalho: t ? { total: t.total, enviadas: t.enviadas, falhas: 0, sem_confirmacao: 0, concluido: !!t.concluido, atual: t.concluido ? null : 'Camila Rodrigues' } : null,
+        whatsapp: ultimoEnvio401 ? { parado: true, codigo: 'codewords-401', minutos_parado: 95 } : { parado: false } });
+    }
+    if (p === '/api/r7/retomada/iniciar') { if (ultimoEnvio401) return json(res, 409, { ok: false, codigo: 'whatsapp_parado', erro: 'O WhatsApp ainda está parado.' }); E7.trabalho = { ini: Date.now(), total: 2, enviadas: 0 }; return json(res, 200, { ok: true, trabalho: { total: 2, enviadas: 0 } }); }
+    if (p === '/api/r7/retomada/parar') return json(res, 200, { ok: true });
+    m = /^\/api\/r7\/links\/([^/]+)$/.exec(p);
+    if (m) {
+      const cv = DB.conversas.find(x => x.id === m[1]);
+      const dados = { conversaId: m[1], telefone: cv?.telefone_e164, nome: cv?.nome, placa: 'ABC1D23', carro: 'Onix', ano: 2020, pedido: 'Troca de óleo' };
+      return json(res, 200, { ok: true, manipulacao: false, citados: ['Troca de óleo'], entrada_patio: R7.linkEntradaPatio(dados), nova_cotacao: R7.linkNovaCotacaoCompleta(dados), nova_cotacao_ia: R7.linkNovaCotacaoCompleta(dados, { ia: true }), consultor_id: null });
+    }
+    if (p === '/api/r7/horarios') {
+      const dias = R7.proximosDiasUteis(new Date(), 5).map(d => ({ data: d, aberto: true, horarios: [{ hora: '09:00:00', livres: 1 }, { hora: '11:00:00', livres: 2 }, { hora: '15:00:00', livres: 1 }] }));
+      const res7 = R7.resumirDias(dias, new Date(Date.now() - 86400000 * 0));
+      return json(res, 200, { ok: true, dias: res7, sugestoes: R7.duasOpcoes(res7).map(o => ({ ...o, texto: R7.textoOpcao(o) })) });
+    }
+    if (p === '/api/r7/cliente-links') return json(res, 200, { ok: true, nome: 'Camila', aceita_mensagens: true, minha: 'https://indycar.example/minha/abc', indique: 'https://indycar.example/indique/abc' });
+    if (p === '/api/r7/busca') return json(res, 200, { ok: true, total: 1, pessoas: [{ nome: 'Marcos Lima', telefone: '12991112222', placa: 'XYZ9A87', carro: 'Gol' }] });
+    if (p === '/api/r7/agora') return json(res, 200, { ok: true, kpis: { total: 4, atrasados: 1, extras_pendentes: 2, prontos_esperando_retirada: 1 } });
+    if (p === '/api/r7/sinais') return json(res, 200, { ok: true, manipulacao: [], avaliacoes_ruins: [] });
   }
   if (p.startsWith('/api/r6/')) {
     const ESTADO_R6 = (globalThis.__r6 ||= { etapa: 'em_execucao', passadas: new Set(), resolvidas: new Set() });

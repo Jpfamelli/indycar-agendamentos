@@ -53,6 +53,8 @@
     orc_aprovado_sem_horario: 'Aprovado sem horário', orc_visualizado: 'Viu o orçamento', orc_parado: 'Orçamento parado',
     aguardando_consultor: 'Esperando consultor', remarcar: 'Quer remarcar', nota_fiscal: 'Nota fiscal', espera: 'Esperando',
     agradecimento: 'Só agradeceu', fixada: 'Fixada', orc_recusado: 'Recusou o orçamento', pre_agendamento: 'Pediu horário',
+    manipulacao: 'IA não leu (suspeita)', negociacao: 'Pediu desconto', peca: 'Perguntou de peça', chegou: 'Chegou na oficina', prazo: 'Perguntou prazo',
+    reenviar_link: 'Pediu o link de novo', indicacao: 'Quer indicar', avaliacao_ruim: 'Nota ruim', primeiro_contato: 'Primeiro contato',
   };
 
   function opcoes() {
@@ -101,6 +103,7 @@
       const todos = p.motivos.map(m => `${m.icone} ${m.texto}`).join(' · ');
       partes.push(`<span class="r6-nivel r6-n-${p.nivel}" title="${esc(R.NIVEIS[p.nivel].rotulo + ': ' + todos)}">${R.NIVEIS[p.nivel].icone} ${esc(CURTO[topo.cod] || topo.texto)}</span>`);
     }
+    if (x.manipulacao || (x.pedidos || []).includes('manipulacao')) partes.push('<span class="r6-chip r7-chip-manip" title="A mensagem tentou dar ordens à IA. Ela não leu e não respondeu. Atenda você.">🛡 IA não leu</span>');
     if (S.fixadas.has(c.id)) partes.push('<span class="r6-chip r6-fixada" title="Você fixou esta conversa no topo">📌</span>');
     if (S.adiadas.has(c.id)) partes.push('<span class="r6-chip" title="Você adiou esta conversa — volta quando o cliente escrever">💤</span>');
     if (x.patio) {
@@ -123,6 +126,10 @@
     r6_falhas: (c) => !!S.ctx[c.id]?.falhas,
     r6_recusou: (c) => S.ctx[c.id]?.orc?.cod === 'recusado',
     r6_pre: (c) => !!S.ctx[c.id]?.pre,
+    r7_chegou: (c) => (S.ctx[c.id]?.pedidos || []).includes('chegou'),
+    r7_negociacao: (c) => (S.ctx[c.id]?.pedidos || []).includes('negociacao'),
+    r7_suspeita: (c) => !!S.ctx[c.id]?.manipulacao || (S.ctx[c.id]?.pedidos || []).includes('manipulacao'),
+    r7_nota_ruim: (c) => !!S.ctx[c.id]?.avaliacao_ruim,
   };
   function filtrar(codigo, base) { const f = FILTROS[codigo]; return f ? base.filter(f) : base; }
 
@@ -433,6 +440,8 @@
     if (inserirTexto(s.texto)) {
       if (s.acao === 'colar-link-patio' && S.painel?.patio?.link_cliente) toast('Dica: use “🔗 Link do carro” para colar o link depois desta frase.');
       if (s.acao === 'criar-orcamento') toast('Dica: use “🧾 Criar orçamento” no painel.');
+      if (s.acao === 'abrir-entrada-patio') toast('Quando ele chegar, toque em “🚪 Entrada no Pátio”: abre já preenchida.');
+      if (s.acao === 'reenviar-link' || s.acao === 'colar-link-minha') toast('Dica: “💌 Minha IndyCar” cola o link certo no campo.');
     }
   }
 

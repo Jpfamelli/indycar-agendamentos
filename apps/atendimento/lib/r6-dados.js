@@ -77,7 +77,7 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
     const desde90 = new Date(t0.getTime() - 90 * DIA).toISOString();
 
     const desde14 = new Date(t0.getTime() - 14 * DIA).toISOString();
-    const [convs, oss, orcs, falhas, preAg] = await Promise.all([
+    const [convs, oss, orcs, falhas, preAg, avalRuins, manipulacoes] = await Promise.all([
       ler('conversas', sb.from('conversas')
         .select('id,cliente_id,telefone,telefone_e164,nao_lidas,aguardando_consultor,aguardando_desde,ultima_mensagem_em,atribuida_a')
         .eq('tipo', 'atendimento').is('desfecho', null).gte('ultima_mensagem_em', desde7)
@@ -93,7 +93,13 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
       ler('pré-agendamentos', sb.from('agendamentos')
         .select('id,cliente_id,telefone,telefone_e164,data,hora,status,observacoes')
         .ilike('observacoes', '%agendamento pedido pelo cliente%').eq('status', 'aguardando').gte('data', desde3.slice(0, 10)).limit(200), avisos),
+      // Rodada 7: nota ruim sem resposta e tentativas de manipulação (últimas 24 h)
+      ler('avaliações ruins', sb.from('patio_avaliacoes').select('cliente_id,nota,created_at,respondido_em').lte('nota', 3).gte('created_at', desde14).limit(100), avisos),
+      ler('manipulação', sb.from('ia_acoes').select('conversa_id').eq('tipo', 'bloqueio_manipulacao').gte('created_at', new Date(t0.getTime() - DIA).toISOString()).limit(200), avisos),
     ]);
+    const ruimPorCliente = new Map();
+    for (const a of avalRuins) if (a.cliente_id && !a.respondido_em && !ruimPorCliente.has(a.cliente_id)) ruimPorCliente.set(a.cliente_id, { nota: a.nota });
+    const manipuladas = new Set(manipulacoes.map(x => x.conversa_id));
 
     const ids = convs.map(x => x.id);
     const msgs = ids.length ? await ler('mensagens', sb.from('whatsapp_mensagens')
@@ -163,7 +169,11 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
       if (fl) item.falhas = fl;
       const pre = preCliente.get(cv.cliente_id) || preTel.get(chaveTel(cv.telefone_e164 || cv.telefone)) || null;
       if (pre) item.pre = pre;
-      if (item.sem_resposta || item.patio || item.orc || item.falhas || item.pre) conversas[cv.id] = item;
+      const ruim = ruimPorCliente.get(cv.cliente_id);
+      if (ruim) item.avaliacao_ruim = ruim;
+      if (manipuladas.has(cv.id) && semResposta) item.manipulacao = true;
+      if (semResposta && !cv.cliente_id && lista.length && !lista.some(m => m.direcao === 'saida')) item.primeiro_contato = true;
+      if (item.sem_resposta || item.patio || item.orc || item.falhas || item.pre || item.avaliacao_ruim) conversas[cv.id] = item;
     }
     const resumo = { conversas: Object.keys(conversas).length, no_patio: oss.length,
       orcamentos_abertos: orcs.length, mensagens_que_nao_sairam: [...falhaPorConversa.values()].reduce((s, a) => s + a.nao_saiu + a.sem_confirmacao, 0) };

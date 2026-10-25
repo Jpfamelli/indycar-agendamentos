@@ -682,6 +682,10 @@ const TEXTO_VAZIO_FILTRO = {
   r6_falhas: 'Nenhuma mensagem deixou de sair no WhatsApp. ✅',
   r6_recusou: 'Ninguém recusou orçamento nos últimos 14 dias. 🙌',
   r6_pre: 'Nenhum cliente esperando confirmação de horário pedido pela página do orçamento. 📅',
+  r7_chegou: 'Ninguém avisou que chegou agora. 📍',
+  r7_negociacao: 'Ninguém pedindo desconto agora. 🤝',
+  r7_suspeita: 'Nenhuma mensagem suspeita. 🛡',
+  r7_nota_ruim: 'Nenhuma nota ruim esperando resposta. ⭐',
 };
 
 let ultimoHtmlLista = '';
@@ -5292,7 +5296,7 @@ let filtroDono = (() => {
 })();
 let ordemLista = (() => { try { return localStorage.getItem('indycar_ordem') || 'recentes'; } catch { return 'recentes'; } })();
 const FILTROS_URL = ['', 'nao_lidas', 'hoje', 'aguardando', 'agendada', 'fechou', 'nao_fechou', 'disparo',
-  'quentes', 'amanha', 'revisao', 'aniversario', 'r6_urgentes', 'r6_patio', 'r6_orcamento', 'r6_falhas', 'r6_recusou', 'r6_pre'];
+  'quentes', 'amanha', 'revisao', 'aniversario', 'r6_urgentes', 'r6_patio', 'r6_orcamento', 'r6_falhas', 'r6_recusou', 'r6_pre', 'r7_chegou', 'r7_negociacao', 'r7_suspeita', 'r7_nota_ruim'];
 
 function restaurarPreferenciasDaLista() {
   // ?filtro=nao_lidas (atalho do app instalado, links de outros sistemas)

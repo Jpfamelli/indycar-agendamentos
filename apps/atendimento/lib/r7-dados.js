@@ -48,7 +48,7 @@ function criarR7Dados({ sb, c5, agora = () => new Date(), log = console.error } 
     if (error) { log('ctx links:', error.message); return { ok: false, status: 503, erro: 'Não consegui ler a conversa agora.' }; }
     if (!cv) return { ok: false, status: 404, erro: 'Conversa não encontrada.' };
     const tel = cv.telefone_e164 || cv.telefone;
-    const [cli, msgs, lead, agd, os, servicos] = await Promise.all([
+    let [cli, msgs, lead, agd, os, servicos] = await Promise.all([
       cv.cliente_id ? banco.from('clientes').select('id,nome,carro_modelo,carro_ano,placa').eq('id', cv.cliente_id).maybeSingle().then((r) => r.data).catch(() => null) : null,
       banco.from('whatsapp_mensagens').select('corpo,created_at').eq('conversa_id', conversaId).eq('direcao', 'entrada').order('created_at', { ascending: false }).limit(8).then((r) => r.data || []).catch(() => []),
       leadAberto(banco, cv.cliente_id, tel),
@@ -56,6 +56,18 @@ function criarR7Dados({ sb, c5, agora = () => new Date(), log = console.error } 
       cv.cliente_id ? banco.from('patio_os').select('id,numero,etapa,placa,veiculo').eq('cliente_id', cv.cliente_id).not('etapa', 'in', '(entregue,cancelado)').order('created_at', { ascending: false }).limit(1).then((r) => r.data?.[0] || null).catch(() => null) : null,
       nomesDeServicos(),
     ]);
+    // [OS NNN] vindo da página Acompanhar: só o número, só OS do MESMO telefone da conversa
+    let osMarcada = null;
+    for (const m of msgs) {
+      const n = R7.marcadorOS(m.corpo);
+      if (n == null) continue;
+      try {
+        const { data: o } = await banco.from('patio_os').select('id,numero,etapa,placa,veiculo,telefone,cliente_id').eq('numero', n).maybeSingle();
+        if (o && R7.mesmoTelefone(o.telefone, tel)) osMarcada = o;
+      } catch (e) { log('OS marcada:', e.message); }
+      break;
+    }
+    if (osMarcada && !os) os = osMarcada;
     const textos = msgs.map((m) => String(m.corpo || '')).filter((t) => t && !R6.detectarManipulacao(t).suspeita);
     const citados = R7.servicosCitados(textos.slice(0, 5), servicos.map((s) => s.nome));
     const manipulou = msgs.some((m) => R6.detectarManipulacao(String(m.corpo || '')).suspeita);
@@ -67,7 +79,7 @@ function criarR7Dados({ sb, c5, agora = () => new Date(), log = console.error } 
       servico: citados.join(' + ') || (lead?.servico ? R6.campoSeguro(lead.servico, 120) : ''), pedido: citados.join(' + ') || (lead?.servico ? R6.campoSeguro(lead.servico, 120) : ''),
     };
     return {
-      ok: true, manipulacao: manipulou, citados, servicos_citados_ids: servicos.filter((s) => citados.includes(s.nome)).map((s) => s.id),
+      ok: true, os_marcada: osMarcada ? { id: osMarcada.id, numero: osMarcada.numero, etapa: osMarcada.etapa, veiculo: osMarcada.veiculo || null, placa: osMarcada.placa || null } : null, manipulacao: manipulou, citados, servicos_citados_ids: servicos.filter((s) => citados.includes(s.nome)).map((s) => s.id),
       os: os ? { id: os.id, numero: os.numero, etapa: os.etapa } : null, agendamento: agd ? { id: agd.id, data: agd.data, hora: String(agd.hora || '').slice(0, 5) } : null,
       lead: lead ? { id: lead.id, servico: lead.servico || null } : null, consultor_id: cv.atribuida_a || null,
       entrada_patio: R7.linkEntradaPatio(base), nova_cotacao: R7.linkNovaCotacaoCompleta(base), nova_cotacao_ia: base.pedido ? R7.linkNovaCotacaoCompleta(base, { ia: true }) : null,

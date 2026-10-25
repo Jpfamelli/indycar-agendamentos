@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="copiloto.css" />
   <link rel="stylesheet" href="r6.css" />
   <link rel="stylesheet" href="r6c5.css" />
+  <link rel="stylesheet" href="r7c4.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar Atendimento" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -341,6 +342,10 @@
             <button class="chip chip-r6" data-status="r6_falhas" title="Conversas com mensagem que não saiu no WhatsApp">⚠ Não saiu</button>
             <button class="chip chip-r6" data-status="r6_recusou" title="Clientes que recusaram um orçamento nos últimos 14 dias">🙅 Recusou</button>
             <button class="chip chip-r6" data-status="r6_pre" title="Cliente que pediu um horário pela página do orçamento e espera confirmação">📅 Pediu horário</button>
+            <button class="chip chip-r6" data-status="r7_chegou" title="Cliente que avisou que chegou na oficina">📍 Chegou</button>
+            <button class="chip chip-r6" data-status="r7_negociacao" title="Cliente pedindo desconto ou negociando: só o consultor responde">🤝 Negociando</button>
+            <button class="chip chip-r6" data-status="r7_suspeita" title="Mensagens que tentaram dar ordens à IA: ela não leu">🛡 Suspeitas</button>
+            <button class="chip chip-r6" data-status="r7_nota_ruim" title="Cliente que deu nota baixa e ainda não teve resposta">⭐ Nota ruim</button>
             <button class="chip" data-status="agendada" title="Com horário marcado ou em serviço">📅 Agendadas</button>
             <button class="chip" data-status="fechou" title="Serviço concluído — cliente fechou">✅ Fechadas</button>
             <button class="chip" data-status="nao_fechou" title="Cliente que não fechou o serviço">❌ Não fechadas</button>
@@ -1657,6 +1662,7 @@
      (versão travada, guardada pelo service worker); a CDN é só reserva. -->
 <script src="apps.js"></script>
 <script src="r6-regras.js"></script>
+<script src="r7-regras.js"></script>
 <script src="rede.js"></script>
 <script src="vendor/supabase.js"></script>
 <script>window.supabase || document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/dist/umd/supabase.js"><\/script>');</script>
@@ -1666,6 +1672,7 @@
 <script src="tarefas.js"></script>
 <script src="r6-tela.js"></script>
 <script src="r6c5.js"></script>
+<script src="r7c4.js"></script>
 <script src="ajuda.js"></script>
 <script src="copiloto.js" defer></script>
 <script src="casca.js" defer></script>

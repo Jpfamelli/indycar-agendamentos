@@ -1,0 +1,51 @@
+/* Rodada 7 · C4 — retomada do WhatsApp, links prontos, horários reais, busca global. Mobile primeiro (375 px). */
+.r7-retomada { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.35; border-bottom: 1px solid var(--borda, #e5e5e5); }
+.r7-retomada[hidden], .r7-agora[hidden], .r7-busca[hidden], .r7-citados[hidden], .r7-retomada [hidden] { display: none !important; }
+.r7-retomada span { flex: 1 1 200px; min-width: 0; }
+.r7-retomada button { min-height: 36px; padding: 6px 12px; border-radius: 8px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.r7-parado { background: #fdecea; color: #8a1c14; }
+.r7-voltou { background: #e9f7ee; color: #14602f; }
+.r7-andando { background: #eaf1fb; color: #1c4a8a; }
+.r7-agora { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 6px 12px; font-size: 12px; color: var(--texto-2, #555); border-bottom: 1px solid var(--borda, #e5e5e5); }
+.r7-agora b { color: var(--texto, #111); }
+.r7-citados { flex: 1 0 100%; font-size: 12px; margin-top: 4px; }
+.r7-ped { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #eef2f7; margin-right: 4px; }
+.r7-manip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: #fdecea; color: #8a1c14; }
+.r7-hor { display: grid; gap: 8px; }
+.r7-dia { display: grid; gap: 4px; }
+.r7-dia > b { font-size: 12px; text-transform: capitalize; }
+.r7-horas { display: flex; flex-wrap: wrap; gap: 6px; }
+.r7-horas .chip { min-height: 40px; min-width: 56px; }
+.r7-sug { display: block; margin-top: 6px; }
+.r7-busca { display: grid; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--borda, #e5e5e5); max-height: 40vh; overflow: auto; }
+.r7-res { display: grid; text-align: left; gap: 0; padding: 8px; min-height: 44px; border: 0; background: transparent; border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
+.r7-res:hover, .r7-res:focus-visible { background: #f2f4f7; }
+.r7-res small, .r7-busca-tit { color: var(--texto-2, #666); font-size: 12px; }
+.r7-modal { max-width: min(640px, 100vw - 16px); }
+.r7-grupo { margin: 10px 0; }
+.r7-grupo > summary { cursor: pointer; font-weight: 600; min-height: 36px; display: flex; align-items: center; gap: 6px; }
+.r7-motivo { display: block; color: #8a5a00; margin: 2px 0 4px; }
+.r7-prog { padding: 8px 10px; border-radius: 8px; background: #eaf1fb; margin: 8px 0; font-size: 13px; }
+.r7-resumo { font-weight: 600; margin: 4px 0 8px; }
+.r7-topo { margin: 8px 0; }
+@media (max-width: 480px) {
+  .r7-modal { width: calc(100vw - 16px); }
+  .r7-retomada button { flex: 1 1 100%; }
+  .r7-horas .chip { flex: 1 0 calc(25% - 6px); }
+}
+
+/* acertos de tema escuro e de largura em 375 px */
+.r7-modal { box-sizing: border-box; width: min(640px, calc(100vw - 16px)); margin-inline: auto; }
+.r7-prog { background: rgba(70, 130, 230, .18); color: inherit; border: 1px solid rgba(70, 130, 230, .35); }
+.r7-ped { background: rgba(127, 140, 160, .22); color: inherit; }
+.r7-manip { background: rgba(220, 70, 60, .2); color: #e0584d; }
+.r7-res:hover, .r7-res:focus-visible { background: rgba(127, 140, 160, .18); }
+.r7-agora b { color: inherit; }
+@media (prefers-color-scheme: dark) {
+  .r7-parado { background: rgba(220, 70, 60, .18); color: #ff8f86; }
+  .r7-voltou { background: rgba(50, 170, 100, .18); color: #7fe0a6; }
+  .r7-andando { background: rgba(70, 130, 230, .18); color: #9fc2ff; }
+  .r7-motivo { color: #e0b050; }
+}
+
+.r7-chip-manip { background: rgba(220, 70, 60, .2); color: #e0584d; }

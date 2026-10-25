@@ -78,6 +78,21 @@
     return `${String(base).replace(/\/+$/, '')}/#/cotacao?${p.toString()}`;
   }
 
+  /* ---------------- 2b) Marcador [OS NNN] da página Acompanhar ----------------
+     O cliente abre o WhatsApp pela página Acompanhar e a mensagem começa com "[OS 414]". Só vale o NÚMERO (1 a 6 dígitos),
+     só no começo da mensagem, e só liga a ordem se o telefone da OS for o mesmo da conversa (confere em r7-dados). */
+  function marcadorOS(texto) {
+    const m = /^\s*\[\s*OS\s*#?\s*(\d{1,6})\s*\]/i.exec(String(texto ?? '').slice(0, 40));
+    return m ? Number(m[1]) : null;
+  }
+  /** Mesmo telefone? compara os últimos 10 dígitos (DDD + número), ignora 55 e o nono dígito faltando. */
+  function mesmoTelefone(a, b) {
+    const x = soDigitos(a), y = soDigitos(b);
+    if (x.length < 10 || y.length < 10) return false;
+    const ddd = (d) => (d.length >= 12 && d.startsWith('55') ? d.slice(2, 4) : d.slice(0, 2));
+    return x.slice(-8) === y.slice(-8) && ddd(x) === ddd(y);
+  }
+
   /* ---------------- 3) Serviços que o cliente citou ---------------- */
   const PALAVRAS_FRACAS = new Set(['de', 'do', 'da', 'dos', 'das', 'e', 'com', 'para', 'por', 'em', 'no', 'na', 'a', 'o', 'um', 'uma', 'completo', 'completa', 'geral', 'basico', 'basica']);
   const tokensDe = (nome) => semAcento(nome).split(/[^a-z0-9]+/).filter((t) => t.length >= 4 && !PALAVRAS_FRACAS.has(t));
@@ -195,7 +210,7 @@
     return `há ${d} dia${d > 1 ? 's' : ''}${h ? ` e ${h} h` : ''}`;
   }
 
-  raiz.R7 = { linkEntradaPatio, linkNovaCotacaoCompleta, servicosCitados, melhorServico, rotuloDia, proximosDiasUteis, resumirDias, duasOpcoes, textoOpcao, conferirEscolha,
+  raiz.R7 = { linkEntradaPatio, linkNovaCotacaoCompleta, marcadorOS, mesmoTelefone, servicosCitados, melhorServico, rotuloDia, proximosDiasUteis, resumirDias, duasOpcoes, textoOpcao, conferirEscolha,
     periodoDaHora, textoResumoRetomada, textoDuracaoParado, partesSP, somarDias, telE164, ehUuid, BASE_PATIO, BASE_ORCADOR };
   if (typeof module !== 'undefined' && module.exports) module.exports = raiz.R7;
 })(typeof window !== 'undefined' ? window : globalThis);

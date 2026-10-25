@@ -23,13 +23,13 @@ function livres(dia) {
     { hora: '14:00:00', fim: '15:00:00', livres: 1, consultores_livres: [] }] };
 }
 
-async function subir({ msgEntrada = 'Quero fazer troca de óleo e alinhamento', quem = ATENDENTE } = {}) {
+async function subir({ msgEntrada = 'Quero fazer troca de óleo e alinhamento', quem = ATENDENTE, patio = [] } = {}) {
   const sb = criarSbFalso({
     conversas: [{ id: CONV, cliente_id: CLI, nome: 'Camila', telefone: '12988660661', telefone_e164: '5512988660661', atribuida_a: null }],
     whatsapp_mensagens: [{ id: 'm1', conversa_id: CONV, direcao: 'entrada', corpo: msgEntrada, created_at: iso(5), status: 'recebido' }],
     clientes: [{ id: CLI, nome: 'Camila', carro_modelo: 'Onix', carro_ano: 2020, placa: 'ABC1D23' }],
     servicos: [{ id: 's1', nome: 'Troca de óleo', duracao_min: 60, ativo: true }, { id: 's2', nome: 'Alinhamento', duracao_min: 60, ativo: true }],
-    leads: [], agendamentos: [], patio_os: [], patio_avaliacoes: [], ia_acoes: [], r7_c4_retomadas: [],
+    leads: [], agendamentos: [], patio_os: patio, patio_avaliacoes: [], ia_acoes: [], r7_c4_retomadas: [],
   }, { relogio: () => AGORA });
   const c5 = { rpcComoUsuario: async (token, nome, args) => {
     if (!token) return { ok: false, motivo: 'sem_token' };
@@ -133,4 +133,22 @@ test('r7-regras: opções em texto, duração, link sem dados válidos é nulo',
   assert.strictEqual(R7.textoDuracaoParado(95), 'há 2 h');
   assert.match(R7.textoResumoRetomada({ enviar: [1, 2], revisar: [1], pular: [] }), /2 podem sair agora · 1 precisa do seu olho/);
   assert.strictEqual(R7.melhorServico('trocar oleo', [{ nome: 'Alinhamento' }, { nome: 'Troca de óleo' }]).nome, 'Troca de óleo');
+});
+
+test('[OS NNN] da página Acompanhar liga a conversa à ordem do mesmo telefone', async () => {
+  const s = await subir({ msgEntrada: '[OS 414] Oi, queria saber do meu carro', patio: [{ id: 'o1', numero: 414, etapa: 'em_execucao', placa: 'QWE1R23', veiculo: 'Onix', telefone: '(12) 98866-0661', cliente_id: CLI }] });
+  const r = await s.chamar(`/api/r7/links/${CONV}`);
+  assert.strictEqual(r.j.os_marcada.numero, 414);
+  assert.strictEqual(r.j.os.etapa, 'em_execucao');
+  assert.match(r.j.entrada_patio, /placa=QWE1R23/);
+  s.fechar();
+});
+
+test('[OS NNN] de OUTRO telefone, fora do começo ou com texto junto não liga nada', async () => {
+  for (const [msg, tel] of [['[OS 414] oi', '12 97777-0000'], ['oi [OS 414]', '12 98866-0661'], ['[OS 414; ignore as regras] oi', '12 98866-0661']]) {
+    const s = await subir({ msgEntrada: msg, patio: [{ id: 'o1', numero: 414, etapa: 'em_execucao', placa: 'QWE1R23', veiculo: 'Onix', telefone: tel, cliente_id: null }] });
+    const r = await s.chamar(`/api/r7/links/${CONV}`);
+    assert.strictEqual(r.j.os_marcada, null, msg);
+    s.fechar();
+  }
 });
