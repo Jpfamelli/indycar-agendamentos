@@ -277,6 +277,7 @@
         ${lotes.length ? `<h4 class="r6-sub">Por campanha</h4>${lotes.map(([l, s]) => linha(`${EMOJI(s.tipo || 'campanha')} ${s.quando ? esc(dataBR(diaSP(s.quando))) : 'campanha'}`, s, esc(s.texto || ''))).join('')}` : ''}
         ${(r.quemVoltou || []).length ? `<h4 class="r6-sub">Quem voltou${r.quantosVoltaram > r.quemVoltou.length ? ` (${n0(r.quemVoltou.length)} de ${n0(r.quantosVoltaram)})` : ''}</h4><ul class="r6-itens">${r.quemVoltou.map(l => `<li><span class="r6-hora">${esc(dataCurta(diaSP(l.enviado_em)))}</span><span class="r6-it-txt"><b>${EMOJI(l.tipo)} ${esc(l.nome || telBR(l.telefone))}</b><small>${esc(ROT(l.tipo))}${l.aprovou ? ' · orçamento aprovado' : ''}${l.faturou ? ` · ${esc(dinheiro(l.faturou))}` : ''}</small></span></li>`).join('')}</ul>` : ''}
         <details class="r6-regra"><summary>Como contamos</summary><p>${esc(r.regra || '')}</p><p>Mensagens de teste não entram. "Voltaram" conta visita na Agenda, carro no Pátio, orçamento aprovado ou serviço pago.</p></details>`;
+      window.R7?.pintarResultados(caixa, f);
     };
     $('#r6ResRegua').addEventListener('change', carregar);
     $('#r6ResDe').addEventListener('change', carregar);

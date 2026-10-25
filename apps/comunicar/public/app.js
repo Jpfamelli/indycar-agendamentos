@@ -159,7 +159,7 @@ async function api(method, path, body, _repetiu = false) {
     if (!window.Conta) mostrarLogin(data.erro || 'Sua sessão expirou. Entre de novo.');
     const e = new Error(data.erro || 'Sessão expirada'); e.status = r.status; e.codigo = data.codigo; throw e;
   }
-  if (!r.ok) { const e = new Error(data.erro || (r.status === 429 ? 'Muitas ações seguidas. Espere um pouco.' : 'Erro na requisição')); e.status = r.status; e.codigo = data.codigo; throw e; }
+  if (!r.ok) { const e = new Error(data.erro || (r.status === 429 ? 'Muitas ações seguidas. Espere um pouco.' : 'Erro na requisição')); e.status = r.status; e.codigo = data.codigo; if (data.campo) e.campo = data.campo; throw e; }
   return data;
 }
 
@@ -443,6 +443,7 @@ async function renderInicio() {
   window.R4?.pintarInicio();
   window.R5?.pintarSaude();
   window.R6?.pintarInicio();
+  window.R7?.pintarInicio();
   $$('[data-ir]', view).forEach(b => b.addEventListener('click', () => route(b.dataset.ir)));
 }
 
@@ -615,6 +616,7 @@ async function renderReguas() {
   window.R4?.pintarReguas();
   window.R5?.pintarReguas();
   window.R6?.pintarReguas();
+  window.R7?.pintarReguas();
 }
 
 /* Lê o valor de um campo de configuração do jeito que o servidor espera. */
@@ -873,6 +875,7 @@ async function renderMensagens({ quieto } = {}) {
   });
   ligarAcoesEnvio($('#listaEnvios'));
   window.R6?.barraMensagens();
+  window.R7?.barraMensagens();
 }
 
 /* Quem mandou: nome de quem clicou (criado_por guarda o nome; criado_por_id, o perfil) ou 'automática'. */
@@ -916,7 +919,7 @@ function cartaoEnvio(e) {
         ${e.intencao && CHAMA_CONSULTOR.has(e.intencao) ? (e.encaminhado_em ? '<span class="badge-pill bp-green">✓ no Atendimento</span>' : `<button type="button" class="btn btn-mini primary" data-encaminhar="${esc(e.id)}">${svg(I.wa)} Passar ao Atendimento</button>`) : ''}
         ${e.status === 'enviado' || e.resposta || duvida ? `<a class="btn btn-mini ghost" href="${esc(linkConversa(e.telefone))}" target="_blank" rel="noopener">${svg(I.externo)} Abrir conversa</a>` : ''}
         ${window.R5 ? window.R5.botaoLigacoes(e.id) : ''}
-        ${window.R6 ? window.R6.botoesEnvio(e, meu) : ''}
+        ${window.R6 ? window.R6.botoesEnvio(e, meu) : ''}${window.R7 ? window.R7.botoesEnvio(e, meu) : ''}
       </div>
     </div>
   </article>`;
@@ -1003,6 +1006,7 @@ async function renderCampanhas() {
   }));
   pintarAprovacoes();
   window.R6?.pintarCampanhas();
+  window.R7?.pintarCampanhas();
 }
 
 function assinaturaCampanha(e) {
@@ -1020,6 +1024,7 @@ async function carregarModelos() { if (!state.modelos) state.modelos = await api
 window.openCampanhaModal = async function (pre = {}) {
   const c = { passo:1, alvo: pre.cliente ? 'cliente' : 'segmento', filtro:'todos', valor:'', cliente: pre.cliente || null,
     previa:null, corpo: window.R4?.lerRascunho('campanha') || '', quando:'agora', enviar_em:'', sugestao:null, segSalvoId:null };
+  window.R7?.aplicarRepetir(c, pre);
   if (c.corpo) setTimeout(() => toast('Recuperei a mensagem que você estava escrevendo.'), 300);
   // rodada 5: segmentos salvos chegam junto (em paralelo) com segmentos e modelos
   const [segmentos, modelos, salvos] = await Promise.all([carregarSegmentos(), carregarModelos(), window.R5 ? window.R5.segmentosSalvos().catch(() => []) : Promise.resolve([])]);
@@ -1184,6 +1189,7 @@ window.openCampanhaModal = async function (pre = {}) {
         ${precisaAprovar() ? `<div class="dica aprovacao">${svg(I.check)}<span>Campanha para um grupo passa pelo gestor: ela fica <b>aguardando aprovação</b> e só entra na fila quando ele aprovar. O gestor recebe o aviso no sino.</span></div>` : ''}
       </div>`;
     window.R6?.pintarPasso3(c, { segmentos, corpoEl: body });
+    window.R7?.pintarPasso3(c, { corpoEl: body });
     $$('[data-quando]', body).forEach(b => b.addEventListener('click', () => { c.quando = b.dataset.quando; passo3(); }));
     $('#campData').addEventListener('change', e => { c.enviar_em = e.target.value; $('#campQuandoTxt').textContent = c.enviar_em ? dataHoraBR(c.enviar_em) : 'escolha a data'; });
   };
@@ -1221,7 +1227,7 @@ window.openCampanhaModal = async function (pre = {}) {
       const payload = c.alvo === 'cliente'
         ? { tipo:'avulsa', corpo, enviar_em, destinos:[{ cliente_id:c.cliente.id, telefone:c.cliente.telefone, nome:c.cliente.nome, carro:c.cliente.carro, placa:c.cliente.placa }] }
         : { corpo, enviar_em, segmento:{ filtro:c.filtro, valor: c.valor || segmentos.find(s => s.id === c.filtro)?.valor }, segmento_salvo_id: c.segSalvoId || undefined };
-      const r = await api('POST', '/envios', window.R6 ? window.R6.completarPedido(c, payload) : payload);
+      const r = await api('POST', '/envios', window.R7 ? window.R7.completarPedido(c, window.R6 ? window.R6.completarPedido(c, payload) : payload) : (window.R6 ? window.R6.completarPedido(c, payload) : payload));
       window.R4?.guardarRascunho('campanha', '');
       if (r.aguardando) {
         toast('Campanha mandada para aprovação — o gestor foi avisado no sino.', 'ok', 5500);

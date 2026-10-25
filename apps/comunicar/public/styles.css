@@ -1647,3 +1647,33 @@ textarea.invalido,.r6-param .inp.invalido{border-color:var(--red-2)!important}
 .r6-it-txt b,.r6-res-nome b,.r6-dia-nome{overflow-wrap:anywhere;min-width:0}
 .r6-ag-topo .badge-pill,.r6-avisos .badge-pill{white-space:normal;max-width:100%;overflow-wrap:anywhere;text-align:left}
 .r6-acoes{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+
+/* ===== Rodada 7 (25/10/2026) ===== */
+.r7-painel [hidden],.r7-ab [hidden],.modal [hidden]{display:none!important}
+.r7-aviso{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;border-radius:10px;margin-bottom:12px;border:1px solid var(--line,#ddd);background:var(--orange-bg,#fff4e5)}
+.r7-aviso.queda{background:var(--red-bg,#fdecea)}
+.r7-aviso b{flex:1 1 220px}
+.r7-nivel{margin:0 0 10px;font-weight:700}.r7-nivel.alto{color:var(--red-txt,#b3261e)}.r7-nivel.atencao{color:var(--orange-txt,#a15c00)}
+.r7-num-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:8px 0 12px}
+.r7-num-grid>div{display:flex;flex-direction:column;gap:2px;padding:10px;border:1px solid var(--line,#e4e4e4);border-radius:10px;min-width:0}
+.r7-num-grid b{font-size:20px;line-height:1.1;overflow-wrap:anywhere}.r7-num-grid small{color:var(--muted)}
+.r7-num-grid em{font-style:normal;font-size:11px;color:var(--muted)}.r7-num-grid em.sobe{color:var(--green-txt,#1b7a3b)}.r7-num-grid em.desce{color:var(--red-txt,#b3261e)}
+.r7-pend{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.r7-pend li{display:flex;flex-wrap:wrap;gap:2px 10px;padding:8px 10px;border:1px solid var(--line,#e4e4e4);border-radius:8px}
+.r7-pend li span{flex:1 1 100%;overflow-wrap:anywhere}
+.r7-filtros{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;margin-bottom:10px}
+.r7-texto{display:block;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:4px}
+.r7-horas{display:grid;gap:6px}
+.r7-hora{display:grid;grid-template-columns:44px 1fr 44px;gap:4px 8px;align-items:center}
+.r7-hora i{display:block;height:12px;border-radius:6px;background:var(--orange,#f58220)}
+.r7-hora small{grid-column:1/-1;color:var(--muted)}
+.r7-triagem{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:8px}
+.r7-triagem li{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line,#e4e4e4);border-radius:8px}
+.r7-motivo{border:1px solid var(--line,#e4e4e4);border-radius:10px;padding:10px;margin:10px 0}
+.r7-motivo textarea,.r7-ab textarea{width:100%;min-height:92px;margin-top:6px}
+.r7-ab{margin-top:12px;padding:10px;border:1px dashed var(--line,#ccc);border-radius:10px}
+.r7-ab-lista,.r7-rank{margin:0 0 10px;padding-left:18px;display:grid;gap:6px}
+.r7-ab-lista li small,.r7-ab-lista li span{display:block}.r7-vence{color:var(--green-txt,#1b7a3b);font-weight:700}
+.r7-repetir{margin-top:6px}
+.r7-avancado h4{margin:16px 0 6px}
+@media (max-width:480px){.r7-num-grid{grid-template-columns:1fr 1fr}.r7-hora{grid-template-columns:38px 1fr 36px}}

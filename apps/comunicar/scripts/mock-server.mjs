@@ -515,7 +515,7 @@ http.createServer(async (req, res) => {
   const naoGestor = () => json(res, 403, { erro:'Só gestor altera as réguas.' });
   let mm;
 
-  if (p === '/api/config') return json(res, 200, { configurado:true, supabaseUrl:'http://mock.local', supabaseAnonKey:'mock', app:'IndyCar Comunicar', versao:'6.0.0-mock', prefixo:'' });
+  if (p === '/api/config') return json(res, 200, { configurado:true, supabaseUrl:'http://mock.local', supabaseAnonKey:'mock', app:'IndyCar Comunicar', versao:'7.0.0-mock', prefixo:'' });
   if (p === '/api/ping') return json(res, 200, { ok:true, versao:'4.0.0-mock' });
 
   /* Porteiro: as MESMAS regras do servidor (acesso.js) — rota, acesso ao app,
