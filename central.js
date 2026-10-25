@@ -23,12 +23,13 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import zlib from 'node:zlib';
+import { criarLinksCliente } from './casa-servidor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 try { process.loadEnvFile(join(__dirname, '.env')); } catch { /* produção: variáveis do Render */ }
 
-export const VERSAO_CENTRAL = '2026-10-21-central-r6';
+export const VERSAO_CENTRAL = '2026-10-25-central-r7';
 const PORT = Number(process.env.PORT) || 3000;
 const NO_AR_DESDE = new Date().toISOString();
 const EM_PRODUCAO = !!process.env.RENDER;
@@ -62,6 +63,20 @@ export async function sondarApp(base, fetchFn = globalThis.fetch, tempoMs = 4000
   }
 }
 const SAUDE = { patio: null, orcador: null };
+/* rodada 7: os apps que moram DENTRO da Central (agenda, crm, comunicar, atendimento) — se algum não subiu, a Casa avisa sem esperar alguém clicar */
+export function internosDaCentral(apps = APPS) {
+  return Object.fromEntries(['agenda', 'crm', 'comunicar', 'atendimento'].map((n) => [n, apps[n]?.handler ? { ok: true } : { ok: false, motivo: apps[n]?.erro ? 'nao_subiu' : 'ausente' }]));
+}
+/* freio simples: cada endereço pode perguntar a saúde no máximo 40 vezes por minuto (a resposta já vem de um cache de 40 s) */
+const PERGUNTAS = new Map();
+export function dentroDoFreioDaSaude(ip, agora = Date.now(), limite = 40) {
+  const lista = (PERGUNTAS.get(ip) || []).filter((t) => agora - t < 60_000);
+  if (lista.length >= limite) { PERGUNTAS.set(ip, lista); return false; }
+  lista.push(agora); PERGUNTAS.set(ip, lista);
+  if (PERGUNTAS.size > 500) PERGUNTAS.clear();
+  return true;
+}
+const LINKS_CLIENTE = criarLinksCliente();
 let saudeEm = 0, saudeVoo = null, sondaFn = null;
 export function definirSondaParaTeste(fn) { sondaFn = fn; saudeEm = 0; SAUDE.patio = null; SAUDE.orcador = null; }
 export async function saudeDosApps(agora = Date.now(), validadeMs = 40_000) {
@@ -207,6 +222,7 @@ const mb = (n) => Math.round(n / 1048576);
 function montar(nome, req, res, resto, busca) {
   const app = APPS[nome];
   if (!app || !app.handler) {
+    res.setHeader('Retry-After', '60');
     return json(res, 503, { erro: `O ${nome} não subiu nesta Central. Avise o suporte (o resto continua no ar).`, app: nome });
   }
   req.url = (resto || '/') + busca;
@@ -248,7 +264,15 @@ export async function handler(req, res) {
 
   if (caminho === '/api/central/saude-apps' && (req.method === 'GET' || req.method === 'HEAD')) {
     // só "está respondendo?" de dois sites públicos — nada sensível; o cache de 40 s protege os sites de enxurrada
-    return json(res, 200, await saudeDosApps());
+    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '?').split(',')[0].trim().slice(0, 64);
+    if (!dentroDoFreioDaSaude(ip)) { res.setHeader('Retry-After', '30'); return json(res, 429, { erro: 'Muitas perguntas seguidas. Espere meio minuto.' }); }
+    return json(res, 200, { ...(await saudeDosApps()), internos: internosDaCentral(), central: { versao: VERSAO_CENTRAL, no_ar_desde: NO_AR_DESDE } });
+  }
+
+  // 1a) rodada 7: links do cliente (Minha IndyCar, indique, acompanhar) para a ficha da Casa — só equipe logada
+  if (caminho === '/api/central/links-cliente') {
+    const r = await LINKS_CLIENTE.tratar(req);
+    return json(res, r.status, r.corpo);
   }
 
   // 1b) rodada 6: /patio e /orcador moram em outro domínio (Netlify) — quem digita o atalho na Central cai no lugar certo

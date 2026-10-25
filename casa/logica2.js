@@ -54,6 +54,12 @@
     add('sino', 'Abrir o sino de avisos', { tecla: 's', palavras: 'notificacoes avisos alertas' });
     add('marcar-lidas', 'Marcar todos os avisos como lidos', { palavras: 'notificacoes limpar sino' });
     add('atalhos', 'Ver os atalhos do teclado', { tecla: '?', palavras: 'ajuda teclas' });
+    /* rodada 7 */
+    if (V.equipe) add('saude', 'Ver a saúde dos sistemas', { tecla: 'h', palavras: 'whatsapp patio orcador movere comunicar problema fora do ar' });
+    add('tarefas-vencidas', 'Ver tarefas vencidas', { palavras: 'atrasadas pendentes lista' });
+    if (V.orcamentos) add('tarefas-orcador', 'Ver tarefas do Orçador (reabordar)', { palavras: 'recusados reabordar orcamento follow up' });
+    add('recolher', 'Recolher ou abrir os cartões do Agora', { tecla: 'e', palavras: 'esconder mostrar lista' });
+    if (V.dono) add('ligacoes', 'Ver ligações entre sistemas', { palavras: 'conexao quebrada pendencia pedido faltando' });
     if (V.dono) { add('visao-dono', 'Ir para a visão do dono', { tecla: 'd', palavras: 'faturamento gestor numeros' }); add('visao-operacao', 'Ir para a operação', { palavras: 'painel agora' }); }
     for (const [k, app] of Object.entries(L.APPS)) if (L.podeUsar(perfil, k)) add('abrir-' + k, 'Abrir ' + app.nome, { app: k, palavras: app.desc });
     add('sair', 'Sair da Central', { palavras: 'logout encerrar' });
@@ -174,7 +180,9 @@
   }
 
   /* ---------------- sino ---------------- */
-  const ICONES_TIPO = { atraso: '⏰', falta: '🚫', nao_veio: '🚫', extra: '➕', pronto: '🏁', orcamento: '🧾', aprovado: '✅', recusado: '❌', orcamento_aprovado: '✅', orcamento_recusado: '❌', conversa: '💬', mensagem: '💬', lead: '📈', tarefa: '📝', patio: '🔧', erro: '⚠️' };
+  const ICONES_TIPO = { atraso: '⏰', falta: '🚫', nao_veio: '🚫', extra: '➕', pronto: '🏁', orcamento: '🧾', aprovado: '✅', recusado: '❌', orcamento_aprovado: '✅', orcamento_recusado: '❌', conversa: '💬', mensagem: '💬', lead: '📈', tarefa: '📝', patio: '🔧', erro: '⚠️',
+    /* rodada 7: os tipos que o banco de verdade tem (conferido em notificacoes) e os que o Orçador/Pátio passam a mandar */
+    aguardando: '⏳', espera: '⏳', ia: '🤖', resumo: '📋', resumo_semanal: '📊', tarefas_vencidas: '📝', orcamento_visto: '👀', reabordar: '🔁', orcamento_enviado: '📤', carro_pronto: '🏁', extra_aprovado: '👍', extra_recusado: '👎', avaliacao: '⭐', indicacao: '🤝', saude: '🩺' };
   const iconeDoAviso = (n) => ICONES_TIPO[n?.tipo] || { agenda: '📅', atendimento: '💬', crm: '📈', comunicar: '📣', patio: '🔧', orcador: '🧾' }[n?.app] || '🔔';
   /** Agrupa avisos repetidos do mesmo app+tipo+título-base (ex.: "João está 35 min atrasado" ×3 → "3 horários atrasados"). */
   function agruparAvisos(lista) {
@@ -193,7 +201,7 @@
     }
     return out.sort((a, b) => Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0));
   }
-  const ROTULO_TIPO = { atraso: 'atrasos', falta: 'faltas', nao_veio: 'faltas', extra: 'extras esperando', pronto: 'carros prontos', orcamento: 'orçamentos', aprovado: 'aprovados', recusado: 'recusados', orcamento_aprovado: 'orçamentos aprovados', orcamento_recusado: 'orçamentos recusados', conversa: 'conversas', mensagem: 'mensagens', lead: 'leads', tarefa: 'tarefas', patio: 'pátio' };
+  const ROTULO_TIPO = { atraso: 'atrasos', falta: 'faltas', nao_veio: 'faltas', extra: 'extras esperando', pronto: 'carros prontos', orcamento: 'orçamentos', aprovado: 'aprovados', recusado: 'recusados', orcamento_aprovado: 'orçamentos aprovados', orcamento_recusado: 'orçamentos recusados', conversa: 'conversas', mensagem: 'mensagens', lead: 'leads', tarefa: 'tarefas', patio: 'pátio', aguardando: 'conversas aguardando', espera: 'conversas esperando', ia: 'avisos da IA', resumo: 'resumos', resumo_semanal: 'resumos da semana', tarefas_vencidas: 'tarefas vencidas', orcamento_visto: 'orçamentos vistos', reabordar: 'orçamentos para reabordar', avaliacao: 'avaliações' };
   const rotuloTipo = (t) => ROTULO_TIPO[t] || t || 'avisos';
   /** Adiados neste aparelho: { id: ateMs }. Devolve só os que ainda não voltaram. */
   function aindaAdiados(mapa, agoraMs = Date.now()) {

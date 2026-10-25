@@ -399,7 +399,7 @@
     for (const g of GRUPOS_BUSCA) {
       const itens = Array.isArray(res[g.k]) ? res[g.k] : [];
       if (!itens.length) continue;
-      const linhas = itens.map((r) => linhaDe(g.k, r, l, perfil)).filter(Boolean);
+      const linhas = itens.map((r) => { const x = linhaDe(g.k, r, l, perfil); return x ? { ...x, tel: r.telefone ? telefoneE164(r.telefone) : '' } : null; }).filter(Boolean);
       if (linhas.length) out.push({ ...g, linhas });
     }
     return out;
@@ -489,7 +489,7 @@
     const lista = (k) => (Array.isArray(g[k]) ? g[k] : []);
     if (!x3 || x3.aviso || !g) return { vazio: true };
     return {
-      q: x3.termo,
+      q: x3.termo, pessoas: Array.isArray(x3.pessoas) ? x3.pessoas : [], contagens: x3.contagens || {},
       clientes: lista('clientes').map((i) => ({ id: i.id, nome: i.nome, telefone: i.telefone_55, carro: i.extra?.carro, placa: i.extra?.placa })),
       agendamentos: lista('agendamentos').map((i) => ({ id: i.id, nome: i.nome || i.titulo, telefone: i.telefone_55, detalhe: i.detalhe, status: i.status,
         patio_etapa: i.extra?.os_etapa || null, patio_numero: i.extra?.os_numero })),
@@ -514,6 +514,10 @@
     ['>', 'Na busca: comandos (novo horário, nova entrada, tema…)'],
     ['j  ou  k', 'Descer / subir na lista “Pede atenção agora” (Enter abre)'],
     ['d', 'Alternar Operação / Visão do dono'],
+    ['h', 'Abrir ou fechar a saúde dos sistemas (WhatsApp, Pátio, Orçador…)'],
+    ['e', 'Recolher ou abrir todos os cartões do Agora'],
+    ['t', 'Ir para as minhas tarefas'],
+    ['Shift+Enter', 'Na busca: abrir a ficha do cliente'],
     ['n', 'Nova tarefa para mim'],
     ['s', 'Abrir o sino de avisos'],
     ['r', 'Atualizar o painel agora'],

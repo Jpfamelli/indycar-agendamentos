@@ -40,7 +40,7 @@
       return;
     }
     if (mod || e.altKey) return;
-    if (L.ehCampo(e.target) || (C.busca && C.busca.aberta()) || aberta) return;
+    if (L.ehCampo(e.target) || (C.busca && C.busca.aberta()) || aberta || document.body.classList.contains('modal-aberto')) return;
     const k = e.key;
     if (esperandoG) {
       esperandoG = false; clearTimeout(timerG);
@@ -68,6 +68,9 @@
       const prox = /j/i.test(k) ? (i + 1) % itens.length : (i <= 0 ? itens.length - 1 : i - 1);
       itens[prox].focus();
     }
+    else if (k === 'h' || k === 'H') { if (C.saude) { e.preventDefault(); C.saude.abrir(); } }
+    else if (k === 'e' || k === 'E') { if (C.recolherTodos) { e.preventDefault(); C.recolherTodos(); } }
+    else if (k === 't' || k === 'T') { const t = document.querySelector('#tTarefas'); if (t) { e.preventDefault(); t.scrollIntoView({ block: 'start', behavior: 'smooth' }); } }
     else if (k === 'n' || k === 'N') { e.preventDefault(); C.focarTarefa && C.focarTarefa(); }
     else if (k === 's' || k === 'S') { e.preventDefault(); C.alternarSino && C.alternarSino(); }
     else if (k === 'r' || k === 'R') { e.preventDefault(); C.painel && C.painel.atualizar(); C.toast('Atualizando…', 1200); }

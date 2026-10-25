@@ -1,0 +1,100 @@
+/* Casa — Rodada 7 (C1): PARAR, saúde dos sistemas, ligações, ficha rápida, tarefas por origem, sino com escolha, busca com tipos. */
+[hidden] { display: none !important; }
+
+/* ---------- PARAR: o botão do WhatsApp vira aviso ---------- */
+.wa-parar { cursor: not-allowed; color: var(--red-2); border-color: rgba(230,25,46,.5); background: var(--red-soft); white-space: normal; text-align: center; line-height: 1.2; gap: 6px; flex-wrap: wrap; }
+.wa-parar .wa-parar-ver { color: var(--muted); font-size: 11px; text-decoration: underline; display: inline-flex; align-items: center; min-height: 44px; }
+.wa-parar .wa-parar-ver:hover { color: var(--texto); }
+
+/* ---------- Saúde dos sistemas ---------- */
+.saude-sist { display: grid; gap: 8px; margin: 0 0 14px; }
+.saude-resumo { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 14px; width: 100%; text-align: left; cursor: pointer; border-radius: 14px; border: 1px solid var(--borda); background: var(--panel); }
+.saude-resumo::before { content: ''; flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.saude-sist[data-tom="ok"] .saude-resumo::before { background: var(--green); }
+.saude-sist[data-tom="aviso"] .saude-resumo { border-color: rgba(245,158,11,.55); }
+.saude-sist[data-tom="aviso"] .saude-resumo::before { background: var(--orange); }
+.saude-sist[data-tom="ruim"] .saude-resumo { border-color: rgba(230,25,46,.6); background: rgba(230,25,46,.1); }
+.saude-sist[data-tom="ruim"] .saude-resumo::before { background: var(--red-2); }
+#saudeTxt { font-weight: 600; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.saude-hora { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.saude-painel { padding: 6px 0 0; }
+.saude-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.saude-item { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: start; padding: 10px 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--borda); border-left: 4px solid var(--green); }
+.saude-item.tom-aviso { border-left-color: var(--orange); }
+.saude-item.tom-ruim { border-left-color: var(--red); }
+.saude-item.tom-neutro { border-left-color: var(--muted); }
+.saude-ico { font-size: 20px; line-height: 1.3; }
+.saude-corpo { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.saude-estado { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-left: 6px; }
+.saude-item.tom-ruim .saude-estado { color: var(--red-2); }
+.saude-item.tom-aviso .saude-estado { color: var(--orange); }
+.saude-item.tom-ok .saude-estado { color: var(--green); }
+.saude-resumo-linha, .saude-detalhe { color: var(--muted); font-size: 13px; }
+.saude-plano { font-size: 13px; }
+.saude-abrir { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.saude-abrir:hover { color: var(--red-2); }
+.saude-pe { margin: 4px 0 0; }
+.topo-marca[data-saude="ruim"]::after, .topo-marca[data-saude="aviso"]::after { content: ''; width: 9px; height: 9px; border-radius: 50%; margin-left: 4px; background: var(--orange); align-self: flex-start; }
+.topo-marca[data-saude="ruim"]::after { background: var(--red-2); }
+
+/* ---------- Ligações entre sistemas (visão do dono) ---------- */
+.ligacoes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ligacoes .a-txt small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+
+/* ---------- Ficha rápida ---------- */
+.ficha-caixa { width: min(680px, 100%); max-height: 88vh; overflow: auto; }
+.ficha-cab { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.ficha-cab h2 { margin: 0; font: 800 28px/1.05 var(--f-num); text-transform: uppercase; color: var(--forte); overflow-wrap: anywhere; }
+.ficha-cab p { margin: 2px 0 0; color: var(--muted); }
+.ficha-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ficha-corpo { display: grid; gap: 12px; }
+.ficha-barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ficha-btn, .ficha-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--borda-2); background: var(--panel-2); font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; color: var(--texto); }
+.ficha-btn:hover, .ficha-link:hover { border-color: var(--red); }
+.ficha-bloco h3 { margin: 0 0 6px; font: 700 12px/1 var(--f); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.ficha-agora { padding: 10px 12px; border-radius: 14px; background: var(--red-soft); border: 1px solid rgba(230,25,46,.35); }
+.ficha-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ficha-lista li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--borda); }
+.ficha-lista li:last-child { border-bottom: 0; }
+.ficha-lista .a-txt { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.ficha-lista small { color: var(--muted); font-size: 12px; }
+.ficha-lista time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.ficha-links { padding: 10px 12px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--borda); }
+.ficha-links h3 { margin: 0 0 6px; font: 700 12px/1 var(--f); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.ficha-url { width: 100%; min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--borda-2); background: var(--bg); color: var(--texto); font-size: 12px; }
+
+/* ---------- Tarefas por origem ---------- */
+.t-ico { display: inline-block; margin-right: 6px; font-size: 15px; vertical-align: -1px; }
+.pil-orc { color: var(--cyan); border-color: rgba(6,182,212,.5); }
+.tarefa.t-orc-reabordar { border-left: 3px solid var(--cyan); }
+.t-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--muted); font-weight: 400; }
+.t-adiar-mais { opacity: .85; }
+.wa-tarefa { min-height: 44px; }
+
+/* ---------- Sino ---------- */
+.sino-busca { display: block; width: calc(100% - 24px); min-height: 44px; margin: 4px 12px 8px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--borda-2); background: var(--bg); color: var(--texto); }
+.notif-adiar-op { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 8px 8px; }
+.notif-adiar-op button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--borda-2); background: var(--panel-2); cursor: pointer; font-size: 13px; }
+.notif-adiar-op button:hover { border-color: var(--red); }
+
+/* ---------- Busca: tipos, pessoas, mini botões ---------- */
+.busca-filtros { display: flex; gap: 6px; padding: 0 4px 6px; overflow-x: auto; scrollbar-width: thin; }
+.busca-filtros button { flex: 0 0 auto; min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--borda); background: var(--panel-2); cursor: pointer; font-size: 13px; white-space: nowrap; }
+.busca-filtros button[aria-pressed="true"] { border-color: var(--red); background: var(--red-soft); font-weight: 700; }
+.busca-filtros b { color: var(--red-2); margin-left: 2px; }
+.busca-mini { min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--borda); background: var(--panel-2); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
+.busca-mini:hover { border-color: var(--red); color: var(--texto); }
+.busca-pessoa { text-align: left; cursor: pointer; border: 0; background: none; width: 100%; font: inherit; color: inherit; }
+.busca-corte { margin: 2px 14px 6px; color: var(--muted); font-size: 12px; }
+
+/* ---------- Recepção e mecânico ---------- */
+.proximo-chegada { padding: 8px 10px; border-radius: 12px; background: var(--red-soft); border: 1px solid rgba(230,25,46,.35); font-weight: 600; }
+.agora-lista .linha-atrasada .tempo { color: var(--red-2); font-weight: 700; }
+
+@media (max-width: 480px) {
+  .saude-item { grid-template-columns: 26px 1fr; }
+  .saude-abrir { grid-column: 2; }
+  .ficha-cab h2 { font-size: 24px; }
+  .saude-hora { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .saude-resumo, .ficha-btn, .busca-mini { transition: none; } }

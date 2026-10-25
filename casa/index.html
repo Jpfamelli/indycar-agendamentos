@@ -14,7 +14,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/casa/casa.css" />
-  <link rel="stylesheet" href="/casa/painel.css?v=7" />
+  <link rel="stylesheet" href="/casa/painel.css?v=8" />
+  <link rel="stylesheet" href="/casa/r7.css?v=1" />
 </head>
 <body>
   <!-- ======================= ENTRADA (login único) ======================= -->
@@ -117,6 +118,7 @@
           <button id="bLerTodas" class="btn-link" type="button">Marcar todas como lidas</button>
         </span>
       </div>
+      <input id="sinoBusca" class="sino-busca" type="search" inputmode="search" autocomplete="off" maxlength="60" placeholder="Buscar nos avisos…" aria-label="Buscar nos avisos" />
       <div id="sinoFiltros" class="sino-filtros" role="group" aria-label="Filtrar por app"></div>
       <div id="sinoAtencao" class="sino-atencao" hidden></div>
       <div id="listaNotif" class="lista-notif"></div>
@@ -133,6 +135,14 @@
 
       <div id="avisoRede" class="aviso-rede" role="status" hidden></div>
       <div id="avisoApps" class="aviso-apps" role="status" hidden></div>
+
+      <section id="saudeSist" class="saude-sist" aria-label="Saúde dos sistemas" hidden>
+        <button id="saudeBotao" class="saude-resumo" type="button" aria-expanded="false" aria-controls="saudePainel"><span id="saudeTxt">Saúde dos sistemas</span><span id="saudeHora" class="saude-hora"></span></button>
+        <div id="saudePainel" class="saude-painel" hidden>
+          <ul id="saudeLista" class="saude-lista"></ul>
+          <p class="saude-pe"><button type="button" class="btn-link" data-saude-atualizar>verificar agora</button></p>
+        </div>
+      </section>
 
       <div class="barra-painel">
         <div id="seletorVisao" class="seletor" role="tablist" aria-label="Visão do painel" hidden>
@@ -224,6 +234,7 @@
           <h3 class="dono-h">Gargalos</h3>
           <ul id="donoGargalos" class="gargalos"></ul>
         </div>
+        <div id="donoLigacoes" class="cartao dono-bloco"><h3 class="dono-h">Ligações entre sistemas</h3><p class="vazio">carregando…</p></div>
       </section>
 
       <section class="bloco" aria-labelledby="tApps">
@@ -265,8 +276,18 @@
         <button id="buscaFechar" class="btn-link" type="button">Esc</button>
       </div>
       <p id="buscaDica" class="busca-dica"></p>
+      <div id="buscaFiltros" class="busca-filtros" role="group" aria-label="Filtrar por tipo de resultado" hidden></div>
       <div id="buscaLista" class="busca-lista" role="listbox" aria-label="Resultados"></div>
       <footer class="busca-pe"><span><kbd>↑</kbd><kbd>↓</kbd> escolher</span><span><kbd>Enter</kbd> abrir em outra aba</span><span><kbd>Esc</kbd> fechar</span></footer>
+    </div>
+  </div>
+
+  <!-- ======================= FICHA RÁPIDA DO CLIENTE ======================= -->
+  <div id="ficha" class="modal-fundo" hidden>
+    <div class="modal ficha-caixa" role="dialog" aria-modal="true" aria-labelledby="fichaTit">
+      <header class="ficha-cab"><div><h2 id="fichaTit">Cliente</h2><p id="fichaSub"></p></div><button id="fichaFechar" class="btn-link" type="button">Fechar</button></header>
+      <div id="fichaChips" class="ficha-chips"></div>
+      <div id="fichaCorpo" class="ficha-corpo" aria-live="polite"></div>
     </div>
   </div>
 
@@ -283,16 +304,20 @@
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
-  <script src="/casa/logica.js?v=3"></script>
-  <script src="/casa/logica2.js?v=5"></script>
-  <script src="/casa/logica3.js?v=2"></script>
-  <script src="/casa/sino.js?v=5"></script>
-  <script src="/casa/painel.js?v=8"></script>
+  <script src="/casa/logica.js?v=4"></script>
+  <script src="/casa/logica2.js?v=6"></script>
+  <script src="/casa/logica3.js?v=3"></script>
+  <script src="/casa/logica4.js?v=1"></script>
+  <script src="/casa/sino.js?v=6"></script>
+  <script src="/casa/painel.js?v=9"></script>
   <script src="/casa/manha.js?v=2"></script>
-  <script src="/casa/tarefas.js?v=5"></script>
-  <script src="/casa/busca.js?v=5"></script>
+  <script src="/casa/tarefas.js?v=6"></script>
+  <script src="/casa/ficha.js?v=1"></script>
+  <script src="/casa/busca.js?v=6"></script>
   <script src="/casa/atalhos.js?v=5"></script>
-  <script src="/casa/comando.js?v=5"></script>
+  <script src="/casa/comando.js?v=6"></script>
+  <script src="/casa/saude.js?v=1"></script>
+  <script src="/casa/parar.js?v=1"></script>
   <script src="/casa/casa.js?v=5"></script>
 </body>
 </html>

@@ -24,6 +24,7 @@
     ultimaSaude = s;
     if (voltou.length) C.toast(voltou.length === 1 ? `${voltou[0]} voltou ao ar.` : `${voltou.join(' e ')} voltaram ao ar.`, 4500);
     pintarSaude(s);
+    try { C.aoSaudeApps && C.aoSaudeApps(s); } catch { /* a faixa de saúde é um extra */ }
     if (forcar && !voltou.length && !M.avisosDeApps(s).length) C.toast('Pátio e Orçador estão respondendo.', 2500);
   }
   function pintarSaude(s) {
@@ -85,6 +86,16 @@
     });
     aplicarRecolhidos();
   }
+  /** Tecla "e": se algum cartão está aberto, recolhe todos; se todos estão recolhidos, abre todos. */
+  function recolherTodos() {
+    const ids = [...document.querySelectorAll('#agora .agora-cartao:not([hidden])')].map((el) => el.id);
+    if (!ids.length) return;
+    const rec = ler(LS_RECOLHIDOS) || {};
+    const todosFechados = ids.every((id) => rec[id]);
+    const novo = {}; if (!todosFechados) ids.forEach((id) => { novo[id] = 1; });
+    gravar(LS_RECOLHIDOS, novo); aplicarRecolhidos();
+    C.toast(todosFechados ? 'Cartões abertos.' : 'Cartões recolhidos.', 1400);
+  }
   function alternarRecolhido(id) {
     const rec = ler(LS_RECOLHIDOS) || {};
     if (rec[id]) delete rec[id]; else rec[id] = 1;
@@ -118,11 +129,14 @@
     contarPre();
     const pre = M.itemPreAgendamento(preN);
     if (pre && C.podeUsar('agenda')) { r.itens.push(pre); r.total += pre.n; }
+    /* rodada 7 🔗: tarefas de reabordar que o Orçador criou para recusados que ainda dá para recuperar */
+    const rea = window.CasaLogica4 && C.tarefas && C.tarefas.ligas ? window.CasaLogica4.contarReabordar((C.tarefas.lista() || []).filter((t) => t.responsavel_id === C.perfil.id || !t.responsavel_id), C.tarefas.ligas()) : 0;
+    if (rea > 0) { r.itens.push({ k: 'reabordar', n: rea, texto: `${rea} ${rea === 1 ? 'orçamento recusado para reabordar' : 'orçamentos recusados para reabordar'}`, extra: 'o Orçador achou que ainda dá para recuperar', app: null, tarefas: 'orcador' }); r.total += rea; }
     el.hidden = false;
     el.querySelector('[data-num]').textContent = String(r.total);
     el.querySelector('[data-det]').textContent = r.itens.length ? 'o que é seu agora' : 'tudo em dia com você. Bom trabalho! 🏁';
     el.querySelector('[data-lista]').innerHTML = r.itens.map((i) => {
-      const alvo = i.app ? `<a class="linha" href="${C.esc(C.bases[i.app])}" target="${C.esc(L.nomeDaAba(i.app))}">` : '<a class="linha" href="#tTarefas" data-ir-tarefas>';
+      const alvo = i.app ? `<a class="linha" href="${C.esc(C.bases[i.app])}" target="${C.esc(L.nomeDaAba(i.app))}">` : `<a class="linha" href="#tTarefas" data-ir-tarefas${i.tarefas ? ' data-filtro-tarefas="' + C.esc(i.tarefas) + '"' : ''}>`;
       return `<li>${alvo}<span class="l-a"><b>${i.n}</b> ${C.esc(i.texto.replace(/^\d+\s/, ''))}</span>${i.extra ? `<span class="l-c">${C.esc(i.extra)}</span>` : ''}</a></li>`;
     }).join('') || `<li class="vazio vazio-ensina">${C.esc('Quando uma conversa, uma tarefa ou um horário for seu, aparece aqui.')}</li>`;
   }
@@ -142,6 +156,11 @@
       case 'sino': return C.alternarSino && C.alternarSino(true);
       case 'marcar-lidas': return $('#bLerTodas').click();
       case 'atalhos': return $('#bAjuda').click();
+      case 'saude': return C.saude && C.saude.abrir(true);
+      case 'tarefas-vencidas': C.tarefas && C.tarefas.filtrar('vencidas'); return document.querySelector('#tTarefas').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      case 'tarefas-orcador': C.tarefas && C.tarefas.filtrar('orcador'); return document.querySelector('#tTarefas').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      case 'recolher': return recolherTodos();
+      case 'ligacoes': C.painel && C.painel.trocarVisao('dono'); return setTimeout(() => { const b = document.querySelector('#donoLigacoes'); if (b) b.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 150);
       case 'visao-dono': return C.painel && C.painel.trocarVisao('dono');
       case 'visao-operacao': return C.painel && C.painel.trocarVisao('operacao');
       case 'sair': return document.querySelector('[data-acao="sair"]').click();
@@ -161,7 +180,7 @@
   MOD.montar = function (casa) {
     C = casa; L = casa.L; M = window.CasaLogica2; ultimaSaude = null; falhasSaude = 0;
     C.comandos = { lista: comandosDaPessoa, executar, filtrar: (t) => M.filtrarComandos(comandosDaPessoa(), t) };
-    C.verificarApps = verificarApps; C.copiarResumo = copiarResumo;
+    C.verificarApps = verificarApps; C.copiarResumo = copiarResumo; C.recolherTodos = recolherTodos;
     C.aoAgora = (d) => { pintarMeuDia(d); ligarRecolher(); };
     aplicarOrdem(); ligarRecolher(); pintarClima();
     descobrirConsultor().then(() => { if (C.painel) C.painel.redesenhar && C.painel.redesenhar(); });
@@ -175,7 +194,8 @@
   function clicarNoMiolo(e) {
     if (e.target.closest('[data-verificar-apps]')) { verificarApps({ forcar: true }); return; }
     const r = e.target.closest('[data-recolher]'); if (r) { alternarRecolhido(r.dataset.recolher); return; }
-    if (e.target.closest('[data-ir-tarefas]')) { e.preventDefault(); C.focarTarefa && C.focarTarefa(); }
+    const ir = e.target.closest('[data-ir-tarefas]');
+    if (ir) { e.preventDefault(); if (ir.dataset.filtroTarefas && C.tarefas && C.tarefas.filtrar) C.tarefas.filtrar(ir.dataset.filtroTarefas); C.focarTarefa && C.focarTarefa(); }
   }
   function aoVisivel() { if (!document.hidden && C && C.perfil) verificarApps(); }
   MOD.desmontar = function () {

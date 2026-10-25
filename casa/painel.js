@@ -117,6 +117,7 @@
   }
 
   function desenharHoje(a) {
+    const rot = $('#cHoje .agora-rotulo'); if (rot) rot.textContent = 'Horários de hoje';
     const hm = new Intl.DateTimeFormat('pt-BR', { timeZone: L.FUSO, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
     const todos = a.lista || [];
     const porVir = todos.filter((x) => L.hora5(x.hora) >= hm && ['aguardando', 'confirmado'].includes(x.status));
@@ -147,6 +148,30 @@
       linhas: '',
     });
     rodapeLinks('#cLeads', { '[data-abrir]': [links.crmLead(), 'crm'] });
+  }
+
+  /* rodada 7: a recepção (papel "agenda") não lê a tabela de horários do banco, mas a Agenda entrega o dia de hoje (sem telefone) pelo servidor */
+  async function carregarChegadas() {
+    const { data: { session } } = await C.sb.auth.getSession();
+    const r = await fetch('/agenda/api/agendamentos', { headers: { Authorization: 'Bearer ' + (session ? session.access_token : '') }, cache: 'no-store' });
+    if (!r.ok) throw new Error('agenda ' + r.status);
+    const lista = await r.json();
+    const hoje = L.hojeSP();
+    return (Array.isArray(lista) ? lista : []).filter((x) => x && x.data === hoje && x.status !== 'cancelado').map((x) => ({ id: x.id, hora: x.hora, nome: x.cliente_nome, veiculo: x.veiculo, servico: x.servico, status: x.status, compareceu: x.compareceu }));
+  }
+  function desenharChegadas(lista) {
+    const hm = new Intl.DateTimeFormat('pt-BR', { timeZone: L.FUSO, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+    const c = window.CasaLogica4.chegadasDaRecepcao(lista, hm, L.hojeSP());
+    const rot = $('#cHoje .agora-rotulo'); if (rot) rot.textContent = 'Chegadas de hoje';
+    const el = $('#cHoje'); el.querySelector('[data-nova]').hidden = true;
+    const linha = (x, atrasado) => `<li>${linkA(links.agenda(x.id), 'agenda', 'linha linha-2' + (atrasado ? ' linha-atrasada' : ''), `<span class="l-a"><b>${C.esc(L.hora5(x.hora))}</b> ${C.esc(x.nome || 'Cliente')}</span><span class="l-b">${pilula(atrasado ? 'atrasado' : L.rotuloAg(x.status), atrasado ? 'ruim' : x.status === 'confirmado' ? 'bom' : '')}</span><span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`)}</li>`;
+    const faltam = lista.filter((x) => ['aguardando', 'confirmado'].includes(x.status)).sort((a, b) => L.hora5(a.hora).localeCompare(L.hora5(b.hora)));
+    cartao('#cHoje', {
+      num: String(c.falta),
+      det: c.total ? `${c.falta} por chegar · ${c.chegaram} já chegaram${c.atrasados.length ? ' · ' + c.atrasados.length + ' atrasado' + (c.atrasados.length > 1 ? 's' : '') : ''}` : 'nenhum horário marcado hoje',
+      linhas: (c.proximo ? `<li class="proximo-chegada">Próximo: <b>${C.esc(L.hora5(c.proximo.hora))}</b> — ${C.esc(c.proximo.nome || 'Cliente')}</li>` : '') + faltam.slice(0, 10).map((x) => linha(x, L.hora5(x.hora) < hm)).join(''),
+    });
+    rodapeLinks('#cHoje', { '[data-abrir]': [links.agenda(), 'agenda'] });
   }
 
   function placarRecepcao() {
@@ -192,7 +217,7 @@
     if (V.patio && d.patio) desenharPatio(d.patio, false); else if (!V.patio) $('#cPatio').hidden = true;
     if (V.orcamentos && d.orcamentos) desenharOrc(d.orcamentos); else $('#cOrc').hidden = true;
     if (V.conversas && d.conversas) desenharConversas(d.conversas); else $('#cConversas').hidden = true;
-    if (V.agenda && d.agenda) desenharHoje(d.agenda); else if (V.recepcao) placarRecepcao(); else $('#cHoje').hidden = true;
+    if (V.agenda && d.agenda) desenharHoje(d.agenda); else if (V.recepcao) { if (d.chegadas) desenharChegadas(d.chegadas); else placarRecepcao(); } else $('#cHoje').hidden = true;
     if (V.leads && d.leads) desenharLeads(d.leads); else $('#cLeads').hidden = true;
     desenharAtencao(d);
   }
@@ -208,13 +233,21 @@
         if (r.error) throw r.error;
         const lista = (r.data || []).map((o) => ({ ...o, nome: o.cliente_nome, extras_pendentes: 0 }));
         const por = {}; lista.forEach((o) => { por[o.etapa] = (por[o.etapa] || 0) + 1; });
-        d = { patio: { total: lista.length, prontos: lista.filter((o) => o.etapa === 'pronto').length, atrasados: lista.filter((o) => o.previsao_entrega && Date.parse(o.previsao_entrega) < Date.now() && o.etapa !== 'pronto').length, extras_pendentes: 0, por_etapa: por, lista } };
+        // rodada 7: extras esperando o cliente em cada carro do mecânico (a OS que tem extra pendente precisa dele)
+        try {
+          const ex = lista.length ? await C.sb.from('patio_extras').select('os_id').eq('status', 'pendente').in('os_id', lista.map((o) => o.id)) : { data: [] };
+          const por = {}; (ex.data || []).forEach((x) => { por[x.os_id] = (por[x.os_id] || 0) + 1; });
+          lista.forEach((o) => { o.extras_pendentes = por[o.id] || 0; });
+        } catch { /* sem a contagem de extras o cartão continua igual */ }
+        lista.splice(0, lista.length, ...window.CasaLogica4.ordemDoMecanico(lista));
+        d = { patio: { total: lista.length, prontos: lista.filter((o) => o.etapa === 'pronto').length, atrasados: lista.filter((o) => o.previsao_entrega && Date.parse(o.previsao_entrega) < Date.now() && o.etapa !== 'pronto').length, extras_pendentes: lista.reduce((n, o) => n + (o.extras_pendentes || 0), 0), por_etapa: por, lista } };
       } else {
         // fonte única: r6_agora (X3); o que ele não traz vem de r6_c1_agora_extras
         const [a, x] = await Promise.all([C.sb.rpc('r6_agora', { p_limite: 40 }), C.sb.rpc('r6_c1_agora_extras')]);
         if (a.error) throw a.error;
         d = L.adaptarAgora(a.data, x.error ? {} : x.data);
       }
+      if (V.recepcao) { try { d.chegadas = await carregarChegadas(); } catch { d.chegadas = null; } }
       dados = d; ultima = Date.now(); emFalha = false;
       desenharTudo(d);
       try { C.aoAgora && C.aoAgora(d); } catch { /* extras nunca derrubam o painel */ }
@@ -333,6 +366,7 @@
       desenharDono(data);
       carregarConsultores();
       carregarMeta();
+      try { C.aoDono && C.aoDono(); } catch { /* as ligações são um extra */ }
     } catch (e) {
       if (!dono) $('#donoTiles').innerHTML = '<p class="vazio vazio-erro">Não deu para ler a visão do dono agora. <button type="button" class="btn-link" data-recarregar>tentar de novo</button></p>';
     }
