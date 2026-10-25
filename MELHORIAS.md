@@ -1016,3 +1016,163 @@ Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador cont
 - C2-53. 12 testes novos (`tests/c2-lote3.test.mjs`): motivos, hostis/SQL, rota por HTTP (papéis, 409, 404), navegador e servidor calculando igual
 - C2-54. Roteiro de navegador do lote (`scripts/qa-r7c2-lote3.mjs`, 30 conferências em 1440 e 375 px)
 <!-- C2-R7-FIM -->
+
+## Rodada 7 (25/10/2026) — C1 (Casa: painel de comando por papel)
+
+Numeração própria `C1-N` (a C2 usa `C2-N` neste arquivo; as séries não se atropelam). 🔗 = conexão entre sistemas.
+Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `casa-r7-estatico`) ou por roteiro de navegador de verdade (`scripts/qa-r7-casa.mjs`, 107 conferências, porta 3171, usuário de teste criado e apagado). Total: **120 itens, 36 com 🔗**.
+
+### PARAR do Comunicar nos botões de WhatsApp (pendência da rodada 6)
+- C1-1. 🔗 Função do banco `r7_c1_parar(p_telefones)`: diz, por telefone, quem pediu para não receber mensagens (`optout`) ou respondeu PARAR sem ter cadastro (`parar`)
+- C1-2. Só equipe ativa chama (anon bloqueado, `search_path` fixo, no máximo 80 telefones por pergunta, recepção também consegue); testada com bloco revertido no banco real
+- C1-3. 🔗 `parar.js` troca todo botão de WhatsApp da Casa (Agora, Bom dia, tarefas, busca, ficha) por "🚫 Pediu para parar" quando o cliente está bloqueado
+- C1-4. 🔗 O aviso não é link (nada abre por engano) e o leitor de tela recebe o motivo
+- C1-5. 🔗 "Comunicar ↗" ao lado do aviso abre a aba nomeada `indycar-comunicar` para quem pode religar
+- C1-6. Os telefones vão ao banco em lote, só DDD+número e sem repetir (uma chamada por tela, não uma por botão)
+- C1-7. Resposta guardada por 5 minutos: redesenhar o painel não pergunta de novo e o aviso volta na hora, sem piscar o botão
+- C1-8. 🔗 Clicar em botão bloqueado não abre aba e explica por toast que só o gestor religa no Comunicar
+- C1-9. 🔗 Clique antes da resposta do banco espera a resposta; se pediu para parar, não abre
+- C1-10. 🔗 Banco fora do ar: o clique pergunta "Não consegui conferir" antes de abrir; recusando, não abre; aceitando, abre em `indycar-whatsapp`
+- C1-11. Clique do meio (`auxclick`) passa pela mesma guarda
+- C1-12. Evento `casa-wa-aberto` avisa as tarefas que o WhatsApp foi aberto
+- C1-13. O módulo se desmonta ao sair (observador e ouvinte de clique removidos) e é conferido por teste
+
+### Saúde dos sistemas na Casa
+- C1-14. 🔗 Faixa "Saúde dos sistemas" no topo (admin, gestor e atendente): "WhatsApp com problema" / "Todos os sistemas em ordem", com tom e ponto de alerta no logo
+- C1-15. 🔗 Função `r7_c1_saude_sistemas`: WhatsApp (estado do Comunicar), Comunicar (pausa, fila, falhas e envios em 24 h, última rodada), Movere (última carga), vigia (códigos) e falhas do Pátio
+- C1-16. 🔗 Detalhe com os 5 sistemas: WhatsApp, Pátio, Orçador, Comunicar e Movere, cada um com status, desde quando e "enquanto isso"
+- C1-17. 🔗 Pátio e Orçador vêm da sonda do servidor (`/api/central/saude-apps`); a Central, Agenda, CRM, Comunicar e Atendimento vêm no campo `internos`
+- C1-18. 🔗 Movere sem acesso real aparece como "Ainda sem acesso real ao Movere" em tom neutro, nunca como erro
+- C1-19. WhatsApp com chave recusada, sem chave, sem aparelho, desconectado, instabilidade e limite têm texto próprio e plano ("use o seu WhatsApp")
+- C1-20. Códigos reais do vigia (tarefas acumuladas, chave do CodeWords recusada, notificações acumuladas, e2e falhou) viram frase em português, com o que fazer
+- C1-21. 🔗 Cada sistema tem "Abrir …" em aba nomeada (`indycar-comunicar` etc.)
+- C1-22. 🔗 O gestor também lê as rotinas do banco (`r7_x3_saude`: cron, gatilhos, funções e tabelas faltando)
+- C1-23. Tecla `h` abre e fecha o detalhe
+- C1-24. Atualiza a cada 2 minutos; avisa por toast quando um sistema piora e quando volta ao normal
+- C1-25. Recepção e mecânico não veem a faixa nem disparam as chamadas de saúde
+- C1-26. Servidor: `saude-apps` com freio de 40 pedidos por minuto por endereço (429)
+- C1-27. Servidor: o app fora do ar responde 503 com `Retry-After: 60`
+- C1-28. Versão da Central `2026-10-25-central-r7`
+
+### Tarefas: o que veio do Orçador e de cada sistema
+- C1-29. 🔗 Ícone da origem em cada tarefa (manual, atendimento, CRM, agenda, comunicar, Orçador, IA, automação, ads, pátio, site, área do cliente)
+- C1-30. 🔗 Tarefas do Orçador ganham selo pelo tipo (`orc_tarefas`): Reabordar 🔁, Acompanhar 📞, Agendar, Sem resposta, Manual
+- C1-31. 🔗 "abrir orçamento ↗" leva ao orçamento certo na aba `indycar-orcador`
+- C1-32. 🔗 Botão "Reabordar" abre o WhatsApp do cliente com o recado pronto e o número do orçamento (telefone vem de `clientes`)
+- C1-33. 🔗 "Acompanhar" oferece "Cobrar" com o recado de cobrança
+- C1-34. Recado de reabordar sem as palavras que a oficina não usa ("veículo", "prezado")
+- C1-35. Tarefa de outra origem não oferece WhatsApp nem "abrir" que não existe
+- C1-36. A descrição aparece sem o endereço solto (o link vira o botão)
+- C1-37. Filtro "🧾 Do Orçador" com contagem
+- C1-38. Cada filtro vazio explica o que significa (estado vazio por filtro)
+- C1-39. "+3 dias" adia a tarefa por três dias úteis e diz para quando
+- C1-40. Depois de abrir o WhatsApp, toast "Concluir a tarefa" fecha o ciclo em um toque
+- C1-41. 🔗 Lê `orc_tarefas` só quando há tarefa do Orçador (nada de consulta à toa)
+- C1-42. 🔗 "Meu dia" ganha "N orçamentos recusados para reabordar" que leva ao filtro do Orçador
+- C1-43. Botão de WhatsApp das tarefas também passa pela guarda do PARAR
+
+### Sino
+- C1-44. Campo de busca nos avisos
+- C1-45. Adiar com escolha: 1 hora, 3 horas ou amanhã 8h (menu de três opções, 44 px)
+- C1-46. Rodapé mostra "volta em …" para os avisos escondidos e "Trazer de volta"
+- C1-47. "Carregar mais avisos" até 300
+- C1-48. Corrigido erro real: aviso de tarefas vencidas (28 no banco, sem app e sem link) dava "Esse endereço não é de um app da IndyCar"; agora leva à lista de tarefas vencidas da Casa
+- C1-49. Ícone e rótulo para os tipos que existem no banco (aguardando, espera, ia, resumo, resumo semanal, tarefas vencidas)
+- C1-50. Aviso com app `tarefas` é normalizado e abre as tarefas na própria Casa
+- C1-51. Aviso adiado some da lista e a contagem acompanha
+
+### Busca global
+- C1-52. 🔗 Filtros por tipo (Tudo, Pessoas, Clientes, Pátio, Orçamentos…) com a contagem real do banco
+- C1-53. 🔗 Bloco "Pessoas": quem aparece em vários sistemas vira uma pessoa só, pelo telefone
+- C1-54. 🔗 Botão "Ficha" em cada linha com telefone
+- C1-55. "Mostrando N de M" quando o banco achou mais do que cabe
+- C1-56. "Limpar" nas buscas recentes
+- C1-57. Shift+Enter abre a ficha da primeira pessoa
+- C1-58. "Copiar telefone" nas pessoas e para telefone digitado que ainda não é cliente
+- C1-59. Nome com HTML aparece como texto (conferido com `<img onerror>` vindo do banco)
+- C1-60. A ficha e a busca não deixam as teclas de atalho dispararem por baixo (`modal-aberto`)
+
+### Ficha rápida do cliente
+- C1-61. 🔗 Ficha em janela (`r6_cliente_360`): quem é, o que pede ação, pátio, orçamentos, horários e linha do tempo num lugar só
+- C1-62. 🔗 "Fazer agora": ações sugeridas (cobrar orçamento, avisar pronto…) com link na aba certa
+- C1-63. 🔗 Todo link de app da ficha abre em aba nomeada `indycar-*`
+- C1-64. 🔗 WhatsApp da ficha na aba `indycar-whatsapp`, com a guarda do PARAR
+- C1-65. Copiar telefone formatado
+- C1-66. Cliente que pediu para parar aparece com o selo "pediu para parar"
+- C1-67. 🔗 "Links do cliente": Minha IndyCar, Acompanhar o carro e Indique um amigo, cada um com Copiar e Mandar
+- C1-68. 🔗 Servidor novo `casa-servidor.js` (`/api/central/links-cliente`): confere o login do Supabase, perfil ativo e papel admin/gestor/atendente
+- C1-69. Pede verificação em duas etapas (aal2) quando a pessoa tem fator cadastrado
+- C1-70. Limite de 20 pedidos por minuto por pessoa (429) e corpo de até 2 KB (413); JSON quebrado dá 400
+- C1-71. Só devolve links https, sem senha embutida; nada de chave na resposta
+- C1-72. Login lembrado por 60 s (um só pedido ao Supabase por vários cliques)
+- C1-73. Cliente que pediu para não receber mensagens: copia o link, mas o aviso proíbe mandar pelo WhatsApp
+- C1-74. Esc fecha a ficha mesmo se o foco saiu dela (depois de abrir uma aba); foco preso dentro da janela e devolvido ao fechar
+- C1-75. Cliente não encontrado e falha do banco viram mensagem clara (422/502), sem quebrar a ficha
+
+### Dono e atalhos
+- C1-76. 🔗 Cartão "Ligações entre sistemas" no painel do dono (`r7_x3_ligacoes_quebradas`): o que ficou solto entre Agenda, Pátio, Orçador e CRM, com gravidade e como resolver
+- C1-77. 🔗 Os links do cartão abrem em abas nomeadas
+- C1-78. O cartão só lista ligações que têm caso, as graves primeiro, e descarta link que não seja de app da casa
+- C1-79. Tecla `t` leva às tarefas
+- C1-80. Tecla `e` recolhe todos os cartões
+- C1-81. A ajuda de atalhos (`?`) ganhou h, e, t e Shift+Enter; teste garante que toda tecla do código está na ajuda e vice-versa
+- C1-82. Paleta de comandos ganhou: saúde dos sistemas, tarefas vencidas, tarefas do Orçador, recolher cartões e ligações entre sistemas
+- C1-83. Atalhos não disparam com a ficha, a busca ou a ajuda abertas
+
+### Recepção
+- C1-84. 🔗 Cartão "Chegadas de hoje" para a recepção, lido da Agenda pelo servidor (a recepção não lê a tabela de horários)
+- C1-85. Conta "N por chegar · N já chegaram" e destaca os atrasados
+- C1-86. Mostra o próximo a chegar em destaque e a lista por horário
+- C1-87. Cancelados e horários de outro dia ficam de fora
+- C1-88. Nenhum telefone na tela da recepção
+- C1-89. 🔗 Os links levam à Agenda na aba `indycar-agenda`
+- C1-90. Sem botão de novo horário, sem orçamentos, leads nem saúde para a recepção
+
+### Mecânico
+- C1-91. Cartão de carros do mecânico conta quantos extras estão esperando o cliente
+- C1-92. 🔗 Carro com extra pendente mostra "1 extra" (lê `patio_extras`)
+- C1-93. Ordem do mecânico: pronto primeiro (precisa de retirada), depois o mais antigo na etapa
+- C1-94. Sem orçamentos nem faixa de saúde para o mecânico
+- C1-95. Se a contagem de extras falhar, o cartão segue igual
+
+### Abas e regra de ouro
+- C1-96. 🔗 Auditoria no navegador: todo link externo da Casa tem `target="indycar-*"` e a Casa nunca muda de página
+- C1-97. Teste estático: nenhum `location.href/assign/replace`; todo `window.open` tem nome de aba
+- C1-98. Teste estático: todo `<a href="${…}">` de app gerado em modelo tem `target`
+- C1-99. Teste estático: sem `style=`, `onclick=` nem script inline no HTML (CSP da Casa)
+- C1-100. Teste estático: todo CSS novo tem `[hidden]{display:none!important}`
+- C1-101. Teste estático: palavras que a oficina não usa (prezado, efetuar, comparecer) fora dos textos novos
+- C1-102. Teste estático: módulos novos se registram e se desmontam (nada de ouvinte vazando)
+
+### 375 px, cache e tratamento
+- C1-103. Casa em 375 px (gestor, atendente e recepção): sem rolagem lateral e nada passa da borda
+- C1-104. Alvos de toque de 44 px em tudo que a rodada incluiu
+- C1-105. Painel de saúde aberto cabe em 375 px
+- C1-106. Sino aberto cabe em 375 px
+- C1-107. Ficha cabe em 375 px com alvos de 44 px
+- C1-108. `r7.css`: só variáveis de tema (claro e escuro), ponto de quebra em 480 px, `[hidden]` com `!important`
+- C1-109. Service worker `indycar-casa-v10` com todos os arquivos novos no cache offline
+- C1-110. Versões dos scripts subiram (nada de arquivo velho em cache)
+
+### Testes e verificação
+- C1-111. 36 testes de regra (`tests/casa-r7.test.mjs`): PARAR, tarefas, saúde, ligações, ficha, sino, busca, recepção, mecânico e comandos
+- C1-112. 10 testes de servidor (`tests/casa-r7-servidor.test.mjs`): login, papel, MFA, limite, https, tamanho, freio da saúde e apps internos
+- C1-113. 10 testes estáticos (`tests/casa-r7-estatico.test.mjs`)
+- C1-114. `scripts/qa-r7-lib.mjs`: simulação de qualquer RPC e tabela, do wa.me e do servidor de links, com abertura de aba medida
+- C1-115. `scripts/qa-r7-casa.mjs`: 107 conferências em navegador de verdade (saúde, PARAR, tarefas, sino, busca, ficha, dono, abas, recepção, mecânico, 375 px)
+- C1-116. Usuário de teste criado e apagado a cada cenário, em porta própria (3171); nenhuma escrita no banco real
+- C1-117. Migração `r7_c1_painel_comando` e `r7_c1_saude_movere_conta`, com cópia em `indycar-ferramentas/sql/2026-10-25_r7_c1_painel_comando.sql` e teste revertido em `teste_r7_c1_parar.sql`
+- C1-118. Conferido o ponto de bloqueio real: `clientes.aceita_mensagens`, telefone nacional de 10 ou 11 dígitos e `posvenda_envios.resposta_tipo='parar'`
+- C1-119. Sobras de usuários de teste de execuções interrompidas apagadas do Auth (3), conferido que nada ficou
+- C1-120. `npm run check` e `npm test` (371 testes) verdes antes de cada lote
+
+<!-- C1-R7-FIM -->
+
+### Como verifiquei (C1)
+`npm run check` e `npm test` (371 testes, 0 falhas); `node scripts/qa-r7-casa.mjs` (107 conferências em Chrome real, 1440 e 375 px, 0 falhas); migrações testadas com bloco revertido no banco real; `get_advisors` de segurança: as duas funções novas aparecem no mesmo aviso padrão de todas as `r6_*` e `r7_*` (executáveis por `authenticated`), com anon e public sem acesso, `search_path` fixo e checagem de papel por dentro.
+
+### Pendências (C1)
+- A guarda do PARAR cobre a Casa; os recados de WhatsApp da Agenda (C2) e das telas dos outros apps não passam por ela (não é arquivo da C1).
+- Movere continua sem acesso real (`orc_carga_movere` vazia): a Casa mostra como neutro.
+- Pátio e Orçador ainda sem o cabeçalho COOP pedido (a janela aberta por `window.open` não perde o vínculo hoje; o pedido continua aberto).
+- Nada foi publicado (sem Netlify, Render ou Edge Function), conforme a regra da rodada.
