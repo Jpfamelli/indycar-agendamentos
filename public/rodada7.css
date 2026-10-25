@@ -60,3 +60,19 @@
   .r7c-acoes { margin-left: 0; width: 100%; }
   .r7c-acoes .btn, .r7c-cab, .r7-falta .btn, .r7m-topo .btn { min-height: 44px; }
 }
+
+/* ---- Lote 4: pré-agendamentos do Orçador e PARAR ---- */
+.r7-pre { margin: 8px 0; border: 1px solid var(--border, #d8dbe0); border-radius: 12px; background: var(--card, #fff); }
+.r7p-cab { width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; text-align: left; background: transparent; border: 0; border-left: 4px solid #8a63d2; border-radius: 12px; padding: 10px 14px; color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
+.r7p-cab.urg { border-left-color: #d64545; }
+.r7p-urg { color: #d64545; font-weight: 600; }
+.r7p-lista { list-style: none; margin: 0; padding: 4px 10px 10px; display: grid; gap: 6px; }
+.r7p-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 4px; border-top: 1px solid var(--border, #e6e8ec); }
+.r7p-lista li.urg { background: rgba(214, 69, 69, .06); }
+.r7p-mais { margin: 0; padding: 0 14px 10px; }
+.wa-parar { display: inline-flex; align-items: center; gap: 4px; color: #b3261e; background: rgba(179, 38, 30, .08); border: 1px solid rgba(179, 38, 30, .35); border-radius: 8px; padding: 4px 10px; font-size: .85em; cursor: not-allowed; }
+.r7-pre[hidden] { display: none !important; }
+@media (max-width: 720px) {
+  .r7p-lista li .btn, .wa-parar { min-height: 44px; }
+  .r7p-lista .r7c-acoes { margin-left: 0; width: 100%; }
+}

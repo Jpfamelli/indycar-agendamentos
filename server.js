@@ -18,6 +18,7 @@ import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento, entradaDoChegou } from './patio.js';
 import { resumoDosLembretes } from './lembretes.js';
 import { motivoDeFaltaValido, aceitaMotivo, rotuloDoMotivo } from './faltas.js';
+import { descreverPre, ordenarPre } from './preagenda.js';
 import { lerParametros as lerParametrosDeHorario, resumoDoDia } from './horarios.js';
 
 /* A camada de dados é trocável SÓ nos testes (tests/servidor.test.mjs injeta
@@ -1418,6 +1419,20 @@ async function api(req, res, url) {
   // Pendências antigas: passou há mais de 7 dias sem desfecho (só lista; resolve pelos botões)
   if (pathname === '/api/pendencias-antigas' && m === 'GET') {
     return send(res, 200, await dados.pendenciasAntigas(), { 'Cache-Control': 'no-store' });
+  }
+
+  /* rodada 7 (C2): o PARAR do Comunicar vale para os botões de WhatsApp da Agenda. Recebe telefones, devolve só os bloqueados. */
+  if (pathname === '/api/parar' && m === 'POST') {
+    if (!dentroDoLimite(`parar:${usuario.id}`, 120, 60_000)) return send(res, 429, { erro: 'Muitas consultas seguidas.' });
+    const tels = Array.isArray(body.telefones) ? body.telefones.slice(0, 80).map((t) => String(t ?? '').slice(0, 24)) : [];
+    return send(res, 200, { bloqueados: await dados.pararDe(tels) }, { 'Cache-Control': 'no-store' });
+  }
+
+  /* rodada 7 (C2): pré-agendamentos do Orçador que esperam a hora de verdade (todos os dias à frente, não só o da tela). */
+  if (pathname === '/api/pre-agendamentos' && m === 'GET') {
+    const lista = await dados.preAgendamentos({ de: hoje(), limite: 80 });
+    const itens = ordenarPre(lista.map((a) => descreverPre(a, hoje())));
+    return send(res, 200, { itens, total: itens.length, hoje: hoje() }, { 'Cache-Control': 'no-store' });
   }
 
   /* rodada 7 (C2): o MOTIVO da falta (depois do "Não veio"): lista fechada, só em quem faltou/cancelou, auditado. Vazio limpa. */

@@ -2039,6 +2039,36 @@ export async function agendamentosParaAutomacao(de, ate) {
   return (await selecionar(T.agendamentos, p)).map((r) => ({ ...r, hora: horaCurta(r.hora) }));
 }
 
+/** Rodada 7 (C2): quem pediu para NÃO receber WhatsApp (mesma regra do r7_c1_parar da Casa).
+ *  { telefone_nacional: 'optout' | 'parar' } — só entra quem está bloqueado. Cliente com aceita_mensagens=false = optout;
+ *  telefone sem cadastro que respondeu PARAR numa mensagem do Comunicar = parar. */
+export async function pararDe(telefones) {
+  const tels = [...new Set((telefones || []).map(telefoneNacional).filter((t) => t && t.length >= 10 && t.length <= 11))].slice(0, 80);
+  if (!tels.length) return {};
+  const lista = tels.join(',');
+  const [cadastrados, recusaram, pararam] = await Promise.all([
+    selecionar(T.clientes, new URLSearchParams(`select=telefone_e164&telefone_e164=in.(${lista})`)),
+    selecionar(T.clientes, new URLSearchParams(`select=telefone_e164&aceita_mensagens=eq.false&telefone_e164=in.(${lista})`)),
+    selecionar(T.envios, new URLSearchParams(`select=telefone_e164&resposta_tipo=eq.parar&telefone_e164=in.(${lista})`)),
+  ]);
+  const saida = {};
+  const tem = new Set(cadastrados.map((r) => r.telefone_e164));
+  for (const r of pararam) if (!tem.has(r.telefone_e164)) saida[r.telefone_e164] = 'parar';
+  for (const r of recusaram) saida[r.telefone_e164] = 'optout';
+  return saida;
+}
+
+/** Rodada 7 (C2): pré-agendamentos do Orçador que ainda esperam a confirmação da recepção (de hoje em diante, os mais próximos primeiro). */
+export async function preAgendamentos({ de, limite = 60 } = {}) {
+  const p = new URLSearchParams(SEL_AGENDAMENTO);
+  p.set('status', 'eq.aguardando');
+  p.set('data', `gte.${de || hoje()}`);
+  p.set('or', '(observacoes.like.PRÉ-AGENDAMENTO*,observacoes.like.PRE-AGENDAMENTO*)');
+  p.set('order', 'data.asc,hora.asc');
+  p.set('limit', String(Math.min(200, Math.max(1, Number(limite) || 60))));
+  return (await selecionar(T.agendamentos, p)).map(lerAgendamento);
+}
+
 /** Tarefas da automação já criadas para estes agendamentos (para não repetir). */
 export async function tarefasDosAgendamentos(ids) {
   const validos = (ids || []).filter(ehUuid);

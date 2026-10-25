@@ -20,6 +20,8 @@ import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional, casaB
 import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../regras.js';
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
 import { motivoDeFaltaValido, aceitaMotivo, rotuloDoMotivo } from '../faltas.js';
+import { descreverPre, ordenarPre, ehPreAgendamento } from '../preagenda.js';
+const PARAROS = new Map();   // telefone nacional -> 'parar' | 'optout' (QA do PARAR)
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento, entradaDoChegou } from '../patio.js';
 import { orcamentoPorAgendamento } from '../orcador.js';
 import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia, candidatosDaEspera, esperaQueServePara } from '../horarios.js';
@@ -435,6 +437,16 @@ http.createServer(async (req, res) => {
     const itens = PATIO.filter(o => !['entregue', 'cancelado'].includes(o.etapa)).map(o => { const a = AGENDA.find(x => x.id === o.agendamento_id) || {};
       return { ...resumoDaOs(o, EXTRAS, 'https://indycar-patio.netlify.app'), cliente_nome: a.cliente_nome || '', veiculo: a.veiculo || '', placa: a.placa || '', telefone: a.telefone || '' }; });
     return json(res, 200, { itens });
+  }
+  if (p === '/api/__parar' && m === 'POST') { PARAROS.clear(); for (const t of body.telefones || []) PARAROS.set(String(t).replace(/\D/g, ''), body.motivo || 'parar'); return json(res, 200, { ok: true }); }
+  if (p === '/api/parar' && m === 'POST') {
+    const out = {};
+    for (const t of body.telefones || []) { const d = String(t).replace(/\D/g, '').replace(/^55(\d{10,11})$/, '$1'); if (PARAROS.has(d)) out[d] = PARAROS.get(d); }
+    return json(res, 200, { bloqueados: out });
+  }
+  if (p === '/api/pre-agendamentos' && m === 'GET') {
+    const itens = ordenarPre(AGENDA.filter(a => a.status === 'aguardando' && a.data >= hoje() && ehPreAgendamento(a)).map(a => descreverPre(a, hoje())));
+    return json(res, 200, { itens, total: itens.length, hoje: hoje() });
   }
   if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/motivo-falta$/)) && m === 'PATCH') {
     const motivo = body.motivo === null || body.motivo === undefined ? '' : String(body.motivo).trim();

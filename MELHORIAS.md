@@ -1015,6 +1015,20 @@ Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador cont
 - C2-52. Celular 375 px: placar, lista, folha do motivo e botões com 44 px, sem rolagem lateral
 - C2-53. 12 testes novos (`tests/c2-lote3.test.mjs`): motivos, hostis/SQL, rota por HTTP (papéis, 409, 404), navegador e servidor calculando igual
 - C2-54. Roteiro de navegador do lote (`scripts/qa-r7c2-lote3.mjs`, 30 conferências em 1440 e 375 px)
+- C2-55. 🔗 Orçador: nova rota `GET /api/pre-agendamentos` junta os pré-agendamentos que o banco cria quando o cliente aprova pela página (todos os dias à frente), com número do orçamento, valor, idade e urgência; liberada também à recepção
+- C2-56. 🔗 Quadro: painel "N pré-agendamentos do Orçador para confirmar" (destaca quantos são para hoje ou amanhã e quantos estão sem telefone)
+- C2-57. Pré: cada linha diz se a hora é só a padrão do banco ("pediu de manhã, 08:00 provisória") em vez de fingir que é hora combinada
+- C2-58. 🔗 Pré: sugere o primeiro horário livre do período pedido, com o mesmo consultor do pré quando possível, e "Marcar 09:00" move e confirma de uma vez (o servidor ainda confere a vaga)
+- C2-59. 🔗 Pré: "💬 Propor" abre o WhatsApp com a hora sugerida ("Recebemos sua aprovação de... Posso deixar marcado às 09:00?")
+- C2-60. 🔗 Pré: "🧾 Orçamento" abre o orçamento no Orçador (aba própria); "Ver dia" leva o Quadro ao dia do pedido; "Confirmar" mantém a hora provisória só quando a recepção decide
+- C2-61. Módulo `preagenda.js` (regras puras do pré-agendamento) lido igual pelo servidor, pelo servidor de mentira, pelo navegador e pelos testes
+- C2-62. 🔗 PARAR do Comunicar: todo botão de WhatsApp da Agenda (Início, prontos, confirmação, reagendar, propor, avisos) vira "🚫 Pediu para parar" para quem fez opt-out ou respondeu PARAR (mesma regra do r7_c1_parar da Casa)
+- C2-63. 🔗 PARAR: nova rota `POST /api/parar` (telefones → só os bloqueados; cliente cadastrado que aceita não entra; sem cadastro vale a resposta PARAR do Comunicar), limite de 120 consultas/min e 80 telefones por vez
+- C2-64. PARAR: a resposta fica 5 minutos na memória; clique em botão ainda não consultado espera a resposta do banco antes de abrir o WhatsApp, e sem resposta pergunta antes de abrir
+- C2-65. PARAR: janelas que abrem o WhatsApp por código (aviso de remarcação, entrada de OS) também são barradas com o motivo no recado
+- C2-66. Celular 375 px: painel de pré-agendamentos e aviso de PARAR com 44 px, sem rolagem lateral
+- C2-67. 11 testes novos (`tests/c2-lote4.test.mjs`): pré-agendamento, período, sugestão, recado igual no navegador, PARAR com banco de mentira, rotas por HTTP
+- C2-68. Roteiro de navegador do lote (`scripts/qa-r7c2-lote4.mjs`, 27 conferências em 1440 e 375 px)
 <!-- C2-R7-FIM -->
 
 ## Rodada 7 (25/10/2026) — C1 (Casa: painel de comando por papel)

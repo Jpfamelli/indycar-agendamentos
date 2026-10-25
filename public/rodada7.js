@@ -183,10 +183,49 @@
     return `${p ? 'Oi ' + p + '!' : 'Olá!'} Aqui é da IndyCar 🏁 Seu horário${servico ? ' de ' + String(servico).slice(0, 60) : ''} está marcado para ${quando}. Confirma pra gente? Responda SIM, ou me diga se precisar remarcar.`;
   }
 
+  /* ------------------------------ Lote 4: pré-agendamentos do Orçador ------------------------------ */
+  const periodoDaHora = (h) => (emMin(h) < 12 * 60 ? 'manha' : emMin(h) >= 13 * 60 ? 'tarde' : 'meio');
+  const rotuloDoDiaFalado = (iso, hoje) => (hoje && iso === hoje ? 'hoje' : hoje && iso === maisDias(hoje, 1) ? 'amanhã' : rotuloDia(iso));
+  /** Primeiro horário livre do período pedido; o consultor do pré tem prioridade. */
+  function sugerirHorarioParaPre(pre, livres) {
+    const per = pre && (pre.periodo || periodoDaHora(pre.hora));
+    const todos = [];
+    for (const h of livres || []) {
+      if (!h || !Number.isFinite(emMin(h.hora)) || periodoDaHora(h.hora) !== per) continue;
+      const ids = (h.consultores_livres || []).length ? h.consultores_livres : [null];
+      for (const id of ids) todos.push({ hora: String(h.hora).slice(0, 5), consultor_id: id });
+    }
+    if (!todos.length) return null;
+    todos.sort((a, b) => emMin(a.hora) - emMin(b.hora));
+    return (pre.consultor_id && todos.find((t) => t.consultor_id === pre.consultor_id)) || todos[0];
+  }
+  function textoDePropor({ nome, servico, data, hoje, periodo, sugestao } = {}) {
+    const p = primeiroNome(nome);
+    const oi = p ? `Oi ${p}!` : 'Oi!';
+    const sv = String(servico || '').trim().slice(0, 70);
+    const ped = periodo === 'manha' ? 'de manhã' : periodo === 'tarde' ? 'à tarde' : '';
+    const base = `${oi} Aqui é da IndyCar 🏁 Recebemos sua aprovação${sv ? ' de ' + sv : ''}${ped && data ? ` e seu pedido para ${rotuloDoDiaFalado(data, hoje)} ${ped}` : ''}.`;
+    if (sugestao && sugestao.hora) return `${base} Posso deixar marcado às ${sugestao.hora}${sugestao.consultor_nome ? ' com ' + primeiroNome(sugestao.consultor_nome) : ''}? É só responder aqui.`;
+    return `${base} Qual hora fica melhor para você? É só responder aqui.`;
+  }
+  /** Quantos esperam a recepção (e quantos já são para hoje/amanhã) — para o rótulo do painel. */
+  function resumoDePre(itens) {
+    const l = Array.isArray(itens) ? itens : [];
+    return { total: l.length, urgentes: l.filter((x) => x && x.urgente).length, semTelefone: l.filter((x) => x && x.sem_telefone).length, antigos: l.filter((x) => x && (x.dias_esperando || 0) >= 2).length };
+  }
+
+  /* PARAR: do link wa.me ao telefone nacional e o texto do aviso */
+  function telDoLinkWa(href) {
+    try { const u = new URL(String(href)); if (u.origin !== 'https://wa.me') return null; const t = semFone(u.pathname.slice(1)); return t.length === 10 || t.length === 11 ? t : null; }
+    catch { return null; }
+  }
+  const textoBloqueado = (m) => (m === 'optout' ? 'Este cliente pediu para não receber mensagens (opt-out no Comunicar).' : 'Este cliente respondeu PARAR a uma mensagem do Comunicar.');
+
   const PURO = { digitos, semFone, emMin, hm, maisDias, primeiroNome, rotuloDaEntrada, deveOferecerOrcar, linkDeEntradaSeguro,
     minutosDesde, tempoCurto, LIMITES_ETAPA, tomDaEtapa, ordenarPatio, mensagemProntoOS, linkWhatsApp, avisadoDe,
     rotuloDia, proximoDiaAberto, atalhosDeRemarcar, botoesDeHorario, rotuloDoBotao, botoesDeDias, textoDeOferta,
-    MOTIVOS, rotuloDoMotivo, semConfirmacaoDoDia, placarDeConfirmacao, textoDeReagendar, textoDeConfirmar };
+    MOTIVOS, rotuloDoMotivo, semConfirmacaoDoDia, placarDeConfirmacao, textoDeReagendar, textoDeConfirmar,
+    sugerirHorarioParaPre, textoDePropor, resumoDePre, telDoLinkWa, textoBloqueado };
   root.R7Puro = PURO;
   if (typeof document === 'undefined') return;
 
@@ -250,6 +289,7 @@
   function aposDesenharQuadro(d) {
     if (!d) return;
     try { painelConfirmacao(d); } catch (e) { /* o painel nunca derruba o Quadro */ }
+    try { painelPre(d); } catch (e) { /* idem */ }
     if (semAcessoDeEquipe()) return;
     botaoEntradaNoQuadro(d);
     const barra = $('#qdFerr');
@@ -484,5 +524,144 @@
     $$('[data-r7c-link]', host).forEach((b) => b.addEventListener('click', () => window.pedirConfirmacao(b.closest('[data-r7c-id]').dataset.r7cId)));
   }
 
-  root.R7 = { pedirMotivo, fecharMotivo, faltaHtml, linkDeReagendar, painelConfirmacao, abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
+  /* ---- Lote 4: painel "Pré-agendamentos do Orçador" no Quadro ---- */
+  const LS_PRE = 'indycar_r7_pre_aberto';
+  let _preCache = null;
+  async function carregarPre(forcar) {
+    if (!forcar && _preCache && Date.now() - _preCache.em < 15000) return _preCache.r;
+    const r = await api('GET', '/pre-agendamentos', null, { repetir: false });
+    _preCache = { em: Date.now(), r }; return r;
+  }
+  function limparPre() { _preCache = null; }
+  async function painelPre(d) {
+    const quadro = $('#qdCorpo'); if (!quadro || !d) return;
+    let host = $('#qdPre');
+    if (!host) { host = document.createElement('div'); host.id = 'qdPre'; host.className = 'r7-pre'; const ref = $('#qdConf') || $('#qdEncaixe'); if (ref && ref.parentNode) ref.parentNode.insertBefore(host, ref.nextSibling); else quadro.parentNode.insertBefore(host, quadro); }
+    let r; try { r = await carregarPre(false); } catch (e) { host.hidden = true; return; }
+    if (!host.isConnected) return;
+    const itens = (r && r.itens) || [];
+    if (!itens.length) { host.hidden = true; host.innerHTML = ''; return; }
+    const hoje = r.hoje || (typeof agoraSP === 'function' ? agoraSP().data : '');
+    const resumo = resumoDePre(itens);
+    const aberto = lerLS(LS_PRE) === '1';
+    const orcs = window.R6 && R6.orcDe ? await R6.orcDe(itens.map((x) => x.id)).catch(() => ({})) : {};
+    host.hidden = false;
+    host.innerHTML = `<button type="button" class="r7p-cab ${resumo.urgentes ? 'urg' : ''}" data-r7p-alt aria-expanded="${aberto}">
+        <b>🧾 ${resumo.total} pré-agendamento${resumo.total === 1 ? '' : 's'} do Orçador para confirmar</b>
+        ${resumo.urgentes ? ` · <span class="r7p-urg">${resumo.urgentes} para hoje ou amanhã</span>` : ''}${resumo.semTelefone ? ` · <span class="muted">${resumo.semTelefone} sem telefone</span>` : ''}
+        <span class="r7c-seta">${aberto ? '▲' : '▼'}</span></button>
+      ${aberto ? `<ul class="r7p-lista">${itens.slice(0, 20).map((x) => {
+        const mesmoDia = x.data === d.data;
+        const noDia = mesmoDia ? (d.lista || []).find((a) => a.id === x.id) : null;
+        const sug = noDia ? sugerirHorarioParaPre(x, ((d.livres && d.livres.horarios) || [])) : null;
+        if (sug && sug.consultor_id) { const c = (state.consultores || []).find((k) => k.id === sug.consultor_id); if (c) sug.consultor_nome = c.nome; }
+        const wa = linkWhatsApp(x.telefone, textoDePropor({ nome: x.cliente_nome, servico: x.servico, data: x.data, hoje, periodo: x.periodo, sugestao: sug }));
+        const o = orcs[x.id];
+        const quando = `${rotuloDoDiaFalado(x.data, hoje)} ${x.periodo ? (x.periodo === 'manha' ? 'de manhã' : 'à tarde') : 'às ' + x.hora}`;
+        return `<li data-r7p-id="${escH(x.id)}" data-r7p-dia="${escH(x.data)}" class="${x.urgente ? 'urg' : ''}">
+          <span class="r7p-qd"><b>${escH(quando)}</b>${x.provisorio ? ` <small class="muted" title="O cliente escolheu só o período; ${escH(x.hora)} é a hora padrão do banco, ainda sem combinar">hora provisória ${escH(x.hora)}</small>` : ''}</span>
+          <span class="r7c-nome">${escH(x.cliente_nome)}</span> <small class="muted">${escH(x.servico)}${x.orcamento_numero ? ' · orç. nº ' + escH(x.orcamento_numero) : ''}${x.valor ? ' · ' + escH(Number(x.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })) : ''}${x.dias_esperando >= 1 ? ' · há ' + x.dias_esperando + ' d' : ''}</small>
+          <span class="r7c-acoes">
+            ${sug ? `<button type="button" class="btn mini primary" data-r7p-marcar="${escH(sug.hora)}" data-r7p-cons="${escH(sug.consultor_id || '')}" title="Move para o primeiro horário livre do período pedido e já confirma">Marcar ${escH(sug.hora)}${sug.consultor_nome ? ' · ' + escH(primeiroNome(sug.consultor_nome)) : ''}</button>` : ''}
+            ${wa ? `<a class="btn mini" href="${escH(wa)}" target="_blank" rel="noopener" title="Propor a hora pelo WhatsApp (texto pronto)">💬 Propor</a>` : '<small class="muted">sem telefone</small>'}
+            ${o && o.abrir ? `<a class="btn mini" data-r7p-orc href="${escH(o.abrir)}" target="_blank" rel="noopener" title="Abrir o orçamento no Orçador">🧾 Orçamento</a>` : ''}
+            ${mesmoDia ? '' : `<button type="button" class="btn mini" data-r7p-ver title="Abrir o Quadro desse dia">Ver dia</button>`}
+            <button type="button" class="btn mini" data-r7p-ok title="${x.provisorio ? 'Confirma com a hora provisória (combine antes com o cliente)' : 'O cliente confirmou este horário'}">Confirmar${x.provisorio ? ' ' + escH(x.hora) : ''}</button>
+          </span></li>`;
+      }).join('')}</ul>${itens.length > 20 ? `<p class="muted r7p-mais">E mais ${itens.length - 20}: confirme estes primeiro.</p>` : ''}` : ''}`;
+    $('[data-r7p-alt]', host).addEventListener('click', () => { gravarLS(LS_PRE, aberto ? '0' : '1'); painelPre(d); });
+    const depois = () => { limparPre(); if (window.R6b && R6b.renderQuadro) { try { R6b.renderQuadro(); } catch (e) { /* segue */ } } painelPre(_dAtual(d)); };
+    $$('[data-r7p-ok]', host).forEach((b) => b.addEventListener('click', async () => {
+      const id = b.closest('[data-r7p-id]').dataset.r7pId; b.disabled = true;
+      try { await api('PATCH', `/agendamentos/${id}/status`, { status: 'confirmado' }, { repetir: false }); toast('Pré-agendamento confirmado ✅'); depois(); }
+      catch (e) { b.disabled = false; toast(e.message || 'Não consegui confirmar', 'err'); }
+    }));
+    $$('[data-r7p-marcar]', host).forEach((b) => b.addEventListener('click', async () => {
+      const id = b.closest('[data-r7p-id]').dataset.r7pId; b.disabled = true;
+      try {
+        await api('POST', `/agendamentos/${id}/mover`, { data: d.data, hora: b.dataset.r7pMarcar, consultor_id: b.dataset.r7pCons || null }, { repetir: false });
+        await api('PATCH', `/agendamentos/${id}/status`, { status: 'confirmado' }, { repetir: false });
+        toast(`Marcado às ${b.dataset.r7pMarcar} e confirmado ✅`); depois();
+      } catch (e) { b.disabled = false; toast(e.message || 'Não consegui marcar esse horário', 'err'); }
+    }));
+    $$('[data-r7p-ver]', host).forEach((b) => b.addEventListener('click', () => {
+      const dia = b.closest('[data-r7p-dia]').dataset.r7pDia;
+      const campo = $('#qdData'); if (!campo) return;
+      campo.value = dia; campo.dispatchEvent(new Event('change', { bubbles: true }));
+    }));
+  }
+  const _dAtual = (d) => (window.R6b && R6b.estado && R6b.estado.dados) || d;
+
+  /* ---- Lote 4: o PARAR do Comunicar vale para todo botão de WhatsApp da Agenda (mesma regra da Casa) ---- */
+  const PARAR_VALE = 5 * 60 * 1000;
+  const _par = new Map();       // telefone nacional -> { motivo: 'parar'|'optout'|null, em }
+  let _parVoo = null, _parFalhou = 0;
+  const estadoParar = (tel, agora = Date.now()) => {
+    const c = _par.get(tel);
+    if (!c || agora - c.em > PARAR_VALE) return 'desconhecido';
+    return c.motivo ? 'bloqueado' : 'livre';
+  };
+  async function consultarParar(tels) {
+    const lista = [...new Set((tels || []).filter(Boolean))].slice(0, 80);
+    if (!lista.length) return true;
+    if (_parVoo) { await _parVoo; return consultarParar(lista.filter((t) => estadoParar(t) === 'desconhecido')); }
+    _parVoo = api('POST', '/parar', { telefones: lista }, { repetir: false }).then((r) => {
+      const b = (r && r.bloqueados) || {}; const em = Date.now();
+      for (const t of lista) _par.set(t, { motivo: b[t] || null, em });
+      _parFalhou = 0; return true;
+    }).catch(() => { _parFalhou = Date.now(); return false; }).finally(() => { _parVoo = null; });
+    return _parVoo;
+  }
+  function trocarPorAviso(a, motivo) {
+    const s = document.createElement('span');
+    s.className = (a.className || 'btn mini') + ' wa-parar';
+    s.dataset.parar = motivo; s.dataset.tel = telDoLinkWa(a.href) || '';
+    s.setAttribute('role', 'img'); s.setAttribute('aria-label', textoBloqueado(motivo)); s.title = textoBloqueado(motivo);
+    s.textContent = '🚫 Pediu para parar';
+    a.replaceWith(s);
+  }
+  function varrerParar() {
+    const links = $$('a[href^="https://wa.me/"]');
+    if (!links.length) return;
+    const tels = links.map((a) => telDoLinkWa(a.href));
+    links.forEach((a, i) => { if (tels[i] && estadoParar(tels[i]) === 'bloqueado') trocarPorAviso(a, _par.get(tels[i]).motivo); });
+    const falta = tels.filter((t) => t && estadoParar(t) === 'desconhecido');
+    if (falta.length && Date.now() - _parFalhou > 20000) consultarParar(falta).then((ok) => { if (ok) varrerParar(); });
+  }
+  function ligarGuardaParar() {
+    let t = null;
+    new MutationObserver(() => { clearTimeout(t); t = setTimeout(varrerParar, 60); }).observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('click', (ev) => {
+      const a = ev.target && ev.target.closest && ev.target.closest('a[href^="https://wa.me/"]');
+      if (!a || a.dataset.r7Liberado) return;
+      const tel = telDoLinkWa(a.href); if (!tel) return;
+      const e = estadoParar(tel);
+      if (e === 'livre') return;
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      if (e === 'bloqueado') { toast(textoBloqueado(_par.get(tel).motivo), 'err'); return varrerParar(); }
+      consultarParar([tel]).then((ok) => {
+        if (ok && estadoParar(tel) === 'bloqueado') { toast(textoBloqueado(_par.get(tel).motivo), 'err'); return varrerParar(); }
+        if (!ok && !confirm('Não consegui conferir se este cliente pediu para parar de receber mensagens. Abrir o WhatsApp mesmo assim?')) return;
+        a.dataset.r7Liberado = '1'; a.click(); setTimeout(() => { delete a.dataset.r7Liberado; }, 1500);
+      });
+    }, true);
+    const abrir = window.open;
+    window.open = function (url, ...resto) {
+      const tel = typeof url === 'string' && url.startsWith('https://wa.me/') ? telDoLinkWa(url) : null;
+      if (!tel) return abrir.call(window, url, ...resto);
+      const e = estadoParar(tel);
+      if (e === 'bloqueado') { toast(textoBloqueado(_par.get(tel).motivo), 'err'); return null; }
+      if (e === 'livre') return abrir.call(window, url, ...resto);
+      consultarParar([tel]).then((ok) => {
+        if (ok && estadoParar(tel) === 'bloqueado') return toast(textoBloqueado(_par.get(tel).motivo), 'err');
+        if (!ok && !confirm('Não consegui conferir se este cliente pediu para parar. Abrir o WhatsApp mesmo assim?')) return;
+        abrir.call(window, url, ...resto);
+      });
+      return null;
+    };
+    varrerParar();
+  }
+
+  root.R7 = { limparParar: () => _par.clear(), painelPre, carregarPre, limparPre, ligarGuardaParar, estadoParar, pedirMotivo, fecharMotivo, faltaHtml, linkDeReagendar, painelConfirmacao, abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
+  try { ligarGuardaParar(); } catch (e) { /* sem guarda, o botão segue como sempre */ }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
