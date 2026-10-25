@@ -1154,3 +1154,137 @@ Numeração continua após a 179. 🔗 = liga o CRM a outro sistema. Tudo abaixo
 - A cópia SQL da migração está em `indycar-ferramentas/sql/` (fora do repositório).
 - O resumo do dono continua sem sair sozinho no WhatsApp (falta a chave).
 - A contagem acima (39 testes + conferências de navegador) é a verificada; não inclui nada que só rodou na cabeça.
+
+
+## Rodada 7 (25/10/2026) — C3
+
+Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio e orçamento já preenchidos, ficha 360, retornos, Hoje, Dono, origem/ROI, indicações, perdas, qualidade dos dados e 375 px. Total desta rodada: 115 melhorias verificadas (32 com 🔗 de conexão), numeradas de 240 a 354.
+
+240. 🔗 Orçamento enviado vira linha sozinha no histórico do lead ("Orçamento nº X enviado ao cliente (R$ …)"), por gatilho do banco.
+241. 🔗 Cliente abriu o orçamento: o histórico do lead registra que ele viu.
+242. 🔗 Orçamento aprovado cai no histórico do lead com o valor.
+243. 🔗 Orçamento recusado cai no histórico do lead, com o motivo quando existe.
+244. 🔗 Carro entrou no Pátio (ordem aberta): rastro automático no lead.
+245. 🔗 Carro pronto no Pátio: rastro automático no lead.
+246. 🔗 Carro entregue no Pátio: rastro automático no lead.
+247. 🔗 Extra aprovado ou recusado pelo cliente no Pátio aparece no histórico do lead.
+248. 🔗 Horário marcado na Agenda aparece no histórico do lead (dia, hora e serviço).
+249. 🔗 "Cliente chegou" na Agenda vira rastro no lead.
+250. 🔗 Falta na Agenda vira rastro no lead.
+251. 🔗 Agendamento cancelado vira rastro no lead.
+252. 🔗 Avaliação recebida pelo Comunicar entra no histórico do lead.
+253. O mesmo evento nunca duplica o rastro: chave única por evento (índice único parcial), provado repetindo o gatilho.
+254. As funções dos gatilhos perderam EXECUTE para anon e authenticated; o advisor de segurança não cita nenhuma delas.
+255. Se o rastro falhar, o orçamento, a ordem ou o agendamento seguem normalmente (gatilhos à prova de exceção).
+256. Rastro automático aparece no histórico com marca "automático" e cor suave, separado do que a equipe escreveu.
+257. A fila do dia e o contador "contatos de hoje" ignoram o rastro automático (não conta como contato feito).
+258. Corrigido bug antigo: o filtro de "PRÉ-AGENDAMENTO" no sinal de horário nunca casava (barra invertida faltando); teste de regressão.
+259. 🔗 O funil sugere mover para "Em serviço" o lead cujo carro já está com ordem aberta no Pátio.
+260. 🔗 O funil sugere concluir o lead cujo carro já foi entregue no Pátio, pedindo o valor pago.
+261. 🔗 O funil sugere "Orçamento" quando o Orçador enviou orçamento ao cliente e já preenche o valor orçado.
+262. 🔗 O funil sugere "Agendado" quando a Agenda tem horário marcado para o lead.
+263. 🔗 O funil sugere perder o lead cujo orçamento foi recusado, já com o motivo da recusa.
+264. O funil marca "revisar" quando o lead está agendado sem horário na Agenda.
+265. O funil marca "revisar" nos leads em serviço sem ordem aberta no Pátio (20 no banco real).
+266. Aplicar movimentos em lote revalida cada um contra o estado atual e pula o que já mudou ("mudou").
+267. Concluir pelo funil exige valor pago maior que zero; sem valor o item é pulado ("falta_valor").
+268. Perder pelo funil grava "Motivo da perda: …" nas observações, usando só motivos da lista oficial.
+269. Aplicar "Orçamento" preenche valor_orcado só quando está vazio.
+270. Todo movimento aplicado deixa rastro "sistema" no lead (de → para e por quê).
+271. Todo movimento aplicado entra na auditoria como funil_movimento.
+272. Desfazer devolve os leads à etapa anterior e só se ninguém mexeu depois.
+273. Atendente só aplica movimento em lead dele ou sem dono; o de colega volta "lead_de_outro".
+274. Faixa no funil: "O funil achou N movimentos pelo que aconteceu no Pátio, no Orçador e na Agenda · M para revisar".
+275. O diálogo de revisão lista os movimentos com caixa de marcar, valor para concluídos e motivo para perdidos; cabe em 375 px.
+276. Cada lead aberto ganha um painel no topo da linha do tempo da ficha, carregado sob demanda.
+277. Termômetro do lead (quente, morno ou frio, com nota) e tooltip dizendo por quê, também no toque.
+278. "Há quanto tempo no funil e quantos contatos" na ficha.
+279. Melhor horário para falar com o lead, deduzido dos contatos que deram resposta.
+280. Canal que funciona com esse lead (WhatsApp, ligação…), deduzido do histórico.
+281. 🔗 Botão "Criar orçamento (tudo preenchido)": abre o Orçador com telefone, nome, placa, veículo, serviço e lead.
+282. 🔗 Botão "Abrir entrada no Pátio": abre o Pátio com entrada=1 e lead, cliente, telefone (com 55), nome, placa, carro, serviço, orçamento e agendamento.
+283. 🔗 A entrada no Pátio só é oferecida quando há motivo (orçamento aprovado, horário na Agenda ou lead agendado) e ainda não há ordem aberta.
+284. 🔗 Com ordem aberta, a ficha mostra "Ordem nº X no Pátio" com link direto.
+285. 🔗 O link de entrada descarta uuid e placa inválidos e corta textos longos antes de ir para o Pátio.
+286. 🔗 Atalhos E (entrada no Pátio) e B (novo orçamento) no cartão do funil.
+287. Os links do painel abrem em aba nomeada de cada sistema em vez de tirar o CRM da tela (bug achado no roteiro de navegador).
+288. "O que aconteceu sozinho": os últimos rastros automáticos do lead na própria ficha.
+289. O painel só oferece Aplicar quando a pessoa pode editar aquele lead.
+290. Retornos agrupados em atrasados, hoje, amanhã, esta semana e sem retorno.
+291. Card "Retornos combinados" na aba Hoje, com abas e contagem em cada uma.
+292. Remarcar o retorno direto da lista, com "Desfazer" na confirmação.
+293. Gestor escolhe o escopo dos retornos (todos, meus, sem dono); atendente só os dele.
+294. Meta de contatos do dia (padrão 12, configurável em CRM_META_CONTATOS_DIA) com barra de progresso.
+295. A barra da meta é acessível (role progressbar, texto "N de 12 contatos hoje · faltam X").
+296. Busca na fila do dia por nome, placa, carro, serviço ou telefone, feita no servidor.
+297. Filtro da fila por origem.
+298. Botão "Atender o próximo" abre o registro de contato do primeiro da fila e segue para o seguinte.
+299. 🔗 Novo sinal "indicação nova" na fila: lead que veio de indicação, sem contato entre 1 h e 7 dias, com prioridade alta.
+300. 🔗 Script de indicação ("Um amigo seu falou bem da gente…") sem preço e sem palavras proibidas.
+301. A fila devolve filtros aplicados, quantos faltam para a meta e o próximo lead.
+302. Aba Dono: resumo "Bom dia" pronto para colar, com números de ontem, hoje, agenda e prioridades.
+303. Aba Dono: resumo "Fechamento do dia".
+304. Aba Dono: resumo "Semana".
+305. Resumo no formato do WhatsApp (negrito com asteriscos, linhas curtas), sem preço inventado.
+306. Botão Copiar resumo leva exatamente o texto mostrado.
+307. Botão "Abrir no WhatsApp" usa wa.me com o texto já pronto.
+308. Guardar o resumo do dia: um por dia e tipo (grava de novo sem duplicar).
+309. Lista dos resumos guardados na própria aba.
+310. Só gestor vê, monta e guarda o resumo do dono; atendente leva 403.
+311. Tabela crm_resumos_dono com RLS (gestor lê, só o servidor escreve).
+312. 🔗 O resumo junta Pátio, Orçador, Agenda, Atendimento, Ads e avaliações numa leitura só.
+313. 🔗 O resumo lista a prioridade de cada pessoa da equipe (quem espera resposta, quem tem retorno atrasado).
+314. Painel de qualidade dos dados com nota de 0 a 100.
+315. Treze verificações de qualidade, cada uma com gravidade e lista de leads.
+316. Os concluídos sem valor pago aparecem para o gestor corrigir; nada é alterado pelo painel (conferido comparando o banco antes e depois).
+317. 🔗 Sugestão de valor para cada concluído sem valor, vinda da Agenda, do orçamento aprovado ou dos extras do Pátio.
+318. Botão "Preencher valores" leva ao modal de valores em lote que já existia.
+319. Qualidade dos dados só para gestor (atendente 403).
+320. Seção de qualidade carrega só quando aberta (lazy), sem pesar a aba Dono.
+321. Perdas: motivos em barras com quantidade.
+322. Perdas: taxa de perda e valor orçado que ficou na mesa.
+323. Perdas: lista dos perdidos sem motivo, com atalho para abrir e registrar.
+324. Perdas: leads que dão para reabordar (motivos recuperáveis, perdidos há pouco).
+325. Reabordar em lote: reabre em "Em contato", retorno para amanhã e tarefa de reativação, com auditoria.
+326. Mensagem de reabordagem pronta por motivo, sem preço.
+327. Perdas por origem (quanto cada origem perde).
+328. Período das perdas: 30, 90, 180 ou 365 dias.
+329. Insights em frase sobre as perdas.
+330. Atendente só reabre lead dele ou sem dono; o de colega é pulado.
+331. Painel de indicações: quantas, quantas viraram cliente e a taxa.
+332. Indicações: ranking de quem mais indica, só para gestor.
+333. Indicações: valor faturado pelos indicados, escondido do atendente.
+334. 🔗 Indicações esperando contato (amigo indicado que ainda ninguém chamou).
+335. 🔗 "Vale agradecer": indicador cujo amigo foi atendido nos últimos 30 dias.
+336. Mensagem pronta de agradecimento ao indicador, sem preço.
+337. 🔗 Desempenho por origem cruzando as métricas do Ads: gasto, leads, vendas e faturamento por origem.
+338. Desempenho por origem só para gestor, com período escolhido.
+339. Origem vazia ou "sem" aparece como "Sem origem" em todos os painéis.
+340. Todas as rotas novas devolvem 401 sem login (testado rota por rota).
+341. As rotas novas validam uuid e limitam tamanho de lista e de texto.
+342. [hidden] protegido no CSS novo; conferido por getComputedStyle, não pela propriedade.
+343. Zero rolagem lateral em 375 px no funil, ficha, Hoje, Dono, perdas, indicações e Origem.
+344. Tema claro conferido na aba Hoje nova, sem rolagem lateral.
+345. Zero erro de console em quatro roteiros (gestor e atendente, 1440 e 375, solto e montado em /crm/).
+346. Lista de perdas no celular sem buracos em branco (flex-basis corrigido) e números dos cartões sem colar no texto.
+347. Service worker v13 com rodada7.js e rodada7.css no cache.
+348. Mock do navegador ganhou todas as rotas R7 com os mesmos contratos do servidor real.
+349. 67 testes puros novos para lib/rodada7.js.
+350. 26 testes de servidor novos (login, escopo, revalidação, rastro, somente leitura, resumos).
+351. Roteiro de navegador novo testes/r7-navegador.mjs: 95 verificações.
+352. A rota de movimentos separa "aplicáveis" de "para revisar" (testado: 2 e 1) e a faixa do funil mostra as duas contagens.
+353. Reabordar em lote entra na auditoria como perdidos_reabordar, com quem fez e quais leads.
+354. O motivo "indicação nova" tem rótulo próprio na fila do dia, para o atendente entender por que o lead subiu.
+
+### Como verifiquei
+- `npm test` do CRM: 320/320 (227 anteriores + 67 puros + 26 de servidor). `node testes/r7-navegador.mjs`: 95/95 (gestor e atendente, 1440 e 375 px, solto e montado em /crm/). `npm run segredos` limpo.
+- Banco real: migrações `r7_c3_resumos_dono`, `r7_c3_atividades_sistema` e `r7_c3_revoga_execute_gatilhos`; bloco SQL revertido provou enviado=1, orçamento 3 sem duplicar, ordem=3, extra=1, agenda=2, avaliação=1 e textos certos; `get_advisors` sem menção a `r7_c3` nem `crm_resumos_dono`.
+- Qualidade dos dados: comparei o estado dos leads antes e depois da leitura; nada mudou.
+
+### Pendências
+- O Pátio precisa ler lead, tel, nome, placa, carro, servico, orcamento e agendamento no link ?entrada=1 (pedido ao dono do Pátio); o CRM já envia tudo.
+- O resumo do dono ainda não sai sozinho no WhatsApp (envio parado); hoje é copiar ou abrir no WhatsApp.
+- 20 leads "em serviço" sem ordem e 99 concluídos sem valor pago ficam para o gestor corrigir; nada foi alterado.
+- Contagem de números de orçamento e ordem do banco real pode ter avançado por causa do bloco SQL revertido.
+- Os eventos ao vivo foram provados com bloco SQL revertido e dublê; falta ver com orçamento e ordem de verdade.
+- Cópias SQL das migrações em `indycar-ferramentas/sql/` (fora do repositório). Nada foi publicado.
