@@ -99,18 +99,22 @@
     if (!itens.length) return '';
     const R = window.R7;                                  // rodada 7: prontos primeiro, tempo parado em cor, "Avisar: pronto"
     if (R) itens = R.PURO.ordenarPatio(itens);
-    const pronto = itens.filter((x) => x.etapa === 'pronto').length;
-    const extras = itens.reduce((s, x) => s + (x.extras_pendentes || 0), 0);
+    const todos = itens;
+    if (R) itens = R.PURO.filtrarPatio(itens, R.filtroDoPatio());
+    const pronto = todos.filter((x) => x.etapa === 'pronto').length;
+    const extras = todos.reduce((s, x) => s + (x.extras_pendentes || 0), 0);
     return `<section class="r6-faixa" aria-label="No pátio agora">
-      <header><h3>🔧 No pátio agora <em class="tab-num">${itens.length}</em></h3>
+      <header><h3>🔧 No pátio agora <em class="tab-num">${todos.length}</em></h3>
         <span class="muted">${pronto ? pronto + ' pronto' + (pronto > 1 ? 's' : '') + ' para retirar' : 'etapa ao vivo'}${extras ? ' · ' + extras + ' extra' + (extras > 1 ? 's' : '') + ' esperando o cliente' : ''}</span>
         <a href="${esc(IndyCarApps.url('patio'))}" class="r6-mais">Abrir o Pátio ↗</a></header>
+      ${R ? R.chipsDoPatio(todos) : ''}
+      ${itens.length ? '' : '<p class="muted r7-vazio">Nenhum carro neste filtro.</p>'}
       <ul>${itens.map((x) => {
         const parado = R ? R.PURO.minutosDesde(x.etapa_em) : null, tom = R ? R.PURO.tomDaEtapa(x.etapa, parado) : 'ok';
         return `<li class="r6-li${x.etapa === 'pronto' ? ' r7-pronto' : ''}"><a class="r6-linha" href="${esc(x.abrir)}">
           <span class="r6-a"><b>${x.numero ? '#' + esc(x.numero) : 'OS'}</b> ${esc(x.veiculo || x.cliente_nome || 'Carro')}${x.placa ? ' · ' + esc(x.placa) : ''}</span>
           <span class="r6-b"><span class="badge-pill ${esc(x.etapa_tom)}">${esc(x.etapa_rotulo)}</span> <small class="muted r7-parado r7-tom-${tom}" title="Há quanto tempo está nesta etapa">${esc(duracao(x.etapa_em))}</small>${x.extras_pendentes ? ` <span class="badge-pill bp-orange">${x.extras_pendentes} p/ aprovar</span>` : ''}</span>
-          <span class="r6-c">${esc(x.cliente_nome || '')}</span></a>${R ? R.botaoAvisarPronto(x) : ''}</li>`; }).join('')}</ul></section>`;
+          <span class="r6-c">${esc(x.cliente_nome || '')}</span></a>${R ? R.botaoAvisarPronto(x) : ''}${R ? R.linhaExtraDoPatio(x) : ''}</li>`; }).join('')}</ul></section>`;
   }
   function htmlAprovados(itens) {
     if (!itens.length) return '';
@@ -126,6 +130,7 @@
   function pintarFaixas(host) {
     host.innerHTML = htmlPatio(_faixas.patio) + htmlAprovados(_faixas.aprovados);
     host.hidden = !host.innerHTML.trim();
+    $$('[data-r7-fpatio]', host).forEach((b) => b.addEventListener('click', () => { window.R7.definirFiltroPatio(b.dataset.r7Fpatio); pintarFaixas(host); }));
     $$('[data-r6-marcar]', host).forEach((b) => b.addEventListener('click', () => {
       const x = _faixas.aprovados[Number(b.dataset.r6Marcar)];
       if (!x) return;
@@ -143,7 +148,7 @@
     if (_faixas.em) pintarFaixas(host);               // mostra o último que veio e atualiza por baixo
     if (Date.now() - _faixas.em < 20_000) return;
     const [p, o] = await Promise.all([
-      api('GET', '/patio/agora?limite=10', null, { repetir: false }).catch(() => null),
+      api('GET', '/patio/agora?limite=30', null, { repetir: false }).catch(() => null),
       api('GET', '/orcamentos/aprovados?limite=6', null, { repetir: false }).catch(() => null),
     ]);
     if (!p && !o) return;

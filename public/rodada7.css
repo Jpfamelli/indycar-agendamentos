@@ -76,3 +76,18 @@
   .r7p-lista li .btn, .wa-parar { min-height: 44px; }
   .r7p-lista .r7c-acoes { margin-left: 0; width: 100%; }
 }
+
+/* ---- Lote 5: o carro ao vivo ---- */
+.r7-fpatio { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.r7-fpatio .pilula { min-height: 36px; }
+.r7-patio-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 2px 4px 8px; }
+.r7-prev { color: var(--muted, #6b7280); }
+.r7-prev.ruim { color: #d64545; font-weight: 600; }
+.r7-patio-resumo { color: var(--muted, #6b7280); }
+.r7-verde { color: #2e9d5b; font-weight: 600; }
+.r7-laranja { color: #c9731a; font-weight: 600; }
+.r7-vazio { padding: 6px 4px; margin: 0; }
+.r7-fpatio[hidden], .r7-patio-resumo[hidden] { display: none !important; }
+@media (max-width: 720px) {
+  .r7-fpatio .pilula, .r7-patio-extra .btn { min-height: 44px; }
+}

@@ -287,7 +287,11 @@ http.createServer(async (req, res) => {
     return json(res, 200, { ok: true, resposta: c.resposta, respondido_em: c.respondido_em });
   }
   /* QA: põe a OS do horário numa etapa do Pátio (cria se não houver) */
-  if (p === '/api/__patio') { let os = PATIO.find(o => o.agendamento_id === body.agendamento_id && o.etapa !== 'cancelado'); if (!os) { os = { id: `30000000-0000-4000-8000-${String(100 + PATIO.length).padStart(12, '0')}`, numero: 102 + PATIO.length, etapa: 'recebido', etapa_em: new Date().toISOString(), agendamento_id: body.agendamento_id, token_publico: 'abcdef0123456789abcdef01', entregue_em: null }; PATIO.push(os); } os.etapa = body.etapa || 'pronto'; return json(res, 200, { ok: true }); }
+  if (p === '/api/__patio') { let os = PATIO.find(o => o.agendamento_id === body.agendamento_id && o.etapa !== 'cancelado'); if (!os) { os = { id: `30000000-0000-4000-8000-${String(100 + PATIO.length).padStart(12, '0')}`, numero: 102 + PATIO.length, etapa: 'recebido', etapa_em: new Date().toISOString(), agendamento_id: body.agendamento_id, token_publico: 'abcdef0123456789abcdef01', entregue_em: null }; PATIO.push(os); } os.etapa = body.etapa || 'pronto';
+    if (body.minutos_na_etapa !== undefined) os.etapa_em = new Date(Date.now() - Number(body.minutos_na_etapa) * 60000).toISOString();
+    if (body.previsao_entrega !== undefined) os.previsao_entrega = body.previsao_entrega;
+    if (body.extras_pendentes) for (let i = 0; i < Number(body.extras_pendentes); i++) EXTRAS.push({ id: `50000000-0000-4000-8000-${String(EXTRAS.length + 1).padStart(12, '0')}`, os_id: os.id, status: 'pendente', valor: 100 });
+    return json(res, 200, { ok: true }); }
   if (p === '/api/__falha') { FALHA = { status: Number(body.status) || 503, vezes: Number(body.vezes) || 0 }; return json(res, 200, FALHA); }
   if (FALHA.vezes > 0) { FALHA.vezes--; res.writeHead(FALHA.status, { 'Content-Type':'text/html' }); return res.end('<h1>Service Unavailable (mock)</h1>'); }
   const soPresenca = PAPEL === 'agenda';

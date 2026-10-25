@@ -1029,6 +1029,18 @@ Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador cont
 - C2-66. Celular 375 px: painel de pré-agendamentos e aviso de PARAR com 44 px, sem rolagem lateral
 - C2-67. 11 testes novos (`tests/c2-lote4.test.mjs`): pré-agendamento, período, sugestão, recado igual no navegador, PARAR com banco de mentira, rotas por HTTP
 - C2-68. Roteiro de navegador do lote (`scripts/qa-r7c2-lote4.mjs`, 27 conferências em 1440 e 375 px)
+- C2-69. 🔗 Início, "No pátio agora": filtros de um toque (Todos, Prontos, Parados, Esperando o cliente, Entrega atrasada) com a contagem de cada um; o escolhido fica lembrado neste aparelho e mostra aria-pressed
+- C2-70. 🔗 Início: a previsão de entrega do Pátio aparece em cada carro ("entrega hoje 17:30") e fica vermelha com "entrega atrasada há 2h" (data sem hora vale até o fim do dia)
+- C2-71. 🔗 Início: "💬 Cobrar aprovação (N)" abre o WhatsApp com o recado dos serviços extras e o link de acompanhar do Pátio (só link https, sem usuário e senha)
+- C2-72. 🔗 Início: carro pronto há mais de um dia ganha a etiqueta "pronto há 1 d" e "💬 Lembrar de retirar" com "desde ontem"
+- C2-73. Início: a lista do pátio passa de 10 para 30 carros (o servidor aceita até 40) e o filtro vazio explica "Nenhum carro neste filtro"
+- C2-74. 🔗 Quadro: cada carro com ordem aberta mostra há quanto tempo está na etapa, em cor (laranja/vermelho pelo limite de cada etapa)
+- C2-75. 🔗 Quadro: a previsão de entrega vencida do carro aparece no cartão em vermelho
+- C2-76. Quadro: resumo do dia "5 no pátio · 2 prontos · 1 parado · 2 extras esperando o cliente" ao lado do resumo dos horários; só acrescenta, nunca redesenha debaixo do clique
+- C2-77. Regras puras do pátio ao vivo (situação, filtros, resumo, previsão, recados) lidas de verdade pelos testes, com relógio fixo
+- C2-78. Servidor de mentira aceita tempo na etapa, previsão e extras pendentes no `__patio`, para o roteiro montar o pátio inteiro
+- C2-79. Celular 375 px: chips do pátio e botões de WhatsApp com 44 px, sem rolagem lateral
+- C2-80. 6 testes novos (`tests/c2-lote5.test.mjs`) e roteiro de navegador (`scripts/qa-r7c2-lote5.mjs`, 22 conferências em 1440 e 375 px)
 <!-- C2-R7-FIM -->
 
 ## Rodada 7 (25/10/2026) — C1 (Casa: painel de comando por papel)

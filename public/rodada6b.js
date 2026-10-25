@@ -322,6 +322,7 @@
       if (orc[id] && !$('.selo-orc', alvo)) alvo.insertAdjacentHTML('beforeend', window.R6.seloOrc(orc[id]));
       if (os[id] && !$('.selo-patio', alvo)) alvo.insertAdjacentHTML('beforeend', seloPatioHtml(os[id]));
     }
+    if (window.R7 && R7.aposExtras) { try { R7.aposExtras(d); } catch (e) { /* o tempo na etapa é enfeite: nunca derruba o Quadro */ } }
   }
 
   /* ---- mover: arrastar (mouse) ou "Mover" (toque/teclado) — só em célula livre ---- */

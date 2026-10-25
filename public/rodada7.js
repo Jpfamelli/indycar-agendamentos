@@ -185,7 +185,7 @@
 
   /* ------------------------------ Lote 4: pré-agendamentos do Orçador ------------------------------ */
   const periodoDaHora = (h) => (emMin(h) < 12 * 60 ? 'manha' : emMin(h) >= 13 * 60 ? 'tarde' : 'meio');
-  const rotuloDoDiaFalado = (iso, hoje) => (hoje && iso === hoje ? 'hoje' : hoje && iso === maisDias(hoje, 1) ? 'amanhã' : rotuloDia(iso));
+  const rotuloDoDiaFalado = (iso, hoje) => (hoje && iso === hoje ? 'hoje' : hoje && iso === maisDias(hoje, 1) ? 'amanhã' : hoje && iso === maisDias(hoje, -1) ? 'ontem' : rotuloDia(iso));
   /** Primeiro horário livre do período pedido; o consultor do pré tem prioridade. */
   function sugerirHorarioParaPre(pre, livres) {
     const per = pre && (pre.periodo || periodoDaHora(pre.hora));
@@ -221,11 +221,72 @@
   }
   const textoBloqueado = (m) => (m === 'optout' ? 'Este cliente pediu para não receber mensagens (opt-out no Comunicar).' : 'Este cliente respondeu PARAR a uma mensagem do Comunicar.');
 
+  /* ------------------------------ Lote 5: o carro ao vivo (etapa, tempo, previsão, extras) ------------------------------ */
+  const spAgora = (ms) => {
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    return { dia: `${p.year}-${p.month}-${p.day}`, hora: `${p.hour === '24' ? '00' : p.hour}:${p.minute}` };
+  };
+  /** Previsão de entrega em palavras e se já passou. Aceita data pura (vale até o fim do dia) ou instante. */
+  function rotuloPrevisao(prev, agoraMs) {
+    const agora = agoraMs === undefined ? Date.now() : agoraMs;
+    if (!prev) return null;
+    const soData = /^\d{4}-\d{2}-\d{2}$/.test(String(prev));
+    const t = soData ? Date.parse(String(prev) + 'T23:59:00-03:00') : Date.parse(prev);
+    if (!Number.isFinite(t)) return null;
+    const a = spAgora(agora), e = spAgora(t);
+    const quando = rotuloDoDiaFalado(e.dia, a.dia);
+    if (t < agora) { const min = Math.floor((agora - t) / 60000); return { texto: `entrega atrasada ${soData ? 'desde ' + quando : 'há ' + tempoCurto(min)}`, atrasada: true, atrasoMin: min }; }
+    return { texto: `entrega ${quando}${soData ? '' : ' ' + e.hora}`, atrasada: false, atrasoMin: 0 };
+  }
+  /** Tudo que a recepção quer saber de um carro do pátio. */
+  function situacaoDoPatio(x, agoraMs) {
+    const agora = agoraMs === undefined ? Date.now() : agoraMs;
+    const parado = minutosDesde(x && x.etapa_em, agora);
+    const prev = x && x.etapa !== 'pronto' ? rotuloPrevisao(x.previsao_entrega, agora) : null;
+    const prontoHa = x && x.etapa === 'pronto' ? parado : null;
+    return { parado, tom: tomDaEtapa(x && x.etapa, parado), previsao: prev, atrasada: !!(prev && prev.atrasada),
+      prontoHaMin: prontoHa, esquecido: prontoHa !== null && prontoHa >= 1440, extras: Number(x && x.extras_pendentes) || 0 };
+  }
+  const FILTROS_PATIO = [['todos', 'Todos'], ['prontos', 'Prontos'], ['parados', 'Parados'], ['extras', 'Esperando o cliente'], ['atrasados', 'Entrega atrasada']];
+  function filtrarPatio(itens, filtro, agoraMs) {
+    const l = Array.isArray(itens) ? itens : [];
+    if (!filtro || filtro === 'todos') return l;
+    return l.filter((x) => {
+      const s = situacaoDoPatio(x, agoraMs);
+      if (filtro === 'prontos') return x.etapa === 'pronto';
+      if (filtro === 'parados') return x.etapa !== 'pronto' && s.tom !== 'ok';
+      if (filtro === 'extras') return s.extras > 0;
+      if (filtro === 'atrasados') return s.atrasada;
+      return true;
+    });
+  }
+  function resumoDoPatio(itens, agoraMs) {
+    const l = Array.isArray(itens) ? itens : [];
+    const s = l.map((x) => situacaoDoPatio(x, agoraMs));
+    return { total: l.length, prontos: l.filter((x) => x.etapa === 'pronto').length, parados: l.filter((x, i) => x.etapa !== 'pronto' && s[i].tom !== 'ok').length,
+      extras: s.reduce((n, x) => n + x.extras, 0), atrasados: s.filter((x) => x.atrasada).length, esquecidos: s.filter((x) => x.esquecido).length };
+  }
+  const carroDe = (x) => [x && x.veiculo, x && x.placa].filter(Boolean).join(' ') || 'carro';
+  /** Cobrar a aprovação de extras pelo WhatsApp (com o link de acompanhar, se for https). */
+  function mensagemCobrarExtras(x) {
+    const n = primeiroNome(x && x.cliente_nome), q = Number(x && x.extras_pendentes) || 0;
+    let link = ''; try { const u = new URL(String(x && x.link_cliente)); if (u.protocol === 'https:' && !u.username && !u.password) link = ' ' + u.href; } catch { /* sem link */ }
+    return `${n ? 'Oi ' + n + '!' : 'Olá!'} Seu ${carroDe(x)} está com a gente e ${q === 1 ? 'surgiu 1 serviço extra' : 'surgiram ' + (q || 'alguns') + ' serviços extras'} que precisa${q === 1 ? '' : 'm'} da sua aprovação. Dá uma olhada e aprove por aqui:${link || ' me responda que eu explico.'}`;
+  }
+  /** Carro pronto há mais de um dia: o recado cita desde quando. */
+  function mensagemProntoEsquecido(x, agoraMs) {
+    const agora = agoraMs === undefined ? Date.now() : agoraMs;
+    const n = primeiroNome(x && x.cliente_nome), t = Date.parse(x && x.etapa_em);
+    const desde = Number.isFinite(t) ? rotuloDoDiaFalado(spAgora(t).dia, spAgora(agora).dia) : '';
+    return `${n ? 'Oi ' + n + '!' : 'Olá!'} Seu ${carroDe(x)} está pronto aqui na IndyCar${desde ? ' desde ' + desde : ''}. Quando consegue passar para retirar? Atendemos até as 17h30.`;
+  }
+
   const PURO = { digitos, semFone, emMin, hm, maisDias, primeiroNome, rotuloDaEntrada, deveOferecerOrcar, linkDeEntradaSeguro,
     minutosDesde, tempoCurto, LIMITES_ETAPA, tomDaEtapa, ordenarPatio, mensagemProntoOS, linkWhatsApp, avisadoDe,
     rotuloDia, proximoDiaAberto, atalhosDeRemarcar, botoesDeHorario, rotuloDoBotao, botoesDeDias, textoDeOferta,
     MOTIVOS, rotuloDoMotivo, semConfirmacaoDoDia, placarDeConfirmacao, textoDeReagendar, textoDeConfirmar,
-    sugerirHorarioParaPre, textoDePropor, resumoDePre, telDoLinkWa, textoBloqueado };
+    sugerirHorarioParaPre, textoDePropor, resumoDePre, telDoLinkWa, textoBloqueado,
+    rotuloPrevisao, situacaoDoPatio, filtrarPatio, resumoDoPatio, mensagemCobrarExtras, mensagemProntoEsquecido, FILTROS_PATIO };
   root.R7Puro = PURO;
   if (typeof document === 'undefined') return;
 
@@ -662,6 +723,60 @@
     varrerParar();
   }
 
-  root.R7 = { limparParar: () => _par.clear(), painelPre, carregarPre, limparPre, ligarGuardaParar, estadoParar, pedirMotivo, fecharMotivo, faltaHtml, linkDeReagendar, painelConfirmacao, abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
+    /* ---- Lote 5: o carro ao vivo ---- */
+  const LS_FPATIO = 'indycar_r7_filtro_patio';
+  let _filtroPatio = (() => { const v = lerLS(LS_FPATIO); return FILTROS_PATIO.some(([id]) => id === v) ? v : 'todos'; })();
+  const filtroDoPatio = () => _filtroPatio;
+  function definirFiltroPatio(id) { _filtroPatio = FILTROS_PATIO.some(([k]) => k === id) ? id : 'todos'; gravarLS(LS_FPATIO, _filtroPatio); }
+  /** Chips do "No pátio agora": só mostra os filtros que têm carro (e o escolhido, para dar para sair). */
+  function chipsDoPatio(itens) {
+    const l = itens || [];
+    const r = resumoDoPatio(l);
+    const n = { todos: r.total, prontos: r.prontos, parados: r.parados, extras: l.filter((x) => Number(x.extras_pendentes) > 0).length, atrasados: r.atrasados };
+    if (r.total < 2) return '';
+    return `<div class="r7-fpatio" role="group" aria-label="Filtrar os carros do pátio">${FILTROS_PATIO.filter(([id]) => id === 'todos' || n[id] > 0 || id === _filtroPatio)
+      .map(([id, rot]) => `<button type="button" class="pilula ${id === _filtroPatio ? 'ativa' : ''}" data-r7-fpatio="${id}" aria-pressed="${id === _filtroPatio}">${escH(rot)} <em class="tab-num">${n[id]}</em></button>`).join('')}</div>`;
+  }
+  /** O que vem depois da linha do carro no Início: previsão de entrega, "pronto há…" e os recados de WhatsApp. */
+  function linhaExtraDoPatio(x) {
+    const s = situacaoDoPatio(x);
+    const out = [];
+    if (s.previsao) out.push(`<small class="r7-prev${s.atrasada ? ' ruim' : ''}" title="Previsão de entrega informada no Pátio">${escH(s.previsao.texto)}</small>`);
+    if (s.esquecido) {
+      out.push(`<span class="badge-pill bp-red" title="Pronto e ainda no pátio">pronto há ${escH(tempoCurto(s.prontoHaMin))}</span>`);
+      const wa = linkWhatsApp(x.telefone, mensagemProntoEsquecido(x));
+      if (wa) out.push(`<a class="btn mini" href="${escH(wa)}" target="_blank" rel="noopener" title="Lembrar o cliente de retirar o carro">💬 Lembrar de retirar</a>`);
+    }
+    if (s.extras) {
+      const wa = linkWhatsApp(x.telefone, mensagemCobrarExtras(x));
+      if (wa) out.push(`<a class="btn mini" href="${escH(wa)}" target="_blank" rel="noopener" title="Cobrar a aprovação dos serviços extras pelo WhatsApp">💬 Cobrar aprovação (${s.extras})</a>`);
+    }
+    return out.length ? `<div class="r7-patio-extra">${out.join(' ')}</div>` : '';
+  }
+  /** Acrescenta "há 25 min" (em cor) e a previsão ao selo de etapa dos cartões do Quadro. Só acrescenta: nada é redesenhado. */
+  function aposExtras(d) {
+    if (!d || !d._patio) return;
+    for (const card of $$('#qdCorpo .qd-card')) {
+      const os = d._patio[card.dataset.id]; if (!os) continue;
+      const selo = $('.selo-patio', card); if (!selo || $('.r7-tempo', card)) continue;
+      const s = situacaoDoPatio(os);
+      const partes = [];
+      if (s.parado !== null && s.parado !== undefined) partes.push(`<small class="r7-tempo r7-parado r7-tom-${s.tom}" title="Há quanto tempo está nesta etapa">${escH(tempoCurto(s.parado))}</small>`);
+      if (s.previsao) partes.push(`<small class="r7-prev${s.atrasada ? ' ruim' : ''}">${escH(s.previsao.texto)}</small>`);
+      if (partes.length) selo.insertAdjacentHTML('afterend', partes.join(' '));
+    }
+    resumoNoQuadro(d);
+  }
+  function resumoNoQuadro(d) {
+    const ref = $('#qdResumo'); if (!ref) return;
+    let el = $('#r7PatioResumo');
+    const vivos = Object.values(d._patio || {}).filter((o) => o && !['entregue', 'cancelado'].includes(o.etapa));
+    if (!vivos.length) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('span'); el.id = 'r7PatioResumo'; el.className = 'r7-patio-resumo'; ref.insertAdjacentElement('afterend', el); }
+    const r = resumoDoPatio(vivos);
+    el.innerHTML = ` · 🔧 <b>${r.total}</b> no pátio${r.prontos ? ` · <span class="r7-verde">${r.prontos} pronto${r.prontos > 1 ? 's' : ''}</span>` : ''}${r.parados ? ` · <span class="r7-laranja">${r.parados} parado${r.parados > 1 ? 's' : ''}</span>` : ''}${r.extras ? ` · ${r.extras} extra${r.extras > 1 ? 's' : ''} esperando o cliente` : ''}`;
+  }
+
+  root.R7 = { filtroDoPatio, definirFiltroPatio, chipsDoPatio, linhaExtraDoPatio, aposExtras, limparParar: () => _par.clear(), painelPre, carregarPre, limparPre, ligarGuardaParar, estadoParar, pedirMotivo, fecharMotivo, faltaHtml, linkDeReagendar, painelConfirmacao, abrirPainelMover, fecharPainelMover, aoConflitoDeMover, destacarCelula, encaixarAqui, atalhosNoRemarcar, aposDesenharQuadro, acaoDeEntrada, abrirEntrada, entradaDoCartao, entradaAuto, definirEntradaAuto, interruptorAuto, botaoAvisarPronto, marcarAvisado, avisados, PURO };
   try { ligarGuardaParar(); } catch (e) { /* sem guarda, o botão segue como sempre */ }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
