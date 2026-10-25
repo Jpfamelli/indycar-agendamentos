@@ -215,4 +215,80 @@ await cenario7('admin', 1440, async ({ page, estado }) => {
   conf(soltos.length === 0, 'abas: todo link externo tem target indycar-*' + (soltos.length ? ' → ' + soltos.slice(0, 3).join(' | ') : ''));
 }, { ajustar: (e) => { e.rpc.r6_agora = dadosComTelefones(); } });
 
+// =============================================================== recepção: chegadas de hoje
+const hojeSP = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const hhmm = (min) => { const d = new Date(Date.now() + min * 60000); return d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }) + ':00'; };
+const agendaHoje = () => [
+  { id: U(801), cliente_nome: 'Ana Souza', hora: hhmm(-40), status: 'aguardando', veiculo: 'Gol', servico: 'Revisão', data: hojeSP(), compareceu: false },
+  { id: U(802), cliente_nome: 'Bruno Reis', hora: hhmm(90), status: 'confirmado', veiculo: 'HB20', servico: 'Freios', data: hojeSP(), compareceu: false },
+  { id: U(803), cliente_nome: 'Carla Dias', hora: hhmm(-120), status: 'compareceu', veiculo: 'Onix', servico: 'Óleo', data: hojeSP(), compareceu: true },
+  { id: U(804), cliente_nome: 'Dani Cruz', hora: hhmm(30), status: 'cancelado', veiculo: 'Civic', servico: 'Alinhamento', data: hojeSP(), compareceu: false },
+  { id: U(805), cliente_nome: 'Eva Lopes', hora: hhmm(10), status: 'aguardando', veiculo: 'Polo', servico: 'Revisão', data: '2020-01-01', compareceu: false },
+];
+await cenario7('agenda', 1440, async ({ page, browser, estado }) => {
+  await page.waitForSelector('#cHoje:not([hidden])', { timeout: 25000 });
+  await page.waitForFunction(() => /Chegadas de hoje/.test(document.querySelector('#cHoje').innerText), { timeout: 12000 }).catch(() => {});
+  const t = (await texto(page, '#cHoje')) || '';
+  conf(/Chegadas de hoje/i.test(t), 'recepção: cartão "Chegadas de hoje"');
+  conf(/2 por chegar/.test(t) && /1 já chegaram|1 já chegou/.test(t), 'recepção: conta quem falta e quem chegou (cancelado e outro dia ficam de fora): ' + t.replace(/\s+/g, ' ').slice(0, 90));
+  conf(/1 atrasado/.test(t), 'recepção: destaca o atrasado');
+  conf(/Ana Souza/.test(t) && /Bruno Reis/.test(t) && !/Dani Cruz/.test(t) && !/Eva Lopes/.test(t), 'recepção: lista só quem falta chegar hoje');
+  conf(!/\d{4,5}-?\d{4}/.test(t), 'recepção: sem telefone na tela');
+  const alvos = await page.$$eval('#cHoje a[href]:not([href="#"])', (l) => l.map((a) => a.getAttribute('target')));
+  conf(alvos.length >= 2 && alvos.every((x) => x === 'indycar-agenda'), 'recepção: links abrem a Agenda na aba indycar-agenda');
+  conf(!(await visivel(page, '#cHoje [data-nova]')), 'recepção: sem botão de novo horário');
+  conf(!(await visivel(page, '#cOrc')) && !(await visivel(page, '#cLeads')), 'recepção: não vê orçamentos nem leads');
+  conf(!(await visivel(page, '#saudeSist')), 'recepção: não vê a faixa de saúde dos sistemas');
+  conf(estado.chamadasRpc.every((c) => c.nome !== 'r7_x3_saude' && c.nome !== 'r7_c1_saude_sistemas'), 'recepção: nem pede os dados de saúde');
+}, { ajustar: (e) => { e.agendaApi = agendaHoje; } });
+
+// =============================================================== mecânico: extras pendentes primeiro
+await cenario7('mecanico', 1440, async ({ page }) => {
+  await page.waitForSelector('#cPatio:not([hidden])', { timeout: 25000 });
+  await dorme(800);
+  const t = (await texto(page, '#cPatio')) || '';
+  conf(/2/.test(t), 'mecânico: cartão com os carros dele');
+  const ord = await page.$$eval('#cPatio li', (l) => l.map((e) => e.innerText.replace(/\s+/g, ' ')));
+  conf(ord.length >= 2 && /Gol/.test(ord[0]) && /pronto/i.test(ord[0]), 'mecânico: o carro pronto (para retirar) vem primeiro: ' + ord.slice(0, 2).join(' || '));
+  conf(/1 extra/.test(ord.find((x) => /HB20/.test(x)) || ''), 'mecânico: o carro com extra esperando mostra "1 extra"');
+  conf(!(await visivel(page, '#cOrc')) && !(await visivel(page, '#saudeSist')), 'mecânico: sem orçamentos nem saúde');
+}, { ajustar: (e) => {
+  e.rest.patio_os = (url) => [
+    { id: U(51), numero: 51, cliente_nome: 'Carlos', veiculo: 'HB20', placa: 'AAA1A11', etapa: 'em_servico', etapa_em: new Date(Date.now() - 3600e3).toISOString(), previsao_entrega: null, orcamento_id: null },
+    { id: U(52), numero: 52, cliente_nome: 'Duda', veiculo: 'Gol', placa: 'BBB2B22', etapa: 'pronto', etapa_em: new Date(Date.now() - 7200e3).toISOString(), previsao_entrega: null, orcamento_id: null },
+  ];
+  e.rest.patio_extras = [{ os_id: U(51) }];
+} });
+
+// =============================================================== 375 px
+for (const papel of ['gestor', 'atendente', 'agenda']) {
+  await cenario7(papel, 375, async ({ page }) => {
+    await page.waitForSelector('#cHoje:not([hidden]), #cPatio:not([hidden]), #cMeuDia:not([hidden])', { timeout: 25000 });
+    await dorme(1200);
+    const m = await medirTela(page, { ignorar: '#saudePainel' });
+    conf(!m.rolagemLateral, papel + '/375: sem rolagem lateral (largura ' + m.larguraTotal + ')');
+    conf(m.passando.length === 0, papel + '/375: nada passa da borda' + (m.passando.length ? ' → ' + m.passando.slice(0, 4).join(' | ') : ''));
+    conf(m.pequenos.length === 0, papel + '/375: alvos de toque com 44 px' + (m.pequenos.length ? ' → ' + m.pequenos.slice(0, 5).join(' | ') : ''));
+    if (papel !== 'agenda') {
+      if (await visivel(page, '#saudeBotao')) {
+        await page.click('#saudeBotao'); await dorme(300);
+        const m2 = await medirTela(page);
+        conf(!m2.rolagemLateral && m2.passando.length === 0, papel + '/375: painel de saúde aberto cabe na tela' + (m2.passando.length ? ' → ' + m2.passando.slice(0, 3).join(' | ') : ''));
+        await page.click('#saudeBotao');
+      }
+      await page.click('#bSino'); await dorme(400);
+      const m3 = await medirTela(page);
+      conf(!m3.rolagemLateral && m3.passando.length === 0, papel + '/375: sino aberto cabe' + (m3.passando.length ? ' → ' + m3.passando.slice(0, 3).join(' | ') : ''));
+      await page.keyboard.press('Escape');
+    }
+    await page.evaluate(() => window.Casa.ficha && window.Casa.ficha.abrir({ tel55: '5512991821234', nome: 'Marcos' }));
+    if (papel !== 'agenda') {
+      await page.waitForFunction(() => document.querySelector('#fichaCorpo').innerText.length > 40, { timeout: 8000 }).catch(() => {});
+      const m4 = await medirTela(page);
+      conf(!m4.rolagemLateral && m4.passando.length === 0, papel + '/375: ficha cabe' + (m4.passando.length ? ' → ' + m4.passando.slice(0, 3).join(' | ') : ''));
+      conf(m4.pequenos.length === 0, papel + '/375: ficha com alvos de 44 px' + (m4.pequenos.length ? ' → ' + m4.pequenos.slice(0, 4).join(' | ') : ''));
+    }
+  }, { ajustar: (e) => { e.rpc.r6_agora = dadosComTelefones(); e.agendaApi = agendaHoje; } });
+}
+
 fim();
