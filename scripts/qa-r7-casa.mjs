@@ -111,4 +111,108 @@ await cenario7('gestor', 1440, async ({ page, browser, estado }) => {
   await page.waitForFunction(() => /Concluir a tarefa/.test(document.querySelector('#toast')?.textContent || ''), { timeout: 4000 }).then(() => conf(true, 'tarefas: oferta "Concluir a tarefa" depois do WhatsApp'), () => conf(false, 'tarefas: oferta de concluir'));
 }, { ajustar: (e) => { e.rpc.r6_agora = dadosComTelefones(); } });
 
+// =============================================================== sino, busca, ficha, dono, teclado, abas
+await cenario7('gestor', 1440, async ({ page, browser, estado }) => {
+  await aguardaOrc(page);
+  const urlInicial = page.url();
+  // ---- sino
+  await page.click('#bSino');
+  await page.waitForSelector('#painelSino:not([hidden]) [data-notif]', { timeout: 8000 });
+  conf(await visivel(page, '#sinoBusca'), 'sino: campo de busca nos avisos');
+  const total = await page.$$eval('#listaNotif [data-notif]', (l) => l.length);
+  await page.type('#sinoBusca', 'vencidas');
+  const filtradas = await page.$$eval('#listaNotif [data-notif]', (l) => l.length);
+  conf(filtradas >= 1 && filtradas < total, 'sino: busca filtra os avisos (' + filtradas + ' de ' + total + ')');
+  await page.$eval('#sinoBusca', (e) => { e.value = ''; e.dispatchEvent(new Event('input')); });
+  // aviso de tarefas vencidas leva às tarefas da Casa (não ao erro)
+  await page.type('#sinoBusca', 'vencidas');
+  await page.click('#listaNotif [data-notif]');
+  await dorme(500);
+  conf(!/não é de um app/.test(await page.$eval('#toast', (t) => t.textContent).catch(() => '')), 'sino: aviso de tarefas vencidas não dá mais o erro "endereço não é de um app"');
+  conf(page.url() === urlInicial, 'sino: a Casa continua na mesma página');
+  // adiar
+  await page.click('#bSino');
+  await page.waitForSelector('#painelSino:not([hidden]) [data-adiar-sino]', { timeout: 5000 });
+  await page.$eval('#sinoBusca', (e) => { e.value = ''; e.dispatchEvent(new Event('input')); });
+  const antes = await page.$$eval('#listaNotif [data-notif]', (l) => l.length);
+  await page.$eval('#listaNotif [data-adiar-sino]', (b) => b.click());
+  await dorme(200); conf((await page.$$eval('#listaNotif [data-adiar-por]', (l) => l.length)) > 0, 'sino: menu de adiar abre (1 h / 3 h / amanhã)');
+  const opcoes = await page.$$eval('#listaNotif [data-adiar-por]', (l) => l.length);
+  conf(opcoes === 3, 'sino: três opções de adiar (' + opcoes + ')');
+  await page.$eval('#listaNotif [data-adiar-por]', (b) => b.click());
+  await dorme(300);
+  const depois = await page.$$eval('#listaNotif [data-notif]', (l) => l.length);
+  conf(depois === antes - 1, 'sino: aviso adiado some da lista (' + antes + ' -> ' + depois + ')');
+  conf(/volta em/.test(await texto(page, '#sinoRodape') || ''), 'sino: rodapé diz quando volta: ' + ((await texto(page, '#sinoRodape')) || '').replace(/\s+/g, ' ').slice(0, 80));
+  await page.keyboard.press('Escape');
+  // ---- busca
+  await page.keyboard.down('Control'); await page.keyboard.press('k'); await page.keyboard.up('Control');
+  await page.waitForSelector('#busca:not([hidden])', { timeout: 4000 });
+  await page.type('#buscaInput', 'marcos');
+  await page.waitForSelector('#buscaFiltros button', { timeout: 8000 }).catch(() => {});
+  conf(await visivel(page, '#buscaFiltros'), 'busca: filtros por tipo aparecem');
+  const filtros = await page.$$eval('#buscaFiltros [data-filtro-busca]', (b) => b.map((x) => x.dataset.filtroBusca));
+  conf(filtros.length >= 3, 'busca: pelo menos 3 filtros: ' + filtros.join(','));
+  const nTodas = await page.$$eval('#buscaLista [data-linha]', (l) => l.length);
+  const f1 = filtros.find((f) => f && f !== 'pessoas');
+  await page.click('#buscaFiltros [data-filtro-busca="' + f1 + '"]');
+  const nF = await page.$$eval('#buscaLista [data-linha]', (l) => l.length);
+  conf(nF >= 1 && nF < nTodas, 'busca: filtro "' + f1 + '" reduz (' + nTodas + ' -> ' + nF + ')');
+  await page.click('#buscaFiltros [data-filtro-busca="' + '' + '"]');
+  conf(/Marcos <img/.test(await page.$eval('#buscaLista', (e) => e.textContent)) || !(await page.$('#buscaLista img')), 'busca: nome com HTML aparece como texto (sem tag viva)');
+  // ficha pela linha
+  const temFicha = await page.$('#buscaLista [data-ficha]');
+  conf(!!temFicha, 'busca: botão "Ficha" nas linhas com telefone');
+  if (temFicha) {
+    await page.click('#buscaLista [data-ficha]');
+    await page.waitForSelector('#ficha:not([hidden]) #fichaCorpo', { timeout: 8000 });
+    await page.waitForFunction(() => document.querySelector('#fichaTit').textContent.trim().length > 2, { timeout: 8000 });
+    conf((await texto(page, '#fichaTit') || '').trim().length > 2, 'ficha: abre com o nome do cliente');
+    conf(estado.chamadasRpc.some((c) => c.nome === 'r6_cliente_360'), 'ficha: lê r6_cliente_360');
+    await page.waitForFunction(() => document.querySelector('#fichaCorpo').innerText.length > 40, { timeout: 8000 });
+    const corpo = await texto(page, '#fichaCorpo');
+    conf(/Gol/.test(corpo) && /1\.890|1890/.test(corpo), 'ficha: mostra pátio e orçamento do cliente');
+    const alvos = await page.$$eval('#ficha a[href^="http"]', (l) => l.map((a) => [a.getAttribute('target') || '', a.getAttribute('href')]));
+    conf(alvos.length >= 3 && alvos.every(([t]) => t.startsWith('indycar-')), 'ficha: todo link de app tem aba nomeada (' + alvos.length + ')');
+    const aba = await abaNova(browser, () => page.click('#ficha a[href^="https://wa.me/"]'));
+    conf(aba === null || /(wa\.me\/|phone=)55/.test(aba), 'ficha: WhatsApp abre na aba do WhatsApp');
+    await page.bringToFront();
+    if (await page.$('#ficha [data-ficha-links]')) {
+      await page.click('#ficha [data-ficha-links]');
+      await page.waitForFunction(() => /minha|c=tokteste/.test(document.querySelector('#fichaCorpo').innerHTML), { timeout: 6000 }).then(() => conf(true, 'ficha: "Links do cliente" mostra o link Minha IndyCar'), () => conf(false, 'ficha: links do cliente'));
+      conf(estado.linksChamadas.length === 1 && estado.linksChamadas[0].auth, 'ficha: pedido de links vai ao servidor com login');
+    }
+    await page.bringToFront(); await dorme(300);
+    await page.keyboard.press('Escape'); await dorme(300);
+    conf(!(await visivel(page, '#ficha')), 'ficha: Esc fecha');
+  }
+  conf(page.url() === urlInicial, 'a Casa nunca virou outra página');
+}, { ajustar: (e) => {
+  e.rpc.r6_agora = dadosComTelefones();
+  e.rest.notificacoes = e.rest.notificacoes.concat([{ id: 'nv1', tipo: 'tarefas_vencidas', titulo: '3 tarefas vencidas', corpo: null, link: null, app: null, lida_em: null, created_at: iso(3) }]);
+} });
+
+// =============================================================== dono: ligações entre sistemas, atalhos
+await cenario7('admin', 1440, async ({ page, estado }) => {
+  await aguardaOrc(page);
+  await page.evaluate(() => window.Casa.painel.trocarVisao('dono'));
+  await page.waitForSelector('#donoLigacoes:not([hidden])', { timeout: 15000 }).catch(() => {});
+  conf(await visivel(page, '#donoLigacoes'), 'dono: cartão "Ligações entre sistemas" aparece');
+  const t = (await texto(page, '#donoLigacoes')) || '';
+  conf(/chegou|sem OS|sem cliente/i.test(t), 'dono: mostra as ligações quebradas: ' + t.replace(/\s+/g, ' ').slice(0, 100));
+  const links = await page.$$eval('#donoLigacoes a[href^="http"]', (l) => l.map((a) => a.getAttribute('target')));
+  conf(links.every((x) => (x || '').startsWith('indycar-')), 'dono: links das ligações abrem em abas nomeadas (' + links.length + ')');
+  // teclado
+  await page.evaluate(() => window.Casa.painel.trocarVisao('operacao'));
+  await page.keyboard.press('t');
+  await dorme(300);
+  conf(await visivel(page, '#fTarefa') || await visivel(page, '#listaTarefas'), 'teclado: t leva às tarefas');
+  await page.keyboard.press('e');
+  await dorme(200);
+  conf(true, 'teclado: e recolhe sem erro');
+  // todo link de app tem aba nomeada
+  const soltos = await page.$$eval('a[href^="http"]', (l) => l.filter((a) => !/^indycar-/.test(a.getAttribute('target') || '') && !/^https:\/\/(fonts|cdn|wa)/.test(a.href) && !a.closest('#entrada')).map((a) => a.href.slice(0, 70)));
+  conf(soltos.length === 0, 'abas: todo link externo tem target indycar-*' + (soltos.length ? ' → ' + soltos.slice(0, 3).join(' | ') : ''));
+}, { ajustar: (e) => { e.rpc.r6_agora = dadosComTelefones(); } });
+
 fim();

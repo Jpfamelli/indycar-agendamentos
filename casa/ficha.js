@@ -55,7 +55,7 @@
     const tel = typeof dados === 'string' ? dados : dados && (dados.tel55 || dados.telefone);
     const e164 = L.telefoneE164(tel);
     if (!e164) { C.toast('Esse telefone não parece válido.'); return; }
-    if (!aberta) { aberta = true; ultimoFoco = document.activeElement; }
+    if (!aberta) { aberta = true; ultimoFoco = document.activeElement; document.addEventListener('keydown', escDoc, true); }
     const minha = ++seq;
     $('#ficha').hidden = false;
     document.body.classList.add('modal-aberto');
@@ -74,8 +74,11 @@
       $('#fichaCorpo').innerHTML = `<p class="vazio vazio-erro">${navigator.onLine ? 'Não consegui montar a ficha agora.' : 'Sem internet.'} <button type="button" class="btn-link" data-ficha-de-novo="${C.esc(e164)}">tentar de novo</button></p>`;
     }
   }
+  /** Esc fecha a ficha mesmo se o foco saiu dela (depois de abrir uma aba, por exemplo). */
+  function escDoc(e) { if (e.key === 'Escape' && aberta) { e.preventDefault(); e.stopPropagation(); fechar(); } }
   function fechar() {
     if (!aberta) return;
+    document.removeEventListener('keydown', escDoc, true);
     aberta = false; seq++; atual = null;
     $('#ficha').hidden = true;
     document.body.classList.remove('modal-aberto');
@@ -134,6 +137,6 @@
       }
     };
   };
-  MOD.desmontar = function () { aberta = false; seq++; atual = null; const f = $('#ficha'); if (f) f.hidden = true; document.body.classList.remove('modal-aberto'); };
+  MOD.desmontar = function () { document.removeEventListener('keydown', escDoc, true); aberta = false; seq++; atual = null; const f = $('#ficha'); if (f) f.hidden = true; document.body.classList.remove('modal-aberto'); };
   (window.CasaModulos = window.CasaModulos || []).push(MOD);
 })();

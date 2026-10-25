@@ -115,5 +115,6 @@ export async function abaNova(browser, acao, ms = 4000) {
   const p = new Promise((res) => browser.once('targetcreated', (t) => res(t)));
   await acao();
   const t = await Promise.race([p, dorme(ms).then(() => null)]);
+  if (t) await dorme(600);
   return t ? t.url() : null;
 }
