@@ -167,6 +167,7 @@
     acrescentarBotoes(d);
     avisarProntos(d).catch(() => { /* sem Pátio: cartão como sempre */ });
     acrescentarOrcar(d).catch(() => { /* sem Orçador: cartão como sempre */ });
+    if (root.R7) root.R7.aposDesenharQuadro(d);
   }
 
   /* ---- lista do dia / recepção: "Avisar" ao lado do ícone do Pátio ---- */

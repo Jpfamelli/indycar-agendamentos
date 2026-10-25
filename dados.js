@@ -2366,11 +2366,11 @@ export async function ligarOrcamentoAoAgendamento(orcamentoId, agendamentoId) {
 export async function patioAgora({ limite = 12 } = {}) {
   const n = Math.min(Math.max(Number(limite) || 12, 1), 40);
   const [ordens, extras, base] = await Promise.all([
-    selecionar('patio_os', `select=id,numero,etapa,etapa_em,agendamento_id,token_publico,previsao_entrega,entregue_em,created_at,cliente_nome,veiculo,placa&etapa=not.in.(entregue,cancelado)&order=etapa_em.asc&limit=${n}`),
+    selecionar('patio_os', `select=id,numero,etapa,etapa_em,agendamento_id,token_publico,previsao_entrega,entregue_em,created_at,cliente_nome,veiculo,placa,telefone&etapa=not.in.(entregue,cancelado)&order=etapa_em.asc&limit=${n}`),
     selecionar('patio_extras', 'select=os_id,status,valor&status=eq.pendente&limit=500').catch(() => []),
     linkBaseDoPatio(),
   ]);
-  return ordens.map((o) => ({ ...resumoDaOs(o, extras, base), cliente_nome: o.cliente_nome || '', veiculo: o.veiculo || '', placa: o.placa || '' }));
+  return ordens.map((o) => ({ ...resumoDaOs(o, extras, base), cliente_nome: o.cliente_nome || '', veiculo: o.veiculo || '', placa: o.placa || '', telefone: o.telefone || '' }));
 }
 
 /** Extras (com status e valor) da ordem viva deste horário — para somar à sugestão de valor. */

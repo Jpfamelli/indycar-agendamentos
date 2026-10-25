@@ -116,3 +116,45 @@ export function textoDoLink({ nome, veiculo, link } = {}) {
 export function idsDeAgendamento(texto) {
   return [...new Set(String(texto || '').split(',').map((s) => s.trim()).filter((s) => UUID_RE.test(s)))].slice(0, 60);
 }
+
+// -----------------------------------------------------------------------------
+// Rodada 7 (C2) — "Chegou" abre a ENTRADA PRONTA no Pátio.
+// Contrato do Pátio (indycar-patio/app/js/conexoes.js › lerLinkDeEntrada):
+//   {PATIO}/?entrada=1&agendamento=<uuid>&orcamento=<uuid>[&cliente=<uuid>][&placa=][&carro=][&servico=]
+// O Pátio resolve nome e telefone pelo agendamento (RPC patio_agenda_hoje) e pelo orçamento: por isso o telefone
+// e o nome do cliente NÃO viajam na barra de endereço (ficam fora do histórico do navegador e dos logs).
+// -----------------------------------------------------------------------------
+const PLACA_RE = /^[A-Z]{3}\d[A-Z0-9]\d{2}$/;
+const limpaTexto = (t, max) => String(t ?? '').replace(/[\p{C}<>]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+
+/** Orçamento que vale levar para a entrada: o que ainda pode virar serviço (aprovado, enviado ou em aberto). */
+export function orcamentoParaEntrada(orc) {
+  if (!orc || !UUID_RE.test(String(orc.id || ''))) return null;
+  return ['aprovado', 'enviado', 'aberto'].includes(orc.status) ? orc : null;
+}
+
+/** Link da entrada pronta no Pátio. Id fora do padrão, placa torta e texto hostil são descartados — nunca viram parâmetro. */
+export function linkEntradaPatio({ agendamento_id, orcamento_id, cliente_id, placa, veiculo, servico } = {}, base = PATIO_URL) {
+  let raiz = PATIO_URL;
+  try { const u = new URL(String(base || '').trim()); if (u.protocol === 'https:' && !u.username && !u.password && !u.search && !u.hash) raiz = u.origin; } catch { /* base torta: fica o endereço do Pátio */ }
+  const p = new URLSearchParams();
+  p.set('entrada', '1');
+  if (UUID_RE.test(String(agendamento_id || ''))) p.set('agendamento', agendamento_id);
+  if (UUID_RE.test(String(orcamento_id || ''))) p.set('orcamento', orcamento_id);
+  if (UUID_RE.test(String(cliente_id || ''))) p.set('cliente', cliente_id);
+  const pl = String(placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (PLACA_RE.test(pl)) p.set('placa', pl);
+  const carro = limpaTexto(veiculo, 80); if (carro) p.set('carro', carro);
+  const serv = limpaTexto(servico, 200); if (serv) p.set('servico', serv);
+  return `${raiz}/?${p.toString()}`;
+}
+
+/** O que a Agenda devolve no "Chegou": o link pronto e o orçamento que foi junto (para o recado dizer). */
+export function entradaDoChegou(agendamento, orcamento, base = PATIO_URL) {
+  const orc = orcamentoParaEntrada(orcamento);
+  return {
+    link: linkEntradaPatio({ agendamento_id: agendamento?.id, orcamento_id: orc?.id, cliente_id: agendamento?.cliente_id,
+      placa: agendamento?.placa, veiculo: agendamento?.veiculo, servico: agendamento?.servico }, base),
+    orcamento: orc ? { id: orc.id, numero_rotulo: orc.numero_rotulo || null, status: orc.status, status_rotulo: orc.status_rotulo || null, total: Number(orc.total) || 0 } : null,
+  };
+}

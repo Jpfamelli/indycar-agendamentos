@@ -19,7 +19,8 @@ import { fileURLToPath } from 'node:url';
 import { montarUltimos, hoje, agoraHHMM, horariosLivres, telefoneNacional, casaBusca, cargaDoDia, sugerirConsultor } from '../dados.js';
 import { decidirAcesso, decidirNaoVeioNaEdicao, presencaPodeMarcar } from '../regras.js';
 import { valorDeEntrada, valorValido, sugerirValor, sugerirLoginDoConsultor, distribuirSemConsultor } from '../dados.js';
-import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento } from '../patio.js';
+import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, idsDeAgendamento, entradaDoChegou } from '../patio.js';
+import { orcamentoPorAgendamento } from '../orcador.js';
 import { livresDoDia, proximosDias, duracaoDoServico, janelasDoServico, diaDaSemana, resumoDoDia, candidatosDaEspera } from '../horarios.js';
 import { resumoDoContexto, semanaDoQuadro, duracoesDaLista } from '../contexto.js';
 import { situacaoDoLembrete, resumoDosLembretes, textoDoLembrete } from '../lembretes.js';
@@ -413,6 +414,24 @@ http.createServer(async (req, res) => {
     for (const o of PATIO) if (ids.includes(o.agendamento_id)) itens[o.agendamento_id] = resumoDaOs(o, EXTRAS, 'https://indycar-patio.netlify.app');
     return json(res, 200, { itens });
   }
+  /* rodada 7: orçamento de cada horário (id real de uuid), Pátio ao vivo com telefone, entrada pronta */
+  if (p === '/api/orcamentos/agendamentos') {
+    const ids = idsDeAgendamento(url.searchParams.get('ids'));
+    const linhas = AGENDA.filter(a => ids.includes(a.id) && a.orcamento).map(a => ({ ...a.orcamento, id: a.orcamento.id || `40000000-0000-4000-8000-${String(a.orcamento.numero).padStart(12, '0')}`, agendamento_id: a.id }));
+    return json(res, 200, { itens: orcamentoPorAgendamento(linhas, 'https://indycar-orcador.netlify.app') });
+  }
+  if (p === '/api/orcamentos/aprovados') return json(res, 200, { itens: [] });
+  if (p === '/api/patio/agora') {
+    const itens = PATIO.filter(o => !['entregue', 'cancelado'].includes(o.etapa)).map(o => { const a = AGENDA.find(x => x.id === o.agendamento_id) || {};
+      return { ...resumoDaOs(o, EXTRAS, 'https://indycar-patio.netlify.app'), cliente_nome: a.cliente_nome || '', veiculo: a.veiculo || '', placa: a.placa || '', telefone: a.telefone || '' }; });
+    return json(res, 200, { itens });
+  }
+  if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]{36})\/entrada-patio$/)) && m === 'GET') {
+    const a = AGENDA.find(x => x.id === mm[1]); if (!a) return json(res, 404, { erro: 'Não encontrado' });
+    const o = a.orcamento ? { ...a.orcamento, id: a.orcamento.id || `40000000-0000-4000-8000-${String(a.orcamento.numero).padStart(12, '0')}`, agendamento_id: a.id } : null;
+    const resumo = o ? orcamentoPorAgendamento([o], 'https://indycar-orcador.netlify.app')[a.id] : null;
+    return json(res, 200, { ...entradaDoChegou(a, resumo), chegou: ['compareceu', 'em_atendimento', 'concluido', 'nao_fechou'].includes(a.status) });
+  }
   if (p === '/api/patio/entregues') {
     if (!['admin', 'gestor'].includes(perfilMock().papel)) return json(res, 403, { erro:'Só o gestor ou o administrador pode fazer isso.' });
     return json(res, 200, entreguesSemDesfecho(PATIO, AGENDA).map(({ os, agendamento }) => ({ ...agendamento, patio: resumoDaOs(os, EXTRAS) })));
@@ -680,7 +699,9 @@ http.createServer(async (req, res) => {
       const os = PATIO.find(o => o.agendamento_id === a.id && o.etapa !== 'cancelado' && o.etapa !== 'entregue');
       if (os) patioAberta = resumoDaOs(os, EXTRAS, 'https://indycar-patio.netlify.app');
     }
-    return json(res, 200, { ...a, ...(body.status === 'nao_veio' ? { aviso_ausencia:{ ok:true } } : {}), ...(patio ? { patio } : {}), ...(patioAberta ? { patio_aberta: patioAberta } : {}), ...(espera?.length ? { espera } : {}) });
+    let entrada = null;
+    if (['compareceu', 'em_atendimento'].includes(body.status)) { const o = a.orcamento ? { ...a.orcamento, id: a.orcamento.id || `40000000-0000-4000-8000-${String(a.orcamento.numero).padStart(12, '0')}`, agendamento_id: a.id } : null; entrada = entradaDoChegou(a, o ? orcamentoPorAgendamento([o], 'https://indycar-orcador.netlify.app')[a.id] : null); }
+    return json(res, 200, { ...a, ...(body.status === 'nao_veio' ? { aviso_ausencia:{ ok:true } } : {}), ...(entrada ? { entrada } : {}), ...(patio ? { patio } : {}), ...(patioAberta ? { patio_aberta: patioAberta } : {}), ...(espera?.length ? { espera } : {}) });
   }
   if ((mm = p.match(/^\/api\/agendamentos\/([0-9a-f-]+)$/))) {
     const i = AGENDA.findIndex(x => x.id === mm[1]);

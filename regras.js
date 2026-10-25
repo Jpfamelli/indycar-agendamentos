@@ -32,6 +32,8 @@ const ROTAS_DA_PRESENCA = [
   ['GET', '/api/tarefas'], ['PATCH', '/api/tarefas/:id'],
   // Pátio (16/10): o selo da etapa no cartão de quem chegou (só leitura)
   ['GET', '/api/patio/agendamentos'],
+  // rodada 7 (C2): a entrada pronta no Pátio de quem acabou de chegar (sem telefone nem nome na resposta)
+  ['GET', '/api/agendamentos/:id/entrada-patio'],
 ].map(([m, p]) => [m, casa(p)]);
 
 export function rotaDaPresenca(metodo, rota) {

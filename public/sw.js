@@ -3,7 +3,7 @@
 // servidor fora do ar: a tela aparece, avisa e tenta de novo sozinha).
 /* Central (16/10): nome com o app — no mesmo domínio moram 5 service workers e cada um só
    apaga o que é SEU (antes apagava o cache dos outros apps ao ativar). */
-const CACHE = 'indycar-agenda-v24';
+const CACHE = 'indycar-agenda-v25';
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala — o app deixa de ser instalável sem dizer por quê. Foi o que
    quase aconteceu quando o qrcode.min.js saiu junto com a tela de QR e
@@ -11,7 +11,7 @@ const CACHE = 'indycar-agenda-v24';
 /* RODADA 5 (Central): tudo RELATIVO ao escopo do service worker. Sozinho, o escopo
    é '/'; sob a Central é '/agenda/' — a casca guardada é a certa nos dois casos. */
 const RAIZ = new URL('./', self.registration.scope).pathname;
-const CORE = ['', 'styles.css', 'planejamento.css', 'rodada4.css', 'rodada5.css', 'rodada6.css', 'rodada6b.css', 'rodada6c.css', 'conta.css', 'apps.js', 'planejamento.js', 'app.js', 'rodada6.js', 'rodada6b.js', 'rodada6c.js', 'rodada6d.js', 'conta.js',
+const CORE = ['', 'styles.css', 'planejamento.css', 'rodada4.css', 'rodada5.css', 'rodada6.css', 'rodada6b.css', 'rodada6c.css', 'rodada7.css', 'conta.css', 'apps.js', 'planejamento.js', 'app.js', 'rodada6.js', 'rodada6b.js', 'rodada6c.js', 'rodada6d.js', 'rodada7.js', 'conta.js',
   'agenda-planejada.js', 'manifest.json', 'icon-192.png', 'icon-512.png', 'logo.png'].map((c) => RAIZ + c);
 
 /* A biblioteca do login (supabase-js) com a versão FIXA: o arquivo nunca muda

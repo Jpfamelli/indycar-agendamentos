@@ -747,9 +747,13 @@ function seloPatioHtml(os) {
 /* Recado depois do "Chegou": o nº da OS que o Pátio abriu e o botão para abrir lá. */
 function recadoDaOs(nome, r) {
   const os = r?.patio;
-  if (!os?.os_id) return { msg: `${nome} chegou ✅`, acao: null };
+  /* rodada 7 (C2): a ENTRADA PRONTA do Pátio (checklist, fotos, assinatura, com o orçamento) — botão no recado ou aba aberta sozinha */
+  const aberta = !!(window.R7 && r?.entrada && window.R7.entradaAuto());
+  const entrada = window.R7 ? window.R7.acaoDeEntrada(r) : null;
+  const sufixo = aberta ? ' — entrada aberta no Pátio' : '';
+  if (!os?.os_id) return { msg: `${nome} chegou ✅${sufixo}`, acao: null, entrada };
   _patioCache.set(r.id, { em: Date.now(), os });
-  return { msg: `${nome} chegou ✅ — OS nº ${os.numero ?? '?'} aberta no Pátio`, acao: { rotulo: 'Abrir no Pátio', fn: () => IndyCarApps.abrir(os.abrir) } };
+  return { msg: `${nome} chegou ✅ — OS nº ${os.numero ?? '?'} aberta no Pátio${sufixo}`, acao: { rotulo: 'Abrir no Pátio', fn: () => IndyCarApps.abrir(os.abrir) }, entrada };
 }
 async function decorarPatio(root) {
   if (!root) return;
@@ -3719,6 +3723,7 @@ function cartaoRecepcao(a, agora) {
   let botoes;
   if (g === 'resolvidos') botoes = `<span class="rec-nota">${svg(I.cadeado)} Atendimento já registrou o desfecho</span>`;
   else if (g === 'oficina') botoes = `<span class="rec-nota ok">${svg(I.check)} Chegou</span>`
+    + (['compareceu', 'em_atendimento'].includes(a.status) ? `<button type="button" class="rec-btn rec-entrada" data-marca="entrada" title="Abre a entrada pronta no Pátio (checklist, fotos e assinatura)">🔧 Dar entrada</button>` : '')
     + (a.status === 'compareceu' ? `<button type="button" class="rec-btn rec-desfazer" data-marca="desfazer" data-antes="${a.confirmado ? 'confirmado' : 'aguardando'}">Desfazer chegada</button>` : '');
   else if (g === 'faltaram') botoes = `<span class="rec-nota falta">${svg(I.x)} Não veio</span>`
     + `<button type="button" class="rec-btn rec-chegou" data-marca="compareceu">${svg(I.check)} Chegou mesmo assim</button>`;
@@ -3753,6 +3758,7 @@ async function renderDia(opts = {}) {
         ${'wakeLock' in navigator ? `<button type="button" class="rec-ferr" id="recAcesa" aria-pressed="${!!state.telaAcesa}" title="Não deixa a tela apagar (tablet do balcão)">☀ <span>Tela acesa</span></button>` : ''}
         ${document.fullscreenEnabled ? '<button type="button" class="rec-ferr" id="recCheia" title="Tela cheia" aria-label="Tela cheia">⛶</button>' : ''}
         <button type="button" class="rec-ferr" id="recAjuda" title="Ajuda" aria-label="Ajuda">?</button>
+        <label class="rec-ferr r7-auto-rec" title="Ao marcar Chegou, abre sozinho a entrada pronta no Pátio"><input type="checkbox" data-r7-auto ${window.R7 && window.R7.entradaAuto() ? 'checked' : ''}> entrada do Pátio sozinha</label>
       </div>
     </div>
     <!-- rodada 5: quem está NA CASA agora (inclusive de outros dias) e quem ainda chega hoje -->
@@ -3857,6 +3863,7 @@ function ligarCartoesRecepcao(box) {
     const card = btn.closest('.appt'), marca = btn.dataset.marca;
     if (marca === 'nao_veio') return confirmarFaltaNoCartao(card);
     if (marca === 'desfazer') return marcarNaRecepcao(card, btn.dataset.antes || 'aguardando', { desfazendo: true });
+    if (marca === 'entrada') return window.R7?.entradaDoCartao(card.dataset.id, btn);   // rodada 7: entrada pronta no Pátio
     marcarNaRecepcao(card, marca);
   }));
   decorarPatio(box).catch(() => { /* sem Pátio: cartão como sempre */ });
@@ -3888,7 +3895,7 @@ async function marcarNaRecepcao(card, marca, o = {}) {
     else if (marca === 'compareceu') {
       // rodada 5: o nº da OS que o Pátio abriu + "Abrir no Pátio", junto com o Desfazer
       const os = recadoDaOs(nome, r);
-      toast(os.msg, 'ok', { duracao: 9000, acoes: [os.acao, antes === 'compareceu' ? null : { rotulo: 'Desfazer', fn: async () => {
+      toast(os.msg, 'ok', { duracao: 9000, acoes: [os.entrada, os.acao, antes === 'compareceu' ? null : { rotulo: 'Desfazer', fn: async () => {
         const des = await api('PATCH', `/agendamentos/${id}/status`, { status: ['aguardando', 'confirmado'].includes(antes) ? antes : 'aguardando' });
         toast(`Desfeito — ${nome} voltou para "Agendados"${des?.patio_aberta ? `. A OS nº ${des.patio_aberta.numero ?? '?'} continua aberta no Pátio: se foi engano, cancele lá` : ''}`, 'ok', des?.patio_aberta ? { duracao: 12000, acoes: [{ rotulo: 'Abrir no Pátio', fn: () => window.open(des.patio_aberta.abrir, '_blank', 'noopener') }] } : {}); route();
       } }] });

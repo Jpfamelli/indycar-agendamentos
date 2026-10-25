@@ -1,0 +1,14 @@
+/* Agenda — Rodada 7 / C2: a recepção que marca 30 horários por dia */
+[hidden] { display: none !important; }
+
+/* ---- Lote 1: entrada no Pátio e "Avisar: pronto" ---- */
+.r7-auto { font-size: 12px; opacity: .85; }
+.rec-entrada { background: #1f6feb; color: #fff; }
+.r6-li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.r6-li > .r6-linha { flex: 1 1 260px; min-width: 0; }
+.r6-li > .r7-avisar { flex: 0 0 auto; min-height: 36px; }
+.r7-avisado, .r7-sem-fone { font-size: 11px; }
+.r7-parado.r7-tom-aviso { color: #ffb347; font-weight: 700; }
+.r7-parado.r7-tom-ruim { color: #ff6b6b; font-weight: 700; }
+.r7-pronto { box-shadow: inset 3px 0 0 #35c486; padding-left: 6px; }
+@media (max-width: 520px) { .r6-li > .r7-avisar { min-height: 44px; flex: 1 1 100%; justify-content: center; } }

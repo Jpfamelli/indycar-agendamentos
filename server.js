@@ -15,7 +15,7 @@ import {
   presencaPodeMarcar, semConfirmacaoDoErro,
 } from './regras.js';
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
-import { idsDeAgendamento } from './patio.js';
+import { idsDeAgendamento, entradaDoChegou } from './patio.js';
 import { resumoDosLembretes } from './lembretes.js';
 import { lerParametros as lerParametrosDeHorario, resumoDoDia } from './horarios.js';
 
@@ -783,6 +783,15 @@ async function depoisDeMudarStatus({ antes: a, depois, usuario, via }) {
   if (depois.status === 'nao_veio') agendarAutomacoes(2_000);
 }
 
+/* Rodada 7 (C2): o link da entrada PRONTA no Pátio para um horário que chegou (com o orçamento que existir). Sem telefone nem nome. */
+async function entradaDoPatioDe(a) {
+  const [orcMapa, base] = await Promise.all([
+    dados.orcamentosDosAgendamentos ? dados.orcamentosDosAgendamentos([a.id]).catch(() => ({})) : {},
+    dados.linkBaseDoPatio ? dados.linkBaseDoPatio().catch(() => undefined) : undefined,
+  ]);
+  return entradaDoChegou(a, (orcMapa || {})[a.id] || null, base);
+}
+
 async function api(req, res, url) {
   const { pathname, searchParams } = url;
   const m = req.method;
@@ -1410,6 +1419,14 @@ async function api(req, res, url) {
     return send(res, 200, await dados.pendenciasAntigas(), { 'Cache-Control': 'no-store' });
   }
 
+  /* rodada 7 (C2): a entrada pronta no Pátio de um horário (ficha, cartão de quem já chegou). Sem dado pessoal na resposta. */
+  if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/entrada-patio$`))) && m === 'GET') {
+    const a = await dados.obterAgendamento(mm[1]);
+    if (!a) return notFound(res);
+    const e = await entradaDoPatioDe(a);
+    return send(res, 200, { ...e, chegou: ['compareceu', 'em_atendimento', 'concluido', 'nao_fechou'].includes(a.status) || a.compareceu === true || a.compareceu === 1 }, { 'Cache-Control': 'no-store' });
+  }
+
   // mudança rápida de status (botões do card)
   if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/status$`))) && m === 'PATCH') {
     const id = mm[1];
@@ -1452,12 +1469,15 @@ async function api(req, res, url) {
       const os = await dados.patioDosAgendamentos([a.id]).then((r) => r?.[a.id] || null).catch(() => null);
       if (os && os.etapa !== 'entregue') patioAberta = os;
     }
+    /* rodada 7: o "Chegou" já devolve a ENTRADA PRONTA do Pátio (?entrada=1&agendamento=&orcamento=) */
+    let entrada = null;
+    if (['compareceu', 'em_atendimento'].includes(body.status) && atualizado) entrada = await entradaDoPatioDe(atualizado).catch(() => null);
     // um horário vagou (não veio / cancelado): quem está na lista de espera serviria?
     let espera = null;
     if (['nao_veio', 'cancelado'].includes(body.status) && atualizado && dados.listarEspera && !soPresenca) {
       espera = await dados.listarEspera({ status: 'aberta', limite: 100 }).then((l) => dados.esperaQueCabe(l, a.data, a.servico).slice(0, 3)).catch(() => null);
     }
-    return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia, ...(patio ? { patio } : {}), ...(patioAberta ? { patio_aberta: patioAberta } : {}), ...(espera?.length ? { espera } : {}) });
+    return ok(res, { ...atualizado, aviso_ausencia: avisoAusencia, ...(patio ? { patio } : {}), ...(entrada ? { entrada } : {}), ...(patioAberta ? { patio_aberta: patioAberta } : {}), ...(espera?.length ? { espera } : {}) });
   }
 
   /* ---- link de entrada do ecossistema (?tel=&cliente=) ----

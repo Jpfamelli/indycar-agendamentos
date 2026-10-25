@@ -953,3 +953,37 @@ Numeração continua da C1b (a partir de 618). Total verificado: **108 itens (61
 - Os recados de WhatsApp são manuais (o consultor aperta enviar); não passam pelo "PARAR" do Comunicar.
 - Pedido a P1/O2: `Cross-Origin-Opener-Policy: same-origin-allow-popups` no Pátio e no Orçador para a aba nomeada ser reaproveitada.
 - Nada publicado: o coordenador publica a Central.
+
+<!-- C2-R7-INICIO -->
+## Rodada 7 (25/10/2026) — C2 (Agenda)
+
+Numeração própria `C2-N` (o C1 numera a Casa no mesmo arquivo; assim as duas séries não se atropelam). 🔗 = conexão entre sistemas.
+Cada linha foi conferida por teste (`npm test`) ou por roteiro de navegador contra o servidor de mentira (`scripts/qa-r7-*.mjs`, porta própria).
+
+### Lote 1 — "Chegou" abre a entrada pronta no Pátio, "Orçar" e "Avisar: pronto"
+- C2-1. 🔗 "Chegou" (PATCH /status) devolve a ENTRADA PRONTA do Pátio: `?entrada=1&agendamento=<uuid>&orcamento=<uuid>` (contrato do Pátio, `patio.js › linkEntradaPatio`)
+- C2-2. 🔗 O recado do "Chegou" no Quadro ganha "Dar entrada" e abre a aba nomeada `indycar-patio`
+- C2-3. 🔗 Na Recepção (Franklin) o recado do "Chegou" também traz "Dar entrada"
+- C2-4. 🔗 O orçamento (aprovado, enviado ou em aberto) vai junto no link; recusado ou vencido fica de fora
+- C2-5. 🔗 "Orçar" só aparece quando o carro chegou SEM orçamento (antes oferecia criar um segundo)
+- C2-6. 🔗 "Orçar" conferido no navegador (pendência da R6): abre a aba `indycar-orcador` com telefone 55… e nome do cliente certo
+- C2-7. Telefone e nome do cliente NÃO viajam na barra de endereço do Pátio (só ids, placa, carro e serviço)
+- C2-8. BUG achado: a base do link aceitava `https://usuario:senha@site`; agora só https sem usuário, senha, consulta ou âncora (o resto cai no endereço do Pátio)
+- C2-9. Link montado só com uuid, placa válida e texto limpo (`<>`, controle, 80/200 caracteres); entrada hostil descartada
+- C2-10. O navegador só abre o link se for https do Pátio com `entrada=1` (nada de `javascript:` nem outro site)
+- C2-11. 🔗 `GET /api/agendamentos/:id/entrada-patio` para a ficha e os cartões; a recepção pode (só GET) e a resposta não leva dado pessoal
+- C2-12. 🔗 Quadro: quem chegou ganha o botão fixo "🔧 Entrada" no cartão
+- C2-13. 🔗 Recepção: "Dar entrada" fixo no cartão de "Já chegaram"
+- C2-14. Interruptor "abrir a entrada do Pátio sozinho" no Quadro, lembrado neste aparelho
+- C2-15. O mesmo interruptor na Recepção
+- C2-16. Com o interruptor ligado, o recado diz "entrada aberta no Pátio" e não repete o botão
+- C2-17. 🔗 Início, "No pátio agora": carros prontos primeiro (o que espera há mais tempo no topo)
+- C2-18. 🔗 Início: botão "💬 Avisar: pronto" no WhatsApp do cliente (telefone da OS do Pátio)
+- C2-19. Início: depois de avisar vira "↻ Avisar de novo" e mostra a hora do aviso (lembrado por 1 dia neste aparelho)
+- C2-20. Início: tempo parado na etapa em cor (laranja/vermelho com limite por etapa; pronto espera pouco)
+- C2-21. Primeiro nome do recado só com 2+ letras (nome "<b>" não vira "Oi B!")
+- C2-22. Celular 375 px: botões do cartão (inclusive "Entrada") e o interruptor com 44 px, sem rolagem lateral
+- C2-23. Servidor de mentira ganha orçamentos por horário, Pátio ao vivo com telefone e a rota da entrada
+- C2-24. 19 testes novos (`tests/c2-lote1.test.mjs`): link, hostis, rotas por HTTP, papéis, regras puras do navegador lidas de verdade
+- C2-25. Roteiro de navegador do lote (`scripts/qa-r7-lote1.mjs`, 36 conferências em 1440, recepção e 375 px)
+<!-- C2-R7-FIM -->
