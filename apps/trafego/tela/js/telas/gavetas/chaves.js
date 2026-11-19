@@ -111,7 +111,7 @@ export function montar(ctx, alvo) {
 
   function formulario() {
     const id = 'ch-nome-' + (++seq);
-    const nome = h('input', { id, type: 'text', maxlength: '60', autocomplete: 'off', placeholder: 'Ex.: Claude Code do João' });
+    const nome = h('input', { id, name: 'nome', type: 'text', maxlength: '60', autocomplete: 'off', placeholder: 'Ex.: Claude Code do João' });
     const grupo = 'ch-escopo-' + seq;
     const opcao = (valor, texto, apoio, marcada) => h('label', { class: 'opcao' },
       h('input', { type: 'radio', name: grupo, value: valor, checked: marcada || null }),

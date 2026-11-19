@@ -77,7 +77,7 @@ export function montar(ctx, alvo) {
     const linhas = CAMPOS.map((c) => {
       const id = 'meta-' + c.id + '-' + (++seq);
       const idPara = id + '-para';
-      const input = h('input', { id, type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-describedby': idPara });
+      const input = h('input', { id, name: c.id, type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-describedby': idPara });
       input.value = paraCampo(cfg[c.id], c.tipo);
       campos[c.id] = input;
       return h('div', { class: 'meta-linha' },

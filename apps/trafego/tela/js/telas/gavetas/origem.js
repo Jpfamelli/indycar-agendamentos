@@ -88,10 +88,10 @@ export function montar(ctx, alvo, { parte } = {}) {
   function formularioDeFrase(f, { aoSalvar = null, aoCancelar = null } = {}) {
     const ids = { frase: idNovo('of-frase'), tipo: idNovo('of-tipo'), canal: idNovo('of-canal'), campanha: idNovo('of-camp') };
     const campos = {
-      frase: h('input', { id: ids.frase, type: 'text', maxlength: '200', autocomplete: 'off', required: true }),
+      frase: h('input', { id: ids.frase, name: 'frase', type: 'text', maxlength: '200', autocomplete: 'off', required: true }),
       tipo: h('select', { id: ids.tipo }, TIPOS.map((t) => h('option', { value: t.id }, t.rotulo))),
       canal: h('select', { id: ids.canal, 'data-destinos': '1' }),
-      campanha: h('input', { id: ids.campanha, type: 'text', maxlength: '120', autocomplete: 'off' }),
+      campanha: h('input', { id: ids.campanha, name: 'campanha_nome', type: 'text', maxlength: '120', autocomplete: 'off' }),
     };
     if (f) { campos.frase.value = f.frase || ''; campos.tipo.value = f.tipo || 'contem'; campos.campanha.value = f.campanha_nome || ''; }
     preencherSelect(campos.canal, f ? ((f.vira && f.vira.canal) || f.plataforma || '') : '');
@@ -191,7 +191,7 @@ export function montar(ctx, alvo, { parte } = {}) {
     const id = idNovo('o-desde');
     const hoje = new Date();
     const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    const campo = h('input', { id, type: 'date', min: '2024-01-01', max: iso(hoje), value: iso(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 30)) });
+    const campo = h('input', { id, name: 'desde', type: 'date', min: '2024-01-01', max: iso(hoje), value: iso(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 30)) });
     const saida = h('div', { class: 'reaplicar-saida', 'aria-live': 'polite' });
     const simular = h('button', { class: 'botao', type: 'submit' }, 'Simular');
     trocar(partes.reaplicar,
@@ -242,10 +242,10 @@ export function montar(ctx, alvo, { parte } = {}) {
   function montarMensagem() {
     const ids = { rotulo: idNovo('om-rotulo'), plataforma: idNovo('om-plat'), campanha: idNovo('om-camp'), texto: idNovo('om-texto') };
     const campos = {
-      rotulo: h('input', { id: ids.rotulo, type: 'text', maxlength: '80', autocomplete: 'off', required: true, placeholder: 'Ex.: Anúncio troca de óleo novembro' }),
+      rotulo: h('input', { id: ids.rotulo, name: 'rotulo', type: 'text', maxlength: '80', autocomplete: 'off', required: true, placeholder: 'Ex.: Anúncio troca de óleo novembro' }),
       plataforma: h('select', { id: ids.plataforma }, h('option', { value: 'meta' }, 'Anúncio da Meta'), h('option', { value: 'google' }, 'Anúncio do Google'), h('option', { value: '' }, 'Não é anúncio (bio, cartaz, panfleto)')),
-      campanha: h('input', { id: ids.campanha, type: 'text', maxlength: '120', autocomplete: 'off' }),
-      texto: h('input', { id: ids.texto, type: 'text', maxlength: '300', autocomplete: 'off', placeholder: 'Olá! Quero saber mais.' }),
+      campanha: h('input', { id: ids.campanha, name: 'campanha_nome', type: 'text', maxlength: '120', autocomplete: 'off' }),
+      texto: h('input', { id: ids.texto, name: 'texto', type: 'text', maxlength: '300', autocomplete: 'off', placeholder: 'Olá! Quero saber mais.' }),
     };
     const saida = h('div', { class: 'mensagem-saida' });
     const gerar = h('button', { class: 'botao botao-forte', type: 'submit' }, 'Criar a mensagem');

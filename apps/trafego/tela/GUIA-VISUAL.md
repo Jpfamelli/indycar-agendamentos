@@ -6,7 +6,8 @@ preso ao Tráfego: os nomes são de papel ("tinta", "marca", "setor"), não de t
 
 Arquivos: `ds/tokens.css` (valores), `ds/base.css` (fontes, tipo, utilidades, movimento),
 `ds/componentes.css` (peças). As telas do app (`css/casca.css`, `css/hoje.css`, `css/jornada.css`,
-`css/espera.css`) só montam layout com essas peças.
+`css/campanhas.css`, `css/gestor.css`, `css/ajustes.css`, `css/relatorios.css`) só montam layout com essas peças;
+as peças de tela que outro app pode copiar estão na segunda tabela do item 3.
 
 As fotos abaixo ficam em `_guia/` e são refeitas por `GUIA=1 node tela/_mock/roteiro.mjs`
 (servidor de mentira, cenário `sem_conta`, tema escuro, salvo onde diz outro).
@@ -128,6 +129,28 @@ principal) usa algarismo proporcional; tabela e placar usam tabular.
 | menu | `.menu`, `.menu-item`, `.menu-quem` | troca de app e conta |
 | estados | `.esq` (esqueleto com a forma da tela), `.vazio`, `.falha` | carregando, vazio e erro são três telas diferentes |
 | marca "de anúncio" | `.marca-anuncio` | paralelogramo vermelho antes do nome da origem paga |
+
+### Peças de tela (rodada 8, segunda parte: Campanhas, Gestor IA, Ajustes e relatórios)
+
+Moram no CSS da tela, não em `ds/`. Quem adotar copia junto com a regra de uso.
+
+| Peça | Classe (arquivo) | Quando usar |
+|---|---|---|
+| classificação | `.camp-lista` > `.camp-linha` com `.camp-pos`, `.camp-leitura`, `.camp-distancia` (`campanhas.css`) | ranking com o critério escrito em cima ("Ordem: custo por serviço fechado") e a distância para o primeiro por extenso; a posição nunca vai só no número |
+| dois lados | `.camp-lados` > `.camp-lado-plataforma` + `.camp-lado-oficina`, `.camp-diferenca` | quando duas fontes contam a mesma coisa (a plataforma diz / a oficina viu); a diferença em palavra, a barra só ajuda |
+| mapa de dia e hora | `.mapa` > `.mapa-grade` > `.mapa-celula[data-nivel]`, `.mapa-escala`, `.mapa-leitura`, `.mapa-tabela` (`campanhas.css`) | um tom só, do claro ao forte; a frase de leitura em cima ("O pico é terça das 9h às 11h"), a tabela inteira logo abaixo para leitor de tela; zero contato fica no trilho, hora sem dado fica tracejada (nunca a mesma coisa) |
+| campanha aberta | `.camp-conjunto` > `.camp-anuncios` > `.camp-anuncio` com `.camp-mini` | miniatura sempre pela rota do app (`/api/coleta/miniatura`), com "sem imagem" quando falha |
+| conversa | `.fala-lista` > `.fala.fala-pessoa` / `.fala.fala-gestor` / `.fala-resumo`, `.fala-nota` (`gestor.css`) | resposta da IA por `textContent` com formatador próprio (parágrafo, lista, negrito); erro no meio mantém o texto que já chegou |
+| olhando | `.gestor-olhando` com `.gestor-olhando-ponto` | o que a IA está consultando, em palavra ("olhando as campanhas…"); o ponto só pisca com `prefers-reduced-motion: no-preference` |
+| proposta | `.proposta` (`.proposta-cab`, `.proposta-tipo`, `.proposta-verba`, `.proposta-risco`, `.proposta-botoes`), `.proposta-alto` | toda sugestão de mudança: tipo, alvo, porquê, números de apoio, risco alto com motivo e os três botões (Aceitar, Recusar, Já fiz); a frase "Nada é feito sozinho" vai junto |
+| diário | `.diario` > `.diario-item` com `.diario-medidas` (tabela antes e depois) e `.diario-veredito` | o que foi decidido e o que aconteceu depois; veredito com selo (cor, ícone e palavra) e a frase do servidor sem repetir a palavra do selo |
+| gavetas | `.ajustes-lista` > `.ajustes-item` + `.ajustes-gaveta` (`ajustes.css`) | configuração: um botão abre a lista; no computador, lista e gaveta lado a lado; no celular, uma de cada vez com "Voltar"; `Esc` fecha e o foco volta ao item |
+| passo a passo | `.passos` > `.passo` com `.passo-n` | ligar algo novo: o que já foi feito marcado, o próximo passo com um botão só |
+| opções | `.opcoes` > `.opcao` (rádio grande com `.opcao-texto`) | escolha de 2 a 4 caminhos com explicação curta; alvo de 44 px ou mais |
+| caixa de código | `.caixa-codigo` com `botaoCopiar` | linha para colar em outro programa (Claude Code, Codex); texto em fonte de dado, botão "Copiar" ao lado, nunca a chave inteira depois de fechada |
+| caixa de aviso | `.aviso-caixa` | aviso dentro de uma gaveta (simular antes de aplicar, chave aparece uma vez só); sempre com ícone e palavra |
+| folha do mês | `.papel` > `.papel-pagina` (`relatorios.css`) | relatório para imprimir: A4 em pé, uma página, papel claro mesmo no tema escuro, tabela larga dentro de `.papel-rolagem` na tela |
+| apresentação | `.apres` > `.apres-tela[data-tela]`, `.apres-numero`, `.apres-controles` | TV da oficina: um assunto por tela, número grande sempre com a unidade ("12 contatos"), setas e espaço trocam, `Esc` volta |
 
 ### Fotos
 
