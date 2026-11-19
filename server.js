@@ -652,7 +652,7 @@ function baseDaRequisicao(req) {
 /* Rotas que custam caro (varrem a tabela, chamam serviço de fora): no máximo
    30 por minuto por pessoa. */
 const ROTAS_CARAS = new Set([
-  '/api/busca', '/api/export/agendamentos.csv', '/api/export/clientes.csv', '/api/horarios-livres',
+  '/api/conversas-sem-horario', '/api/busca', '/api/export/agendamentos.csv', '/api/export/clientes.csv', '/api/horarios-livres',
   '/api/codewords/run', '/api/codewords/importar', '/api/integracoes/testar-webhook', '/api/whatsapp/testar',
   '/api/whatsapp/conexao', '/api/clientes/achar', '/api/consultores/sugerir',
   '/api/horarios-livres/dia', '/api/horarios-livres/proximos', '/api/clientes/360', '/api/aniversarios',
@@ -1418,7 +1418,10 @@ async function api(req, res, url) {
   if (pathname === '/api/patio/entregues' && m === 'GET') {
     return send(res, 200, await dados.entreguesNoPatioSemDesfecho().catch(() => []), { 'Cache-Control': 'no-store' });
   }
-  // Pendências antigas: passou há mais de 7 dias sem desfecho (só lista; resolve pelos botões)
+  // Pendências de dias anteriores sem desfecho (só lista; resolve pelos botões)
+  if (pathname === '/api/conversas-sem-horario' && m === 'GET') {
+    return send(res, 200, await dados.conversasSemHorario(), { 'Cache-Control': 'no-store' });
+  }
   if (pathname === '/api/pendencias-antigas' && m === 'GET') {
     return send(res, 200, await dados.pendenciasAntigas(), { 'Cache-Control': 'no-store' });
   }
