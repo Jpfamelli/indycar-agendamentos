@@ -16,6 +16,9 @@
    Gasto: só ads_metricas_dia, demonstração separada (motor/soma.js). Com gasto de demonstração os números da
    plataforma aparecem, mas custo por contato, custo por serviço e retorno ficam null (não se mistura com dado da oficina).
    A leitura de cada campanha usa a régua do custo do Nexus Ads (motor/comparacao.js, nivelCusto) e o retorno.
+   Régua do retorno (integração r8, igual ao plano de escala e às instruções do Gestor): com a margem m da oficina
+   (ads_config.margem_pct), ruim abaixo de 1/m (não se paga), atenção de 1/m até 2/m, bom acima de 2/m. Sem margem
+   cadastrada (nula, 0 ou 100%, que é o valor antigo de quando o campo ficava vazio) vale 45% e a frase diz que é premissa.
    ============================================================ */
 'use strict';
 
@@ -26,14 +29,32 @@ const Cmp = require('./comparacao');
 const H = require('./horarios');
 const Fonte = require('./fonte');
 
-/** Retorno (faturado ÷ gasto) a partir do qual a campanha é "bom"; abaixo de RETORNO_ATENCAO é "ruim". */
-const RETORNO_BOM = 3;
-const RETORNO_ATENCAO = 1.5;
+/** Margem usada quando a oficina não cadastrou a dela (premissa dita na frase). */
+const MARGEM_PREMISSA = 45;
 const MAX_CONTATOS_DETALHE = 200;
 const PLATAFORMAS_DA_ROTA = Object.freeze(['meta', 'google', 'anuncio']);
 
 const normal = s => String(s == null ? '' : s).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 const texto = v => (v == null || !String(v).trim() ? null : String(v).trim());
+
+/**
+ * A régua do retorno pela margem: { margem_pct, premissa, ruim_abaixo, bom_acima }.
+ * ruim: retorno < 1/m; atenção: de 1/m até 2/m; bom: > 2/m (m = margem em fração).
+ * Margem nula, 0, negativa ou de 100% ou mais não é margem de oficina: vale a premissa de 45%.
+ */
+function reguaDoRetorno(margemPct) {
+  const m = Number(margemPct);
+  const cadastrada = margemPct != null && margemPct !== '' && Number.isFinite(m) && m > 0 && m < 100;
+  const pct = cadastrada ? m : MARGEM_PREMISSA;
+  return { margem_pct: pct, premissa: !cadastrada, ruim_abaixo: T.arredondar(100 / pct), bom_acima: T.arredondar(200 / pct) };
+}
+
+/** Endereço da miniatura pelo próprio app (img-src 'self'); nulo quando a coleta não trouxe imagem. */
+const ID_ANUNCIO = /^[0-9A-Za-z_-]{1,40}$/;
+function miniaturaDoApp(plataforma, anuncioExt, urlColetada) {
+  if (!texto(urlColetada) || !['meta', 'google'].includes(plataforma) || !ID_ANUNCIO.test(String(anuncioExt || ''))) return null;
+  return require('../coletor').enderecoMiniatura(plataforma, anuncioExt);
+}
 
 /* ---------- entrada ---------- */
 
@@ -144,9 +165,10 @@ function numeros(soma, itens, { confiavel, oficina = true }) {
 
 /**
  * A leitura de uma campanha em uma frase, com o tom: bom | atencao | ruim | neutro.
- * `tipo` = 'real' | 'demo' | 'vazio' (gasto não conhecido); `meta` = custo por contato alvo; `minimo` = gasto mínimo para julgar.
+ * `tipo` = 'real' | 'demo' | 'vazio' (gasto não conhecido); `meta` = custo por contato alvo; `minimo` = gasto mínimo para julgar;
+ * `regua` = reguaDoRetorno(margem) (sem ela, a premissa de 45%).
  */
-function leituraDaCampanha(n, { tipo, meta = null, minimo = Cmp.GASTO_MINIMO } = {}) {
+function leituraDaCampanha(n, { tipo, meta = null, minimo = Cmp.GASTO_MINIMO, regua = reguaDoRetorno(null) } = {}) {
   const faltaValor = !(n.sem_valor > 0) ? '' : n.faturado == null ? ' Falta lançar o valor dos serviços fechados.'
     : ` Falta o valor de ${T.plural(n.sem_valor, 'serviço', 'serviços')}: o retorno pode ser maior.`;
   if (tipo === 'demo') return { tom: 'neutro', texto: 'Números de demonstração: ligue a conta para ver os da oficina.' };
@@ -161,9 +183,10 @@ function leituraDaCampanha(n, { tipo, meta = null, minimo = Cmp.GASTO_MINIMO } =
   if (!n.contatos) return { tom: 'ruim', texto: `Gastou ${T.dinheiro(n.gasto)} e nenhum contato chegou à oficina.` };
   if (n.retorno != null && n.faturado > 0) {
     const virou = `cada R$ 1 virou ${T.brl(n.retorno)} em serviço fechado.`;
-    if (n.retorno >= RETORNO_BOM) return { tom: 'bom', texto: `Se paga bem: ${virou}${faltaValor}` };
-    if (n.retorno >= RETORNO_ATENCAO) return { tom: 'atencao', texto: `Se paga com folga pequena: ${virou}${faltaValor}` };
-    return { tom: 'ruim', texto: `Ainda não se paga: ${virou}${faltaValor}` };
+    const premissa = regua.premissa ? ` Conta feita com margem de ${regua.margem_pct}%, uma premissa: cadastre a margem da oficina em Ajustes.` : '';
+    if (n.retorno > regua.bom_acima) return { tom: 'bom', texto: `Se paga bem: ${virou}${faltaValor}${premissa}` };
+    if (n.retorno >= regua.ruim_abaixo) return { tom: 'atencao', texto: `Se paga com folga pequena: ${virou} Fica bom acima de ${T.brl(regua.bom_acima)}.${faltaValor}${premissa}` };
+    return { tom: 'ruim', texto: `Ainda não se paga: ${virou} Para se pagar, precisa passar de ${T.brl(regua.ruim_abaixo)}.${faltaValor}${premissa}` };
   }
   const nivel = Cmp.nivelCusto(n.custo_por_contato, meta, n.gasto, minimo);
   const custo = `${T.dinheiro(n.custo_por_contato)} por contato`;
@@ -206,6 +229,7 @@ function montarLista(d) {
   const conjuntos = S.gastoDoTrecho(todas.filter(l => l.nivel === 'conjunto'), { haReal: !!d.haReal });
   const confiavel = g.tipo === 'real';
   const dias = P.diasEntre(periodo.de, periodo.ate);
+  const regua = reguaDoRetorno(config.margem_pct);
 
   const daColeta = juntarLinhas(g.linhas, 'campanha_ext', 'campanha_nome');
   const filhosDe = new Map();
@@ -225,7 +249,7 @@ function montarLista(d) {
     const n = numeros(c.soma, lista, { confiavel });
     campanhas.push({ plataforma: c.plataforma, ext: c.ext, nome: c.nome || c.ext,
       situacao: Cmp.situacaoDaCampanha({ status: c.status, ultimoGasto: c.ultimoGasto, hoje }), objetivo: objetivoDaCasa(c.objetivo),
-      ...n, leitura: leituraDaCampanha(n, { tipo: g.tipo, meta: metaDe(config, c.plataforma), minimo }),
+      ...n, leitura: leituraDaCampanha(n, { tipo: g.tipo, meta: metaDe(config, c.plataforma), minimo, regua }),
       serie: serieDaCampanha(dias, c.linhas, lista), filhos: filhosDe.has(k) ? filhosDe.get(k).size : 0,
       // a mais do contrato
       chave: chaveDaCampanha(c.ext, c.nome), so_dos_contatos: false });
@@ -256,6 +280,7 @@ function montarLista(d) {
     horarios: H.horariosDosContatos(itens),
     // a mais do contrato
     plataforma,
+    regua_retorno: regua,
     comparacao: confiavel && !plataforma ? Cmp.comparacaoPlataformas(porPlat) : null,
     por_que_difere: Cmp.porQueDifere('plataforma', 'desistiu', ...(plataforma !== 'meta' ? ['google'] : []), 'origem'),
   };
@@ -292,7 +317,7 @@ function montarDetalhe(d) {
     const seus = dela.filter(i => casa(doContato(i, 'conjunto'), cj.ext, cj.nome));
     const filhos = [...anuncios.values()].filter(a => a.pai === cj.ext).map(a => {
       const deles = dela.filter(i => casa(doContato(i, 'anuncio'), a.ext, a.nome));
-      return { ext: a.ext, nome: a.nome || a.ext, miniatura_url: a.miniatura_url, ...numeros(a.soma, deles, { confiavel, oficina: ligaAnuncio }) };
+      return { ext: a.ext, nome: a.nome || a.ext, miniatura_url: miniaturaDoApp(a.plataforma, a.ext, a.miniatura_url), ...numeros(a.soma, deles, { confiavel, oficina: ligaAnuncio }) };
     }).sort((x, y) => y.gasto - x.gasto);
     return { ext: cj.ext, nome: cj.nome || cj.ext, ...numeros(cj.soma, seus, { confiavel, oficina: ligaConjunto }), anuncios: filhos };
   }).sort((x, y) => y.gasto - x.gasto);
@@ -327,6 +352,7 @@ function montarDetalhe(d) {
     campanha, conjuntos, palavras: palavrasSaida, termos: termosSaida, contatos: recentes,
     // a mais do contrato
     contatos_total: dela.length,
+    regua_retorno: lista.regua_retorno,
   };
 }
 
@@ -382,7 +408,7 @@ function responderDetalhe({ plataforma, chave, q = new URLSearchParams(), pedido
 }
 
 module.exports = {
-  RETORNO_BOM, RETORNO_ATENCAO, MAX_CONTATOS_DETALHE,
+  MARGEM_PREMISSA, MAX_CONTATOS_DETALHE, reguaDoRetorno, miniaturaDoApp,
   chaveDaCampanha, juntarLinhas, ligarContatos, numeros, leituraDaCampanha, objetivoDaCasa, alvoDoEndereco,
   montarLista, montarDetalhe, responderLista, responderDetalhe,
 };

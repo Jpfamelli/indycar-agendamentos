@@ -599,7 +599,9 @@ async function metas(args, ctx) {
   if (verba == null) faltando.push('Verba do mês não definida.');
   if (n(c.cpa_alvo) == null) faltando.push('Meta de custo por contato não definida.');
   if (n(c.roas_alvo) == null) faltando.push('Meta de retorno não definida.');
-  if (n(c.margem_pct) == null) faltando.push('Margem não informada.');
+  // integração r8: a mesma régua de /api/campanhas (margem nula, 0 ou 100% = não informada; vale a premissa de 45%)
+  const regua = require('../motor/campanhas').reguaDoRetorno(c.margem_pct);
+  if (regua.premissa) faltando.push(`Margem não informada: use ${regua.margem_pct}% como premissa e diga isso.`);
   return {
     resumo: [
       verba != null ? `Verba do mês: ${dinheiro(verba)}.` : 'Verba do mês não definida.',
@@ -609,7 +611,8 @@ async function metas(args, ctx) {
     ].filter(Boolean).join(' '),
     verba_mes: verba,
     custo_por_contato_alvo: n(c.cpa_alvo), custo_por_contato_alvo_google: n(extras.cpa_alvo_google),
-    retorno_alvo: n(c.roas_alvo), ticket_medio_meta: n(c.ticket_medio), margem_pct: n(c.margem_pct),
+    retorno_alvo: n(c.roas_alvo), ticket_medio_meta: n(c.ticket_medio), margem_pct: regua.premissa ? null : regua.margem_pct,
+    regua_retorno: regua,
     ticket_medio_real: h.derivados ? h.derivados.ticket_medio ?? null : null,
     ritmo,
     limites_da_proposta: { aumento_sem_risco: AUMENTO_SEM_RISCO, teto_mensal: verba, abertas_por_chave: MAX_ABERTAS, por_dia_por_chave: MAX_POR_DIA },

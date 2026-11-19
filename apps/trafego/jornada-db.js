@@ -94,6 +94,26 @@ async function saidasConfirmadas({ inicio, fim, sb = db.sb }) {
 
 /* ---------------- conversas novas (achado 01) ---------------- */
 
+/**
+ * Conversas novas pela função do banco (integração r8): conversa nova = primeira mensagem recebida de toda a
+ * história daquele telefone; o canal sai da mesma régua do banco (código, frase) que grava a origem.
+ * Devolve { ok, ausente, total, anuncio, viraram, agendaram, vieram } (somas do período) ou { ok: false, ausente }.
+ */
+async function conversasNovasDoBanco({ inicio, fim, sb = db.sb }) {
+  try {
+    const { data, error } = await sb.rpc('trafego_conversas_novas', { p_de: inicio, p_ate: fim });
+    if (error) return { ok: false, ausente: ausente(error) };
+    const linhas = Array.isArray(data) ? data : [];
+    const soma = (filtro, campo) => linhas.filter(filtro).reduce((t, l) => t + (Number(l[campo]) || 0), 0);
+    const todas = () => true;
+    return {
+      ok: true, ausente: false,
+      total: soma(todas, 'conversas'), anuncio: soma(l => l.paga === true, 'conversas'),
+      viraram: soma(todas, 'viraram_contato'), agendaram: soma(todas, 'agendaram'), vieram: soma(todas, 'vieram'),
+    };
+  } catch (e) { return { ok: false, ausente: ausente(e) }; }
+}
+
 /** Conversas que começaram no período (uma por telefone): [{ id, telefone_e164, aberta_em }]. */
 async function conversasNovas({ inicio, fim, sb = db.sb }) {
   const linhas = [];
@@ -222,7 +242,7 @@ async function aplicarOrigem(leadId, dados, { sb = db.sb, como = 'manual' } = {}
 module.exports = {
   LOTE, emLotes, ausente,
   primeirasMensagens, clientes, nomes, saidasConfirmadas,
-  conversasNovas, primeirasDasConversas, frasesAtivas, rastreiosPorCodigo,
+  conversasNovas, conversasNovasDoBanco, primeirasDasConversas, frasesAtivas, rastreiosPorCodigo,
   mensagensDoContato, atividadesDoContato, agendamentosDoCliente,
   situacaoDoContato, gravarValor, gravarMotivo, aplicarOrigem,
 };

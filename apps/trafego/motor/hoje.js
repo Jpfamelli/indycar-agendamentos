@@ -390,7 +390,9 @@ function montarHoje(d) {
   const instante = i => { const t = Date.parse(String(i.chegou_em ?? '')); return Number.isFinite(t) ? t : 0; };
   const chegaramHoje = S.daPlataforma(doMes.filter(i => S.diaDe(i) === hoje), plataforma)
     .sort((a, b) => instante(b) - instante(a)).slice(0, MAX_HOJE)
-    .map(i => ({ lead_id: i.lead_id, nome: i.nome ?? null, hora: P.horaBR(i.chegou_em), origem: i.origem || null, etapa_atual: i.etapa_atual || 'contato', espera_min: T.numOuNulo(i.espera_min) }));
+    .map(i => ({ lead_id: i.lead_id, nome: i.nome ?? null, hora: P.horaBR(i.chegou_em), origem: i.origem || null, etapa_atual: i.etapa_atual || 'contato', espera_min: T.numOuNulo(i.espera_min),
+      // a mais do contrato (integração r8): o que os mini-setores da tela leem, vindo da jornada
+      etapas: Array.isArray(i.etapas) ? i.etapas : [], desfecho: i.desfecho || null, pendencias: Array.isArray(i.pendencias) ? i.pendencias : [] }));
 
   /* o que fazer agora */
   const vistos = new Set(), esperando = [];

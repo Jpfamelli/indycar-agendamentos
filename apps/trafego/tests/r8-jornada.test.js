@@ -510,6 +510,39 @@ test('conversas novas que vieram de anúncio: primeira mensagem de cada telefone
   assert.equal(r.totais.conversas_novas_anuncio, 3, 'frase padrão da Meta, "vi o anúncio no Google" e código de mensagem pronta de anúncio');
 });
 
+test('conversas novas pela função do banco (integração r8): somas de trafego_conversas_novas, sem ler a tabela conversas', async () => {
+  J.esquecer();
+  const pedidos = [];
+  const linhas = [
+    { dia: '2026-11-03', canal: 'meta', paga: true, conversas: 4, viraram_contato: 2, agendaram: 1, vieram: 1 },
+    { dia: '2026-11-03', canal: 'anuncio', paga: true, conversas: 1, viraram_contato: 0, agendaram: 0, vieram: 0 },
+    { dia: '2026-11-04', canal: 'site', paga: false, conversas: 2, viraram_contato: 1, agendaram: 0, vieram: 0 },
+    { dia: '2026-11-05', canal: 'desconhecida', paga: null, conversas: 10, viraram_contato: 3, agendaram: 1, vieram: 0 },
+  ];
+  const sb = bancoCheio(6, {
+    tabelas: { conversas: [{ id: 'c1', telefone_e164: '+5512991000000', tipo: 'cliente', aberta_em: new Date(AGORA - 3600000).toISOString() }] },
+    rpc: { trafego_conversas_novas: args => { pedidos.push(args); return linhas; } },
+  });
+  const r = await J.listar({ periodo: PERIODO, filtros: {}, sb, agora: AGORA });
+  assert.equal(r.totais.conversas_novas, 17);
+  assert.equal(r.totais.conversas_novas_anuncio, 5, 'só as linhas com paga = true (Meta e anúncio sem plataforma)');
+  assert.equal(r.totais.conversas_novas_viraram_contato, 6, 'o banco diz quantas viraram contato');
+  assert.equal(pedidos.length, 1);
+  assert.equal(pedidos[0].p_de, '2026-11-01T00:00:00-03:00', 'começo do período no dia de Brasília');
+  assert.equal(Date.parse(pedidos[0].p_ate), AGORA, 'período que ainda não acabou vai até agora');
+  assert.ok(!sb.consultas.some(c => c.tabela === 'conversas'), 'com a função no banco, a tabela conversas não é lida');
+
+  // a função falhando (sem ser ausência) volta para o caminho de antes, sem derrubar a lista
+  J.esquecer();
+  const quebrada = bancoCheio(6, {
+    tabelas: { conversas: [{ id: 'c1', telefone_e164: '+5512991000000', tipo: 'cliente', aberta_em: new Date(AGORA - 3600000).toISOString() }] },
+    rpc: { trafego_conversas_novas: () => ({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }) },
+  });
+  const v = await J.listar({ periodo: PERIODO, filtros: {}, sb: quebrada, agora: AGORA });
+  assert.equal(v.totais.conversas_novas, 1);
+  assert.equal(v.totais.conversas_novas_viraram_contato, 1);
+});
+
 test('pendências: quatro filas com até 30 itens; a de origem leva a primeira mensagem para a pessoa decidir', async () => {
   J.esquecer();
   const sb = bancoCheio(240);

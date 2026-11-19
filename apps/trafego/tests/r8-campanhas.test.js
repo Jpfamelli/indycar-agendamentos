@@ -75,7 +75,9 @@ test('gasto real: demonstração fora, contato ligado pelo identificador ou pelo
   assert.equal(c.contatos_plataforma, 30);
   assert.equal(c.custo_por_contato, 125);
   assert.equal(c.retorno, 3.84);
-  assert.deepEqual(c.leitura, { tom: 'bom', texto: 'Se paga bem: cada R$ 1 virou R$ 3,84 em serviço fechado. Falta o valor de 1 serviço: o retorno pode ser maior.' });
+  // régua da margem (integração r8): sem margem cadastrada vale 45%, então 3,84 fica entre 2,22 e 4,44 (atenção)
+  assert.deepEqual(c.leitura, { tom: 'atencao', texto: 'Se paga com folga pequena: cada R$ 1 virou R$ 3,84 em serviço fechado. Fica bom acima de R$ 4,44. Falta o valor de 1 serviço: o retorno pode ser maior. Conta feita com margem de 45%, uma premissa: cadastre a margem da oficina em Ajustes.' });
+  assert.deepEqual(r.regua_retorno, { margem_pct: 45, premissa: true, ruim_abaixo: 2.22, bom_acima: 4.44 });
   assert.equal(c.serie[0].gasto, 50);
   assert.deepEqual(r.sem_campanha, { contatos: 1, fecharam: 0, faturado: 0, texto: 'Contatos de anúncio que não conseguimos ligar a uma campanha.' });
   assert.ok(r.comparacao && r.comparacao.linhas.length === 1);
@@ -93,7 +95,7 @@ test('leitura da campanha: régua do custo (meta), pouco gasto, gasto sem contat
   assert.match(C.leituraDaCampanha(n(), { tipo: 'real' }).texto, /Defina a meta/);
   assert.equal(C.leituraDaCampanha(n({ gasto: 8 }), { tipo: 'real', meta: 40 }).tom, 'neutro');
   assert.deepEqual(C.leituraDaCampanha(n({ contatos: 0, custo_por_contato: null }), { tipo: 'real', meta: 40 }), { tom: 'ruim', texto: 'Gastou R$ 300 e nenhum contato chegou à oficina.' });
-  assert.equal(C.leituraDaCampanha(n({ fecharam: 2, faturado: 600, retorno: 2 }), { tipo: 'real' }).tom, 'atencao');
+  assert.equal(C.leituraDaCampanha(n({ fecharam: 2, faturado: 600, retorno: 2 }), { tipo: 'real' }).tom, 'ruim', 'com 45% de margem, R$ 2 por R$ 1 ainda não se paga');
   assert.equal(C.leituraDaCampanha(n(), { tipo: 'demo' }).tom, 'neutro');
 });
 
@@ -124,7 +126,8 @@ test('detalhe: conjuntos e anúncios; números da oficina null quando o contato 
   assert.equal(meta.conjuntos.length, 1);
   const cj = meta.conjuntos[0];
   assert.deepEqual([cj.ext, cj.nome, cj.gasto, cj.contatos, cj.retorno], ['cj1', 'Taubaté 30 km', 500, null, null]);
-  assert.deepEqual(cj.anuncios.map(a => [a.ext, a.nome, a.miniatura_url, a.gasto, a.contatos]), [['a1', 'Vídeo 2', 'https://exemplo.test/a1.jpg', 500, null]]);
+  // integração r8: a imagem passa pelo próprio app (img-src 'self'), nunca o endereço cru da plataforma
+  assert.deepEqual(cj.anuncios.map(a => [a.ext, a.nome, a.miniatura_url, a.gasto, a.contatos]), [['a1', 'Vídeo 2', 'api/coleta/miniatura/meta/a1', 500, null]]);
   assert.equal(meta.contatos.length, 3);
 
   const google = await D.calado(() => C.responderDetalhe({ plataforma: 'google', chave: 'g1', fonte }));

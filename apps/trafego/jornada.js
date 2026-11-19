@@ -534,6 +534,10 @@ async function listarBruto(opcoes = {}) {
 
 async function lerConversas({ de, ate, sb, agora }) {
   const inicio = db.inicioBR(de), fim = new Date(Math.min(Date.parse(db.inicioBR(db.diaSeguinte(ate))), Math.max(agora, Date.parse(inicio)))).toISOString();
+  // integração r8: a função do banco conta e classifica (primeira mensagem da história de cada telefone, mesma régua da origem)
+  const doBanco = await Dados.conversasNovasDoBanco({ inicio, fim, sb });
+  if (doBanco.ok) return { total: doBanco.total, telefones: [], anuncio: doBanco.anuncio, viraram: doBanco.viraram, fonte: 'banco' };
+  // banco sem a função (ou ela falhou): o caminho de antes, pela tabela `conversas`
   const lidas = await Dados.conversasNovas({ inicio, fim, sb });
   if (!lidas.ok) return { total: null, telefones: [], anuncio: null };
   const telefones = lidas.conversas.map(c => c.telefone_e164).filter(Boolean);
@@ -573,7 +577,8 @@ async function listar({ periodo, filtros = {}, sb = db.sb, agora = Date.now(), f
       // conversas novas são do período inteiro (primeira mensagem de cada telefone), não dos filtros
       conversas_novas: conversas.total,
       conversas_novas_anuncio: conversas.anuncio,
-      conversas_novas_viraram_contato: conversas.total == null ? null : conversas.telefones.filter(t => b.telefones.has(t)).length,
+      conversas_novas_viraram_contato: conversas.total == null ? null
+        : (conversas.viraram != null ? conversas.viraram : conversas.telefones.filter(t => b.telefones.has(t)).length),
     },
     funil: funil(filtrados),
     filtros: facetas(b.itens, f, b.internos),
