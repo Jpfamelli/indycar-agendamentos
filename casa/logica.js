@@ -160,7 +160,7 @@
   const APPS = {
     agenda:      { k: 'agenda',      nome: 'Agenda',      desc: 'horários e presença',      ico: '📅', base: '/agenda/' },
     atendimento: { k: 'atendimento', nome: 'Atendimento', desc: 'conversas do WhatsApp',    ico: '💬', base: '/atendimento/' },
-    crm:         { k: 'crm',         nome: 'CRM',         desc: 'leads e funil',            ico: '📈', base: '/crm/' },
+    crm:         { k: 'crm',         nome: 'CRM',         desc: 'contatos e funil',         ico: '📈', base: '/crm/' },
     comunicar:   { k: 'comunicar',   nome: 'Comunicar',   desc: 'lembretes e réguas',       ico: '📣', base: '/comunicar/' },
     patio:       { k: 'patio',       nome: 'Pátio',       desc: 'carro dentro da oficina',  ico: '🔧', base: PATIO_PADRAO + '/', fora: true },
     orcador:     { k: 'orcador',     nome: 'Orçador',     desc: 'orçamentos com IA',        ico: '🧾', base: ORCADOR_PADRAO + '/', fora: true },
@@ -303,6 +303,12 @@
     return c;
   }
   const tituloDaAba = (naoLidas, base = 'IndyCar Central') => (naoLidas > 0 ? `(${naoLidas > 99 ? '99+' : naoLidas}) ${base}` : base);
+  /** Quanto tempo o aviso do pé da tela fica: número = ms; 'err' = 6 s; com botão (Desfazer) = 6 s; o resto 3,2 s. */
+  function tempoDoAviso(opcao, comBotao = false) {
+    if (typeof opcao === 'number' && Number.isFinite(opcao) && opcao > 0) return Math.min(opcao, 20_000);
+    if (opcao === 'err' || comBotao) return 6000;
+    return 3200;
+  }
 
   /* ---------------- "Agora": alertas que pedem atenção ---------------- */
   /** Lista priorizada do que está pegando fogo, a partir do que a r6_c1_agora devolveu. */
@@ -337,7 +343,7 @@
       out.push({ k: 'confirmar', grav: 1, n: n(a.agenda.sem_confirmar), texto: `${a.agenda.sem_confirmar} ${n(a.agenda.sem_confirmar) === 1 ? 'horário de hoje' : 'horários de hoje'} sem confirmação`, app: 'agenda', url: l.agenda() });
     }
     if (v.leads && n(a.leads?.novos_sem_dono) > 0) {
-      out.push({ k: 'leads', grav: 1, n: n(a.leads.novos_sem_dono), texto: `${a.leads.novos_sem_dono} ${n(a.leads.novos_sem_dono) === 1 ? 'lead novo' : 'leads novos'} sem responsável`, app: 'crm', url: l.crmLead() });
+      out.push({ k: 'leads', grav: 1, n: n(a.leads.novos_sem_dono), texto: `${a.leads.novos_sem_dono} ${n(a.leads.novos_sem_dono) === 1 ? 'contato novo' : 'contatos novos'} sem responsável`, app: 'crm', url: l.crmLead() });
     }
     return out.sort((x, y) => y.grav - x.grav || y.n - x.n);
   }
@@ -358,7 +364,7 @@
     if (n(g.pronto_parado_4h)) out.push({ k: 'pronto', grav: 2, texto: `${g.pronto_parado_4h} ${n(g.pronto_parado_4h) === 1 ? 'carro pronto' : 'carros prontos'} há mais de 4 h sem retirar`, extra: 'ligue para o cliente', app: 'patio', url: l.patioPainel() });
     if (n(g.conversas_2h)) out.push({ k: 'conversas', grav: 3, texto: `${g.conversas_2h} ${n(g.conversas_2h) === 1 ? 'conversa' : 'conversas'} sem resposta há mais de 2 h`, extra: 'cliente esfria rápido', app: 'atendimento', url: l.conversa() });
     if (n(g.orcamentos_24h)) out.push({ k: 'orcamentos', grav: 2, texto: `${g.orcamentos_24h} ${n(g.orcamentos_24h) === 1 ? 'orçamento enviado' : 'orçamentos enviados'} há mais de 24 h sem resposta`, extra: 'vale um lembrete', app: 'orcador', url: l.orcamentosLista() });
-    if (n(g.leads_sem_dono)) out.push({ k: 'leads', grav: 2, texto: `${g.leads_sem_dono} ${n(g.leads_sem_dono) === 1 ? 'lead novo' : 'leads novos'} sem responsável`, app: 'crm', url: l.crmLead() });
+    if (n(g.leads_sem_dono)) out.push({ k: 'leads', grav: 2, texto: `${g.leads_sem_dono} ${n(g.leads_sem_dono) === 1 ? 'contato novo' : 'contatos novos'} sem responsável`, app: 'crm', url: l.crmLead() });
     if (n(g.horarios_sem_desfecho)) out.push({ k: 'desfecho', grav: 1, texto: `${g.horarios_sem_desfecho} ${n(g.horarios_sem_desfecho) === 1 ? 'horário passado' : 'horários passados'} sem desfecho`, extra: 'o faturamento só conta quem foi marcado "fechou"', app: 'agenda', url: l.agenda() });
     return out.sort((x, y) => y.grav - x.grav);
   }
@@ -406,7 +412,7 @@
     { k: 'patio', nome: 'Pátio', ico: '🔧', app: 'patio' },
     { k: 'orcamentos', nome: 'Orçamentos', ico: '🧾', app: 'orcador' },
     { k: 'conversas', nome: 'Conversas', ico: '💬', app: 'atendimento' },
-    { k: 'leads', nome: 'Leads (CRM)', ico: '📈', app: 'crm' },
+    { k: 'leads', nome: 'Contatos (CRM)', ico: '📈', app: 'crm' },
     { k: 'envios', nome: 'Mensagens enviadas', ico: '📣', app: 'comunicar' },
   ];
 
@@ -446,7 +452,7 @@
           ], !!r.telefone) };
       }
       case 'leads':
-        return { id: r.id, titulo: r.nome || tel || 'Lead', detalhe: r.detalhe || juntar(tel, r.carro, r.servico), selo: r.status, url: l.crmLead(r.id), app: 'crm',
+        return { id: r.id, titulo: r.nome || tel || 'Contato', detalhe: r.detalhe || juntar(tel, r.carro, r.servico), selo: r.status, url: l.crmLead(r.id), app: 'crm',
           atalhos: atalhos(perfil, [['atendimento', 'Conversa', l.conversaTel(r.telefone)], ['agenda', 'Agendar', l.agendaNovo({ telefone: r.telefone })]], !!r.telefone) };
       case 'conversas':
         return { id: r.id, titulo: r.nome || tel || 'Conversa', detalhe: juntar(tel, r.previa), selo: r.aguardando ? 'esperando' : '', seloTom: r.aguardando ? 'ruim' : '', url: l.conversa(r.id), app: 'atendimento',
@@ -529,7 +535,7 @@
     ['g  depois  m', 'Abrir o Comunicar'],
     ['g  depois  p', 'Abrir o Pátio'],
     ['g  depois  o', 'Abrir o Orçador'],
-    ['1 … 6', 'Abrir o app da posição (1 Agenda, 2 Atendimento, 3 CRM, 4 Comunicar, 5 Pátio, 6 Orçador)'],
+    ['1 … 7', 'Abrir o app da posição (1 Agenda, 2 Atendimento, 3 CRM, 4 Comunicar, 5 Pátio, 6 Orçador, 7 Tráfego)'],
     ['>', 'Na busca: comandos (novo horário, nova entrada, tema…)'],
     ['j  ou  k', 'Descer / subir na lista “Pede atenção agora” (Enter abre)'],
     ['d', 'Alternar Operação / Visão do dono'],
@@ -549,7 +555,7 @@
     esc, semAcento, destacar, soDigitos, telefoneE164, formatarTelefone, normalizarPlaca, formatarPlaca, brl, brlCurto, variacao, taxa,
     duracao, quando, hojeSP, diaDe, hora5, saudacao, ETAPAS, ETAPA, rotuloEtapa, tomDaEtapa, previsao, STATUS_ORC, rotuloOrc, numeroOrc,
     STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
-    contagemPorApp, tituloDaAba, atencao, gargalos, conversao, barras, diaCurto, classificarBusca, GRUPOS_BUSCA, linhasDaBusca, filtrarPorPermissao,
+    contagemPorApp, tituloDaAba, tempoDoAviso, atencao, gargalos, conversao, barras, diaCurto, classificarBusca, GRUPOS_BUSCA, linhasDaBusca, filtrarPorPermissao,
     ATALHOS_G, AJUDA_ATALHOS, ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
