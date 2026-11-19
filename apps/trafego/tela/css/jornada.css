@@ -1,0 +1,870 @@
+/* ============================================================================
+   IndyCar Tráfego · tela Jornada
+   A torre de contatos, os filtros, o detalhe de um contato (a folha de tempos
+   de um carro só) e o mutirão de pendências. Só usa tokens (ds/tokens.css).
+   Três larguras: celular (linha vira ficha de três andares e o detalhe ocupa a
+   tela), 62em (torre com colunas) e 80em (torre e detalhe lado a lado).
+   ============================================================================ */
+
+.jornada {
+  display: grid;
+  gap: var(--esp-grupo);
+  min-width: 0;
+}
+
+/* ------------------------------ cabeça: título, resumo e a porta do mutirão ------------------------------ */
+.jornada-cabeca {
+  display: grid;
+  gap: var(--esp-grupo);
+  min-width: 0;
+}
+.jornada-topo {
+  display: grid;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.jornada-resumo {
+  font-size: var(--tam-texto-g);
+  line-height: 1.35;
+  color: var(--cor-tinta-2);
+  text-wrap: pretty;
+}
+.jornada-resumo strong {
+  color: var(--cor-tinta);
+  font-weight: var(--peso-forte);
+}
+.jornada-conversas {
+  max-width: var(--medida-texto);
+  text-wrap: pretty;
+}
+
+.pendencias {
+  display: grid;
+  align-content: start;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.pendencias .titulo-p {
+  color: var(--cor-tinta-2);
+}
+.pendencias-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--p-esp-6);
+}
+/* Cada pendência: o traço amarelo dos mini-setores, o número e a palavra. Um toque abre o mutirão. */
+.pendencia {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  min-height: var(--alvo);
+  color: var(--cor-tinta);
+  text-decoration: none;
+}
+.pendencia::before {
+  content: '';
+  flex: none;
+  width: 0.5625rem;
+  height: 1.375rem;
+  border-radius: var(--raio-marca);
+  background-color: var(--cor-setor-atencao);
+  transform: skewX(var(--inclinacao));
+}
+.pendencia .numero {
+  font-size: var(--tam-titulo-bloco);
+}
+.pendencia .rotulo {
+  color: var(--cor-tinta);
+  white-space: nowrap;
+}
+.pendencia .icone {
+  color: var(--cor-tinta-2);
+  transition: transform var(--mov-rapido) var(--curva-saida);
+}
+.pendencia:hover .rotulo {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+.pendencia:hover .icone {
+  color: var(--cor-tinta);
+  transform: translateX(0.1875rem);
+}
+
+/* ------------------------------ filtros ------------------------------ */
+.jornada-filtros {
+  display: grid;
+  gap: var(--p-esp-3);
+  min-width: 0;
+  padding-top: var(--p-esp-5);
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.jornada-fichas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.jornada-fichas > .fichas {
+  display: contents;
+}
+.jornada-campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--p-esp-3);
+  min-width: 0;
+}
+.jornada-ligados {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--p-esp-2) var(--p-esp-3);
+  min-width: 0;
+}
+.ficha-tira {
+  max-width: 100%;
+  padding-inline: var(--p-esp-3);
+  border-color: var(--cor-linha);
+  background-color: var(--cor-superficie-2);
+  font-size: var(--tam-apoio);
+}
+.ficha-tira .icone {
+  color: var(--cor-tinta-2);
+}
+
+/* ------------------------------ corpo: a torre e, ao lado, o contato aberto ------------------------------ */
+.jornada-corpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--p-esp-10);
+  align-items: start;
+  min-width: 0;
+}
+.jornada-lista {
+  display: grid;
+  gap: var(--p-esp-5);
+  min-width: 0;
+  transition: opacity var(--mov-rapido) var(--curva-saida);
+}
+/* Trocou o filtro: a lista de antes fica no lugar, mais apagada, até a nova chegar (sem piscar esqueleto). */
+.jornada-lista[aria-busy='true'] > .torre,
+.jornada-lista[aria-busy='true'] > .vazio {
+  opacity: 0.45;
+}
+
+/* No celular cada contato é uma ficha de três andares: quem e quando, onde está, de onde veio e quanto. */
+.torre-jornada .torre-cabeca {
+  display: none;
+}
+.torre-jornada .torre-linha {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'contato chegou'
+    'setores situacao'
+    'origem valor';
+  row-gap: var(--p-esp-2);
+  column-gap: var(--p-esp-3);
+  padding: var(--p-esp-4) var(--p-esp-1);
+}
+.jl-contato {
+  grid-area: contato;
+}
+.jl-chegou {
+  grid-area: chegou;
+  align-self: start;
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.jl-setores {
+  grid-area: setores;
+}
+.jl-situacao {
+  grid-area: situacao;
+  display: grid;
+  justify-items: end;
+  gap: 0.125rem;
+  text-align: right;
+}
+.jl-origem {
+  grid-area: origem;
+  display: flex;
+  align-items: baseline;
+  gap: var(--p-esp-2);
+  font-size: var(--tam-apoio);
+}
+.jl-origem .origem {
+  flex: none;
+  max-width: 100%;
+}
+.jl-origem > .apoio {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.jl-valor {
+  grid-area: valor;
+}
+.jl-valor .numero {
+  font-size: var(--tam-titulo-p);
+}
+.jl-valor:empty {
+  display: none;
+}
+.torre-jornada .origem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.torre-jornada .torre-abre {
+  font-size: var(--tam-texto);
+}
+
+.paginacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--p-esp-2) var(--p-esp-3);
+}
+.paginacao > .apoio {
+  margin-right: auto;
+}
+
+/* ------------------------------ contato aberto ------------------------------ */
+.jornada-detalhe {
+  display: grid;
+  gap: var(--p-esp-5);
+  min-width: 0;
+}
+.jornada-detalhe:focus-visible {
+  outline-offset: 0.25rem;
+}
+/* Abaixo de 80em o contato aberto ocupa o lugar da lista (e dos filtros): uma coisa de cada vez. */
+.jornada[data-aberto] .jornada-cabeca,
+.jornada[data-aberto] .jornada-filtros,
+.jornada[data-aberto] .jornada-ligados,
+.jornada[data-aberto] .jornada-lista {
+  display: none;
+}
+.detalhe-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+.detalhe-fechar {
+  display: none;
+}
+.detalhe-corpo {
+  display: grid;
+  gap: var(--esp-grupo);
+  min-width: 0;
+  max-width: 44rem;
+}
+.detalhe-cabeca {
+  display: grid;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.detalhe-nome {
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.detalhe-nome:focus-visible {
+  outline-offset: 0.25rem;
+}
+.detalhe-quem {
+  font-size: var(--tam-texto-g);
+  overflow-wrap: anywhere;
+}
+
+/* A folha de tempos: os sete traços grandes, a frase e cada etapa com o seu horário. */
+.detalhe-caminho {
+  display: grid;
+  gap: var(--p-esp-3);
+  min-width: 0;
+}
+.detalhe-setores {
+  overflow: hidden;
+}
+.detalhe-caminho-texto {
+  color: var(--cor-tinta-2);
+  text-wrap: pretty;
+}
+.folha {
+  display: grid;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.folha-linha {
+  display: grid;
+  grid-template-columns: var(--setor-largura) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--p-esp-3);
+  min-height: 2.75rem;
+  padding: var(--p-esp-2) var(--p-esp-1);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+}
+.folha-etapa {
+  font-weight: var(--peso-forte);
+}
+.folha-quando {
+  text-align: right;
+  white-space: nowrap;
+}
+.folha-extra {
+  grid-column: 2 / -1;
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+  overflow-wrap: anywhere;
+}
+.folha-linha[data-estado='vazio'] .folha-etapa,
+.folha-linha[data-estado='vazio'] .folha-quando,
+.folha-linha[data-estado='pulou'] .folha-quando {
+  font-weight: var(--peso-texto);
+  color: var(--cor-tinta-2);
+}
+
+.detalhe-bloco {
+  gap: var(--p-esp-3);
+  justify-items: start;
+}
+.detalhe-bloco > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.detalhe-bloco > .resposta,
+.detalhe-bloco > .fatos,
+.detalhe-bloco > .tempo,
+.detalhe-bloco > .detalhe-mensagem,
+.detalhe-bloco > .detalhe-atalhos {
+  justify-self: stretch;
+}
+.detalhe-bloco .titulo-p {
+  color: var(--cor-tinta-2);
+}
+.detalhe-situacao,
+.detalhe-origem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--p-esp-2) var(--p-esp-4);
+  font-size: var(--tam-texto-g);
+}
+.detalhe-origem .origem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  min-width: 0;
+  font-weight: var(--peso-forte);
+}
+.detalhe-origem .origem-rotulo {
+  white-space: normal;
+}
+.detalhe-situacao .selo {
+  font-size: var(--tam-texto);
+}
+.detalhe-valor {
+  font-size: var(--tam-numero-m);
+}
+.detalhe-pergunta {
+  font-weight: var(--peso-forte);
+  text-wrap: pretty;
+}
+.detalhe-obs,
+.detalhe-origem-detalhe {
+  overflow-wrap: anywhere;
+}
+.detalhe-origem-detalhe {
+  color: var(--cor-tinta-2);
+}
+
+/* Pares "o quê: valor" (como sabemos, o que o site registrou, o contexto do mutirão). */
+.fatos {
+  display: grid;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.fato {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  gap: var(--p-esp-3);
+  align-items: baseline;
+}
+.fato dt {
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.fato dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fato .origem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A fala do cliente, entre aspas e sem enfeite: é a prova de onde ele veio. */
+.detalhe-mensagem {
+  display: grid;
+  gap: var(--p-esp-1);
+  min-width: 0;
+  padding: var(--p-esp-3) var(--p-esp-4);
+  border-radius: var(--raio-painel);
+  background-color: var(--cor-realce);
+}
+.detalhe-mensagem blockquote {
+  margin: 0;
+  font-size: var(--tam-texto-g);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  quotes: '“' '”';
+}
+.detalhe-mensagem blockquote::before {
+  content: open-quote;
+}
+.detalhe-mensagem blockquote::after {
+  content: close-quote;
+}
+
+/* Linha do tempo: o dia aparece quando muda; cada registro com a hora na coluna da esquerda. */
+.tempo {
+  display: grid;
+  gap: var(--p-esp-3);
+  min-width: 0;
+}
+.tempo-dia {
+  margin-top: var(--p-esp-2);
+  font-size: var(--tam-apoio);
+  font-weight: var(--peso-forte);
+  color: var(--cor-tinta-2);
+}
+.tempo-dia:first-child {
+  margin-top: 0;
+}
+.tempo-item {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  column-gap: var(--p-esp-3);
+  align-items: baseline;
+}
+.tempo-hora {
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.tempo-o-que {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+.tempo-titulo {
+  font-weight: var(--peso-meio);
+  overflow-wrap: anywhere;
+}
+.tempo-detalhe,
+.tempo-fala {
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+  overflow-wrap: anywhere;
+}
+.tempo-fala {
+  quotes: '“' '”';
+}
+.tempo-fala::before {
+  content: open-quote;
+}
+.tempo-fala::after {
+  content: close-quote;
+}
+.tempo-meio {
+  padding-left: calc(3rem + var(--p-esp-3));
+}
+
+.detalhe-atalhos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--p-esp-2);
+}
+
+/* ------------------------------ as respostas: dinheiro e escolhas de um toque ------------------------------ */
+.resposta {
+  display: grid;
+  gap: var(--p-esp-3);
+  min-width: 0;
+}
+.resposta-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--p-esp-2);
+}
+.resposta-botoes > .botao {
+  flex: 1 1 12rem;
+}
+.resposta-apoio {
+  font-weight: var(--peso-texto);
+  font-size: var(--tam-apoio);
+}
+.resposta-escolhas {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--p-esp-2);
+}
+.escolha {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 0.125rem;
+  min-height: 3.5rem;
+  padding: var(--p-esp-2) var(--p-esp-3);
+  border: 0.0625rem solid var(--botao-borda);
+  border-radius: var(--botao-raio);
+  background-color: var(--botao-fundo);
+  color: var(--botao-tinta);
+  text-align: left;
+  line-height: 1.2;
+  transition:
+    background-color var(--mov-rapido) var(--curva-saida),
+    border-color var(--mov-rapido) var(--curva-saida),
+    transform var(--mov-rapido) var(--curva-saida);
+}
+.escolha:hover {
+  border-color: var(--cor-tinta);
+  background-color: color-mix(in srgb, var(--botao-fundo), var(--cor-tinta) 9%);
+}
+.escolha:active {
+  transform: translateY(0.0625rem);
+}
+.escolha-rotulo {
+  font-weight: var(--peso-forte);
+}
+.escolha-apoio {
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.escolha[aria-pressed='true'] {
+  border-color: var(--cor-tinta);
+  padding-right: var(--p-esp-8);
+}
+.escolha > .icone {
+  position: absolute;
+  right: var(--p-esp-3);
+  top: 50%;
+  transform: translateY(-50%);
+}
+/* A tecla que faz o mesmo que o botão: só aparece onde há teclado de verdade. */
+.tecla {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tecla {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.375rem;
+    border: 0.0625rem solid var(--cor-linha-forte);
+    border-radius: var(--raio-marca);
+    font-family: var(--fonte-texto);
+    font-size: var(--tam-apoio);
+    font-weight: var(--peso-forte);
+    line-height: 1;
+    color: var(--cor-tinta-2);
+  }
+  .escolha:has(.tecla) {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--p-esp-3);
+  }
+  .escolha .tecla {
+    grid-row: span 2;
+    align-self: center;
+  }
+  .botao-forte .tecla {
+    border-color: currentColor;
+    color: inherit;
+  }
+}
+
+/* ------------------------------ mutirão de pendências ------------------------------ */
+.fila {
+  display: grid;
+  gap: var(--esp-grupo);
+  min-width: 0;
+  max-width: 68rem;
+}
+.fila-topo {
+  display: grid;
+  justify-items: start;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.fila-resumo {
+  max-width: var(--medida-texto);
+  font-size: var(--tam-texto-g);
+  line-height: 1.35;
+  color: var(--cor-tinta-2);
+  text-wrap: pretty;
+}
+.fila-progresso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--p-esp-2) var(--p-esp-4);
+  min-width: 0;
+  max-width: 100%;
+  margin-top: var(--p-esp-2);
+}
+.fila-progresso:empty {
+  display: none;
+}
+.fila-tracos {
+  flex-wrap: wrap;
+  row-gap: var(--p-esp-1);
+  max-width: 100%;
+}
+.fila-progresso .barra {
+  flex: 1 1 12rem;
+  max-width: 24rem;
+}
+.fila-conta .numero {
+  font-size: var(--tam-numero-p);
+}
+.fila-vez {
+  display: grid;
+  gap: var(--esp-grupo);
+  min-width: 0;
+  padding-top: var(--p-esp-5);
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.fila-quem,
+.fila-pergunta {
+  display: grid;
+  align-content: start;
+  gap: var(--p-esp-3);
+  min-width: 0;
+}
+.fila-nome {
+  overflow-wrap: anywhere;
+}
+.fila-nome:focus-visible {
+  outline-offset: 0.25rem;
+}
+.fila-carro {
+  font-size: var(--tam-texto-g);
+  overflow-wrap: anywhere;
+}
+.fila-setores {
+  overflow: hidden;
+}
+.fila-pergunta-texto {
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-titulo-bloco);
+  font-weight: var(--peso-titulo);
+  line-height: 1;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.fila-apoio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--p-esp-2) var(--p-esp-4);
+}
+.fila-feitos {
+  display: grid;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.fila-feitos .titulo-p {
+  color: var(--cor-tinta-2);
+}
+.fila-lista {
+  display: grid;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.fila-feito {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'nome estado'
+    'resumo estado';
+  align-items: center;
+  column-gap: var(--p-esp-4);
+  min-height: 3.5rem;
+  padding: var(--p-esp-2) var(--p-esp-1);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+}
+.fila-feito-nome {
+  grid-area: nome;
+  font-weight: var(--peso-forte);
+}
+.fila-feito-resumo {
+  grid-area: resumo;
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.fila-feito > .botao,
+.fila-feito > .selo {
+  grid-area: estado;
+}
+.fila-fim {
+  display: grid;
+  justify-items: start;
+  gap: var(--p-esp-3);
+  max-width: var(--medida-texto);
+}
+.fila-fim p {
+  font-size: var(--tam-texto-g);
+  color: var(--cor-tinta-2);
+}
+.fila-fim-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--p-esp-2);
+  margin-top: var(--p-esp-2);
+}
+
+/* ------------------------------ a partir de 48em: mais ar nas escolhas ------------------------------ */
+@media (min-width: 48em) {
+  .jornada-campos {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .fila .resposta-escolhas {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .fila-feito {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas: 'nome resumo estado';
+  }
+  .fila-feito-resumo {
+    font-size: var(--tam-texto);
+  }
+}
+
+/* ------------------------------ a partir de 62em: a torre com colunas ------------------------------ */
+@media (min-width: 62em) {
+  .jornada-cabeca {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: var(--p-esp-10);
+  }
+  .pendencias {
+    justify-items: end;
+  }
+  .pendencias-lista {
+    justify-content: flex-end;
+  }
+  .jornada-filtros {
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--p-esp-4);
+  }
+  .jornada-campos {
+    grid-column: 1 / -1;
+  }
+
+  .torre-jornada {
+    --torre-colunas: minmax(10rem, 1.2fr) minmax(9rem, 1.1fr) 9.5rem minmax(9.5rem, 0.9fr) 6.5rem 3.5rem;
+  }
+  .torre-jornada .torre-cabeca {
+    display: grid;
+  }
+  /* Os títulos levam as classes das colunas (jl-origem, jl-chegou), mas não as áreas da ficha do celular. */
+  .torre-jornada .torre-cabeca > * {
+    grid-area: auto;
+  }
+  .torre-jornada .torre-linha {
+    grid-template-columns: var(--torre-colunas);
+    grid-template-areas: none;
+    row-gap: 0;
+    column-gap: var(--p-esp-5);
+    padding: var(--p-esp-2) var(--p-esp-3);
+  }
+  .torre-jornada .torre-celula {
+    grid-area: auto;
+  }
+  .jl-situacao {
+    justify-items: start;
+    text-align: left;
+  }
+  .jl-origem {
+    display: block;
+    font-size: var(--tam-texto);
+  }
+  .jl-valor:empty {
+    display: block;
+  }
+  .jl-valor .numero {
+    font-size: var(--tam-numero-p);
+  }
+  .jl-chegou {
+    align-self: center;
+    font-size: var(--tam-texto);
+  }
+
+  .fila-vez {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: var(--p-esp-12);
+    padding: var(--p-esp-8);
+    border: 0.0625rem solid var(--cor-linha);
+    border-radius: var(--raio-painel);
+    background-color: var(--cor-superficie);
+  }
+  .fila-vez:has(> .fila-fim),
+  .fila-vez:has(> .falha),
+  .fila-vez:has(> .esq) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ------------------------------ a partir de 80em: torre e contato lado a lado ------------------------------ */
+@media (min-width: 80em) {
+  .jornada[data-aberto] .jornada-cabeca {
+    display: grid;
+  }
+  .jornada[data-aberto] .jornada-filtros {
+    display: grid;
+  }
+  .jornada[data-aberto] .jornada-ligados:not([hidden]) {
+    display: flex;
+  }
+  .jornada[data-aberto] .jornada-lista {
+    display: grid;
+  }
+  .jornada[data-aberto] .jornada-corpo {
+    grid-template-columns: minmax(0, 1fr) 27rem;
+  }
+  .jornada[data-aberto] .torre-jornada {
+    --torre-colunas: minmax(0, 1fr) 9.5rem 10rem 6rem;
+  }
+  .jornada[data-aberto] .torre-jornada .jl-origem,
+  .jornada[data-aberto] .torre-jornada .jl-chegou {
+    display: none;
+  }
+  .jornada-detalhe {
+    position: sticky;
+    top: calc(var(--casca-altura) + var(--p-esp-4));
+    max-height: calc(100vh - var(--casca-altura) - var(--p-esp-8));
+    max-height: calc(100dvh - var(--casca-altura) - var(--p-esp-8));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    padding: var(--p-esp-4) var(--p-esp-6) var(--p-esp-8);
+    border: 0.0625rem solid var(--cor-linha);
+    border-radius: var(--raio-painel);
+    background-color: var(--cor-superficie);
+  }
+  .detalhe-barra {
+    justify-content: flex-end;
+    margin: 0 calc(var(--p-esp-3) * -1) calc(var(--p-esp-3) * -1) 0;
+  }
+  .detalhe-voltar {
+    display: none;
+  }
+  .detalhe-fechar {
+    display: inline-flex;
+  }
+}

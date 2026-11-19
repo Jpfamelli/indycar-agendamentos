@@ -1,0 +1,269 @@
+/* ============================================================================
+   IndyCar · sistema visual "Cronometragem" · tokens (rodada 8, 19/11/2026)
+
+   Três camadas, nesta ordem:
+     1. PRIMITIVOS  (--p-…)   o valor cru. Ninguém usa direto fora deste arquivo.
+     2. SEMÂNTICOS  (--cor-…, --tam-…, --esp-…)   o papel. O tema troca AQUI.
+     3. COMPONENTE  (--botao-…, --torre-…)   o ajuste fino de cada peça.
+
+   Regra: fora deste arquivo não se escreve cor, tamanho de letra, espaço nem
+   tempo "na mão". Precisa de um valor novo? Ele nasce aqui, com nome de papel.
+   Tema: escuro é o padrão; claro com <html data-tema="claro"> (chave do
+   aparelho: indycar_tema, a mesma da Casa).
+   Os contrastes de cada par estão no GUIA-VISUAL.md e são cobrados por teste.
+   ============================================================================ */
+
+:root {
+  /* ======================= 1. PRIMITIVOS ======================= */
+
+  /* preto de pista e cinzas neutros (sem azul, para o vermelho da marca não brigar) */
+  --p-preto: #000000;
+  --p-grafite-980: #131316;
+  --p-grafite-950: #0b0b0c;
+  --p-grafite-900: #141416;
+  --p-grafite-850: #1c1c1f;
+  --p-grafite-800: #26262a;
+  --p-grafite-700: #52525b;
+  --p-grafite-650: #63636e;
+  --p-grafite-600: #71717a;
+  --p-grafite-500: #8e8e98;
+  --p-grafite-400: #a1a1aa;
+  --p-grafite-300: #d4d4d9;
+  --p-grafite-200: #e6e6e9;
+  --p-grafite-100: #f1f1f2;
+  --p-grafite-50: #f5f5f5;
+  --p-branco: #ffffff;
+
+  /* vermelho da marca (500 é o da marca; 400 e 700 são os tons "de texto") */
+  --p-vermelho-400: #ff4d5e;
+  --p-vermelho-500: #e6192e;
+  --p-vermelho-600: #c8102a;
+  --p-vermelho-700: #c20f22;
+
+  /* cores de setor (tela de tempos): um tom para fundo escuro, outro para fundo claro */
+  --p-roxo-300: #b388ff;
+  --p-roxo-700: #6d28d9;
+  --p-verde-500: #22c55e;
+  --p-verde-800: #166534;
+  --p-amarelo-400: #facc15;
+  --p-amarelo-800: #8a5a00;
+  --p-azul-400: #60a5fa;
+  --p-azul-700: #1d4ed8;
+
+  /* véus (cor com transparência, para realce de linha e fundo de aviso) */
+  --p-veu-claro-06: rgb(255 255 255 / 0.06);
+  --p-veu-claro-10: rgb(255 255 255 / 0.1);
+  --p-veu-escuro-05: rgb(11 11 12 / 0.05);
+  --p-veu-escuro-09: rgb(11 11 12 / 0.09);
+  --p-veu-fundo-70: rgb(0 0 0 / 0.7);
+  --p-sombra-forte: 0 14px 34px -10px rgb(0 0 0 / 0.65);
+  --p-sombra-suave: 0 14px 30px -14px rgb(19 19 22 / 0.35);
+
+  /* espaço: base de 4 px, em rem */
+  --p-esp-1: 0.25rem;
+  --p-esp-2: 0.5rem;
+  --p-esp-3: 0.75rem;
+  --p-esp-4: 1rem;
+  --p-esp-5: 1.25rem;
+  --p-esp-6: 1.5rem;
+  --p-esp-8: 2rem;
+  --p-esp-10: 2.5rem;
+  --p-esp-12: 3rem;
+  --p-esp-16: 4rem;
+  --p-esp-20: 5rem;
+
+  /* letra: escala fixa em rem (passo de 1,125 a 1,2) */
+  --p-letra-14: 0.875rem;
+  --p-letra-16: 1rem;
+  --p-letra-18: 1.125rem;
+  --p-letra-20: 1.25rem;
+  --p-letra-24: 1.5rem;
+  --p-letra-28: 1.75rem;
+  --p-letra-36: 2.25rem;
+  --p-letra-44: 2.75rem;
+  --p-letra-56: 3.5rem;
+
+  --p-familia-condensada: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', Arial, sans-serif;
+  --p-familia-texto: 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --p-raio-1: 0.125rem;
+  --p-raio-2: 0.375rem;
+  --p-raio-3: 0.625rem;
+  --p-raio-total: 62rem;
+
+  --p-tempo-1: 150ms;
+  --p-tempo-2: 220ms;
+  --p-tempo-3: 300ms;
+  --p-curva-saida: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ======================= 2. SEMÂNTICOS (tema escuro) ======================= */
+  color-scheme: dark;
+
+  /* chão e superfícies */
+  --cor-fundo: var(--p-grafite-950);
+  --cor-superficie: var(--p-grafite-900);
+  --cor-superficie-2: var(--p-grafite-850);
+  --cor-realce: var(--p-veu-claro-06);
+  --cor-realce-forte: var(--p-veu-claro-10);
+  --cor-linha: var(--p-grafite-800);
+  --cor-linha-forte: var(--p-grafite-600);
+  --cor-veu: var(--p-veu-fundo-70);
+
+  /* tinta (texto) */
+  --cor-tinta: var(--p-grafite-50);
+  --cor-tinta-2: var(--p-grafite-400);
+  --cor-tinta-3: var(--p-grafite-500);
+
+  /* marca: vermelho é a marca, a ação principal e o que é "de anúncio". Nunca o erro. */
+  --cor-marca: var(--p-vermelho-500);
+  --cor-marca-texto: var(--p-vermelho-400);
+  --cor-acao: var(--p-vermelho-500);
+  --cor-acao-ativa: var(--p-vermelho-600);
+  --cor-sobre-acao: var(--p-branco);
+
+  /* setores: estado do dado. Sempre com palavra ou ícone junto. */
+  --cor-setor-recorde: var(--p-roxo-300);
+  --cor-setor-bom: var(--p-verde-500);
+  --cor-setor-atencao: var(--p-amarelo-400);
+  --cor-setor-espera: var(--p-azul-400);
+  --cor-grave: var(--p-vermelho-400);
+
+  /* dado sem julgamento (barras "do resto", trilhos) */
+  --cor-dado: var(--p-grafite-500);
+  --cor-dado-trilho: var(--p-grafite-800);
+
+  /* casca do ecossistema: preta nos dois temas (o logo mora em fundo preto) */
+  --cor-casca: var(--p-preto);
+  --cor-casca-tinta: var(--p-grafite-50);
+  --cor-casca-tinta-2: var(--p-grafite-400);
+  --cor-casca-linha: var(--p-grafite-800);
+  --cor-casca-realce: var(--p-veu-claro-10);
+
+  --cor-foco: var(--p-grafite-50);
+  --sombra-flutua: var(--p-sombra-forte);
+
+  /* tipo */
+  --fonte-titulo: var(--p-familia-condensada);
+  --fonte-texto: var(--p-familia-texto);
+  --tam-apoio: var(--p-letra-14);
+  --tam-texto: var(--p-letra-16);
+  --tam-texto-g: var(--p-letra-18);
+  --tam-rotulo: var(--p-letra-16);
+  --tam-titulo-p: var(--p-letra-20);
+  --tam-titulo-bloco: var(--p-letra-28);
+  --tam-titulo-tela: var(--p-letra-44);
+  --tam-numero-p: var(--p-letra-24);
+  --tam-numero-m: var(--p-letra-36);
+  --tam-numero: clamp(2rem, 0.6rem + 7.4vw, 4rem);
+  --tam-frase: clamp(2.5rem, 1rem + 7.4vw, 7rem);
+  --tam-frase-m: clamp(2.5rem, 1rem + 5.6vw, 6rem);
+  --tam-frase-p: clamp(2.5rem, 1rem + 3.6vw, 4rem);
+  --peso-texto: 400;
+  --peso-meio: 500;
+  --peso-forte: 600;
+  --peso-titulo: 700;
+  --peso-destaque: 800;
+  --altura-titulo: 0.94;
+  --altura-texto: 1.5;
+  --tracado-rotulo: 0.06em;
+  --tracado-titulo: 0.005em;
+
+  /* espaço e medida */
+  --esp-pagina: clamp(var(--p-esp-4), 4vw, var(--p-esp-10));
+  --esp-bloco: clamp(var(--p-esp-10), 5vw, var(--p-esp-16));
+  --esp-grupo: var(--p-esp-6);
+  --esp-item: var(--p-esp-4);
+  --esp-junto: var(--p-esp-2);
+  --largura-pagina: 84rem;
+  --medida-texto: 62ch;
+  --alvo: 2.75rem;
+
+  --raio-marca: var(--p-raio-1);
+  --raio-controle: var(--p-raio-2);
+  --raio-painel: var(--p-raio-3);
+  --raio-total: var(--p-raio-total);
+
+  --mov-rapido: var(--p-tempo-1);
+  --mov-medio: var(--p-tempo-2);
+  --mov-lento: var(--p-tempo-3);
+  --curva-saida: var(--p-curva-saida);
+
+  /* o ângulo do paralelogramo do logo: assinatura do sistema */
+  --inclinacao: -14deg;
+
+  /* ======================= 3. COMPONENTE ======================= */
+  --casca-altura: 3.75rem;
+  --navbaixo-altura: 4rem;
+
+  --botao-altura: var(--alvo);
+  --botao-raio: var(--raio-controle);
+  --botao-fundo: var(--cor-superficie-2);
+  --botao-tinta: var(--cor-tinta);
+  --botao-borda: var(--cor-linha-forte);
+  --botao-forte-fundo: var(--cor-acao);
+  --botao-forte-fundo-ativo: var(--cor-acao-ativa);
+  --botao-forte-tinta: var(--cor-sobre-acao);
+
+  --campo-altura: 3rem;
+  --campo-fundo: var(--cor-superficie);
+  --campo-borda: var(--cor-linha-forte);
+  --campo-tinta: var(--cor-tinta);
+  --campo-raio: var(--raio-controle);
+
+  --torre-linha-altura: 4rem;
+  --torre-divisa: var(--cor-linha);
+  --torre-cabeca-tinta: var(--cor-tinta-2);
+
+  --setor-largura: 0.875rem;
+  --setor-altura: 1.375rem;
+  --setor-vao: 0.25rem;
+  --setor-feito: var(--cor-tinta);
+  --setor-vazio: var(--cor-dado-trilho);
+
+  --barra-altura: 0.875rem;
+  --barra-raio: var(--raio-marca);
+  --barra-fundo: var(--cor-dado-trilho);
+  --barra-dado: var(--cor-dado);
+  --barra-marca: var(--cor-marca);
+
+  --aviso-fundo: var(--cor-superficie-2);
+  --aviso-tinta: var(--cor-tinta);
+}
+
+/* Em tela larga os quatro números ficam lado a lado: o tamanho acompanha a largura da coluna. */
+@media (min-width: 62em) {
+  :root {
+    --tam-numero: clamp(2.75rem, 4.2vw, 4rem);
+  }
+}
+
+/* ======================= tema claro: só a camada semântica muda ======================= */
+:root[data-tema='claro'] {
+  color-scheme: light;
+
+  --cor-fundo: var(--p-grafite-100);
+  --cor-superficie: var(--p-branco);
+  --cor-superficie-2: var(--p-grafite-200);
+  --cor-realce: var(--p-veu-escuro-05);
+  --cor-realce-forte: var(--p-veu-escuro-09);
+  --cor-linha: var(--p-grafite-300);
+  --cor-linha-forte: var(--p-grafite-600);
+
+  --cor-tinta: var(--p-grafite-980);
+  --cor-tinta-2: var(--p-grafite-700);
+  --cor-tinta-3: var(--p-grafite-650);
+
+  --cor-marca-texto: var(--p-vermelho-700);
+
+  --cor-setor-recorde: var(--p-roxo-700);
+  --cor-setor-bom: var(--p-verde-800);
+  --cor-setor-atencao: var(--p-amarelo-800);
+  --cor-setor-espera: var(--p-azul-700);
+  --cor-grave: var(--p-vermelho-700);
+
+  --cor-dado: var(--p-grafite-650);
+  --cor-dado-trilho: var(--p-grafite-300);
+
+  --cor-foco: var(--p-grafite-980);
+  --sombra-flutua: var(--p-sombra-suave);
+}

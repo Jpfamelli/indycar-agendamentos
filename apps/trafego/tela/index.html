@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>IndyCar Tráfego</title>
+  <meta name="description" content="Do anúncio ao carro entregue: de onde veio cada contato, quanto custou e como terminou.">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark light">
+  <script src="tema.js"></script>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="img/icone-192.png">
+  <link rel="apple-touch-icon" href="img/icone-192.png">
+  <link rel="preload" href="fontes/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fontes/archivo-variavel.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="ds/tokens.css">
+  <link rel="stylesheet" href="ds/base.css">
+  <link rel="stylesheet" href="ds/componentes.css">
+  <link rel="stylesheet" href="css/casca.css">
+  <link rel="stylesheet" href="css/hoje.css">
+  <link rel="stylesheet" href="css/jornada.css">
+  <link rel="stylesheet" href="css/espera.css">
+</head>
+<body>
+  <a class="pular" href="#miolo">Pular para o conteúdo</a>
+
+  <header class="casca">
+    <div class="casca-dentro">
+      <a class="casca-marca" id="linkCasa" href="../" aria-label="IndyCar Central: voltar para o início">
+        <img src="img/logo.png" alt="" width="104" height="40">
+      </a>
+      <div class="casca-app">
+        <button class="casca-troca" id="bApps" type="button" aria-expanded="false" aria-controls="menuApps" aria-label="Tráfego. Trocar de app">
+          <span>Tráfego</span><span data-icone="chevron-baixo"></span>
+        </button>
+        <div class="menu" id="menuApps" hidden></div>
+      </div>
+      <nav class="casca-nav" aria-label="Telas do Tráfego">
+        <a href="#/hoje" data-tela="hoje">Hoje</a>
+        <a href="#/jornada" data-tela="jornada">Jornada</a>
+        <a href="#/campanhas" data-tela="campanhas">Campanhas</a>
+        <a href="#/gestor" data-tela="gestor">Gestor IA</a>
+      </nav>
+      <div class="casca-acoes">
+        <a class="casca-botao" href="#/ajustes" data-tela="ajustes" aria-label="Ajustes">
+          <span data-icone="ajustes"></span><span class="casca-botao-nome">Ajustes</span>
+        </a>
+        <button class="casca-botao" id="bTema" type="button" aria-label="Mudar para o tema claro">
+          <span data-icone="sol"></span>
+        </button>
+        <button class="casca-conta" id="bConta" type="button" aria-expanded="false" aria-controls="menuConta" aria-label="Minha conta">
+          <span id="contaIniciais" aria-hidden="true">?</span>
+        </button>
+        <div class="menu" id="menuConta" hidden></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="sessao" id="sessao" hidden>
+    <div class="sessao-periodo" id="sessaoPeriodo"></div>
+    <div class="sessao-atualizado">
+      <span id="atualizadoTexto"></span>
+      <button class="botao botao-quieto botao-icone" id="bAtualizar" type="button" aria-label="Atualizar agora">
+        <span data-icone="atualizar"></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="faixas" id="faixas"></div>
+
+  <main class="pagina" id="miolo" tabindex="-1">
+    <p class="abrindo" id="abrindo">Abrindo o Tráfego</p>
+    <noscript><p class="abrindo">Esta tela precisa do JavaScript ligado no navegador.</p></noscript>
+  </main>
+
+  <nav class="navbaixo" aria-label="Telas do Tráfego">
+    <a href="#/hoje" data-tela="hoje"><span data-icone="hoje"></span><span>Hoje</span></a>
+    <a href="#/jornada" data-tela="jornada"><span data-icone="jornada"></span><span>Jornada</span></a>
+    <a href="#/campanhas" data-tela="campanhas"><span data-icone="campanhas"></span><span>Campanhas</span></a>
+    <a href="#/gestor" data-tela="gestor"><span data-icone="gestor"></span><span>Gestor IA</span></a>
+  </nav>
+
+  <div id="avisos" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="vendor/supabase.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

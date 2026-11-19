@@ -1,0 +1,483 @@
+/* ============================================================================
+   Tela Hoje: o muro dos boxes. Uma frase, quatro números, o que fazer agora e,
+   abaixo, o caminho do contato até o serviço fechado. Só usa tokens.
+   ============================================================================ */
+
+/* ------------------------------ a frase ------------------------------ */
+.muro {
+  display: grid;
+  gap: var(--p-esp-6);
+}
+.muro-frase {
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-frase);
+  font-weight: var(--peso-titulo);
+  line-height: var(--altura-titulo);
+  letter-spacing: var(--tracado-titulo);
+  text-transform: uppercase;
+  /* é prosa, não tabela: os algarismos da frase acompanham as letras */
+  font-variant-numeric: proportional-nums;
+  overflow-wrap: break-word;
+}
+.muro-frase-m {
+  font-size: var(--tam-frase-m);
+}
+.muro-frase-p {
+  font-size: var(--tam-frase-p);
+}
+/* Cada sentença na sua linha: a pergunta do dono em cima, a resposta embaixo. */
+.muro-linha {
+  display: block;
+  text-wrap: balance;
+}
+.muro-pe {
+  display: grid;
+  justify-items: start;
+  gap: var(--p-esp-5);
+}
+.muro-apoio {
+  max-width: var(--medida-texto);
+  font-size: var(--tam-texto-g);
+  color: var(--cor-tinta-2);
+}
+
+/* ------------------------------ os quatro números ------------------------------ */
+.placar {
+  display: grid;
+  gap: var(--p-esp-5);
+}
+.placar-numeros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--p-esp-8) var(--p-esp-4);
+  padding-block: var(--p-esp-6);
+  border-block: 0.0625rem solid var(--cor-linha);
+}
+.numero-bloco .numero-longo {
+  font-size: calc(var(--tam-numero) * 0.78);
+}
+.placar-nota {
+  max-width: var(--medida-texto);
+}
+.contas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.25rem, 1fr));
+  gap: var(--p-esp-5) var(--p-esp-5);
+  margin: 0;
+}
+.conta {
+  display: grid;
+  align-content: start;
+  gap: var(--p-esp-1);
+  min-width: 0;
+}
+.conta dt {
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.conta dd {
+  font-size: var(--tam-numero-p);
+}
+.conta .sem-dado {
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-titulo-p);
+  font-weight: var(--peso-forte);
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--cor-tinta-3);
+}
+
+.pilha {
+  display: grid;
+  align-content: start;
+  gap: var(--esp-bloco);
+  min-width: 0;
+}
+
+/* ------------------------------ ritmo ------------------------------ */
+.verba {
+  display: grid;
+  gap: var(--p-esp-3);
+}
+.verba-frase {
+  font-size: var(--tam-texto-g);
+}
+.verba-trilho {
+  position: relative;
+  padding-block: var(--p-esp-2);
+}
+/* O risco do "esperado até hoje": atravessa a barra na cor da tinta, visível sobre o cheio e sobre o trilho. */
+.verba-risco {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--v, 0) * 100%);
+  width: 0.1875rem;
+  margin-left: -0.09375rem;
+  border-radius: var(--raio-marca);
+  background-color: var(--cor-tinta);
+}
+.verba-pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--p-esp-1) var(--p-esp-4);
+}
+
+/* ------------------------------ agenda ------------------------------ */
+.agenda-dias {
+  display: grid;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.agenda-dia {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr) 5.25rem;
+  align-items: center;
+  gap: var(--p-esp-4);
+  min-height: var(--alvo);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+}
+.agenda-rotulo {
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-titulo-p);
+  font-weight: var(--peso-forte);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.agenda-vagas {
+  text-align: right;
+  white-space: nowrap;
+}
+.agenda-vagas strong {
+  font-weight: var(--peso-forte);
+}
+
+/* ------------------------------ do contato ao serviço fechado ------------------------------ */
+.caminho {
+  display: grid;
+  gap: var(--p-esp-10);
+  grid-template-columns: minmax(0, 1fr);
+}
+.funil {
+  display: grid;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.funil-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'etapa total'
+    'barra barra'
+    'info info';
+  align-items: baseline;
+  gap: var(--p-esp-2) var(--p-esp-4);
+  padding-block: var(--p-esp-3);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+}
+.funil-etapa {
+  grid-area: etapa;
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-titulo-p);
+  font-weight: var(--peso-forte);
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.funil-total {
+  grid-area: total;
+  text-align: right;
+}
+.funil-total .numero {
+  font-size: var(--tam-numero-m);
+}
+.funil-total .sem-dado,
+.perdidos-total .sem-dado {
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-titulo-p);
+  font-weight: var(--peso-forte);
+  text-transform: uppercase;
+  color: var(--cor-tinta-3);
+}
+.funil-barra {
+  grid-area: barra;
+  align-self: center;
+}
+.funil-info {
+  grid-area: info;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--p-esp-4);
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.funil-anuncio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  color: var(--cor-tinta);
+  font-weight: var(--peso-forte);
+}
+.perdidos {
+  display: grid;
+  align-content: start;
+  gap: var(--p-esp-3);
+  min-width: 0;
+}
+.perdidos-total .numero {
+  font-size: var(--tam-numero-m);
+}
+.perdidos-motivos {
+  display: grid;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.perdidos-motivos li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--p-esp-2) var(--p-esp-4);
+  padding-block: var(--p-esp-3);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+}
+.perdidos-motivos .barra {
+  grid-column: 1 / -1;
+  --barra-altura: 0.375rem;
+}
+.perdidos-falta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--p-esp-4);
+}
+
+/* ------------------------------ de onde vieram ------------------------------ */
+.origens {
+  display: grid;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.origens-cabeca {
+  display: none;
+}
+.origens-linha {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'nome n'
+    'barra barra'
+    'dados dados';
+  align-items: center;
+  gap: var(--p-esp-2) var(--p-esp-4);
+  min-height: var(--alvo);
+  padding-block: var(--p-esp-3);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+  transition: background-color var(--mov-rapido) var(--curva-saida);
+}
+.origens-linha:hover {
+  background-color: var(--cor-realce);
+}
+.origens-linha:has(.torre-abre:focus-visible) {
+  outline: 0.125rem solid var(--cor-foco);
+  outline-offset: -0.125rem;
+  border-radius: var(--raio-controle);
+}
+.origens-nome {
+  grid-area: nome;
+  min-width: 0;
+}
+.origem {
+  display: flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.origem-rotulo {
+  min-width: 0;
+}
+.origem-detalhe {
+  min-width: 0;
+  font-size: var(--tam-apoio);
+  font-weight: var(--peso-texto);
+  color: var(--cor-tinta-2);
+}
+.origens-barra {
+  grid-area: barra;
+}
+.origens-n {
+  grid-area: n;
+  font-size: var(--tam-numero-p);
+  text-align: right;
+}
+/* No celular os dados de apoio correm numa linha só, cada um com a sua etiqueta. */
+.origens-dados {
+  grid-area: dados;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--p-esp-4);
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.origens-dado:empty {
+  display: none;
+}
+
+/* ------------------------------ contatos de hoje ------------------------------ */
+.hoje-lista {
+  display: grid;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.hoje-linha {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3.75rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    'hora nome setores'
+    'hora origem etapa';
+  align-items: center;
+  gap: var(--p-esp-1) var(--p-esp-3);
+  min-height: var(--torre-linha-altura);
+  padding-block: var(--p-esp-2);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+  transition: background-color var(--mov-rapido) var(--curva-saida);
+}
+.hoje-linha:hover {
+  background-color: var(--cor-realce);
+}
+.hoje-linha:has(.torre-abre:focus-visible) {
+  outline: 0.125rem solid var(--cor-foco);
+  outline-offset: -0.125rem;
+  border-radius: var(--raio-controle);
+}
+.hoje-hora {
+  grid-area: hora;
+  font-size: var(--tam-numero-p);
+  color: var(--cor-tinta-2);
+}
+.hoje-nome {
+  grid-area: nome;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hoje-linha .setores {
+  grid-area: setores;
+  justify-self: end;
+}
+.hoje-origem {
+  grid-area: origem;
+  min-width: 0;
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.hoje-etapa {
+  grid-area: etapa;
+  justify-self: end;
+  text-align: right;
+}
+
+/* ------------------------------ conexões ------------------------------ */
+.conexoes {
+  display: grid;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.conexao {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--p-esp-1) var(--p-esp-4);
+  min-height: var(--alvo);
+  padding-block: var(--p-esp-3);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+}
+.conexao-nome {
+  font-weight: var(--peso-forte);
+}
+.conexao-detalhe {
+  grid-column: 1 / -1;
+  max-width: var(--medida-texto);
+}
+
+@media (min-width: 62em) {
+  .muro {
+    gap: var(--p-esp-8);
+  }
+  .placar-numeros {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+  }
+  .placar-numeros > li {
+    padding-inline: var(--p-esp-6);
+    border-left: 0.0625rem solid var(--cor-linha);
+  }
+  .placar-numeros > li:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .caminho {
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    gap: var(--p-esp-12);
+  }
+  .funil-linha {
+    grid-template-columns: 11.5rem 4.5rem minmax(0, 1fr) 12.5rem;
+    grid-template-areas: 'etapa total barra info';
+    align-items: center;
+    column-gap: var(--p-esp-5);
+    min-height: 3.75rem;
+    padding-block: var(--p-esp-2);
+  }
+  .funil-info {
+    display: grid;
+    gap: 0;
+  }
+  .origens-cabeca,
+  .origens-linha {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 4.5rem 5.5rem 7.5rem;
+    grid-template-areas: none;
+    column-gap: var(--p-esp-5);
+    padding-inline: var(--p-esp-3);
+  }
+  .origens-com-custo .origens-cabeca,
+  .origens-com-custo .origens-linha {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 4.5rem 5.5rem 7.5rem 8rem 8rem;
+  }
+  .origens-cabeca {
+    display: grid;
+    align-items: center;
+    min-height: 2.5rem;
+    border-bottom: 0.0625rem solid var(--cor-linha);
+    color: var(--cor-tinta-2);
+    font-size: var(--tam-apoio);
+    font-weight: var(--peso-forte);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .origens-cabeca span:nth-child(n + 3) {
+    text-align: right;
+  }
+  .origens-linha > * {
+    grid-area: auto;
+  }
+  /* Em tela larga cada dado ocupa a sua coluna. */
+  .origens-dados {
+    display: contents;
+  }
+  .origens-dado {
+    font-size: var(--tam-texto);
+    color: var(--cor-tinta);
+    text-align: right;
+  }
+  .origens-dado:empty {
+    display: block;
+  }
+  /* Em tela larga o cabeçalho já diz o que é cada coluna: a etiqueta fica só para o leitor de tela. */
+  .origens-etiqueta {
+    position: absolute;
+    width: 0.0625rem;
+    height: 0.0625rem;
+    margin: -0.0625rem;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
