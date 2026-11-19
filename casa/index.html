@@ -10,12 +10,12 @@
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="/casa/icon-192.png" />
   <link rel="apple-touch-icon" href="/casa/icon-192.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/casa/casa.css" />
-  <link rel="stylesheet" href="/casa/painel.css?v=8" />
+  <link rel="preload" href="/casa/archivo-variavel.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/casa/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/casa/casa.css?v=2" />
+  <link rel="stylesheet" href="/casa/painel.css?v=9" />
   <link rel="stylesheet" href="/casa/r7.css?v=2" />
+  <link rel="stylesheet" href="/casa/r9.css?v=1" />
 </head>
 <body>
   <!-- ======================= ENTRADA (login único) ======================= -->
@@ -89,10 +89,10 @@
         <img src="/casa/logo.png" alt="" class="topo-logo" />
         <span class="topo-nome">Central</span>
       </a>
-      <button id="bBusca" class="busca-topo" type="button" aria-label="Buscar por telefone, nome ou placa em todos os sistemas" aria-keyshortcuts="Control+K /">
+      <button id="bBusca" class="busca-topo" type="button" aria-label="Buscar telefone, nome ou placa em todos os sistemas" aria-keyshortcuts="Control+K /">
         <span aria-hidden="true">🔎</span>
         <span class="busca-topo-txt">Telefone, nome ou placa…</span>
-        <kbd aria-hidden="true">Ctrl K</kbd>
+        <kbd class="kbd-css" aria-hidden="true" data-tecla="Ctrl K"></kbd>
       </button>
       <div class="topo-acoes">
         <button id="bAjuda" class="btn-ico" type="button" aria-label="Atalhos do teclado" title="Atalhos (?)">?</button>
@@ -103,7 +103,7 @@
         <button id="bPerfil" class="avatar" type="button" aria-label="Meu perfil" aria-expanded="false" aria-controls="menuPerfil">?</button>
       </div>
       <div id="menuPerfil" class="menu" role="menu" hidden>
-        <div class="menu-quem"><strong id="mpNome">—</strong><span id="mpEmail"></span><span id="mpPapel" class="selo"></span></div>
+        <div class="menu-quem"><strong id="mpNome">…</strong><span id="mpEmail"></span><span id="mpPapel" class="selo"></span></div>
         <button type="button" role="menuitem" data-acao="trocar-senha">Trocar senha</button>
         <button type="button" role="menuitem" data-acao="sair">Sair</button>
         <button type="button" role="menuitem" data-acao="sair-todos">Sair de todos os aparelhos</button>
@@ -148,10 +148,11 @@
 
       <div class="barra-painel">
         <div id="seletorVisao" class="seletor" role="tablist" aria-label="Visão do painel" hidden>
-          <button type="button" role="tab" data-visao="operacao" aria-selected="true">Operação</button>
-          <button type="button" role="tab" data-visao="dono" aria-selected="false">Visão do dono</button>
+          <button type="button" role="tab" id="abaOperacao" data-visao="operacao" aria-selected="true" aria-controls="visaoOperacao" tabindex="0">Operação</button>
+          <button type="button" role="tab" id="abaDono" data-visao="dono" aria-selected="false" aria-controls="visaoDono" tabindex="-1">Visão do dono</button>
         </div>
-        <div class="vivo" aria-live="polite">
+        <div class="vivo">
+          <span id="vivoAviso" class="sr-only" role="status"></span>
           <span id="vivoPonto" class="vivo-ponto" aria-hidden="true"></span>
           <span id="vivoTxt">carregando…</span>
           <button id="bAtualizar" class="btn-link" type="button" aria-label="Atualizar o painel agora">atualizar</button>
@@ -160,8 +161,8 @@
 
       <section id="acoes" class="acoes" aria-label="Ações rápidas"></section>
 
-      <section id="manha" class="manha" aria-label="Bom dia: ontem e amanhã" hidden>
-        <div class="manha-cab"><h2 id="manhaTitulo" class="atencao-titulo">Bom dia</h2><button id="manhaFechar" class="btn-link" type="button">dispensar por hoje</button></div>
+      <section id="manha" class="manha" aria-labelledby="manhaTitulo" hidden>
+        <div class="manha-cab"><h2 id="manhaTitulo" class="atencao-titulo">Ontem e amanhã</h2><button id="manhaFechar" class="btn-link" type="button">dispensar por hoje</button></div>
         <p id="manhaOntem" class="manha-frase"></p>
         <p id="manhaAmanha" class="manha-frase"></p>
         <ul id="manhaPend" class="atencao-lista"></ul>
@@ -174,40 +175,40 @@
         <ul id="atencaoLista" class="atencao-lista"></ul>
       </section>
 
-      <div id="visaoOperacao">
+      <div id="visaoOperacao" role="tabpanel" aria-labelledby="abaOperacao">
         <section id="agora" class="agora" aria-label="Agora na oficina">
           <article id="cMeuDia" class="agora-cartao c-meudia" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Meu dia</span><span class="agora-num" data-num>—</span></header>
+            <header class="agora-cab"><span class="agora-rotulo">Meu dia</span><span class="agora-num" data-num>…</span></header>
             <p class="agora-det" data-det>carregando…</p>
             <ul class="agora-lista" data-lista></ul>
           </article>
           <article id="cPatio" class="agora-cartao c-patio" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Carros no pátio</span><span class="agora-num" data-num>—</span></header>
+            <header class="agora-cab"><span class="agora-rotulo">Carros no pátio</span><span class="agora-num" data-num>…</span></header>
             <p class="agora-det" data-det>carregando…</p>
             <div class="chips-etapa" data-etapas></div>
             <ul class="agora-lista" data-lista></ul>
             <footer class="agora-pe"><a data-abrir href="#">Abrir o Pátio ↗</a><a data-tv href="#">Modo TV ↗</a><a data-nova href="#">+ Nova entrada ↗</a></footer>
           </article>
           <article id="cOrc" class="agora-cartao c-orc" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Orçamentos esperando resposta</span><span class="agora-num" data-num>—</span></header>
+            <header class="agora-cab"><span class="agora-rotulo">Orçamentos esperando resposta</span><span class="agora-num" data-num>…</span></header>
             <p class="agora-det" data-det>carregando…</p>
             <ul class="agora-lista" data-lista></ul>
             <footer class="agora-pe"><a data-abrir href="#">Abrir o Orçador ↗</a><a data-nova href="#">+ Novo orçamento ↗</a></footer>
           </article>
           <article id="cConversas" class="agora-cartao c-conversas" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Conversas esperando</span><span class="agora-num" data-num>—</span></header>
+            <header class="agora-cab"><span class="agora-rotulo">Conversas esperando</span><span class="agora-num" data-num>…</span></header>
             <p class="agora-det" data-det>carregando…</p>
             <ul class="agora-lista" data-lista></ul>
             <footer class="agora-pe"><a data-abrir href="#">Abrir o Atendimento</a></footer>
           </article>
           <article id="cHoje" class="agora-cartao c-hoje" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Horários de hoje</span><span class="agora-num" data-num>—</span></header>
+            <header class="agora-cab"><span class="agora-rotulo">Horários de hoje</span><span class="agora-num" data-num>…</span></header>
             <p class="agora-det" data-det>carregando…</p>
             <ul class="agora-lista" data-lista></ul>
             <footer class="agora-pe"><a data-abrir href="#">Abrir a Agenda</a><a data-nova href="#">+ Novo horário</a></footer>
           </article>
           <article id="cLeads" class="agora-cartao c-leads" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Leads novos</span><span class="agora-num" data-num>—</span></header>
+            <header class="agora-cab"><span class="agora-rotulo">Contatos novos</span><span class="agora-num" data-num>…</span></header>
             <p class="agora-det" data-det>carregando…</p>
             <ul class="agora-lista" data-lista></ul>
             <footer class="agora-pe"><a data-abrir href="#">Abrir o CRM</a></footer>
@@ -215,7 +216,7 @@
         </section>
       </div>
 
-      <section id="visaoDono" class="dono" aria-label="Visão do dono" hidden>
+      <section id="visaoDono" class="dono" role="tabpanel" aria-labelledby="abaDono" hidden>
         <div id="donoTiles" class="dono-tiles"></div>
         <div class="dono-duas">
           <div class="cartao dono-bloco">
@@ -277,9 +278,10 @@
                placeholder="Telefone, nome, placa ou nº da OS/orçamento…" aria-label="Buscar" aria-controls="buscaLista" />
         <button id="buscaFechar" class="btn-link" type="button">Esc</button>
       </div>
-      <p id="buscaDica" class="busca-dica"></p>
+      <p id="buscaDica" class="busca-dica" aria-live="polite"></p>
+      <p id="buscaAnuncio" class="sr-only" aria-live="polite"></p>
       <div id="buscaFiltros" class="busca-filtros" role="group" aria-label="Filtrar por tipo de resultado" hidden></div>
-      <div id="buscaLista" class="busca-lista" role="listbox" aria-label="Resultados"></div>
+      <div id="buscaLista" class="busca-lista" role="region" aria-label="Resultados da busca"></div>
       <footer class="busca-pe"><span><kbd>↑</kbd><kbd>↓</kbd> escolher</span><span><kbd>Enter</kbd> abrir em outra aba</span><span><kbd>Esc</kbd> fechar</span></footer>
     </div>
   </div>
@@ -306,20 +308,20 @@
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
-  <script src="/casa/logica.js?v=6"></script>
-  <script src="/casa/logica2.js?v=6"></script>
+  <script src="/casa/logica.js?v=7"></script>
+  <script src="/casa/logica2.js?v=7"></script>
   <script src="/casa/logica3.js?v=3"></script>
-  <script src="/casa/logica4.js?v=2"></script>
-  <script src="/casa/sino.js?v=7"></script>
-  <script src="/casa/painel.js?v=9"></script>
-  <script src="/casa/manha.js?v=2"></script>
-  <script src="/casa/tarefas.js?v=6"></script>
-  <script src="/casa/ficha.js?v=1"></script>
-  <script src="/casa/busca.js?v=6"></script>
-  <script src="/casa/atalhos.js?v=5"></script>
-  <script src="/casa/comando.js?v=6"></script>
-  <script src="/casa/saude.js?v=2"></script>
+  <script src="/casa/logica4.js?v=3"></script>
+  <script src="/casa/sino.js?v=8"></script>
+  <script src="/casa/painel.js?v=10"></script>
+  <script src="/casa/manha.js?v=3"></script>
+  <script src="/casa/tarefas.js?v=7"></script>
+  <script src="/casa/ficha.js?v=2"></script>
+  <script src="/casa/busca.js?v=7"></script>
+  <script src="/casa/atalhos.js?v=6"></script>
+  <script src="/casa/comando.js?v=7"></script>
+  <script src="/casa/saude.js?v=3"></script>
   <script src="/casa/parar.js?v=1"></script>
-  <script src="/casa/casa.js?v=7"></script>
+  <script src="/casa/casa.js?v=8"></script>
 </body>
 </html>
