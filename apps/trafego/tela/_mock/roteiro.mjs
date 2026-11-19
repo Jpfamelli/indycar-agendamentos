@@ -30,6 +30,7 @@ import { carregarPuppeteer, caminhoDoAxe, CHROME } from './navegador.mjs';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const SAIDA = path.resolve(AQUI, '..', '..', 'qa-out');
+const GUIA = path.resolve(AQUI, '..', '_guia');   // fotos do GUIA-VISUAL.md (só com GUIA=1)
 const PORTA = Number(process.env.PORTA) || 3431;
 const SO = process.env.SO || '';
 
@@ -69,6 +70,15 @@ function casos() {
   lista.push({ nome: 'estado-sem-acesso-375-escuro', busca: '?acesso=nao', hash: '#/hoje', largura: 375, tema: 'escuro', espera: '.vazio', erroEsperado: /status of 403/ });
   lista.push({ nome: 'estado-acordando-375-escuro', busca: '?cenario=sem_conta&acordando=2r' + Date.now(), hash: '#/hoje', largura: 375, tema: 'escuro', erroEsperado: /status of 503/ });
   lista.push({ nome: 'estado-gravar-falha-375-escuro', busca: '?cenario=sem_conta&falha=migracao', hash: '#/jornada?pendencia=sem_origem', largura: 375, tema: 'escuro', depois: escolherOrigem, erroEsperado: /status of 503/ });
+  // Fotos do GUIA-VISUAL.md (só com GUIA=1): [seletor, nome do arquivo, altura máxima].
+  const FOTOS = {
+    'sem_conta-hoje-1440-escuro': [['.muro', 'muro'], ['.placar', 'placar'], ['section[aria-labelledby="tFazer"]', 'acoes', 700], ['section[aria-labelledby="tCaminho"]', 'caminho']],
+    'sem_conta-hoje-1440-claro': [['.muro', 'muro-claro']],
+    'sem_conta-jornada-1440-escuro': [['.torre-jornada', 'torre', 560]],
+    'sem_conta-jornada-375-escuro': [['.jornada-filtros', 'filtros-375']],
+    'sem_conta-fila-origem-1440-escuro': [['.fila', 'fila', 760]],
+  };
+  for (const c of lista) if (FOTOS[c.nome]) c.fotos = FOTOS[c.nome];
   return SO ? lista.filter((c) => c.nome.includes(SO)) : lista;
 }
 
@@ -116,6 +126,34 @@ async function escolherOrigem(pagina, caso, notas) {
   notas.push('escolheu a origem pela tecla 1 com o banco sem migração: a tela explicou o erro');
 }
 
+/* ------------------------------ capturas ------------------------------ */
+
+/**
+ * Duas fotos por parada: a primeira tela (o que a pessoa vê sem rolar) e a página inteira.
+ * A inteira é tirada com a janela do tamanho da página (e depois volta): assim a barra de cima e a do
+ * polegar ficam no lugar delas, em vez de aparecerem no meio, como sai no fullPage com elemento fixo.
+ */
+async function capturar(pagina, caso) {
+  const janela = pagina.viewport();
+  await pagina.screenshot({ path: path.join(SAIDA, caso.nome + '-tela1.png') });
+  const altura = await pagina.evaluate(() => Math.ceil(document.documentElement.scrollHeight));
+  if (altura > janela.height) {
+    await pagina.setViewport({ ...janela, height: Math.min(altura, 15000) });
+    await pausa(200);
+  }
+  await pagina.screenshot({ path: path.join(SAIDA, caso.nome + '.png') });
+  if (process.env.GUIA && caso.fotos) {
+    for (const [seletor, nome, maximo = 900] of caso.fotos) {
+      const caixa = await pagina.$eval(seletor, (el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y + window.scrollY, width: r.width, height: r.height }; }).catch(() => null);
+      if (!caixa) continue;
+      const m = 16;
+      await pagina.screenshot({ path: path.join(GUIA, nome + '.png'), clip: { x: Math.max(0, caixa.x - m), y: Math.max(0, caixa.y - m), width: Math.min(caixa.width + 2 * m, janela.width), height: Math.min(caixa.height + 2 * m, maximo) } });
+    }
+  }
+  await pagina.setViewport(janela);
+  await pausa(150);
+}
+
 /* ------------------------------ conferências ------------------------------ */
 
 async function conferir(pagina, caso, axe) {
@@ -159,6 +197,7 @@ async function conferir(pagina, caso, axe) {
 
 async function rodar() {
   fs.mkdirSync(SAIDA, { recursive: true });
+  if (process.env.GUIA) fs.mkdirSync(GUIA, { recursive: true });
   const axe = fs.readFileSync(caminhoDoAxe(), 'utf8');
   const puppeteer = await carregarPuppeteer();
   const servidor = await subir({ porta: PORTA });
@@ -185,7 +224,7 @@ async function rodar() {
         if (caso.depois) await caso.depois(pagina, caso, notas);
         await pagina.evaluate(() => window.scrollTo(0, 0));
         await pausa(150);
-        await pagina.screenshot({ path: path.join(SAIDA, caso.nome + '.png'), fullPage: true });
+        await capturar(pagina, caso);
         problemas = await conferir(pagina, caso, axe);
       } catch (erro) {
         problemas.push('o caso não terminou: ' + erro.message.split('\n')[0]);

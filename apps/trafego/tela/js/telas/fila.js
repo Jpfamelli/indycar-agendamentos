@@ -151,6 +151,8 @@ export function mostrar(ctxInicial, modoDe) {
         h('div', { class: 'fila-apoio' },
           h('button', { class: 'botao', type: 'button', on: { click: pular } }, tecla('P'), 'Pular'),
           h('a', { class: 'ligacao', href: ctx.hrefDaTela('jornada', { pendencia: tipo.id, modo: 'lista', contato: item.lead_id }) }, 'Ver o contato inteiro'))));
+    // No celular, a partir do segundo contato a vez sobe para o topo: nome, contexto e respostas cabem no polegar.
+    if (foco && typeof matchMedia === 'function' && matchMedia('(max-width: 61.99em)').matches) el.vez.scrollIntoView({ block: 'start' });
     if (foco === 'campo' && campo) campo.focar();
     else if (foco) focar(titulo);
   }

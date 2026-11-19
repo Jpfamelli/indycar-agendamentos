@@ -61,7 +61,7 @@
 }
 .contas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.25rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(9.25rem, 1fr));
   gap: var(--p-esp-5) var(--p-esp-5);
   margin: 0;
 }

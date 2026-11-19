@@ -145,6 +145,10 @@ option {
   outline-offset: 0.1875rem;
   border-radius: var(--raio-controle);
 }
+/* Título ou painel que recebe foco por código (para o leitor de tela anunciar) não é controle: sem anel. */
+[tabindex='-1']:focus-visible {
+  outline: none;
+}
 
 /* ------------------------------ tipo ------------------------------ */
 

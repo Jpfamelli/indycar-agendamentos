@@ -860,6 +860,7 @@
 /* Bloco de tela: fio em cima, título e, se houver, uma ação à direita. */
 .bloco {
   display: grid;
+  align-content: start;
   gap: var(--p-esp-5);
   min-width: 0;
   padding-top: var(--p-esp-5);

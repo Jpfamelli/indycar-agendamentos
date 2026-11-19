@@ -413,12 +413,45 @@ body {
   width: 7.5rem;
   height: var(--alvo);
 }
+/* A lista carregando já tem a forma da torre: nome à esquerda e os sete setores apagados. */
 .esq-linhas {
   display: grid;
-  gap: var(--p-esp-2);
+  border-top: 0.0625rem solid var(--torre-divisa);
 }
 .esq-linha {
+  position: relative;
   height: var(--torre-linha-altura);
+  border-radius: 0;
+  border-bottom: 0.0625rem solid var(--torre-divisa);
+  background-color: transparent;
+}
+.esq-linha::before,
+.esq-linha::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+}
+.esq-linha::before {
+  left: var(--p-esp-3);
+  width: min(11rem, 38%);
+  height: 0.875rem;
+  margin-top: -0.4375rem;
+  border-radius: var(--raio-marca);
+  background-color: var(--cor-superficie-2);
+}
+.esq-linha::after {
+  right: var(--p-esp-3);
+  width: calc(7 * var(--setor-largura) + 6 * var(--setor-vao));
+  height: var(--setor-altura);
+  margin-top: calc(var(--setor-altura) / -2);
+  background-image: repeating-linear-gradient(90deg, var(--setor-vazio) 0 var(--setor-largura), transparent var(--setor-largura) calc(var(--setor-largura) + var(--setor-vao)));
+  transform: skewX(var(--inclinacao));
+}
+@media (min-width: 62em) {
+  .esq-linha::after {
+    right: auto;
+    left: 34%;
+  }
 }
 
 /* ------------------------------ erro: o título leva o sinal de alerta ------------------------------ */

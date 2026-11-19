@@ -117,7 +117,8 @@ export function criar({ base = '/trafego/' } = {}) {
       }
     }
     if (leitura && ctx.lento) await dormir(ctx.lento);
-    const quebrou = (nome) => ctx.falha === nome && json(res, 500, { erro: 'Não foi possível montar esta parte agora. Tente de novo em instantes.' });
+    // Devolve true quando já respondeu o erro (json() não devolve nada; sem isto a rota respondia duas vezes).
+    const quebrou = (nome) => { if (ctx.falha !== nome) return false; json(res, 500, { erro: 'Não foi possível montar esta parte agora. Tente de novo em instantes.' }); return true; };
     const m = mundo(ctx.cenario);
     const periodo = url.searchParams.get('periodo') || 'mes';
 

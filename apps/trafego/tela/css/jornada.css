@@ -635,6 +635,7 @@
   display: grid;
   gap: var(--esp-grupo);
   min-width: 0;
+  scroll-margin-top: calc(var(--casca-altura) + var(--p-esp-3));
   padding-top: var(--p-esp-5);
   border-top: 0.0625rem solid var(--cor-linha);
 }

@@ -73,13 +73,13 @@ function numeroDoPlacar(n) {
 }
 
 const CONTAS = [
-  ['custo_por_contato', 'Custo por contato', (v) => dinheiro(v)],
-  ['custo_por_servico', 'Custo por serviço fechado', (v) => dinheiro(v)],
-  ['retorno', 'Cada R$ 1 virou', (v) => dinheiro(v, { centavos: true })],
-  ['ticket_medio', 'Valor médio do serviço', (v) => dinheiro(v)],
-  ['taxa_fechamento', 'Contatos que fecham', (v) => porcento(v)],
-  ['tempo_resposta_min', 'Tempo até responder', (v) => duracao(v)],
-  ['taxa_falta', 'Faltas na agenda', (v) => porcento(v)],
+  ['custo_por_contato', 'Custo por contato', (v) => dinheiro(v), 'custo por contato'],
+  ['custo_por_servico', 'Custo por serviço fechado', (v) => dinheiro(v), 'custo por serviço fechado'],
+  ['retorno', 'Cada R$ 1 virou', (v) => dinheiro(v, { centavos: true }), 'retorno de cada R$ 1'],
+  ['ticket_medio', 'Valor médio do serviço', (v) => dinheiro(v), 'valor médio do serviço'],
+  ['taxa_fechamento', 'Contatos que fecham', (v) => porcento(v), 'quantos contatos fecham'],
+  ['tempo_resposta_min', 'Tempo até responder', (v) => duracao(v), 'tempo até responder'],
+  ['taxa_falta', 'Faltas na agenda', (v) => porcento(v), 'faltas na agenda'],
 ];
 
 /** Por que algumas contas vêm "sem dado": a tela diz com todas as letras. */
@@ -102,15 +102,16 @@ function placar(d) {
   const anterior = d.periodo && d.periodo.anterior;
   const temComparacao = (d.numeros || []).some((n) => ehNumero(n.variacao));
   const falta = porQueFalta(d.estado || {}, derivados);
+  // Conta sem dado e com o porquê explicado vira uma frase só, em vez de cinco blocos "sem dado": o que fazer agora sobe na tela.
+  const todas = CONTAS.map(([chave, rotulo, formatar, nome]) => ({ rotulo, nome, texto: ehNumero(derivados[chave]) ? formatar(derivados[chave]) : null }));
+  const contas = falta ? todas.filter((c) => c.texto) : todas;
+  const faltam = falta ? todas.filter((c) => !c.texto) : [];
   return h('section', { class: 'placar', 'aria-labelledby': 'tPlacar' },
     h('h2', { class: 'so-leitor', id: 'tPlacar' }, 'Números do período'),
     h('ul', { class: 'placar-numeros' }, (d.numeros || []).map(numeroDoPlacar)),
     temComparacao && anterior ? h('p', { class: 'apoio placar-nota' }, 'Comparado com ' + dataCurta(anterior.de) + (anterior.ate !== anterior.de ? ' a ' + dataCurta(anterior.ate) : '') + '.') : null,
-    h('dl', { class: 'contas' }, CONTAS.map(([chave, rotulo, formatar]) => {
-      const texto = ehNumero(derivados[chave]) ? formatar(derivados[chave]) : null;
-      return h('div', { class: 'conta' }, h('dt', null, rotulo), h('dd', { class: texto ? 'numero' : 'sem-dado' }, texto || 'sem dado'));
-    })),
-    falta ? h('p', { class: 'apoio placar-nota' }, falta) : null);
+    contas.length ? h('dl', { class: 'contas' }, contas.map((c) => h('div', { class: 'conta' }, h('dt', null, c.rotulo), h('dd', { class: c.texto ? 'numero' : 'sem-dado' }, c.texto || 'sem dado')))) : null,
+    faltam.length ? h('p', { class: 'apoio placar-nota placar-falta' }, h('strong', null, 'Ainda sem dado: ' + faltam.map((c) => c.nome).join(', ') + '. '), falta) : null);
 }
 
 /* ------------------------------ o que fazer agora ------------------------------ */
@@ -205,6 +206,10 @@ function caminho(ctx, d) {
   const maiorMotivo = Math.max(1, ...motivos.map((m) => m.n || 0), perdidos.sem_motivo || 0);
   const estado = d.estado || {};
   const semResposta = estado.respostas === 'sem_registro';
+  // Sem nenhum contato, sete linhas de zero não dizem nada: o bloco explica o que vai aparecer.
+  if (!etapas.length || etapas[0].total === 0) {
+    return bloco('tCaminho', 'Do contato ao serviço fechado', null, vazio({ titulo: 'Nenhum contato no período', texto: 'Aqui aparece quantos contatos responderam, receberam orçamento, agendaram, vieram e fecharam, com a parte que veio de anúncio.' }));
+  }
   return bloco('tCaminho', 'Do contato ao serviço fechado', 'Quantos chegaram a cada etapa. A parte vermelha veio de anúncio.',
     h('div', { class: 'caminho' },
       h('ol', { class: 'funil' }, etapas.map((e, i) => {
