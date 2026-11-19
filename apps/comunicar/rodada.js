@@ -22,6 +22,8 @@ import * as conexoes from './conexoes.js';
 import * as r7 from './r7.js';
 
 export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms) => new Promise((r) => setTimeout(r, ms)), agora = new Date(), log = console }) {
+  const inicio = Date.now();
+  const agoraEnvio = () => agora.getTime() + (Date.now() - inicio);
   const { hora, minuto, diaSemana, data } = dados.agoraSP(agora);
   if (cfg.pausa_geral) return { bloqueado: true, aviso: 'Envios pausados: a pausa geral está ligada.' };
   if (hora < cfg.janela_inicio || hora >= cfg.janela_fim) return { bloqueado: true, aviso: `Fora da janela de envio (${cfg.janela_inicio}h–${cfg.janela_fim}h).` };
@@ -38,7 +40,7 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   if (!vagas) return { bloqueado: true, aviso: `Limite diário de ${cfg.limite_por_dia} mensagens atingido — o resto sai amanhã.` };
   /* rodada 6: o WhatsApp acabou de voltar de uma queda (chave recusada, aparelho caído): a primeira meia hora sai devagar —
      quem espera há dias não vira rajada, e qualquer problema residual aparece antes de atingir a fila toda. */
-  let vagasFinal = vagas, retomada = null;
+  let vagasFinal = Math.min(vagas, carteiro.MAX_TENTATIVAS_RODADA), retomada = null;
   if (cfg.whatsapp?.estado === 'ok' && cfg.whatsapp?.em && cfg.retomada_gradual !== false) {
     const desdeVolta = await (dados.enviadasDesde?.(cfg.whatsapp.em) ?? Promise.resolve(0)).catch(() => 0);
     retomada = conexoes.limiteDeRetomada({
@@ -47,7 +49,7 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     });
     if (retomada) {
       if (retomada.limite <= 0) return { bloqueado: true, aviso: `Retomada gradual: ${retomada.motivo}. O resto sai quando a primeira meia hora passar.`, retomada };
-      vagasFinal = Math.min(vagas, retomada.limite);
+      vagasFinal = Math.min(vagasFinal, retomada.limite);
     }
   }
   const pausaMs = carteiro.pausaEntreEnvios(cfg.limite_por_minuto);
@@ -69,6 +71,10 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
   const candidatos = [];
   let pulados = 0;
   for (const e of ordenada) {
+    if (carteiro.envioVencido(e, agoraEnvio())) {
+      await dados.marcarEnvio(e.id, 'pulado', null, undefined, { motivo_pulado: carteiro.MOTIVO_EXPIRADO }).catch(() => {});
+      pulados++; continue;
+    }
     const t = carteiro.telDe(e.telefone);
     if ((e.cliente_id && fora.ids.has(e.cliente_id)) || (t && fora.tels.has(t))) {
       await dados.marcarEnvio(e.id, 'pulado', null, undefined, { motivo_pulado: 'cliente pediu para não receber mensagens' }).catch(() => {});
@@ -120,9 +126,9 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
 
   let enviados = 0, falhas = 0, semConfirmacao = 0, adiados = sep.adiados.length, reagendados = 0, parouPor = null, classeParou = null;
   const porClasse = {};
+  let tentados = 0;
   for (const envio of fila) {
-    if (enviados >= vagasFinal) break;
-    if (carteiro.envioVencido(envio, agora.getTime())) continue; // a faxina do começo pega na próxima
+    if (tentados >= vagasFinal) break;
     /* rodada 7: campanha e relacionamento não saem depois do horário de marketing (padrão 18h): esperam o próximo dia */
     const hm = r7.decidirHorarioMarketing({ tipo: envio.tipo, hora, fim: cfg.marketing_fim ?? 18 });
     if (hm.segura) { await dados.adiarEnvio(envio.id, proximoDia(), hm.motivo).catch(() => {}); adiados++; continue; }
@@ -141,13 +147,16 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
       await dados.adiarEnvio(envio.id, proximoDia(), `feriado (${nomeFeriado})`).catch(() => {});
       adiados++; continue;
     }
-    if (envio.tipo === 'lembrete' && envio.agendamento_id && agendas) {
-      const c = carteiro.conferirLembrete(envio, agendas.get(envio.agendamento_id), cfg, agora.getTime());
+    const agendamento = agendas?.get(envio.agendamento_id);
+    if (envio.tipo === 'lembrete') {
+      if (!agendas) continue;
+      const c = carteiro.conferirLembrete(envio, agendamento, cfg, agoraEnvio());
       if (c.acao === 'pular') { await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {}); pulados++; continue; }
       if (c.acao === 'atualizar') {
         await dados.atualizarEnvio(envio.id, { corpo: c.corpo, expira_em: c.expira_em, ...(c.enviar_em ? { enviar_em: c.enviar_em } : {}) }).catch(() => {});
         if (c.enviar_em) { reagendados++; continue; }
         envio.corpo = c.corpo;
+        envio.expira_em = c.expira_em;
       }
     }
     if (envio.tipo?.startsWith('patio_')) {
@@ -214,6 +223,30 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     const reservado = await dados.reservarEnvio(envio.id).catch(() => null);
     if (!reservado) continue;
 
+    // Confirma de novo depois da reserva: a Agenda pode mudar durante a rodada.
+    if (envio.tipo === 'lembrete') {
+      const atual = await dados.agendamentosPorIds([envio.agendamento_id]).catch(() => null);
+      if (!atual) {
+        await dados.atualizarEnvio(envio.id, {}).catch(() => {});
+        continue;
+      }
+      const c = carteiro.conferirLembrete(envio, atual.get(envio.agendamento_id), cfg, agoraEnvio());
+      if (c.acao === 'pular') {
+        await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {});
+        pulados++; continue;
+      }
+      if (c.acao === 'atualizar') {
+        await dados.atualizarEnvio(envio.id, { corpo: c.corpo, expira_em: c.expira_em, ...(c.enviar_em ? { enviar_em: c.enviar_em } : {}) }).catch(() => {});
+        reagendados++; continue;
+      }
+    }
+
+    if (carteiro.envioVencido(envio, agoraEnvio())) {
+      await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: carteiro.MOTIVO_EXPIRADO }).catch(() => {});
+      pulados++; continue;
+    }
+
+    tentados++;
     /* rodada 7: mensagem de campanha/relacionamento leva o rodapé "responda PARAR" (o texto guardado na fila continua o original) */
     envio.corpo = r7.aplicarRodape(envio.corpo, envio.tipo, cfg).corpo;
     const r = await wa.enviar(envio.telefone, envio.corpo);

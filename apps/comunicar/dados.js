@@ -17,7 +17,7 @@ import {
   selecionar, selecionarUm, selecionarTudo,
   inserir, inserirUm, atualizar, atualizarUm, remover, contar, rpc,
 } from './supabase.js';
-import { validadeDoEnvio, esperaDaTentativa, LIMITE_ATRASO_H } from './carteiro.js';
+import { validadeDoEnvio, esperaDaTentativa, LIMITE_ATRASO_H, VALIDADE_REGUAS_H } from './carteiro.js';
 import { TIPOS_PATIO, ROTULO_PATIO, VALIDADE_PATIO_H, linkArea, linkOs, usaLinkArea, usaLinkOs, PATIO_URL, conferirPatio, osIdDaChave } from './patio.js';
 import { mesclarPreferencias, LINKS } from './acesso.js';
 import { classificarErro } from './whatsapp.js';
@@ -594,12 +594,12 @@ export async function obterConfig() {
 
 /** O carteiro grava o estado do WhatsApp que viu (o Render dorme e perde a memória) — só quando muda. */
 export async function gravarEstadoWhatsapp(estado, motivo = null, atual = null) {
-  const a = atual || (await selecionarUm(T.config, `select=whatsapp_estado,whatsapp_motivo,whatsapp_estado_anterior&${LINHA_UNICA}`).catch(() => null)) || {};
+  const a = atual || (await selecionarUm(T.config, `select=whatsapp_estado,whatsapp_motivo,whatsapp_estado_anterior,whatsapp_estado_em&${LINHA_UNICA}`).catch(() => null)) || {};
   if (a.whatsapp_estado === estado && (a.whatsapp_motivo || null) === (motivo || null)) return false;
   /* rodada 6: guarda o estado de ANTES — com ele o carteiro sabe que o WhatsApp acabou de voltar de uma queda (retomada gradual).
      Só vira "anterior" um estado diferente do novo; mudar de problema para problema mantém o último bom. */
   const anterior = a.whatsapp_estado && a.whatsapp_estado !== estado ? a.whatsapp_estado : (a.whatsapp_estado_anterior ?? null);
-  await atualizarUm(T.config, LINHA_UNICA, { whatsapp_estado: estado, whatsapp_estado_em: new Date().toISOString(), whatsapp_motivo: motivo ? String(motivo).slice(0, 300) : null, whatsapp_estado_anterior: anterior }).catch(() => null);
+  await atualizarUm(T.config, LINHA_UNICA, { whatsapp_estado: estado, whatsapp_estado_em: a.whatsapp_estado === estado && a.whatsapp_estado_em ? a.whatsapp_estado_em : new Date().toISOString(), whatsapp_motivo: motivo ? String(motivo).slice(0, 300) : null, whatsapp_estado_anterior: anterior }).catch(() => null);
   return true;
 }
 
@@ -1050,6 +1050,10 @@ export async function gerarAniversarios(cfg, porteiro, ctx) {
   }
 }
 
+function validadeDesdeDiaDaRegua(tipo, dia, cfg) {
+  return new Date(instanteSP(dia, cfg.hora_envio || '09:30').getTime() + VALIDADE_REGUAS_H[tipo] * 3600000).toISOString();
+}
+
 /** Serviços concluídos há N dias → "ficou tudo certo?". Dedupe por agendamento. */
 async function posvendaDaAgenda(cfg, porteiro, ctx) {
   const ate = somarDias(hoje(), -cfg.dias_posvenda);
@@ -1067,7 +1071,7 @@ async function posvendaDaAgenda(cfg, porteiro, ctx) {
     await entregarAoPorteiro(porteiro, {
       cliente_id: a.cliente_id, agendamento_id: a.id, lead_id: a.lead_id, telefone: a.telefone, nome: a.cliente_nome,
       tipo: 'posvenda', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: `posvenda:${a.id}`, criado_por: 'gerador',
-      expira_em: validadeDoEnvio('posvenda', { base: hoje() }),
+      expira_em: validadeDesdeDiaDaRegua('posvenda', somarDias(a.data, cfg.dias_posvenda), cfg),
     }, ctx);
   }
 }
@@ -1133,7 +1137,7 @@ async function retornosDaAgenda(cfg, porteiro, ctx, regras) {
     const { meses, regra } = prazoDeRetorno(a.servico, regras, cfg.meses_retorno);
     const vence = somarDias(a.data, meses * 30);
     if (vence > h || vence < somarDias(h, -7)) continue;
-    candidatos.push({ ...a, meses, regra });
+    candidatos.push({ ...a, meses, regra, vence });
   }
   if (!candidatos.length) return;
 
@@ -1152,7 +1156,7 @@ async function retornosDaAgenda(cfg, porteiro, ctx, regras) {
     await entregarAoPorteiro(porteiro, {
       cliente_id: a.cliente_id, agendamento_id: a.id, lead_id: a.lead_id, telefone: a.telefone, nome: a.cliente_nome,
       tipo: 'retorno', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: `retorno:${a.id}`, criado_por: 'gerador',
-      expira_em: validadeDoEnvio('retorno', { base: hoje() }),
+      expira_em: validadeDesdeDiaDaRegua('retorno', a.vence, cfg),
     }, ctx);
   }
 }
@@ -2696,7 +2700,7 @@ async function posvendaDoPatio(cfg, porteiro, ctx) {
     const base = { cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, lead_id: os.lead_id, telefone: os.telefone, nome: os.cliente_nome, os_id: os.id, criado_por: 'gerador' };
     if (d.acao === 'avaliacao') {
       const corpo = renderTemplate(cfg.msg_avaliacao, { ...vars, link_avaliacao: cfg.link_avaliacao });
-      await entregarAoPorteiro(porteiro, { ...base, tipo: 'avaliacao', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: d.chave }, ctx);
+      await entregarAoPorteiro(porteiro, { ...base, tipo: 'avaliacao', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: d.chave, expira_em: validadeDesdeDiaDaRegua('avaliacao', somarDias(conexoes.diaSP(os.entregue_em), cfg.dias_posvenda), cfg) }, ctx);
       /* quem já foi direto ao convite do Google não recebe também o "ficou tudo certo?" que a Agenda geraria para o mesmo horário */
       if (os.agendamento_id) {
         const chavePv = conexoes.chavePosvendaPatio(os);
@@ -2719,7 +2723,7 @@ async function posvendaDoPatio(cfg, porteiro, ctx) {
     }
     await entregarAoPorteiro(porteiro, {
       ...base, tipo: 'posvenda', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: d.chave,
-      expira_em: validadeDoEnvio('posvenda', { base: hoje() }),
+      expira_em: validadeDesdeDiaDaRegua('posvenda', somarDias(conexoes.diaSP(os.entregue_em), cfg.dias_posvenda), cfg),
     }, ctx);
   }
 }
@@ -2750,7 +2754,7 @@ async function retornosDoPatio(cfg, porteiro, ctx, regras) {
     await entregarAoPorteiro(porteiro, {
       cliente_id: os.cliente_id, agendamento_id: os.agendamento_id, lead_id: os.lead_id, telefone: os.telefone, nome: os.cliente_nome, os_id: os.id,
       tipo: 'retorno', corpo, enviar_em: hojeAs(cfg.hora_envio), chave_unica: conexoes.chaveRetornoPatio(os), criado_por: 'gerador',
-      expira_em: validadeDoEnvio('retorno', { base: hoje() }),
+      expira_em: validadeDesdeDiaDaRegua('retorno', c.vence, cfg),
     }, ctx);
   }
 }

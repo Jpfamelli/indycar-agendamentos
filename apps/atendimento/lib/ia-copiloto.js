@@ -884,7 +884,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
             resp.parametros = publico({ ...pr.parametros, texto });
           }
           const r = await executarSozinho(resp);
-          if (r.ok) enviadas.push({ acao_id: resp.id, mensagem_id: r.saida?.mensagem_id || null, texto });
+          if (r.ok && r.saida?.entregue) enviadas.push({ acao_id: resp.id, mensagem_id: r.saida?.mensagem_id || null, texto });
         } else if (d !== 'sugerir') paraConfirmar.push(resp);   // vira "Aprovar e enviar" para a equipe
       }
       await executarLote(['marcar_aguardando_consultor', 'criar_tarefa', 'agendar_retorno']);
@@ -1041,8 +1041,8 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
         if (depois && depois.length) return { ok: false, status: 409, erro: 'A conversa já foi respondida depois desta proposta da IA. Recuse esta e peça uma nova, se precisar.' };
         const r = await enviarMensagem({ conversa: conv, cliente_id: ficha.cliente?.id || conv.cliente_id || null, texto: p.texto, acao_id: acao.id });
         if (!r || !r.mensagem_id) return { ok: false, status: r?.status || 502, erro: r?.erro || 'Não consegui registrar a mensagem.' };
-        return { ok: true, saida: { enviada: true, mensagem_id: r.mensagem_id, entregue: !!r.ok, erro_entrega: r.ok ? null : (r.erro || null) },
-          mensagem: r.ok ? '✉️ Mensagem enviada ao cliente.' : `Mensagem registrada; o WhatsApp não confirmou: ${r.erro || 'sem detalhe'}` };
+        return { ok: true, saida: { enviada: !!r.ok, mensagem_id: r.mensagem_id, entregue: !!r.ok, erro_entrega: r.ok ? null : (r.erro || null) },
+          mensagem: r.ok ? '✉️ Mensagem enviada ao cliente.' : `A mensagem não saiu com confirmação do WhatsApp: ${r.erro || 'sem detalhe'}` };
       }
 
       case 'agendar': {

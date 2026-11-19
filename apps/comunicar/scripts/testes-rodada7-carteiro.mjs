@@ -38,7 +38,8 @@ test.after(() => banco.restaurar());
 test('rodapé PARAR: a campanha sai com o rodapé, o lembrete não, e o texto guardado na fila continua o original', async () => {
   limpar();
   const c = envio({ tipo: 'campanha', corpo: 'Oi, temos novidade na oficina!' });
-  const l = envio({ tipo: 'lembrete', corpo: 'Seu horário é amanhã às 9h.' });
+  tabelas.agendamentos = [{ id: ID(42), data: real.somarDias(H, 1), hora: '09:00', status: 'confirmado' }];
+  const l = envio({ tipo: 'lembrete', agendamento_id: ID(42), expira_em: null, corpo: 'Seu horário é amanhã às 9h.' });
   const { w } = await rodar();
   const enviada = w.saiu.find((x) => x.c.startsWith('Oi, temos'));
   assert.ok(enviada.c.endsWith('Para não receber mais, responda PARAR.'));
@@ -208,6 +209,40 @@ test('aviso do WhatsApp: queda com fila avisa os gestores; volta de queda avisa 
   r = await real.avisarWhatsapp({ ...CFG, retomada_max_30min: 8, retomada_max_2h: 25, retomada_so_essencial: true, whatsapp: { estado: 'ok', anterior: 'desconectado', em } });
   assert.equal(r.tipo, 'whatsapp_voltou'); assert.match(notificacoes.at(-1).p_corpo, /8/);
   assert.equal(await real.avisarWhatsapp({ ...CFG, whatsapp: { estado: 'ok', anterior: 'ok', em } }), null);
+});
+
+test('retomada bloqueia réguas antigas mesmo quando reenfileiradas sem validade', async () => {
+  limpar();
+  const antigos = ['posvenda', 'avaliacao', 'retorno'].map(tipo =>
+    envio({ tipo, created_at: horas(-500), expira_em: null }));
+  const { w } = await rodar();
+  assert.equal(w.saiu.length, 0);
+  for (const e of antigos) assert.equal(status(e).status, 'pulado');
+});
+
+test('retomada segura lembrete quando a Agenda não pode ser confirmada', async () => {
+  limpar();
+  envio({ tipo: 'lembrete', agendamento_id: ID(99) });
+  const dados = { ...dadosEm(), agendamentosPorIds: async () => { throw Error('Agenda indisponível'); } };
+  const w = wa();
+  await enviarFila({ cfg: CFG, dados, wa: w, patio, carteiro, dormir: async () => {}, agora: AGORA });
+  assert.equal(w.saiu.length, 0);
+});
+
+test('lembrete é bloqueado se o horário muda depois da reserva', async () => {
+  limpar();
+  const agendamento = { id: ID(42), data: real.somarDias(H, 1), hora: '09:00', status: 'confirmado' };
+  const e = envio({ tipo: 'lembrete', agendamento_id: agendamento.id, expira_em: null });
+  let leituras = 0;
+  const dados = { ...dadosEm(), agendamentosPorIds: async ids => {
+    if (!ids.length) return new Map();
+    const dadosAtuais = ++leituras === 1 ? agendamento : { ...agendamento, status: 'cancelado' };
+    return new Map([[agendamento.id, dadosAtuais]]);
+  } };
+  const w = wa();
+  await enviarFila({ cfg: CFG, dados, wa: w, patio, carteiro, dormir: async () => {}, agora: AGORA });
+  assert.equal(w.saiu.length, 0);
+  assert.equal(status(e).status, 'pulado');
 });
 
 test('reabordar: a lista do Orçador é peneirada (PARAR e celular ruim) e o que já foi enfileirado não repete', async () => {

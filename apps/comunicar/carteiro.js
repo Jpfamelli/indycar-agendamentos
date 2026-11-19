@@ -34,8 +34,15 @@ export function validadeDoEnvio(tipo, { base, agendamento = null, horaEnvio = '0
   return instanteSP(somarDias(base, dias), '23:59').toISOString();
 }
 
-/** Passou da validade? */
-export const envioVencido = (envio, agora = Date.now()) => !!envio?.expira_em && new Date(envio.expira_em).getTime() < agora;
+export const VALIDADE_REGUAS_H = { posvenda: 72, avaliacao: 48, retorno: 168 };
+export const MAX_TENTATIVAS_RODADA = 8;
+
+/** Reagendar muda enviar_em, mas nunca renova a validade da régua. */
+export function envioVencido(envio, agora = Date.now()) {
+  if (envio?.expira_em && !(Date.parse(envio.expira_em) > agora)) return true;
+  const horas = VALIDADE_REGUAS_H[envio?.tipo];
+  return !!horas && !(Date.parse(envio.created_at) + horas * 3600000 > agora);
+}
 
 /** Reserva antiga de um envio que continua pendente = o servidor caiu enquanto enviava. */
 export function reservaPresa(envio, agora = Date.now(), minutos = RESERVA_PRESA_MIN) {
@@ -54,7 +61,7 @@ export function conferirLembrete(envio, ag, cfg = {}, agora = Date.now(), hojeIs
     return { acao: 'pular', motivo: `o horário está ${rot}` };
   }
   const horario = instanteSP(ag.data, ag.hora || '08:00').getTime();
-  if (horario - agora < 60 * 60000) return { acao: 'pular', motivo: MOTIVO_EXPIRADO };
+  if (!(horario - agora > 60 * 60000)) return { acao: 'pular', motivo: MOTIVO_EXPIRADO };
   const validade = new Date(horario - 60 * 60000).toISOString();
   const mudou = envio?.expira_em && Math.abs(new Date(envio.expira_em).getTime() - (horario - 60 * 60000)) > 60000;
   if (!mudou) return { acao: 'enviar' };

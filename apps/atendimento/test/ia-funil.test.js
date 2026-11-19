@@ -16,7 +16,7 @@ const basico = (intencao = 'agendar', temperatura = 'morno') => [
 /** O cenário base traz uma mensagem do cliente com injeção (testes da rodada 5); os testes que não são de segurança usam uma mensagem comum no lugar. */
 function limparInjecao(t) { t.whatsapp_mensagens.find(m => m.id === 'm3').corpo = 'Minha placa é abc-1d23 e pode ser quinta 14h'; }
 
-function montar(roteiro, { autonomia = 'automatico', funil_autonomia = {}, ajustar, rpc = {} } = {}) {
+function montar(roteiro, { autonomia = 'automatico', funil_autonomia = {}, ajustar, rpc = {}, envioFalha = false } = {}) {
   const t = tabelas();
   t.ia_config[0].autonomia = autonomia;
   t.ia_config[0].funil_autonomia = funil_autonomia;
@@ -35,7 +35,7 @@ function montar(roteiro, { autonomia = 'automatico', funil_autonomia = {}, ajust
     const id = 'msg-ia-' + (enviadas.length + 1);
     enviadas.push({ conversa_id: conversa.id, texto, cliente_id });
     sb.db.whatsapp_mensagens.push({ id, conversa_id: conversa.id, direcao: 'saida', corpo: texto, gerada_por_ia: true, created_at: AGORA.toISOString() });
-    return { ok: true, mensagem_id: id };
+    return { ok: !envioFalha, mensagem_id: id, erro: envioFalha ? 'Chave recusada' : null };
   };
   const contexto = CTX.criarContexto({ sb, agora: () => AGORA });
   const cop = IA.criarCopiloto({ sb, contexto, criarIA: async () => ia, persona: 'PERSONA', agora: () => AGORA, enviarMensagem });
@@ -527,4 +527,30 @@ test('R5-C5: ao subir, linha "processando" há mais de 2 min volta para a fila (
   assert.equal(db.at_ia_fila.find(l => l.id === 'f1').status, 'pendente');
   assert.equal(db.at_ia_fila.find(l => l.id === 'f1').tentativas, 2);
   assert.equal(db.at_ia_fila.find(l => l.id === 'f2').status, 'processando');
+});
+
+test('processarFila descarta pendência velha e preserva o histórico de erro', async () => {
+  const antes = new Date(AGORA.getTime() - 24 * 3600000).toISOString();
+  const { funil, db } = montar([], { ajustar: t => {
+    t.at_ia_fila.push(
+      { id: 'velha', conversa_id: ID.conversaSemCliente, status: 'pendente', agendado_para: antes, created_at: antes },
+      { id: 'erro', conversa_id: ID.conversaSemCliente, status: 'erro', agendado_para: antes, created_at: antes },
+    );
+  } });
+  assert.deepEqual(await funil.processarFila(), { conversas: 0, feitas: 0, puladas: 1, erros: 0 });
+  assert.equal(db.at_ia_fila[0].status, 'pulada');
+  assert.equal(db.at_ia_fila[1].status, 'erro');
+});
+
+test('quando o CodeWords recusa, a IA registra a tentativa e conta zero envios', async () => {
+  const { funil, db, enviadas } = montar([
+    usa(...basico('orcamento'), ['responder', { texto: 'Opa! Pra freio a gente faz o diagnóstico digital gratuito. Qual é o carro?' }]),
+    fim,
+  ], { envioFalha: true });
+  const r = await funil.conduzir(ID.conversaSemCliente);
+  assert.equal(enviadas.length, 1);
+  assert.equal(r.enviadas, 0);
+  const acao = db.ia_acoes.find(a => a.tipo === 'responder');
+  assert.equal(acao.saida.enviada, false);
+  assert.equal(acao.saida.erro_entrega, 'Chave recusada');
 });
