@@ -41,6 +41,9 @@ const leads = require('./leads');
 const Fila = require('./fila');
 
 const compressao = require('./compressao');
+const Estatico = require('./estatico');
+const Registro = require('./registro');
+const enderecos = require('./enderecos');
 
 const PORT = process.env.PORT || 3400;
 const VERSAO = (() => { try { return require('./package.json').version; } catch { return '?'; } })();
@@ -48,16 +51,9 @@ const PUBLIC = path.join(__dirname, 'public');
 const CRON_TOKEN = process.env.ADS_CRON_TOKEN || '';
 const LIMITE_CORPO = 1_000_000;   // 1 MB — nenhuma rota precisa de mais
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
-  '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2',
-};
-/* HTML sempre revalida (uma publicação nova aparece na hora); CSS e JS
-   podem ficar 5 min no navegador — tempo suficiente para a navegação entre
-   abas não baixar tudo de novo, curto o bastante para não servir versão velha. */
-const CACHE_ESTATICO = { '.html': 'no-cache', '.css': 'public, max-age=300', '.js': 'public, max-age=300' };
+/* Rodada 8: a tela nova mora em tela/ (raiz do app quando existir tela/index.html) e a antiga
+   continua em /antiga/. Tipos, cache e a regra de prefixo estão em estatico.js. */
+const TELA = path.join(__dirname, 'tela');
 
 class ErroHttp extends Error {
   constructor(status, mensagem, extra = {}) { super(mensagem); this.status = status; this.publico = true; this.extra = extra; }
@@ -119,37 +115,10 @@ function lerCorpo(req) {
   });
 }
 
-/* Rodada 4: arquivo da memória (comprimido uma vez) e gzip quando o navegador aceita. */
-function enviarArquivo(res, arquivo, tipo, cache) {
-  compressao.lerArquivo(arquivo, tipo, (err, item) => {
-    if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Não encontrado'); }
-    const gz = item.gz && compressao.aceitaGzip(res.req);
-    const corpo = gz ? item.gz : item.cru;
-    res.writeHead(200, {
-      'Content-Type': tipo,
-      'Cache-Control': cache,
-      'Content-Length': corpo.length,
-      Vary: 'Accept-Encoding',
-      ...(gz ? { 'Content-Encoding': 'gzip' } : {}),
-    });
-    res.end(corpo);
-  });
-}
-
-function servirEstatico(res, caminho) {
-  if (VENDOR[caminho]) return enviarArquivo(res, VENDOR[caminho], 'text/javascript; charset=utf-8', 'public, max-age=86400');
-  let rel;
-  try { rel = caminho === '/' ? 'index.html' : decodeURIComponent(caminho.slice(1)); }
-  catch { res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Caminho inválido'); }
-  const arquivo = path.normalize(path.join(PUBLIC, rel));
-  if (!arquivo.startsWith(PUBLIC + path.sep)) {   // path traversal
-    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Proibido');
-  }
-  const ext = path.extname(arquivo);
-  // O service worker nunca fica em cache no navegador (senão a versão nova demora a chegar).
-  const cache = rel === 'sw.js' ? 'no-cache' : CACHE_ESTATICO[ext] || 'public, max-age=3600';
-  enviarArquivo(res, arquivo, MIME[ext] || 'application/octet-stream', cache);
-}
+/* Rodada 4: arquivo da memória (comprimido uma vez) e gzip quando o navegador aceita.
+   Rodada 8: tela/ na raiz, public/ em /antiga/, e nada supõe a raiz do domínio (estatico.js). */
+const estatico = Estatico.criar({ dirTela: TELA, dirAntiga: PUBLIC, vendor: VENDOR });
+const servirEstatico = (req, res, caminho) => estatico.servir(req, res, caminho);
 
 /* ------------------------------------------------------------
    Datas e filtros do período pedido pela tela
@@ -685,7 +654,9 @@ const ROTAS_CARREGADAS = [];
 const ROTAS_COM_ERRO = [];
 /* exigirCron(q): para rotas públicas de rotina (/api/cron/…) — confere ?chave= igual ao cron antigo. */
 const exigirCron = q => { if (!CRON_TOKEN || q.get('chave') !== CRON_TOKEN) throw new ErroHttp(401, 'chave inválida'); };
-const ctxRotas = { rota, rotaPublica, exigirCron, json, ErroHttp, lerCorpo, db, auth, seg, equipe, limitador, periodoDaQuery, platDe, limiteDe, hojeBR, VERSAO };
+/* Rodada 8: `registro` (log de uma linha em JSON, sem dado pessoal) e `enderecos` (apps da casa) também vão no encaixe.
+   Toda rota recebe `pedido` nos argumentos: `pedido.id` e `pedido.medir(nome, fn)` para o tempo de cada etapa. */
+const ctxRotas = { rota, rotaPublica, exigirCron, json, ErroHttp, lerCorpo, db, auth, seg, equipe, limitador, periodoDaQuery, platDe, limiteDe, hojeBR, VERSAO, registro: Registro, enderecos };
 if (fs.existsSync(ROTAS_DIR)) {
   for (const arq of fs.readdirSync(ROTAS_DIR).filter(n => n.endsWith('.js')).sort()) {
     try {
@@ -703,14 +674,32 @@ if (fs.existsSync(ROTAS_DIR)) {
 /* ------------------------------------------------------------
    Tratamento de cada requisição
    ------------------------------------------------------------ */
+/* É esta a função que a Central chama (handler): recebe a URL já sem o prefixo e req.prefixo ('/trafego').
+   Nunca rejeita: o que escapar vira 500 em JSON, com o app sozinho ou montado na Central. */
 async function tratar(req, res) {
+  try { await atender(req, res); }
+  catch (e) {
+    Registro.evento('error', 'falha_inesperada', { id: req.pedido?.id || null, metodo: req.method, erro: e?.message || String(e), tipo: e?.name || null });
+    if (!res.headersSent) json(res, 500, { erro: 'erro interno' });
+    else if (!res.writableEnded) res.end();
+  }
+}
+
+async function atender(req, res) {
   cabecalhosBase(res);
-  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  let url;
+  try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
+  catch { return json(res, 400, { erro: 'Endereço inválido.' }); }
   const caminho = url.pathname;
   const q = url.searchParams;
 
   const publica = acharPublica(caminho);
-  if (!caminho.startsWith('/api/') && !publica) return servirEstatico(res, caminho);
+  if (!caminho.startsWith('/api/') && !publica) return servirEstatico(req, res, caminho);
+
+  // Rodada 8: cada pedido tem um identificador (o da Central, quando o app está montado nela) e o tempo
+  // de cada etapa. A consulta (?q=…) nunca vai para o log; número comprido no caminho (telefone) também não.
+  const pedido = Registro.criarPedido({ id: Registro.idDoPedido(req, res), metodo: req.method, rota: Registro.rotaDoLog(caminho, publica?.m ? publica.m.slice(1) : []) });
+  req.pedido = pedido;
 
   // Log com duração de cada chamada de API. /api/ping fica de fora: o vigia
   // bate nele o dia inteiro e isso só suja o log.
@@ -721,7 +710,10 @@ async function tratar(req, res) {
       const marca = res.statusCode >= 500 ? '✖' : res.statusCode >= 400 ? '△' : '·';
       // Rodada 5: quem fez (papel + começo do id) — histórico de operação sem expor e-mail.
       const quem = req.quem ? ` ${req.quem}` : '';
-      console.log(`${marca} ${req.method} ${caminho} ${res.statusCode} ${ms.toFixed(0)}ms${quem}`);
+      console.log(`${marca} ${req.method} ${caminho.replace(/[0-9]{8,}/g, ':n')} ${res.statusCode} ${ms.toFixed(0)}ms${quem} [${pedido.id}]`);
+      // Passou de 1 s: uma linha a mais dizendo qual etapa (leitura do banco, montagem) levou o tempo.
+      const lento = pedido.resumoSeLento({ status: res.statusCode, ms });
+      if (lento) Registro.evento('warn', lento.evento, { ...lento.campos, quem: req.quem || null });
     });
   }
 
@@ -759,7 +751,7 @@ async function tratar(req, res) {
         res.setHeader('Allow', Object.keys(publica.rota.metodos).join(', '));
         throw new ErroHttp(405, `método não permitido — use ${Object.keys(publica.rota.metodos).join(' ou ')}`);
       }
-      const saidaPublica = await fnPublica({ req, res, q, caminho, ip, m: publica.m, corpo: () => lerCorpo(req) });
+      const saidaPublica = await fnPublica({ req, res, q, caminho, ip, m: publica.m, corpo: () => lerCorpo(req), pedido });
       if (!res.writableEnded) json(res, 200, saidaPublica ?? { ok: true });
       return;
     }
@@ -811,35 +803,52 @@ async function tratar(req, res) {
     let metodos = rotas.get(caminho), m = null;
     if (!metodos) for (const r of rotasPadrao) { m = r.alvo.exec(caminho); if (m) { metodos = r.metodos; break; } }
     if (!metodos) throw new ErroHttp(404, 'rota não encontrada');
+    if (m) pedido.definirRota(Registro.rotaDoLog(caminho, m.slice(1)));
     const fn = metodos[req.method];
     if (!fn) {
       res.setHeader('Allow', Object.keys(metodos).join(', '));
       throw new ErroHttp(405, `método não permitido — use ${Object.keys(metodos).join(' ou ')}`);
     }
-    const saida = await fn({ req, res, q, usuario, m, corpo: () => lerCorpo(req) });
+    const saida = await fn({ req, res, q, usuario, m, corpo: () => lerCorpo(req), pedido });
     if (!res.writableEnded) json(res, 200, saida ?? { ok: true });
   } catch (e) {
     const status = e.status || 500;
-    if (status >= 500) console.error('✖', req.method, caminho, '—', e.stack || e.message);
-    // Erro interno (banco, rede) não vaza detalhe: a frase vai para o log, a tela recebe uma frase de gente.
-    if (!res.writableEnded) json(res, status, { erro: seg.mensagemPublica(e), ...(e.extra || {}) });
+    // Erro interno (banco, rede) não vaza detalhe: o log recebe rota, etapa e tipo do erro (sem dado pessoal);
+    // a tela recebe uma frase de gente e o número do pedido, para quem atende achar a linha certa.
+    if (status >= 500) { const r = pedido.resumoDoErro(e, { status, quem: req.quem }); Registro.evento('error', r.evento, r.campos); }
+    if (!res.writableEnded) json(res, status, { erro: seg.mensagemPublica(e), ...(e.extra || {}), ...(status >= 500 ? { pedido: pedido.id } : {}) });
   }
 }
 
-const servidor = http.createServer((req, res) => {
-  tratar(req, res).catch(e => {
-    console.error('✖ falha inesperada:', e);
-    if (!res.writableEnded) json(res, 500, { erro: 'erro interno' });
-  });
-});
+const servidor = http.createServer((req, res) => { tratar(req, res); });
 
 /* ------------------------------------------------------------
    Subida e parada educada
    ------------------------------------------------------------ */
-function iniciar(porta = PORT) {
+/* As rotinas que rodam sozinhas (coleta, radar, relatório, avisos). Ligar duas vezes não duplica nada. */
+const rotinasPedidas = () => process.env.ADS_AUTOMATICO === '1' || process.env.TRAFEGO_AUTOMATICO === '1';
+function ligarRotinas() { agenda.iniciar(); return agenda.estado.ligado; }
+function desligarRotinas() { agenda.parar(); return agenda.estado.ligado; }
+
+/**
+ * Sobe o app.
+ *   iniciar()            -> porta do ambiente (3400), como sempre
+ *   iniciar(3411)        -> na porta pedida
+ *   iniciar({ ouvir: false, rotinas })  -> SEM abrir porta (montado na Central, que chama `handler`).
+ *     `rotinas`: true liga, false não liga; sem dizer, segue ADS_AUTOMATICO=1 ou TRAFEGO_AUTOMATICO=1.
+ *     Devolve { ouvindo: false, rotinas } em vez do servidor.
+ */
+function iniciar(opcoes = PORT) {
+  const o = opcoes && typeof opcoes === 'object' ? opcoes : { porta: opcoes };
+  const porta = o.porta ?? PORT;
+  if (o.ouvir === false) {
+    const ligar = o.rotinas === undefined ? rotinasPedidas() : o.rotinas === true;
+    if (ligar) ligarRotinas();
+    return { ouvindo: false, rotinas: agenda.estado.ligado, versao: VERSAO };
+  }
   servidor.listen(porta, () => {
-    console.log('🏎  IndyCar · Central de Tráfego Pago');
-    console.log(`   http://localhost:${porta}`);
+    console.log('🏎  IndyCar · Tráfego');
+    console.log(`   http://localhost:${porta}${estatico.temTelaNova() ? '' : '   (tela nova ainda não está em tela/: servindo a antiga)'}`);
     if (!auth.configurado()) {
       console.log('   ⚠️  Falta configurar o .env (SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY).');
       console.log('      Copie .env.exemplo para .env e preencha.');
@@ -847,7 +856,7 @@ function iniciar(porta = PORT) {
     if (!process.env.ANTHROPIC_API_KEY) {
       console.log('   ℹ️  Sem ANTHROPIC_API_KEY: o relatório sai só com números, sem a leitura do dia.');
     }
-    if (process.env.ADS_AUTOMATICO === '1') agenda.iniciar();
+    if (o.rotinas === undefined ? rotinasPedidas() : o.rotinas === true) ligarRotinas();
     else console.log('   ℹ️  Piloto automático desligado (ADS_AUTOMATICO≠1). Use as rotas /api/cron/*.');
     // Rodada 5: modo sem chaves — sem token real e sem dado nenhum, o app semeia a demonstração sozinho
     // (marcada como demo) para a tela nunca abrir vazia enquanto o João não cola as chaves.
@@ -883,4 +892,4 @@ if (require.main === module) {
   process.on('SIGINT', () => encerrar('SIGINT'));
 }
 
-module.exports = { handler: tratar, VERSAO, ROTAS_CARREGADAS, ROTAS_COM_ERRO, ctxRotas, servidor, iniciar, encerrar, tratar, validarConfig, periodoDaQuery, LIMITE_CORPO, ErroHttp, limitador, semearDemoSePreciso };
+module.exports = { handler: tratar, VERSAO, ROTAS_CARREGADAS, ROTAS_COM_ERRO, ctxRotas, servidor, iniciar, encerrar, ligarRotinas, desligarRotinas, estatico, tratar, validarConfig, periodoDaQuery, LIMITE_CORPO, ErroHttp, limitador, semearDemoSePreciso };

@@ -36,8 +36,8 @@ function cabecalhos(res) {
 }
 
 /* ---------------- CORS ---------------- */
-// Rodada 5: as origens vêm do mesmo arquivo que a tela usa (public/ecossistema.js).
-const ORIGENS = new Set(require('./public/ecossistema.js').origens());
+// Rodada 8: a lista de origens mora no servidor (enderecos.js), não na pasta de tela.
+const ORIGENS = new Set(require('./enderecos').origens());
 const LOCAL = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 /** A origem pode chamar a API? Sem Origin (curl, mesma aba GET) ou mesma origem = sim. */

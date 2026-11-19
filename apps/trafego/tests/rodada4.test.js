@@ -171,24 +171,25 @@ test('preferências: se a releitura do perfil falhar, nada é gravado (não apag
 /* ---------------- servidor: sw.js, gzip, fontes e CSP ---------------- */
 
 test('servidor: sw.js sem cache, supabase.js e app.js com gzip, fontes servidas e CSP sem o Google', async () => {
+  // Rodada 8: a tela antiga (public/) é servida em /antiga/; a raiz passa a ser da tela nova quando ela existir.
   const { servidor } = require('../server');
   await new Promise(r => servidor.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${servidor.address().port}`;
   try {
-    const sw = await fetch(base + '/sw.js');
+    const sw = await fetch(base + '/antiga/sw.js');
     assert.equal(sw.status, 200);
     assert.equal(sw.headers.get('cache-control'), 'no-cache');
     assert.match(await sw.text(), /ads-casca-/);
     const vendor = await fetch(base + '/vendor/supabase.js', { headers: { 'accept-encoding': 'gzip' } });
     assert.equal(vendor.status, 200);
     assert.equal(vendor.headers.get('content-encoding'), 'gzip');
-    const app = await fetch(base + '/app.js', { headers: { 'accept-encoding': 'gzip' } });
+    const app = await fetch(base + '/antiga/app.js', { headers: { 'accept-encoding': 'gzip' } });
     assert.equal(app.headers.get('content-encoding'), 'gzip');
     assert.match(await app.text(), /mostrarAcordando/);
-    const fonte = await fetch(base + '/fontes/dm-sans-variavel.woff2');
+    const fonte = await fetch(base + '/antiga/fontes/dm-sans-variavel.woff2');
     assert.equal(fonte.status, 200);
     assert.equal(fonte.headers.get('content-type'), 'font/woff2');
-    const html = await fetch(base + '/');
+    const html = await fetch(base + '/antiga/');
     const csp = html.headers.get('content-security-policy');
     assert.doesNotMatch(csp, /googleapis|gstatic/);
     assert.match(csp, /font-src 'self'/);

@@ -72,19 +72,28 @@ test('/api/config-publica entrega só o que a tela de login precisa', async () =
 });
 
 test('estático: index com no-cache e cabeçalhos de segurança; path traversal barrado', async () => {
+  // Rodada 8: a raiz serve a tela nova (tela/) quando ela existe; a antiga fica sempre em /antiga/.
   const r = await pedir('/');
   assert.equal(r.status, 200);
   assert.ok(r.headers.get('content-type').startsWith('text/html'));
   assert.equal(r.headers.get('cache-control'), 'no-cache');
   assert.equal(r.headers.get('x-frame-options'), 'DENY');
-  assert.ok(r.texto.includes('Central de'));
 
-  const css = await pedir('/styles.css');
+  const antiga = await pedir('/antiga/');
+  assert.equal(antiga.status, 200);
+  assert.equal(antiga.headers.get('cache-control'), 'no-cache');
+  assert.equal(antiga.headers.get('x-frame-options'), 'DENY');
+  assert.ok(antiga.texto.includes('Central de'));
+
+  const css = await pedir('/antiga/styles.css');
   assert.equal(css.status, 200);
   assert.equal(css.headers.get('cache-control'), 'public, max-age=300');
 
-  const fora = await pedir('/%2e%2e/server.js');
-  assert.notEqual(fora.status, 200);
+  for (const caminho of ['/%2e%2e/server.js', '/..%2fserver.js', '/antiga/..%2f..%2fserver.js', '/antiga/%2e%2e/server.js']) {
+    const fora = await pedir(caminho);
+    assert.notEqual(fora.status, 200, caminho);
+    assert.ok(!fora.texto.includes('createServer'), caminho);
+  }
   const nada = await pedir('/nao-existe.txt');
   assert.equal(nada.status, 404);
 });
