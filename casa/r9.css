@@ -1,0 +1,93 @@
+/* Casa, rodada 9 (R9-casa): repaginação pelo GUIA-VISUAL "Cronometragem" e acertos de acessibilidade.
+   Carrega por último: só sobrescreve o que mudou. Nada de degradê, nada de barra colorida de lado no cartão,
+   estado sempre com palavra (e ícone quando é grave), alvos de toque com 44 px. */
+[hidden] { display: none !important; }
+
+/* Fontes da casa, servidas pela própria Central (antes vinham do Google: mais uma ida à rede e a CSP aberta para fora).
+   Barlow Condensed para número e título; Archivo para o texto. O arquivo 700 também atende o 800 (sem negrito falso). */
+@font-face { font-family: 'Barlow Condensed'; font-style: normal; font-weight: 600; font-display: swap; src: url('/casa/barlow-condensed-600.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow Condensed'; font-style: normal; font-weight: 700 800; font-display: swap; src: url('/casa/barlow-condensed-700.woff2') format('woff2'); }
+@font-face { font-family: 'Barlow Condensed'; font-style: italic; font-weight: 800; font-display: swap; src: url('/casa/barlow-condensed-800-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 100 900; font-stretch: 62% 125%; font-display: swap; src: url('/casa/archivo-variavel.woff2') format('woff2'); }
+
+:root {
+  /* papéis do GUIA-VISUAL: grave (sempre com ícone e palavra), atenção, bom, dado neutro */
+  --cor-grave: #ff4d5e; --cor-atencao: #facc15; --cor-bom: #22c55e; --cor-dado: #6b7280;
+}
+:root[data-tema="claro"] { --cor-grave: #c20f22; --cor-atencao: #854d0e; --cor-bom: #166534; --cor-dado: #6b7280; }
+
+/* chão liso: sai o degradê vermelho/azulado do fundo */
+body { background: var(--bg); }
+
+/* cartões sem a barra colorida de lado: o estado já está na palavra (selo, "urgente", "não lido") */
+.agora-cartao::before { content: none; display: none; }
+.atencao-item, .grav-3 .atencao-item, .grav-1 .atencao-item { border-left: 1px solid var(--borda); }
+.saude-item, .saude-item.tom-aviso, .saude-item.tom-ruim, .saude-item.tom-neutro { border-left: 1px solid var(--borda); }
+.tarefa.p1, .tarefa.t-orc-reabordar { border-left: 0; }
+.lista-notif li.nova button, .notif-grupo li.nova .notif-abrir { border-left: 0; }
+
+/* gravidade em palavra (painel.js seloGrav) */
+.a-selo { display: inline-flex; align-items: center; gap: 4px; justify-self: start; font: 700 13px/1.1 var(--f-num); letter-spacing: .06em; text-transform: uppercase; }
+.a-selo-3 { color: var(--cor-grave); }
+.a-selo-2 { color: var(--cor-atencao); }
+
+/* número do cartão quando não é número ("sem dado", "…") */
+.agora-num.num-texto { font-size: 28px; color: var(--muted); }
+
+/* aviso não lido no sino: palavra, não só a cor */
+.n-nova { display: inline-block; margin-right: 6px; font: 700 12px/1.2 var(--f-num); letter-spacing: .06em; text-transform: uppercase; color: var(--cor-grave); vertical-align: 1px; }
+.notif-soltos { margin-top: 2px; }
+
+/* faixa do Vigia: grave = cor + ícone + palavra; o texto cru do Vigia fica pequeno, embaixo */
+.avisos-vigia { border: 2px solid var(--cor-grave); background: var(--panel); }
+.avisos-vigia li + li { border-top: 1px solid var(--borda-2); }
+.vigia-item { display: grid; gap: 4px; }
+.vigia-item strong { font-weight: 700; color: var(--forte); }
+.vigia-selo { display: inline-flex; align-items: center; gap: 4px; font: 700 13px/1.1 var(--f-num); letter-spacing: .06em; text-transform: uppercase; color: var(--cor-grave); }
+.vigia-detalhe { display: block; color: var(--muted); font-size: 12px; }
+.vigia-leve strong { color: var(--texto); }
+
+/* aviso (toast) de erro: borda e ícone de grave, não some antes de dar para ler (casa.js) */
+.toast[data-tom="erro"] { background: var(--panel); color: var(--texto); border: 2px solid var(--cor-grave); }
+.toast[data-tom="erro"]::before { content: '⚠ '; color: var(--cor-grave); }
+
+/* faturamento: barra de dado neutra; hoje em vermelho e escrito "hoje" */
+.barra-fill { background: var(--cor-dado); }
+.barra-hoje .barra-fill { background: var(--red); }
+.barra-hoje .barra-d { color: var(--forte); font-weight: 700; }
+
+/* contraste no tema claro (axe acusava): notas e deltas com os tons do guia */
+.dono-nota { color: var(--cor-atencao); }
+.delta.bom { color: var(--cor-bom); }
+.delta.ruim { color: var(--cor-grave); }
+
+/* tabela que rola de lado: dá para chegar pelo teclado e o foco aparece */
+.tabela-rolavel:focus-visible { outline: 2px solid var(--red-2); outline-offset: 2px; }
+
+/* título da tarefa virou botão (dá para editar pelo teclado) */
+button.t-texto { display: block; width: 100%; min-height: 44px; padding: 10px 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: text; overflow-wrap: anywhere; }
+button.t-texto:hover { text-decoration: underline dotted; }
+
+/* alvos de toque de 44 px que faltavam */
+.pular { min-height: 44px; display: inline-flex; align-items: center; }
+#bAtualizar, #manhaFechar, #fichaFechar, #lEsqueci, #buscaFechar { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.marcar-mini, .marcar { min-height: 44px; }
+
+/* tecla mostrada só na tela (o nome do botão de busca fica igual ao que se lê) */
+.kbd-css::after { content: attr(data-tecla); }
+
+/* só para leitor de tela */
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* filtro de horários de hoje: o grupo de botões mora dentro do item da lista (antes o item virava "group" e a lista ficava inválida) */
+.filtro-hoje-grupo { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* tema claro: vermelho e ciano de texto pequeno com o tom escuro do guia (o claro não passava de 3,6:1 no branco) */
+:root[data-tema="claro"] { --red-2: #c20f22; }
+:root[data-tema="claro"] .pil-orc { color: #155e75; border-color: rgba(21,94,117,.45); }
+
+/* "tentar de novo" das listas com erro: alvo de 44 px */
+.vazio-erro .btn-link { min-height: 44px; display: inline-flex; align-items: center; }
+:root[data-tema="claro"] .selo-ruim { background: rgba(194,15,34,.1); }
+/* faixa do Vigia só com "não deu para conferir" (nenhum grave): borda neutra, não vermelha */
+.avisos-vigia:not(:has(.vigia-selo)) { border-color: var(--borda-2); }
