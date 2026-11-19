@@ -194,3 +194,22 @@ test('rodada 5: /api/leads, /api/leads.csv, /api/alertas.csv, /api/fila e /api/r
   const p = await pedir('/api/leads?de=2026-13-99&ate=2026-01-01', 'admin');
   assert.equal(p.status, 400);
 });
+
+/* ---------------- revisão de segurança (19/11), achado 4: o que só o administrador faz ---------------- */
+test('gestor com o Tráfego não manda o fechamento, não troca acesso da Meta/Google nem os números dos relatórios', async () => {
+  const casos = [
+    ['/api/fechamento/enviar', { mes: '2026-10' }],
+    ['/api/integracoes', { canal: 'meta', meta_access_token: 'x' }],
+    ['/api/config', { whatsapp_destinos: ['5512999999999'] }],
+  ];
+  for (const [c, corpo] of casos) {
+    const g = await pedir(c, 'gestor', { metodo: 'POST', corpo });
+    assert.equal(g.status, 403, c);
+    assert.equal(g.json.codigo, 'so_admin', c);
+    const a = await pedir(c, 'admin', { metodo: 'POST', corpo });
+    assert.notEqual(a.status, 403, c + ': o administrador passa da porta');
+  }
+  // o resto da configuração (metas, verba) o gestor continua salvando
+  const metas = await pedir('/api/config', 'gestor', { metodo: 'POST', corpo: { meta_cpl: 30 } });
+  assert.notEqual(metas.status, 403);
+});

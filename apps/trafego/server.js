@@ -321,7 +321,14 @@ rota('GET', '/api/fechamento.csv', async ({ q, res, usuario }) => {
   await equipe.banco().auditar(usuario, 'ads_exportou_csv', { detalhes: { arquivo: 'fechamento', mes: r.periodo.mes } });
   enviarCSV(res, `fechamento-${r.periodo.mes}.csv`, atribuicao.montarCSV(F.CAMPOS_CSV, F.linhasCSV(r)));
 });
+/* Revisão de segurança (19/11), achado 4: três coisas sensíveis passam a ser só do administrador (o gestor com o
+   Tráfego liberado continua vendo e propondo): mandar o fechamento do mês pelo WhatsApp da oficina, trocar as
+   credenciais da Meta e do Google e trocar os números que recebem os relatórios. */
+const soAdmin = (usuario, oQue) => {
+  if (!equipe.ehAdmin(usuario)) throw new ErroHttp(403, `Só o administrador pode ${oQue}.`, { codigo: 'so_admin' });
+};
 rota('POST', '/api/fechamento/enviar', async ({ corpo, usuario }) => {
+  soAdmin(usuario, 'mandar o fechamento do mês pelo WhatsApp');
   const c = await corpo();
   const cfg = await db.lerConfig({ fresco: true });
   if (!cfg.whatsapp_destinos.length) throw new ErroHttp(400, 'cadastre ao menos um número em Ajustes antes de enviar');
@@ -443,6 +450,7 @@ const canalDoCorpo = c => {
 };
 rota('POST', '/api/integracoes/testar', async ({ corpo }) => { const c = await corpo(); return conexoes.testar(canalDoCorpo(c), c); });
 rota('POST', '/api/integracoes', async ({ corpo, usuario }) => {
+  soAdmin(usuario, 'trocar o acesso da Meta e do Google');
   const c = await corpo();
   const canal = canalDoCorpo(c);
   let r;
@@ -485,6 +493,7 @@ rota('POST', '/api/demo', async ({ corpo, usuario }) => {
 rota('GET', '/api/config', () => db.lerConfig({ fresco: true }));
 rota('POST', '/api/config', async ({ corpo, usuario }) => {
   const v = validarConfig(await corpo());
+  if (v.whatsapp_destinos !== undefined) soAdmin(usuario, 'trocar os números que recebem os relatórios');
   await db.salvarConfig(v);
   // Telefones mascarados no registro (só os 4 últimos dígitos).
   const detalhes = { ...v };
