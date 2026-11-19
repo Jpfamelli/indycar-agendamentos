@@ -6,9 +6,11 @@
 (function () {
   'use strict';
   const MOD = { nome: 'tarefas' };
-  let C = null, L = null, M = null, N = null, W = null, tarefas = [], canal = null, desfazerTimer = null, filtro = 'todas', nomes = new Map(), editando = null;
+  let C = null, L = null, M = null, N = null, W = null, tarefas = [], canal = null, filtro = 'todas', nomes = new Map(), editando = null;
   /* rodada 7: o que liga a tarefa ao Orçador (orc_tarefas), o número do orçamento e o telefone do cliente */
   let ligas = {}, orcs = {}, fones = {}, carregandoLigas = null;
+  /* rodada 9: estado da leitura (a lista não fica em branco quando o banco falha) e trava do "Criar" (dois toques não criam duas tarefas) */
+  let leitura = 'carregando', criando = false;
   const $ = (s) => document.querySelector(s);
 
   /** vence_em (ISO) para "hoje 17h30", "amanhã 9h" ou "em 7 dias". Oficina em UTC-3 (sem horário de verão). */
@@ -21,7 +23,7 @@
     const liga = ligas[t.id];
     if (liga && liga.orcamento_id && C.podeUsar('orcador')) return { app: 'orcador', rotulo: 'orçamento', url: l.orcamento(liga.orcamento_id) };
     if (t.conversa_id) return { app: 'atendimento', rotulo: 'conversa', url: l.conversa(t.conversa_id) };
-    if (t.lead_id) return { app: 'crm', rotulo: 'lead', url: l.crmLead(t.lead_id) };
+    if (t.lead_id) return { app: 'crm', rotulo: 'contato', url: l.crmLead(t.lead_id) };
     if (t.agendamento_id) return { app: 'agenda', rotulo: 'horário', url: l.agenda(t.agendamento_id) };
     if (t.cliente_id) return { app: 'agenda', rotulo: 'cliente', url: l.agendaCliente({ cliente: t.cliente_id }) };
     // sem ligação nenhuma: se a descrição traz o endereço de um app da casa (as tarefas do Orçador trazem), usa
@@ -81,12 +83,14 @@
         <input type="checkbox" data-tarefa="${C.esc(t.id)}" aria-label="Concluir: ${C.esc(t.titulo)}" />
         <span class="t-tit"><span class="t-ico" role="img" aria-label="${C.esc('Origem: ' + info.origem)}" title="${C.esc('Origem: ' + info.origem)}">${info.ico}</span>${t.prioridade === 1 ? '<span class="pil pil-ruim">urgente</span> ' : ''}${info.tipo ? `<span class="pil pil-orc" title="${C.esc(info.tipo.dica)}">${C.esc(info.tipo.rotulo)}</span> ` : ''}${de ? `<span class="pil">${C.esc(de)}</span> ` : ''}${editando === t.id
           ? `<input class="t-edita" data-edita="${C.esc(t.id)}" maxlength="200" value="${C.esc(t.titulo)}" aria-label="Novo título da tarefa" />`
-          : `<span class="t-texto" data-editar="${C.esc(t.id)}" title="Toque para editar">${C.esc(t.titulo)}</span>`}${desc ? `<small class="t-desc">${C.esc(desc)}</small>` : ''}</span>
+          : `<button type="button" class="t-texto" data-editar="${C.esc(t.id)}" title="Toque para editar" aria-label="${C.esc(t.titulo)} (editar o título)">${C.esc(t.titulo)}</button>`}${desc ? `<small class="t-desc">${C.esc(desc)}</small>` : ''}</span>
         <span class="t-lado"><span class="t-quando">${sit === 'vencida' ? 'venceu ' : sit === 'sem-prazo' ? '' : 'até '}${C.esc(prazo || 'sem prazo')}</span>
           <span class="t-acoes">${botaoWa(t)}${o ? `<a class="t-abrir" href="${C.esc(o.url)}" target="${C.esc(L.nomeDaAba(o.app))}">abrir ${C.esc(o.rotulo)} ↗</a>` : ''}
           <button type="button" class="t-adiar" data-adiar="${C.esc(t.id)}" title="Adiar para o próximo dia útil, 9h" aria-label="Adiar: ${C.esc(t.titulo)}">adiar ›</button>
           <button type="button" class="t-adiar t-adiar-mais" data-adiar-mais="${C.esc(t.id)}" title="Adiar por 3 dias úteis" aria-label="Adiar por 3 dias: ${C.esc(t.titulo)}">+3 dias</button></span></span></li>`;
-    }).join('') : `<li class="vazio vazio-ensina"><b>${filtro === 'todas' ? 'Nenhuma tarefa aberta com você. 🏁' : (VAZIO_DO_FILTRO[filtro] || 'Nada neste filtro.')}</b>${filtro === 'todas' ? '<span>Escreva acima e aperte Enter: “ligar para o Marcos sobre o orçamento”, com prazo se tiver. Conversas, leads e orçamentos também geram tarefas aqui.</span>' : ''}</li>`;
+    }).join('') : (leitura === 'carregando' && !tarefas.length) ? '<li class="vazio"><span role="status">Carregando suas tarefas…</span></li>'
+      : (leitura === 'falhou' && !tarefas.length) ? '<li class="vazio vazio-erro"><span role="alert">Não consegui ler as tarefas agora.</span> <button type="button" class="btn-link" data-tarefas-de-novo>tentar de novo</button></li>'
+      : `<li class="vazio vazio-ensina"><b>${filtro === 'todas' ? 'Nenhuma tarefa aberta com você. 🏁' : (VAZIO_DO_FILTRO[filtro] || 'Nada neste filtro.')}</b>${filtro === 'todas' ? '<span>Escreva acima e aperte Enter: “ligar para o Marcos sobre o orçamento”, com prazo se tiver. Conversas, contatos do CRM e orçamentos também geram tarefas aqui.</span>' : ''}</li>`;
     if (editando) { const i = document.querySelector('[data-edita]'); if (i) { i.focus(); i.select(); } }
   }
 
@@ -114,21 +118,23 @@
   }
 
   async function carregar() {
-    const { data, error } = await C.sb.from('tarefas').select('id,titulo,descricao,prioridade,vence_em,status,origem,responsavel_id,cliente_id,lead_id,conversa_id,agendamento_id')
-      .eq('status', 'aberta').order('prioridade', { ascending: true }).order('vence_em', { ascending: true, nullsFirst: false }).limit(120);
-    if (!error) {
+    let data = null, error = null;
+    try {
+      ({ data, error } = await C.sb.from('tarefas').select('id,titulo,descricao,prioridade,vence_em,status,origem,responsavel_id,cliente_id,lead_id,conversa_id,agendamento_id')
+        .eq('status', 'aberta').order('prioridade', { ascending: true }).order('vence_em', { ascending: true, nullsFirst: false }).limit(120));
+    } catch (e) { error = e; }
+    if (!C) return;
+    if (error) { leitura = 'falhou'; desenhar(); return; }
+    leitura = 'ok';
+    {
       tarefas = data || []; desenhar(); C.painel && C.painel.redesenhar && C.painel.redesenhar();
       if (tarefas.some((t) => t.origem === 'orcador')) carregarLigas().then(() => { desenhar(); C.painel && C.painel.redesenhar && C.painel.redesenhar(); });
     }
   }
 
+  /* o aviso com botão ("Desfazer", "Concluir a tarefa") usa o relógio único do aviso da Casa: outro aviso que estava na tela não o apaga antes da hora */
   function toastDesfazer(msg, aoDesfazer, rotulo = 'Desfazer', ms = 6000) {
-    const t = $('#toast');
-    t.innerHTML = `${C.esc(msg)} <button type="button" class="toast-btn">${C.esc(rotulo)}</button>`;
-    t.hidden = false;
-    t.querySelector('button').onclick = () => { t.hidden = true; clearTimeout(desfazerTimer); aoDesfazer(); };
-    clearTimeout(desfazerTimer);
-    desfazerTimer = setTimeout(() => { t.hidden = true; }, ms);
+    C.toast(msg, ms, { rotulo, fazer: aoDesfazer });
   }
   async function concluir(id, caixa) {
     caixa.disabled = true;
@@ -166,12 +172,18 @@
   }
   async function criar(ev) {
     ev.preventDefault();
-    const titulo = $('#tTitulo').value.trim();
-    if (!titulo) return;
+    if (criando) return;
+    const campo = $('#tTitulo');
+    const titulo = campo.value.trim();
+    if (!titulo) { campo.value = ''; campo.focus(); return C.toast('Escreva o que precisa ser feito e aperte Criar.'); }
     const quem = $('#tQuem') && !$('#tQuem').hidden && $('#tQuem').value ? $('#tQuem').value : C.perfil.id;
     const linha = { titulo: titulo.slice(0, 200), responsavel_id: quem, origem: 'manual', prioridade: $('#tUrgente').checked ? 1 : 2, vence_em: prazoISO($('#tPrazo').value) };
-    const { error } = await C.sb.from('tarefas').insert(linha);
-    if (error) return C.toast('Não consegui criar a tarefa agora.');
+    const botao = $('#fTarefa [type="submit"]');
+    criando = true; if (botao) { botao.disabled = true; botao.textContent = 'Criando…'; }
+    let error = null;
+    try { ({ error } = await C.sb.from('tarefas').insert(linha)); } catch (e) { error = e; }
+    finally { criando = false; if (botao) { botao.disabled = false; botao.textContent = 'Criar'; } }
+    if (error) return C.toast('Não consegui criar a tarefa agora. O texto continua no campo.', 'err');
     $('#tTitulo').value = ''; $('#tUrgente').checked = false; $('#tPrazo').value = '';
     if (quem !== C.perfil.id) C.toast('Tarefa passada para ' + (nomes.get(quem) || 'o colega') + '.');
     carregar();
@@ -190,13 +202,14 @@
   }
 
   MOD.montar = function (casa) {
-    C = casa; L = casa.L; M = window.CasaLogica2; N = window.CasaLogica4; W = window.CasaLogica3; tarefas = []; filtro = 'todas'; editando = null; nomes = new Map(); ligas = {}; orcs = {}; fones = {};
+    C = casa; L = casa.L; M = window.CasaLogica2; N = window.CasaLogica4; W = window.CasaLogica3; tarefas = []; filtro = 'todas'; editando = null; nomes = new Map(); ligas = {}; orcs = {}; fones = {}; leitura = 'carregando'; criando = false;
     $('#fTarefa').onsubmit = criar;
     $('#listaTarefas').onchange = (e) => { const c = e.target.closest('[data-tarefa]'); if (c && c.checked) concluir(c.dataset.tarefa, c); };
     $('#listaTarefas').onclick = (e) => {
       const a = e.target.closest('[data-adiar]'); if (a) { adiar(a.dataset.adiar); return; }
       const m = e.target.closest('[data-adiar-mais]'); if (m) { adiar(m.dataset.adiarMais, 3); return; }
-      const ed = e.target.closest('[data-editar]'); if (ed) { editando = ed.dataset.editar; desenhar(); }
+      const ed = e.target.closest('[data-editar]'); if (ed) { editando = ed.dataset.editar; desenhar(); return; }
+      if (e.target.closest('[data-tarefas-de-novo]')) { leitura = 'carregando'; desenhar(); carregar(); }
     };
     /* o WhatsApp só "abriu de verdade" depois da guarda do PARAR (parar.js avisa): aí oferece concluir a tarefa */
     $('#listaTarefas').addEventListener('casa-wa-aberto', (e) => {
@@ -207,8 +220,9 @@
     });
     $('#listaTarefas').onkeydown = (e) => {
       const i = e.target.closest('[data-edita]'); if (!i) return;
-      if (e.key === 'Enter') { e.preventDefault(); salvarTitulo(i.dataset.edita, i.value); }
-      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); editando = null; desenhar(); }
+      const volta = () => { const b = document.querySelector(`[data-editar="${i.dataset.edita}"]`); if (b) b.focus(); };
+      if (e.key === 'Enter') { e.preventDefault(); salvarTitulo(i.dataset.edita, i.value); volta(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); editando = null; desenhar(); volta(); }
     };
     $('#listaTarefas').onfocusout = (e) => { const i = e.target.closest && e.target.closest('[data-edita]'); if (i && editando === i.dataset.edita) salvarTitulo(i.dataset.edita, i.value); };
     $('#tFiltros').onclick = (e) => { const b = e.target.closest('[data-filtro-t]'); if (b) { filtro = b.dataset.filtroT; desenhar(); } };
@@ -223,7 +237,7 @@
   };
   MOD.desmontar = function () {
     try { if (canal && C) C.sb.removeChannel(canal); } catch { /* segue */ }
-    canal = null; clearTimeout(desfazerTimer); tarefas = []; ligas = {}; orcs = {}; fones = {};
+    canal = null; tarefas = []; ligas = {}; orcs = {}; fones = {};
   };
   MOD.prazoISO = prazoISO;
   (window.CasaModulos = window.CasaModulos || []).push(MOD);
