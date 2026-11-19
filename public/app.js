@@ -3003,7 +3003,7 @@ document.addEventListener('click', async e => {
       '<button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>' +
       '<div class="modal-body"><p>Conversas recentes sem horário na Agenda. Confira com o cliente antes de salvar.</p>' +
       (itens.length ? '<ul>' + itens.map((c, i) =>
-        '<li><button class="btn" style="min-height:44px" data-horario-whatsapp="' + i + '">Agendar para ' +
+        '<li><button class="btn" data-horario-whatsapp="' + i + '">Agendar para ' +
         esc(c.nome || c.telefone) + '</button></li>').join('') + '</ul>' :
         '<p>Nenhuma conversa encontrada nos últimos sete dias.</p>') + '</div>');
     $('[data-horario-whatsapp]').forEach(b => b.addEventListener('click', () => {

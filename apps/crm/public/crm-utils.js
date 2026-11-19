@@ -50,7 +50,7 @@
   });
   function camposPerda(observacoes, motivo, texto = '') {
     if (!Object.hasOwn(MOTIVOS_R8, motivo)) return null;
-    const obs = String(texto).replace(/[\r\n]+/g, ' ').trim().slice(0, 140);
+    const obs = String(texto ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, 140);
     if (motivo === 'outro' && !obs) return null;
     return {
       motivo_perda: motivo, motivo_perda_obs: motivo === 'outro' ? obs : null,

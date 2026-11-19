@@ -440,6 +440,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border-2);background:var(--panel-3);
   color:var(--text);font-weight:600;font-size:13px;padding:9px 15px;border-radius:11px;cursor:pointer;
   font-family:inherit;transition:.13s;text-decoration:none}
+#chipConversasSemHorario, #pdMais, #vf_sem, [data-horario-whatsapp]{min-height:44px}
 .btn:hover{background:var(--surface-2)}
 .btn.primary{background:linear-gradient(180deg,var(--red-2),var(--red));border:none;color:#fff;
   box-shadow:0 6px 18px rgba(230,25,46,.4)}

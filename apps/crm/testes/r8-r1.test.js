@@ -7,6 +7,7 @@ test('motivo estruturado preserva observações e exige texto em Outro', () => {
     motivo_perda: 'caro', motivo_perda_obs: null, observacoes: 'Ligou hoje\nMotivo da perda: Achou caro'
   });
   assert.equal(U.camposPerda('', 'outro', '   '), null);
+  assert.equal(U.camposPerda('', 'outro', null), null);
   assert.equal(U.camposPerda('', 'outro', ' Mudou de cidade ').motivo_perda_obs, 'Mudou de cidade');
 });
 
