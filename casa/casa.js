@@ -238,6 +238,7 @@
     $('#mpEmail').textContent = perfil.email || sessao.user.email || '';
     $('#mpPapel').textContent = [PAPEL[perfil.papel] || perfil.papel || '', perfil.cargo || ''].filter(Boolean).join(' · ');
     desenharApps();
+    if (voltarPedido) { const v = voltarPedido; voltarPedido = ''; location.replace(v); return; }
     mostrar('casa');
     if (montada) desmontarModulos();
     montada = true;
@@ -273,14 +274,16 @@
   }
 
   let buscaPedida = '';
+  let voltarPedido = '';   // rodada 8: /?voltar=/trafego/... volta para o app depois do login (só caminho interno; ver L.voltarSeguro)
   async function iniciar() {
     ligar();
     /* /?busca=<termo>: outros apps abrem a Casa já com a busca global preenchida (o termo sai da barra de endereço) */
     try {
       const p = new URLSearchParams(location.search);
       buscaPedida = String(p.get('busca') || '').slice(0, 80);
-      if (p.has('busca')) history.replaceState(history.state, '', location.pathname + location.hash);
-    } catch { buscaPedida = ''; }
+      voltarPedido = L.voltarSeguro(p.get('voltar') || '');
+      if (p.has('busca') || p.has('voltar')) history.replaceState(history.state, '', location.pathname + location.hash);
+    } catch { buscaPedida = ''; voltarPedido = ''; }
     const email = ler(LS_EMAIL); if (email) $('#lEmail').value = email;
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
     try {

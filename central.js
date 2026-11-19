@@ -318,7 +318,8 @@ export async function handler(req, res) {
 
   // 3) raiz: Casa — mas links antigos da Agenda ("/?agendamento=x", "/?r=agenda"…) vão para /agenda/
   /* rodada 6: /?busca=<termo> é da Casa (outros apps linkam assim para abrir a busca global); qualquer outra consulta continua indo para a Agenda */
-  if ((caminho === '/' || caminho === '/index.html') && busca && !url.searchParams.has('busca')) return redirecionar(res, '/agenda/' + busca);
+  /* rodada 8: /?voltar=<caminho> também é da Casa (o Tráfego manda quem está sem sessão entrar e voltar) */
+  if ((caminho === '/' || caminho === '/index.html') && busca && !url.searchParams.has('busca') && !url.searchParams.has('voltar')) return redirecionar(res, '/agenda/' + busca);
   if (req.method === 'GET' || req.method === 'HEAD') {
     const item = CASA.get(caminho);
     if (item) return servirCasa(req, res, item, caminho);

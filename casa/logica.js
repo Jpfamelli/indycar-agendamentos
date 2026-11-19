@@ -228,9 +228,26 @@
   function podeUsar(p, app) {
     if (!p || p.ativo === false) return false;
     if (p.papel === 'admin') return true;
+    /* rodada 8: o Tráfego mostra margem, faturamento e verba: só administrador ou gestor com 'ads' na lista (a mesma regra de apps/trafego/equipe.js) */
+    if (app === 'ads') return p.papel === 'gestor' && Array.isArray(p.apps) && p.apps.includes('ads');
     if (!Array.isArray(p.apps)) return EQUIPE.has(p.papel);
     if (p.papel === 'agenda' && !['agenda', 'patio'].includes(app)) return false;
     return p.apps.includes(app);
+  }
+  /**
+   * rodada 8: para onde voltar depois do login (/?voltar=...). Só caminho deste mesmo endereço, dentro de um app da
+   * Central (agenda, atendimento, crm, comunicar, trafego); qualquer outra coisa vira '' (fica na Casa).
+   */
+  const VOLTAR_OK = ['/agenda/', '/atendimento/', '/crm/', '/comunicar/', '/trafego/'];
+  function voltarSeguro(v) {
+    if (typeof v !== 'string' || !v || v.length > 300) return '';
+    if (v[0] !== '/' || v[1] === '/' || v[1] === '\\' || /[\\\u0000-\u001f\u007f]/.test(v)) return '';
+    try {
+      const u = new URL(v, 'http://casa.local');
+      if (u.origin !== 'http://casa.local') return '';
+      if (!VOLTAR_OK.some((p) => u.pathname.startsWith(p))) return '';
+      return u.pathname + u.search + u.hash;
+    } catch { return ''; }
   }
   /** Quais blocos aparecem para este perfil. */
   function visao(p) {
@@ -531,7 +548,7 @@
   root.CasaLogica = Object.freeze({
     esc, semAcento, destacar, soDigitos, telefoneE164, formatarTelefone, normalizarPlaca, formatarPlaca, brl, brlCurto, variacao, taxa,
     duracao, quando, hojeSP, diaDe, hora5, saudacao, ETAPAS, ETAPA, rotuloEtapa, tomDaEtapa, previsao, STATUS_ORC, rotuloOrc, numeroOrc,
-    STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, podeUsar, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
+    STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
     contagemPorApp, tituloDaAba, atencao, gargalos, conversao, barras, diaCurto, classificarBusca, GRUPOS_BUSCA, linhasDaBusca, filtrarPorPermissao,
     ATALHOS_G, AJUDA_ATALHOS, ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca,
   });

@@ -206,6 +206,16 @@ test('caminho com barras a mais depois do prefixo chega ao app como caminho (nun
 
 /* --------------------- 3) um app caído não leva os outros --------------------- */
 
+test('sem sessão, /?voltar=/trafego/ abre a Casa (antes ia parar na Agenda); links antigos da Agenda continuam indo para /agenda/', async () => {
+  let r = await pedir('GET', '/?voltar=' + encodeURIComponent('/trafego/#/jornada'));
+  assert.equal(r.status, 200, 'a Casa responde, sem redirecionar');
+  assert.match(r.texto, /\/casa\/casa\.js\?v=/, 'é a página da Casa');
+  r = await pedir('GET', '/?agendamento=123');
+  assert.equal(r.status, 308); assert.equal(r.headers.location, '/agenda/?agendamento=123');
+  r = await pedir('GET', '/?busca=placa');
+  assert.equal(r.status, 200, '/?busca= continua sendo da Casa');
+});
+
 test('se o Tráfego não subir, a Central segue no ar e responde 503 só em /trafego/*', async () => {
   const antes = APPS.trafego;
   APPS.trafego = { prefixo: '/trafego', handler: null, erro: 'não carregou (teste)' };   // o estado que carregar() deixa quando o require falha
@@ -361,4 +371,29 @@ test('Casa: a grade desenha o Tráfego por último (as posições 1 a 6 dos atal
   assert.ok(Number(/\/casa\/logica\.js\?v=(\d+)/.exec(html)[1]) >= 5, 'logica.js com versão nova no endereço');
   assert.ok(Number(/\/casa\/casa\.js\?v=(\d+)/.exec(html)[1]) >= 6, 'casa.js com versão nova no endereço');
   assert.match(html, /Um login só para Agenda, Atendimento, CRM, Comunicar, Tráfego, Pátio e Orçador\./);
+});
+
+/* ------------------- revisão de regressão (19/11): entrar pela Casa e voltar ao Tráfego ------------------- */
+
+test('Casa: só volta para caminho interno de um app da Central (nada de endereço de fora)', () => {
+  assert.equal(L.voltarSeguro('/trafego/'), '/trafego/');
+  assert.equal(L.voltarSeguro('/trafego/#/jornada?contato=1'), '/trafego/#/jornada?contato=1');
+  assert.equal(L.voltarSeguro('/crm/?lead=1'), '/crm/?lead=1');
+  for (const ruim of ['//site-de-fora.example/trafego/', '/\site-de-fora.example', 'https://site-de-fora.example/trafego/',
+    'javascript:alert(1)', '/casa/', '/', '', null, undefined, 42, '/trafego/\u0000x', '/trafego/' + 'x'.repeat(400)]) {
+    assert.equal(L.voltarSeguro(ruim), '', `recusa ${JSON.stringify(ruim)}`);
+  }
+  assert.equal(L.voltarSeguro('/trafego/../agenda/'), '/agenda/', 'caminho normalizado, ainda interno');
+  const casa = lerCasa('casa.js');
+  assert.match(casa, /voltarPedido = L\.voltarSeguro\(p\.get\('voltar'\) \|\| ''\)/, 'a Casa lê o voltar pela regra segura');
+  assert.match(casa, /if \(voltarPedido\) \{ const v = voltarPedido; voltarPedido = ''; location\.replace\(v\); return; \}/, 'e volta depois do login');
+});
+
+test('Casa: o cartão do Tráfego segue a regra do app (administrador, ou gestor com "ads" na lista)', () => {
+  assert.equal(L.podeUsar({ papel: 'atendente', ativo: true, apps: ['ads'] }, 'ads'), false, 'atendente com ads na lista: o app recusa, a Casa não mostra');
+  assert.equal(L.podeUsar({ papel: 'atendente', ativo: true }, 'ads'), false, 'atendente sem lista');
+  assert.equal(L.podeUsar({ papel: 'gestor', ativo: true }, 'ads'), false, 'gestor sem lista');
+  assert.equal(L.podeUsar({ papel: 'gestor', ativo: true, apps: ['ads'] }, 'ads'), true);
+  assert.equal(L.podeUsar({ papel: 'admin', ativo: true }, 'ads'), true);
+  assert.equal(L.podeUsar({ papel: 'gestor', ativo: true }, 'crm'), true, 'os outros cartões não mudam');
 });
