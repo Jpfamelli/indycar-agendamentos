@@ -170,7 +170,7 @@ const DB = {
   r6_c3_marcas: [],
   leads: [
     { id: 'l1', cliente_id: CLI.camila, servico: 'Troca de óleo do motor', valor_orcado: 320, valor_pago: 340, status: 'concluido', created_at: d(200), closed_at: d(190), origem: 'whatsapp' },
-    { id: 'l2', cliente_id: CLI.camila, servico: 'Alinhamento 3D', valor_orcado: 180, valor_pago: 0, status: 'orcamento', created_at: d(1), origem: 'whatsapp' },
+    { id: 'l2', cliente_id: CLI.camila, telefone_e164: '12996830111', origem_paga: true, origem_plataforma: 'meta', origem_como: 'referral', campanha_nome: 'Alinhamento de novembro', servico: 'Alinhamento 3D', valor_orcado: 180, valor_pago: 0, status: 'orcamento', created_at: d(1), origem: 'whatsapp' },
     // 16/10: lead de colega (gestor) — atendente vê, mas não edita
     { id: 'l4', cliente_id: CLI.camila, servico: 'Revisão dos 60 mil', valor_orcado: 900, valor_pago: 0, status: 'contato', created_at: d(2), origem: 'whatsapp', responsavel_id: U.gestor },
     { id: 'l3', cliente_id: CLI.jose, servico: 'Pastilha de freio', valor_orcado: 450, valor_pago: 450, status: 'concluido', created_at: d(400), closed_at: d(395), origem: 'google' },

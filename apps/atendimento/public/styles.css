@@ -2192,3 +2192,6 @@ button.app-chip:not(:disabled):hover{border-color:var(--vermelho);color:var(--te
 .chave-box.destaque-chave{animation:destaque-chave 1.6s ease-out 1}
 @keyframes destaque-chave{0%{box-shadow:0 0 0 3px var(--vermelho-luz)}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.chave-box.destaque-chave{animation:none}}
+
+#faixaSaude.saude-codewords { background: #861e25; color: white; font-size: 1rem; padding-block: 10px; }
+#chatOrigem { display: block; overflow-wrap: anywhere; }

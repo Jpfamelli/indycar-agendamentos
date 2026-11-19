@@ -151,7 +151,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
   }
 
   /** Nível "confirmar": o dono (ou os gestores) recebe um aviso com um clique para aprovar. */
-  async function avisarDono(conv, propostas, runId) {
+  async function avisarDono(conv, propostas) {
     if (!propostas.length) return 0;
     const nome = (conv.nome && String(conv.nome).trim()) || conv.telefone || 'Cliente';
     const resumos = propostas.map(p => p.resumo).filter(Boolean);
@@ -160,7 +160,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     let avisos = 0;
     for (const id of await destinosDoAviso(conv)) {
       const { data, error } = await sb.rpc('notificar', { p_perfil: id, p_tipo: 'ia', p_titulo: titulo, p_corpo: corpo,
-        p_link: `/?conversa=${conv.id}`, p_app: 'atendimento', p_chave: `ia-proposta:${conv.id}:${runId || Date.now()}` });
+        p_link: `/?conversa=${conv.id}`, p_app: 'atendimento', p_chave: `ia-proposta:${conv.id}:${Math.floor(agora().getTime() / 3600_000)}` });
       if (!error && data) avisos++;
     }
     return avisos;
@@ -192,7 +192,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
       try {
         const texto = R6.textoDeEncaminhamento('manipulacao', R6.nomeSeguro(f.cliente?.nome || conv.nome || ''), !expediente.aberta);
         const env = await enviarMensagem({ conversa: conv, cliente_id: conv.cliente_id || f.cliente?.id || null, texto });
-        if (env && env.mensagem_id) encaminhou = env.mensagem_id;
+        if (env?.ok && env.mensagem_id) encaminhou = env.mensagem_id;
       } catch (e) { log('funil manipulação envio:', e.message); }
     }
     contexto.invalidar(conversaId);
@@ -309,13 +309,13 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     let encaminhou = null;
     const niveisR = r.niveis || {};
     if (humano && podeResponder && typeof enviarMensagem === 'function' && niveisR.responder === 'automatico'
-        && !(r.enviadas || []).length && !(r.para_confirmar || []).some(p => p.tipo === 'responder')) {
+        && !(r.enviadas || []).length && !(r.acoes || []).some(a => a.tipo === 'responder' && ['executada', 'erro'].includes(a.status)) && !(r.para_confirmar || []).some(p => p.tipo === 'responder')) {
       try {
         const nome = f.cliente?.nome || conv.nome || '';
         const texto = R6.textoDeEncaminhamento(humano === 'pediu_pessoa' ? 'pessoa' : humano, nome, !expediente.aberta);
         if (!R6.textoTemPreco(texto)) {
           const env = await enviarMensagem({ conversa: conv, cliente_id: conv.cliente_id || f.cliente?.id || null, texto });
-          if (env && env.mensagem_id) {
+          if (env?.ok && env.mensagem_id) {
             await registrar({ tipo: 'responder', conversa_id: conversaId, cliente_id: conv.cliente_id || null, perfil_id: null,
               resumo: `Encaminhei para o consultor (${R6.MOTIVO_HUMANO[humano === 'pediu_pessoa' ? 'pessoa' : humano]?.rotulo || humano})`,
               entrada: { texto, fallback: 'encaminhamento', motivo: humano }, saida: { enviada: true, automatica: true, mensagem_id: env.mensagem_id, entregue: !!env.ok } });
@@ -330,7 +330,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
 
     // 5) nível "confirmar": avisa quem está com a conversa
     let avisos = 0;
-    if (r.para_confirmar?.length) avisos = await avisarDono(conv, r.para_confirmar, r.id).catch(() => 0);
+    if (r.para_confirmar?.length) avisos = await avisarDono(conv, r.para_confirmar).catch(() => 0);
     contexto.invalidar(conversaId);
 
     return {
@@ -359,9 +359,18 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     try {
       const todas = await pendentes();
       if (!todas.length) return saida;
-      const agoraIso = agora().toISOString();
+      const instante = agora();
+      const agoraIso = instante.toISOString();
+      const corte = instante.getTime() - ANTIGA_MIN * 60000;
+      const vencidas = todas.filter(l => !(Date.parse(l.created_at) > corte));
+      if (vencidas.length) {
+        const { data } = await sb.from('at_ia_fila')
+          .update({ status: 'pulada', motivo: 'Mensagem antiga na fila da IA', concluido_em: agoraIso })
+          .in('id', vencidas.map(l => l.id)).eq('status', 'pendente').select('id');
+        saida.puladas += data?.length || 0;
+      }
       const porConversa = new Map();
-      for (const l of todas) { if (!porConversa.has(l.conversa_id)) porConversa.set(l.conversa_id, []); porConversa.get(l.conversa_id).push(l); }
+      for (const l of todas.filter(l => Date.parse(l.created_at) > corte)) { if (!porConversa.has(l.conversa_id)) porConversa.set(l.conversa_id, []); porConversa.get(l.conversa_id).push(l); }
       let feitasAgora = 0;
       for (const [conversaId, linhas] of porConversa) {
         if (feitasAgora >= limite) break;

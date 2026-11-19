@@ -917,6 +917,26 @@ function trocarFiltroStatus(status) {
 }
 
 /* ---------------- Abrir uma conversa ---------------- */
+async function carregarOrigemDaConversa(conv) {
+  const alvo = $('#chatOrigem');
+  alvo.textContent = 'Buscando origem…';
+  const telefone = String(conv.telefone_e164 || conv.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+  let origem = null;
+  if (telefone) {
+    try {
+      const { data } = await sb.from('leads').select('origem_paga,origem_plataforma,campanha_nome,origem_como')
+        .eq('telefone_e164', telefone).not('origem_como', 'is', null).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      origem = data;
+    } catch { /* origem indisponível */ }
+  }
+  if (conversaAtual?.id !== conv.id) return;
+  const plataforma = { meta: 'Meta', google: 'Google' }[origem?.origem_plataforma];
+  const canal = origem?.origem_paga === true ? 'Anúncio' : origem?.origem_paga === false ? 'Não pago' : plataforma;
+  alvo.textContent = canal
+    ? [canal, canal === plataforma ? null : plataforma, origem?.campanha_nome].filter(Boolean).join(' · ')
+    : 'Não sei de onde veio';
+}
+
 async function abrirConversa(id, { focarCampo = false } = {}) {
   if (!id) return;
   let conv = CONVERSAS.find(c => c.id === id) || BUSCA_REMOTA.lista.find(c => c.id === id);
@@ -936,6 +956,7 @@ async function abrirConversa(id, { focarCampo = false } = {}) {
   $('#chatNome').textContent = tituloDaConversa(conv);
   $('#chatTelefone').textContent = telefoneBonito(conv.telefone);
   $('#chatTelefone').title = 'Clique para copiar o telefone';
+  carregarOrigemDaConversa(conv);
   $('#chatAvatar').textContent = iniciais(conv.nome) || '#';
   $('#chatStatus').value = conv.status;
   renderEtapaDoChat();
@@ -5050,12 +5071,15 @@ function mostrarSaude(s) {
   if (!faixa) return;
   SAUDE_ATUAL = s;
   const temProblema = !!s?.problema;
-  if (!temProblema || saudeDispensada(s.problema)) {
+  const chaveRecusada = /codewords/.test(s?.problema || '');
+  faixa.classList.toggle('saude-codewords', chaveRecusada);
+  document.getElementById('faixaFechar').hidden = chaveRecusada;
+  if (!temProblema || (!chaveRecusada && saudeDispensada(s.problema))) {
     faixa.hidden = true;
     reservarEspacoDaTarja();
     return;
   }
-  document.getElementById('faixaTexto').textContent = s.texto || `Atenção: ${s.resumo || s.problema}`;
+  document.getElementById('faixaTexto').textContent = chaveRecusada ? 'O WhatsApp parou. Gere uma chave nova no CodeWords e cole em Configurações › Integrações › Chave de API.' : (s.texto || `Atenção: ${s.resumo || s.problema}`);
   const desde = document.getElementById('faixaDesde');
   desde.textContent = s.desde ? `desde ${new Date(s.desde).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : '';
   const btn = document.getElementById('faixaBtn');
