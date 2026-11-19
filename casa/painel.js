@@ -30,7 +30,7 @@
   function cartao(id, { num, det, linhas, erro }) {
     const el = $(id);
     el.hidden = false;
-    const n = el.querySelector('[data-num]'); if (n) n.textContent = num;
+    const n = el.querySelector('[data-num]'); if (n) { n.textContent = num; n.classList.toggle('num-texto', !/^\d/.test(String(num))); }
     const d = el.querySelector('[data-det]'); if (d) d.textContent = det;
     const l = el.querySelector('[data-lista]');
     const ensina = window.CasaLogica2 && window.CasaLogica2.VAZIOS[el.id];
@@ -129,13 +129,13 @@
     cartao('#cHoje', {
       num: String(a.total || 0),
       det: a.total ? partes.join(' · ') : 'nenhum horário marcado hoje',
-      linhas: (a.total > 1 ? `<li class="filtro-hoje" role="group" aria-label="Filtrar horários de hoje">${[['todos', 'Todos'], ['vir', 'Por vir'], ['chegou', 'Na oficina']].map(([k, n]) => `<button type="button" data-filtro-hoje="${k}" aria-pressed="${filtroHoje === k}">${n}</button>`).join('')}</li>` : '') +
+      linhas: (a.total > 1 ? `<li class="filtro-hoje"><div class="filtro-hoje-grupo" role="group" aria-label="Filtrar horários de hoje">${[['todos', 'Todos'], ['vir', 'Por vir'], ['chegou', 'Na oficina']].map(([k, n]) => `<button type="button" data-filtro-hoje="${k}" aria-pressed="${filtroHoje === k}">${n}</button>`).join('')}</div></li>` : '') +
         (por.length ? por.slice(0, 12).map((x) => itemLi(linkA(links.agenda(x.id), 'agenda', 'linha linha-2',
           `<span class="l-a"><b>${C.esc(L.hora5(x.hora))}</b> ${C.esc(x.nome || '')}</span>` +
           `<span class="l-b">${pilula(L.rotuloAg(x.status), x.status === 'nao_veio' ? 'ruim' : L.CHEGARAM.includes(x.status) ? 'bom' : x.confirmado ? 'bom' : '')}` +
           `${x.patio_etapa ? ' ' + pilula('🔧 ' + L.rotuloEtapa(x.patio_etapa), x.patio_etapa === 'pronto' ? 'bom' : 'aviso') : ''}` +
           `${x.orc_id ? ' ' + pilula('🧾 ' + L.rotuloOrc(x.orc_status), x.orc_status === 'aprovado' ? 'bom' : x.orc_status === 'recusado' ? 'ruim' : '') : ''}</span>` +
-          `<span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`), (x.status === 'aguardando' && !x.confirmado ? waBtn('lembrar', { ...x, data: a.hoje || undefined }, hojeIso(), a.hoje || hojeIso()) : '') + (L.CHEGARAM.includes(x.status) && !x.orc_id && x.telefone && C.podeUsar('orcador') ? `<a class="wa-mini wa-orcar" href="${C.esc(links.novoOrcamento({ telefone: x.telefone, nome: x.nome }))}" target="${C.esc(L.nomeDaAba('orcador'))}" aria-label="Criar orçamento para ${C.esc(x.nome || 'cliente')} no Orçador">🧾 Orçar</a>` : ''))).join('')
+          `<span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`), (x.status === 'aguardando' && !x.confirmado ? waBtn('lembrar', { ...x, data: a.hoje || undefined }, hojeIso(), a.hoje || hojeIso()) : '') + (L.CHEGARAM.includes(x.status) && !x.orc_id && x.telefone && C.podeUsar('orcador') ? `<a class="wa-mini wa-orcar" href="${C.esc(links.novoOrcamento({ telefone: x.telefone, nome: x.nome }))}" target="${C.esc(L.nomeDaAba('orcador'))}" aria-label="Orçar: criar orçamento para ${C.esc(x.nome || 'cliente')} no Orçador">🧾 Orçar</a>` : ''))).join('')
           : (a.total ? '<li class="vazio">Nenhum horário nesse filtro.</li>' : '')),
     });
     rodapeLinks('#cHoje', { '[data-abrir]': [links.agenda(), 'agenda'], '[data-nova]': [links.agendaNovo(), 'agenda'] });
@@ -144,7 +144,7 @@
   function desenharLeads(l) {
     cartao('#cLeads', {
       num: String(l.novos_sem_dono || 0),
-      det: `${l.novos_sem_dono ? 'novos sem responsável (7 dias)' : 'todo lead novo tem dono'} · ${l.novos_hoje || 0} chegaram hoje`,
+      det: `${l.novos_sem_dono ? 'novos sem responsável (7 dias)' : 'todo contato novo tem dono'} · ${l.novos_hoje || 0} chegaram hoje`,
       linhas: '',
     });
     rodapeLinks('#cLeads', { '[data-abrir]': [links.crmLead(), 'crm'] });
@@ -169,7 +169,7 @@
     cartao('#cHoje', {
       num: String(c.falta),
       det: c.total ? `${c.falta} por chegar · ${c.chegaram} já chegaram${c.atrasados.length ? ' · ' + c.atrasados.length + ' atrasado' + (c.atrasados.length > 1 ? 's' : '') : ''}` : 'nenhum horário marcado hoje',
-      linhas: (c.proximo ? `<li class="proximo-chegada">Próximo: <b>${C.esc(L.hora5(c.proximo.hora))}</b> — ${C.esc(c.proximo.nome || 'Cliente')}</li>` : '') + faltam.slice(0, 10).map((x) => linha(x, L.hora5(x.hora) < hm)).join(''),
+      linhas: (c.proximo ? `<li class="proximo-chegada">Próximo: <b>${C.esc(L.hora5(c.proximo.hora))}</b> · ${C.esc(c.proximo.nome || 'Cliente')}</li>` : '') + faltam.slice(0, 10).map((x) => linha(x, L.hora5(x.hora) < hm)).join(''),
     });
     rodapeLinks('#cHoje', { '[data-abrir]': [links.agenda(), 'agenda'] });
   }
@@ -184,25 +184,37 @@
   }
 
   /* ---------------- "pede atenção agora" + selos dos apps ---------------- */
+  /* rodada 9: a gravidade aparece em palavra e ícone (Urgente, Atenção), não só na cor da borda, que saiu */
+  const seloGrav = (g) => (g >= 3 ? '<span class="a-selo a-selo-3"><span aria-hidden="true">⚠</span> Urgente</span>' : g === 2 ? '<span class="a-selo a-selo-2">Atenção</span>' : '');
   function desenharAtencao(a) {
     const itens = L.atencao(a, V, links);
     const sec = $('#atencao');
     sec.hidden = !itens.length;
     $('#atencaoLista').innerHTML = itens.map((i) => `<li class="grav-${i.grav}">${linkA(i.url, i.app, 'atencao-item',
-      `<span class="a-num">${Number(i.n)}</span><span class="a-txt">${C.esc(i.texto)}${i.extra ? `<small>${C.esc(i.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('');
+      `<span class="a-num">${Number(i.n)}</span><span class="a-txt">${seloGrav(i.grav)}${C.esc(i.texto)}${i.extra ? `<small>${C.esc(i.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('');
     C.sino && C.sino.mostrarAtencao(itens);
     // selos nas peças da grade de apps
     const selo = { atendimento: a.conversas?.esperando, patio: a.patio?.total, orcador: a.orcamentos?.esperando, agenda: a.agenda?.total, crm: a.leads?.novos_sem_dono };
     for (const [k, n] of Object.entries(selo)) {
       const el = document.querySelector(`[data-app-selo="${k}"]`);
-      if (el) { el.textContent = Number(n) > 0 ? String(n) : ''; el.hidden = !(Number(n) > 0); el.title = { atendimento: 'conversas esperando', patio: 'carros no pátio', orcador: 'orçamentos esperando resposta', agenda: 'horários hoje', crm: 'leads novos sem dono' }[k] || ''; }
+      if (el) { el.textContent = Number(n) > 0 ? String(n) : ''; el.hidden = !(Number(n) > 0); el.title = { atendimento: 'conversas esperando', patio: 'carros no pátio', orcador: 'orçamentos esperando resposta', agenda: 'horários hoje', crm: 'contatos novos sem dono' }[k] || ''; }
     }
   }
 
   /* ---------------- ao vivo ---------------- */
+  /* rodada 9: o relógio "atualizado há…" muda a cada 5 s e o leitor de tela lia tudo; agora só fala quando o estado muda (sem internet, falhou, voltou) */
+  let estadoFalado = 'ok';
+  function falarEstado() {
+    const e = !online ? 'offline' : emFalha ? 'falha' : 'ok';
+    if (e === estadoFalado) return;
+    const el = $('#vivoAviso');
+    if (el) el.textContent = e === 'offline' ? 'Sem internet: o painel mostra o último que carregou.' : e === 'falha' ? 'A última atualização do painel falhou.' : 'Painel atualizado de novo.';
+    estadoFalado = e;
+  }
   function relogio() {
     const ponto = $('#vivoPonto'), txt = $('#vivoTxt');
-    if (!online) { ponto.className = 'vivo-ponto ruim'; txt.textContent = 'sem internet — mostrando o último que carregou'; return; }
+    falarEstado();
+    if (!online) { ponto.className = 'vivo-ponto ruim'; txt.textContent = 'sem internet: mostrando o último que carregou'; return; }
     if (!ultima) { ponto.className = 'vivo-ponto'; txt.textContent = emFalha ? 'não consegui carregar' : 'carregando…'; return; }
     const seg = Math.round((Date.now() - ultima) / 1000);
     const velho = seg > 600 || emFalha;
@@ -256,7 +268,7 @@
       if (!silencioso || !dados) {
         const msg = navigator.onLine ? 'não deu para ler agora' : 'sem internet';
         for (const [id, ok] of [['#cPatio', V.patio], ['#cOrc', V.orcamentos], ['#cConversas', V.conversas], ['#cHoje', V.agenda], ['#cLeads', V.leads]]) {
-          if (ok && !dados) cartao(id, { num: '—', det: msg, linhas: '', erro: msg });
+          if (ok && !dados) cartao(id, { num: 'sem dado', det: msg, linhas: '', erro: msg });
         }
       }
     } finally { carregando = false; relogio(); }
@@ -285,23 +297,24 @@
       tile('Faturamento do mês', C.esc(L.brl(f.mes)), 'só conta quem foi marcado "fechou" na Agenda') +
       tile('Orçamentos aprovados (30 dias)', C.esc(L.brl(o.valor_aprovado)), `${o.aprovados || 0} de ${o.enviados || 0} enviados${conv.orcAprovados === null ? '' : ' · ' + conv.orcAprovados + '%'}`);
     const bs = L.barras(d.serie7);
-    $('#donoBarras').innerHTML = bs.map((b) => `<div class="barra" title="${C.esc(L.brl(b.valor))}"><span class="barra-v">${b.valor ? C.esc(L.brlCurto(b.valor)) : ''}</span><span class="barra-col"><span class="barra-fill" data-h="${b.pct}"></span></span><span class="barra-d">${C.esc(L.diaCurto(b.dia))}</span></div>`).join('');
+    const hojeB = L.hojeSP();   /* rodada 9: barra sem degradê; a de hoje em vermelho e com a palavra "hoje" (não só a cor) */
+    $('#donoBarras').innerHTML = bs.map((b) => `<div class="barra${b.dia === hojeB ? ' barra-hoje' : ''}" title="${C.esc(L.brl(b.valor))}"><span class="barra-v">${b.valor ? C.esc(L.brlCurto(b.valor)) : ''}</span><span class="barra-col"><span class="barra-fill" data-h="${b.pct}"></span></span><span class="barra-d">${b.dia === hojeB ? 'hoje' : C.esc(L.diaCurto(b.dia))}</span></div>`).join('');
     $('#donoBarras').setAttribute('aria-label', 'Faturamento por dia: ' + bs.map((b) => `${L.diaCurto(b.dia)} ${L.brl(b.valor)}`).join(', '));
     const nota = $('#donoNota');
     nota.hidden = !(f.sem_valor_semana > 0);
     if (!nota.hidden) nota.innerHTML = `⚠ ${Number(f.sem_valor_semana)} fechamento${f.sem_valor_semana > 1 ? 's' : ''} desta semana sem valor informado: o faturamento está subestimado. ${linkA(links.agenda(), 'agenda', 'link', 'Abrir a Agenda')}`;
-    const barraConv = (rot, v, bom = true) => `<div class="conv-linha"><span>${C.esc(rot)}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${bom ? '' : 'ruim'}" data-w="${v === null ? 0 : Math.min(100, v)}"></span></span><b>${v === null ? '—' : v + '%'}</b></div>`;
+    const barraConv = (rot, v, bom = true) => `<div class="conv-linha"><span>${C.esc(rot)}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${bom ? '' : 'ruim'}" data-w="${v === null ? 0 : Math.min(100, v)}"></span></span><b>${v === null ? 'sem dado' : v + '%'}</b></div>`;
     const cv = d.conversao || {};
     $('#donoConv').innerHTML =
-      barraConv(`Leads que agendaram (${cv.agendaram || 0} de ${cv.leads || 0})`, conv.leadsAgendaram) +
-      barraConv(`Leads que fecharam (${cv.fecharam || 0})`, conv.leadsFecharam) +
+      barraConv(`Contatos que agendaram (${cv.agendaram || 0} de ${cv.leads || 0})`, conv.leadsAgendaram) +
+      barraConv(`Contatos que fecharam (${cv.fecharam || 0})`, conv.leadsFecharam) +
       barraConv(`Quem veio e fechou (${cv.fechou || 0} de ${(cv.fechou || 0) + (cv.nao_fechou || 0)})`, conv.fechamento) +
       barraConv(`Faltas (${cv.nao_veio || 0} não vieram)`, conv.falta, false) +
       barraConv(`Orçamentos aprovados (${o.aprovados || 0} de ${o.enviados || 0})`, conv.orcAprovados);
     desenharMeta(f);
     medidas($('#visaoDono'));
     const g = L.gargalos(d, links);
-    $('#donoGargalos').innerHTML = g.length ? g.map((x) => `<li class="grav-${x.grav}">${linkA(x.url, x.app, 'atencao-item', `<span class="a-num">${x.grav >= 3 ? '!' : '•'}</span><span class="a-txt">${C.esc(x.texto)}${x.extra ? `<small>${C.esc(x.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('')
+    $('#donoGargalos').innerHTML = g.length ? g.map((x) => `<li class="grav-${x.grav}">${linkA(x.url, x.app, 'atencao-item', `<span class="a-num" aria-hidden="true">${x.grav >= 3 ? '!' : '•'}</span><span class="a-txt">${seloGrav(x.grav)}${C.esc(x.texto)}${x.extra ? `<small>${C.esc(x.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('')
       : '<li class="vazio">Nenhum gargalo agora. Oficina andando. 🏁</li>';
   }
   /* meta do mês (guardada neste aparelho) + projeção pelo ritmo dos dias úteis */
@@ -347,7 +360,7 @@
     if (!box || !M2) return;
     const rk = M2.rankingConsultores(r && r.consultores);
     const org = (r && r.origens) || [];
-    box.innerHTML = '<h3 class="dono-h">Desempenho (30 dias)</h3>' + (rk.length ? `<div class="tabela-rolavel"><table class="tab-dono"><thead><tr><th>Consultor</th><th>Marcados</th><th>Vieram</th><th>Fecharam</th><th>Faltas</th><th>Faturado</th></tr></thead><tbody>${rk.map((x) => `<tr><th scope="row">${C.esc(x.nome)}</th><td>${x.marcados}</td><td>${x.vieram}</td><td>${x.fecharam}${x.taxaFecha === null ? '' : ` <small>${x.taxaFecha}%</small>`}</td><td class="${x.taxaFalta >= 30 ? 'txt-ruim' : ''}">${x.faltaram}${x.taxaFalta === null ? '' : ` <small>${x.taxaFalta}%</small>`}</td><td>${C.esc(L.brl(x.valor))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="dono-nota">Sem horários nos últimos 30 dias.</p>') +
+    box.innerHTML = '<h3 class="dono-h">Desempenho (30 dias)</h3>' + (rk.length ? `<div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela de desempenho dos consultores (arraste para o lado para ver tudo)"><table class="tab-dono"><thead><tr><th>Consultor</th><th>Marcados</th><th>Vieram</th><th>Fecharam</th><th>Faltas</th><th>Faturado</th></tr></thead><tbody>${rk.map((x) => `<tr><th scope="row">${C.esc(x.nome)}</th><td>${x.marcados}</td><td>${x.vieram}</td><td>${x.fecharam}${x.taxaFecha === null ? '' : ` <small>${x.taxaFecha}%</small>`}</td><td class="${x.taxaFalta >= 30 ? 'txt-ruim' : ''}">${x.faltaram}${x.taxaFalta === null ? '' : ` <small>${x.taxaFalta}%</small>`}</td><td>${C.esc(L.brl(x.valor))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="dono-nota">Sem horários nos últimos 30 dias.</p>') +
       (org.length ? `<h3 class="dono-h dono-h2">Origem que mais fecha</h3><ul class="origens">${org.slice(0, 5).map((o) => `<li><span>${C.esc(o.origem)}</span><b>${Number(o.fecharam)}</b><small>de ${Number(o.marcados)} marcados · ${C.esc(L.brl(o.valor))}</small></li>`).join('')}</ul>` : '');
   }
   async function carregarConsultores() {
@@ -377,7 +390,7 @@
     gravar(LS_VISAO, visao);
     $('#visaoOperacao').hidden = visao !== 'operacao';
     $('#visaoDono').hidden = visao !== 'dono';
-    document.querySelectorAll('#seletorVisao [data-visao]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.visao === visao)));
+    document.querySelectorAll('#seletorVisao [data-visao]').forEach((b) => { b.setAttribute('aria-selected', String(b.dataset.visao === visao)); b.tabIndex = b.dataset.visao === visao ? 0 : -1; });
     if (visao === 'dono' && (!dono || Date.now() - ultimaDono > 30_000)) carregarDono();
   }
 
@@ -423,7 +436,7 @@
   function aoVisivel() { if (!document.hidden && C && C.perfil) { carregarAgora({ silencioso: true }); if (visao === 'dono' && Date.now() - ultimaDono > 60_000) carregarDono(); } }
 
   MOD.montar = function (casa) {
-    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; dono = null; ultima = 0; emFalha = false; filtroHoje = 'todos';
+    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; dono = null; ultima = 0; emFalha = false; filtroHoje = 'todos'; estadoFalado = 'ok';
     V.recepcao = C.perfil.papel === 'agenda';
     online = navigator.onLine;
     for (const id of ['#cPatio', '#cOrc', '#cConversas', '#cHoje', '#cLeads']) $(id).hidden = true;
@@ -444,6 +457,16 @@
 
     $('#bAtualizar').onclick = () => { C.painel.atualizar(); C.toast('Atualizando…', 1200); };
     $('#seletorVisao').onclick = (e) => { const b = e.target.closest('[data-visao]'); if (b) trocarVisao(b.dataset.visao); };
+    /* rodada 9: abas de verdade: setas, Home e End trocam a visão e levam o foco junto (antes só o mouse ou o Tab) */
+    $('#seletorVisao').onkeydown = (e) => {
+      const abas = [...document.querySelectorAll('#seletorVisao [data-visao]')];
+      const i = abas.indexOf(document.activeElement);
+      if (i < 0) return;
+      const j = e.key === 'ArrowRight' ? (i + 1) % abas.length : e.key === 'ArrowLeft' ? (i - 1 + abas.length) % abas.length : e.key === 'Home' ? 0 : e.key === 'End' ? abas.length - 1 : -1;
+      if (j < 0) return;
+      e.preventDefault(); e.stopPropagation();
+      trocarVisao(abas[j].dataset.visao); abas[j].focus();
+    };
     $('#miolo').onclick = (e) => {
       if (e.target.closest('[data-recarregar]')) { C.painel.atualizar(); return; }
       const f = e.target.closest('[data-filtro-hoje]');
@@ -453,9 +476,9 @@
         const atual = metaAtual() || '';
         const v = window.prompt('Meta de faturamento do mês, em reais (deixe vazio para tirar):', atual);
         if (v === null) return;
-        const n = Number(String(v).replace(/\./g, '').replace(',', '.'));
-        const meta = Number.isFinite(n) && n > 0 && n < 1e8 ? Math.round(n) : 0;
-        if (!meta && String(v).trim()) { C.toast('Não entendi esse valor. Use só números, ex.: 80000.', 'err'); return; }
+        const lido = window.CasaLogica2.valorDaMeta(v);   // rodada 9: aceita "R$ 80.000", "80 mil", "80k"
+        if (Number.isNaN(lido)) { C.toast('Não entendi esse valor. Escreva como preferir: 80000, 80.000 ou 80 mil.', 'err'); return; }
+        const meta = lido || 0;
         metaRemota = meta || null;                       // a barra já mostra o valor novo; o banco confirma em seguida
         gravar(LS_META, meta ? String(meta) : '');
         if (dono) desenharMeta(dono.faturamento || {});
