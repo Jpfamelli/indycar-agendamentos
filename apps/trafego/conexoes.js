@@ -12,29 +12,41 @@ const google = require('./google');
 /* Erros conhecidos → [título curto, o que fazer]. A ordem importa: o
    primeiro padrão que casar vence. */
 const TRADUCOES = [
+  [/appsecret_proof/i,
+    'Segredo do app da Meta não confere', 'O segredo do app (META_APP_SECRET) do servidor não é do app que gerou o token. Confira no painel do app da Meta ou tire a variável.'],
   [/c[oó]digo 190|malformed access token|invalid oauth access token|session has expired|error validating access token/i,
-    'Token da Meta inválido ou vencido', 'Gere um token novo de longa duração no Meta for Developers (permissão ads_read) e cole aqui.'],
-  [/c[oó]digo (10|200|294)\b|requires ads_read|ads_read permission/i,
-    'Token sem permissão de anúncios', 'O token precisa da permissão ads_read e de acesso à conta de anúncios no Gerenciador de Negócios.'],
+    'Token da Meta inválido ou vencido', 'Gere um token novo de usuário do sistema (permissão ads_read, validade "Nunca") no Gerenciador de Negócios e cole aqui.'],
+  [/c[oó]digo (10|200|294)\b|requires ads_read|ads_read permission|sem permiss[aã]o de an[uú]ncios/i,
+    'Token sem permissão de anúncios', 'O token precisa da permissão ads_read e de acesso à conta de anúncios (usuário do sistema com a conta atribuída).'],
+  [/c[oó]digo 2635|deprecated version|unknown version|unsupported version/i,
+    'A Meta recusou a versão da API', 'O sistema já tenta a versão anterior sozinho. Se continuar, avise o suporte para atualizar a versão.'],
   [/c[oó]digo 100\b|unsupported get request|does not exist|cannot be loaded due to missing permissions/i,
-    'Conta de anúncios não encontrada', 'Confira o número da conta (Gerenciador de Anúncios → Configurações da conta). Pode colar com ou sem "act_".'],
-  [/c[oó]digo (4|17|32|613)\b|rate limit|too many calls/i,
-    'Meta pediu para esperar', 'Limite de chamadas atingido. Tente de novo em alguns minutos.'],
+    'Conta de anúncios não encontrada', 'Confira o número da conta (Gerenciador de Anúncios › Configurações da conta). Pode colar com ou sem "act_".'],
+  [/c[oó]digo (4|17|32|613|8000[034]|80014)\b|rate limit|too many calls|request limit/i,
+    'Meta pediu para esperar', 'Limite de chamadas atingido. O sistema tenta de novo sozinho na próxima coleta.'],
+  [/invalid jwt|invalid_grant.*(jwt|signature|assertion)|private key|chave privada/i,
+    'Chave da conta de serviço recusada', 'Gere uma chave JSON nova da conta de serviço no Google Cloud (IAM › Contas de serviço › Chaves) e cole o arquivo inteiro aqui.'],
   [/invalid_grant|token has been expired or revoked/i,
-    'Autorização do Google vencida', 'O refresh token foi revogado ou expirou. Refaça o consentimento OAuth e cole o refresh token novo.'],
+    'Autorização do Google vencida', 'O refresh token foi revogado ou expirou (no modo "Teste" ele vence em 7 dias). Prefira a conta de serviço, ou refaça a autorização e cole o refresh token novo.'],
   [/invalid_client|unauthorized_client/i,
-    'Client ID ou secret do Google errados', 'Confira o OAuth Client ID e o Client Secret no Google Cloud Console (credenciais).'],
+    'Client ID ou secret do Google errados', 'Confira o ID do cliente OAuth e a chave secreta no Google Cloud (APIs e serviços › Credenciais).'],
+  [/cloud_project_not_approved|action_not_permitted|not approved for production/i,
+    'Projeto do Google Cloud ainda sem acesso às contas reais', 'No Google Cloud, abra a página "Google Ads API" › Overview do projeto e peça o nível Explorer (sai em minutos na maioria dos casos).'],
+  [/service_disabled|has not been used in project|api.*(is )?disabled/i,
+    'A Google Ads API não está ativada no projeto', 'No Google Cloud, em APIs e serviços › Biblioteca, ative a "Google Ads API" no mesmo projeto da conta de serviço.'],
   [/developer_token_not_approved|developer token is not approved|only approved for use with test accounts/i,
-    'Developer token do Google ainda não aprovado', 'O token só funciona em conta de teste até o Google aprovar (leva alguns dias). Acompanhe em Google Ads → Central da API.'],
+    'Acesso do Google ainda não aprovado para contas reais', 'Desde 09/09/2026 quem libera é o projeto do Google Cloud: peça o nível Explorer na página "Google Ads API" › Overview.'],
   [/developer.?token|developer_token_invalid/i,
-    'Developer token do Google inválido', 'Copie de novo o developer token em Google Ads → Ferramentas → Central da API.'],
+    'Developer token do Google não é mais usado', 'Desde 09/09/2026 o Google não pede mais o developer token. Deixe o campo em branco e use a conta de serviço.'],
   [/user_permission_denied|login-customer-id|manager/i,
-    'Falta a conta gerenciadora (MCC)', 'Se a conta está debaixo de uma MCC, preencha o "ID da conta gerenciadora".'],
+    'Falta liberar o acesso na conta (ou a conta gerenciadora)', 'Em Google Ads › Administrador › Acesso e segurança, adicione o e-mail da conta de serviço. Se a conta fica debaixo de uma conta gerenciadora (MCC), preencha também o ID dela.'],
   [/customer_not_enabled|customer.*not.*(found|enabled)|invalid customer id/i,
     'Conta do Google Ads não encontrada', 'Confira o ID do cliente (10 dígitos, aparece no topo do Google Ads). Pode colar com hífens.'],
+  [/vers[aã]o v\d+ indispon[ií]vel|nenhuma vers[aã]o respondeu/i,
+    'Versão da API do Google fora do ar', 'O sistema tenta as versões anteriores sozinho. Se continuar, avise o suporte para atualizar a versão.'],
   [/falta |não configurado/i,
     'Credencial incompleta', 'Preencha todos os campos obrigatórios e teste de novo.'],
-  [/timeout|aborted|fetch failed|enotfound|econnreset/i,
+  [/timeout|aborted|fetch failed|enotfound|econnreset|sem resposta/i,
     'Plataforma não respondeu', 'A internet ou a plataforma demorou demais. Tente de novo em instantes.'],
 ];
 
@@ -46,7 +58,25 @@ function explicarErro(mensagem) {
 }
 
 /* Tira qualquer coisa com cara de token da mensagem técnica. */
-const semSegredo = s => String(s || '').replace(/(access_token=)[^&\s]+/gi, '$1***').replace(/\b(EAA|ya29\.|1\/\/)[\w.-]{8,}/g, '***');
+const semSegredo = s => String(s || '')
+  .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)/g, '***')
+  .replace(/((?:access_token|appsecret_proof|input_token|refresh_token|client_secret|assertion)=)[^&\s]+/gi, '$1***')
+  .replace(/\b(EAA|ya29\.|1\/\/)[\w.-]{8,}/g, '***')
+  .replace(/Bearer\s+[\w.~+/=-]{8,}/gi, 'Bearer ***');
+
+/**
+ * A chave JSON da conta de serviço (o arquivo que o Google Cloud baixa) → { email, chave }.
+ * Aceita o texto colado ou o objeto. Devolve null se não for uma chave de conta de serviço.
+ */
+function lerContaDeServico(v) {
+  if (!v) return null;
+  let j = v;
+  if (typeof v === 'string') { try { j = JSON.parse(v); } catch { return null; } }
+  if (!j || typeof j !== 'object') return null;
+  const email = String(j.client_email || '').trim(), chave = String(j.private_key || '');
+  if (!/\.iam\.gserviceaccount\.com$/i.test(email) || !/-----BEGIN PRIVATE KEY-----/.test(chave)) return null;
+  return { email, chave };
+}
 
 const so = v => String(v ?? '').replace(/\D/g, '');
 
@@ -74,8 +104,18 @@ function validarCredencial(canal, c = {}) {
       google_developer_token: t(c.google_developer_token), google_client_id: t(c.google_client_id),
       google_client_secret: t(c.google_client_secret), google_refresh_token: t(c.google_refresh_token),
     };
-    if (cred.google_client_id && !/\.apps\.googleusercontent\.com$/.test(cred.google_client_id)) {
-      return { ok: false, erro: 'O Client ID do Google termina em .apps.googleusercontent.com.' };
+    // Rodada 8: conta de serviço (o caminho que o Google recomenda). O e-mail vai em google_client_id e a
+    // chave privada em google_client_secret: as colunas que já existem em integracoes_ads.
+    if (c.google_conta_servico) {
+      const cs = lerContaDeServico(c.google_conta_servico);
+      if (!cs) return { ok: false, erro: 'A chave da conta de serviço é o arquivo JSON que o Google Cloud baixa (tem "client_email" e "private_key"). Cole o arquivo inteiro.' };
+      cred.google_client_id = cs.email;
+      cred.google_client_secret = cs.chave;
+      cred.google_refresh_token = '';
+    }
+    const servico = /\.iam\.gserviceaccount\.com$/i.test(cred.google_client_id);
+    if (cred.google_client_id && !servico && !/\.apps\.googleusercontent\.com$/.test(cred.google_client_id)) {
+      return { ok: false, erro: 'O Client ID do Google termina em .apps.googleusercontent.com (ou cole a chave JSON da conta de serviço).' };
     }
     return { ok: true, cred };
   }
@@ -102,8 +142,15 @@ async function testar(canal, entrada = {}, { motores = { meta, google }, lerInte
   const inicio = Date.now();
   try {
     const r = await motores[canal].testar(cred);
-    return { canal, ok: true, titulo: 'Conexão funcionando', fazer: `Conta: ${r.nome || 'sem nome'}${r.moeda ? ` · ${r.moeda}` : ''}. Pode salvar.`,
-      nome: r.nome || null, moeda: r.moeda || null, ms: Date.now() - inicio };
+    const base = { canal, nome: r.nome || null, moeda: r.moeda || null, versao: r.versao || null, expira_em: r.expira_em || null,
+      acesso: r.acesso || null, ms: Date.now() - inicio };
+    // A conta respondeu, mas o token não pode ler anúncios: a coleta ia falhar no primeiro relatório.
+    if (r.falta_permissao === true) return { ...base, ok: false, ...explicarErro('sem permissão de anúncios'), erro: 'o token não tem ads_read' };
+    const avisos = [];
+    if (canal === 'meta' && r.status != null && Number(r.status) !== 1) avisos.push(`A conta de anúncios não está ativa na Meta (situação ${r.status}): confira pagamentos e restrições no Gerenciador de Anúncios.`);
+    if (r.expira_em) avisos.push(`Este acesso vence em ${r.expira_em.split('-').reverse().join('/')}. Para não vencer, gere um token de usuário do sistema com validade "Nunca".`);
+    if (canal === 'google' && cred.google_developer_token) avisos.push('O developer token salvo não é mais usado pelo Google (desde 09/09/2026). Pode apagar.');
+    return { ...base, ok: true, titulo: 'Conexão funcionando', fazer: `Conta: ${r.nome || 'sem nome'}${r.moeda ? ` · ${r.moeda}` : ''}. Pode salvar.`, avisos };
   } catch (e) {
     const tecnico = semSegredo(e.message);
     return { canal, ok: false, ...explicarErro(tecnico), erro: tecnico, ms: Date.now() - inicio };
@@ -121,4 +168,4 @@ async function salvar(canal, entrada = {}, { gravar = db.salvarIntegracao } = {}
   return db.mascararIntegracao(linha);
 }
 
-module.exports = { explicarErro, validarCredencial, testar, salvar, mesclar, semSegredo, TRADUCOES };
+module.exports = { explicarErro, validarCredencial, testar, salvar, mesclar, semSegredo, lerContaDeServico, TRADUCOES };

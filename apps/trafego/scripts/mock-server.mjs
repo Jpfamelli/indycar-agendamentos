@@ -12,6 +12,7 @@
 // server.js. A matemática (CPA, ROAS, CTR…) vem do metricas.js REAL.
 // ============================================================================
 import http from 'node:http';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -184,7 +185,214 @@ window.supabase={createClient:function(){return {
  from:q, channel:function(){var c={on:function(){return c},subscribe:function(){return c}};return c}, removeChannel:function(){}
 }}};})();</script>`;
 
-http.createServer(async (req, res) => {
+// ============================================================================
+// Rodada 8 (frente T6): Meta e Google DE MENTIRA, no formato das versões em vigor
+// (Graph/Marketing API v27.0 e Google Ads API v26, conferidas em 19/11/2026).
+// O app aponta para cá com:
+//   META_GRAPH_URL=http://localhost:3411/meta
+//   GOOGLE_ADS_API_URL=http://localhost:3411/google
+//   GOOGLE_OAUTH_TOKEN_URL=http://localhost:3411/oauth/token
+// Casos de erro, escolhidos pelo valor colado (nada disto é acesso de verdade):
+//   Meta  token TOKEN-FALSO (ok) · TOKEN-FALSO-VENCIDO (190) · TOKEN-FALSO-SEM-PERMISSAO (200)
+//         TOKEN-FALSO-LIMITE (17 na 1ª chamada de cada endereço) · TOKEN-FALSO-QUENTE (uso da conta em 85%)
+//         TOKEN-FALSO-60D (vence em 5 dias) · TOKEN-FALSO-SEM-ESCOPO (sem ads_read)
+//         conta act_2222222222 recusa a v27.0 (2635) · act_3333333333 sem gasto · act_0000000000 não existe
+//         paginação: insights vêm de 4 em 4 linhas, com paging.next (que traz o token, como a Meta faz)
+//   Google refresh refresh-falso (ok) · refresh-vencido (invalid_grant) · client secret segredo-errado (invalid_client)
+//         conta de serviço: JWT conferido com a chave pública passada em criarPlataformasFalsas({ chavePublica })
+//         cliente 1111111111 = projeto sem acesso de produção · 4444444444 = sem permissão na conta
+//         5555555555 = 429 na 1ª consulta · versão fora de `versoesGoogle` = 404
+//         click_view exige um dia só e no máximo 90 dias atrás
+// ============================================================================
+const PNG_1X1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const META_CAMPANHAS = [
+  { id: '120000000000001', nome: 'Troca de óleo R$ 169', objetivo: 'OUTCOME_ENGAGEMENT', status: 'ACTIVE' },
+  { id: '120000000000002', nome: 'Revisão completa', objetivo: 'OUTCOME_LEADS', status: 'PAUSED' },
+];
+const metaConjunto = c => ({ id: c.id.replace(/^120/, '121'), nome: `Público 15 km · ${c.nome}`, status: c.status });
+const metaAnuncios = c => [1, 2].map(i => ({ id: `${c.id.replace(/^120/, '122')}${i}`, nome: `Criativo ${i} · ${c.nome}`, status: i === 2 ? 'PAUSED' : c.status }));
+const GOOGLE_CAMP = { id: '2000001', nome: 'Pesquisa oficina Taubaté', canal: 'SEARCH', status: 'ENABLED' };
+const GOOGLE_GRUPO = { id: '3000001', nome: 'oficina mecânica', status: 'ENABLED' };
+const GOOGLE_AD = { id: '4000001', nome: 'Anúncio de texto 1', status: 'ENABLED' };
+
+const diasEntre = (de, ate) => { const out = []; for (let t = Date.parse(`${de}T12:00:00Z`); t <= Date.parse(`${ate}T12:00:00Z`); t += 86400000) out.push(new Date(t).toISOString().slice(0, 10)); return out; };
+const lerCorpoBruto = req => new Promise(ok => { let s = ''; req.on('data', c => { s += c; }); req.on('end', () => ok(s)); req.on('error', () => ok('')); });
+const enviarJson = (res, status, obj, cab = {}) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...cab }); res.end(JSON.stringify(obj)); return true; };
+const b64urlDecode = s => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+
+export function criarPlataformasFalsas({ versoesMeta = ['v25.0', 'v26.0', 'v27.0'], versoesGoogle = ['v24', 'v25', 'v26'], segredoApp = null,
+  chavePublica = null, cliques = {}, hoje = null } = {}) {
+  const estado = { pedidos: [], tokens: new Set(), contadores: new Map() };
+  const vez = k => { const n = (estado.contadores.get(k) || 0) + 1; estado.contadores.set(k, n); return n; };
+  const hojeISO = () => hoje || new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
+
+  function meta(req, res, url) {
+    const partes = url.pathname.split('/').filter(Boolean);   // meta, v27.0, act_123, insights
+    const v = partes[1], resto = partes.slice(2), q = url.searchParams;
+    const auth = String(req.headers.authorization || '');
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : (q.get('access_token') || '');
+    estado.pedidos.push({ plataforma: 'meta', caminho: url.pathname, query: url.search, autorizacao: !!auth });
+    const erro = (status, code, message, sub, cab) => enviarJson(res, status, { error: { message, type: 'OAuthException', code, error_subcode: sub, fbtrace_id: 'AFalso' } }, cab);
+    const uso = { 'X-Ad-Account-Usage': JSON.stringify({ acc_id_util_pct: token === 'TOKEN-FALSO-QUENTE' ? 85 : 3, reset_time_duration: 0, ads_api_access_tier: 'development_access' }) };
+    if (!versoesMeta.includes(v) || (resto[0] === 'act_2222222222' && v === 'v27.0')) {
+      return erro(400, 2635, `(#2635) You are calling a deprecated version of the Ads API. Please update to the latest version: ${versoesMeta[versoesMeta.length - 2] || 'v26.0'}.`);
+    }
+    if (!token) return erro(400, 2500, 'An active access token must be used to query information about the current user.');
+    if (token === 'TOKEN-FALSO-VENCIDO') return erro(400, 190, 'Error validating access token: Session has expired on Tuesday, 18-Nov-26 10:00:00 PST.', 463);
+    if (!token.startsWith('TOKEN-FALSO')) return erro(400, 190, 'Invalid OAuth access token - Cannot parse access token');
+    if (segredoApp) {
+      const esperado = crypto.createHmac('sha256', segredoApp).update(token).digest('hex');
+      if (q.get('appsecret_proof') !== esperado) return erro(400, 100, 'Invalid appsecret_proof provided in the API argument');
+    }
+    if (resto[0] === 'debug_token') {
+      const agora = Math.floor(Date.now() / 1000);
+      return enviarJson(res, 200, { data: { app_id: '1000000000', type: 'SYSTEM_USER', application: 'Painel de mentira', is_valid: true,
+        expires_at: token === 'TOKEN-FALSO-60D' ? agora + 5 * 86400 : 0, data_access_expires_at: agora + 90 * 86400,
+        scopes: token === 'TOKEN-FALSO-SEM-ESCOPO' ? ['business_management'] : ['ads_read', 'business_management'] } }, uso);
+    }
+    if (token === 'TOKEN-FALSO-SEM-PERMISSAO') return erro(403, 200, '(#200) Requires ads_read permission to manage the object');
+    if (token === 'TOKEN-FALSO-LIMITE' && vez(`limite|${url.pathname}`) === 1) {
+      return erro(400, 17, 'User request limit reached', 2446079, { 'X-Business-Use-Case-Usage': JSON.stringify({ 1000: [{ type: 'ads_management', call_count: 100, total_cputime: 30, total_time: 40, estimated_time_to_regain_access: 0 }] }) });
+    }
+    const conta = resto[0] || '';
+    if (!/^act_\d+$/.test(conta)) return erro(400, 100, 'Unsupported get request.');
+    if (conta === 'act_0000000000') return erro(400, 100, `Unsupported get request. Object with ID '${conta}' does not exist, cannot be loaded due to missing permissions, or does not support this operation.`, 33);
+    if (resto.length === 1) return enviarJson(res, 200, { id: conta, name: 'Oficina de Mentira', account_status: 1, currency: 'BRL', timezone_name: 'America/Sao_Paulo' }, uso);
+    const origem = `http://${req.headers.host}`;
+    const paginar = lista => {
+      const depois = Math.max(0, parseInt(q.get('after') || '0', 10) || 0);
+      const pagina = lista.slice(depois, depois + 4);
+      const corpo = { data: pagina };
+      if (depois + 4 < lista.length) {
+        const prox = new URLSearchParams(q); prox.set('after', String(depois + 4)); prox.set('access_token', token);
+        corpo.paging = { cursors: { before: 'A', after: 'B' }, next: `${origem}${url.pathname}?${prox}` };
+      }
+      return enviarJson(res, 200, corpo, uso);
+    };
+    if (resto[1] === 'campaigns') return paginar(META_CAMPANHAS.map(c => ({ id: c.id, name: c.nome, objective: c.objetivo, effective_status: c.status })));
+    if (resto[1] === 'adsets') return paginar(META_CAMPANHAS.map(c => { const s = metaConjunto(c); return { id: s.id, name: s.nome, effective_status: s.status }; }));
+    if (resto[1] === 'ads') {
+      return paginar(META_CAMPANHAS.flatMap(c => metaAnuncios(c).map(a => ({ id: a.id, name: a.nome, effective_status: a.status,
+        creative: { id: `9${a.id}`, thumbnail_url: `https://scontent.xx.fbcdn.net/v/t45.1600-4/anuncio-${a.id}.jpg?stp=dst-jpg_p320x320&oe=6750ABCD` } }))));
+    }
+    if (resto[1] === 'insights') {
+      if (conta === 'act_3333333333') return enviarJson(res, 200, { data: [] }, uso);
+      let periodo;
+      try { periodo = JSON.parse(q.get('time_range') || '{}'); } catch { periodo = {}; }
+      if (!periodo.since || !periodo.until || q.get('time_increment') !== '1') return erro(400, 100, 'Invalid parameter');
+      const nivel = q.get('level');
+      const linhas = [];
+      for (const dia of diasEntre(periodo.since, periodo.until)) {
+        for (const c of META_CAMPANHAS) {
+          const comum = { date_start: dia, date_stop: dia, campaign_id: c.id, campaign_name: c.nome, objective: c.objetivo,
+            impressions: '1000', reach: '800', frequency: '1.25', clicks: '30', spend: '25.50',
+            actions: [{ action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '3' },
+              { action_type: 'onsite_conversion.total_messaging_connection', value: '4' }, { action_type: 'link_click', value: '30' }],
+            action_values: [] };
+          if (nivel === 'campaign') linhas.push(comum);
+          const s = metaConjunto(c);
+          if (nivel === 'adset') linhas.push({ ...comum, adset_id: s.id, adset_name: s.nome });
+          if (nivel === 'ad') for (const a of metaAnuncios(c)) linhas.push({ ...comum, adset_id: s.id, adset_name: s.nome, ad_id: a.id, ad_name: a.nome });
+        }
+      }
+      return paginar(linhas);
+    }
+    return erro(400, 100, 'Unsupported get request.');
+  }
+
+  async function oauth(req, res) {
+    const corpo = new URLSearchParams(await lerCorpoBruto(req));
+    estado.pedidos.push({ plataforma: 'oauth', grant: corpo.get('grant_type') });
+    const emitir = () => { const t = `ya29.falso-${vez('token')}`; estado.tokens.add(t); return enviarJson(res, 200, { access_token: t, expires_in: 3599, token_type: 'Bearer' }); };
+    if (corpo.get('grant_type') === 'refresh_token') {
+      if (corpo.get('client_secret') === 'segredo-errado') return enviarJson(res, 401, { error: 'invalid_client', error_description: 'Unauthorized' });
+      if (corpo.get('refresh_token') === 'refresh-vencido') return enviarJson(res, 400, { error: 'invalid_grant', error_description: 'Token has been expired or revoked.' });
+      return emitir();
+    }
+    if (corpo.get('grant_type') === 'urn:ietf:params:oauth:grant-type:jwt-bearer') {
+      const [cab, dados, assinatura] = String(corpo.get('assertion') || '').split('.');
+      let claims = {};
+      try { claims = JSON.parse(b64urlDecode(dados).toString('utf8')); } catch { /* fica vazio */ }
+      const okAssinatura = !chavePublica || (cab && assinatura && crypto.createVerify('RSA-SHA256').update(`${cab}.${dados}`).verify(chavePublica, b64urlDecode(assinatura)));
+      if (!okAssinatura) return enviarJson(res, 400, { error: 'invalid_grant', error_description: 'Invalid JWT Signature.' });
+      if (!/gserviceaccount\.com$/.test(claims.iss || '') || !String(claims.scope || '').includes('auth/adwords')) return enviarJson(res, 400, { error: 'invalid_scope', error_description: 'Invalid scope.' });
+      return emitir();
+    }
+    return enviarJson(res, 400, { error: 'unsupported_grant_type' });
+  }
+
+  async function googleAds(req, res, url) {
+    const partes = url.pathname.split('/').filter(Boolean);   // google, v26, customers, 123, googleAds:searchStream
+    const v = partes[1], cliente = partes[3];
+    const corpo = JSON.parse((await lerCorpoBruto(req)) || '{}');
+    estado.pedidos.push({ plataforma: 'google', caminho: url.pathname, devToken: req.headers['developer-token'] != null, login: req.headers['login-customer-id'] || null, query: corpo.query });
+    const falha = (status, statusApi, message, errorCode) => enviarJson(res, status, [{ error: { code: status, message, status: statusApi,
+      details: errorCode ? [{ '@type': 'type.googleapis.com/google.ads.googleads.v26.errors.GoogleAdsFailure', errors: [{ errorCode, message }] }] : [] } }]);
+    if (!versoesGoogle.includes(v)) { res.writeHead(404, { 'Content-Type': 'text/html; charset=UTF-8' }); res.end('<!DOCTYPE html><title>Error 404 (Not Found)</title>'); return true; }
+    const auth = String(req.headers.authorization || '');
+    if (!estado.tokens.has(auth.replace(/^Bearer /, ''))) return falha(401, 'UNAUTHENTICATED', 'Request is missing required authentication credential.');
+    if (cliente === '1111111111') return falha(403, 'PERMISSION_DENIED', 'The Google Cloud project is not approved for production access.', { authorizationError: 'CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION' });
+    if (cliente === '4444444444') return falha(403, 'PERMISSION_DENIED', "User doesn't have permission to access customer.", { authorizationError: 'USER_PERMISSION_DENIED' });
+    if (cliente === '5555555555' && vez(`cota|${cliente}`) === 1) return falha(429, 'RESOURCE_EXHAUSTED', 'Too many requests.', { quotaError: 'RESOURCE_TEMPORARILY_EXHAUSTED' });
+    const gaql = String(corpo.query || '');
+    const de = gaql.match(/FROM\s+(\w+)/i)?.[1];
+    const faixa = gaql.match(/BETWEEN '(\d{4}-\d{2}-\d{2})' AND '(\d{4}-\d{2}-\d{2})'/);
+    const umDia = gaql.match(/segments\.date = '(\d{4}-\d{2}-\d{2})'/);
+    const dias = faixa ? diasEntre(faixa[1], faixa[2]) : umDia ? [umDia[1]] : [];
+    const metr = { impressions: '500', clicks: '20', costMicros: '15500000', conversions: 2, conversionsValue: 0 };
+    const camp = { resourceName: `customers/${cliente}/campaigns/${GOOGLE_CAMP.id}`, id: GOOGLE_CAMP.id, name: GOOGLE_CAMP.nome, status: GOOGLE_CAMP.status, advertisingChannelType: GOOGLE_CAMP.canal };
+    const grupo = { resourceName: `customers/${cliente}/adGroups/${GOOGLE_GRUPO.id}`, id: GOOGLE_GRUPO.id, name: GOOGLE_GRUPO.nome, status: GOOGLE_GRUPO.status };
+    let resultados = [];
+    if (de === 'customer') resultados = [{ customer: { resourceName: `customers/${cliente}`, id: cliente, descriptiveName: 'Oficina de Mentira', currencyCode: 'BRL', timeZone: 'America/Sao_Paulo' } }];
+    else if (de === 'campaign') resultados = dias.map(d => ({ campaign: camp, metrics: metr, segments: { date: d } }));
+    else if (de === 'ad_group') resultados = dias.map(d => ({ campaign: camp, adGroup: grupo, metrics: metr, segments: { date: d } }));
+    else if (de === 'ad_group_ad') resultados = dias.map(d => ({ campaign: camp, adGroup: grupo, adGroupAd: { ad: { id: GOOGLE_AD.id, name: GOOGLE_AD.nome }, status: GOOGLE_AD.status }, metrics: metr, segments: { date: d } }));
+    else if (de === 'keyword_view') resultados = dias.map(d => ({ campaign: camp, adGroup: grupo, adGroupCriterion: { criterionId: '5000001', keyword: { text: 'oficina mecanica', matchType: 'PHRASE' } }, metrics: metr, segments: { date: d } }));
+    else if (de === 'search_term_view') {
+      resultados = dias.flatMap(d => ['EXACT', 'NEAR_EXACT'].map(tipo => ({ searchTermView: { searchTerm: 'oficina mecanica taubate', status: 'NONE' }, campaign: camp, adGroup: grupo,
+        metrics: { impressions: '100', clicks: '5', costMicros: '4000000', conversions: 1 }, segments: { date: d, searchTermMatchType: tipo, keyword: { info: { text: 'oficina mecanica', matchType: 'PHRASE' } } } })));
+    } else if (de === 'click_view') {
+      if (!umDia || faixa) return falha(400, 'INVALID_ARGUMENT', 'Queries including ClickView must have a filter limiting the results to one day.', { queryError: 'EXPECTED_FILTERS_ON_DATE_RANGE' });
+      const dif = Math.round((Date.parse(`${hojeISO()}T00:00:00Z`) - Date.parse(`${umDia[1]}T00:00:00Z`)) / 86400000);
+      if (dif >= 90) return falha(400, 'INVALID_ARGUMENT', 'The date is too old for ClickView.', { queryError: 'DATE_RANGE_TOO_WIDE' });
+      resultados = (cliques[umDia[1]] || []).map(c => ({ clickView: { gclid: c.gclid, keywordInfo: { text: c.palavra || 'oficina mecanica', matchType: 'PHRASE' },
+        adGroupAd: `customers/${cliente}/adGroupAds/${GOOGLE_GRUPO.id}~${GOOGLE_AD.id}` }, campaign: camp, adGroup: grupo, segments: { date: umDia[1] } }));
+    } else return falha(400, 'INVALID_ARGUMENT', 'Error in query: unexpected input.', { queryError: 'UNEXPECTED_INPUT' });
+    const meio = Math.ceil(resultados.length / 2);
+    return enviarJson(res, 200, [{ results: resultados.slice(0, meio), requestId: 'falso1' }, { results: resultados.slice(meio), requestId: 'falso1' }].filter((b, i) => i === 0 || b.results.length));
+  }
+
+  async function tratar(req, res) {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const p = url.pathname;
+    if (p.startsWith('/meta/')) return meta(req, res, url);
+    if (p === '/oauth/token' && req.method === 'POST') return oauth(req, res);
+    if (p.startsWith('/google/') && req.method === 'POST') return googleAds(req, res, url);
+    if (p.startsWith('/img/')) { res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': String(PNG_1X1.length) }); res.end(PNG_1X1); return true; }
+    return false;
+  }
+  return { tratar, estado };
+}
+
+/** Sobe só as plataformas de mentira numa porta (0 = qualquer livre). Usado pelos testes. */
+export function subirPlataformasFalsas(opcoes = {}) {
+  const p = criarPlataformasFalsas(opcoes);
+  const srv = http.createServer(async (req, res) => {
+    try { if (!(await p.tratar(req, res))) enviarJson(res, 404, { erro: 'não existe na plataforma de mentira' }); }
+    catch (e) { enviarJson(res, 500, { erro: String(e?.message || e) }); }
+  });
+  return new Promise(ok => srv.listen(opcoes.porta || 0, '127.0.0.1', () => {
+    const url = `http://127.0.0.1:${srv.address().port}`;
+    ok({ url, meta: `${url}/meta`, google: `${url}/google`, oauth: `${url}/oauth/token`, estado: p.estado,
+      fechar: () => new Promise(f => { srv.closeAllConnections?.(); srv.close(() => f()); }) });
+  }));
+}
+
+const PLATAFORMAS = criarPlataformasFalsas();
+const ehPrincipal = !!process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+const servidorMock = http.createServer(async (req, res) => {
+  if (await PLATAFORMAS.tratar(req, res)) return;   // rodada 8: Meta e Google de mentira
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = url.pathname, m = req.method, q = url.searchParams;
 
@@ -441,4 +649,5 @@ http.createServer(async (req, res) => {
     { canal: 'google', ok: false, titulo: 'Google ainda não conectado', fazer: 'Cole as credenciais em Ajustes → Conexões e clique em Testar.' }]);
   if (p === '/api/demo') { VAZIO = !!body.limpar; return json(res, 200, body.limpar ? { limpo: true } : { dias: 45, linhas: 1350 }); }
   return json(res, 404, { erro: 'rota não encontrada (mock)' });
-}).listen(PORT, () => console.log(`mock da Central de Tráfego em http://localhost:${PORT}  (?vazio=1 · ?saude=ok · ?chaves=1 · ?papel=…)`));
+});
+if (ehPrincipal) servidorMock.listen(PORT, () => console.log(`mock da Central de Tráfego em http://localhost:${PORT}  (?vazio=1 · ?saude=ok · ?chaves=1 · ?papel=…)`));
