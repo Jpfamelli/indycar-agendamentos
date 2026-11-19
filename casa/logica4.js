@@ -53,7 +53,7 @@
   }
   /** Texto do botão que substitui o do WhatsApp quando o cliente pediu para parar. */
   function textoBloqueado(motivo) {
-    return `Pediu para parar — não mande mensagem (${rotuloParar(motivo)})`;
+    return `Pediu para parar: não mande mensagem (${rotuloParar(motivo)})`;
   }
   const AVISO_PARAR_SEM_CONFERIR = 'Não consegui conferir se este cliente pediu PARAR (sem conexão com o banco). Abrir o WhatsApp mesmo assim?';
   const AVISO_PARAR_BLOQUEADO = 'Este cliente pediu para não receber mensagens. Só o gestor volta a liberar, no Comunicar.';
@@ -134,6 +134,65 @@
     { t: /^notificacoes-acumuladas$/, area: 'monitor', tom: 'aviso', frase: 'Tem aviso demais acumulado no sino: vale marcar como lidos.' },
     { t: /^e2e-/, area: 'monitor', tom: 'aviso', frase: 'O teste automático de ponta a ponta falhou. Avise o administrador.' },
   ];
+  /**
+   * Rodada 9: os 23 avisos graves do Vigia viram título curto + o que fazer, para quem não é técnico.
+   * Antes o título era o texto cru do Vigia (até 400 letras) e só 6 famílias tinham plano; sincronia, apps fora, Orçador e site caíam no genérico.
+   * abrir: app + endereço dentro dele (só aparece para quem tem acesso ao app).
+   */
+  const INTEG = { app: 'atendimento', q: '?aba=integracoes', rotulo: 'Abrir Integrações' };
+  const APP_FORA = (nome) => ({ titulo: `${nome} fora do ar`, passo: 'Recarregue a página. Se continuar fora por mais de 10 minutos, avise o suporte: a Central roda num serviço só.' });
+  const FAIXA_VIGIA = {
+    'whatsapp-sem-config': { titulo: 'WhatsApp sem configuração', passo: 'Preencha a conexão do WhatsApp em Atendimento › Integrações.', abrir: INTEG },
+    'codewords-chave-recusada': { titulo: 'WhatsApp recusado', passo: 'Gere uma chave nova no CodeWords e cole em Atendimento › Integrações.', abrir: INTEG },
+    'codewords-fora': { titulo: 'Serviço do WhatsApp fora do ar', passo: 'As mensagens podem não sair. Mande pelo seu WhatsApp enquanto isso e avise o suporte se passar de 1 hora.' },
+    'whatsapp-desconectado': { titulo: 'WhatsApp da oficina desconectado', passo: 'Reconecte o aparelho em Atendimento › Configurações (Conexão do WhatsApp).', abrir: { app: 'atendimento', q: '', rotulo: 'Abrir o Atendimento' } },
+    'whatsapp-sem-receber': { titulo: 'WhatsApp não está recebendo mensagens', passo: 'Mande uma mensagem de teste para o número da oficina. Se não chegar, confira Atendimento › Integrações.', abrir: INTEG },
+    'sincronia-parada': { titulo: 'Sincronia entre os apps parada', passo: 'O que chega pelo WhatsApp pode não aparecer na Agenda e no CRM. Confira Atendimento › Integrações e avise o suporte.', abrir: INTEG },
+    'webhook-fora': { titulo: 'Entrada de mensagens do WhatsApp fora', passo: 'Faça o teste de envio em Atendimento › Integrações.', abrir: INTEG },
+    'atendimento-fora': APP_FORA('Atendimento'),
+    'agenda-fora': APP_FORA('Agenda'),
+    'comunicar-fora': APP_FORA('Comunicar'),
+    'crm-fora': APP_FORA('CRM'),
+    'orcador-fora': { titulo: 'Orçador fora do ar', passo: 'Anote o orçamento no papel ou no WhatsApp e lance no Orçador quando voltar. Se passar de 1 hora, avise o suporte.' },
+    'site-fora': { titulo: 'Site da oficina fora do ar', passo: 'Quem procura a oficina na internet não consegue abrir o site. Avise o suporte.' },
+    'exclusao-em-massa': { titulo: 'Muita coisa apagada de uma vez', passo: 'Confirme com a equipe quem apagou. Se não foi de propósito, peça ao suporte para restaurar do backup.' },
+    'admin-novo': { titulo: 'Novo administrador criado', passo: 'Confirme se foi você ou alguém de confiança. Se não foi, tire o acesso em Atendimento › Equipe.', abrir: { app: 'atendimento', q: '', rotulo: 'Abrir o Atendimento' } },
+    'anthropic-chave-recusada': { titulo: 'Chave da IA recusada', passo: 'A IA parou de responder. Peça ao suporte uma chave nova e cole nas Integrações do Atendimento.', abrir: INTEG },
+    'anthropic-sem-credito': { titulo: 'IA sem crédito', passo: 'Coloque crédito na conta da IA (o suporte sabe onde). Até lá a equipe responde sem a IA.' },
+    'anthropic-fora': { titulo: 'IA fora do ar', passo: 'A equipe responde sem a IA por enquanto. Ela volta sozinha.' },
+    'comunicar-carteiro-parado': { titulo: 'Mensagens automáticas paradas', passo: 'Lembretes e pós-venda podem estar atrasados. Abra o Comunicar e confira o carteiro.', abrir: { app: 'comunicar', q: '', rotulo: 'Abrir o Comunicar' } },
+    'comunicar-fila-parada': { titulo: 'Fila do Comunicar parada', passo: 'Mensagens podem estar acumulando. Abra o Comunicar e confira a fila.', abrir: { app: 'comunicar', q: '', rotulo: 'Abrir o Comunicar' } },
+    'patio-avisos-parados': { titulo: 'Avisos do Pátio parados', passo: 'O cliente pode não estar sabendo da etapa do carro. Abra o Pátio e confira a rotina de avisos.', abrir: { app: 'patio', q: '', rotulo: 'Abrir o Pátio' } },
+    'backup-faltando': { titulo: 'Backup do banco atrasado', passo: 'Peça ao suporte para conferir a cópia diária do banco.' },
+    'backup-ensaio-falhou': { titulo: 'Teste de restauração do backup falhou', passo: 'Peça ao suporte para refazer o teste de restauração.' },
+  };
+  /** Itens da faixa do Vigia: { codigo, titulo, tempo, passo, detalhe, abrir } + a linha de Vigia parado (horas até 47 h; depois, dias). */
+  function faixaDoVigia(vigia) {
+    const out = [];
+    for (const a of (vigia && Array.isArray(vigia.graves) ? vigia.graves : [])) {
+      const c = String(a && a.codigo || '').trim().toLowerCase();
+      const f = FAIXA_VIGIA[c];
+      const r = f ? null : regraDoCodigo(c);
+      const dias = Number.isInteger(a.dias) && a.dias > 0 ? a.dias : 0;
+      const resumo = String(a.resumo || '').replace(/\s+/g, ' ').trim();
+      out.push({
+        codigo: c,
+        titulo: f ? f.titulo : (r ? r.frase.replace(/\.$/, '') : 'Problema detectado pelo Vigia'),
+        tempo: dias ? `há ${dias} dia${dias === 1 ? '' : 's'}` : '',
+        passo: f ? f.passo : 'Confira o sistema afetado e peça ajuda ao suporte se a falha continuar.',
+        detalhe: resumo ? (resumo.length > 160 ? resumo.slice(0, 159) + '…' : resumo) : '',
+        abrir: f && f.abrir ? f.abrir : null,
+      });
+    }
+    if (vigia && vigia.vigia_parado) {
+      const h = Math.floor((Date.parse(vigia.gerado_em) - Date.parse(vigia.vigia_conferiu_em)) / 3600000);
+      const horas = Math.max(1, h);
+      const titulo = !Number.isFinite(h) ? 'O Vigia está sem registro da última conferência'
+        : horas >= 48 ? `O Vigia não confere há ${Math.floor(horas / 24)} dias` : `O Vigia não confere há ${horas} hora${horas === 1 ? '' : 's'}`;
+      out.push({ codigo: 'vigia-parado', titulo, tempo: '', passo: 'Peça ao suporte para conferir a rotina do Vigia. Enquanto isso, ninguém está de olho nos sistemas.', detalhe: '', abrir: null });
+    }
+    return out;
+  }
   const CODIGO_OK = /^[a-z0-9][a-z0-9_-]{0,60}$/;
   function regraDoCodigo(codigo) {
     const c = String(codigo || '').trim().toLowerCase();
@@ -320,6 +379,22 @@
   }
   /** Quantos resultados o banco achou além dos que aparecem (para "mostrando 5 de 12"). */
   const alemDoCorte = (g, contagens) => Math.max(0, num(contagens && contagens[g.k]) - g.linhas.length);
+  /** Erro dos links do cliente em português: a mensagem do servidor (já escrita para a equipe) ou, se a rede caiu, o que fazer. Nada de "Failed to fetch". */
+  function erroDosLinks(e, online = true) {
+    const m = String((e && e.message) || '').trim();
+    if (!online) return 'Sem internet agora. Confira a conexão e tente de novo.';
+    if (!m || m === 'falhou' || /failed to fetch|networkerror|load failed|network request failed/i.test(m) || (e && e.name === 'TypeError')) return 'A Central não respondeu. Tente de novo em instantes.';
+    return m.length > 140 ? m.slice(0, 139) + '…' : m;
+  }
+  /** Linha de contagem da busca. Antes, quando só achava pessoas, dizia "2 resultados em 0 sistema". */
+  function dicaDaBusca(total, nPessoas, nSistemas) {
+    const t = num(total), p = num(nPessoas), s = num(nSistemas);
+    const pl = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+    if (!t && !p) return '';
+    if (!t) return pl(p, 'pessoa achada', 'pessoas achadas');
+    const r = `${pl(t, 'resultado', 'resultados')} em ${pl(s, 'sistema', 'sistemas')}`;
+    return p ? `${pl(p, 'pessoa', 'pessoas')} · ${r}` : r;
+  }
 
   /* ---------------- papéis: recepção e mecânico ---------------- */
   /** Cartão de chegadas da recepção: quem falta chegar primeiro, por horário; o próximo em destaque. */
@@ -340,8 +415,8 @@
   root.CasaLogica4 = Object.freeze({
     nacional, telefoneDoLinkWa, VALIDADE_PARAR_MS, MOTIVOS_PARAR, rotuloParar, estadoParar, paraConsultar, guardarParar, textoBloqueado, AVISO_PARAR_SEM_CONFERIR, AVISO_PARAR_BLOQUEADO,
     ORIGENS_TAREFA, TIPOS_ORC_TAREFA, infoDaTarefa, ehDoOrcador, contarReabordar, linkDaDescricao, descricaoLimpa,
-    NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, saudeSistemas, resumoDaSaude,
+    NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, FAIXA_VIGIA, faixaDoVigia, saudeSistemas, resumoDaSaude,
     resumoLigacoes, ROTULO_ACAO, fichaDe, OPCOES_ADIAR, ateQuando, quandoVolta, acaoDoAviso, appDoAviso, textoDoAviso, filtrarPorTexto,
-    pessoasDaBusca, filtrosDaBusca, alemDoCorte, chegadasDaRecepcao, ordemDoMecanico,
+    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
