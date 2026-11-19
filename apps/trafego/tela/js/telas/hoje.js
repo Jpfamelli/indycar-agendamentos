@@ -12,6 +12,7 @@ import { dinheiro, inteiro, porcento, duracao, valorPorFormato, comparacao, cont
 import { selo, setores, origem as marcaDaOrigem, barra, botaoDaAcao, vazio, semDado, colunasPorDia } from '../pecas.js';
 import { rotuloDaEtapa } from '../setores.js';
 import * as Estados from './estados.js';
+import { mostrarAviso } from '../aviso.js';
 
 const ICONE_DA_DIRECAO = { sobe: 'sobe', desce: 'desce', igual: 'igual' };
 const LEITURA_DO_TOM = { bom: 'bom sinal', atencao: 'pede atenção' };
@@ -25,6 +26,7 @@ export function mostrar(ctx) {
 function pintar(ctx, d, primeira) {
   const estado = d.estado || {};
   ctx.demo(Boolean(estado.demo));
+  mostrarAviso(ctx, estado);
   const estreia = primeira && ctx.estreia('hoje');
   trocar(ctx.miolo,
     muro(ctx, d),
@@ -292,7 +294,9 @@ function conexoes(ctx, d) {
     h('span', { class: 'conexao-nome' }, nome),
     situacao ? selo(situacao[0], situacao[1]) : selo('neutro', 'Sem informação'),
     detalhe ? h('span', { class: 'conexao-detalhe apoio' }, detalhe) : null);
-  const coleta = (x) => (x && x.ultima_coleta ? 'Última leitura ' + haQuanto(x.ultima_coleta) + '.' : null);
+  // `parada` (API-base.md, motor/conexoes-estado.js): mais de um dia e meio sem buscar os números.
+  const coleta = (x) => (x && x.parada && !x.aviso ? 'A busca dos números está parada' + (x.ultima_coleta ? ': a última foi ' + haQuanto(x.ultima_coleta) : '') + '.'
+    : x && x.ultima_coleta ? 'Última leitura ' + haQuanto(x.ultima_coleta) + '.' : null);
   const juntar = (...partes) => partes.filter(Boolean).join(' ') || null;
   const itens = [];
   if (c.meta) itens.push(linha('Anúncios da Meta', CONTA_DE_ANUNCIO[c.meta.situacao], juntar(c.meta.aviso, coleta(c.meta))));

@@ -59,7 +59,7 @@ const textoDe = (v) => (typeof v === 'string' ? v : null);
 /**
  * { evento, dados } cru → evento da conversa:
  *   { tipo: 'texto', texto } · { tipo: 'ferramenta', nome, rotulo } · { tipo: 'proposta', proposta }
- *   { tipo: 'fim', conversa_id, uso } · { tipo: 'erro', mensagem, codigo } · { tipo: 'desconhecido', evento }
+ *   { tipo: 'fim', conversa_id, uso, parou, aviso } · { tipo: 'erro', mensagem, codigo, conversa_id } · { tipo: 'desconhecido', evento }
  */
 export function interpretar(cru) {
   const bruto = cru && typeof cru.dados === 'string' ? cru.dados : '';
@@ -81,11 +81,13 @@ export function interpretar(cru) {
     return proposta ? { tipo: 'proposta', proposta } : { tipo: 'desconhecido', evento: tipo };
   }
   if (tipo === 'fim') {
-    return { tipo: 'fim', conversa_id: obj && obj.conversa_id != null ? String(obj.conversa_id) : null, uso: obj && obj.uso ? obj.uso : null };
+    return { tipo: 'fim', conversa_id: obj && obj.conversa_id != null ? String(obj.conversa_id) : null, uso: obj && obj.uso ? obj.uso : null,
+      parou: (obj && textoDe(obj.parou)) || 'fim', aviso: (obj && textoDe(obj.aviso)) || null };
   }
   if (tipo === 'erro') {
     const mensagem = (obj && (textoDe(obj.erro) || textoDe(obj.mensagem))) || textoDe(json) || (json === undefined && bruto ? bruto : null);
-    return { tipo: 'erro', mensagem: mensagem || 'A resposta parou no meio.', codigo: (obj && textoDe(obj.codigo)) || null };
+    return { tipo: 'erro', mensagem: mensagem || 'A resposta parou no meio.', codigo: (obj && textoDe(obj.codigo)) || null,
+      conversa_id: obj && obj.conversa_id != null ? String(obj.conversa_id) : null };
   }
   return { tipo: 'desconhecido', evento: tipo };
 }

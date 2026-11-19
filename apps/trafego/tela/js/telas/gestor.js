@@ -11,7 +11,7 @@
    ============================================================================ */
 
 import { h, icone, trocar, focar, menosMovimento } from '../dom.js';
-import { dinheiro, inteiro, dataCurta, haQuanto, ehNumero } from '../formato.js';
+import { dinheiro, inteiro, numero, dataCurta, haQuanto, ehNumero } from '../formato.js';
 import { selo, semDado } from '../pecas.js';
 import { lerFluxo, olhando } from '../fluxo.js';
 import { blocosDoTexto, montarBlocos } from '../formatacao.js';
@@ -148,8 +148,12 @@ export function mostrar(ctxInicial) {
         } else if (ev.tipo === 'fim') {
           fim = true;
           if (ev.conversa_id) conversaId = String(ev.conversa_id);
+          if (ev.parou === 'max_tokens') nota('info', 'A resposta chegou ao tamanho máximo e foi cortada. Peça para ele continuar ou faça uma pergunta mais curta.');
+          else if (ev.parou === 'voltas') nota('info', 'O Gestor respondeu com o que conseguiu olhar a tempo.');
+          if (ev.aviso) nota('info', ev.aviso);
         } else if (ev.tipo === 'erro') {
           fim = true;
+          if (ev.conversa_id) conversaId = String(ev.conversa_id);
           const motivo = String(ev.mensagem || 'erro sem explicação');
           nota('grave', (texto ? 'A resposta parou no meio: ' : 'O Gestor não conseguiu responder: ') + motivo.charAt(0).toLowerCase() + motivo.slice(1) + (texto ? ' O que chegou fica aqui.' : ''),
             h('button', { class: 'botao', type: 'button', on: { click: () => perguntar(pergunta) } }, icone('atualizar'), 'Perguntar de novo'));
@@ -195,13 +199,16 @@ export function mostrar(ctxInicial) {
       const nova = r && (r.acao || r.registro || (r.id ? r : null));
       acoes = acoes.map((x) => (String(x.id) === a.id ? (nova || { ...x, status: decisao === 'aceitar' ? 'aceita' : decisao === 'recusar' ? 'recusada' : 'feita' }) : x));
       ctx.leitor.esquecer('api/acoes-trafego');
-      ctx.avisar(decisao === 'aceitar' ? 'Aceita. Quando fizer a mudança, marque "Já fiz".' : decisao === 'recusar' ? 'Recusada. Fica anotado no diário.' : 'Marcada como feita. O Gestor mede o resultado na data combinada.');
+      ctx.avisar(r && r.aviso ? r.aviso
+        : decisao === 'aceitar' ? 'Aceita. Quando fizer a mudança, marque "Já fiz".' : decisao === 'recusar' ? 'Recusada. Fica anotado no diário.' : 'Marcada como feita. O Tráfego mede o resultado na data combinada.');
       pintarAcoes();
       const mesmo = el.decidir.querySelector('.proposta[data-id="' + CSS.escape(a.id) + '"] button');
       focar(mesmo || document.getElementById('tDecidir'));
     } catch (erro) {
       for (const b of card.querySelectorAll('button')) b.disabled = false;
       ctx.avisar(fraseDoErro(erro));
+      // Já decidida por outra pessoa ou vencida: a lista do servidor é a verdade.
+      if (erro && erro.status === 409) { ctx.leitor.esquecer('api/acoes-trafego'); carregarAcoes(); }
     }
   }
 
@@ -214,15 +221,16 @@ export function mostrar(ctxInicial) {
     return h('article', { class: 'proposta' + (alto ? ' proposta-alto' : ''), 'aria-labelledby': idTitulo, data: { id: a.id } },
       h('div', { class: 'proposta-cab' },
         h('p', { class: 'proposta-tipo' }, a.nomeDoTipo),
-        alto ? selo('grave', 'Risco alto', 'alerta') : selo('neutro', a.risco === 'medio' ? 'Risco médio' : 'Risco baixo')),
+        alto ? selo('grave', 'Risco alto', 'alerta') : null),
       h('h3', { class: 'proposta-titulo', id: idTitulo }, a.titulo),
       alto && a.riscoMotivo ? h('p', { class: 'proposta-risco' }, a.riscoMotivo) : null,
       verba,
       h('dl', { class: 'proposta-dados' },
         a.porque ? [h('dt', null, 'Por quê'), h('dd', null, a.porque)] : null,
         a.evidencias.length ? [h('dt', null, 'Os números'), h('dd', null, h('ul', null, a.evidencias.map((t) => h('li', null, t))))] : null,
-        a.alvo.nome ? [h('dt', null, 'Onde'), h('dd', null, a.alvo.nome + (a.alvo.plataforma ? ' (' + (a.alvo.plataforma === 'meta' ? 'Meta' : 'Google') + ')' : ''))] : null,
-        a.medirEm ? [h('dt', null, 'Quando medir'), h('dd', null, dataCurta(a.medirEm) + ': o Gestor compara antes e depois.')] : null),
+        a.alvoRotulo || a.alvo.nome ? [h('dt', null, 'Onde'), h('dd', null, a.alvoRotulo || (a.alvo.nome + (a.alvo.plataforma ? ' (' + (a.alvo.plataforma === 'meta' ? 'Meta' : 'Google') + ')' : '')))] : null,
+        a.medirEm ? [h('dt', null, 'Quando medir'), h('dd', null, dataCurta(a.medirEm) + ': o Tráfego compara a semana antes com a semana depois.')] : null,
+        a.venceEm ? [h('dt', null, 'Prazo'), h('dd', null, 'Sem decisão até ' + dataCurta(a.venceEm) + ', a sugestão expira.')] : null),
       h('p', { class: 'proposta-nada' }, icone('info', 'icone-p'), h('span', null, quemFaz(a))),
       a.status === 'proposta'
         ? h('div', { class: 'proposta-botoes' },
@@ -237,6 +245,7 @@ export function mostrar(ctxInicial) {
     if (!ehNumero(v)) return semDado();
     if (m.formato === 'dinheiro') return dinheiro(v);
     if (m.formato === 'centavos') return dinheiro(v, { centavos: true });
+    if (m.formato === 'decimal') return numero(v, 1);
     return inteiro(v);
   }
 
@@ -252,6 +261,9 @@ export function mostrar(ctxInicial) {
         selo(a.statusTexto.tom, a.statusTexto.texto)),
       h('p', { class: 'diario-titulo' }, a.titulo),
       resultado ? h('p', { class: 'diario-resultado' }, h('span', { class: 'apoio' }, 'Resultado: '), resultado) : null,
+      a.vereditoTexto ? h('p', { class: 'diario-veredito' }, semRepetir(a.vereditoTexto, a.veredito)) : null,
+      (a.antes && a.antes.base_rotulo) || (a.depois && a.depois.base_rotulo) ? h('p', { class: 'apoio' }, 'Comparando ' + ((a.depois && a.depois.base_rotulo) || a.antes.base_rotulo) + '.') : null,
+      a.depois && a.depois.erro ? h('p', { class: 'apoio' }, a.depois.erro) : null,
       linhas.length ? h('table', { class: 'diario-medidas' },
         h('caption', { class: 'so-leitor' }, 'Antes e depois: ' + a.titulo),
         h('thead', null, h('tr', null,
@@ -274,20 +286,22 @@ export function mostrar(ctxInicial) {
 
   /* --- plano da semana --- */
   let planoPedido = false;
-  function pintarPlano(p, { erro = null } = {}) {
+  function pintarPlano(p, { erro = null, aviso = null } = {}) {
     const botao = h('button', { class: 'botao', type: 'button', on: { click: () => novoPlano(botao) } }, icone('atualizar'), 'Fazer um plano novo');
     if (!p) {
       trocar(el.plano,
+        aviso ? h('p', { class: 'aviso-caixa' }, icone('info', 'icone-p'), h('span', null, aviso)) : null,
         h('p', { class: 'suave' }, 'Ainda não há plano. O Gestor olha os últimos 7 e 30 dias e diz o que fazer na semana.'),
         erro ? h('p', { class: 'campo-erro', role: 'alert' }, erro) : null,
         botao);
       return;
     }
     const corpo = h('div', { class: 'plano-texto' }, montarBlocos(blocosDoTexto(p.texto || ''), h));
-    const base = p.baseado_em && p.baseado_em.de && p.baseado_em.ate ? ', olhando de ' + dataCurta(p.baseado_em.de) + ' a ' + dataCurta(p.baseado_em.ate) : '';
+    const base = p.baseado_em && p.baseado_em.rotulo ? ', olhando os ' + p.baseado_em.rotulo
+      : p.baseado_em && p.baseado_em.de && p.baseado_em.ate ? ', olhando de ' + dataCurta(p.baseado_em.de) + ' a ' + dataCurta(p.baseado_em.ate) : '';
     const sugestoes = Array.isArray(p.propostas) ? p.propostas.length : 0;
     trocar(el.plano,
-      h('p', { class: 'apoio' }, (p.feito_em ? 'Feito ' + haQuanto(p.feito_em) : 'Feito pelo Gestor') + base + '.'),
+      h('p', { class: 'apoio' }, (p.feito_em ? 'Feito ' + haQuanto(p.feito_em) : 'Feito pelo Gestor') + (p.pedido_por ? ', a pedido de ' + p.pedido_por : p.feito_em ? ', pela rotina da semana' : '') + base + '.'),
       corpo,
       sugestoes ? h('p', { class: 'apoio' }, sugestoes === 1 ? 'A sugestão deste plano está em "Para decidir".' : 'As ' + inteiro(sugestoes) + ' sugestões deste plano estão em "Para decidir".') : null,
       erro ? h('p', { class: 'campo-erro', role: 'alert' }, erro) : null,
@@ -307,7 +321,9 @@ export function mostrar(ctxInicial) {
       carregarAcoes();
       ctx.avisar('Plano novo pronto.');
     } catch (erro) {
-      pintarPlano(planoAtual, { erro: fraseDoErro(erro) });
+      // 502: a IA não terminou; o que chegou até ali vem junto e vale mostrar.
+      const parcial = erro && erro.corpo && erro.corpo.plano && erro.corpo.plano.texto ? erro.corpo.plano : null;
+      pintarPlano(parcial || planoAtual, { erro: (parcial ? 'O plano parou no meio. ' : '') + fraseDoErro(erro) });
     } finally {
       planoPedido = false;
     }
@@ -328,6 +344,7 @@ export function mostrar(ctxInicial) {
       const d = (await ctx.leitor.ler('api/gestor/conversas')).dados;
       if (saiu) return;
       pintarConversas(Array.isArray(d) ? d : Array.isArray(d && d.conversas) ? d.conversas : []);
+      if (d && d.ligado === false) el.conversas.prepend(h('p', { class: 'aviso-caixa' }, icone('info', 'icone-p'), h('span', null, d.aviso || 'As conversas ainda não ficam guardadas.')));
     } catch (erro) {
       if (!saiu) trocar(el.conversas, h('p', { class: 'campo-erro' }, fraseDoErro(erro)));
     }
@@ -344,7 +361,21 @@ export function mostrar(ctxInicial) {
         const papel = m.papel || m.role;
         const texto = typeof m.texto === 'string' ? m.texto : typeof m.content === 'string' ? m.content : '';
         if (!texto) continue;
-        el.fala.appendChild(papel === 'pessoa' || papel === 'user' ? falaDaPessoa(texto) : falaDoGestor(texto).no);
+        if (papel === 'resumo') {
+          el.fala.appendChild(h('div', { class: 'fala fala-resumo' },
+            h('p', { class: 'fala-quem' }, 'Resumo' + (ehNumero(m.mensagens_resumidas) ? ' de ' + inteiro(m.mensagens_resumidas) + ' mensagens antigas' : ' das mensagens antigas')),
+            h('div', { class: 'fala-texto' }, montarBlocos(blocosDoTexto(texto), h))));
+          continue;
+        }
+        if (papel === 'pessoa' || papel === 'user') { el.fala.appendChild(falaDaPessoa(texto)); continue; }
+        const g = falaDoGestor(texto);
+        if (m.erro && (m.erro.erro || m.erro.codigo)) {
+          const motivo = String(m.erro.erro || 'erro sem explicação');
+          g.no.appendChild(h('p', { class: 'fala-nota fala-nota-grave' }, icone('alerta', 'icone-p'), h('span', null, 'Esta resposta parou no meio: ' + motivo.charAt(0).toLowerCase() + motivo.slice(1))));
+        } else if (m.parou === 'max_tokens') {
+          g.no.appendChild(h('p', { class: 'fala-nota fala-nota-info' }, icone('info', 'icone-p'), h('span', null, 'Esta resposta foi cortada no tamanho máximo.')));
+        }
+        el.fala.appendChild(g.no);
       }
       if (!el.fala.childElementCount) pintarVazio();
       novaConversa.hidden = false;
@@ -364,6 +395,10 @@ export function mostrar(ctxInicial) {
       if (saiu) return;
       acoes = Array.isArray(d) ? d : Array.isArray(d && d.acoes) ? d.acoes : Array.isArray(d && d.itens) ? d.itens : [];
       pintarAcoes();
+      if (d && d.ligado === false) {
+        trocar(el.decidir, h('p', { class: 'aviso-caixa' }, icone('info', 'icone-p'), h('span', null, d.aviso || 'O diário de decisões ainda não existe no banco.')));
+        trocar(el.diario, h('p', { class: 'suave' }, 'Sem o diário no banco, as sugestões do Gestor ainda não ficam guardadas.'));
+      }
     } catch (erro) {
       if (!saiu) { falhou(el.decidir, erro, carregarAcoes); trocar(el.diario); }
     }
@@ -373,7 +408,7 @@ export function mostrar(ctxInicial) {
       const d = (await ctx.leitor.ler('api/gestor/plano')).dados;
       if (saiu) return;
       planoAtual = d && d.texto ? d : d && d.plano && d.plano.texto ? d.plano : null;
-      pintarPlano(planoAtual);
+      pintarPlano(planoAtual, { aviso: d && d.ligado === false ? d.aviso || 'O plano ainda não fica guardado no banco.' : null });
     } catch (erro) {
       if (!saiu) pintarPlano(null, { erro: fraseDoErro(erro) });
     }
@@ -400,4 +435,12 @@ export function mostrar(ctxInicial) {
     atualizar(novo) { ctx = novo; return true; },
     sair() { saiu = true; if (rodando) rodando.controle.abort(); },
   };
+}
+
+/** "Melhorou: o custo…" ao lado do selo "Melhorou" repete a palavra: fica só o porquê. */
+function semRepetir(texto, ver) {
+  const rotulo = ver && ver.texto ? ver.texto + ':' : null;
+  if (!rotulo || !texto.toLowerCase().startsWith(rotulo.toLowerCase())) return texto;
+  const resto = texto.slice(rotulo.length).trim();
+  return resto ? resto.charAt(0).toUpperCase() + resto.slice(1) : texto;
 }

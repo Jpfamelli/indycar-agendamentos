@@ -13,6 +13,7 @@ import { ETAPAS, PENDENCIAS, pendencia, situacao } from '../setores.js';
 import { dinheiro, inteiro, contagem, dataCurta, ehNumero, PERIODO_PADRAO } from '../formato.js';
 import { selo, setores, origem as marcaDaOrigem, vazio } from '../pecas.js';
 import * as Estados from './estados.js';
+import { mostrarAviso } from '../aviso.js';
 import * as Detalhe from './detalhe.js';
 import * as Fila from './fila.js';
 
@@ -206,6 +207,7 @@ function torreDeContatos(ctxInicial) {
     const f = filtros();
     opcoes = d.filtros || {};
     ctx.demo(Boolean(d.estado && d.estado.demo));
+    mostrarAviso(ctx, d.estado);
     pintarControles(f);
     pintarResumo(d, f);
     const itens = d.itens || [];

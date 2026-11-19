@@ -40,9 +40,12 @@ test('fluxo: comentário é ignorado, várias linhas de dado se juntam, fim solt
 
 test('fluxo: evento desconhecido não quebra; erro traz a frase; fim traz a conversa', () => {
   assert.deepEqual(interpretar({ evento: 'pensando', dados: '{}' }), { tipo: 'desconhecido', evento: 'pensando' });
-  assert.deepEqual(interpretar({ evento: 'erro', dados: '{"erro":"O modelo não respondeu.","codigo":"modelo"}' }), { tipo: 'erro', mensagem: 'O modelo não respondeu.', codigo: 'modelo' });
+  assert.deepEqual(interpretar({ evento: 'erro', dados: '{"erro":"O modelo não respondeu.","codigo":"modelo","conversa_id":"c-9"}' }), { tipo: 'erro', mensagem: 'O modelo não respondeu.', codigo: 'modelo', conversa_id: 'c-9' });
   assert.equal(interpretar({ evento: 'erro', dados: '' }).mensagem, 'A resposta parou no meio.');
-  assert.deepEqual(interpretar({ evento: 'fim', dados: '{"conversa_id":42,"uso":{"entrada":10}}' }), { tipo: 'fim', conversa_id: '42', uso: { entrada: 10 } });
+  assert.deepEqual(interpretar({ evento: 'fim', dados: '{"conversa_id":42,"uso":{"entrada":10}}' }), { tipo: 'fim', conversa_id: '42', uso: { entrada: 10 }, parou: 'fim', aviso: null });
+  // API-gestor.md: "parou" diz se a resposta foi cortada; "aviso" quando a conversa não pôde ser guardada.
+  assert.deepEqual(interpretar({ evento: 'fim', dados: '{"conversa_id":null,"parou":"max_tokens","aviso":"As conversas ainda não ficam guardadas."}' }),
+    { tipo: 'fim', conversa_id: null, uso: null, parou: 'max_tokens', aviso: 'As conversas ainda não ficam guardadas.' });
   assert.equal(interpretar({ evento: 'proposta', dados: '{"proposta":{"id":"a1","titulo":"Pausar"}}' }).proposta.id, 'a1');
   // Sem "event:", o tipo pode vir dentro do JSON.
   assert.deepEqual(interpretar({ evento: 'message', dados: '{"tipo":"texto","texto":"oi"}' }), { tipo: 'texto', texto: 'oi' });
@@ -174,7 +177,7 @@ test('propostas: evidência no formato da tabela (itens, risco) e em lista simpl
     evidencias: { itens: [{ fonte: 'campanhas', dado: 'custo por contato R$ 31 em 30 dias', valor: 31 }], verba: { atual: 50, nova: 70, por: 'dia' }, risco: 'alto', risco_motivo: 'Risco alto: aumento de 40%, acima de 30%.' } });
   assert.equal(daTabela.id, '7');
   assert.equal(daTabela.risco, 'alto');
-  assert.equal(daTabela.riscoMotivo, 'aumento de 40%, acima de 30%.');
+  assert.equal(daTabela.riscoMotivo, 'Aumento de 40%, acima de 30%.');
   assert.deepEqual(daTabela.evidencias, ['custo por contato R$ 31 em 30 dias']);
   assert.deepEqual(daTabela.verba, { atual: 50, nova: 70, por: 'dia' });
   const daLista = lerAcao({ id: 'x', tipo: 'pausar', status: 'aceita', risco: 'baixo', evidencias: ['R$ 319 e nenhum serviço', { texto: 'custo R$ 64' }, { rotulo: 'Contatos', valor: 9, periodo: '12/11 a 18/11' }, null, 3] });
@@ -225,4 +228,46 @@ test('aviso de resposta incompleta: frase pronta da API ou montada pelas leitura
   assert.match(avisoDoEstado({ incompleto: ['agenda', 'agenda_capacidade', 'termos'] }), /^Não deu para ler agora: a agenda e as palavras-chave\./);
   assert.match(avisoDoEstado({ incompleto: [], reserva: true }), /só do cadastro/);
   assert.match(avisoDoEstado({ incompleto: ['coisa_nova'] }), /Uma parte desta tela/);
+});
+
+/* ------------------------------ formato do API-gestor.md §3 ------------------------------ */
+
+test('ação no formato do API-gestor.md: rótulos do servidor valem, risco normal não vira selo, veredito por extenso', () => {
+  const a = lerAcao({
+    id: 'u-1', criada_em: '2026-11-19T13:10:30.000Z', origem: 'externa', origem_rotulo: 'IA de fora', autor: 'IA de fora: Claude Code do João',
+    tipo: 'negativar_termo', tipo_rotulo: 'Bloquear um termo de busca', titulo: 'Bloquear "curso de mecânica"', porque: 'Gasta sem trazer contato.',
+    alvo: { plataforma: 'google', nivel: 'campanha', ext: '2231', nome: 'Troca de óleo' }, alvo_rotulo: 'Google › campanha Troca de óleo',
+    evidencias: [{ fonte: 'palavras_e_termos', dado: 'R$ 84 gastos e 0 contato com o termo', valor: 84 }],
+    verba: null, risco: 'normal', risco_motivo: null, status: 'feita', status_rotulo: 'Feita', vence_em: null,
+    medir_em: '2026-11-26',
+    antes: { periodo: '05/11 a 11/11', base: 'campanha', base_rotulo: 'a campanha Troca de óleo', contatos: 9, custo_por_contato: 35.5, contatos_por_dia: 1.29, gasto_ligado: true, erro: null },
+    depois: { periodo: '13/11 a 19/11', base: 'campanha', base_rotulo: 'a campanha Troca de óleo', contatos: 12, custo_por_contato: 28, contatos_por_dia: 1.71, gasto_ligado: true, erro: null },
+    veredito: 'sem_diferenca', veredito_rotulo: 'Sem diferença clara', veredito_texto: 'Sem diferença clara: a mudança foi menor que 15%.',
+  });
+  assert.equal(a.nomeDoTipo, 'Bloquear um termo de busca');
+  assert.equal(a.alvoRotulo, 'Google › campanha Troca de óleo');
+  assert.equal(a.autor, 'IA de fora: Claude Code do João');
+  assert.equal(a.risco, 'normal');
+  assert.deepEqual(a.evidencias, ['R$ 84 gastos e 0 contato com o termo']);
+  assert.equal(a.veredito.id, 'sem_diferenca');
+  assert.equal(a.veredito.texto, 'Sem diferença clara');
+  assert.equal(a.vereditoTexto, 'Sem diferença clara: a mudança foi menor que 15%.');
+  assert.equal(a.venceEm, null);
+  const linhas = antesEDepois(a.antes, a.depois);
+  assert.deepEqual(linhas.map((l) => l.id), ['contatos', 'custo_por_contato', 'contatos_por_dia']);
+  assert.equal(linhas[2].depois, 1.71);
+});
+
+test('ação esperando decisão: prazo de vencimento, rótulo do status e risco alto com o motivo', () => {
+  const a = lerAcao({ id: 'u-2', tipo: 'aumentar_verba', status: 'proposta', status_rotulo: 'Esperando decisão', vence_em: '2026-12-03',
+    risco: 'alto', risco_motivo: 'Aumento de 40%, acima de 30%.', verba: { atual: 50, nova: 70, por: 'dia' }, evidencias: [] });
+  assert.equal(a.statusTexto.texto, 'Esperando decisão');
+  assert.equal(a.venceEm, '2026-12-03');
+  assert.equal(a.risco, 'alto');
+  assert.equal(a.riscoMotivo, 'Aumento de 40%, acima de 30%.');
+  assert.deepEqual(a.verba, { atual: 50, nova: 70, por: 'dia' });
+  // Sem rótulo do servidor, o daqui (mesmas palavras do API-gestor.md).
+  assert.equal(lerAcao({ id: 'x', status: 'expirada' }).statusTexto.texto, 'Expirou sem decisão');
+  assert.equal(lerAcao({ id: 'x', tipo: 'trocar_criativo' }).nomeDoTipo, 'Trocar a imagem ou o vídeo');
+  assert.equal(lerAcao({ id: 'x', origem: 'radar' }).autor, 'Radar');
 });

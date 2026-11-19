@@ -360,6 +360,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* hoje[] sem os traços (a API-base manda só etapa_atual): a etapa sobe para o lado do nome. */
+.hoje-linha:not(:has(.setores)) {
+  grid-template-areas:
+    'hora nome etapa'
+    'hora origem etapa';
+}
 .hoje-linha .setores {
   grid-area: setores;
   justify-self: end;

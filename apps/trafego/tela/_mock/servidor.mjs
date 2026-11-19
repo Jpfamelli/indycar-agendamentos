@@ -269,24 +269,24 @@ export function criar({ base = '/trafego/' } = {}) {
       if (req.method === 'DELETE' && partes.length === 4) return responder(T3b.revogarChave(m, decodeURIComponent(partes[3])));
     }
 
-    // Gestor IA e diário de decisões (recado T5b; API-gestor.md ainda não existe)
+    // Gestor IA e diário de decisões (API-gestor.md, frente T5b)
     if (partes[1] === 'gestor') {
       if (quebrou('gestor')) return undefined;
       const fala = req.method === 'POST';
       if (fala && ctx.ia === 'desligada') return json(res, 503, { erro: 'O Gestor IA está desligado: falta a chave da IA no servidor. O resto do app segue funcionando.', codigo: 'ia_desligada' });
-      if (fala && ctx.ia === 'limite') { res.setHeader('Retry-After', '3600'); return json(res, 429, { erro: 'O Gestor já respondeu o máximo de perguntas desta hora. Tente de novo mais tarde.', codigo: 'limite' }); }
+      if (fala && ctx.ia === 'limite') { res.setHeader('Retry-After', '1800'); return json(res, 429, { erro: 'Você já fez 30 perguntas nesta hora. Tente de novo daqui a meia hora.', codigo: 'limite_hora' }); }
       if (fala && caminho === '/api/gestor/perguntar') return fluxoDoGestor(req, res, m, ctx);
       if (leitura && caminho === '/api/gestor/conversas') return json(res, 200, T3b.responderConversas(m));
       if (leitura && partes[2] === 'conversas' && partes[3]) {
         const c = T3b.responderConversa(m, decodeURIComponent(partes[3]));
-        return c ? json(res, 200, c) : json(res, 404, { erro: 'Essa conversa não existe mais.' });
+        return c ? json(res, 200, c) : json(res, 404, { erro: 'Essa conversa não existe mais.', codigo: 'conversa' });
       }
-      if (leitura && caminho === '/api/gestor/plano') return json(res, 200, T3b.responderPlano(m) || { plano: null });
-      if (fala && caminho === '/api/gestor/plano') { await corpo(); await dormir(1200); return json(res, 200, T3b.novoPlano(m)); }
+      if (leitura && caminho === '/api/gestor/plano') return json(res, 200, T3b.responderPlano(m));
+      if (fala && caminho === '/api/gestor/plano') { await corpo(); await dormir(1200); return responder(T3b.novoPlano(m, nome)); }
     }
     if (partes[1] === 'acoes-trafego') {
       if (quebrou('acoes')) return undefined;
-      if (leitura && partes.length === 2) return json(res, 200, T3b.responderAcoes(m, q));
+      if (leitura && partes.length === 2) return responder(T3b.responderAcoes(m, q));
       if (req.method === 'POST' && partes.length === 4) {
         const c = await corpo();
         if (c === undefined) return invalido();

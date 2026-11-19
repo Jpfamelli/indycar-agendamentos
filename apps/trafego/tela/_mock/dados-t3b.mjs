@@ -582,14 +582,63 @@ export function revogarChave(m, id) {
 
 /* ------------------------------ Gestor IA e diário de decisões ------------------------------ */
 
-/* Na tabela (CONTRATO-TRAFEGO §1.2 e API-ia.md) a evidência é { itens: [{ fonte, dado, valor }], verba, risco, risco_motivo }. */
-const VEREDITO = { melhorou: 'melhorou', piorou: 'piorou', sem_diferenca: 'sem diferença clara', nao_mediu: 'não deu para medir' };
-function paraTabela(a) {
-  const { risco, risco_motivo: motivo, verba, ...resto } = a;
-  return { ...resto, veredito: a.veredito ? VEREDITO[a.veredito] || a.veredito : null,
-    evidencias: { itens: (a.evidencias || []).map((e) => ({ fonte: e.fonte || 'campanhas', dado: e.texto, valor: e.valor ?? null })), verba: verba || null, risco: risco || 'baixo', risco_motivo: motivo || null } };
+/* Formato único do API-gestor.md §3: lista, evento "proposta" e respostas das escritas. */
+const TIPO_ROTULO = { pausar: 'Pausar', reativar: 'Reativar', aumentar_verba: 'Aumentar a verba', reduzir_verba: 'Reduzir a verba',
+  trocar_criativo: 'Trocar a imagem ou o vídeo', mensagem_pronta: 'Mensagem pronta do anúncio', negativar_termo: 'Bloquear um termo de busca',
+  ajustar_horario: 'Mudar o horário dos anúncios', corrigir_rastreio: 'Consertar o rastreio', outro: 'Outra mudança' };
+const STATUS_ROTULO = { proposta: 'Esperando decisão', aceita: 'Aceita, falta fazer', feita: 'Feita', recusada: 'Recusada', expirada: 'Expirou sem decisão' };
+const ORIGEM_ROTULO = { ia: 'Gestor IA', radar: 'Radar', pessoa: 'Pessoa', externa: 'IA de fora' };
+const VEREDITO_ROTULO = { melhorou: 'Melhorou', piorou: 'Piorou', sem_diferenca: 'Sem diferença clara', nao_mediu: 'Não deu para medir' };
+const NIVEL = { campanha: 'campanha', conjunto: 'conjunto', anuncio: 'anúncio', conta: 'conta' };
+const PLAT = { meta: 'Meta', google: 'Google' };
+const INTEIRA = { meta: 'a Meta inteira', google: 'o Google inteiro' };
+const reais = (v) => 'R$ ' + (Number.isInteger(v) ? String(v) : v.toFixed(2).replace('.', ','));
+function medida(lado, base) {
+  if (!lado) return null;
+  const [de, ate] = String(lado.periodo || '').split(' a ');
+  return { de: de ? '2026-' + de.split('/').reverse().join('-') : null, ate: ate ? '2026-' + ate.split('/').reverse().join('-') : null, periodo: lado.periodo || null, dias: 7,
+    base: base.base, base_rotulo: base.rotulo, gasto: lado.gasto ?? null, contatos: lado.contatos ?? null, fecharam: lado.fecharam ?? null, faturado: lado.faturado ?? null,
+    custo_por_contato: lado.custo_por_contato ?? null, retorno: lado.retorno ?? null, contatos_por_dia: lado.contatos != null ? Math.round((lado.contatos / 7) * 100) / 100 : null,
+    gasto_ligado: lado.gasto != null, medido_em: '2026-11-19T13:20:00.000Z', erro: null };
 }
-function acoesIniciais(m) { return acoesBrutas(m).map(paraTabela); }
+function textoDoVeredito(a) {
+  if (!a.veredito) return null;
+  const an = a.antes || {}, de = a.depois || {};
+  if (a.veredito === 'nao_mediu') return 'Não deu para medir: ' + (a.depois ? 'faltou número nos dois lados.' : 'sem as respostas registradas, não há o depois para comparar.');
+  if (a.veredito === 'sem_diferenca') return 'Sem diferença clara: os contatos foram de ' + an.contatos + ' para ' + de.contatos + ', mudança menor que 15%.';
+  const palavra = a.veredito === 'melhorou' ? 'Melhorou' : 'Piorou';
+  return palavra + ': o custo por contato foi de ' + reais(an.custo_por_contato) + ' para ' + reais(de.custo_por_contato) + ', comparando ' + an.periodo + ' com ' + de.periodo + '.';
+}
+/** Recalcula os rótulos (depois de criar ou de mudar o status). */
+function rotular(a) {
+  a.tipo_rotulo = TIPO_ROTULO[a.tipo] || TIPO_ROTULO.outro;
+  a.status_rotulo = STATUS_ROTULO[a.status];
+  a.origem_rotulo = ORIGEM_ROTULO[a.origem] || 'Gestor IA';
+  a.veredito_rotulo = a.veredito ? VEREDITO_ROTULO[a.veredito] : null;
+  a.veredito_texto = textoDoVeredito(a);
+  a.vence_em = a.status === 'proposta' ? a.vence_em || '2026-12-03' : null;
+  return a;
+}
+function paraApi(a) {
+  const alvo = a.alvo || {};
+  const base = alvo.nivel === 'campanha' && a.tipo !== 'pausar' ? { base: 'campanha', rotulo: 'a campanha ' + alvo.nome }
+    : alvo.plataforma ? { base: 'plataforma', rotulo: INTEIRA[alvo.plataforma] } : { base: 'oficina', rotulo: 'a oficina toda' };
+  const antes = a.antes, depois = a.depois;
+  const saida = {
+    ...a,
+    origem_rotulo: null,
+    risco: a.risco === 'alto' ? 'alto' : 'normal',
+    verba: a.verba || null,
+    alvo_rotulo: alvo.plataforma && NIVEL[alvo.nivel] ? PLAT[alvo.plataforma] + ' › ' + NIVEL[alvo.nivel] + ' ' + alvo.nome : alvo.nome || null,
+    evidencias: (a.evidencias || []).map((e) => ({ fonte: e.fonte || 'campanhas', dado: e.texto, valor: e.valor ?? null })),
+    decidida_por_id: a.decidida_por ? 'perfil-1' : null,
+  };
+  saida.antes = medida(antes, base);
+  saida.depois = medida(depois, base);
+  // O texto do veredito usa os números como a pessoa vê (antes de virar o formato da API).
+  return rotular(Object.assign(saida, { antes: saida.antes, depois: saida.depois }));
+}
+function acoesIniciais(m) { return acoesBrutas(m).map(paraApi); }
 function acoesBrutas(m) {
   if (m.cenario === 'comeco') return [];
   if (!m.receita.contas) {
@@ -664,33 +713,43 @@ function acoesBrutas(m) {
 }
 
 export function responderAcoes(m, q) {
+  const zeros = { proposta: 0, aceita: 0, feita: 0, recusada: 0, expirada: 0 };
+  if (m.semMigracao) return { status: 200, corpo: { ligado: false, aviso: 'O diário de decisões ainda não existe no banco: falta aplicar a atualização do banco do IndyCar Tráfego.', total: 0, contagem: zeros, acoes: [] } };
   const status = q.get('status');
-  const lista = estado(m).acoes.filter((a) => !status || status.split(',').includes(a.status));
-  return { acoes: lista };
+  if (status && status.split(',').some((s) => !(s in zeros))) return { status: 422, corpo: { erro: 'Status fora da lista: use proposta, aceita, feita, recusada ou expirada.', codigo: 'status' } };
+  const todas = estado(m).acoes;
+  const lista = todas.filter((a) => !status || status.split(',').includes(a.status));
+  const contagem = { ...zeros };
+  for (const a of todas) contagem[a.status]++;
+  return { status: 200, corpo: { ligado: true, aviso: null, total: lista.length, contagem, acoes: lista } };
 }
 
 export function decidir(m, id, corpo, quem) {
   const a = estado(m).acoes.find((x) => x.id === id);
-  if (!a) return { status: 404, corpo: { erro: 'Essa proposta não existe mais.' } };
+  if (!a) return { status: 404, corpo: { erro: 'Essa proposta não existe mais.', codigo: 'nao_existe' } };
   const decisao = corpo && corpo.decisao;
-  if (decisao !== 'aceitar' && decisao !== 'recusar') return { status: 422, corpo: { erro: 'Diga se aceita ou recusa.', campo: 'decisao' } };
+  if (decisao !== 'aceitar' && decisao !== 'recusar') return { status: 422, corpo: { erro: 'Diga se aceita ou recusa.', codigo: 'decisao' } };
   if (a.status !== 'proposta') return { status: 409, corpo: { erro: 'Esta proposta já foi decidida.', codigo: 'ja_decidida' } };
   a.status = decisao === 'aceitar' ? 'aceita' : 'recusada';
   a.decidida_por = quem;
+  a.decidida_por_id = 'perfil-1';
   a.decidida_em = '2026-11-19T10:30:00-03:00';
   a.nota = corpo.nota ? String(corpo.nota).slice(0, 300) : null;
-  if (decisao === 'aceitar') a.antes = { contatos: 9, custo_por_contato: 64, gasto: 319, periodo: '12/11 a 18/11' };
-  return { status: 200, corpo: { ok: true, acao: a } };
+  if (decisao === 'aceitar') a.antes = medida({ contatos: 9, custo_por_contato: 64, gasto: 319, periodo: '12/11 a 18/11' }, { base: 'plataforma', rotulo: INTEIRA[a.alvo && a.alvo.plataforma] || 'o Google inteiro' });
+  return { status: 200, corpo: { ok: true, acao: rotular(a) } };
 }
 
 export function marcarFeita(m, id, corpo) {
   const a = estado(m).acoes.find((x) => x.id === id);
-  if (!a) return { status: 404, corpo: { erro: 'Essa proposta não existe mais.' } };
+  if (!a) return { status: 404, corpo: { erro: 'Essa proposta não existe mais.', codigo: 'nao_existe' } };
   if (a.status !== 'aceita') return { status: 409, corpo: { erro: 'Só dá para marcar como feita uma proposta aceita.', codigo: 'nao_aceita' } };
   a.status = 'feita';
   a.feita_em = '2026-11-19T10:32:00-03:00';
   if (corpo && corpo.nota) a.nota = String(corpo.nota).slice(0, 300);
-  return { status: 200, corpo: { ok: true, acao: a } };
+  let aviso = null;
+  // Medição cedo demais (menos de 3 dias depois de hoje): passa para daqui a 7 dias e avisa.
+  if (!a.medir_em || a.medir_em < '2026-11-22') { a.medir_em = '2026-11-26'; aviso = 'A medição ficou para 26/11: antes disso não dá 3 dias de números depois da mudança.'; }
+  return { status: 200, corpo: { ok: true, acao: rotular(a), aviso } };
 }
 
 function conversasIniciais(m) {
@@ -710,27 +769,39 @@ function conversasIniciais(m) {
 }
 
 export function responderConversas(m) {
-  return { conversas: estado(m).conversas.map(({ mensagens, ...resto }) => ({ ...resto, mensagens: mensagens.length })) };
+  if (m.semMigracao) return { ligado: false, aviso: 'As conversas ainda não ficam guardadas: falta aplicar a atualização do banco do IndyCar Tráfego.', conversas: [] };
+  return { ligado: true, aviso: null, conversas: estado(m).conversas.map(({ mensagens, ...resto }) => {
+    const ultima = mensagens.length ? mensagens[mensagens.length - 1].texto : '';
+    return { ...resto, mensagens: mensagens.length, ultima: ultima.length > 80 ? ultima.slice(0, 79) + '…' : ultima };
+  }) };
 }
 export function responderConversa(m, id) {
-  return estado(m).conversas.find((c) => c.id === id) || null;
+  const c = estado(m).conversas.find((x) => x.id === id);
+  if (!c) return null;
+  return { ...c, plano: false, mensagens: c.mensagens.map((x) => (x.papel === 'gestor' ? { ferramentas: ['saude', 'campanhas'], propostas: [], parou: 'fim', erro: null, ...x } : x)) };
 }
 
 function planoInicial(m) {
   if (m.cenario === 'comeco') return null;
   return {
-    id: 'p-01', feito_em: '2026-11-17T07:00:00-03:00', baseado_em: { de: '2026-10-19', ate: '2026-11-16' },
+    id: 'p-01', feito_em: '2026-11-17T07:00:00-03:00', pedido_por: null, parou: 'fim', erro: null,
+    baseado_em: { de: '2026-10-19', ate: '2026-11-16', dias: [7, 30], rotulo: 'últimos 7 e 30 dias (19/10 a 16/11)' },
     texto: m.receita.contas
       ? 'Semana de **segurar e consertar**, não de aumentar.\n\n1. Pausar a "Troca de óleo" do Google: gasta e não fecha.\n2. Lançar os 3 valores que faltam: o retorno da Meta pode estar maior.\n3. Medir na quarta que vem a troca do carrossel.'
       : 'Sem conta de anúncio ligada, o plano é **enxergar antes de gastar mais**.\n\n1. Ligar a conta da Meta em Ajustes, Conexões.\n2. Criar a mensagem pronta de cada anúncio: hoje 12 contatos de anúncio chegam sem campanha.\n3. Dizer a origem dos 40 contatos que ainda estão sem.',
     propostas: m.receita.contas ? ['a-01', 'a-02'] : ['a-11', 'a-12'],
   };
 }
-export const responderPlano = (m) => estado(m).plano;
-export function novoPlano(m) {
+export function responderPlano(m) {
+  if (m.semMigracao) return { ligado: false, aviso: 'O plano ainda não fica guardado: falta aplicar a atualização do banco do IndyCar Tráfego.', plano: null };
+  return { ligado: true, aviso: null, plano: estado(m).plano };
+}
+export function novoPlano(m, quem) {
   const e = estado(m);
-  e.plano = { ...(e.plano || planoInicial({ ...m, cenario: 'x' })), id: 'p-' + (++e.proximoId), feito_em: '2026-11-19T10:30:00-03:00', baseado_em: { de: '2026-10-21', ate: '2026-11-18' } };
-  return e.plano;
+  if (m.semMigracao) return { status: 503, corpo: { erro: 'O plano precisa da atualização do banco do IndyCar Tráfego.', codigo: 'sem_migracao' } };
+  e.plano = { ...(e.plano || planoInicial({ ...m, cenario: 'x' })), id: 'p-' + (++e.proximoId), feito_em: '2026-11-19T10:30:00-03:00', pedido_por: quem || null,
+    baseado_em: { de: '2026-10-21', ate: '2026-11-19', dias: [7, 30], rotulo: 'últimos 7 e 30 dias (21/10 a 19/11)' }, parou: 'fim', erro: null };
+  return { status: 200, corpo: { ok: true, plano: { ...e.plano, uso: { entrada: 9800, saida: 420, chamadas: 4, ferramentas: 5 } } } };
 }
 
 /** A resposta do Gestor em pedaços: [evento, dados, espera em ms]. */
@@ -740,28 +811,29 @@ export function roteiroDaResposta(m, pergunta, conversaId, { quebra = false } = 
   const passos = [];
   const texto = (t, ms = 70) => passos.push(['texto', { texto: t }, ms]);
   passos.push(['ferramenta', { nome: 'saude', rotulo: 'Conferindo o que está ligado' }, 350]);
-  passos.push(['ferramenta', { nome: 'campanhas' }, 450]);
+  passos.push(['ferramenta', { nome: 'campanhas', rotulo: 'Olhando as campanhas' }, 450]);
   if (comConta) {
     texto('Pausaria a **"Troca de óleo" do Google**. ');
     texto('Ela gasta mais por contato que as outras e nenhum contato dela fechou este mês.\n\n');
-    if (quebra) { passos.push(['erro', { erro: 'O modelo demorou demais para responder.', codigo: 'tempo' }, 120]); return passos; }
+    if (quebra) { passos.push(['erro', { erro: 'O modelo demorou demais para responder.', codigo: 'tempo', conversa_id: conversaId }, 120]); return passos; }
     texto('- Gasto de 01/11 a 19/11: R$ 319\n');
     texto('- Custo por contato: R$ 64 (a média é R$ 38)\n');
     texto('- Serviços fechados: 0\n\n');
-    passos.push(['ferramenta', { nome: 'proposta_criar' }, 300]);
+    passos.push(['ferramenta', { nome: 'proposta_criar', rotulo: 'Escrevendo uma sugestão' }, 300]);
     passos.push(['proposta', { proposta: e.acoes.find((a) => a.id === 'a-01') }, 80]);
     texto('Deixei a sugestão aqui do lado para você decidir. Se aceitar, quem pausa no Google é você.');
   } else {
     texto('Sem conta de anúncio ligada, não dá para dizer quanto custou cada contato. ');
     texto('O que dá para ver pelos contatos:\n\n');
-    if (quebra) { passos.push(['erro', { erro: 'O modelo demorou demais para responder.', codigo: 'tempo' }, 120]); return passos; }
-    passos.push(['ferramenta', { nome: 'funil_por_origem' }, 400]);
+    if (quebra) { passos.push(['erro', { erro: 'O modelo demorou demais para responder.', codigo: 'tempo', conversa_id: conversaId }, 120]); return passos; }
+    passos.push(['ferramenta', { nome: 'funil_por_origem', rotulo: 'Olhando o caminho dos contatos' }, 400]);
     texto('- **Anúncio da Meta**: 18 contatos, 3 fecharam\n');
     texto('- **Indicação**: 9 contatos, 4 fecharam\n');
     texto('- **Ainda não sabemos**: 40 contatos, 3 fecharam\n\n');
     texto('Quem chega por indicação fecha mais. Para comparar com o anúncio de verdade, falta ligar a conta da Meta e dizer a origem dos 40 sem origem.');
   }
-  passos.push(['fim', { conversa_id: conversaId, uso: { entrada: 5120, saida: 210 } }, 30]);
+  passos.push(['fim', { conversa_id: m.semMigracao ? null : conversaId, uso: { entrada: 5120, saida: 210, cache_lido: 9120, cache_criado: 0, chamadas: 3, ferramentas: 2 },
+    modelo: 'claude-opus-5-5', parou: 'fim', aviso: m.semMigracao ? 'Esta conversa não ficou guardada: falta aplicar a atualização do banco do IndyCar Tráfego.' : null }, 30]);
   return passos;
 }
 
