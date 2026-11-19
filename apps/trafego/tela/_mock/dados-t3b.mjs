@@ -323,7 +323,7 @@ export function salvarIntegracao(m, corpo) {
     if (corpo.meta_token_expira_em) linha.meta_token_expira_em = corpo.meta_token_expira_em;
   } else {
     if (corpo.google_customer_id) { linha.google_customer_id = String(corpo.google_customer_id).replace(/[^0-9]/g, ''); linha.tem_google_cliente = true; }
-    if (corpo.google_conta_servico) linha.tem_google_oauth = true;
+    if (corpo.google_conta_servico) { linha.tem_google_oauth = true; linha.tem_google_token = true; }
   }
   linha.salvo_em = D.isoBr(Date.parse('2026-11-19T10:30:00-03:00'));
   return { status: 200, corpo: linha };

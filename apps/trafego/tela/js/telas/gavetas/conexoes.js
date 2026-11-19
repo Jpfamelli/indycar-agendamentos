@@ -87,7 +87,7 @@ function cartaoDeConta(ctx, canal, conexao, conta, linha, recarregar) {
   const nome = canal === 'meta' ? 'Meta (Facebook e Instagram)' : 'Google Ads';
   const situacao = SITUACAO_DA_CONTA[conexao.situacao] || ['neutro', 'Sem informação'];
   const aviso = conta && conta.aviso ? conta.aviso : null;
-  const temAcesso = Boolean(linha && (canal === 'meta' ? linha.tem_meta_token : linha.tem_google_oauth || linha.tem_google_refresh));
+  const temAcesso = Boolean(linha && (canal === 'meta' ? linha.tem_meta_token : linha.tem_google_token || linha.tem_google_oauth || linha.tem_google_refresh));
   const detalhes = [];
   if (conexao.ultima_coleta) detalhes.push('Última leitura ' + haQuanto(conexao.ultima_coleta) + '.');
   if (conexao.parada) detalhes.push('A leitura automática parou: os números podem estar atrasados.');
