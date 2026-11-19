@@ -25,6 +25,7 @@ const T = require('./texto');
 const C = require('./conexoes-estado');
 const Ag = require('./agenda-oficina');
 const Registro = require('../registro');
+const Google = require('../google');
 
 const TTL_MS = 30_000;
 const PAGINA = 1000;
@@ -58,7 +59,8 @@ function semSegredo(i) {
   return {
     canal: i.canal,
     ativo: i.ativo !== false,
-    tem_token: i.canal === 'meta' ? tem(i.meta_access_token) : tem(i.google_refresh_token) && tem(i.google_developer_token),
+    // Google: conta de serviço ou OAuth completo + cliente (o developer token acabou em 09/09/2026; integração r8)
+    tem_token: i.canal === 'meta' ? tem(i.meta_access_token) : Google.temAcesso(i),
     ultimo_sync_em: i.ultimo_sync_em || null,
     ultimo_sync_status: i.ultimo_sync_status ? String(i.ultimo_sync_status).slice(0, 300) : null,
     token_expira_em: i.canal === 'meta' ? (i.meta_token_expira_em || null) : null,
@@ -184,7 +186,7 @@ function criarFonte(opcoes = {}) {
 
   /* ---------- o resto (tolerante) ---------- */
 
-  /** Metas do ads_config: { cpa_alvo, cpa_alvo_google, orcamento_mensal, ticket_medio }; null no que não está definido. */
+  /** Metas do ads_config: { cpa_alvo, cpa_alvo_google, orcamento_mensal, ticket_medio, margem_pct }; null no que não está definido. */
   function config(o = {}) {
     return lembrar('config', () => tolerante('metas', {}, async () => {
       const { data, error } = await banco().from('ads_config').select('*').eq('id', true).maybeSingle();
@@ -194,6 +196,7 @@ function criarFonte(opcoes = {}) {
       return {
         cpa_alvo: T.numOuNulo(c.cpa_alvo), cpa_alvo_google: T.numOuNulo(extras.cpa_alvo_google),
         orcamento_mensal: T.numOuNulo(c.orcamento_mensal), ticket_medio: T.numOuNulo(c.ticket_medio),
+        margem_pct: T.numOuNulo(c.margem_pct),
       };
     }), o);
   }

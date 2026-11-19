@@ -592,8 +592,7 @@
               <li><strong>Meta · número da conta</strong>: Gerenciador de Anúncios → Configurações da conta → o número ao lado de <code>act_</code>.</li>
               <li><strong>Meta · token</strong>: Meta for Developers → seu app → Ferramentas → Explorador da API → marque <code>ads_read</code> → "Gerar token" → troque por um de longa duração (60 dias) e anote a validade em "Vence em".</li>
               <li><strong>Google · ID do cliente</strong>: o número de 10 dígitos no topo do Google Ads (123-456-7890). Se a conta estiver numa MCC, também o ID da gerenciadora.</li>
-              <li><strong>Google · developer token</strong>: Google Ads → Ferramentas → Central da API (a aprovação do Google leva alguns dias; até lá só funciona em conta de teste).</li>
-              <li><strong>Google · Client ID e secret</strong>: Google Cloud Console → APIs e serviços → Credenciais → "ID do cliente OAuth" (app para computador).</li>
+              <li><strong>Google · Client ID e secret</strong>: Google Cloud Console → APIs e serviços → Credenciais → "ID do cliente OAuth" (app para computador). Com conta de serviço: o e-mail dela no Client ID e a chave privada no Client secret (aí o refresh token não é preciso). O Google não pede mais o developer token.</li>
               <li><strong>Google · refresh token</strong>: OAuth Playground com o escopo <code>https://www.googleapis.com/auth/adwords</code>, usando o Client ID/secret acima → "Exchange authorization code" → copie o <code>refresh_token</code>.</li>
             </ol>
             <p class="mini">Cole tudo nos formulários abaixo, toque em <em>Testar sem salvar</em> e depois em <em>Salvar</em>. Enquanto nenhuma chave real estiver salva, o painel mostra números de demonstração (marcados).</p>
@@ -628,7 +627,6 @@
                 <label>ID do cliente<input name="google_customer_id" inputmode="numeric" placeholder="123-456-7890" /></label>
                 <label>Conta gerenciadora (MCC)<input name="google_login_customer_id" inputmode="numeric" placeholder="opcional" /></label>
               </div>
-              <label>Developer token<input name="google_developer_token" type="password" spellcheck="false" autocomplete="off" /></label>
               <label>Client ID<input name="google_client_id" placeholder="….apps.googleusercontent.com" spellcheck="false" /></label>
               <label>Client secret<input name="google_client_secret" type="password" spellcheck="false" autocomplete="off" /></label>
               <label>Refresh token<input name="google_refresh_token" type="password" spellcheck="false" autocomplete="off" /></label>

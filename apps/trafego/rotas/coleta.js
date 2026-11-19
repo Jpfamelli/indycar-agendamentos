@@ -90,7 +90,7 @@ function registrar(ctx) {
   });
 
   /* Rotina externa (mesma chave das outras rotinas). */
-  const cliques = async ({ q }) => { exigirCron(q); return d().coletor.ligarCliques(); };
+  const cliques = async ({ q, req }) => { exigirCron(q, req); return d().coletor.ligarCliques(); };
   rotaPublica('POST', '/api/cron/cliques', cliques);
   rotaPublica('GET', '/api/cron/cliques', cliques);
 

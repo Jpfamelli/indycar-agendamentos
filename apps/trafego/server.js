@@ -652,8 +652,19 @@ rota('GET', '/api/fila', ({ q }) => Fila.fila().situacao({ limite: limiteDe(q, 2
 const ROTAS_DIR = path.join(__dirname, 'rotas');
 const ROTAS_CARREGADAS = [];
 const ROTAS_COM_ERRO = [];
-/* exigirCron(q): para rotas públicas de rotina (/api/cron/…) — confere ?chave= igual ao cron antigo. */
-const exigirCron = q => { if (!CRON_TOKEN || q.get('chave') !== CRON_TOKEN) throw new ErroHttp(401, 'chave inválida'); };
+/* Chave das rotinas (/api/cron/…), integração r8: no cabeçalho X-Cron-Chave (o pg_cron usa este: a chave não fica em
+   endereço nem em log de acesso) ou em ?chave= (o jeito antigo). Comparação em tempo constante. Sem ADS_CRON_TOKEN no
+   ambiente nenhuma chave serve (401), que é o estado seguro. Não depende de TRAFEGO_AUTOMATICO. */
+function chaveDeCronOk(q, req) {
+  if (!CRON_TOKEN) return false;
+  const doCabecalho = req && req.headers ? req.headers['x-cron-chave'] : null;
+  const dada = String((typeof doCabecalho === 'string' && doCabecalho) || (q && typeof q.get === 'function' && q.get('chave')) || '');
+  if (!dada) return false;
+  const resumo = v => require('node:crypto').createHash('sha256').update(String(v)).digest();
+  return require('node:crypto').timingSafeEqual(resumo(dada), resumo(CRON_TOKEN));
+}
+/* exigirCron(q, req): para rotas públicas de rotina (/api/cron/…). */
+const exigirCron = (q, req) => { if (!chaveDeCronOk(q, req)) throw new ErroHttp(401, 'chave inválida'); };
 /* Rodada 8: `registro` (log de uma linha em JSON, sem dado pessoal) e `enderecos` (apps da casa) também vão no encaixe.
    Toda rota recebe `pedido` nos argumentos: `pedido.id` e `pedido.medir(nome, fn)` para o tempo de cada etapa. */
 const ctxRotas = { rota, rotaPublica, exigirCron, json, ErroHttp, lerCorpo, db, auth, seg, equipe, limitador, periodoDaQuery, platDe, limiteDe, hojeBR, VERSAO, registro: Registro, enderecos };
@@ -758,8 +769,8 @@ async function atender(req, res) {
 
     /* --- cron externo: autentica por token, não por login --- */
     if (caminho.startsWith('/api/cron/')) {
-      if (!CRON_TOKEN || q.get('chave') !== CRON_TOKEN) throw new ErroHttp(401, 'chave inválida');
-      if (caminho === '/api/cron/sync')      return json(res, 200, await coletor.sincronizar({ dias: 7 }));
+      if (!chaveDeCronOk(q, req)) throw new ErroHttp(401, 'chave inválida');
+      if (caminho === '/api/cron/sync')     return json(res, 200, await coletor.sincronizar({ dias: 7 }));
       if (caminho === '/api/cron/radar')     return json(res, 200, await radar.rodar({ enviar: true }));
       if (caminho === '/api/cron/relatorio') return json(res, 200, resumoDoRelatorio(await relatorio.gerarEEnviar({ enviar: true })));
       if (caminho === '/api/cron/ciclo')     return json(res, 200, await require('./ciclo').avisarGestores({ hojeISO: hojeBR() }));

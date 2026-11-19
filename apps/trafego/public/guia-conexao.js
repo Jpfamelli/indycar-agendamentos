@@ -42,18 +42,18 @@
     ];
   }
 
-  /** Passos do Google Ads. */
+  /** Passos do Google Ads. Desde 09/09/2026 o Google não pede mais o developer token (integração r8: passo removido). */
   function passosGoogle(i) {
     const x = i || {};
+    // conta de serviço (e-mail + chave privada) já é acesso completo: o refresh token só vale para o OAuth
+    const contaDeServico = !!x.tem_google_token && !x.tem_google_refresh;
     return [
       { id: 'cliente', titulo: 'ID do cliente (10 dígitos)', feito: !!(x.tem_google_cliente || x.google_customer_id),
         como: 'Aparece no topo do Google Ads (123-456-7890). Se a conta fica numa MCC, preencha também a gerenciadora.' },
-      { id: 'developer', titulo: 'Developer token aprovado', feito: !!x.tem_google_developer_token,
-        como: 'Google Ads → Ferramentas → Central da API. A aprovação do Google leva alguns dias.' },
-      { id: 'oauth', titulo: 'Client ID e Client secret', feito: !!x.tem_google_oauth,
-        como: 'Google Cloud Console → APIs e serviços → Credenciais → ID do cliente OAuth.' },
-      { id: 'refresh', titulo: 'Refresh token (autorização)', feito: !!x.tem_google_refresh,
-        como: 'Faça o consentimento OAuth uma vez (ex.: OAuth Playground com o escopo adwords) e cole o refresh token.' },
+      { id: 'oauth', titulo: 'Client ID e Client secret (ou conta de serviço)', feito: !!x.tem_google_oauth,
+        como: 'Google Cloud Console → APIs e serviços → Credenciais. Conta de serviço: e-mail no Client ID e a chave privada no Client secret.' },
+      { id: 'refresh', titulo: 'Refresh token (autorização)', feito: !!x.tem_google_refresh || contaDeServico,
+        como: 'Só no OAuth: faça o consentimento uma vez (ex.: OAuth Playground com o escopo adwords) e cole o refresh token. Conta de serviço não precisa.' },
       { id: 'teste', titulo: 'Conexão testada', feito: sincOk(x),
         como: sincErro(x) ? 'O último teste deu erro: toque em "Testar sem salvar" para ver o que fazer.' : 'Toque em "Testar sem salvar" e depois em "Salvar".' },
     ];

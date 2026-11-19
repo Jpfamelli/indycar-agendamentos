@@ -80,7 +80,7 @@ module.exports = (ctx) => {
     catch (e) { throw comEspera(res, e); }
   });
 
-  const rotinaDoPlano = ({ q }) => { exigirCron(q); return plano().rotina(); };
+  const rotinaDoPlano = ({ q, req }) => { exigirCron(q, req); return plano().rotina(); };
   rotaPublica('POST', '/api/cron/plano', rotinaDoPlano);
   rotaPublica('GET', '/api/cron/plano', rotinaDoPlano);
 };

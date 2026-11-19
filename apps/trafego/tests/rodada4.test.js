@@ -90,7 +90,9 @@ test('guia Google: cada credencial vira um passo; sem segredo na mensagem', () =
   const i = { tem_google_cliente: true, tem_google_developer_token: true, tem_google_oauth: false, tem_google_refresh: false };
   const p = Guia.passosGoogle(i);
   const r = Guia.resumo(p);
-  assert.equal(r.feitos, 2);
+  // integração r8: o Google não pede mais o developer token; o passo saiu (ter um salvo não conta como passo feito)
+  assert.equal(p.some(x => x.id === 'developer'), false);
+  assert.equal(r.feitos, 1);
   assert.equal(r.proximo.id, 'oauth');
   const m = Guia.mensagemPedido('google', p);
   assert.match(m, /Client ID/);

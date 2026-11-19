@@ -43,7 +43,7 @@ module.exports = (ctx) => {
     return { ok: true, acao };
   });
 
-  const rotinaDeMedir = ({ q }) => { exigirCron(q); return diario().rodarRotina(); };
+  const rotinaDeMedir = ({ q, req }) => { exigirCron(q, req); return diario().rodarRotina(); };
   rotaPublica('POST', '/api/cron/medir', rotinaDeMedir);
   rotaPublica('GET', '/api/cron/medir', rotinaDeMedir);
 };

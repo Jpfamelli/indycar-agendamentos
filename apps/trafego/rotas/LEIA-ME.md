@@ -36,7 +36,7 @@ module.exports = (ctx) => {
 |---|---|
 | `rota(método, caminho ou RegExp, fn)` | rota **com login**. `fn({ req, res, q, usuario, corpo, m })` |
 | `rotaPublica(método, caminho ou RegExp, fn, { corsLivre })` | rota **sem login**. `fn({ req, res, q, caminho, ip, corpo, m })` |
-| `exigirCron(q)` | para rotinas em `/api/cron/…`: confere `?chave=` (lança 401) |
+| `exigirCron(q, req)` | para rotinas em `/api/cron/…`: confere o cabeçalho `X-Cron-Chave` ou `?chave=` (lança 401) |
 | `json(res, status, objeto)` | resposta JSON com os cabeçalhos de segurança |
 | `ErroHttp(status, mensagem, extra)` | erro que sai em JSON com o status certo |
 | `lerCorpo(req)` | o mesmo que `corpo()` |

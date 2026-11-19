@@ -69,10 +69,10 @@ test('existe dado real? linha de demonstração não conta; linha sem a marca de
 });
 
 test('metas: viram número; sem a linha ou sem a tabela, ninguém inventa meta', async () => {
-  const f = F.criarFonte({ sb: criarBanco({ ads_config: [{ id: true, cpa_alvo: '90', orcamento_mensal: '9000.00', ticket_medio: null, extras: { cpa_alvo_google: 120 } }] }), agora: relogio() });
-  assert.deepEqual(await f.config(), { cpa_alvo: 90, cpa_alvo_google: 120, orcamento_mensal: 9000, ticket_medio: null });
+  const f = F.criarFonte({ sb: criarBanco({ ads_config: [{ id: true, cpa_alvo: '90', orcamento_mensal: '9000.00', ticket_medio: null, margem_pct: '45.00', extras: { cpa_alvo_google: 120 } }] }), agora: relogio() });
+  assert.deepEqual(await f.config(), { cpa_alvo: 90, cpa_alvo_google: 120, orcamento_mensal: 9000, ticket_medio: null, margem_pct: 45 });
   const vazia = F.criarFonte({ sb: criarBanco({ ads_config: [] }), agora: relogio() });
-  assert.deepEqual(await vazia.config(), { cpa_alvo: null, cpa_alvo_google: null, orcamento_mensal: null, ticket_medio: null });
+  assert.deepEqual(await vazia.config(), { cpa_alvo: null, cpa_alvo_google: null, orcamento_mensal: null, ticket_medio: null, margem_pct: null });
   assert.deepEqual(vazia.falhas(), []);
   const semTabela = F.criarFonte({ sb: criarBanco({}), agora: relogio() });
   assert.deepEqual(await calado(() => semTabela.config()), {});

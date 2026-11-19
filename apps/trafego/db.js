@@ -8,6 +8,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { num } = require('./metricas');
+const google = require('./google');   // integração r8: regra única de "tem acesso" ao Google (sem developer token)
 
 const URL = process.env.SUPABASE_URL || '';
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || '';
@@ -98,7 +99,7 @@ function mascararIntegracao(i) {
     meta_ad_account_id: i.meta_ad_account_id, google_customer_id: i.google_customer_id,
     meta_token_expira_em: i.meta_token_expira_em,
     tem_meta_token: tem(i.meta_access_token),
-    tem_google_token: tem(i.google_refresh_token) && tem(i.google_developer_token),
+    tem_google_token: google.temAcesso(i),
     // Rodada 4: o guia de conexão mostra passo a passo o que já foi colado — só sim/não, nunca o valor.
     tem_meta_conta: tem(i.meta_ad_account_id),
     tem_google_cliente: tem(i.google_customer_id),
@@ -178,7 +179,7 @@ async function apagarDemo() {
 function classificarChave(i) {
   if (!i || i.ativo === false) return 'sem_token';
   const tem = v => !!(v && String(v).trim());
-  const temToken = i.canal === 'meta' ? tem(i.meta_access_token) : tem(i.google_refresh_token) && tem(i.google_developer_token);
+  const temToken = i.canal === 'meta' ? tem(i.meta_access_token) : google.temAcesso(i);
   if (!temToken) return 'sem_token';
   return /^erro/i.test(String(i.ultimo_sync_status || '')) ? 'recusada' : 'ok';
 }
