@@ -83,13 +83,15 @@ const CONTAS = [
 ];
 
 /** Por que algumas contas vêm "sem dado": a tela diz com todas as letras. */
-function porQueFalta(estado, derivados) {
+/** Desde quando não há registro de resposta: estado.respostas_desde (Jornada) ou, na Hoje do T2a, conexoes.whatsapp.desde. */
+const desdeQuando = (d) => dataCurta((d.estado && d.estado.respostas_desde) || (d.conexoes && d.conexoes.whatsapp && d.conexoes.whatsapp.desde) || null);
+
+function porQueFalta(estado, derivados, desde) {
   const motivos = [];
   const semCusto = derivados.custo_por_contato == null;
   if (semCusto && (estado.gasto === 'sem_conta' || estado.gasto === 'sem_dados')) motivos.push('custo e retorno aparecem quando a conta de anúncios estiver ligada');
   else if (derivados.retorno == null && estado.gasto === 'real') motivos.push('o retorno aparece quando os serviços fechados de anúncio tiverem valor');
   if (derivados.tempo_resposta_min == null && estado.respostas === 'sem_registro') {
-    const desde = dataCurta(estado.respostas_desde);
     motivos.push('o tempo até responder não tem registro' + (desde ? ' desde ' + desde : '') + ', porque o WhatsApp automático parou');
   }
   if (!motivos.length) return null;
@@ -101,7 +103,7 @@ function placar(d) {
   const derivados = d.derivados || {};
   const anterior = d.periodo && d.periodo.anterior;
   const temComparacao = (d.numeros || []).some((n) => ehNumero(n.variacao));
-  const falta = porQueFalta(d.estado || {}, derivados);
+  const falta = porQueFalta(d.estado || {}, derivados, desdeQuando(d));
   // Conta sem dado e com o porquê explicado vira uma frase só, em vez de cinco blocos "sem dado": o que fazer agora sobe na tela.
   const todas = CONTAS.map(([chave, rotulo, formatar, nome]) => ({ rotulo, nome, texto: ehNumero(derivados[chave]) ? formatar(derivados[chave]) : null }));
   const contas = falta ? todas.filter((c) => c.texto) : todas;
@@ -232,7 +234,7 @@ function caminho(ctx, d) {
           h('span', null, contagem(perdidos.sem_motivo, 'ainda sem motivo', 'ainda sem motivo')),
           h('a', { class: 'ligacao', href: ctx.hrefDaTela('jornada', { pendencia: 'sem_motivo' }) }, 'Dizer o motivo', icone('seta', 'icone-p'))) : null,
         !perdidos.total ? h('p', { class: 'suave' }, 'Ninguém marcado como "não fechou" no período.') : null)),
-    semResposta ? h('p', { class: 'apoio' }, selo('atencao', 'Sem registro'), ' A etapa "Respondidos" está sem dado: desde ' + (dataCurta(estado.respostas_desde) || 'outubro') + ' o sistema não enxerga o que a oficina responde pelo celular.') : null);
+    semResposta ? h('p', { class: 'apoio' }, selo('atencao', 'Sem registro'), ' ' + (typeof estado.respostas_texto === 'string' && estado.respostas_texto ? estado.respostas_texto : 'A etapa "Respondidos" está sem dado: ' + (desdeQuando(d) ? 'desde ' + desdeQuando(d) + ', ' : 'desde que o WhatsApp automático parou, ') + 'o sistema não enxerga o que a oficina responde pelo celular.')) : null);
 }
 
 /* ------------------------------ de onde vieram ------------------------------ */
