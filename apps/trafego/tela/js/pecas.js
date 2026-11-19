@@ -159,3 +159,56 @@ export function colunasPorDia(dias, { nome = 'Contatos por dia', um = 'contato',
 }
 
 export { soLeitor };
+
+/* ------------------------------ copiar, baixar e erro de campo (Ajustes e relatórios) ------------------------------ */
+
+/** Copia o texto. Sem a área de transferência (página sem https, navegador antigo), cai no jeito antigo. */
+export async function copiarTexto(texto) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(texto); return true; }
+  } catch { /* tenta o jeito antigo */ }
+  const area = h('textarea', { class: 'so-leitor', readonly: true, 'aria-hidden': 'true', tabindex: '-1' });
+  area.value = texto;
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  area.remove();
+  return ok;
+}
+
+/** Botão "Copiar" que avisa no pé da tela. `texto` pode ser uma função (lê na hora do clique). */
+export function botaoCopiar(ctx, texto, { rotulo = 'Copiar', classe = 'botao', aviso = 'Copiado.' } = {}) {
+  return h('button', { class: classe, type: 'button', on: { click: async (e) => {
+    const valor = typeof texto === 'function' ? texto() : texto;
+    const ok = await copiarTexto(String(valor == null ? '' : valor));
+    ctx.avisar(ok ? aviso : 'Não deu para copiar sozinho. Selecione o texto e copie com o dedo ou com Ctrl+C.');
+    e.currentTarget.focus();
+  } } }, icone('copiar'), rotulo);
+}
+
+/** Entrega um arquivo para a pessoa salvar (o login vai no cabeçalho, então o arquivo vem como blob). */
+export function salvarArquivo(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const a = h('a', { href: url, download: nome, class: 'so-leitor', tabindex: '-1', 'aria-hidden': 'true' });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+/** Mostra (ou tira) o erro de um campo, ligado a ele para o leitor de tela. */
+export function erroNoCampo(campo, texto) {
+  if (!campo) return;
+  const id = (campo.id || 'campo') + '-erro';
+  let msg = campo.parentElement && campo.parentElement.querySelector('#' + CSS.escape(id));
+  if (!texto) {
+    campo.removeAttribute('aria-invalid');
+    if (msg) msg.remove();
+    return;
+  }
+  if (!msg) { msg = h('p', { class: 'campo-erro', id }); campo.insertAdjacentElement('afterend', msg); }
+  msg.textContent = texto;
+  campo.setAttribute('aria-invalid', 'true');
+  campo.setAttribute('aria-describedby', [campo.getAttribute('aria-describedby'), id].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' '));
+}

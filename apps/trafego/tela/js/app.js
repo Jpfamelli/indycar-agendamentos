@@ -7,7 +7,7 @@
    ============================================================================ */
 
 import { $, $$, h, icone, trocar } from './dom.js';
-import { lerRota, montarRota, destinoDaApi, TELAS } from './rotas.js';
+import { lerRota, montarRota, destinoDaApi, TELAS, TELAS_SOLTAS } from './rotas.js';
 import { baseDaPagina, listaDeApps, linkSeguro, nomeDaAba, appDoEndereco, enderecoDeEntrada, raizDaCentral, CENTRAL_PUBLICA } from './ecossistema.js';
 import { criarApi, criarLeitor } from './api.js';
 import { abrirSessao, acabouDeIr, marcarIda, limparIda } from './sessao.js';
@@ -17,11 +17,13 @@ import { textoDaEspera } from './rede.js';
 import * as Estados from './telas/estados.js';
 import * as Hoje from './telas/hoje.js';
 import * as Jornada from './telas/jornada.js';
-import * as Espera from './telas/espera.js';
 import * as Campanhas from './telas/campanhas.js';
 import * as Gestor from './telas/gestor.js';
+import * as Ajustes from './telas/ajustes.js';
+import * as Folha from './telas/folha.js';
+import * as Apresentacao from './telas/apresentacao.js';
 
-const TELA = { hoje: Hoje, jornada: Jornada, campanhas: Campanhas, gestor: Gestor, ajustes: Espera };
+const TELA = { hoje: Hoje, jornada: Jornada, campanhas: Campanhas, gestor: Gestor, ajustes: Ajustes, folha: Folha, apresentacao: Apresentacao };
 const COM_PERIODO = new Set(['hoje', 'jornada', 'campanhas']);
 const NOME_DO_PAPEL = { admin: 'Administrador', dono: 'Administrador', gestor: 'Gestor', atendente: 'Atendente', agenda: 'Agenda' };
 
@@ -226,7 +228,7 @@ function pintarCasca(rota) {
     link.setAttribute('href', hrefDaTela(link.dataset.tela));
     if (link.dataset.tela === rota.tela) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
   }
-  const nome = TELAS.find((t) => t.id === rota.tela);
+  const nome = [...TELAS, ...TELAS_SOLTAS].find((t) => t.id === rota.tela);
   document.title = (nome ? nome.rotulo + ' · ' : '') + 'IndyCar Tráfego';
   const periodo = periodoAtual();
   el.sessao.hidden = false;

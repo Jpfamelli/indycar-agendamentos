@@ -13,7 +13,12 @@ export const TELAS = [
   { id: 'gestor', rotulo: 'Gestor IA' },
   { id: 'ajustes', rotulo: 'Ajustes' },
 ];
-const IDS = TELAS.map((t) => t.id);
+/** Telas que não ficam no menu: abrem dos Ajustes › Relatórios (folha A4 e modo apresentação). */
+export const TELAS_SOLTAS = [
+  { id: 'folha', rotulo: 'Folha do mês' },
+  { id: 'apresentacao', rotulo: 'Apresentação' },
+];
+const IDS = [...TELAS, ...TELAS_SOLTAS].map((t) => t.id);
 const TELA_PADRAO = 'hoje';
 const MAX_VALOR = 200;
 
@@ -54,7 +59,7 @@ export function montarRota(tela, params = {}) {
 export function destinoDaApi(ir) {
   const texto = String(ir == null ? '' : ir).trim();
   if (!texto) return null;
-  const m = /^#?[/]?(hoje|jornada|campanhas|gestor|ajustes)(?:[?](.*))?$/.exec(texto);
+  const m = /^#?[/]?(hoje|jornada|campanhas|gestor|ajustes|folha|apresentacao)(?:[?](.*))?$/.exec(texto);
   if (m) {
     const lida = lerRota('#/' + m[1] + (m[2] ? '?' + m[2] : ''));
     return { tipo: 'tela', tela: lida.tela, params: lida.params };

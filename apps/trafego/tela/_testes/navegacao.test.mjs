@@ -1,5 +1,5 @@
 /* Lógica pura da tela: filtros da Jornada, endereço das telas, frase principal,
-   rede, desfazer, links do ecossistema, valor digitado e textos das telas de espera. */
+   rede, desfazer, links do ecossistema, valor digitado e as telas soltas (folha e apresentação). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as Filtros from '../js/filtros.js';
@@ -9,7 +9,6 @@ import * as Rede from '../js/rede.js';
 import { criarDesfazer } from '../js/desfazer.js';
 import { linkSeguro, baseDaPagina, raizDaCentral, enderecoDeEntrada, listaDeApps, CENTRAL_PUBLICA } from '../js/ecossistema.js';
 import { conferirValor } from '../js/telas/respostas.js';
-import { ESPERAS } from '../js/espera-textos.js';
 
 /* ------------------------------ filtros ------------------------------ */
 
@@ -170,16 +169,12 @@ test('valor do serviço: aceita o jeito brasileiro e explica quando não dá', (
   assert.match(conferirValor('200000').erro, /entre/);
 });
 
-/* ------------------------------ textos das telas de espera ------------------------------ */
+/* ------------------------------ telas soltas (folha e apresentação) ------------------------------ */
 
-test('telas de espera: as três existem, com perguntas, atalhos e vocabulário do dono', () => {
-  const proibido = [/—/, /\blead/i, /\bROAS\b/, /\bCPA\b/, /\bCTR\b/, /dashboard/i, /insight/i, /em construção/i, /ve[ií]culo/i, /efetuar/i, /prezad/i];
-  for (const id of ['campanhas', 'gestor', 'ajustes']) {
-    const t = ESPERAS[id];
-    assert.ok(t.perguntas.length >= 3, id);
-    assert.ok(t.atalhos.length >= 1, id);
-    for (const a of t.atalhos) assert.ok(a.tela || a.caminho === 'antiga/', id + ': atalho sem destino daqui');
-    const tudo = JSON.stringify(t);
-    for (const re of proibido) assert.doesNotMatch(tudo, re, id);
-  }
+test('folha e apresentação: rotas próprias, fora do menu, e o "ir" da API leva até elas', () => {
+  assert.deepEqual(lerRota('#/folha?mes=2026-10'), { tela: 'folha', params: { mes: '2026-10' } });
+  assert.deepEqual(lerRota('#/apresentacao?periodo=7d'), { tela: 'apresentacao', params: { periodo: '7d' } });
+  assert.equal(montarRota('folha', { mes: '2026-11' }), '#/folha?mes=2026-11');
+  assert.deepEqual(destinoDaApi('folha?mes=2026-09'), { tipo: 'tela', tela: 'folha', params: { mes: '2026-09' } });
+  assert.deepEqual(destinoDaApi('apresentacao'), { tipo: 'tela', tela: 'apresentacao', params: {} });
 });

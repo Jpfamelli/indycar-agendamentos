@@ -516,23 +516,23 @@ function conexoesDe(mundo) {
   const r = mundo.receita;
   if (mundo.cenario === 'comeco') {
     return {
-      meta: { ligado: false, situacao: 'nunca_ligou', ultima_coleta: null, aviso: null },
-      google: { ligado: false, situacao: 'nunca_ligou', ultima_coleta: null, aviso: null },
+      meta: { ligado: false, situacao: 'nunca_ligou', ultima_coleta: null, aviso: null, parada: false },
+      google: { ligado: false, situacao: 'nunca_ligou', ultima_coleta: null, aviso: null, parada: false },
       site: { rastreio: false, ultimo_clique: null, cliques_7d: 0 },
       whatsapp: { ligado: false, situacao: 'sem_aparelho', desde: null, aviso: 'Nenhum aparelho de WhatsApp ligado ao Atendimento ainda.' },
     };
   }
   if (!r.contas) {
     return {
-      meta: { ligado: false, situacao: 'nunca_ligou', ultima_coleta: null, aviso: 'O acesso salvo é de exemplo: o gasto ainda não entra.' },
-      google: { ligado: false, situacao: 'nunca_ligou', ultima_coleta: null, aviso: null },
+      meta: { ligado: false, situacao: 'nunca_ligou', ultima_coleta: null, aviso: 'O acesso salvo é de exemplo: o gasto ainda não entra.', parada: false },
+      google: { ligado: false, situacao: 'nunca_ligou', ultima_coleta: null, aviso: null, parada: false },
       site: { rastreio: true, ultimo_clique: '2026-11-19T09:12:00-03:00', cliques_7d: 23 },
       whatsapp: { ligado: false, situacao: 'chave_recusada', desde: '2026-10-05', aviso: 'A chave de acesso foi recusada. Nenhum WhatsApp automático sai até trocar a chave no Atendimento.' },
     };
   }
   return {
-    meta: { ligado: true, situacao: 'ok', ultima_coleta: '2026-11-19T06:10:00-03:00', aviso: null },
-    google: { ligado: true, situacao: 'token_vencendo', ultima_coleta: '2026-11-19T06:12:00-03:00', aviso: 'O acesso do Google vence em 6 dias. Renove para a coleta não parar.' },
+    meta: { ligado: true, situacao: 'ok', ultima_coleta: '2026-11-19T06:10:00-03:00', aviso: null, parada: false },
+    google: { ligado: true, situacao: 'token_vencendo', ultima_coleta: '2026-11-19T06:12:00-03:00', aviso: 'O acesso do Google vence em 6 dias. Renove para a coleta não parar.', parada: false },
     site: { rastreio: true, ultimo_clique: '2026-11-19T10:04:00-03:00', cliques_7d: 61 },
     whatsapp: { ligado: true, situacao: 'ok', desde: '2026-08-14', aviso: null },
   };
