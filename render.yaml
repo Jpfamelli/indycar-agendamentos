@@ -7,6 +7,7 @@ services:
     plan: starter
     buildCommand: npm install # supabase-js e o SDK da Anthropic (CRM e Atendimento)
     # IndyCar Central (16/10): Agenda + CRM + Comunicar + Atendimento num servidor só.
+    # Rodada 8 (19/11): o Tráfego (apps/trafego) também mora aqui, em /trafego/. Mesmo serviço, mesmo build.
     # Rollback: voltar para "node server.js" (só a Agenda) no painel ou pela API do Render.
     startCommand: node central.js
     envVars:
@@ -40,3 +41,8 @@ services:
 # Central: além do env group "Indycar" (SUPABASE_*, ANTHROPIC_API_KEY, CW_*), o serviço tem
 # RUNNER_TOKEN (carteiro do Comunicar; igual a posvenda_config.runner_token), ICS_TOKEN,
 # IMPORT_INTERVALO_MIN e WHATSAPP_VERIFY_TOKEN — valores só no painel do Render.
+# Tráfego (rodada 8): usa as mesmas SUPABASE_* e ANTHROPIC_API_KEY e não pede variável nova para subir.
+# As rotinas dele (coleta, radar, relatório, avisos) ficam DESLIGADAS; só ligam com TRAFEGO_AUTOMATICO=1 no painel
+# (ADS_AUTOMATICO não manda na Central). ADS_CRON_TOKEN só é preciso se um agendador de fora for chamar
+# /trafego/api/cron/*; sem ele essas rotas respondem 401. Não criar ADS_DEMO nem ADS_DEMO_ENVIA.
+# A lista completa está em indycar-ferramentas/RENDER.md (seção de 19/11/2026).
