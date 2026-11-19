@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "indycar-trafego": {
+      "type": "http",
+      "url": "https://indycar-agendamentos.onrender.com/trafego/mcp",
+      "headers": { "Authorization": "Bearer ${INDYCAR_TRAFEGO_CHAVE}" }
+    }
+  }
+}

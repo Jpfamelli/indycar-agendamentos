@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "indycar-trafego": {
+      "command": "node",
+      "args": ["C:\\caminho\\para\\apps\\trafego\\mcp\\ponte-stdio.mjs"],
+      "env": {
+        "INDYCAR_TRAFEGO_CHAVE": "COLE_AQUI_A_CHAVE_ica",
+        "INDYCAR_TRAFEGO_URL": "https://indycar-agendamentos.onrender.com/trafego/mcp"
+      }
+    }
+  }
+}

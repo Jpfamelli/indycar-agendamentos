@@ -1,0 +1,6 @@
+# ~/.codex/config.toml (ou .codex/config.toml dentro de um projeto confiável)
+# A variável INDYCAR_TRAFEGO_CHAVE precisa existir no terminal que abre o Codex.
+[mcp_servers.indycar_trafego]
+url = "https://indycar-agendamentos.onrender.com/trafego/mcp"
+bearer_token_env_var = "INDYCAR_TRAFEGO_CHAVE"
+tool_timeout_sec = 60
