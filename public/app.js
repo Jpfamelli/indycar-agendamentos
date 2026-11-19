@@ -585,11 +585,15 @@ function pedirValorAoFechar(id, nome, servico) {
     campo.addEventListener('input', () => { const c = campo.value, m = P.mascaraValor(c); if (m !== c) campo.value = m; rotular(); });
     const confirmar = () => {
       const v = P.valorDeTela(campo.value);
-      if (Number.isNaN(v) || (v !== null && (v < 0 || v > 200000))) {
+      if (v === null || v === 0) {
+        const e = $('#vf_erro'); e.hidden = false; $('span', e).textContent = 'Digite o valor ou escolha “Não sei agora”.';
+        return campo.focus();
+      }
+      if (!Number.isFinite(v) || v < 0 || v > 200000) {
         const e = $('#vf_erro'); e.hidden = false; $('span', e).textContent = 'Valor inválido: use só números, ex.: 350 ou 1.250,00.';
         return campo.focus();
       }
-      _aoFecharModal = null; closeModal(); fim({ valor: v && v > 0 ? v : null });
+      _aoFecharModal = null; closeModal(); fim({ valor: v });
     };
     campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmar(); } });
     ok.addEventListener('click', confirmar);
