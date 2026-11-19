@@ -20,7 +20,8 @@
     const hoje = m.hoje || L.hojeSP();
     const r = W.resumoManha(m, { gestor: !!C.visao().dono });
     if (r.vazio || ler(chave(hoje)) === '1') { sec.hidden = true; return; }
-    $('#manhaTitulo').textContent = `${L.saudacao()}, ${W.primeiroNome(C.perfil.nome || '') || 'tudo certo por aí?'}`.replace(/, $/, '');
+    // rodada 9: o título não repete a saudação (o "Boa noite, Fulano." já está logo acima); diz do que o bloco trata
+    $('#manhaTitulo').textContent = 'Ontem e amanhã';
     $('#manhaOntem').textContent = r.ontem;
     $('#manhaAmanha').textContent = r.amanha;
     $('#manhaPend').innerHTML = r.pendencias.map((p) => {
