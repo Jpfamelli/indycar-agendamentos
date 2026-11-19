@@ -3010,7 +3010,7 @@ document.addEventListener('click', async e => {
         '<li><button class="btn" data-horario-whatsapp="' + i + '">Agendar para ' +
         esc(c.nome || c.telefone) + '</button></li>').join('') + '</ul>' :
         '<p>Nenhuma conversa encontrada nos últimos sete dias.</p>') + '</div>');
-    $('[data-horario-whatsapp]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-horario-whatsapp]').forEach(b => b.addEventListener('click', () => {
       const c = itens[Number(b.dataset.horarioWhatsapp)];
       closeModal();
       abrirEntrada({ tel: c.telefone, nome: c.nome, novo: true });
