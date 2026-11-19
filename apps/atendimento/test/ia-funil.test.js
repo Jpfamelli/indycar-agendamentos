@@ -212,7 +212,7 @@ test('confirmar: nada é executado; propostas ficam e o dono da conversa recebe 
   assert.equal(notificacoes[0].p_tipo, 'ia');
   assert.match(notificacoes[0].p_titulo, /IA propôs para Zé do Gol/);
   assert.equal(notificacoes[0].p_link, `/?conversa=${ID.conversaSemCliente}`);
-  assert.ok(notificacoes[0].p_chave.startsWith('ia-proposta:'));
+  assert.equal(notificacoes[0].p_chave, `ia-proposta:${ID.conversaSemCliente}:r8`);
   assert.ok(db.ia_acoes.filter(a => a.status === 'proposta').length >= 2);
   assert.ok(!db.agendamentos.some(a => a.data === '2026-10-15' && String(a.hora).startsWith('14:00')));
   // o clique de alguém da equipe executa a resposta: a mensagem SAI

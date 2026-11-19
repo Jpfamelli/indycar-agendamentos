@@ -28,6 +28,7 @@
 'use strict';
 
 const CTX = require('./contexto.js');
+const { avisarConversa } = require('./aviso-conversa');
 const R6 = require('../public/r6-regras.js');
 
 const HUMANO_RECENTE_MIN = 30;
@@ -153,14 +154,21 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
   /** Nível "confirmar": o dono (ou os gestores) recebe um aviso com um clique para aprovar. */
   async function avisarDono(conv, propostas) {
     if (!propostas.length) return 0;
+    const { data: pendentes, error } = await sb.from('ia_acoes').select('id')
+      .eq('conversa_id', conv.id).eq('status', 'proposta')
+      .order('created_at', { ascending: true }).limit(propostas.length + 1);
+    if (error) throw error;
+    const novas = new Set(propostas.map((p) => p.id));
+    const jaAguardava = (pendentes || []).some((p) => !novas.has(p.id));
+    const chave = `ia-proposta:${conv.id}:r8`;
     const nome = (conv.nome && String(conv.nome).trim()) || conv.telefone || 'Cliente';
     const resumos = propostas.map(p => p.resumo).filter(Boolean);
     const titulo = `✨ IA propôs para ${nome}: ${resumos[0] || propostas[0].tipo}`.slice(0, 140);
     const corpo = (resumos.length > 1 ? `${resumos.length} propostas: ${resumos.join(' · ')}` : 'Abra a conversa e aprove com um clique.').slice(0, 400);
     let avisos = 0;
     for (const id of await destinosDoAviso(conv)) {
-      const { data, error } = await sb.rpc('notificar', { p_perfil: id, p_tipo: 'ia', p_titulo: titulo, p_corpo: corpo,
-        p_link: `/?conversa=${conv.id}`, p_app: 'atendimento', p_chave: `ia-proposta:${conv.id}:${Math.floor(agora().getTime() / 3600_000)}` });
+      const { data, error } = await avisarConversa(sb, { p_perfil: id, p_tipo: 'ia', p_titulo: titulo, p_corpo: corpo,
+        p_link: `/?conversa=${conv.id}`, p_app: 'atendimento', p_chave: chave }, jaAguardava ? null : agora().toISOString());
       if (!error && data) avisos++;
     }
     return avisos;
@@ -175,15 +183,17 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
       saida: { automatica: true, bloqueada: true } });
     feitas.push({ tipo: 'bloqueio_manipulacao', id: a?.id || null });
     const niveis = cfg.funil_niveis || {};
+    const desde = conv.aguardando_consultor ? conv.aguardando_desde : agora().toISOString();
     if (niveis.humano !== 'sugerir') {
-      await sb.from('conversas').update({ aguardando_consultor: true, aguardando_desde: conv.aguardando_consultor ? undefined : agora().toISOString() }).eq('id', conversaId);
+      await sb.from('conversas').update({ aguardando_consultor: true, aguardando_desde: desde || undefined }).eq('id', conversaId);
     }
     let avisos = 0;
     try {
       const nome = R6.nomeSeguro(f.cliente?.nome || conv.nome || '') || conv.telefone || 'Cliente';
       for (const id of await destinosDoAviso(conv)) {
-        const { data, error } = await sb.rpc('notificar', { p_perfil: id, p_tipo: 'ia', p_titulo: `🛡 Mensagem suspeita de ${nome}: a IA não leu`.slice(0, 140),
-          p_corpo: 'A mensagem tenta dar ordens à IA. Nada foi feito; confira e responda você mesmo.', p_link: `/?conversa=${conversaId}`, p_app: 'atendimento', p_chave: `ia-manip:${conversaId}:${a?.id || Date.now()}` });
+        const periodo = conv.aguardando_consultor || niveis.humano !== 'sugerir' ? (desde || 'aguardando') : (a?.id || Date.now());
+        const { data, error } = await avisarConversa(sb, { p_perfil: id, p_tipo: 'ia', p_titulo: `🛡 Mensagem suspeita de ${nome}: a IA não leu`.slice(0, 140),
+          p_corpo: 'A mensagem tenta dar ordens à IA. Nada foi feito; confira e responda você mesmo.', p_link: `/?conversa=${conversaId}`, p_app: 'atendimento', p_chave: `ia-manip:${conversaId}:${periodo}` });
         if (!error && data) avisos++;
       }
     } catch (e) { log('funil manipulação:', e.message); }
