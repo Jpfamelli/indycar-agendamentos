@@ -41,7 +41,7 @@ export const PARADAS = [
   ['aj-relatorios', '?cenario=cheio', '#/ajustes?secao=relatorios'], ['aj-devolucao', '?cenario=cheio', '#/ajustes?secao=devolucao'],
   ['folha', '?cenario=cheio', '#/folha?mes=2026-10'], ['apresentacao', '?cenario=cheio', '#/apresentacao'],
   ['erro-hoje', '?cenario=sem_conta&falha=hoje', '#/hoje'], ['erro-jornada', '?cenario=sem_conta&falha=jornada', '#/jornada'],
-  ['sem-acesso', '?acesso=nao', '#/hoje'], ['sem-sessao', '?sessao=nao', '#/hoje'],
+  ['sem-acesso', '?acesso=nao', '#/hoje'], ['gestor-papel-ia', '?cenario=cheio&papel=gestor', '#/ajustes?secao=ia'], ['gestor-papel-conexoes', '?cenario=sem_conta&papel=gestor', '#/ajustes?secao=conexoes'], ['sem-sessao', '?sessao=nao', '#/hoje'],
 ];
 const LARGURAS = (process.env.LARGURAS || '1440,375').split(',').map(Number);
 const TEMAS = (process.env.TEMAS || 'escuro').split(',');

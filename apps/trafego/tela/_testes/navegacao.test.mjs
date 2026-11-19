@@ -178,3 +178,12 @@ test('folha e apresentação: rotas próprias, fora do menu, e o "ir" da API lev
   assert.deepEqual(destinoDaApi('folha?mes=2026-09'), { tipo: 'tela', tela: 'folha', params: { mes: '2026-09' } });
   assert.deepEqual(destinoDaApi('apresentacao'), { tipo: 'tela', tela: 'apresentacao', params: {} });
 });
+
+test('recusaDaCasca: só 401 e 403 que falam da pessoa param o app inteiro (rodada 9)', () => {
+  assert.equal(Rede.recusaDaCasca(401, null), true);
+  for (const codigo of ['sem_acesso', 'desativado', 'sem_perfil', 'mfa', 'trocar_senha']) assert.equal(Rede.recusaDaCasca(403, codigo), true, codigo);
+  // "Só o administrador cria chaves": recusa de uma ação, a gaveta mostra a frase e o app segue.
+  assert.equal(Rede.recusaDaCasca(403, 'so_admin'), false);
+  assert.equal(Rede.recusaDaCasca(403, null), false);
+  assert.equal(Rede.recusaDaCasca(500, 'sem_acesso'), false);
+});

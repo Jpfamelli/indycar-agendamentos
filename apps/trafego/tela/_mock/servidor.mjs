@@ -16,6 +16,7 @@
    Para provar os estados de tela, também na página:
      ?sessao=nao        ninguém logado        ?sessao=vencida  a API recusa (401)
      ?acesso=nao        logado sem acesso ao app
+     ?papel=gestor      logado como gestor: chaves da IA e salvar acesso da Meta/Google respondem 403 so_admin
      ?falha=hoje|jornada|detalhe|pendencias|gravar   a rota responde erro 500
      ?falha=migracao    gravar motivo ou origem responde 503 "o banco ainda não recebeu a atualização" (a produção de hoje);
                         frases, candidatas e chaves respondem ligado:false com aviso
@@ -107,7 +108,7 @@ export function criar({ base = '/trafego/' } = {}) {
     const pega = (k) => url.searchParams.get(k) || daPagina.get(k) || '';
     const cenario = Dados.CENARIOS.includes(pega('cenario')) ? pega('cenario') : 'sem_conta';
     return { cenario, falha: pega('falha'), lento: Math.min(5000, Number(pega('lento')) || 0), acesso: pega('acesso'), sessao: pega('sessao'), acordando: pega('acordando'),
-      incompleto: pega('incompleto') === '1', ia: pega('ia'), miniatura: pega('miniatura') };
+      incompleto: pega('incompleto') === '1', ia: pega('ia'), miniatura: pega('miniatura'), papel: pega('papel') === 'gestor' ? 'gestor' : 'admin' };
   }
 
   /* Fluxo do Gestor (text/event-stream): os pedaços saem com espera, como o modelo de verdade. Parar no meio fecha a conexão. */
@@ -152,7 +153,11 @@ export function criar({ base = '/trafego/' } = {}) {
     if (req.headers.authorization !== 'Bearer chave-de-mentira' || ctx.sessao === 'vencida') {
       return json(res, 401, { erro: 'faça login', codigo: ctx.sessao === 'vencida' ? 'sessao_vencida' : 'login' });
     }
-    if (caminho === '/api/eu' && leitura) return json(res, 200, ctx.acesso === 'nao' ? { ...Dados.PERFIL, acesso: false, motivo_sem_acesso: 'sem_permissao' } : Dados.PERFIL);
+    if (caminho === '/api/eu' && leitura) return json(res, 200, ctx.acesso === 'nao' ? { ...Dados.PERFIL, acesso: false, motivo_sem_acesso: 'sem_permissao' } : { ...Dados.PERFIL, papel: ctx.papel });
+    // ?papel=gestor: o que é só do administrador responde 403 so_admin, como o servidor de verdade (rodada 9).
+    if (ctx.papel === 'gestor' && ((caminho === '/api/ia/chaves' || caminho.startsWith('/api/ia/chaves/')) || (caminho === '/api/integracoes' && !leitura))) {
+      return json(res, 403, { erro: caminho.startsWith('/api/ia/chaves') ? 'Só o administrador cria, vê e revoga as chaves da IA.' : 'Só o administrador pode trocar o acesso da Meta e do Google.', codigo: 'so_admin' });
+    }
     if (ctx.acesso === 'nao') return json(res, 403, { erro: 'Você não tem acesso a este app.', codigo: 'sem_acesso', apps: ['agenda'] });
 
     if (leitura && ctx.acordando) {

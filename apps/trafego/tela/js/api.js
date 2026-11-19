@@ -61,7 +61,7 @@ export function criarApi({ base, token, aoRecusar, aoEsperar, aoVoltar, buscar, 
   /** Resposta de erro → ErroApi com a frase do app (ou a de rede). 401 e 403 com código avisam a casca. */
   function erroDaResposta(resposta, dados) {
     const codigo = (dados && dados.codigo) || null;
-    if ((resposta.status === 401 || (resposta.status === 403 && codigo)) && aoRecusar) aoRecusar(resposta.status, codigo, dados);
+    if (Rede.recusaDaCasca(resposta.status, codigo) && aoRecusar) aoRecusar(resposta.status, codigo, dados);
     const frase = (dados && typeof dados.erro === 'string' && dados.erro) || Rede.mensagem(resposta.status, online()) || 'Não deu certo agora. Tente de novo.';
     const erro = new ErroApi(frase, { status: resposta.status, codigo, corpo: dados });
     // Frase vinda do próprio app: ele está acordado. Só a resposta sem frase (página do provedor) conta como "acordando".
