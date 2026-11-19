@@ -504,3 +504,16 @@
     white-space: nowrap;
   }
 }
+
+/* "N contatos ainda sem origem" com o caminho para o mutirão, logo abaixo da lista de origens (rodada 9). */
+.origens-falta {
+  margin-top: var(--p-esp-3);
+  color: var(--cor-tinta-2);
+}
+.origens-falta > span {
+  flex: 1 1 18rem;
+  max-width: var(--medida-texto);
+}
+.origens-falta > .ligacao {
+  min-height: var(--alvo);
+}

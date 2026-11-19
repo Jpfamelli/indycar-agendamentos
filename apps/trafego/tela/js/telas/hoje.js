@@ -252,6 +252,8 @@ function origens(ctx, d) {
   const maior = Math.max(1, ...lista.map((o) => o.contatos || 0));
   const temCusto = lista.some((o) => ehNumero(o.custo_por_contato) || ehNumero(o.retorno));
   const estado = d.estado || {};
+  // "Ainda não sabemos" costuma ser a maior barra: o bloco leva direto para o mutirão que resolve.
+  const semOrigem = lista.find((o) => o.id === 'desconhecida' && ehNumero(o.contatos) && o.contatos > 0) || null;
   if (!lista.length) return bloco('tOrigens', 'De onde vieram os contatos', null, vazio({ titulo: 'Nenhum contato no período', texto: 'Quando chegar o primeiro, ele aparece aqui com a origem: anúncio, site, indicação ou porta.' }));
   return bloco('tOrigens', 'De onde vieram os contatos', null,
     h('ul', { class: 'origens' + (temCusto ? ' origens-com-custo' : '') },
@@ -267,6 +269,9 @@ function origens(ctx, d) {
           dado('faturado', ehNumero(o.faturado) ? dinheiro(o.faturado) : 'sem dado'),
           temCusto ? dado('custo por contato', ehNumero(o.custo_por_contato) ? dinheiro(o.custo_por_contato) : o.paga === true ? 'sem dado' : null) : null,
           temCusto ? dado('cada R$ 1 virou', ehNumero(o.retorno) ? dinheiro(o.retorno, { centavos: true }) : o.paga === true ? 'sem dado' : null) : null)))),
+    semOrigem ? h('p', { class: 'perdidos-falta origens-falta' },
+      h('span', null, contagem(semOrigem.contatos, 'contato ainda sem origem', 'contatos ainda sem origem') + ': cada um que ganha origem melhora a conta de onde vem o serviço.'),
+      h('a', { class: 'ligacao', href: ctx.hrefDaTela('jornada', { pendencia: 'sem_origem' }) }, 'Dizer de onde vieram', icone('seta', 'icone-p'))) : null,
     !temCusto && estado.gasto === 'sem_conta' ? h('p', { class: 'apoio' }, 'Custo por contato e retorno de cada origem entram quando a conta de anúncios estiver ligada.') : null);
 }
 
