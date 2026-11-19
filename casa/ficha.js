@@ -97,7 +97,7 @@
       const r = await fetch('/api/central/links-cliente', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (session ? session.access_token : '') }, body: JSON.stringify({ telefone: f.tel55 }), cache: 'no-store' });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.erro || 'falhou');
-      if (!d.ok) { caixa.innerHTML = `<p class="vazio">${d.motivo === 'cliente_nao_encontrado' ? 'Esse telefone ainda não é cliente cadastrado — marque um horário ou crie um orçamento primeiro.' : 'Os links não estão disponíveis agora.'}</p>`; return; }
+      if (!d.ok) { caixa.innerHTML = `<p class="vazio">${d.motivo === 'cliente_nao_encontrado' ? 'Esse telefone ainda não é cliente cadastrado. Marque um horário ou crie um orçamento primeiro.' : 'Os links não estão disponíveis agora.'}</p>`; return; }
       const nome = f.nome && !/^\(/.test(f.nome) ? f.nome : d.nome;
       const linhas = [
         ['minha', 'Minha IndyCar (histórico do carro)', d.minha, `Aqui está a sua Minha IndyCar, com o histórico do seu carro: `],
@@ -108,7 +108,7 @@
           <button type="button" class="ficha-btn" data-copiar-url="${C.esc(url)}">Copiar</button>${wa(f.tel55, `${W.mensagemWa('oi', { nome })} ${frase}${url}`, 'Mandar', 'wa-mini', `Mandar o link ${rot} pelo WhatsApp`)}</li>`).join('')}</ul>` +
         (d.aceita_mensagens === false ? '<p class="dono-nota">Este cliente pediu para não receber mensagens: copie o link, mas não mande pelo WhatsApp.</p>' : '') : '<p class="vazio">Sem links para este cliente agora.</p>';
     } catch (e) {
-      caixa.innerHTML = `<p class="vazio vazio-erro">Não consegui gerar os links agora. ${C.esc(String(e && e.message || '').slice(0, 80))}</p>`;
+      caixa.innerHTML = `<p class="vazio vazio-erro" role="alert">Não consegui gerar os links. ${C.esc(N.erroDosLinks(e, navigator.onLine))} <button type="button" class="btn-link" data-ficha-links>tentar de novo</button></p>`;
     } finally { if (btn) btn.disabled = false; }
   }
   async function copiar(texto, msg) {
