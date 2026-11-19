@@ -6,6 +6,8 @@
   'use strict';
   const MOD = { nome: 'sino' };
   let C = null, L = null, notifs = [], filtro = '', soNovas = false, canal = null, timerSync = null, primeiraCarga = true, buscaTexto = '', limite = 60, adiarAberto = null;
+  /* rodada 9: estado da leitura, para o sino dizer "carregando" e "não consegui ler" em vez de ficar em branco */
+  let leitura = 'carregando';
   const LIMITE_MAX = 300;
   const LS_ADIADOS = 'indycar_central_sino_adiados';
   const M2 = () => window.CasaLogica2;
@@ -49,31 +51,41 @@
       }
     }
     const nAd = Object.keys(adiados).length;
-    lista.innerHTML = grupos.size ? Array.from(grupos, ([tipo, itens]) => {
-      const novos = itens.filter((n) => !n.lida_em);
-      const rotulo = nomesPorTipo[tipo]?.[itens.length === 1 ? 0 : 1] || (itens.length === 1 ? 'aviso · ' + (itens[0].titulo || rotuloApp(itens[0].app)) : M2().rotuloTipo(tipo));
-      return `
-      <details class="notif-grupo" data-grupo-tipo="${C.esc(tipo)}" ${gruposAbertos.has(tipo) || itens.length === 1 ? 'open' : ''}>
-        <summary>${itens.length} ${C.esc(rotulo)}${novos.length ? ` · ${novos.length} sem ler` : ''}</summary>
-        ${novos.length ? `<button type="button" class="btn-link" data-ler="${C.esc(novos.map((n) => n.id).join(','))}">Marcar este grupo como lido</button>` : ''}
-        <ul>${itens.map((n) => `
+    const item = (n) => `
         <li class="${n.lida_em ? '' : 'nova'}">
           <button type="button" class="notif-abrir" data-notif="${C.esc(n.id)}">
             <span class="n-ico" aria-hidden="true">${M2().iconeDoAviso(n)}</span>
-            <span class="n-txt"><span class="n-tit">${C.esc(n.titulo || 'Aviso')}</span>
+            <span class="n-txt"><span class="n-tit">${n.lida_em ? '' : '<span class="n-nova">não lido</span>'}${C.esc(n.titulo || 'Aviso')}</span>
             ${n.corpo ? `<span class="n-corpo">${C.esc(n.corpo)}</span>` : ''}
             <span class="n-quando">${C.esc(L.quando(n.created_at))} · ${C.esc(rotuloApp(n.app))}</span></span>
           </button>
           ${n.lida_em ? '' : `<button type="button" class="notif-adiar" data-adiar-sino="${C.esc(n.id)}" aria-expanded="${adiarAberto === n.id}" aria-label="Adiar: ${C.esc(n.titulo || 'aviso')}" title="Esconder por um tempo">⏱</button>`}
           ${n.lida_em ? '' : `<button type="button" class="notif-ler" data-ler="${C.esc(n.id)}" aria-label="Marcar como lida: ${C.esc(n.titulo || 'aviso')}" title="Marcar como lida">✓</button>`}
           ${adiarAberto === n.id ? `<div class="notif-adiar-op" role="group" aria-label="Adiar este aviso por…">${N4().OPCOES_ADIAR.map((o) => `<button type="button" data-adiar-por="${o.k}" data-adiar-id="${C.esc(n.id)}">${C.esc(o.rotulo)}</button>`).join('')}</div>` : ''}
-        </li>`).join('')}</ul></details>`;
-    }).join('')
-      : `<p class="vazio">${buscaTexto ? `Nenhum aviso com “${C.esc(buscaTexto)}”.` : notifs.length ? 'Nada com esse filtro.' : 'Nada por aqui. Quando passarem uma conversa, um lead, um orçamento ou um carro para você, aparece aqui.'}</p>`;
+        </li>`;
+    /* rodada 9: aviso sozinho do tipo dele aparece direto (sem "1 aviso · …" e sem abrir e fechar); grupo só com 2 ou mais */
+    const blocos = [], soltos = [];
+    for (const [tipo, itens] of grupos) {
+      if (itens.length === 1) { soltos.push(itens[0]); continue; }
+      const novos = itens.filter((n) => !n.lida_em);
+      const rotulo = nomesPorTipo[tipo]?.[1] || M2().rotuloTipo(tipo);
+      blocos.push(`
+      <details class="notif-grupo" data-grupo-tipo="${C.esc(tipo)}" ${gruposAbertos.has(tipo) ? 'open' : ''}>
+        <summary>${itens.length} ${C.esc(rotulo)}${novos.length ? ` · ${novos.length} sem ler` : ''}</summary>
+        ${novos.length ? `<button type="button" class="btn-link" data-ler="${C.esc(novos.map((n) => n.id).join(','))}">Marcar este grupo como lido</button>` : ''}
+        <ul>${itens.map(item).join('')}</ul></details>`);
+    }
+    if (soltos.length) blocos.push(`<div class="notif-grupo notif-soltos"><ul>${soltos.map(item).join('')}</ul></div>`);
+    const tentar = '<button type="button" class="btn-link" data-sino-de-novo>tentar de novo</button>';
+    lista.innerHTML = (leitura === 'carregando' && !notifs.length) ? '<p class="vazio" role="status">Carregando os avisos…</p>'
+      : (leitura === 'falhou' && !notifs.length) ? `<p class="vazio vazio-erro" role="alert">Não consegui ler os avisos agora. ${tentar}</p>`
+      : (leitura === 'falhou' ? `<p class="vazio vazio-erro" role="alert">Não consegui atualizar os avisos: mostrando a última leitura. ${tentar}</p>` : '')
+        + (grupos.size ? blocos.join('')
+          : `<p class="vazio">${buscaTexto ? `Nenhum aviso com “${C.esc(buscaTexto)}”.` : notifs.length ? 'Nada com esse filtro.' : 'Nada por aqui. Quando passarem uma conversa, um contato, um orçamento ou um carro para você, aparece aqui.'}</p>`);
 
     const rod = $('#sinoRodape');
     const volta = nAd ? N4().quandoVolta(Math.min(...Object.values(adiados).map(Number))) : '';
-    const rodAd = nAd ? `<button type="button" class="btn-link" data-voltar-adiados>${nAd} adiado${nAd > 1 ? 's' : ''} (${C.esc(volta)}) — mostrar agora</button> ` : '';
+    const rodAd = nAd ? `<button type="button" class="btn-link" data-voltar-adiados>${nAd} adiado${nAd > 1 ? 's' : ''} (${C.esc(volta)}): mostrar agora</button> ` : '';
     const maisAvisos = notifs.length >= limite && limite < LIMITE_MAX ? '<button type="button" class="btn-link" data-mais-avisos>Carregar mais avisos</button> ' : '';
     const perm = ('Notification' in window) ? Notification.permission : 'indisponivel';
     rod.innerHTML = rodAd + maisAvisos + (perm === 'default'
@@ -82,9 +94,14 @@
   }
 
   async function carregar() {
-    const { data, error } = await C.sb.from('notificacoes').select('id,tipo,titulo,corpo,link,app,lida_em,created_at')
-      .order('created_at', { ascending: false }).limit(limite);
-    if (error) return;
+    let data = null, error = null;
+    try {
+      ({ data, error } = await C.sb.from('notificacoes').select('id,tipo,titulo,corpo,link,app,lida_em,created_at')
+        .order('created_at', { ascending: false }).limit(limite));
+    } catch (e) { error = e; }
+    if (!C) return;   // saiu enquanto lia
+    if (error) { leitura = 'falhou'; desenhar(); return; }
+    leitura = 'ok';
     const antes = new Set(notifs.map((n) => n.id));
     const adiados = lerAdiados();
     const lista = (data || []).map((n) => (n.app ? n : { ...n, app: N4().appDoAviso(n) }));
@@ -131,8 +148,8 @@
     document.querySelector('#tTarefas').scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
   function lerTodas() {
-    // com um filtro de app ligado, "todas" vale para o que está na tela
-    const ids = notifs.filter((n) => !n.lida_em && (!filtro || n.app === filtro)).map((n) => n.id);
+    // "todas" vale para o que está na tela: o filtro de app, a busca e sem os adiados (antes marcava também o que a busca escondia)
+    const ids = M2().idsParaLerTodas(visiveis(), filtro);
     if (!ids.length) return C.toast('Nada para marcar.');
     marcar(ids).then((ok) => { if (ok) C.toast(ids.length === 1 ? '1 aviso marcado como lido.' : `${ids.length} avisos marcados como lidos.`); });
   }
@@ -156,7 +173,7 @@
 
   MOD.montar = function (casa) {
     gruposAbertos.clear();
-    C = casa; L = casa.L; notifs = []; filtro = ''; soNovas = false; primeiraCarga = true; buscaTexto = ''; limite = 60; adiarAberto = null;
+    C = casa; L = casa.L; notifs = []; filtro = ''; soNovas = false; primeiraCarga = true; buscaTexto = ''; limite = 60; adiarAberto = null; leitura = 'carregando';
     C.alternarSino = alternar;
     C.sino = { carregar, mostrarAtencao, naoLidas: () => notifs.filter((n) => !n.lida_em).length, lista: () => notifs.slice() };
     $('#bLerTodas').onclick = lerTodas;
@@ -191,6 +208,7 @@
       if (ad) { adiarAberto = adiarAberto === ad.dataset.adiarSino ? null : ad.dataset.adiarSino; desenhar(); return; }
       if (e.target.closest('[data-voltar-adiados]')) { gravarAdiados({}); desenhar(); return; }
       if (e.target.closest('[data-mais-avisos]')) { limite = Math.min(LIMITE_MAX, limite + 60); carregar(); return; }
+      if (e.target.closest('[data-sino-de-novo]')) { leitura = 'carregando'; desenhar(); carregar(); return; }
       const a = e.target.closest('[data-notif]');
       if (a) { alternar(false); abrir(a.dataset.notif); return; }
       if (e.target.closest('[data-aviso-sistema]')) {
