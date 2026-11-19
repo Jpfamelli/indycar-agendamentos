@@ -150,7 +150,7 @@
    * Junta a RPC r7_c1_saude_sistemas, a sonda do servidor (Pátio/Orçador/apps da Central) e, para o gestor, r7_x3_saude
    * em UMA lista de sistemas: { k, nome, ico, tom, resumo, detalhes[], plano, app }.
    */
-  function saudeSistemas({ rpc = null, sonda = null, banco = null, agoraMs = Date.now() } = {}) {
+  function saudeSistemas({ rpc = null, vigia = null, sonda = null, banco = null, agoraMs = Date.now() } = {}) {
     const itens = {};
     const garantir = (k) => (itens[k] = itens[k] || { k, nome: NOME_SIST[k], ico: ICO_SIST[k], tom: 'ok', resumo: '', detalhes: [], plano: '', app: null });
     const marca = (k, tom, detalhe, plano) => { const i = garantir(k); i.tom = piorTom(i.tom, tom); if (detalhe) i.detalhes.push(detalhe); if (plano && !i.plano) i.plano = plano; };
@@ -189,15 +189,12 @@
         if (dias >= 7) marca('movere', 'aviso', `Última carga do Movere há ${dias} dias.`, 'Rode a carga no Orçador (Configurações).');
       }
       if (num(r.patio_falhas_24h) > 0) marca('patio', 'aviso', `${num(r.patio_falhas_24h)} erro${num(r.patio_falhas_24h) === 1 ? '' : 's'} registrado${num(r.patio_falhas_24h) === 1 ? '' : 's'} no Pátio nas últimas 24 h.`);
-      const vistos = new Set();
-      for (const cod of Array.isArray(r.vigia) ? r.vigia.slice(0, 12) : []) {
-        const g = regraDoCodigo(cod);
-        if (!g || vistos.has(g.frase)) continue;
-        vistos.add(g.frase);
-        // o WhatsApp já fala pelo estado do banco quando ele conhece o problema; o código do monitor só soma o que o estado ainda não sabe
-        marca(g.area, g.tom, g.frase);
-        if (g.area === 'whatsapp' && !est) itens.whatsapp.plano = itens.whatsapp.plano || 'Mande pelo seu WhatsApp (botão 💬). O gestor resolve no Atendimento.';
-      }
+    }
+    if (vigia?.erro) marca('monitor', 'aviso', 'Não deu para conferir o Vigia.');
+    if (vigia?.vigia_parado) marca('monitor', 'ruim', 'O Vigia parou de conferir os sistemas.');
+    for (const aviso of vigia?.graves || []) {
+      const g = regraDoCodigo(aviso.codigo);
+      if (g) marca(g.area, 'ruim', g.frase, g.area === 'whatsapp' ? 'Mande pelo seu WhatsApp. O gestor resolve nas Integrações do Atendimento.' : '');
     }
     // só o gestor: gatilhos, tarefas agendadas e tabelas do banco
     if (banco && typeof banco === 'object') {

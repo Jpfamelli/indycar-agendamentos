@@ -9,13 +9,62 @@
   const MOD = { nome: 'saude' };
   let C = null, L = null, N = null, sonda = null, rpc = null, banco = null, leituraEm = 0, timer = null, timerBanco = null, antes = null, aberto = false, ligEm = 0;
   const $ = (s) => document.querySelector(s);
+  let vigia = null, montagem = 0, leituraVigia = 0;
+  const CHAVE = 'codewords-chave-recusada';
+  const planos = [
+    [/^(whatsapp-|codewords-|webhook-)/, 'Abra Integrações no Atendimento, confira a conexão e faça o teste de envio.'],
+    [/^anthropic-/, 'Confira a chave e o saldo da IA nas Integrações do Atendimento.'],
+    [/^comunicar-/, 'Abra o Comunicar e confira a fila e o carteiro.'],
+    [/^patio-/, 'Abra o Pátio e confira a rotina de avisos.'],
+    [/^backup-/, 'Peça ao suporte para conferir o último backup e testar a restauração.'],
+    [/^(exclusao-em-massa|admin-novo)$/, 'Confira a atividade da equipe e confirme com o administrador.'],
+  ];
+
+  function desenharVigia() {
+    const avisos = [];
+    if (vigia?.erro) avisos.push('<li>Não deu para conferir os avisos do Vigia agora.</li>');
+    for (const aviso of vigia?.graves || []) {
+      const chave = aviso.codigo === CHAVE;
+      const titulo = chave ? 'WhatsApp recusado' : (aviso.resumo || N.regraDoCodigo(aviso.codigo)?.frase || 'Problema detectado pelo Vigia');
+      const tempo = Number.isInteger(aviso.dias) && aviso.dias > 0 ? ` há ${aviso.dias} dia${aviso.dias === 1 ? '' : 's'}` : '';
+      const passo = chave ? 'Gere uma chave nova no CodeWords e cole em Atendimento › Integrações.'
+        : planos.find(([codigo]) => codigo.test(aviso.codigo))?.[1] || 'Confira o sistema afetado e peça ajuda ao suporte se a falha continuar.';
+      const link = chave && C.podeUsar('atendimento') ? ` <a href="${C.esc(new URL('?aba=integracoes', new URL(C.bases.atendimento, location.origin)).href)}" target="${C.esc(L.nomeDaAba('atendimento'))}">Abrir Integrações</a>` : '';
+      avisos.push(`<li><strong>${C.esc(titulo + tempo)}</strong><span>${C.esc(passo)}${link}</span></li>`);
+    }
+    if (vigia?.vigia_parado) {
+      const horas = Math.max(1, Math.floor((Date.parse(vigia.gerado_em) - Date.parse(vigia.vigia_conferiu_em)) / 3600000));
+      const titulo = Number.isFinite(horas) ? `O Vigia não confere há ${horas} horas` : 'O Vigia está sem registro da última conferência';
+      avisos.push(`<li><strong>${titulo}</strong><span>Peça ao suporte para conferir a rotina do Vigia.</span></li>`);
+    }
+    for (const el of document.querySelectorAll('[data-avisos-vigia]')) {
+      el.hidden = !avisos.length;
+      el.innerHTML = avisos.length ? `<ul>${avisos.join('')}</ul>` : '';
+    }
+  }
+
+  async function lerVigia() {
+    if (!['admin', 'gestor'].includes(C.perfil.papel)) return;
+    const vez = ++leituraVigia;
+    const atual = montagem;
+    let resultado;
+    try {
+      const { data, error } = await C.sb.rpc('vigia_avisos_abertos');
+      if (error || !Array.isArray(data?.graves)) throw new Error('leitura indisponível');
+      resultado = data;
+    } catch { resultado = { ...vigia, erro: true }; }
+    if (atual !== montagem || vez !== leituraVigia) return;
+    vigia = resultado;
+    desenharVigia();
+    desenhar();
+  }
   const TOM_ROTULO = { ok: 'em ordem', aviso: 'atenção', ruim: 'com problema', neutro: 'sem leitura' };
 
   function desenhar() {
     const sec = $('#saudeSist');
     if (!sec) return;
-    const s = N.saudeSistemas({ rpc, sonda, banco, agoraMs: Date.now() });
-    const r = N.resumoDaSaude(rpc || sonda ? s : null);
+    const s = N.saudeSistemas({ rpc, vigia, sonda, banco, agoraMs: Date.now() });
+    const r = N.resumoDaSaude(rpc || vigia || sonda ? s : null);
     sec.hidden = false;
     sec.dataset.tom = r.tom;
     $('#saudeTxt').textContent = r.texto;
@@ -49,13 +98,16 @@
   }
 
   async function ler() {
+    const atual = montagem;
+    lerVigia();
     try {
       const [a, b] = await Promise.all([C.sb.rpc('r7_c1_saude_sistemas'), C.visao().dono && Date.now() - ligEm > 4 * 60_000 ? C.sb.rpc('r7_x3_saude') : Promise.resolve(null)]);
+      if (atual !== montagem) return;
       if (a.error) throw a.error;
       rpc = a.data; leituraEm = Date.now();
       if (b) { ligEm = Date.now(); if (!b.error) banco = b.data; }
     } catch { /* sem a leitura nova o painel mostra a anterior, com a hora dela */ }
-    desenhar();
+    if (atual === montagem) desenhar();
   }
 
   /* ---------------- Visão do dono: ligações entre sistemas ---------------- */
@@ -86,6 +138,8 @@
   }
 
   MOD.montar = function (casa) {
+    montagem++;
+    vigia = null;
     C = casa; L = casa.L; N = window.CasaLogica4; sonda = null; rpc = null; banco = null; leituraEm = 0; antes = null; aberto = false; ligEm = 0;
     const sec = $('#saudeSist');
     const equipe = ['admin', 'gestor', 'atendente'].includes(C.perfil.papel);
@@ -105,6 +159,9 @@
   };
   function aoVisivel() { if (!document.hidden && C && C.perfil && Date.now() - leituraEm > 60_000) ler(); }
   MOD.desmontar = function () {
+    montagem++;
+    vigia = null;
+    desenharVigia();
     clearInterval(timer); clearInterval(timerBanco);
     document.removeEventListener('visibilitychange', aoVisivel);
     const sec = $('#saudeSist'); if (sec) sec.hidden = true;

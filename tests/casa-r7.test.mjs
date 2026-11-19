@@ -112,11 +112,11 @@ test('saúde: WhatsApp — cada estado do banco vira tom e plano B; chave recusa
   }
 });
 test('saúde: código do monitor sem estado no banco ainda deixa o WhatsApp com problema (caso real de hoje)', () => {
-  const r = rpcOk(); r.whatsapp = { estado: null }; r.vigia = ['tarefas-acumuladas', 'codewords-chave-recusada', 'notificacoes-acumuladas', 'e2e-falhou'];
-  const s = N.saudeSistemas({ rpc: r, sonda: sondaOk });
+  const r = rpcOk(); r.whatsapp = { estado: null }; r.vigia = ['tarefas-acumuladas'];
+  const s = N.saudeSistemas({ rpc: r, vigia: { graves: [{ codigo: 'codewords-chave-recusada' }] }, sonda: sondaOk });
   assert.equal(s.itens.find((i) => i.k === 'whatsapp').tom, 'ruim');
   assert.match(s.itens.find((i) => i.k === 'whatsapp').plano, /seu WhatsApp/, 'plano manda usar o próprio WhatsApp');
-  assert.equal(s.itens.find((i) => i.k === 'monitor').tom, 'aviso');
+  assert.ok(!s.itens.some((i) => i.k === 'monitor'));
   assert.match(N.resumoDaSaude(s).texto, /WhatsApp com problema/);
 });
 test('saúde: Pátio/Orçador fora vêm da sonda, com motivo, há quanto tempo e plano B', () => {
@@ -154,9 +154,11 @@ test('saúde: código estranho do monitor não vira HTML nem derruba (só [a-z0-
   assert.equal(N.regraDoCodigo('<img src=x>'), null);
   assert.equal(N.regraDoCodigo('x'.repeat(200)), null);
   assert.equal(N.regraDoCodigo('codigo-novo-qualquer').area, 'monitor');
-  const r = rpcOk(); r.vigia = ['<b>', null, 5, 'backup-faltando'];
-  const s = N.saudeSistemas({ rpc: r, sonda: sondaOk });
-  assert.equal(s.itens.find((i) => i.k === 'backup').tom, 'aviso');
+  const r = rpcOk(); r.vigia = ['codewords-chave-recusada'];
+  const vigia = { graves: [{ codigo: '<b>' }, { codigo: null }, { codigo: 'backup-faltando' }] };
+  const s = N.saudeSistemas({ rpc: r, vigia, sonda: sondaOk });
+  assert.equal(s.itens.find((i) => i.k === 'backup').tom, 'ruim');
+  assert.equal(s.itens.find((i) => i.k === 'whatsapp').tom, 'ok', 'o campo legado não é o Vigia');
 });
 test('saúde: sem nenhuma leitura mostra "sem leitura" em vez de "tudo certo"', () => {
   assert.equal(N.resumoDaSaude(null).tom, 'neutro');
