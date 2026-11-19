@@ -1,6 +1,6 @@
 /* ============================================================================
    Endereços do ecossistema IndyCar vistos de dentro do Tráfego (lógica pura,
-   testada em tests/tela-rotas.test.mjs). A mesma ideia de apps/crm/public/apps.js:
+   testada em tela/_testes/navegacao.test.mjs). A mesma ideia de apps/crm/public/apps.js:
    nada na tela começa com "/" na raiz do domínio. Dentro da Central o app mora em
    /trafego/ e os vizinhos em /agenda/, /crm/…; solto (node server.js), os
    vizinhos ficam no endereço público da Central.

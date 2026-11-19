@@ -6,7 +6,7 @@
    O endereço guarda filtros, página e contato aberto: dá para mandar o link.
    ============================================================================ */
 
-import { h, icone, trocar, $$ } from '../dom.js';
+import { h, icone, trocar, $$, soLeitor } from '../dom.js';
 import { montarRota, comParametros } from '../rotas.js';
 import { filtrosDaRota, parametrosDaRota, consultaDaApi, mudar, alternar, contarAtivos, filtrosLigados, paginas, DESFECHOS, ORDENS } from '../filtros.js';
 import { ETAPAS, PENDENCIAS, pendencia, situacao } from '../setores.js';
@@ -166,8 +166,8 @@ function torreDeContatos(ctxInicial) {
     trocar(el.pendencias,
       h('h2', { class: 'titulo-p' }, 'Para resolver'),
       h('ul', { class: 'pendencias-lista' }, itens.map((x) => h('li', null,
-        h('a', { class: 'pendencia', href: ctx.hrefDaTela('jornada', { pendencia: x.id }), 'aria-label': inteiro(x.n) + ' ' + NOME_DA_PENDENCIA[x.id] + '. ' + x.verbo },
-          h('span', { class: 'numero' }, inteiro(x.n)), h('span', { class: 'rotulo' }, NOME_DA_PENDENCIA[x.id]), icone('seta', 'icone-seta'))))));
+        h('a', { class: 'pendencia', href: ctx.hrefDaTela('jornada', { pendencia: x.id }) },
+          h('span', { class: 'numero' }, inteiro(x.n)), ' ', h('span', { class: 'rotulo' }, NOME_DA_PENDENCIA[x.id]), soLeitor('. ' + x.verbo), icone('seta', 'icone-seta'))))));
   }
 
   const hrefDoContato = (id) => montarRota('jornada', comParametros(ctx.rota.params, { contato: id }));

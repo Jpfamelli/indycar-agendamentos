@@ -1,5 +1,5 @@
 /* ============================================================================
-   Formatação de tela (lógica pura, testada em tests/tela-formato.test.mjs).
+   Formatação de tela (lógica pura, testada em tela/_testes/formato.test.mjs).
    Regra da casa: "não sei" é null e vira palavra na tela; nunca zero, nunca traço.
    Nada aqui calcula regra de negócio: só transforma o que a API manda em texto.
    ============================================================================ */

@@ -340,7 +340,8 @@ function aoRecusar(status, codigo, corpo) {
 function pintarConta() {
   const eu = estado.eu || {};
   el.iniciais.textContent = iniciais(eu.nome || eu.email || '');
-  el.bConta.setAttribute('aria-label', 'Minha conta' + (eu.nome ? ': ' + eu.nome : ''));
+  // O nome acessível começa pelo que aparece no botão (as iniciais), como pede a regra de rótulo visível.
+  el.bConta.setAttribute('aria-label', el.iniciais.textContent + ': minha conta' + (eu.nome ? ', ' + eu.nome : ''));
 }
 
 /* ------------------------------ partida ------------------------------ */

@@ -1,5 +1,5 @@
 /* ============================================================================
-   Desfazer por alguns segundos (lógica pura, testada em tests/tela-desfazer.test.mjs).
+   Desfazer por alguns segundos (lógica pura, testada em tela/_testes/navegacao.test.mjs).
    A API não tem "desfazer": então a gravação espera 5 segundos antes de sair.
    Enquanto espera, a pessoa pode desistir e nada chega ao servidor. Passado o
    tempo (ou ao sair da tela), a gravação vai de verdade.

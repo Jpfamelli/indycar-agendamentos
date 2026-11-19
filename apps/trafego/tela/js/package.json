@@ -1,4 +1,4 @@
 {
-  "//": "Só diz ao Node que os .js desta pasta são módulos ES (os testes em tests/tela-*.test.mjs importam daqui). O navegador ignora este arquivo.",
+  "//": "Só diz ao Node que os .js desta pasta são módulos ES (os testes em tela/_testes/*.test.mjs importam daqui). O navegador ignora este arquivo.",
   "type": "module"
 }

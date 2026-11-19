@@ -1,5 +1,5 @@
 /* ============================================================================
-   Filtros da Jornada (lógica pura, testada em tests/tela-filtros.test.mjs).
+   Filtros da Jornada (lógica pura, testada em tela/_testes/navegacao.test.mjs).
    O endereço da tela guarda os filtros; daqui sai a consulta para a API
    (contrato §5.3). Tudo que vem do endereço é conferido antes de ir adiante.
    ============================================================================ */

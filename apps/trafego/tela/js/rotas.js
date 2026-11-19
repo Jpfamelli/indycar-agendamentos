@@ -1,5 +1,5 @@
 /* ============================================================================
-   Endereço da tela (lógica pura, testada em tests/tela-rotas.test.mjs).
+   Endereço da tela (lógica pura, testada em tela/_testes/navegacao.test.mjs).
    A tela mora em /trafego/ e navega pelo que vem depois do "#":
      #/hoje · #/jornada?desfecho=aberto&contato=<id> · #/campanhas · #/gestor · #/ajustes
    Assim o endereço guarda tela, período, filtros e o contato aberto, dá para

@@ -1,5 +1,5 @@
 /* ============================================================================
-   A frase principal da tela Hoje (lógica pura, testada em tests/tela-frase.test.mjs).
+   A frase principal da tela Hoje (lógica pura, testada em tela/_testes/navegacao.test.mjs).
    O texto vem pronto da API (`frase.texto`). Aqui só se decide o que é de
    apresentação: qual trecho ganha o destaque da casa (itálico vermelho) e que
    tamanho de letra cabe, pelo comprimento.

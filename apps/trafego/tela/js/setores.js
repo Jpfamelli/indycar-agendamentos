@@ -1,6 +1,6 @@
 /* ============================================================================
    Mini-setores e situação de um contato (lógica pura, testada em
-   tests/tela-setores.test.mjs). Recebe o item da jornada (contrato §5.3) e
+   tela/_testes/setores.test.mjs). Recebe o item da jornada (contrato §5.3) e
    devolve o que a tela desenha. Nenhuma regra de negócio: as etapas, o
    desfecho e as pendências já vêm decididos pela API.
    ============================================================================ */

@@ -1,5 +1,5 @@
 /* ============================================================================
-   Rede e servidor acordando (lógica pura, testada em tests/tela-rede.test.mjs).
+   Rede e servidor acordando (lógica pura, testada em tela/_testes/navegacao.test.mjs).
    Origem: apps/trafego/public/rede.js (rodada 4), reescrito como módulo ES.
    O Render gratuito dorme: a primeira chamada pode voltar 502, 503 ou 504, ou
    cair a conexão por alguns minutos. Leitura tenta de novo sozinha, com espera
