@@ -8,8 +8,8 @@
   --green: #22c55e; --orange: #f59e0b; --blue: #3b82f6; --cyan: #06b6d4; --purple: #a855f7;
   --sombra: 0 18px 40px -22px rgba(0,0,0,.8);
   --r: 18px;
-  --f-num: 'Barlow Condensed', 'Inter', system-ui, sans-serif;
-  --f: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-num: 'Barlow Condensed', 'Archivo', system-ui, sans-serif;
+  --f: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;   /* rodada 9: Archivo servida pela Central (r9.css), no lugar da Inter do Google */
   color-scheme: dark;
 }
 :root[data-tema="claro"] {
