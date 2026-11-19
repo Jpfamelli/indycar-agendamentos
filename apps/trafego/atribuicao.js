@@ -15,14 +15,31 @@ const dividir = (a, b) => (b > 0 && a != null ? a / b : null);
 const AG_VALIDO = new Set(['aguardando', 'confirmado', 'em_atendimento', 'compareceu', 'nao_veio', 'concluido', 'nao_fechou']);
 const AG_VEIO = new Set(['em_atendimento', 'compareceu', 'concluido', 'nao_fechou']);
 
-/** Canal pago do lead: a origem do CRM manda; a UTM só completa. */
-function canal(l) {
+/** Regra antiga (até a rodada 7): a origem do CRM manda; a UTM só completa. */
+function canalAntigo(l) {
   const origem = normalizar(l.origem), fonte = normalizar(l.utm_source);
   if (origem === 'meta' || origem === 'google') return origem;
   if (['facebook', 'instagram', 'fb', 'ig', 'meta'].includes(fonte)) return 'meta';
   if (['google', 'googleads', 'google_ads', 'adwords'].includes(fonte)
     && ['cpc', 'ppc', 'paid', 'paid_search', 'pmax'].includes(normalizar(l.utm_medium))) return 'google';
   return null;
+}
+
+/**
+ * Canal pago do contato: a regra ÚNICA do app (rodada 8, contrato §1.1).
+ *  - origem_paga verdadeiro: a plataforma é origem_plataforma (meta ou google);
+ *  - origem_paga falso: sabidamente não veio de anúncio (link da bio, site, indicação), mesmo com utm de rede social;
+ *  - origem_paga nulo (não se sabe, ou contato antigo): vale a regra antiga.
+ * Devolve 'meta', 'google' ou null. Todo o app pergunta aqui (leads.canalDe, ciclo, resultados, origem.origemDoContato).
+ */
+function canal(l) {
+  if (!l) return null;
+  if (l.origem_paga === false) return null;
+  if (l.origem_paga === true) {
+    const plataforma = normalizar(l.origem_plataforma);
+    if (plataforma === 'meta' || plataforma === 'google') return plataforma;
+  }
+  return canalAntigo(l);
 }
 const campanha = l => normalizar(l.utm_campaign);
 
@@ -291,4 +308,4 @@ function juntarRankingComCRM(ranking = [], resultado = null) {
   });
 }
 
-module.exports = { juntarRankingComCRM, porResponsavel, normalizar, canal, consolidar, comparar, csv, montarCSV, celula, funil, calcular, AG_VALIDO, AG_VEIO };
+module.exports = { juntarRankingComCRM, porResponsavel, normalizar, canal, canalAntigo, consolidar, comparar, csv, montarCSV, celula, funil, calcular, AG_VALIDO, AG_VEIO };

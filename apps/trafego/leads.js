@@ -33,20 +33,53 @@ function canalDe(l) {
 const hojeBR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 
 /* Colunas lidas (explícitas): nada de observações/orçamento detalhado. */
-const COLUNAS = 'id, cliente_id, responsavel_id, nome, telefone, origem, status, valor_pago, valor_orcado, servico, carro_modelo, placa, utm_source, utm_medium, utm_campaign, created_at, closed_at, updated_at';
+const COLUNAS_BASE = 'id, cliente_id, responsavel_id, nome, telefone, telefone_e164, origem, status, valor_pago, valor_orcado, servico, carro_modelo, placa, utm_source, utm_medium, utm_campaign, created_at, closed_at, updated_at, ultimo_contato_em';
+/* Rodada 8 (migração r8_trafego_v1): origem completa e motivo de não fechar.
+   Identificador de clique (gclid, fbclid, ctwa_clid) NÃO é lido: ligado ao telefone é dado pessoal e nenhuma tela precisa dele. */
+const COLUNAS_R8 = 'origem_paga, origem_plataforma, campanha_ext, campanha_nome, conjunto_ext, conjunto_nome, anuncio_ext, anuncio_nome, palavra_chave, utm_content, utm_term, origem_como, origem_em, motivo_perda, motivo_perda_obs';
+const COLUNAS = `${COLUNAS_BASE}, ${COLUNAS_R8}`;
+
+/* Banco ainda sem a migração da rodada 8: pedir as colunas novas dá erro de coluna inexistente.
+   A leitura cai nas colunas antigas (o app segue com a regra antiga de origem) e volta a tentar as novas depois de 5 min. */
+let semColunasR8Ate = 0;
+const colunaAusente = e => !!e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|could not find .* column/i.test(String(e.message || '')));
+/** O banco já tem as colunas de origem da rodada 8? (false por 5 min depois de um erro de coluna inexistente) */
+const temColunasR8 = (agora = Date.now()) => agora >= semColunasR8Ate;
+function esquecerColunasR8() { semColunasR8Ate = 0; }
+
+/**
+ * Roda uma leitura de `leads` pedindo as colunas da rodada 8 e, se o banco ainda não as tem, repete com as antigas.
+ * `montar(colunas)` devolve a consulta pronta (a mesma função serve para lista paginada e para um contato só).
+ * `extras` = colunas a mais que só existem depois da migração (ex.: 'rastreio').
+ */
+async function lerComColunas(montar, { extras = '' } = {}) {
+  if (temColunasR8()) {
+    const r = await montar(extras ? `${COLUNAS}, ${extras}` : COLUNAS);
+    if (!r.error || !colunaAusente(r.error)) return r;
+    semColunasR8Ate = Date.now() + 5 * 60_000;
+  }
+  return montar(COLUNAS_BASE);
+}
 
 /** Lê os leads criados no período (horário de Brasília), paginando (teto 5 mil). */
 async function lerLeads(de, ate, { sb = db.sb } = {}) {
   const linhas = [];
   for (let inicio = 0; inicio < 5000; inicio += 1000) {
-    const { data, error } = await sb.from('leads').select(COLUNAS)
+    const { data, error } = await lerComColunas(colunas => sb.from('leads').select(colunas)
       .gte('created_at', db.inicioBR(de)).lt('created_at', db.inicioBR(db.diaSeguinte(ate)))
-      .order('created_at', { ascending: false }).order('id').range(inicio, inicio + 999);
+      .order('created_at', { ascending: false }).order('id').range(inicio, inicio + 999));
     if (error) throw new Error('Não foi possível ler os leads do CRM. Tente novamente.');
     linhas.push(...(data || []));
     if ((data || []).length < 1000) return linhas;
   }
   return linhas;
+}
+
+/** Um contato pelo id (para o detalhe da jornada), com o contexto do rastreio quando o banco já tem a coluna. null se não existe. */
+async function lerLead(id, { sb = db.sb } = {}) {
+  const { data, error } = await lerComColunas(colunas => sb.from('leads').select(colunas).eq('id', id).maybeSingle(), { extras: 'rastreio' });
+  if (error) throw new Error('Não foi possível ler o contato no CRM. Tente novamente.');
+  return data || null;
 }
 
 /** Próximo agendamento (ou o último) de cada lead — só data/hora/status. */
@@ -265,4 +298,5 @@ async function resumoDoMes({ sb = db.sb, gastoMes = 0 } = {}) {
     custo_lead_pago: t.pagos > 0 && gastoMes > 0 ? gastoMes / t.pagos : null };
 }
 
-module.exports = { sinalDoOrcamento, listar, hoje, esquecerHoje, filtrar, resumo, ordenar, resumoDoMes, montarLinha, canalDe, fraseDoDia, csv, CANAIS, CANAL_NOME, STATUS, STATUS_NOME, ORDENS, ETAPAS_CICLO, noCiclo, lerLeads, hojeBR };
+module.exports = { sinalDoOrcamento, listar, hoje, esquecerHoje, filtrar, resumo, ordenar, resumoDoMes, montarLinha, canalDe, fraseDoDia, csv, CANAIS, CANAL_NOME, STATUS, STATUS_NOME, ORDENS, ETAPAS_CICLO, noCiclo, lerLeads, hojeBR,
+  lerLead, lerComColunas, temColunasR8, esquecerColunasR8, colunaAusente, COLUNAS, COLUNAS_BASE, COLUNAS_R8 };
