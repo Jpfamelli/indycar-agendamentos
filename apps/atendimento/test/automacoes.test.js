@@ -71,7 +71,7 @@ function montar({ agora = QUARTA_10H, ajustar } = {}) {
   return { sb, db: sb.db, aut, notifs, auds, relogio };
 }
 
-test('espera > 30 min: avisa gestores/admin e o dono, uma vez por mensagem; respeita preferência; sem WhatsApp', async () => {
+test('espera > 30 min: avisa gestores/admin e o dono, uma vez por período; respeita preferência; sem WhatsApp', async () => {
   const { aut, notifs, db } = montar();
   const r = await aut.alertarEspera();
   assert.equal(r.esperando, 1);
@@ -85,12 +85,56 @@ test('espera > 30 min: avisa gestores/admin e o dono, uma vez por mensagem; resp
   assert.equal(db.whatsapp_mensagens.length, 4, 'nada saiu pelo WhatsApp');
 });
 
+test('espera: outra mensagem não abre aviso novo, mas uma resposta inicia outro período', async () => {
+  const { aut, notifs, db, relogio } = montar();
+  await aut.alertarEspera();
+  const antes = notifs.length;
+  const c = db.conversas.find((conversa) => conversa.id === ID.c1);
+  c.ultima_mensagem_em = '2026-10-14T12:25:00Z';
+  db.whatsapp_mensagens.push({ conversa_id: c.id, direcao: 'entrada', corpo: 'Ainda aguardando', created_at: c.ultima_mensagem_em });
+  assert.equal((await aut.alertarEspera()).avisos, 0);
+  assert.equal(notifs.length, antes);
+  db.whatsapp_mensagens.push({ conversa_id: c.id, direcao: 'saida', corpo: 'Respondido', created_at: '2026-10-14T12:28:00Z' });
+  c.ultima_mensagem_em = '2026-10-14T12:35:00Z';
+  db.whatsapp_mensagens.push({ conversa_id: c.id, direcao: 'entrada', corpo: 'Nova pergunta', created_at: c.ultima_mensagem_em });
+  assert.equal((await aut.alertarEspera()).avisos, 0);
+  relogio.t = new Date('2026-10-14T13:10:00Z');
+  assert.equal((await aut.alertarEspera()).avisos, antes);
+  c.ultima_mensagem_em = '2026-10-15T11:30:00Z';
+  db.whatsapp_mensagens.push({ conversa_id: c.id, direcao: 'entrada', corpo: 'Último retorno', created_at: c.ultima_mensagem_em });
+  relogio.t = new Date('2026-10-15T12:10:00Z');
+  const depois = await aut.alertarEspera();
+  assert.equal(depois.esperando, 1);
+  assert.equal(depois.avisos, 0, 'a resposta anterior continua sendo o marco fora da janela');
+});
+
 test('espera: fora do expediente não avisa; mensagem [sistema] não conta', async () => {
   const noite = montar({ agora: new Date('2026-10-14T23:00:00Z') });
   assert.equal((await noite.aut.alertarEspera()).pulou, 'fora do expediente');
   const sis = montar({ ajustar: t => t.whatsapp_mensagens.push({ conversa_id: ID.c2, direcao: 'entrada', corpo: '[sistema] etiqueta', created_at: '2026-10-14T12:15:00Z' }) });
   const r = await sis.aut.alertarEspera();
   assert.equal(r.esperando, 1, 'só a Camila');
+});
+
+test('aviso por chave atualiza o conteúdo e só volta a não lido quando o estado reabre', async () => {
+  const { avisarConversa } = require('../lib/aviso-conversa');
+  const antigo = '2026-10-14T12:00:00Z';
+  const aviso = { p_perfil: ID.admin, p_chave: 'conversa:teste', p_titulo: 'Atualizado', p_corpo: 'Nova prévia' };
+  const sb = criarSbFalso({
+    notificacoes: [
+      { perfil_id: ID.admin, chave: aviso.p_chave, lida_em: antigo },
+      { perfil_id: ID.gestor, chave: aviso.p_chave, lida_em: antigo },
+    ],
+  }, { rpc: { notificar: () => ({ data: null, error: null }) } });
+  await avisarConversa(sb, aviso);
+  assert.equal(sb.db.notificacoes[0].titulo, 'Atualizado');
+  assert.equal(sb.db.notificacoes[0].lida_em, antigo);
+  assert.equal(sb.db.notificacoes[1].titulo, undefined);
+  const reaberto = '2026-10-15T12:00:00Z';
+  await avisarConversa(sb, aviso, reaberto);
+  assert.equal(sb.db.notificacoes[0].lida_em, null);
+  assert.equal(sb.db.notificacoes[0].created_at, reaberto);
+  assert.equal(sb.db.notificacoes[1].lida_em, antigo);
 });
 
 test('resumo do dia: só depois das 17:40 e uma vez por dia; números certos; não sai domingo', async () => {

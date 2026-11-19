@@ -98,3 +98,12 @@
   .saude-hora { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .saude-resumo, .ficha-btn, .busca-mini { transition: none; } }
+.avisos-vigia { margin-block: .5rem; border: 2px solid #dc6363; border-radius: .75rem; overflow-wrap: anywhere; }
+.avisos-vigia[hidden] { display: none !important; }
+.avisos-vigia ul { margin: 0; padding: 0; list-style: none; }
+.avisos-vigia li { padding: .65rem .85rem; }
+.avisos-vigia li + li { border-top: 1px solid #dc6363; }
+.avisos-vigia li > span { display: block; }
+.avisos-vigia a { display: inline-flex; align-items: center; min-height: 44px; }
+.notif-grupo summary { min-height: 44px; padding: .7rem .8rem; cursor: pointer; }
+.notif-grupo > button { min-height: 44px; margin-inline: .8rem; }

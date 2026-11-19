@@ -3,7 +3,7 @@
    AUTOMACOES=1 — nunca sozinhas numa máquina de teste)
    1) Cliente esperando > 30 min (última mensagem é DELE) no horário
       da oficina → notificação para gestores/admin e para o dono da
-      conversa. Uma por mensagem esperando (chave única no banco).
+      conversa. Uma por período sem resposta (chave única no banco).
    2) Resumo do fim do dia (seg–sáb, depois das 17:40) → notificação
       para gestores/admin. Uma por dia.
    3) Dono inválido: conversa nova que caiu com alguém que não pode
@@ -18,6 +18,7 @@
 
 const R = require('./rodizio.js');
 const TAR = require('./tarefas.js');
+const { avisarConversa } = require('./aviso-conversa');
 
 const ESPERA_MIN = 30;
 /* follow-up (rodada 5): a loja respondeu e o cliente sumiu entre 24 h e 72 h; até 30 tarefas por ciclo */
@@ -44,13 +45,16 @@ function criarAutomacoes({ sb, rodizio = null, auditar = async () => ({ ok: true
   }
 
   async function notificar(perfil, tipo, titulo, corpo, link, chave) {
-    const { data, error } = await sb.rpc('notificar', { p_perfil: perfil, p_tipo: tipo, p_titulo: titulo,
-      p_corpo: corpo || null, p_link: link || null, p_app: 'atendimento', p_chave: chave });
+    const aviso = { p_perfil: perfil, p_tipo: tipo, p_titulo: titulo,
+      p_corpo: corpo || null, p_link: link || null, p_app: 'atendimento', p_chave: chave };
+    const { data, error } = await (tipo === 'espera' ? avisarConversa(sb, aviso) : sb.rpc('notificar', aviso));
     if (error) { log('notificar:', error.message); return false; }
     return !!data;                                  // null = já existia (chave repetida) ou pessoa inativa
   }
 
   /* ---------- 1) cliente esperando ---------- */
+  const mensagemDeSistema = (m) => /^\s*\[sistema\]/i.test(String(m.corpo || ''));
+
   async function alertarEspera() {
     const t = agora();
     if (!R.noExpediente(null, t)) return { pulou: 'fora do expediente' };
@@ -58,7 +62,7 @@ function criarAutomacoes({ sb, rodizio = null, auditar = async () => ({ ok: true
     const desde = iso(t.getTime() - JANELA_ESPERA_H * 3600_000);
     const { data: convs, error } = await sb.from('conversas')
       .select('id,nome,telefone,atribuida_a,status,tipo,ultima_mensagem_em,ultima_previa')
-      .neq('status', 'resolvida').gte('ultima_mensagem_em', desde).lte('ultima_mensagem_em', corte)
+      .neq('status', 'resolvida').gte('ultima_mensagem_em', desde)
       .order('ultima_mensagem_em', { ascending: true }).limit(80);
     if (error) return { erro: 'conversas' };
     const alvo = (convs || []).filter(c => (c.tipo || 'atendimento') === 'atendimento');
@@ -66,22 +70,39 @@ function criarAutomacoes({ sb, rodizio = null, auditar = async () => ({ ok: true
     const { data: msgs, error: e2 } = await sb.from('whatsapp_mensagens').select('conversa_id,direcao,corpo,created_at')
       .in('conversa_id', alvo.map(c => c.id)).gte('created_at', desde).order('created_at', { ascending: false }).limit(3000);
     if (e2) return { erro: 'mensagens' };
-    const ultima = {};
+    const sessoes = new Map();
     for (const m of msgs || []) {
-      if (/^\s*\[sistema\]/i.test(String(m.corpo || ''))) continue;
-      if (!ultima[m.conversa_id]) ultima[m.conversa_id] = m;
+      if (mensagemDeSistema(m)) continue;
+      if (!sessoes.has(m.conversa_id)) sessoes.set(m.conversa_id, { ultima: m, inicio: null, resposta: null });
+      const sessao = sessoes.get(m.conversa_id);
+      if (sessao.resposta) continue;
+      if (m.direcao === 'saida') sessao.resposta = m.created_at;
+      if (m.direcao === 'entrada') sessao.inicio = m.created_at;
     }
-    const esperando = alvo.filter(c => ultima[c.id]?.direcao === 'entrada' && ultima[c.id].created_at <= corte);
+    const esperando = alvo.filter(c => {
+      const s = sessoes.get(c.id);
+      return s?.ultima.direcao === 'entrada' && s.inicio <= corte;
+    });
     if (!esperando.length) return { esperando: 0, avisos: 0 };
     const gs = await gestores('espera');
     let avisos = 0;
     for (const c of esperando) {
-      const m = ultima[c.id];
-      const min = Math.round((t.getTime() - Date.parse(m.created_at)) / 60000);
+      const { ultima: m, inicio } = sessoes.get(c.id);
+      let { resposta } = sessoes.get(c.id);
+      if (!resposta) {
+        // O início da janela avança a cada ciclo. A última resposta continua
+        // sendo o marco mesmo quando ficou fora da janela das entradas.
+        const { data: anteriores, error: erroAnterior } = await sb.from('whatsapp_mensagens')
+          .select('corpo,created_at').eq('conversa_id', c.id).eq('direcao', 'saida')
+          .lt('created_at', desde).order('created_at', { ascending: false }).limit(30);
+        if (erroAnterior) { log('buscar última resposta:', erroAnterior.message); continue; }
+        resposta = anteriores?.find((item) => !mensagemDeSistema(item))?.created_at;
+      }
+      const min = Math.round((t.getTime() - Date.parse(inicio)) / 60000);
       const nome = (c.nome && String(c.nome).trim()) || c.telefone || 'Cliente';
       const titulo = `${nome} espera resposta há ${min} min`;
       const corpo = String(m.corpo || c.ultima_previa || '').slice(0, 140) || null;
-      const chave = `espera:${c.id}:${m.created_at}`;
+      const chave = `espera-r8:${c.id}:${resposta || 'inicio'}`;
       const destinos = new Set(gs.map(g => g.id));
       if (c.atribuida_a) destinos.add(c.atribuida_a);
       for (const id of destinos) if (await notificar(id, 'espera', titulo, corpo, `/?conversa=${c.id}`, chave)) avisos++;

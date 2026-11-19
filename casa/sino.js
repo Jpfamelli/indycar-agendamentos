@@ -12,13 +12,19 @@
   const N4 = () => window.CasaLogica4;
   const lerAdiados = () => { try { return M2().aindaAdiados(JSON.parse(localStorage.getItem(LS_ADIADOS) || '{}')); } catch { return {}; } };
   const gravarAdiados = (o) => { try { localStorage.setItem(LS_ADIADOS, JSON.stringify(o)); } catch { /* sem armazenamento */ } };
-  /** avisos visíveis agora: sem os adiados neste aparelho, com a busca aplicada e os repetidos agrupados */
-  const visiveis = () => { const ad = lerAdiados(); return M2().agruparAvisos(N4().filtrarPorTexto(notifs.filter((n) => !ad[n.id]), buscaTexto)); };
+  /** Avisos visíveis agora, com a busca aplicada e sem os adiados neste aparelho. */
+  const visiveis = () => { const ad = lerAdiados(); return N4().filtrarPorTexto(notifs.filter((n) => !ad[n.id]), buscaTexto); };
 
   const $ = (s) => document.querySelector(s);
   const ROTULOS = { tarefas: 'Tarefas' };
   const rotuloApp = (k) => (L.APPS[k] ? L.APPS[k].nome : ROTULOS[k] || (k && k !== 'outros' ? String(k) : 'Outros'));
   const icoApp = (k) => (L.APPS[k] ? L.APPS[k].ico : k === 'tarefas' ? '📝' : '🔔');
+  const gruposAbertos = new Set();
+  const nomesPorTipo = {
+    espera: ['conversa esperando resposta', 'conversas esperando resposta'],
+    aguardando: ['conversa esperando consultor', 'conversas esperando consultor'],
+    ia: ['aviso da IA', 'avisos da IA'],
+  };
 
   function desenhar() {
     const lista = $('#listaNotif');
@@ -34,10 +40,23 @@
     $('#sinoFiltros').innerHTML = apps.length > 1 ? [`<button type="button" data-filtro="" aria-pressed="${filtro === ''}">Todos${novas ? ` <b>${novas}</b>` : ''}</button>`]
       .concat(apps.map((a) => `<button type="button" data-filtro="${C.esc(a)}" aria-pressed="${filtro === a}">${icoApp(a)} ${C.esc(rotuloApp(a))}${porApp[a] ? ` <b>${porApp[a]}</b>` : ''}</button>`)).join('') : '';
 
-    const grupos = L.organizarNotificacoes(visiveis(), { app: filtro, soNaoLidas: soNovas });
+    const grupos = new Map();
+    for (const g of L.organizarNotificacoes(visiveis(), { app: filtro, soNaoLidas: soNovas })) {
+      for (const n of g.itens) {
+        const tipo = n.tipo || 'outros';
+        if (!grupos.has(tipo)) grupos.set(tipo, []);
+        grupos.get(tipo).push(n);
+      }
+    }
     const nAd = Object.keys(adiados).length;
-    lista.innerHTML = grupos.length ? grupos.map((g) => `
-      <section class="notif-grupo"><h3 class="notif-dia">${C.esc(g.nome)}</h3><ul>${g.itens.map((n) => `
+    lista.innerHTML = grupos.size ? Array.from(grupos, ([tipo, itens]) => {
+      const novos = itens.filter((n) => !n.lida_em);
+      const rotulo = nomesPorTipo[tipo]?.[itens.length === 1 ? 0 : 1] || (itens.length === 1 ? 'aviso · ' + (itens[0].titulo || rotuloApp(itens[0].app)) : M2().rotuloTipo(tipo));
+      return `
+      <details class="notif-grupo" data-grupo-tipo="${C.esc(tipo)}" ${gruposAbertos.has(tipo) || itens.length === 1 ? 'open' : ''}>
+        <summary>${itens.length} ${C.esc(rotulo)}${novos.length ? ` · ${novos.length} sem ler` : ''}</summary>
+        ${novos.length ? `<button type="button" class="btn-link" data-ler="${C.esc(novos.map((n) => n.id).join(','))}">Marcar este grupo como lido</button>` : ''}
+        <ul>${itens.map((n) => `
         <li class="${n.lida_em ? '' : 'nova'}">
           <button type="button" class="notif-abrir" data-notif="${C.esc(n.id)}">
             <span class="n-ico" aria-hidden="true">${M2().iconeDoAviso(n)}</span>
@@ -45,10 +64,11 @@
             ${n.corpo ? `<span class="n-corpo">${C.esc(n.corpo)}</span>` : ''}
             <span class="n-quando">${C.esc(L.quando(n.created_at))} · ${C.esc(rotuloApp(n.app))}</span></span>
           </button>
-          ${n.lida_em || n.grupo ? '' : `<button type="button" class="notif-adiar" data-adiar-sino="${C.esc(n.id)}" aria-expanded="${adiarAberto === n.id}" aria-label="Adiar: ${C.esc(n.titulo || 'aviso')}" title="Esconder por um tempo">⏱</button>`}
-          ${n.lida_em ? '' : `<button type="button" class="notif-ler" data-ler="${C.esc(n.grupo ? n.grupo.join(',') : n.id)}" aria-label="Marcar como lida: ${C.esc(n.titulo || 'aviso')}" title="Marcar como lida">✓</button>`}
+          ${n.lida_em ? '' : `<button type="button" class="notif-adiar" data-adiar-sino="${C.esc(n.id)}" aria-expanded="${adiarAberto === n.id}" aria-label="Adiar: ${C.esc(n.titulo || 'aviso')}" title="Esconder por um tempo">⏱</button>`}
+          ${n.lida_em ? '' : `<button type="button" class="notif-ler" data-ler="${C.esc(n.id)}" aria-label="Marcar como lida: ${C.esc(n.titulo || 'aviso')}" title="Marcar como lida">✓</button>`}
           ${adiarAberto === n.id ? `<div class="notif-adiar-op" role="group" aria-label="Adiar este aviso por…">${N4().OPCOES_ADIAR.map((o) => `<button type="button" data-adiar-por="${o.k}" data-adiar-id="${C.esc(n.id)}">${C.esc(o.rotulo)}</button>`).join('')}</div>` : ''}
-        </li>`).join('')}</ul></section>`).join('')
+        </li>`).join('')}</ul></details>`;
+    }).join('')
       : `<p class="vazio">${buscaTexto ? `Nenhum aviso com “${C.esc(buscaTexto)}”.` : notifs.length ? 'Nada com esse filtro.' : 'Nada por aqui. Quando passarem uma conversa, um lead, um orçamento ou um carro para você, aparece aqui.'}</p>`;
 
     const rod = $('#sinoRodape');
@@ -92,19 +112,15 @@
     if (!alvo.length) return Promise.resolve();
     alvo.forEach((n) => { n.lida_em = agora; });
     desenhar();
-    return C.sb.from('notificacoes').update({ lida_em: agora }).in('id', alvo.map((n) => n.id)).then(({ error }) => {
-      if (error) { alvo.forEach((n) => { n.lida_em = null; }); desenhar(); C.toast('Não consegui marcar como lida agora.'); }
+    return C.sb.from('notificacoes').update({ lida_em: agora }).in('id', alvo.map((n) => n.id)).is('lida_em', null).then(({ error }) => {
+      if (error) { alvo.forEach((n) => { n.lida_em = null; }); desenhar(); C.toast('Não consegui marcar como lida agora.'); return false; }
+      return true;
     });
   }
   function abrir(id) {
-    const gr = String(id).startsWith('grupo:');
-    const n = gr ? visiveis().find((x) => x.id === id) : notifs.find((x) => x.id === id);
+    const n = notifs.find((x) => x.id === id);
     if (!n) return;
-    marcar(gr ? n.grupo : [id]);
-    if (gr) {
-      if (n.tipo === 'tarefas_vencidas' || n.app === 'tarefas') return irParaTarefas('vencidas');
-      C.abrirNaAba(C.bases[n.app] || '/'); return;
-    }
+    marcar([id]);
     const a = N4().acaoDoAviso(n, C.bases, location.origin);
     if (a.acao === 'tarefas') return irParaTarefas(a.filtro);
     if (a.acao === 'abrir') return C.abrirNaAba(a.url);
@@ -118,7 +134,7 @@
     // com um filtro de app ligado, "todas" vale para o que está na tela
     const ids = notifs.filter((n) => !n.lida_em && (!filtro || n.app === filtro)).map((n) => n.id);
     if (!ids.length) return C.toast('Nada para marcar.');
-    marcar(ids).then(() => C.toast(ids.length === 1 ? '1 aviso marcado como lido.' : `${ids.length} avisos marcados como lidos.`));
+    marcar(ids).then((ok) => { if (ok) C.toast(ids.length === 1 ? '1 aviso marcado como lido.' : `${ids.length} avisos marcados como lidos.`); });
   }
 
   function alternar(forcar) {
@@ -139,6 +155,7 @@
   }
 
   MOD.montar = function (casa) {
+    gruposAbertos.clear();
     C = casa; L = casa.L; notifs = []; filtro = ''; soNovas = false; primeiraCarga = true; buscaTexto = ''; limite = 60; adiarAberto = null;
     C.alternarSino = alternar;
     C.sino = { carregar, mostrarAtencao, naoLidas: () => notifs.filter((n) => !n.lida_em).length, lista: () => notifs.slice() };
@@ -148,10 +165,23 @@
     const busca = $('#sinoBusca');
     if (busca) { busca.value = ''; busca.oninput = () => { buscaTexto = busca.value.trim().slice(0, 60); desenhar(); }; }
     $('#painelSino').onclick = (e) => {
+      // Ao redesenhar a lista, o botão clicado sai do DOM antes do clique
+      // chegar ao listener da página, que o confundiria com um clique fora.
+      e.stopPropagation();
+      const grupo = e.target.closest('summary')?.parentElement;
+      if (grupo?.dataset.grupoTipo) {
+        if (grupo.open) gruposAbertos.delete(grupo.dataset.grupoTipo);
+        else gruposAbertos.add(grupo.dataset.grupoTipo);
+      }
       const f = e.target.closest('[data-filtro]');
       if (f) { filtro = f.dataset.filtro; desenhar(); return; }
       const ler = e.target.closest('[data-ler]');
-      if (ler) { marcar(ler.dataset.ler.split(',')); return; }
+      if (ler) {
+        const tipo = ler.closest('[data-grupo-tipo]')?.dataset.grupoTipo;
+        marcar(ler.dataset.ler.split(','));
+        [...document.querySelectorAll('[data-grupo-tipo]')].find((el) => el.dataset.grupoTipo === tipo)?.querySelector('summary')?.focus();
+        return;
+      }
       const por = e.target.closest('[data-adiar-por]');
       if (por) {
         const o = lerAdiados(); o[por.dataset.adiarId] = N4().ateQuando(por.dataset.adiarPor, new Date()); gravarAdiados(o);
