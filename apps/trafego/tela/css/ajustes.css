@@ -235,6 +235,18 @@
   justify-content: space-between;
   gap: var(--p-esp-2);
 }
+.conexoes-passos-prontos {
+  gap: var(--p-esp-2);
+}
+.conexoes-passos-ver > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  cursor: pointer;
+}
+.conexoes-passos-ver[open] > summary {
+  margin-bottom: var(--p-esp-2);
+}
 .passos {
   display: grid;
   margin: 0;
@@ -323,7 +335,8 @@
   display: grid;
   gap: var(--p-esp-1);
   padding: var(--p-esp-3) var(--p-esp-4);
-  border-left: 0.1875rem solid var(--cor-grave);
+  border: 0.0625rem solid var(--cor-grave);
+  border-radius: var(--raio-controle);
   background-color: var(--cor-superficie-2);
 }
 .conexao-acessos > summary,
@@ -334,6 +347,10 @@
   display: grid;
   gap: var(--p-esp-4);
   padding-top: var(--p-esp-3);
+}
+/* Ajuda de um campo logo abaixo dele (sem o espaço inteiro da grade). */
+.conexao-ajuda {
+  margin-top: calc(-1 * var(--p-esp-3));
 }
 .conexao-form textarea {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;

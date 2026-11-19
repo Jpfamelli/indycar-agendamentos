@@ -367,7 +367,8 @@ ol.fala-lista {
 /* Resumo das mensagens antigas (conversa com mais de 40 mensagens) e veredito por extenso. */
 .fala-resumo {
   padding: var(--p-esp-3) var(--p-esp-4);
-  border-left: 0.1875rem solid var(--cor-linha-forte);
+  border: 0.0625rem dashed var(--cor-linha-forte);
+  border-radius: var(--raio-controle);
   color: var(--cor-tinta-2);
 }
 .diario-veredito {

@@ -69,16 +69,25 @@ function passoAPasso(ctx, c) {
   const passos = Array.isArray(c.passos) ? c.passos : [];
   if (!passos.length) return null;
   const feitos = passos.filter((p) => p.feito).length;
-  return h('section', { class: 'conexoes-passos', 'aria-labelledby': 'tPassos' },
-    h('div', { class: 'conexoes-passos-cab' },
-      h('h3', { class: 'titulo-p', id: 'tPassos' }, 'Passo a passo'),
-      h('p', { class: 'apoio' }, feitos === passos.length ? 'Tudo pronto.' : inteiro(feitos) + ' de ' + inteiro(passos.length) + ' prontos.')),
-    h('ol', { class: 'passos' }, passos.map((p, i) => h('li', { class: 'passo', data: { feito: p.feito ? '1' : null } },
+  const lista = h('ol', { class: 'passos' }, passos.map((p, i) => h('li', { class: 'passo', data: { feito: p.feito ? '1' : null } },
       h('span', { class: 'passo-n', 'aria-hidden': 'true' }, p.feito ? icone('certo') : String(i + 1)),
       h('div', { class: 'passo-corpo' },
         h('p', { class: 'passo-titulo' }, p.titulo, h('span', { class: 'so-leitor' }, p.feito ? ' (pronto)' : ' (falta)')),
         !p.feito && p.como ? h('p', { class: 'apoio' }, p.como) : null,
-        !p.feito ? botaoDaAcao(ctx, p.acao, 'ligacao passo-acao') : null)))));
+        !p.feito ? botaoDaAcao(ctx, p.acao, 'ligacao passo-acao') : null))));
+  // Tudo ligado: o passo a passo vira uma linha (os cinco "feito" ocupavam a primeira tela inteira no celular).
+  if (feitos === passos.length) {
+    return h('section', { class: 'conexoes-passos conexoes-passos-prontos', 'aria-labelledby': 'tPassos' },
+      h('div', { class: 'conexoes-passos-cab' },
+        h('h3', { class: 'titulo-p', id: 'tPassos' }, 'Passo a passo'),
+        selo('bom', 'Tudo ligado: ' + inteiro(feitos) + ' de ' + inteiro(passos.length))),
+      h('details', { class: 'conexoes-passos-ver' }, h('summary', { class: 'ligacao' }, 'Ver os passos'), lista));
+  }
+  return h('section', { class: 'conexoes-passos', 'aria-labelledby': 'tPassos' },
+    h('div', { class: 'conexoes-passos-cab' },
+      h('h3', { class: 'titulo-p', id: 'tPassos' }, 'Passo a passo'),
+      h('p', { class: 'apoio' }, inteiro(feitos) + ' de ' + inteiro(passos.length) + ' prontos.')),
+    lista);
 }
 
 /* ------------------------------ Meta e Google ------------------------------ */
@@ -89,25 +98,29 @@ function cartaoDeConta(ctx, canal, conexao, conta, linha, recarregar) {
   const aviso = conta && conta.aviso ? conta.aviso : null;
   const temAcesso = Boolean(linha && (canal === 'meta' ? linha.tem_meta_token : linha.tem_google_token || linha.tem_google_oauth || linha.tem_google_refresh));
   const detalhes = [];
-  if (conexao.ultima_coleta) detalhes.push('Última leitura ' + haQuanto(conexao.ultima_coleta) + '.');
+  if (conexao.ultima_coleta) detalhes.push('Números buscados ' + haQuanto(conexao.ultima_coleta) + '.');
   if (conexao.parada) detalhes.push('A leitura automática parou: os números podem estar atrasados.');
   if (conta && conta.token_expira_em) detalhes.push('O acesso vence em ' + dataCurta(conta.token_expira_em) + '.');
 
-  const ids = { conta: 'c-' + canal + '-conta', acesso: 'c-' + canal + '-acesso' };
+  const ids = { conta: 'c-' + canal + '-conta', acesso: 'c-' + canal + '-acesso', gerente: 'c-' + canal + '-gerente' };
   const campoConta = h('input', { id: ids.conta, name: canal === 'meta' ? 'meta_ad_account_id' : 'google_customer_id', type: 'text', inputmode: canal === 'meta' ? 'text' : 'numeric', autocomplete: 'off', spellcheck: 'false',
     placeholder: canal === 'meta' ? 'act_1234567890' : '123-456-7890' });
   const campoAcesso = canal === 'meta'
     ? h('input', { id: ids.acesso, name: 'meta_access_token', type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: temAcesso ? 'Já há um token guardado' : 'Começa com EAA' })
     : h('textarea', { id: ids.acesso, name: 'google_conta_servico', rows: '4', autocomplete: 'off', spellcheck: 'false', placeholder: temAcesso ? 'Já há um acesso guardado' : 'Cole aqui o conteúdo do arquivo JSON da conta de serviço' });
+  // Google: conta que mora dentro de uma conta gerenciadora (MCC, comum quando uma agência cuida) precisa do ID dela também.
+  const campoGerente = canal === 'google'
+    ? h('input', { id: ids.gerente, name: 'google_login_customer_id', type: 'text', inputmode: 'numeric', autocomplete: 'off', spellcheck: 'false', placeholder: linha && linha.tem_google_mcc ? 'Já há uma conta gerenciadora guardada' : 'Deixe em branco se não houver', 'aria-describedby': ids.gerente + '-apoio' })
+    : null;
   const resultado = h('div', { class: 'conexao-resultado', 'aria-live': 'polite' });
   let testado = null;   // os valores que passaram no teste (Salvar só vale para eles)
   const valores = () => (canal === 'meta'
     ? { canal, meta_ad_account_id: campoConta.value.trim() || undefined, meta_access_token: campoAcesso.value.trim() || undefined }
-    : { canal, google_customer_id: campoConta.value.trim() || undefined, google_conta_servico: campoAcesso.value.trim() || undefined });
+    : { canal, google_customer_id: campoConta.value.trim() || undefined, google_login_customer_id: campoGerente.value.trim() || undefined, google_conta_servico: campoAcesso.value.trim() || undefined });
   const assinatura = () => JSON.stringify(valores());
   const salvar = h('button', { class: 'botao botao-forte', type: 'button', disabled: true }, 'Salvar');
   const testar = h('button', { class: 'botao', type: 'button' }, 'Testar');
-  for (const campo of [campoConta, campoAcesso]) campo.addEventListener('input', () => { salvar.disabled = testado !== assinatura(); erroNoCampo(campo, null); });
+  for (const campo of [campoConta, campoAcesso, campoGerente].filter(Boolean)) campo.addEventListener('input', () => { salvar.disabled = testado !== assinatura(); erroNoCampo(campo, null); });
 
   testar.addEventListener('click', async () => {
     testar.disabled = true;
@@ -141,7 +154,7 @@ function cartaoDeConta(ctx, canal, conexao, conta, linha, recarregar) {
       recarregar();
     } catch (erro) {
       salvar.disabled = false;
-      const campo = erro && erro.corpo && /token|acesso|json/i.test(erro.message) ? campoAcesso : campoConta;
+      const campo = erro && erro.corpo && /token|acesso|json/i.test(erro.message) ? campoAcesso : campoGerente && /gerenciadora/i.test(erro.message || '') ? campoGerente : campoConta;
       erroNoCampo(campo, fraseDoErro(erro));
       campo.focus();
     }
@@ -155,12 +168,14 @@ function cartaoDeConta(ctx, canal, conexao, conta, linha, recarregar) {
     conexao.aviso ? h('p', null, conexao.aviso) : null,
     aviso ? h('div', { class: 'conexao-problema' }, icone('alerta', 'icone-p'), h('div', null, h('p', { class: 'forte' }, aviso.titulo), aviso.fazer ? h('p', null, aviso.fazer) : null)) : null,
     detalhes.length ? h('p', { class: 'apoio' }, detalhes.join(' ')) : null,
-    h('details', { class: 'conexao-acessos', open: !temAcesso || conexao.situacao === 'erro' || Boolean(aviso) },
+    h('details', { class: 'conexao-acessos', open: !temAcesso || conexao.situacao === 'erro' || conexao.situacao === 'token_vencendo' || Boolean(aviso) },
       h('summary', { class: 'ligacao' }, temAcesso ? 'Trocar o acesso' : 'Colar os acessos'),
       h('div', { class: 'conexao-form' },
         h('p', { class: 'apoio' }, guardado),
         h('label', { class: 'campo', for: ids.conta }, h('span', null, canal === 'meta' ? 'Número da conta de anúncios' : 'ID do cliente no Google Ads'), campoConta),
         h('label', { class: 'campo', for: ids.acesso }, h('span', null, canal === 'meta' ? 'Token de acesso' : 'Conta de serviço (arquivo JSON)'), campoAcesso),
+        campoGerente ? h('label', { class: 'campo', for: ids.gerente }, h('span', null, 'ID da conta gerenciadora (se houver)'), campoGerente) : null,
+        campoGerente ? h('p', { class: 'apoio conexao-ajuda', id: ids.gerente + '-apoio' }, 'Só se a conta do Google Ads fica dentro de outra (MCC), como quando uma agência cuida dos anúncios. São 10 números.') : null,
         h('div', { class: 'conexao-botoes' }, testar, salvar),
         resultado,
         h('details', { class: 'conexao-como' },
