@@ -30,8 +30,23 @@
   /* ---------------- utilidades ---------------- */
   const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const gravar = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
-  function toast(msg, ms = 3200) {
-    const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  /**
+   * Aviso curto no pé da tela. `opcao`: o tempo em ms, ou 'ok' / 'err' (o erro fica 6 s, com a cor de problema).
+   * `acao` ({ rotulo, fazer }) vira um botão no aviso, como o "Desfazer". Um relógio só para todos os avisos:
+   * um aviso novo nunca some antes do tempo dele por causa do relógio de um aviso anterior.
+   */
+  function toast(msg, opcao, acao) {
+    const t = $('#toast');
+    const ms = L.tempoDoAviso(opcao, !!acao);
+    t.textContent = msg;
+    t.dataset.tom = opcao === 'err' ? 'erro' : opcao === 'ok' ? 'ok' : '';
+    if (acao && acao.rotulo && typeof acao.fazer === 'function') {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'toast-btn'; b.textContent = acao.rotulo;
+      b.onclick = () => { t.hidden = true; clearTimeout(toast._t); acao.fazer(); };
+      t.append(' ', b);
+    }
+    t.hidden = false;
     clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, ms);
   }
   function erro(el, msg) { const e = $(el); e.textContent = msg || ''; e.hidden = !msg; }
@@ -66,7 +81,24 @@
     const m = document.querySelector('meta[name="theme-color"]');
     if (m) m.setAttribute('content', claro ? '#eef0f4' : '#070a14');
     gravar('indycar_tema', claro ? 'claro' : 'escuro');
+    rotularTema();
     requestAnimationFrame(() => requestAnimationFrame(() => r.removeAttribute('data-trocando-tema')));
+  }
+  /** O botão do tema diz qual está valendo e para qual vai (o leitor de tela não via o estado). */
+  function rotularTema() {
+    const b = $('#bTema'); if (!b) return;
+    const claro = document.documentElement.getAttribute('data-tema') === 'claro';
+    b.setAttribute('aria-pressed', String(claro));
+    b.setAttribute('aria-label', claro ? 'Tema claro ligado. Trocar para o escuro' : 'Tema escuro ligado. Trocar para o claro');
+    b.title = claro ? 'Trocar para o tema escuro' : 'Trocar para o tema claro';
+  }
+  /** Fecha o sino e o menu do perfil e zera o "aberto" dos dois botões. `foco`: devolve o foco ao botão que estava aberto. */
+  function fecharMenus(foco = false) {
+    const sino = $('#painelSino'), menu = $('#menuPerfil');
+    const volta = foco ? (!menu.hidden ? $('#bPerfil') : !sino.hidden ? $('#bSino') : null) : null;
+    sino.hidden = true; menu.hidden = true;
+    $('#bSino').setAttribute('aria-expanded', 'false'); $('#bPerfil').setAttribute('aria-expanded', 'false');
+    if (volta) volta.focus();
   }
 
   /* ---------------- telas da entrada ---------------- */
@@ -174,7 +206,7 @@
     // sem "scope" o supabase-js sai de TODOS os aparelhos (inclusive o celular do mecânico)
     try { await sb.auth.signOut({ scope: global ? 'global' : 'local' }); } catch { /* sessão já tinha ido */ }
     perfil = null; sessao = null;
-    $('#menuPerfil').hidden = true; $('#painelSino').hidden = true;
+    fecharMenus();
     mostrar('fLogin');
     if (global) toast('Você saiu de todos os aparelhos.');
   }
@@ -234,7 +266,7 @@
     const av = $('#bPerfil');
     av.textContent = (curto[0] || '?').toUpperCase();
     if (/^#[0-9a-f]{3,8}$/i.test(perfil.avatar_cor || '')) av.style.background = perfil.avatar_cor;
-    $('#mpNome').textContent = nome || '—';
+    $('#mpNome').textContent = nome || 'Sem nome cadastrado';
     $('#mpEmail').textContent = perfil.email || sessao.user.email || '';
     $('#mpPapel').textContent = [PAPEL[perfil.papel] || perfil.papel || '', perfil.cargo || ''].filter(Boolean).join(' · ');
     desenharApps();
@@ -264,14 +296,15 @@
       if (acao === 'sair') return sair(false);
       if (acao === 'sair-todos') return sair(true);
       if (acao === 'tentar') { $('#carregando').hidden = false; return depoisDoLogin().catch(() => semAcesso('Ainda sem conexão. Tente de novo em instantes.', true)); }
-      if (acao === 'trocar-senha') { $('#menuPerfil').hidden = true; return pedirSenha('troca'); }
+      if (acao === 'trocar-senha') { fecharMenus(); return pedirSenha('troca'); }
       const sino = e.target.closest('#bSino'), av = e.target.closest('#bPerfil');
       if (sino) { Casa.alternarSino ? Casa.alternarSino() : null; $('#menuPerfil').hidden = true; return; }
       if (av) { const m = $('#menuPerfil'); m.hidden = !m.hidden; av.setAttribute('aria-expanded', String(!m.hidden)); $('#painelSino').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false'); return; }
-      if (!e.target.closest('#painelSino, #menuPerfil')) { $('#painelSino').hidden = true; $('#menuPerfil').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false'); $('#bPerfil').setAttribute('aria-expanded', 'false'); }
+      if (!e.target.closest('#painelSino, #menuPerfil')) fecharMenus();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { $('#painelSino').hidden = true; $('#menuPerfil').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false'); }
+      // Esc fecha o sino ou o menu e devolve o foco ao botão que abriu (antes o foco ficava num painel escondido)
+      if (e.key === 'Escape' && (!$('#painelSino').hidden || !$('#menuPerfil').hidden)) fecharMenus(true);
     });
   }
 
@@ -279,6 +312,7 @@
   let voltarPedido = '';   // rodada 8: /?voltar=/trafego/... volta para o app depois do login (só caminho interno; ver L.voltarSeguro)
   async function iniciar() {
     ligar();
+    rotularTema();
     /* /?busca=<termo>: outros apps abrem a Casa já com a busca global preenchida (o termo sai da barra de endereço) */
     try {
       const p = new URLSearchParams(location.search);
@@ -303,7 +337,7 @@
       if (evento === 'PASSWORD_RECOVERY') { sessao = s; emRecuperacao = true; return pedirSenha('recuperar'); }
       if (evento === 'SIGNED_OUT' && perfil) {      // saiu em outro app/aba (a sessão é uma só neste domínio)
         desmontarModulos();
-        perfil = null; sessao = null; $('#menuPerfil').hidden = true; $('#painelSino').hidden = true;
+        perfil = null; sessao = null; fecharMenus();
         mostrar('fLogin');
       }
     });
