@@ -386,7 +386,7 @@ test('Casa: só volta para caminho interno de um app da Central (nada de endere�
   assert.equal(L.voltarSeguro('/trafego/../agenda/'), '/agenda/', 'caminho normalizado, ainda interno');
   const casa = lerCasa('casa.js');
   assert.match(casa, /voltarPedido = L\.voltarSeguro\(p\.get\('voltar'\) \|\| ''\)/, 'a Casa lê o voltar pela regra segura');
-  assert.match(casa, /if \(voltarPedido\) \{ const v = voltarPedido; voltarPedido = ''; location\.replace\(v\); return; \}/, 'e volta depois do login');
+  assert.match(casa, /if \(voltarPedido\) \{ const v = voltarPedido; voltarPedido = ''; abrirNaAba\(v\); \}/, 'e volta depois do login pela aba com o nome do app (a Casa nunca vira o app)');
 });
 
 test('Casa: o cartão do Tráfego segue a regra do app (administrador, ou gestor com "ads" na lista)', () => {

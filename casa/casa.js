@@ -238,8 +238,10 @@
     $('#mpEmail').textContent = perfil.email || sessao.user.email || '';
     $('#mpPapel').textContent = [PAPEL[perfil.papel] || perfil.papel || '', perfil.cargo || ''].filter(Boolean).join(' · ');
     desenharApps();
-    if (voltarPedido) { const v = voltarPedido; voltarPedido = ''; location.replace(v); return; }
     mostrar('casa');
+    /* rodada 8: veio de um app sem sessão (/?voltar=): abre o app na aba com o nome dele. Se esta aba já é a do app
+       (o Tráfego mandou para cá), a própria aba volta para ele; se não, abre a aba do app e a Casa fica. */
+    if (voltarPedido) { const v = voltarPedido; voltarPedido = ''; abrirNaAba(v); }
     if (montada) desmontarModulos();
     montada = true;
     for (const m of window.CasaModulos) { try { m.montar && m.montar(Casa); } catch (e) { console.error('Casa: módulo', m.nome, e); } }
