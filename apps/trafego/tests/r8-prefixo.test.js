@@ -1,4 +1,5 @@
 'use strict';
+process.env.TRAFEGO_TELA_ANTIGA = '1'; // estes testes conferem a tela antiga (desligada por padrão desde a rodada 8)
 /* Rodada 8 (frente T2a) — o app mora dentro da Central, em /trafego/.
    A Central tira o prefixo da URL, põe req.prefixo = '/trafego' e chama handler(req, res) direto.
    Este teste faz exatamente isso (uma "Central" de dez linhas) e confere que nada no app supõe a

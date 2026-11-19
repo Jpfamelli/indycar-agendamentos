@@ -40,13 +40,14 @@ function subir(estatico) {
   });
   return new Promise(ok => s.listen(0, '127.0.0.1', () => ok(s)));
 }
-let comTela, semTela;
+let comTela, semTela, comTelaAntigaDesligada;
 test.before(async () => {
-  comTela = await subir(Estatico.criar({ dirTela: TELA, dirAntiga: ANTIGA, vendor: VENDOR }));
+  comTela = await subir(Estatico.criar({ dirTela: TELA, dirAntiga: ANTIGA, vendor: VENDOR, antigaLigada: true }));
+  comTelaAntigaDesligada = await subir(Estatico.criar({ dirTela: TELA, dirAntiga: ANTIGA, vendor: VENDOR }));
   semTela = await subir(Estatico.criar({ dirTela: VAZIA, dirAntiga: ANTIGA, vendor: VENDOR }));
 });
 test.after(async () => {
-  for (const s of [comTela, semTela]) { s.closeAllConnections?.(); await new Promise(r => s.close(r)); }
+  for (const s of [comTela, semTela, comTelaAntigaDesligada]) { s.closeAllConnections?.(); await new Promise(r => s.close(r)); }
   fs.rmSync(raiz, { recursive: true, force: true });
 });
 async function pedir(servidor, caminho, { prefixo, metodo = 'GET', aceita = 'text/html,*/*' } = {}) {
@@ -81,7 +82,18 @@ test('manifest e service worker da tela nova saem com o tipo certo e sem cache (
   assert.match(sw.texto, /indycar-trafego-/);
 });
 
-test('a tela antiga continua em /antiga/ (com e sem tela nova) e /antiga redireciona para a barra', async () => {
+test('rodada 8: com a tela nova no ar, /antiga/ fica desligada e manda para a tela nova (sem TRAFEGO_TELA_ANTIGA=1)', async () => {
+  for (const c of ['/antiga', '/antiga/', '/antiga/app.js', '/antiga/styles.css']) {
+    const r = await pedir(comTelaAntigaDesligada, c);
+    assert.equal(r.status, 302, c);
+    assert.equal(r.headers.get('location'), '/', c);
+  }
+  const p = await pedir(comTelaAntigaDesligada, '/antiga/', { prefixo: '/trafego' });
+  assert.equal(p.status, 302);
+  assert.equal(p.headers.get('location'), '/trafego/', 'dentro da Central volta para /trafego/');
+});
+
+test('a tela antiga continua em /antiga/ (religada, ou sem tela nova) e /antiga redireciona para a barra', async () => {
   for (const s of [comTela, semTela]) {
     const r = await pedir(s, '/antiga/');
     assert.equal(r.status, 200);

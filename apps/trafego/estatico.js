@@ -3,7 +3,9 @@
 
    - Com tela/index.html, a raiz do app serve a tela nova (tela/).
      Sem ele, a raiz continua servindo a tela antiga (public/).
-   - A tela antiga fica em /antiga/ nos dois casos, até a rodada de enxugar.
+   - A tela antiga fica em /antiga/. Rodada 8 (enxugar): com a tela nova no ar, /antiga/ fica DESLIGADA e
+     manda para a tela nova (ninguém aponta para ela, e ela monta HTML com texto de fora, como nome de
+     campanha). Para religar por um tempo: TRAFEGO_TELA_ANTIGA=1. Os arquivos (public/) continuam no repositório.
    - /vendor/supabase.js continua servido daqui.
    - O app pode morar num prefixo (a Central entrega req.prefixo = '/trafego'):
      nenhum redirecionamento supõe a raiz do domínio. A tela nova já nasce
@@ -58,7 +60,7 @@ function reescreverAntiga(conteudo, { prefixo = '', raiz = '' } = {}) {
   return s;
 }
 
-function criar({ dirTela, dirAntiga, vendor = {} }) {
+function criar({ dirTela, dirAntiga, vendor = {}, antigaLigada = false }) {
   const TELA = path.resolve(dirTela), ANTIGA = path.resolve(dirAntiga);
 
   /* A tela nova pode chegar com o servidor no ar (outra frente escreve a pasta): confere de tempos em tempos. */
@@ -120,6 +122,12 @@ function criar({ dirTela, dirAntiga, vendor = {} }) {
     const prefixo = normalizarPrefixo(req.prefixo);
 
     if (vendor[caminho]) return enviar(req, res, vendor[caminho], { tipo: MIME['.js'], cache: 'public, max-age=86400' });
+
+    // Rodada 8: com a tela nova no ar, a antiga só abre com TRAFEGO_TELA_ANTIGA=1; senão vai para a tela nova.
+    if ((caminho === '/antiga' || caminho.startsWith('/antiga/')) && !antigaLigada && temTelaNova()) {
+      res.writeHead(302, { Location: `${prefixo}/`, 'Cache-Control': 'no-store' });
+      return res.end();
+    }
 
     // /antiga sem a barra: os endereços relativos da página quebrariam. Vai para /antiga/ DENTRO do prefixo.
     if (caminho === '/antiga') {

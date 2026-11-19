@@ -1,4 +1,5 @@
 'use strict';
+process.env.TRAFEGO_TELA_ANTIGA = '1'; // estes testes conferem a tela antiga (desligada por padrão desde a rodada 8)
 /* Contrato HTTP: /api/ping público, tudo mais exige login, erros sempre em
    JSON com o status certo, corpo grande recusado antes do login, estáticos
    com cabeçalhos de segurança. Sobe o servidor numa porta livre. */

@@ -117,7 +117,7 @@ function lerCorpo(req) {
 
 /* Rodada 4: arquivo da memória (comprimido uma vez) e gzip quando o navegador aceita.
    Rodada 8: tela/ na raiz, public/ em /antiga/, e nada supõe a raiz do domínio (estatico.js). */
-const estatico = Estatico.criar({ dirTela: TELA, dirAntiga: PUBLIC, vendor: VENDOR });
+const estatico = Estatico.criar({ dirTela: TELA, dirAntiga: PUBLIC, vendor: VENDOR, antigaLigada: process.env.TRAFEGO_TELA_ANTIGA === '1' });
 const servirEstatico = (req, res, caminho) => estatico.servir(req, res, caminho);
 
 /* ------------------------------------------------------------

@@ -1,4 +1,5 @@
 'use strict';
+process.env.TRAFEGO_TELA_ANTIGA = '1'; // estes testes conferem a tela antiga (desligada por padrão desde a rodada 8)
 /* Rodada 4 (14/10/2026): servidor acordando (novas tentativas), guia de conexão em passos, gzip e memória dos
    estáticos, service worker, fontes no próprio app e preferências gravadas sem apagar os outros apps. */
 const test = require('node:test');
