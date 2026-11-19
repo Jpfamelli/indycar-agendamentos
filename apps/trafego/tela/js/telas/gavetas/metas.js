@@ -1,7 +1,9 @@
 /* ============================================================================
    Gaveta "Metas e verba" (GET/POST /api/config, rota antiga que continua valendo).
    Quatro números, cada um com uma frase dizendo para que serve. Campo vazio =
-   "ainda não sei" (o servidor guarda nulo); a margem vazia volta a 100%.
+   "ainda não sei" (o servidor guarda nulo); a margem vazia o servidor guarda como 100%,
+   que não é margem de oficina: a tela mostra em branco e faz a conta com a premissa de 45%,
+   a mesma régua do servidor (motor/campanhas.js, reguaDoRetorno).
    ============================================================================ */
 
 import { h, trocar, focar } from '../../dom.js';
@@ -20,9 +22,14 @@ export const CAMPOS = [
     para: 'Quanto de cada serviço sobra depois das peças e da mão de obra. Com ela, o retorno mostra o que sobrou, não só o que entrou.' },
 ];
 
+/** Margem que o servidor usa quando a oficina não cadastrou (nula, 0 ou 100%). */
+export const MARGEM_PREMISSA = 45;
+const margemCadastrada = (m) => ehNumero(m) && m > 0 && m < 100;
+
 /** Valor guardado → texto do campo. */
 export function paraCampo(v, tipo) {
   if (!ehNumero(v)) return '';
+  if (tipo === 'porcento' && !margemCadastrada(v)) return '';   // 100% é o "em branco" antigo do servidor
   if (tipo === 'porcento') return numero(v, Number.isInteger(v) ? 0 : 1);
   return numero(v, Number.isInteger(v) ? 0 : 2);
 }
@@ -43,11 +50,16 @@ export function doCampo(texto, tipo) {
 
 /** A conta que o dono faz de cabeça: quanto sobra de um serviço e quanto dá para pagar por contato. */
 export function contaDeCabeca(cfg) {
-  const ticket = ehNumero(cfg.ticket_medio) ? cfg.ticket_medio : null;
-  const margem = ehNumero(cfg.margem_pct) ? cfg.margem_pct : 100;
-  if (ticket === null) return null;
-  const sobra = ticket * margem / 100;
-  return 'Com ' + dinheiro(ticket) + ' por serviço e ' + numero(margem, 0) + '% de margem, cada serviço fechado deixa ' + dinheiro(sobra) + '.';
+  const premissa = !margemCadastrada(cfg.margem_pct);
+  const margem = premissa ? MARGEM_PREMISSA : cfg.margem_pct;
+  const frases = [];
+  if (premissa) frases.push('Sem margem cadastrada, o Tráfego faz as contas com ' + MARGEM_PREMISSA + '%, uma premissa.');
+  if (ehNumero(cfg.ticket_medio)) {
+    frases.push('Com ' + dinheiro(cfg.ticket_medio) + ' por serviço e ' + numero(margem, Number.isInteger(margem) ? 0 : 1) + '% de margem, cada serviço fechado deixa ' + dinheiro(cfg.ticket_medio * margem / 100) + '.');
+  }
+  // A régua da classificação (a mesma do servidor): abaixo de 1/margem a campanha não se paga; acima de 2/margem é boa.
+  frases.push('Uma campanha se paga quando cada R$ 1 em anúncio vira mais de ' + dinheiro(100 / margem, { centavos: true }) + ' em serviço fechado; acima de ' + dinheiro(200 / margem, { centavos: true }) + ' ela é boa.');
+  return frases.join(' ');
 }
 
 let seq = 0;
@@ -77,7 +89,7 @@ export function montar(ctx, alvo) {
     const linhas = CAMPOS.map((c) => {
       const id = 'meta-' + c.id + '-' + (++seq);
       const idPara = id + '-para';
-      const input = h('input', { id, name: c.id, type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-describedby': idPara });
+      const input = h('input', { id, name: c.id, type: 'text', inputmode: 'decimal', autocomplete: 'off', 'aria-describedby': idPara, placeholder: c.tipo === 'porcento' ? 'em branco, 45' : null });
       input.value = paraCampo(cfg[c.id], c.tipo);
       campos[c.id] = input;
       return h('div', { class: 'meta-linha' },
