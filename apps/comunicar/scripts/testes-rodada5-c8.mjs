@@ -114,11 +114,11 @@ test('fila acumulada: o pátio pronto novinho sai ANTES de 200 campanhas antigas
   assert.equal(w.m.enviadasWa[0], '55' + tel(1), 'o primeiro a sair é o pátio pronto');
 });
 
-test('limites: no máximo 25 por rodada e o limite diário conta o que já saiu hoje', async () => {
+test('limites: no máximo 8 por rodada e o limite diário conta o que já saiu hoje', async () => {
   const w = mundo();
   for (let i = 0; i < 80; i++) w.m.add({ tipo: 'campanha', telefone: tel(i) });
   const r = await w.rodar();
-  assert.equal(r.enviados, 25);
+  assert.equal(r.enviados, 8);
   const w2 = mundo({ enviados: Array.from({ length: 298 }, (_, i) => ({ tipo: 'campanha', telefone: tel(500 + i), enviado_em: h(-2) })) });
   for (let i = 0; i < 20; i++) w2.m.add({ tipo: 'campanha', telefone: tel(i) });
   const r2 = await w2.rodar();
@@ -145,7 +145,7 @@ test('mensagem velha vence: lembrete depois do horário, aniversário de ontem e
   assert.equal(r.enviados, 0);
   assert.equal(w.por(lembrete.id).status, 'pulado'); assert.match(w.por(lembrete.id).motivo_pulado, /passou da hora/);
   assert.equal(w.por(pronto.id).status, 'pulado'); assert.match(w.por(pronto.id).motivo_pulado, /72 h/);
-  assert.equal(w.por(vencida.id).status, 'pendente', 'vencida por expira_em é varrida pela faxina do começo da rodada');
+  assert.equal(w.por(vencida.id).status, 'pulado', 'a rodada bloqueia mesmo sem a faxina do servidor');
   assert.equal(carteiro.envioVencido(vencida, AGORA.getTime()), true);
 });
 

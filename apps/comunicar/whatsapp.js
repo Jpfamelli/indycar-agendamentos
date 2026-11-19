@@ -241,7 +241,7 @@ export function montarSaude({ status = null, falhas24h = {}, fila = {}, carteiro
   };
 
   // 1. o que a última leitura do CodeWords disse
-  if (status?.chaveRecusada || status?.classe === 'chave_recusada') return comPlano('chave_recusada', 'chave_recusada', { motivo: ERRO_CHAVE_RECUSADA });
+  if (status?.chaveRecusada || status?.classe === 'chave_recusada') return comPlano('chave_recusada', 'chave_recusada', { motivo: ERRO_CHAVE_RECUSADA, gravadoEm: estadoGravado?.estado === 'chave_recusada' ? estadoGravado.em : null });
   if (status?.classe === 'sem_chave') return comPlano('sem_chave', 'sem_chave');
   if (status?.ok && status.conectado) {
     // conectado, mas a fila está travando? (instabilidade recente)
