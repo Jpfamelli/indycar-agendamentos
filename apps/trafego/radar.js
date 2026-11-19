@@ -224,6 +224,85 @@ function alertasDoCRM(resultado, { disparos = new Map(), agora = Date.now(), cpa
 }
 
 /* ------------------------------------------------------------
+   Rodada 8: regras da CONTA inteira trazidas do núcleo do Nexus Ads (motor/nucleo.mjs, regras r5 e r6; no núcleo
+   ficam desligadas, para não existir um segundo radar). As contas e os limites são os do núcleo:
+   - gasto_parou (r5): o gasto de ontem ficou abaixo de 30% da média dos 7 dias anteriores (média de pelo menos
+     R$ 20 por dia, com gasto em 5 dos 7 dias). Domingo a oficina não abre: não avalia. Com mais de uma plataforma,
+     avalia também cada uma (o Google zerado com a Meta firme não some na soma).
+   - contatos_sumiram (r6): nos últimos 3 dias a Meta contou pelo menos 6 conversas e menos de 40% chegaram à
+     oficina como contato da Meta, quando nas 2 semanas antes chegavam (só avisa QUEDA).
+   Linhas de demonstração não entram. Um aviso por chave a cada 24 h.
+   ------------------------------------------------------------ */
+const CONTA_TIPOS = {
+  gasto_parou: { nome: 'O investimento parou de repente', metrica: 'conta_gasto', severidade: 'critico' },
+  contatos_sumiram: { nome: 'Conversas da Meta não chegam à oficina', metrica: 'conta_contatos', severidade: 'alerta' },
+};
+const DIA_MS = 86400000;
+const somarDiaIso = (iso, n) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * DIA_MS).toISOString().slice(0, 10);
+
+/**
+ * Pura. `linhas` = ads_metricas_dia (nível campanha) dos 17 dias até ontem; `contatosMeta` = Map(dia -> contatos que
+ * chegaram pela Meta); `ontem` = dia AAAA-MM-DD. Devolve { novos, suprimidos } no formato de ads_alertas.
+ */
+function alertasDaConta(linhas, { contatosMeta = null, ontem, disparos = new Map(), agora = Date.now() } = {}) {
+  const T = require('./motor/texto');
+  const Ad = require('./motor/adaptador');
+  const reais = (linhas || []).filter(l => l && l.fonte !== 'demo');
+  const novos = [], suprimidos = [];
+  const emitir = (tipo, chave, campos) => {
+    const ultimo = disparos.get(chave);
+    if (ultimo && agora - new Date(ultimo).getTime() < CRM_COOLDOWN_H * 3600000) { suprimidos.push({ chave }); return; }
+    const t = CONTA_TIPOS[tipo];
+    novos.push({ regra_id: null, regra_nome: t.nome, nivel: 'conta', entidade_ext: 'conta', entidade_nome: 'Conta inteira',
+      metrica: t.metrica, severidade: t.severidade, chave, plataforma: null, valor_limite: null, ...campos });
+    disparos.set(chave, new Date(agora).toISOString());
+  };
+  const ddmm = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const reais$ = v => (Math.abs(v) >= 100 ? T.brl0(v) : T.brl(v));
+
+  // gasto_parou (r5)
+  const domingo = new Date(`${ontem}T12:00:00Z`).getUTCDay() === 0;
+  const queda = plat => {
+    const g = [];
+    for (let i = 7; i >= 0; i--) {
+      const dia = somarDiaIso(ontem, -i);
+      g.push(reais.filter(l => l.data === dia && (!plat || l.plataforma === plat)).reduce((s, l) => s + (+l.gasto || 0), 0));
+    }
+    const antes = g.slice(0, 7), media = antes.reduce((a, b) => a + b, 0) / 7, comGasto = antes.filter(x => x > 0.009).length, ontemG = g[7];
+    return { media, ontem: ontemG, caiu: media >= 20 && comGasto >= 5 && ontemG < media * 0.3 };
+  };
+  if (!domingo) {
+    const total = queda(null);
+    const plats = [...new Set(reais.map(l => l.plataforma).filter(Boolean))].sort();
+    const quedas = plats.length > 1 ? plats.map(p => ({ p, ...queda(p) })).filter(x => x.caiu) : [];
+    const det = x => `${PLATAFORMA_NOME[x.p] || x.p}: ${reais$(x.media)} por dia, ontem ${reais$(x.ontem)}`;
+    if (total.caiu) {
+      emitir('gasto_parou', 'conta|gasto_parou', { valor_medido: Math.round(total.ontem * 100) / 100,
+        mensagem: `O investimento caiu de ${reais$(total.media)} por dia (média dos 7 dias anteriores) para ${reais$(total.ontem)} em ${ddmm(ontem)}: cartão recusado, anúncio reprovado ou saldo zerado?${quedas.length ? ` (${quedas.map(det).join('; ')})` : ''}` });
+    } else for (const x of quedas) {
+      emitir('gasto_parou', `conta|gasto_parou|${x.p}`, { plataforma: x.p, valor_medido: Math.round(x.ontem * 100) / 100,
+        mensagem: `O investimento no ${PLATAFORMA_NOME[x.p]} caiu de ${reais$(x.media)} por dia para ${reais$(x.ontem)} em ${ddmm(ontem)}, enquanto o resto seguiu normal: cartão recusado, anúncio reprovado ou saldo zerado?` });
+    }
+  }
+
+  // contatos_sumiram (r6)
+  if (contatosMeta instanceof Map) {
+    const conta = (de, ate) => {
+      let plataforma = 0, oficina = 0;
+      for (const l of reais) if (l.plataforma === 'meta' && l.data >= de && l.data <= ate) plataforma += Ad.contatosDaPlataforma(l);
+      for (const [dia, n] of contatosMeta) if (dia >= de && dia <= ate) oficina += n;
+      return { plataforma, oficina };
+    };
+    const agoraC = conta(somarDiaIso(ontem, -2), ontem), antesC = conta(somarDiaIso(ontem, -16), somarDiaIso(ontem, -3));
+    if (agoraC.plataforma >= 6 && agoraC.oficina < agoraC.plataforma * 0.4 && antesC.plataforma >= 10 && antesC.oficina >= antesC.plataforma * 0.4) {
+      emitir('contatos_sumiram', 'conta|contatos_sumiram|meta', { plataforma: 'meta', valor_medido: agoraC.oficina,
+        mensagem: `Nos últimos 3 dias a Meta contou ${T.plural(Math.round(agoraC.plataforma), 'conversa', 'conversas')}, mas só ${agoraC.oficina} ${agoraC.oficina === 1 ? 'chegou' : 'chegaram'} à oficina (antes chegavam ${Math.round(antesC.oficina / antesC.plataforma * 100)}%). Confira se o WhatsApp do anúncio é o da oficina e se o aparelho está ligado.` });
+    }
+  }
+  return { novos, suprimidos };
+}
+
+/* ------------------------------------------------------------
    Rodada 7: alertas do CICLO (anúncio -> orçamento -> carro). O radar também avisa
    quando um cliente de anúncio está esperando o consultor: orçamento que ele abriu e
    não respondeu, desconto pedido, carro pronto sem retirar... Um alerta por tipo, 24 h de cooldown.
@@ -277,7 +356,7 @@ function alertasDoCiclo(acoes, { disparos = new Map(), agora = Date.now() } = {}
  *   padrão: sem isso, cada clique em "testar agora" enchia o histórico de
  *   alertas que ninguém recebeu — e eles ainda vazavam para o relatório.
  */
-async function rodar({ enviar = true, ignorarCooldown = false, gravar = enviar, crm = true, ciclo = true } = {}) {
+async function rodar({ enviar = true, ignorarCooldown = false, gravar = enviar, crm = true, ciclo = true, conta = crm } = {}) {
   const cfg = await db.lerConfig();
   const regras = await db.listarRegras({ somenteAtivas: true });
   const agora = Date.now();
@@ -309,6 +388,19 @@ async function rodar({ enviar = true, ignorarCooldown = false, gravar = enviar, 
       novos.push(...c.novos);
       suprimidos.push(...c.suprimidos);
     } catch (e) { erroCRM = e.message; }
+  }
+
+  // Rodada 8: regras da conta inteira (do núcleo). Falha na leitura não derruba o radar.
+  let erroConta = null;
+  if (conta) {
+    try {
+      const { ate: ontem } = janela(1, agora);
+      const de = somarDiaIso(ontem, -16);
+      const [linhas, contatosMeta] = await Promise.all([db.lerMetricas({ de, ate: ontem, nivel: 'campanha' }), rodar.leitorContatosMeta({ de, ate: ontem })]);
+      const c = alertasDaConta(linhas, { contatosMeta, ontem, disparos, agora });
+      novos.push(...c.novos);
+      suprimidos.push(...c.suprimidos);
+    } catch (e) { erroConta = e.message; }
   }
 
   // Rodada 7: cliente de anúncio esperando o consultor. Orçador/Pátio fora do ar não derrubam o radar.
@@ -352,6 +444,7 @@ async function rodar({ enviar = true, ignorarCooldown = false, gravar = enviar, 
     notificacao,
     erro_crm: erroCRM,
     erro_ciclo: erroCiclo,
+    erro_conta: erroConta,
     motivo_sem_envio: !enviar ? 'simulação'
       : !gravados.length ? 'nada disparou'
       : !cfg.alertas_ativos ? 'alertas desligados na configuração'
@@ -363,6 +456,15 @@ async function rodar({ enviar = true, ignorarCooldown = false, gravar = enviar, 
 
 /* Injetável nos testes: a leitura do ciclo (Orçador + Pátio). */
 rodar.leitorCiclo = () => require('./ciclo').acoes();
+
+/* Injetável nos testes: contatos que chegaram pela Meta, por dia (a jornada, pela fonte das rotas novas). */
+rodar.leitorContatosMeta = async ({ de, ate }) => {
+  const S = require('./motor/soma');
+  const { itens } = await require('./motor/fonte').padrao().contatos({ de, ate });
+  const porDia = new Map();
+  for (const i of itens) if (S.plataformaDe(i) === 'meta') { const d = S.diaDe(i); if (d) porDia.set(d, (porDia.get(d) || 0) + 1); }
+  return porDia;
+};
 
 /* Injetável nos testes; por padrão, a equipe no banco. */
 rodar.notificador = { notificarGestores: (...a) => require('./equipe').banco().notificarGestores(...a) };
@@ -397,6 +499,6 @@ function textoDoAlerta(alertas) {
 }
 
 module.exports = {
-  rodar, alertasDoCiclo, severidadeDoCiclo, CICLO_SEVERIDADE, notificacaoDosAlertas, janela, textoDoAlerta, alertasDoCRM, CRM_TIPOS, montarMensagem, avaliarRegra, validarRegra,
+  rodar, alertasDaConta, CONTA_TIPOS, alertasDoCiclo, severidadeDoCiclo, CICLO_SEVERIDADE, notificacaoDosAlertas, janela, textoDoAlerta, alertasDoCRM, CRM_TIPOS, montarMensagem, avaliarRegra, validarRegra,
   NIVEIS, PLATAFORMAS, SEVERIDADES, METRICAS, COMPARA,
 };
