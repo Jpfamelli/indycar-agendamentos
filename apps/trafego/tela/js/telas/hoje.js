@@ -13,6 +13,7 @@ import { selo, setores, origem as marcaDaOrigem, barra, botaoDaAcao, vazio, semD
 import { rotuloDaEtapa } from '../setores.js';
 import * as Estados from './estados.js';
 import { mostrarAviso } from '../aviso.js';
+import { faltaLigar } from '../hoje-logica.js';
 
 const ICONE_DA_DIRECAO = { sobe: 'sobe', desce: 'desce', igual: 'igual' };
 const LEITURA_DO_TOM = { bom: 'bom sinal', atencao: 'pede atenção' };
@@ -128,11 +129,13 @@ function fazer(ctx, d) {
     lista.length
       ? h('ol', { class: 'acoes' }, lista.map((f, i) => {
         const g = GRAVIDADE[f.gravidade];
-        return h('li', { class: 'acao' },
+        // A gravidade vem antes do título: "Urgente" é a primeira coisa que se lê (antes ficava ao lado ou embaixo do botão).
+        return h('li', { class: 'acao' + (g ? ' acao-com-selo' : '') },
           h('span', { class: 'acao-ordem', 'aria-hidden': 'true' }, String(i + 1)),
+          g ? h('p', { class: 'acao-selo' }, selo(g[0], g[1], g[2])) : null,
           h('p', { class: 'acao-titulo' }, f.titulo),
           f.porque ? h('p', { class: 'acao-porque' }, f.porque) : null,
-          h('div', { class: 'acao-pe' }, botaoDaAcao(ctx, f.acao), g ? selo(g[0], g[1], g[2]) : null));
+          h('div', { class: 'acao-pe' }, botaoDaAcao(ctx, f.acao)));
       }))
       : vazio({ titulo: 'Nada pedindo ação agora', texto: 'Quando aparecer algo para resolver, entra aqui em ordem de importância.' }));
 }
@@ -273,7 +276,7 @@ function deHoje(ctx, d, estreia) {
   const lista = d.hoje || [];
   return bloco('tHoje', 'Contatos de hoje', lista.length ? contagem(lista.length, 'até agora', 'até agora') : null,
     lista.length
-      ? h('ul', { class: 'hoje-lista' + (estreia ? ' acender' : '') }, lista.map((c, i) => h('li', { class: 'hoje-linha' },
+      ? h('ul', { class: 'hoje-lista' + (estreia ? ' acender' : '') }, lista.map((c, i) => h('li', { class: 'hoje-linha' + (ehNumero(c.espera_min) ? ' hoje-linha-espera' : '') },
         h('span', { class: 'hoje-hora numero' }, c.hora),
         h('a', { class: 'hoje-nome torre-abre', href: ctx.hrefDaTela('jornada', { contato: c.lead_id }) }, c.nome),
         h('span', { class: 'hoje-origem' }, marcaDaOrigem(c.origem)),
@@ -296,7 +299,7 @@ function conexoes(ctx, d) {
     detalhe ? h('span', { class: 'conexao-detalhe apoio' }, detalhe) : null);
   // `parada` (API-base.md, motor/conexoes-estado.js): mais de um dia e meio sem buscar os números.
   const coleta = (x) => (x && x.parada && !x.aviso ? 'A busca dos números está parada' + (x.ultima_coleta ? ': a última foi ' + haQuanto(x.ultima_coleta) : '') + '.'
-    : x && x.ultima_coleta ? 'Última leitura ' + haQuanto(x.ultima_coleta) + '.' : null);
+    : x && x.ultima_coleta ? 'Números buscados ' + haQuanto(x.ultima_coleta) + '.' : null);
   const juntar = (...partes) => partes.filter(Boolean).join(' ') || null;
   const itens = [];
   if (c.meta) itens.push(linha('Anúncios da Meta', CONTA_DE_ANUNCIO[c.meta.situacao], juntar(c.meta.aviso, coleta(c.meta))));
@@ -311,5 +314,6 @@ function conexoes(ctx, d) {
   }
   return bloco('tConexoes', 'Conexões', null,
     itens.length ? h('ul', { class: 'conexoes' }, itens) : h('p', { class: 'suave' }, 'Sem informação das conexões agora.'),
-    h('a', { class: 'ligacao', href: ctx.hrefDaTela('ajustes', { secao: 'conexoes' }) }, 'Ver o que falta ligar', icone('seta', 'icone-p')));
+    h('a', { class: 'ligacao', href: ctx.hrefDaTela('ajustes', { secao: 'conexoes' }) }, faltaLigar(c) ? 'Ver o que falta ligar' : 'Ver as conexões', icone('seta', 'icone-p')));
 }
+

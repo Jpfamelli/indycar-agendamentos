@@ -11,7 +11,7 @@
    - Tudo relativo ao lugar do próprio arquivo: funciona em /trafego/ e na raiz.
    ============================================================================ */
 
-const VERSAO = 'indycar-trafego-r8-2';
+const VERSAO = 'indycar-trafego-r9-1';
 const PREFIXO = 'indycar-trafego-';
 const TEMPO_REDE_MS = 6000;
 const CASCA = [
@@ -21,7 +21,7 @@ const CASCA = [
   'fontes/archivo-variavel.woff2', 'fontes/barlow-condensed-600.woff2', 'fontes/barlow-condensed-700.woff2', 'fontes/barlow-condensed-800-italic.woff2',
   'js/acoes-logica.js', 'js/api.js', 'js/app.js', 'js/aviso.js', 'js/campanhas-logica.js',
   'js/contatos.js', 'js/desfazer.js', 'js/dom.js', 'js/ecossistema.js', 'js/filtros.js',
-  'js/fluxo.js', 'js/formatacao.js', 'js/formato.js', 'js/frase.js', 'js/icones.js',
+  'js/fluxo.js', 'js/formatacao.js', 'js/formato.js', 'js/frase.js', 'js/hoje-logica.js', 'js/icones.js',
   'js/mapa.js', 'js/pecas.js', 'js/rede.js', 'js/relatorios-logica.js', 'js/rotas.js',
   'js/sessao.js', 'js/setores.js', 'js/telas/ajustes.js', 'js/telas/apresentacao.js', 'js/telas/campanhas.js',
   'js/telas/detalhe.js', 'js/telas/estados.js', 'js/telas/fila.js', 'js/telas/folha.js', 'js/telas/gavetas/chaves.js',

@@ -381,6 +381,23 @@
   justify-self: end;
   text-align: right;
 }
+/* Quem espera resposta: o selo "esperando há…" ganha linha própria e a origem não corta mais em "Anúncio do…". */
+.hoje-linha-espera {
+  grid-template-areas:
+    'hora nome setores'
+    'hora origem origem'
+    'hora etapa etapa';
+}
+.hoje-linha-espera:not(:has(.setores)) {
+  grid-template-areas:
+    'hora nome nome'
+    'hora origem origem'
+    'hora etapa etapa';
+}
+.hoje-linha-espera .hoje-etapa {
+  justify-self: start;
+  text-align: left;
+}
 
 /* ------------------------------ conexões ------------------------------ */
 .conexoes {
