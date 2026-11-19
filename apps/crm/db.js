@@ -120,9 +120,14 @@ const dinheiro = v => {
 /* ============================================================
    CRUD
    ============================================================ */
+const colunasLead = new Set(db.prepare('PRAGMA table_info(leads)').all().map(c => c.name));
+for (const campo of ['motivo_perda', 'motivo_perda_obs']) {
+  if (!colunasLead.has(campo)) db.exec('ALTER TABLE leads ADD COLUMN ' + campo + ' TEXT');
+}
+
 const COLS = ['nome','telefone','email','carro_modelo','carro_ano','placa','servico',
               'valor_orcado','valor_pago','status','origem','utm_source','utm_medium',
-              'utm_campaign','observacoes'];
+              'utm_campaign','observacoes','motivo_perda','motivo_perda_obs'];
 
 function createLead(data) {
   const now = nowISO();

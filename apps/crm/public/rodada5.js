@@ -158,7 +158,7 @@ const _renderFichaLeadR4 = renderFichaLead;
 renderFichaLead = function (l) {
   _renderFichaLeadR4(l);
   const det = U.origemDetalhada(l, o => LABEL_ORIGEM[o] ?? o ?? '');
-  const tag = $('#lfTopo .lf-tags .tag'); if (tag && det && (l.utm_source || l.utm_medium || l.utm_campaign)) { tag.textContent = det; tag.title = 'Origem · fonte · mídia · campanha (UTM)'; }
+  const tag = $('#lfTopo .lf-tags .tag'); if (tag) { tag.textContent = U.origemCaptada(l); tag.title = det; }
 };
 
 /* ================= ficha 360 do cliente: UMA chamada (rpc cliente_360) ================= */

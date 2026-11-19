@@ -304,10 +304,13 @@ function preencherSelects() {
     STATUSES.map(s => opt(s, LABEL_STATUS[s] ?? s)).join('');
   $('#fOrigem').innerHTML = '<option value="">Todas as origens</option>' +
     ORIGENS.map(o => opt(o, o === 'indicacao' ? 'Indicação (inclui as da Área do Cliente)' : LABEL_ORIGEM[o] ?? o)).join('') +
-    opt('area_cliente', 'Área do Cliente (link do cliente)');
+    opt('area_cliente', 'Área do Cliente (link do cliente)') +
+    opt('pago_meta', 'Anúncio da Meta') + opt('pago_google', 'Anúncio do Google') +
+    opt('pago_sem_plataforma', 'Anúncio sem plataforma') + opt('nao_pago', 'Contato não pago') +
+    opt('origem_incerta', 'Não sei de onde veio');
 
   if (stAtual && STATUSES.includes(stAtual)) $('#fStatus').value = stAtual;
-  if (ogAtual && (ORIGENS.includes(ogAtual) || ogAtual === 'area_cliente'))  $('#fOrigem').value = ogAtual;
+  if (Array.from($('#fOrigem').options).some(o => o.value === ogAtual)) $('#fOrigem').value = ogAtual;
 
   $('#fStatusForm').innerHTML = STATUSES.map(s => opt(s, LABEL_STATUS[s] ?? s)).join('');
   $('#fOrigemForm').innerHTML = ORIGENS.map(o => opt(o, LABEL_ORIGEM[o] ?? o)).join('');
@@ -423,9 +426,9 @@ $('#leadForm').addEventListener('submit', async e => {
   btnSalvar.disabled = true; btnSalvar.textContent = 'Salvando…';
   try {
     const editando = editId, antes = editando ? TODOS.find(x => String(x.id) === String(editando)) : null;
-    if (payload.status === 'perdido' && antes?.status !== 'perdido' && !U.motivoPerda(payload.observacoes)) {
+    if (payload.status === 'perdido' && antes?.status !== 'perdido') {
       const m = await perguntarPerda(payload.nome); if (!m) return;
-      payload.observacoes = U.comMotivoPerda(payload.observacoes, m);
+      Object.assign(payload, U.camposPerda(payload.observacoes, m.codigo, m.texto));
     }
     if (payload.status === 'concluido' && antes?.status !== 'concluido' && !(Number(payload.valor_pago) > 0)) {
       const v = await perguntarPagoDetalhe({...antes, ...payload, valor_pago: 0}); if (!v) return;

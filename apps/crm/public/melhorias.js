@@ -69,15 +69,15 @@ document.addEventListener('click', e => { const b = e.target.closest('dialog [da
 // clique fora da caixa fecha
 $$('dialog.dlg').forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
 
-const MOTIVOS_PERDA = ['Achou caro', 'Foi em outra oficina', 'Sem retorno do cliente', 'Desistiu do serviço', 'Não fazemos o serviço', 'Prazo não atendeu', 'Outro'];
-$('#motivosPerdaOpcoes').insertAdjacentHTML('beforeend', MOTIVOS_PERDA.map((m, i) => `<label class="motivo"><input type="radio" name="motivoPerda" value="${esc(m)}" ${i ? '' : ''}> ${esc(m)}</label>`).join(''));
-$('#motivosPerdaOpcoes').addEventListener('change', () => { const outro = $('input[name=motivoPerda]:checked')?.value === 'Outro'; $('#perdaOutroL').hidden = !outro; if (outro) $('#perdaOutro').focus(); });
+$('#motivosPerdaOpcoes').insertAdjacentHTML('beforeend', Object.entries(U.MOTIVOS_R8).map(([codigo, rotulo]) =>
+  '<label class="motivo"><input type="radio" name="motivoPerda" value="' + codigo + '"> ' + esc(rotulo) + '</label>').join(''));
+$('#motivosPerdaOpcoes').addEventListener('change', () => { const outro = $('input[name=motivoPerda]:checked')?.value === 'outro'; $('#perdaOutroL').hidden = !outro; if (outro) $('#perdaOutro').focus(); });
 $('#formPerda').addEventListener('submit', e => {
   e.preventDefault();
   const sel = $('input[name=motivoPerda]:checked')?.value;
-  const m = sel === 'Outro' ? $('#perdaOutro').value.trim() : sel;
-  if (!m) { $('#perdaErro').textContent = sel === 'Outro' ? 'Escreva o motivo.' : 'Escolha um motivo — ele aparece no painel de perdas.'; return; }
-  $('#dlgPerda')._ok(m);
+  const texto = $('#perdaOutro').value.trim();
+  if (!U.camposPerda('', sel, texto)) { $('#perdaErro').textContent = sel === 'outro' ? 'Escreva o motivo.' : 'Escolha um motivo.'; return; }
+  $('#dlgPerda')._ok({ codigo: sel, texto });
 });
 function perguntarPerda(nome) {
   $('#dlgPerdaNome').textContent = nome ? `Lead: ${nome}` : ''; $('#perdaErro').textContent = '';
@@ -91,6 +91,7 @@ $('#formPago').addEventListener('submit', e => {
   // zero digitado = cortesia (assim o lead não fica na lista de "sem valor")
   $('#dlgPago')._ok({valor: Math.round(v * 100) / 100, cortesia: v === 0});
 });
+$('#pagoPendente').addEventListener('click', () => $('#dlgPago')._ok({valor: 0, cortesia: false}));
 $('#pagoCortesia').addEventListener('click', () => $('#dlgPago')._ok({valor: 0, cortesia: true}));
 /* Rodada 4: devolve {valor, cortesia} (ou null se cancelou). Sugere o orçado e mostra
    de onde vem a sugestão; "Foi cortesia" grava zero com a marca na observação. */
@@ -148,7 +149,7 @@ async function patchLead(id, corpo) {
 /* Prepara o corpo da mudança: pede motivo ao perder e valor ao concluir. null = cancelado. */
 async function corpoMudanca(l, novo) {
   const corpo = {status: novo};
-  if (novo === 'perdido') { const m = await perguntarPerda(l.nome); if (!m) return null; corpo.observacoes = U.comMotivoPerda(l.observacoes, m); }
+  if (novo === 'perdido') { const m = await perguntarPerda(l.nome); if (!m) return null; Object.assign(corpo, U.camposPerda(l.observacoes, m.codigo, m.texto)); }
   if (novo === 'concluido') { const v = await perguntarPagoDetalhe(l); if (!v) return null; corpo.valor_pago = v.valor; if (v.cortesia) corpo.observacoes = CrmR4.comCortesia(corpo.observacoes ?? l.observacoes); }
   return corpo;
 }
@@ -172,7 +173,7 @@ async function moverEtapa(id, novo, {anunciar} = {}) {
   if (!l || l.status === novo) return false;
   const trava = travaLead(l); if (trava) { toast('🔒 ' + trava, 6000); redesenhar(); return false; }
   const corpo = await corpoMudanca(l, novo); if (!corpo) return false;
-  const antes = {status: l.status, valor_pago: l.valor_pago ?? 0, observacoes: l.observacoes ?? ''};
+  const antes = {status: l.status, valor_pago: l.valor_pago ?? 0, observacoes: l.observacoes ?? '', motivo_perda: l.motivo_perda ?? null, motivo_perda_obs: l.motivo_perda_obs ?? null};
   try {
     substituirLocal(await patchLead(l.id, corpo) || {...l, ...corpo});
     redesenhar();
@@ -259,7 +260,7 @@ async function emLote(ids, corpoDe, rotulo) {
   const marcados = TODOS.filter(l => ids.includes(String(l.id)));
   const alvos = marcados.filter(l => !travaLead(l)), deOutros = marcados.length - alvos.length;
   if (!alvos.length) { toast(`🔒 ${deOutros === 1 ? 'Esse lead é' : 'Esses leads são'} de colegas: só o responsável ou o gestor muda.`, 6000); return; }
-  const antes = alvos.map(l => ({id: l.id, corpo: {status: l.status, origem: l.origem, valor_pago: l.valor_pago ?? 0, observacoes: l.observacoes ?? ''}}));
+  const antes = alvos.map(l => ({id: l.id, corpo: {status: l.status, origem: l.origem, valor_pago: l.valor_pago ?? 0, observacoes: l.observacoes ?? '', motivo_perda: l.motivo_perda ?? null, motivo_perda_obs: l.motivo_perda_obs ?? null}}));
   let ok = 0; const falhas = [];
   for (const l of alvos) { try { substituirLocal(await patchLead(l.id, corpoDe(l))); ok++; } catch (e) { falhas.push(l.nome + ': ' + e.message); } }
   SEL.clear(); redesenhar();
@@ -274,8 +275,8 @@ $('#loteStatus').addEventListener('change', async e => {
   const ids = [...SEL];
   let motivo = null;
   if (novo === 'perdido') { motivo = await perguntarPerda(`${ids.length} lead(s) selecionado(s)`); if (!motivo) return; }
-  if (novo === 'concluido' && !confirm(`Concluir ${ids.length} lead(s)? O valor pago de cada um será o valor orçado (quando ainda não houver pagamento registrado). Dá para ajustar depois na ficha.`)) return;
-  await emLote(ids, l => ({status: novo, ...(motivo ? {observacoes: U.comMotivoPerda(l.observacoes, motivo)} : {}), ...(novo === 'concluido' && !(Number(l.valor_pago) > 0) ? {valor_pago: Number(l.valor_orcado) || 0} : {})}), `movidos para ${LABEL_STATUS[novo]}`);
+  if (novo === 'concluido' && !confirm('Concluir os contatos selecionados? Os valores ainda não informados ficam em Valores pendentes.')) return;
+  await emLote(ids, l => ({status: novo, ...(motivo ? U.camposPerda(l.observacoes, motivo.codigo, motivo.texto) : {})}), 'movidos para ' + LABEL_STATUS[novo]);
 });
 $('#loteOrigem').addEventListener('change', async e => {
   const o = e.target.value; e.target.value = ''; if (!o || !SEL.size) return;
