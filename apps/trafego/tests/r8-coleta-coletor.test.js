@@ -191,6 +191,25 @@ test('miniatura: só sai imagem de domínio da Meta/Google gravado pela coleta, 
   assert.equal(coletor.enderecoMiniatura('meta', '111'), 'api/coleta/miniatura/meta/111');
 });
 
+test('miniatura: o guardado na memória não passa de 20 MB, mesmo com 60 imagens de quase 1 MB', async () => {
+  const linhas = [];
+  for (let i = 0; i < 60; i++) linhas.push({ plataforma: 'meta', nivel: 'anuncio', anuncio_ext: 'g' + i, data: '2026-11-10', miniatura_url: 'https://scontent.xx.fbcdn.net/v/' + i + '.jpg' });
+  const sb = banco({ ads_metricas_dia: linhas });
+  const grande = Buffer.alloc(1000 * 1000, 1);
+  const fetch = async () => new Response(grande, { status: 200, headers: { 'content-type': 'image/jpeg' } });
+  for (let i = 0; i < 60; i++) assert.equal((await coletor.miniatura({ plataforma: 'meta', anuncio: 'g' + i, sb, fetch })).ok, true);
+  const s = coletor.situacaoMiniaturas();
+  assert.ok(s.bytes <= 20 * 1024 * 1024, 'bytes guardados: ' + s.bytes);
+  assert.ok(s.itens >= 15 && s.itens <= 21, 'itens guardados: ' + s.itens);
+  // a mais recente continua guardada (sai a mais antiga)
+  let pedidos = 0;
+  const contar = async () => { pedidos++; return new Response(grande, { status: 200, headers: { 'content-type': 'image/jpeg' } }); };
+  await coletor.miniatura({ plataforma: 'meta', anuncio: 'g59', sb, fetch: contar });
+  assert.equal(pedidos, 0, 'a última ficou na memória');
+  await coletor.miniatura({ plataforma: 'meta', anuncio: 'g0', sb, fetch: contar });
+  assert.equal(pedidos, 1, 'a primeira saiu para caber as novas');
+});
+
 /* ---------------- rotas/coleta.js ---------------- */
 
 class ErroHttp extends Error { constructor(status, msg, extra) { super(msg); this.status = status; this.extra = extra; } }

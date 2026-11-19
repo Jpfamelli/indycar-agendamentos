@@ -325,7 +325,23 @@ const HOSTS_MINIATURA = [/(^|\.)fbcdn\.net$/i, /(^|\.)facebook\.com$/i, /(^|\.)c
 const TIPOS_IMAGEM = /^image\/(jpeg|png|webp|gif)$/i;
 const MAX_MINIATURA = 1024 * 1024;
 const TTL_MINIATURA = 6 * 3600000;
+/* Revisão de regressão (19/11): o guardado tinha teto só em quantidade (300 x 1 MB = 300 MB no pior caso, num
+   serviço de 512 MB que roda a Central inteira). Agora o teto é o total em bytes. */
+const MAX_TOTAL_MINIATURAS = 20 * 1024 * 1024;
 const cacheMiniaturas = new Map();
+let bytesMiniaturas = 0;
+function guardarMiniatura(chave, item) {
+  const velho = cacheMiniaturas.get(chave);
+  if (velho) { bytesMiniaturas -= velho.corpo.length; cacheMiniaturas.delete(chave); }
+  while (cacheMiniaturas.size && (cacheMiniaturas.size >= 300 || bytesMiniaturas + item.corpo.length > MAX_TOTAL_MINIATURAS)) {
+    const k = cacheMiniaturas.keys().next().value;
+    bytesMiniaturas -= cacheMiniaturas.get(k).corpo.length;
+    cacheMiniaturas.delete(k);
+  }
+  cacheMiniaturas.set(chave, item);
+  bytesMiniaturas += item.corpo.length;
+}
+const situacaoMiniaturas = () => ({ itens: cacheMiniaturas.size, bytes: bytesMiniaturas });
 const ID_ANUNCIO = /^[0-9A-Za-z_-]{1,40}$/;
 
 /** Endereço relativo que a tela usa no <img>. */
@@ -356,8 +372,7 @@ async function miniatura({ plataforma, anuncio, sb = db.sb, fetch: f = globalThi
   if (!r.ok || !TIPOS_IMAGEM.test(tipo) || Number(r.headers.get('content-length') || 0) > MAX_MINIATURA) return { ok: false, status: 404 };
   const corpo = Buffer.from(await r.arrayBuffer());
   if (corpo.length > MAX_MINIATURA) return { ok: false, status: 404 };
-  if (cacheMiniaturas.size >= 300) cacheMiniaturas.delete(cacheMiniaturas.keys().next().value);
-  cacheMiniaturas.set(chave, { tipo, corpo, ate: agora + TTL_MINIATURA });
+  guardarMiniatura(chave, { tipo, corpo, ate: agora + TTL_MINIATURA });
   return { ok: true, tipo, corpo };
 }
 
@@ -453,7 +468,7 @@ async function popularDemo(dias = 45, { sb = db.sb } = {}) {
 }
 
 module.exports = {
-  sincronizar, situacao, testarConexoes, ligarCliques, popularDemo, miniatura, enderecoMiniatura, urlPermitida,
+  sincronizar, situacao, testarConexoes, ligarCliques, popularDemo, miniatura, enderecoMiniatura, urlPermitida, situacaoMiniaturas,
   gravarMetricas, gravarTermos, apagarDemo, semRepetidas, hojeBR, somarDias,
   NIVEIS, COLUNAS_NOVAS, HOSTS_MINIATURA,
   get ultima() { return ultima; },
