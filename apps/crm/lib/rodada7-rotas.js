@@ -7,6 +7,7 @@
 'use strict';
 
 const U = require('./util-servidor');
+const { camposPerda, MOTIVOS_R8 } = require('../public/crm-utils');
 const APPS = require('./apps');
 const R5 = require('./rodada5');
 const R6 = require('./rodada6');
@@ -70,14 +71,17 @@ async function rotasR7(c) {
       const mv = R7.movimentoAindaVale(movs, lead.id, String(it.para || ''));
       if (!mv) { pulados.push({ id: it.id, nome: lead.nome, motivo: 'mudou' }); continue; }
       const patch = { status: mv.para };
-      if (mv.para === 'concluido') {
+      if (mv.para === 'concluido' && it.valor_pendente !== true) {
         const v = Number(it.valor_pago);
         if (!(v > 0 && v <= 10_000_000)) { pulados.push({ id: it.id, nome: lead.nome, motivo: 'falta_valor' }); continue; }
         patch.valor_pago = r2(v);
       }
       if (mv.para === 'perdido') {
         const escolhido = R5.MOTIVOS_PERDA.includes(it.motivo) ? it.motivo : (mv.motivo_perda || 'Outro');
-        patch.observacoes = R7.observacoesComMotivo(lead.observacoes, escolhido);
+        const codigo = it.motivo_perda ?? Object.keys(MOTIVOS_R8).find(k => MOTIVOS_R8[k] === escolhido);
+        const campos = camposPerda(lead.observacoes, codigo, it.motivo_perda_obs);
+        if (it.motivo_perda && !campos) { pulados.push({ id: it.id, nome: lead.nome, motivo: 'falta_motivo' }); continue; }
+        Object.assign(patch, campos ?? { observacoes: R7.observacoesComMotivo(lead.observacoes, escolhido) });
       }
       if (mv.para === 'orcamento' && !(Number(lead.valor_orcado) > 0) && mv.valor_novo > 0) patch.valor_orcado = r2(mv.valor_novo);
       try { await c.store.updateLead(lead.id, patch); } catch { pulados.push({ id: it.id, nome: lead.nome, motivo: 'erro' }); continue; }

@@ -98,6 +98,7 @@ $('#pagoCortesia').addEventListener('click', () => $('#dlgPago')._ok({valor: 0, 
 function perguntarPagoDetalhe(lead) {
   const sugs = CrmR4.sugestoesValor(lead, lead._sugestoes || {});
   $('#dlgPagoNome').textContent = `Lead: ${lead.nome || ''}${lead.servico ? ' · ' + lead.servico : ''}`; $('#pagoErro').textContent = ''; $('#pagoValor').removeAttribute('aria-invalid');
+  $('#pagoPendente').hidden = Number(lead.valor_pago) > 0;
   $('#pagoValor').value = Number(lead.valor_pago) || (sugs[0] ? sugs[0].valor : '');
   $('#pagoSugestoes').innerHTML = sugs.map(s => `<button type="button" class="filtro-pill" data-valor="${esc(s.valor)}">${esc(s.rotulo)}: ${esc(brl(s.valor))}</button>`).join('');
   $('#pagoSugestoes').hidden = !sugs.length;

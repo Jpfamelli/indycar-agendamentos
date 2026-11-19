@@ -84,12 +84,22 @@ test('movimentos: concluir exige o valor pago; com valor conclui', () => com({
   const com2 = await s.req('gestor', '/api/funil/movimentos/aplicar', { body: { itens: [{ id: L(1), para: 'concluido', valor_pago: 480.5 }] } });
   assert.equal(com2.corpo.aplicados.length, 1); assert.equal(s.db.leads[0].status, 'concluido'); assert.equal(Number(s.db.leads[0].valor_pago), 480.5);
 }));
+test('movimentos: aceita deixar o valor para depois com escolha explícita', () => com({
+  leads: [lead(1, { status: 'em_servico' })], patio_os: [{ id: O(30), numero: 3, etapa: 'entregue', lead_id: L(1), entregue_em: horas(30) }],
+}, async s => {
+  const r = await s.req('gestor', '/api/funil/movimentos/aplicar', { body: { itens: [{ id: L(1), para: 'concluido', valor_pendente: true }] } });
+  assert.equal(r.corpo.aplicados.length, 1);
+  assert.equal(s.db.leads[0].status, 'concluido');
+  assert.equal(Number(s.db.leads[0].valor_pago), 0);
+}));
 test('movimentos: perder grava o motivo (o do Orçador, ou o escolhido se for da lista) nas observações', () => com({
   leads: [lead(1, { status: 'orcamento', observacoes: '[Orçador 24/10 10:00] Orçamento nº 0003 recusado — motivo: preço.' }), lead(2, { status: 'orcamento', observacoes: '[Orçador 24/10 10:00] Orçamento nº 0004 recusado.' })],
   orc_orcamentos: [{ id: O(3), numero: 3, status: 'recusado', lead_id: L(1), total: 500, decidido_em: dias(1), created_at: dias(2) }, { id: O(4), numero: 4, status: 'recusado', lead_id: L(2), total: 500, decidido_em: dias(1), created_at: dias(2) }],
 }, async s => {
   const r = await s.req('gestor', '/api/funil/movimentos/aplicar', { body: { itens: [{ id: L(1), para: 'perdido' }, { id: L(2), para: 'perdido', motivo: 'Foi em outra oficina' }] } });
   assert.equal(r.corpo.aplicados.length, 2);
+  assert.equal(s.db.leads.find(l => l.id === L(1)).motivo_perda, 'caro');
+  assert.equal(s.db.leads.find(l => l.id === L(2)).motivo_perda, 'concorrente');
   assert.match(s.db.leads.find(l => l.id === L(1)).observacoes, /Motivo da perda: Achou caro/);
   assert.match(s.db.leads.find(l => l.id === L(2)).observacoes, /Motivo da perda: Foi em outra oficina/);
   const lixo = await s.req('gestor', '/api/funil/movimentos/aplicar', { body: { itens: [{ id: L(1), para: 'perdido', motivo: '<script>' }] } });
