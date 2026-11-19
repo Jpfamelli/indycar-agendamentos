@@ -131,3 +131,24 @@ test('GET /api/campanhas e o detalhe: formato do contrato (§5.4), 404 para camp
   assert.equal((await pedir('/api/campanhas?plataforma=bing')).status, 400);
   assert.equal((await pedir('/api/campanhas', { papel: 'gestor_sem_ads' })).status, 403);
 });
+
+test('GET /api/relatorios/texto|folha|apresentacao: formato e 400 de entrada', async () => {
+  usarBanco();
+  const texto = await D.calado(() => pedir('/api/relatorios/texto?tipo=semanal'));
+  assert.equal(texto.status, 200);
+  limpo(texto.json);
+  assert.deepEqual([typeof texto.json.titulo, typeof texto.json.texto, texto.json.motor], ['string', 'string', 'oficina']);
+  assert.equal((await pedir('/api/relatorios/texto?tipo=anual')).status, 400);
+
+  const folha = await D.calado(() => pedir('/api/relatorios/folha?mes=2026-11'));
+  assert.equal(folha.status, 200);
+  limpo(folha.json);
+  assert.equal(folha.json.mes.mes, '2026-11');
+  assert.equal((await pedir('/api/relatorios/folha?mes=2099-01')).status, 400);
+
+  const ap = await D.calado(() => pedir('/api/relatorios/apresentacao'));
+  assert.equal(ap.status, 200);
+  limpo(ap.json);
+  assert.equal(ap.json.telas[0].id, 'resumo');
+  assert.equal((await pedir('/api/relatorios/apresentacao', { papel: null })).status, 401);
+});
