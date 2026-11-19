@@ -27,6 +27,8 @@ for (const a of arquivos) {
   let texto;
   try { texto = fs.readFileSync(a, 'utf8'); } catch { continue; }
   texto.split(/[\r\n]/).forEach((linha, i) => {
+    // alarme falso conferido à mão: a própria linha diz por quê ("segredos: permitido (motivo)"); sem motivo não vale
+    if (/segredos: permitido \([^)]{10,}\)/.test(linha)) return;
     for (const [nome, re] of PADROES) if (re.test(linha)) achados.push(`${a}:${i + 1}: ${nome}`);
   });
 }

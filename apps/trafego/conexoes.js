@@ -74,7 +74,7 @@ function lerContaDeServico(v) {
   if (typeof v === 'string') { try { j = JSON.parse(v); } catch { return null; } }
   if (!j || typeof j !== 'object') return null;
   const email = String(j.client_email || '').trim(), chave = String(j.private_key || '');
-  if (!/\.iam\.gserviceaccount\.com$/i.test(email) || !/-----BEGIN PRIVATE KEY-----/.test(chave)) return null;
+  if (!/\.iam\.gserviceaccount\.com$/i.test(email) || !/-----BEGIN PRIVATE KEY-----/.test(chave)) return null; // segredos: permitido (só confere o formato do cabeçalho de chave, não há chave aqui)
   return { email, chave };
 }
 

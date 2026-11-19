@@ -202,7 +202,7 @@ test('Conexões: textos novos do Google e do developer token; o segredo some da 
   assert.match(C.explicarErro('Google Ads 403: not approved [CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION]').fazer, /Explorer/);
   assert.match(C.explicarErro('Google Ads 403: API has not been used in project 123 [SERVICE_DISABLED]').titulo, /não está ativada/);
   assert.match(C.explicarErro('Meta API 400: (#2635) You are calling a deprecated version (código 2635)').titulo, /versão/);
-  const s = C.semSegredo('erro Bearer ya29.abcdefghijk appsecret_proof=abc123 -----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY----- fim');
+  const s = C.semSegredo('erro Bearer ya29.abcdefghijk appsecret_proof=abc123 -----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY----- fim'); // segredos: permitido (texto de teste do apagador de segredos, sem chave real)
   assert.ok(!/ya29\.abc|abc123|MIIE/.test(s), s);
   assert.equal(google.temAcesso({ google_customer_id: '1234567890', google_client_id: 'a.apps.googleusercontent.com', google_client_secret: 'x', google_refresh_token: 'y' }), true,
     'sem developer token também vale');

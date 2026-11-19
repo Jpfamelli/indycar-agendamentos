@@ -204,7 +204,7 @@ window.supabase={createClient:function(){return {
 //         5555555555 = 429 na 1ª consulta · versão fora de `versoesGoogle` = 404
 //         click_view exige um dia só e no máximo 90 dias atrás
 // ============================================================================
-const PNG_1X1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const PNG_1X1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'); // segredos: permitido (imagem PNG de 1 pixel em base64; o trecho EAA é coincidência)
 const META_CAMPANHAS = [
   { id: '120000000000001', nome: 'Troca de óleo R$ 169', objetivo: 'OUTCOME_ENGAGEMENT', status: 'ACTIVE' },
   { id: '120000000000002', nome: 'Revisão completa', objetivo: 'OUTCOME_LEADS', status: 'PAUSED' },
