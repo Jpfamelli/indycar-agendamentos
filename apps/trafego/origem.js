@@ -163,7 +163,85 @@ function origemDoContato(l) {
   };
 }
 
+/* ---------------- primeira mensagem: código e frase (a mesma régua do banco, para ler muitas de uma vez) ---------------- */
+
+/** Erro que a rota devolve em JSON com o status certo ({ erro, ...extra }). */
+const recusar = (status, frase, extra = {}) => Object.assign(new Error(frase), { status, publico: true, extra });
+
+const ALFABETO_CODIGO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const RE_CODIGO_REF = /\[ref\s+([a-z0-9]{5})\]/i;        // script portátil e mensagem pronta: "[ref K7M2P]"
+const RE_CODIGO_SITE = /--r-([a-z0-9]{5})\)/i;           // site da IndyCar: "(site/cambio--google--r-k7m2p)"
+
+/** O código de rastreio dentro de uma mensagem, em maiúsculas; null se não há. */
+function codigoDaMensagem(mensagem) {
+  const s = String(mensagem == null ? '' : mensagem).slice(0, 2000);
+  const m = RE_CODIGO_REF.exec(s) || RE_CODIGO_SITE.exec(s);
+  return m ? m[1].toUpperCase() : null;
+}
+
+/** Como o banco normaliza (trafego_normalizar_frase): minúsculas, sem acento, espaços simples, sem pontuação nem emoji no fim. */
+function normalizarFrase(mensagem) {
+  return String(mensagem == null ? '' : mensagem).slice(0, 2000).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+    .replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}]+$/u, '').trim();
+}
+
+const PESO_DO_TIPO = { exata: 3, comeca: 2, contem: 1 };
+/** A frase cadastrada que casa com a mensagem: exata > começa > contém; no empate, a mais comprida. null se nenhuma. */
+function fraseDaMensagem(mensagem, frases) {
+  const n = normalizarFrase(mensagem);
+  if (!n) return null;
+  let melhor = null;
+  for (const f of frases || []) {
+    const alvo = f && typeof f.frase === 'string' ? f.frase : '';
+    if (!alvo || f.ativa === false || !PESO_DO_TIPO[f.tipo]) continue;
+    const casa = f.tipo === 'exata' ? n === alvo : (f.tipo === 'comeca' ? n.startsWith(alvo) : n.includes(alvo));
+    if (!casa) continue;
+    if (!melhor || PESO_DO_TIPO[f.tipo] > PESO_DO_TIPO[melhor.tipo] || (PESO_DO_TIPO[f.tipo] === PESO_DO_TIPO[melhor.tipo] && alvo.length > melhor.frase.length)) melhor = f;
+  }
+  return melhor;
+}
+
+/**
+ * A primeira mensagem aponta para anúncio? O código de rastreio manda quando a linha dele existe (é identificador);
+ * sem código, vale a frase cadastrada (indício). `rastreios` = Map(CODIGO -> { paga, referencia_tipo }).
+ */
+function mensagemDeAnuncio(mensagem, { frases = [], rastreios = new Map() } = {}) {
+  const codigo = codigoDaMensagem(mensagem);
+  const linha = codigo ? rastreios.get(codigo) : null;
+  if (linha) return linha.paga === true || linha.referencia_tipo === 'anuncio';
+  const f = fraseDaMensagem(mensagem, frases);
+  return !!f && f.paga === true;
+}
+
+/* ---------------- origem marcada por uma pessoa ---------------- */
+
+const CANAIS_MARCAVEIS = CANAIS.filter(c => c !== 'desconhecida');
+const semNulos = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null));
+
+/**
+ * O que vai para trafego_aplicar_origem(lead, dados, 'manual') quando alguém marca a origem na tela.
+ * Entrada: { canal, campanha_ext?, campanha_nome?, anuncio_ext?, anuncio_nome?, obs? } (corpo da rota).
+ * Devolve { canal, dados }. Canal fora da lista ou campo que não é texto: erro 422.
+ */
+function dadosDaOrigemManual(entrada, quem = null) {
+  const e = entrada && typeof entrada === 'object' && !Array.isArray(entrada) ? entrada : {};
+  if (!CANAIS_MARCAVEIS.includes(e.canal)) throw recusar(422, 'Escolha de onde veio o contato.', { campo: 'canal', opcoes: CANAIS_MARCAVEIS.map(c => ({ id: c, rotulo: rotuloDoCanal(c) })) });
+  for (const k of ['campanha_ext', 'campanha_nome', 'anuncio_ext', 'anuncio_nome', 'obs']) {
+    if (e[k] != null && typeof e[k] !== 'string' && typeof e[k] !== 'number') throw recusar(422, 'Esse campo precisa ser um texto.', { campo: k });
+  }
+  let dados;
+  if (e.canal === 'meta' || e.canal === 'google') {
+    dados = { paga: true, plataforma: e.canal, origem: e.canal, campanha_ext: texto(e.campanha_ext, 64), campanha_nome: texto(e.campanha_nome),
+      anuncio_ext: texto(e.anuncio_ext, 64), anuncio_nome: texto(e.anuncio_nome) };
+  } else if (e.canal === 'site') dados = { paga: false, origem: 'organico', utm_source: 'site' };
+  else if (e.canal === 'instagram') dados = { paga: false, origem: 'organico', utm_source: 'instagram', utm_medium: 'bio' };
+  else dados = { paga: false, origem: e.canal };                 // indicacao, passagem, telefone, whatsapp
+  const assinatura = { obs: texto(e.obs, 300), marcado_por: quem && quem.id ? String(quem.id).slice(0, 40) : null, marcado_por_nome: primeiroNome(quem && quem.nome) };
+  return { canal: e.canal, dados: semNulos({ ...dados, ...assinatura }) };
+}
+
 module.exports = {
-  CANAIS, ROTULO_CANAL, ROTULO_ANUNCIO_SEM_PLATAFORMA, rotuloDoCanal, FORCA, COMOS,
+  CANAIS, ROTULO_CANAL, ROTULO_ANUNCIO_SEM_PLATAFORMA, rotuloDoCanal, FORCA, COMOS, CANAIS_MARCAVEIS, ALFABETO_CODIGO,
   texto, comoDe, forcaDe, certezaDe, canalDoContato, origemDoContato,
+  codigoDaMensagem, normalizarFrase, fraseDaMensagem, mensagemDeAnuncio, dadosDaOrigemManual, recusar,
 };

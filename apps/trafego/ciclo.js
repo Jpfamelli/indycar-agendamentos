@@ -33,14 +33,16 @@ const emPatio = os => !['entregue', 'cancelado'].includes(os.etapa);
 
 /* ---------------- leitura ---------------- */
 
+/* Rodada 8: os lotes andam ao mesmo tempo (a jornada lê centenas de contatos de uma vez; um lote por vez somava segundos). */
 async function emLotes(ids, fn, tamanho = 150) {
-  const unicos = [...new Set((ids || []).filter(Boolean))], saida = [];
-  for (let i = 0; i < unicos.length; i += tamanho) saida.push(...(await fn(unicos.slice(i, i + tamanho))));
-  return saida;
+  const unicos = [...new Set((ids || []).filter(Boolean))], partes = [];
+  for (let i = 0; i < unicos.length; i += tamanho) partes.push(unicos.slice(i, i + tamanho));
+  return (await Promise.all(partes.map(fn))).flat();
 }
 
-const COLS_ORC = 'id, numero, lead_id, agendamento_id, status, total, total_a_vista, total_aprovado, rascunho, enviado_em, visualizado_em, decidido_em, motivo_cod, validade, follow_up_em, follow_ups, ultimo_follow_up_em, desconto_pedido_em, desconto_aprovado_em, horario_pedido, created_at';
-const COLS_OS = 'id, numero, lead_id, orcamento_id, agendamento_id, etapa, etapa_em, entregue_em, created_at, token_publico';
+const COLS_ORC ='id, numero, lead_id, agendamento_id, status, total, total_a_vista, total_aprovado, rascunho, enviado_em, visualizado_em, decidido_em, motivo_cod, validade, follow_up_em, follow_ups, ultimo_follow_up_em, desconto_pedido_em, desconto_aprovado_em, horario_pedido, created_at';
+/* Rodada 8: orcamento_total (o total que o Pátio guardou na OS) entra como fonte do valor do serviço na jornada. */
+const COLS_OS = 'id, numero, lead_id, orcamento_id, agendamento_id, etapa, etapa_em, entregue_em, created_at, token_publico, orcamento_total, orcamento_total_a_vista';
 
 /** Orçamentos ligados aos leads (orc_orcamentos.lead_id). Rascunho não conta. */
 async function lerOrcamentos(leadIds, { sb = db.sb } = {}) {
@@ -66,14 +68,13 @@ async function lerOS({ leadIds = [], orcIds = [], agIds = [] }, { sb = db.sb } =
     [leadIds, 'lead_id'], [orcIds, 'orcamento_id'], [agIds, 'agendamento_id'],
   ];
   const mapa = new Map();
-  for (const [ids, coluna] of buscas) {
-    const linhas = await emLotes(ids, async lote => {
-      const { data, error } = await sb.from('patio_os').select(COLS_OS).in(coluna, lote);
-      if (error) throw new Error('patio_os: ' + error.message);
-      return data || [];
-    });
-    for (const o of linhas) mapa.set(o.id, o);
-  }
+  // Rodada 8: os três caminhos ao mesmo tempo; a ordem do resultado continua a mesma (lead, orçamento, agendamento).
+  const achadas = await Promise.all(buscas.map(([ids, coluna]) => emLotes(ids, async lote => {
+    const { data, error } = await sb.from('patio_os').select(COLS_OS).in(coluna, lote);
+    if (error) throw new Error('patio_os: ' + error.message);
+    return data || [];
+  })));
+  for (const linhas of achadas) for (const o of linhas) mapa.set(o.id, o);
   return [...mapa.values()];
 }
 
@@ -86,10 +87,11 @@ async function lerExtras(osIds, { sb = db.sb } = {}) {
   });
 }
 
-/** Agendamentos (id, lead_id) — para achar o lead de uma OS que só tem agendamento_id. */
+/** Agendamentos dos leads — para achar o lead de uma OS que só tem agendamento_id e, na rodada 8, para as etapas
+ *  "agendou" e "veio" da jornada (data, hora, estado e valor; sem nome nem telefone). */
 async function lerAgendamentosLeve(leadIds, { sb = db.sb } = {}) {
   return emLotes(leadIds, async lote => {
-    const { data, error } = await sb.from('agendamentos').select('id, lead_id').in('lead_id', lote);
+    const { data, error } = await sb.from('agendamentos').select('id, lead_id, data, hora, inicio_em, status, valor, created_at').in('lead_id', lote);
     if (error) throw new Error('agendamentos: ' + error.message);
     return data || [];
   });
@@ -113,14 +115,14 @@ async function ler(leadIds, { sb = db.sb, limiteMs = 9000, esperaRetryMs = 400 }
   try {
     return await Promise.race([comRetry(), new Promise((_, rej) => { t = setTimeout(() => rej(new Error('o Orçador/Pátio demoraram mais de ' + Math.round(limiteMs / 1000) + ' s')), limiteMs); })]);
   } catch (e) {
-    return { porLead: new Map(), orcamentos: [], os: [], extras: [], ok: false, erro: String(e.message || e) };
+    return { porLead: new Map(), orcamentos: [], os: [], extras: [], agendamentos: [], ok: false, erro: String(e.message || e) };
   } finally { clearTimeout(t); }
 }
 
 async function lerTudo(leadIds, { sb = db.sb } = {}) {
   try {
     const ids = [...new Set((leadIds || []).filter(Boolean))];
-    if (!ids.length) return { porLead: new Map(), orcamentos: [], os: [], extras: [], ok: true, erro: null };
+    if (!ids.length) return { porLead: new Map(), orcamentos: [], os: [], extras: [], agendamentos: [], ok: true, erro: null };
     const [porLeadId, ags] = await Promise.all([lerOrcamentos(ids, { sb }), lerAgendamentosLeve(ids, { sb })]);
     // Rodada 7: o Orçador grava lead_id, mas o orçamento feito a partir da Agenda só tem agendamento_id: os dois caminhos contam, sem duplicar.
     const porAg = await lerOrcamentosPorAgendamento(ags.map(a => a.id), { sb }).catch(() => []);
@@ -131,9 +133,9 @@ async function lerTudo(leadIds, { sb = db.sb } = {}) {
       os = await lerOS({ leadIds: ids, orcIds: orcamentos.map(o => o.id), agIds: ags.map(a => a.id) }, { sb });
       extras = await lerExtras(os.map(o => o.id), { sb });
     } catch (e) { os = []; extras = []; parcial = { fonte: 'patio', erro: String(e.message || e) }; }
-    return { porLead: ligar({ leadIds: ids, orcamentos, os, extras, agendamentos: ags }), orcamentos, os, extras, ok: true, erro: null, parcial: parcial ? parcial.fonte : null, erro_parcial: parcial ? parcial.erro : null };
+    return { porLead: ligar({ leadIds: ids, orcamentos, os, extras, agendamentos: ags }), orcamentos, os, extras, agendamentos: ags, ok: true, erro: null, parcial: parcial ? parcial.fonte : null, erro_parcial: parcial ? parcial.erro : null };
   } catch (e) {
-    return { porLead: new Map(), orcamentos: [], os: [], extras: [], ok: false, erro: String(e.message || e) };
+    return { porLead: new Map(), orcamentos: [], os: [], extras: [], agendamentos: [], ok: false, erro: String(e.message || e) };
   }
 }
 
