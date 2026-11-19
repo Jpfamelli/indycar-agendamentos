@@ -1,4 +1,5 @@
-// IndyCar Central — roteamento, Casa, redirecionamentos antigos e montagem dos 4 apps.
+// IndyCar Central — roteamento, Casa, redirecionamentos antigos e montagem dos 5 apps
+// (o que é só do Tráfego, montado na rodada 8, está em tests/central-trafego.test.mjs).
 // Sem banco: o Supabase aponta para uma porta morta e nada roda sozinho (timers desligados).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,13 +25,13 @@ after(() => new Promise((ok) => { srv.close(ok); setTimeout(() => process.exit(0
 
 const pega = (p, op = {}) => fetch(base + p, { redirect: 'manual', ...op });
 
-test('os quatro apps sobem e /api/ping diz a versão de cada um', async () => {
-  for (const n of ['agenda', 'crm', 'comunicar', 'atendimento']) assert.ok(APPS[n]?.handler, `${n} carregou`);
+test('os cinco apps sobem e /api/ping diz a versão de cada um', async () => {
+  for (const n of ['agenda', 'crm', 'comunicar', 'atendimento', 'trafego']) assert.ok(APPS[n]?.handler, `${n} carregou`);
   const r = await pega('/api/ping');
   assert.equal(r.status, 200);
   const j = await r.json();
   assert.equal(j.ok, true); assert.equal(j.app, 'central');
-  for (const n of ['agenda', 'crm', 'comunicar', 'atendimento']) assert.equal(j.apps[n].ok, true);
+  for (const n of ['agenda', 'crm', 'comunicar', 'atendimento', 'trafego']) assert.equal(j.apps[n].ok, true);
   assert.ok(j.memoria.rss_mb > 0);
   assert.doesNotMatch(JSON.stringify(j), /srv-de-teste|token-de-teste/);
 });
@@ -101,7 +102,7 @@ test('rodada 6: X-Request-Id (devolve o do proxy se for simples, senão cria) e 
 });
 
 test('cada prefixo sem barra vira com barra (308) mantendo a consulta', async () => {
-  for (const p of ['/agenda', '/crm', '/comunicar', '/atendimento']) {
+  for (const p of ['/agenda', '/crm', '/comunicar', '/atendimento', '/trafego']) {
     const r = await pega(p + '?lead=abc');
     assert.equal(r.status, 308, p); assert.equal(r.headers.get('location'), p + '/?lead=abc');
   }

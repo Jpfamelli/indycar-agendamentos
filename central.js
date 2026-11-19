@@ -5,10 +5,13 @@
 //   /crm/          → CRM          (apps/crm)
 //   /comunicar/    → Comunicar    (apps/comunicar — o carteiro roda aqui)
 //   /atendimento/  → Atendimento  (apps/atendimento — sincronia, automações e IA do funil)
+//   /trafego/      → Tráfego      (apps/trafego — anúncios e de onde vêm os clientes; rodada 8, 19/11/2026)
 //   /api/ping      → saúde da Central (versões de cada app, memória)
 //
 // Como monta cada app: tira o prefixo de req.url e põe req.prefixo ('/crm' etc.) —
-// cada server.js já sabe montar links e caminhos com isso (onda B1).
+// cada server.js já sabe montar links e caminhos com isso (onda B1). Daí em diante o pedido é do app:
+// a Central não pede login, não responde OPTIONS, não põe CORS nem cabeçalho de segurança e não lê o corpo
+// (o script de rastreio, a porta da IA, o MCP e o cron do Tráfego dependem disso). Só acrescenta o X-Request-Id.
 //
 // Endereços antigos da Agenda continuam valendo: /?agendamento=x (e qualquer / com
 // consulta) → 308 /agenda/?…; /confirmar/, /api/* e os arquivos da Agenda na raiz
@@ -29,7 +32,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 try { process.loadEnvFile(join(__dirname, '.env')); } catch { /* produção: variáveis do Render */ }
 
-export const VERSAO_CENTRAL = '2026-10-25-central-r7';
+export const VERSAO_CENTRAL = '2026-11-19-central-r8';
 const PORT = Number(process.env.PORT) || 3000;
 const NO_AR_DESDE = new Date().toISOString();
 const EM_PRODUCAO = !!process.env.RENDER;
@@ -63,9 +66,11 @@ export async function sondarApp(base, fetchFn = globalThis.fetch, tempoMs = 4000
   }
 }
 const SAUDE = { patio: null, orcador: null };
-/* rodada 7: os apps que moram DENTRO da Central (agenda, crm, comunicar, atendimento) — se algum não subiu, a Casa avisa sem esperar alguém clicar */
+/* Os apps que moram DENTRO da Central, na ordem em que sobem. É a lista única do roteador, do /api/ping e da saúde. */
+const ORDEM = ['agenda', 'crm', 'comunicar', 'atendimento', 'trafego'];
+/* rodada 7: se algum dos apps de dentro não subiu, a Casa avisa sem esperar alguém clicar */
 export function internosDaCentral(apps = APPS) {
-  return Object.fromEntries(['agenda', 'crm', 'comunicar', 'atendimento'].map((n) => [n, apps[n]?.handler ? { ok: true } : { ok: false, motivo: apps[n]?.erro ? 'nao_subiu' : 'ausente' }]));
+  return Object.fromEntries(ORDEM.map((n) => [n, apps[n]?.handler ? { ok: true } : { ok: false, motivo: apps[n]?.erro ? 'nao_subiu' : 'ausente' }]));
 }
 /* freio simples: cada endereço pode perguntar a saúde no máximo 40 vezes por minuto (a resposta já vem de um cache de 40 s) */
 const PERGUNTAS = new Map();
@@ -94,10 +99,17 @@ export async function saudeDosApps(agora = Date.now(), validadeMs = 40_000) {
 }
 
 /* ---------------------------------------------------------------------------
-   Carregar os quatro apps (cada um isolado num try)
+   Carregar os cinco apps (cada um isolado num try)
    --------------------------------------------------------------------------- */
 const APPS = {};       // nome -> { prefixo, handler, versao, erro }
 const DESLIGAR = [];   // funções de parada (timers)
+
+/* Tráfego (rodada 8): as rotinas dele (coleta nas plataformas, radar de alertas, avisos e relatórios) ficam
+   DESLIGADAS na Central e só ligam com TRAFEGO_AUTOMATICO=1, para nada ser coletado nem avisado sem o dono querer.
+   O ADS_AUTOMATICO (nome que o app lê quando roda sozinho) não manda aqui: a Central nunca chama o iniciar() do app
+   (ele abriria uma porta própria e, com ADS_DEMO=1, gravaria a demonstração no banco) e repassa a decisão dela em
+   ADS_AUTOMATICO, para a tela do app dizer a verdade sobre o piloto automático. */
+export function rotinasDoTrafegoLigadas(env = process.env) { return env.TRAFEGO_AUTOMATICO === '1'; }
 
 async function carregar(nome, prefixo, fn) {
   const t0 = Date.now();
@@ -132,6 +144,18 @@ async function carregarTudo() {
     const m = require('./apps/atendimento/server.js');
     const ligado = m.iniciar({ log: (...a) => console.log(' ', ...a) });   // sincronia, automações, IA do funil
     return { handler: m.handler, versao: lerVersaoAtendimento(), ligado };
+  });
+  await carregar('trafego', '/trafego', async () => {
+    const automatico = rotinasDoTrafegoLigadas();
+    process.env.ADS_AUTOMATICO = automatico ? '1' : '0';
+    const m = require('./apps/trafego/server.js');
+    if (automatico) {
+      const piloto = require('./apps/trafego/agenda.js');   // o mesmo piloto que o iniciar() do app liga, sem a porta
+      piloto.iniciar();
+      DESLIGAR.push(() => piloto.parar());
+    }
+    console.log(`    rotinas do Tráfego ${automatico ? 'LIGADAS (TRAFEGO_AUTOMATICO=1)' : 'desligadas (só ligam com TRAFEGO_AUTOMATICO=1)'}`);
+    return { handler: m.handler, versao: m.VERSAO, ligado: { automatico } };
   });
 }
 function lerVersaoAtendimento() {
@@ -216,16 +240,17 @@ function redirecionar(res, para) {
 /* ---------------------------------------------------------------------------
    Roteador
    --------------------------------------------------------------------------- */
-const ORDEM = ['agenda', 'crm', 'comunicar', 'atendimento'];
 const mb = (n) => Math.round(n / 1048576);
+const NOME_NA_FRASE = { trafego: 'Tráfego' };   // o nome técnico não tem acento; a frase é para gente
 
 function montar(nome, req, res, resto, busca) {
   const app = APPS[nome];
   if (!app || !app.handler) {
     res.setHeader('Retry-After', '60');
-    return json(res, 503, { erro: `O ${nome} não subiu nesta Central. Avise o suporte (o resto continua no ar).`, app: nome });
+    return json(res, 503, { erro: `O ${NOME_NA_FRASE[nome] || nome} não subiu nesta Central. Avise o suporte (o resto continua no ar).`, app: nome });
   }
-  req.url = (resto || '/') + busca;
+  // uma barra só no começo: "/trafego//site.example/x" chegaria ao app como "//site.example/x", que new URL() lê como outro site
+  req.url = '/' + String(resto || '').replace(/^\/+/, '') + busca;
   req.prefixo = app.prefixo;
   return app.handler(req, res);
 }
@@ -286,7 +311,7 @@ export async function handler(req, res) {
     }
   }
 
-  // 2) os quatro apps por prefixo
+  // 2) os apps por prefixo (agenda, crm, comunicar, atendimento, trafego)
   for (const nome of ORDEM) {
     const p = APPS[nome]?.prefixo || '/' + nome;
     if (caminho === p) return redirecionar(res, p + '/' + busca);
@@ -355,7 +380,7 @@ function desligar(sinal) {
 }
 
 /** Guardas do processo: SIGTERM/SIGINT com cuidado, rejeição solta só registra, exceção solta de UM app
- *  (timer, evento) não derruba os outros três; enxurrada (>= 25 em 1 minuto) reinicia pelo Render. */
+ *  (timer, evento) não derruba os outros; enxurrada (>= 25 em 1 minuto) reinicia pelo Render. */
 export function instalarGuardas(proc = process) {
   proc.on('SIGTERM', () => desligar('SIGTERM'));
   proc.on('SIGINT', () => desligar('SIGINT'));
