@@ -207,3 +207,13 @@ test('Conexões: textos novos do Google e do developer token; o segredo some da 
   assert.equal(google.temAcesso({ google_customer_id: '1234567890', google_client_id: 'a.apps.googleusercontent.com', google_client_secret: 'x', google_refresh_token: 'y' }), true,
     'sem developer token também vale');
 });
+
+test('Meta: depois que uma versão funcionou, as chamadas seguintes já vão nela (sem repetir a recusada)', async () => {
+  const P = await subir();
+  try {
+    const estado = {};
+    await meta.coletar(credMeta('TOKEN-FALSO', 'act_2222222222'), { de: DE, ate: DE, base: P.meta, esperar, estado });
+    assert.equal(estado.versao, 'v26.0');
+    assert.deepEqual(estado.versoes_recusadas, ['v27.0'], 'só a primeira chamada tentou a v27.0');
+  } finally { await P.fechar(); }
+});

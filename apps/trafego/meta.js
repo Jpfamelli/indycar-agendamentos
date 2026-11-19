@@ -176,7 +176,7 @@ async function pedir(url, token, o) {
 
 /** Roda `fn(versao)` na versão lembrada e, se a Meta recusar a versão, nas anteriores. */
 async function comVersao(o, fn) {
-  const ordem = [...new Set([o.versao, ...versoes()].filter(Boolean))];
+  const ordem = [...new Set([o.versao, o.estado?.versao, ...versoes()].filter(Boolean))];
   let ultimo;
   for (const v of ordem) {
     try {
