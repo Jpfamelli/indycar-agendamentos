@@ -6,6 +6,7 @@ const req_ = createRequire(import.meta.url);
 const R5 = req_('../lib/rodada5.js');
 const R6 = req_('../lib/rodada6.js');
 const R7 = req_('../lib/rodada7.js');
+const { camposPerda } = req_('../public/crm-utils.js');
 const DIA = 86400000;
 const ABERTAS = R5.ABERTAS;
 const EH_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -68,8 +69,16 @@ export function criarRotasMockR7(ctx) {
         const l = leads.find(x => x.id === it.id); if (!l) { pulados.push({ id: it.id, motivo: 'nao_achei' }); continue; }
         if (!pode(l, gestor)) { pulados.push({ id: l.id, nome: l.nome, motivo: 'lead_de_outro' }); continue; }
         const mv = R7.movimentoAindaVale(movs, l.id, String(it.para || '')); if (!mv) { pulados.push({ id: l.id, nome: l.nome, motivo: 'mudou' }); continue; }
-        if (mv.para === 'concluido') { const v = Number(it.valor_pago); if (!(v > 0)) { pulados.push({ id: l.id, nome: l.nome, motivo: 'falta_valor' }); continue; } l.valor_pago = v; }
-        if (mv.para === 'perdido') l.observacoes = R7.observacoesComMotivo(l.observacoes, R5.MOTIVOS_PERDA.includes(it.motivo) ? it.motivo : (mv.motivo_perda || 'Outro'));
+        if (mv.para === 'concluido' && it.valor_pendente !== true) { const v = Number(it.valor_pago); if (!(v > 0)) { pulados.push({ id: l.id, nome: l.nome, motivo: 'falta_valor' }); continue; } l.valor_pago = v; }
+        if (mv.para === 'perdido') {
+          if (it.motivo_perda) {
+            const campos = camposPerda(l.observacoes, it.motivo_perda, it.motivo_perda_obs);
+            if (!campos) { pulados.push({ id: l.id, nome: l.nome, motivo: 'falta_motivo' }); continue; }
+            Object.assign(l, campos);
+          } else {
+            l.observacoes = R7.observacoesComMotivo(l.observacoes, R5.MOTIVOS_PERDA.includes(it.motivo) ? it.motivo : (mv.motivo_perda || 'Outro'));
+          }
+        }
         if (mv.para === 'orcamento' && !(Number(l.valor_orcado) > 0) && mv.valor_novo > 0) l.valor_orcado = mv.valor_novo;
         const de = l.status; l.status = mv.para; l.updated_at = new Date(agora).toISOString();
         ativ.unshift({ id: crypto.randomUUID(), lead_id: l.id, tipo: 'sistema', texto: `Funil: ${R7.ROTULO_STATUS[de]} → ${R7.ROTULO_STATUS[mv.para]} (${mv.titulo.toLowerCase()}).`, criado_por: EU, created_at: new Date(agora).toISOString() });

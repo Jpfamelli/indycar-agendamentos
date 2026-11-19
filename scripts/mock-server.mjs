@@ -328,7 +328,7 @@ http.createServer(async (req, res) => {
     t.status = body.status; return json(res, 200, t);
   }
   // ---- RODADA 4: valor ao concluir, pendências, contagens, consultor ↔ login
-  const antigasMock = () => AGENDA.filter(a => ['compareceu', 'em_atendimento', 'aguardando', 'confirmado'].includes(a.status) && a.data < dia(-7));
+  const antigasMock = () => AGENDA.filter(a => ['compareceu', 'em_atendimento', 'aguardando', 'confirmado'].includes(a.status) && a.data < dia(0));
   if (p === '/api/contagens') {
     const gestor = ['admin', 'gestor'].includes(perfilMock().papel);
     return json(res, 200, { followup: AGENDA.filter(a => ['nao_veio', 'nao_fechou'].includes(a.status)).length,
@@ -423,6 +423,7 @@ http.createServer(async (req, res) => {
   }
   if (p === '/api/aniversarios') return json(res, 200, { dias: 7, itens: aniversariantes(CLIENTES, hoje(), Number(url.searchParams.get('dias')) || 7) });
   if (p === '/api/valores/pendentes') return json(res, 200, { dias: 120, itens: AGENDA.filter(a => a.status === 'concluido' && !(a.valor > 0)).sort((x, y) => y.data.localeCompare(x.data)) });
+  if (p === '/api/conversas-sem-horario') return json(res, 200, [{telefone: '12910000000', nome: 'Cliente de teste'}]);
   if (p === '/api/pendencias-antigas') return json(res, 200, antigasMock());
   // ---- Pátio (16/10): selo da etapa, link do cliente e entregues sem desfecho
   if (p === '/api/patio/agendamentos') {

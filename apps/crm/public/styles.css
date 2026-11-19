@@ -201,6 +201,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   font-family:var(--font-cond);font-weight:700;letter-spacing:.03em;text-transform:uppercase;
   font-size:.92rem;padding:11px 19px;border-radius:10px;transition:.22s var(--ease);white-space:nowrap;
 }
+#pagoPendente, #motivosPerdaOpcoes .motivo{min-height:44px}
 .btn.sm{padding:8px 13px;font-size:.82rem}
 .btn-primary{background:linear-gradient(135deg,var(--red),var(--red-dark));color:#fff}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 22px var(--red-glow)}

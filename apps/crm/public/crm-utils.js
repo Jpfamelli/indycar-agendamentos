@@ -24,6 +24,9 @@
     for (const k of ['valor_orcado','valor_pago']) if (k in d && (!Number.isFinite(Number(d[k])) || Number(d[k]) < 0 || Number(d[k]) > 10000000)) return 'Informe valores entre zero e R$ 10 milhões.';
     if ('status' in d && !['novo','contato','orcamento','agendado','em_servico','concluido','perdido'].includes(d.status)) return 'Etapa inválida.';
     if ('origem' in d && !['meta','google','indicacao','organico','whatsapp','passagem','telefone'].includes(d.origem)) return 'Origem inválida.';
+    if (d.motivo_perda != null && !Object.hasOwn(MOTIVOS_R8, d.motivo_perda)) return 'Motivo da perda inválido.';
+    if (d.motivo_perda_obs != null && (typeof d.motivo_perda_obs !== 'string' || d.motivo_perda_obs.length > 140)) return 'Escreva o motivo em até 140 caracteres.';
+    if (d.motivo_perda === 'outro' && !d.motivo_perda_obs?.trim()) return 'Escreva o motivo.';
     if (d.placa && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(normalizar(d.placa))) return 'Confira a placa: ABC1234 ou ABC1D23.';
     for (const k of ['observacoes','servico','carro_modelo','utm_campaign','utm_source','utm_medium']) if (k in d && d[k] !== null && (typeof d[k] !== 'string' || d[k].length > (k === 'observacoes' ? 4000 : 200))) return 'Texto maior que o permitido.';
     return null;
@@ -39,6 +42,32 @@
     if (med) partes.push(med);
     if (camp) partes.push('campanha ' + camp);
     return partes.length ? base + ' · ' + partes.join(' · ') : base;
+  }
+  const MOTIVOS_R8 = Object.freeze({
+    caro: 'Achou caro', concorrente: 'Foi em outra oficina', sem_retorno: 'Sem retorno do cliente',
+    desistiu: 'Desistiu do serviço', nao_fazemos: 'Não fazemos o serviço', prazo: 'Prazo não atendeu',
+    sem_urgencia: 'Sem urgência', sem_vaga: 'Sem vaga', outro: 'Outro'
+  });
+  function camposPerda(observacoes, motivo, texto = '') {
+    if (!Object.hasOwn(MOTIVOS_R8, motivo)) return null;
+    const obs = String(texto ?? '').replace(/[\r\n]+/g, ' ').trim().slice(0, 140);
+    if (motivo === 'outro' && !obs) return null;
+    return {
+      motivo_perda: motivo, motivo_perda_obs: motivo === 'outro' ? obs : null,
+      observacoes: comMotivoPerda(observacoes, motivo === 'outro' ? obs : MOTIVOS_R8[motivo])
+    };
+  }
+  const COMO_ORIGEM = {
+    ref: 'Link rastreado', referral: 'Origem informada pelo WhatsApp', formulario: 'Formulário',
+    manual: 'Informado pela equipe', utm: 'Link de campanha', frase: 'Mensagem do cliente',
+    frase_padrao: 'Mensagem padrão', ia: 'Sugestão da IA'
+  };
+  function origemCaptada(l) {
+    const plataforma = l.origem_plataforma === 'meta' ? 'Meta' : l.origem_plataforma === 'google' ? 'Google' : '';
+    const origem = l.origem_paga === true ? 'Anúncio' + (plataforma ? ' de ' + plataforma : '') :
+      l.origem_paga === false ? 'Contato não pago' : 'Não sei de onde veio';
+    const como = Object.hasOwn(COMO_ORIGEM, l.origem_como) ? COMO_ORIGEM[l.origem_como] : '';
+    return [origem, l.campanha_nome, como].filter(Boolean).join(' · ');
   }
   function nascimento(v) {
     if (v === '' || v === null) return null;
@@ -109,7 +138,7 @@
     for (const l of entraram) linha(l.origem || 'organico').leads++;
     for (const l of ganhos) { const o = linha(l.origem || 'organico'); o.ganhos++; o.faturamento += num(l.valor_pago); }
     const motivos = {};
-    for (const l of perdidos) { const m = motivoPadrao(motivoPerda(l.observacoes)) || 'Sem motivo registrado'; motivos[m] = (motivos[m] || 0) + 1; }
+    for (const l of perdidos) { const m = (Object.hasOwn(MOTIVOS_R8, l.motivo_perda) && MOTIVOS_R8[l.motivo_perda]) || motivoPadrao(motivoPerda(l.observacoes)) || 'Sem motivo registrado'; motivos[m] = (motivos[m] || 0) + 1; }
     return {
       entradas: entraram.length, ganhos: ganhos.length, perdidos: perdidos.length, faturamento,
       ticket: ganhos.length ? Math.round(faturamento / ganhos.length * 100) / 100 : 0,
@@ -204,6 +233,11 @@
   function casaOrigem(l, og, indicados) {
     if (!og) return true;
     if (!l) return false;
+    if (og === 'pago_meta') return l.origem_paga === true && l.origem_plataforma === 'meta';
+    if (og === 'pago_google') return l.origem_paga === true && l.origem_plataforma === 'google';
+    if (og === 'pago_sem_plataforma') return l.origem_paga === true && !l.origem_plataforma;
+    if (og === 'nao_pago') return l.origem_paga === false;
+    if (og === 'origem_incerta') return l.origem_paga == null;
     const temIndicacao = indicados && typeof indicados.has === 'function' && indicados.has(String(l.id));
     if (og === 'area_cliente') return String(l.utm_source || '').toLowerCase() === 'area_cliente';
     if (og === 'indicacao') return l.origem === 'indicacao' || !!temIndicacao;
@@ -509,7 +543,7 @@
     if (s < 86400) return Math.floor(s / 3600) + ' h';
     const d = Math.floor(s / 86400); return d === 1 ? 'ontem' : d + ' dias';
   }
-  const api = {normalizar,digitos,buscar,validarLead,origemDetalhada,MOTIVOS_PERDA,motivoPadrao,nascimento,moeda,csv,ETAPAS,ABERTAS,LIMITE_PARADO,valorLead,diasNaEtapa,parado,textoDias,resumoColuna,periodo,metricas,funilPassagem,comparar,motivoPerda,comMotivoPerda,telE164,linkWhatsApp,linkLigar,linkConversa,linkComunicar,linkAgenda,formatarTelefone,paginar,linhaDoTempo,casaOrigem,situacaoTarefa,ordenarTarefas,novaTarefa,COLUNAS_LEADS,COLUNAS_PADRAO,colunasValidas,ATALHOS_ABA,
+  const api = {normalizar,digitos,buscar,validarLead,origemDetalhada,origemCaptada,camposPerda,MOTIVOS_R8,MOTIVOS_PERDA,motivoPadrao,nascimento,moeda,csv,ETAPAS,ABERTAS,LIMITE_PARADO,valorLead,diasNaEtapa,parado,textoDias,resumoColuna,periodo,metricas,funilPassagem,comparar,motivoPerda,comMotivoPerda,telE164,linkWhatsApp,linkLigar,linkConversa,linkComunicar,linkAgenda,formatarTelefone,paginar,linhaDoTempo,casaOrigem,situacaoTarefa,ordenarTarefas,novaTarefa,COLUNAS_LEADS,COLUNAS_PADRAO,colunasValidas,ATALHOS_ABA,
     ehUuid,PAPEIS,ROTULO_PAPEL,ehGestor,URL_APPS,NOME_APPS,acessoApp,appsPermitidos,acaoErroAcesso,mensagemLogin,esperaLogin,validarNovaSenha,codigoMfaValido,linkNotificacao,CORES_AVATAR,corAvatar,filtroResponsavel,funilPorResponsavel,vencimentoDe,situacaoTarefaDb,ordenarTarefasDb,agruparTarefas,validarTarefa,lembreteParaTarefa,ROTULO_PRIORIDADE,mesAtual,intervaloMes,progressoMeta,CAMPOS_META,validarMetas,normalizarMetas,normalizarDesempenho,normalizarEquipe,podeReatribuir,podeEditarLead,avisoLeadDeOutro,ordenarDesempenho,deveGravarAcesso,mesclarPreferencias,tempoRelativo};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CrmUtils = api;

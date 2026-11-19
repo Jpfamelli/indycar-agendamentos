@@ -2240,21 +2240,56 @@ export async function preencherValor(id, valor) {
 }
 
 /**
- * Pendências antigas (gestor): horário que passou há mais de 7 dias e nunca
+ * Pendências antigas (gestor): horário de um dia anterior que nunca
  * teve desfecho — chegou e ficou em "Compareceu"/"Em atendimento", ou ficou
  * "Aguardando"/"Confirmado". Some do Início (que olha 7 dias) e prende o lead
  * do CRM. Só LISTA: quem resolve é a pessoa, pelos botões de sempre.
  */
+const PEDIDO_HORARIO = /\b(?:agend\w*|(?:re)?marcar|encaixe|horarios?|que horas|[0-9]{1,2}h(?:[0-9]{2})?|[0-9]{1,2}:[0-9]{2})\b/;
+export function oportunidadesDeHorario(mensagens, agendamentos = []) {
+  const excluidos = new Set(agendamentos.map(a => a.telefone_e164));
+  const candidatos = [];
+  for (const m of mensagens) {
+    const telefone = m.telefone_e164;
+    if (!/^\d{10,11}$/.test(telefone || '') || excluidos.has(telefone) || !PEDIDO_HORARIO.test(semAcento(m.corpo))) continue;
+    candidatos.push({ telefone, nome: m.nome || '' });
+    excluidos.add(telefone);
+  }
+  return candidatos;
+}
+
+export async function conversasSemHorario() {
+  const inicio = new Date(Date.now() - 7 * 86400_000).toISOString();
+  const mensagens = await selecionar(T.mensagens, new URLSearchParams({
+    select: 'telefone_e164,nome,corpo', direcao: 'eq.entrada', created_at: 'gte.' + inicio,
+    order: 'created_at.desc,id.desc', limit: '500'
+  }));
+  const candidatos = oportunidadesDeHorario(mensagens);
+  const agendados = new Set();
+  for (let i = 0; i < candidatos.length; i += 50) {
+    const tels = candidatos.slice(i, i + 50).map(c => c.telefone);
+    const filtro = new URLSearchParams({
+      select: 'telefone_e164', telefone_e164: 'in.(' + tels.join(',') + ')',
+      status: 'neq.cancelado', or: '(created_at.gte.' + inicio + ',data.gte.' + hoje() + ')', order: 'id'
+    });
+    for (const a of await selecionarTudo(T.agendamentos, filtro.toString())) agendados.add(a.telefone_e164);
+    if (candidatos.slice(0, i + 50).filter(c => !agendados.has(c.telefone)).length >= 12)
+      return candidatos.slice(0, i + 50).filter(c => !agendados.has(c.telefone)).slice(0, 12);
+  }
+  return candidatos.filter(c => !agendados.has(c.telefone)).slice(0, 12);
+}
+
+export function lerFiltroFechamentoDoDia(data = hoje()) {
+  return 'status=in.(compareceu,em_atendimento,aguardando,confirmado)&data=lt.' + data;
+}
 export async function pendenciasAntigas({ limite = 100 } = {}) {
-  const p = new URLSearchParams(SEL_AGENDAMENTO);
-  p.set('status', 'in.(compareceu,em_atendimento,aguardando,confirmado)');
-  p.set('data', `lt.${diasAntes(hoje(), 7)}`);
+  const p = new URLSearchParams(SEL_AGENDAMENTO + '&' + lerFiltroFechamentoDoDia());
   p.set('order', 'data.desc,hora.desc');
   p.set('limit', String(Math.min(300, limite)));
   return (await selecionar(T.agendamentos, p)).map(lerAgendamento);
 }
 export const contarPendenciasAntigas = () =>
-  contar(T.agendamentos, `status=in.(compareceu,em_atendimento,aguardando,confirmado)&data=lt.${diasAntes(hoje(), 7)}`);
+  contar(T.agendamentos, lerFiltroFechamentoDoDia());
 
 /* Palavras que não ajudam a achar quem é a pessoa ("Consultor Presencial Gabriel"). */
 const PALAVRAS_DE_CARGO = new Set(['consultor', 'consultora', 'presencial', 'prensencial', 'atendente', 'recepcao', 'recepcionista',

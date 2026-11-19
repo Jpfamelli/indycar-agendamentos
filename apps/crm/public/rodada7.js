@@ -7,7 +7,6 @@ const R7 = { ger: 0, painel: new Map(), mov: null, movEm: 0, movCarregando: fals
 const api7 = (url, opts) => api(url, opts, false, { tentativas: 1 });
 const post7 = (url, corpo) => api7(url, { method: 'POST', body: JSON.stringify(corpo || {}) });
 const ETAPAS7 = { novo: 'Novo', contato: 'Em contato', orcamento: 'Orçamento', agendado: 'Agendado', em_servico: 'Em serviço', concluido: 'Concluído', perdido: 'Perdido' };
-const MOTIVOS7 = ['Achou caro', 'Foi em outra oficina', 'Sem retorno do cliente', 'Desistiu do serviço', 'Não fazemos o serviço', 'Prazo não atendeu', 'Outro'];
 const PRESETS7 = [['2h', 'Daqui a 2 horas'], ['hoje', 'Hoje, fim da tarde'], ['amanha', 'Amanhã cedo'], ['3d', 'Em 3 dias úteis'], ['1sem', 'Em 1 semana'], ['2sem', 'Em 2 semanas']];
 const quando7 = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 const dia7 = iso => iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
@@ -136,14 +135,28 @@ function montarDlgMov7() {
     <p class="form-erro" id="mov7Erro" role="alert"></p>
     <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Fechar</button><div class="spacer"></div><button type="submit" class="btn btn-primary" id="mov7Ok">Aplicar os marcados</button></div></form></dialog>`);
   $('#dlgMov7').addEventListener('click', e => { if (e.target === $('#dlgMov7')) $('#dlgMov7').close(); });
+  $('#tblMov7').addEventListener('change', e => {
+    const tr = e.target.closest('tr[data-mv]');
+    if (e.target.matches('.mv-motivo')) tr.querySelector('.mv-outro').hidden = e.target.value !== 'outro';
+    if (e.target.matches('.mv-pendente')) tr.querySelector('.mv-valor').disabled = e.target.checked;
+  });
   $('#formMov7').addEventListener('submit', async e => {
     e.preventDefault();
     const itens = [];
     for (const tr of $$('#tblMov7 tr[data-mv]')) {
       if (!tr.querySelector('.mv-ck')?.checked) continue;
       const it = { id: tr.dataset.mv, para: tr.dataset.para };
-      if (tr.dataset.para === 'concluido') { const v = Number(String(tr.querySelector('.mv-valor').value).replace(',', '.')); if (!(v > 0)) { $('#mov7Erro').textContent = 'Informe o valor pago de cada carro entregue marcado.'; return; } it.valor_pago = v; }
-      if (tr.dataset.para === 'perdido') it.motivo = tr.querySelector('.mv-motivo').value;
+      if (tr.dataset.para === 'concluido') {
+        const v = Number(tr.querySelector('.mv-valor').value);
+        it.valor_pendente = tr.querySelector('.mv-pendente').checked;
+        if (!it.valor_pendente && !(v > 0)) { $('#mov7Erro').textContent = 'Informe o valor pago ou marque “Não sei agora”.'; return; }
+        if (!it.valor_pendente) it.valor_pago = v;
+      }
+      if (tr.dataset.para === 'perdido') {
+        it.motivo_perda = tr.querySelector('.mv-motivo').value;
+        it.motivo_perda_obs = tr.querySelector('.mv-outro').value.trim();
+        if (!U.camposPerda('', it.motivo_perda, it.motivo_perda_obs)) { $('#mov7Erro').textContent = 'Escreva o motivo de cada contato marcado como “Outro”.'; return; }
+      }
       itens.push(it);
     }
     if (!itens.length) { $('#mov7Erro').textContent = 'Marque pelo menos um.'; return; }
@@ -165,8 +178,9 @@ function renderMov7() {
   $('#mov7Ok').disabled = !ap.length;
   const linha = i => {
     const pode = i.aplicavel && i.pode_editar;
-    const extra = i.para === 'concluido' ? `<input type="number" class="mv-valor" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor pago (R$)" aria-label="Valor pago por ${esc(i.nome)}">`
-      : i.para === 'perdido' ? `<select class="mv-motivo" aria-label="Motivo da perda de ${esc(i.nome)}">${MOTIVOS7.map(x => `<option${x === i.motivo_perda ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : '';
+    const motivoSugerido = Object.values(U.MOTIVOS_R8).includes(i.motivo_perda) ? i.motivo_perda : 'Outro';
+    const extra = i.para === 'concluido' ? `<input type="number" class="mv-valor" min="0.01" step="0.01" inputmode="decimal" placeholder="Valor pago (R$)" aria-label="Valor pago por ${esc(i.nome)}"><label><input type="checkbox" class="mv-pendente"> Não sei agora</label>`
+      : i.para === 'perdido' ? `<select class="mv-motivo" aria-label="Motivo da perda de ${esc(i.nome)}">${Object.entries(U.MOTIVOS_R8).map(([codigo, rotulo]) => `<option value="${codigo}"${rotulo === motivoSugerido ? ' selected' : ''}>${esc(rotulo)}</option>`).join('')}</select><input type="text" class="mv-outro" maxlength="140" aria-label="Outro motivo de ${esc(i.nome)}"${motivoSugerido === 'Outro' ? '' : ' hidden'}>` : '';
     return `<tr data-mv="${esc(i.lead_id)}" data-para="${esc(i.para || '')}"><td>${pode ? `<input type="checkbox" class="mv-ck" aria-label="Aplicar em ${esc(i.nome)}"${i.para === 'concluido' ? '' : ' checked'}>` : ''}</td>
       <td><div class="cell-main"><a href="#" data-mv-abrir="${esc(i.lead_id)}">${esc(i.nome)}</a></div><div class="cell-sub">${esc(i.titulo)}. ${esc(i.motivo)}</div>${extra ? `<div class="mv-extra">${extra}</div>` : ''}</td>
       <td class="mv-etapas">${i.para ? `<span class="badge b-${esc(i.de)}">${esc(ETAPAS7[i.de])}</span> → <span class="badge b-${esc(i.para)}">${esc(ETAPAS7[i.para])}</span>` : `<span class="badge b-${esc(i.de)}">${esc(ETAPAS7[i.de])}</span>`}</td>

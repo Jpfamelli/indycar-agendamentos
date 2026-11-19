@@ -6,7 +6,7 @@
 // Biblioteca do Supabase e fontes (endereços com versão) ficam em cache direto.
 // v8 (16/10/2026, rodada 5): caminhos RELATIVOS ao escopo — o CRM pode estar na
 // raiz (/) ou montado na IndyCar Central (/crm/); nada começa com "/" fixo.
-const CACHE = 'indycar-crm-v13';   // v13 (25/10): rodada 7 (rodada7.js e rodada7.css no cache)
+const CACHE = 'indycar-crm-v14';
 //    // v10 (16/10): lead de colega travado na tela
 const CACHE_EXTERNO = 'indycar-crm-externo-v1';
 /* Pasta do app: '/' ou '/crm/' (o escopo do registro é a pasta de sw.js). */

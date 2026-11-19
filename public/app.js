@@ -572,7 +572,7 @@ function pedirValorAoFechar(id, nome, servico) {
         <small class="muted" id="vf_dica">Vai para o faturamento do CRM. Sem valor, o gestor completa depois em Pendências.</small>
       </div>
       <div class="modal-foot">
-        <button class="btn" id="vf_sem">Fechar sem valor</button>
+        <button class="btn" id="vf_sem" aria-label="Não sei agora. Fechar sem valor">Não sei agora</button>
         <button class="btn primary" id="vf_ok">${svg(I.check)} Confirmar</button>
       </div>`);
     _aoFecharModal = () => fim(null);                          // Esc, ×, clique fora: desistiu
@@ -585,11 +585,15 @@ function pedirValorAoFechar(id, nome, servico) {
     campo.addEventListener('input', () => { const c = campo.value, m = P.mascaraValor(c); if (m !== c) campo.value = m; rotular(); });
     const confirmar = () => {
       const v = P.valorDeTela(campo.value);
-      if (Number.isNaN(v) || (v !== null && (v < 0 || v > 200000))) {
+      if (v === null || v === 0) {
+        const e = $('#vf_erro'); e.hidden = false; $('span', e).textContent = 'Digite o valor ou escolha “Não sei agora”.';
+        return campo.focus();
+      }
+      if (!Number.isFinite(v) || v < 0 || v > 200000) {
         const e = $('#vf_erro'); e.hidden = false; $('span', e).textContent = 'Valor inválido: use só números, ex.: 350 ou 1.250,00.';
         return campo.focus();
       }
-      _aoFecharModal = null; closeModal(); fim({ valor: v && v > 0 ? v : null });
+      _aoFecharModal = null; closeModal(); fim({ valor: v });
     };
     campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmar(); } });
     ok.addEventListener('click', confirmar);
@@ -994,6 +998,7 @@ function pintarInicio(d, opts = {}) {
             ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
         <span class="chips-gestor" id="chipsGestor"></span>
         <span class="chips-gestor" id="chipsEquipe"></span>
+        <button class="btn" type="button" id="chipConversasSemHorario">Horários falados no WhatsApp</button>
         ${opts.doCache ? '<small class="marca-cache" aria-live="polite">mostrando o último painel · atualizando…</small>' : ''}
       </div>
       ${prox ? `<div class="hero-prox">
@@ -1488,6 +1493,7 @@ async function renderPendencias(opts = {}) {
     api('GET', '/patio/entregues', null, { repetir: false }).catch(() => [])]);
   if (opts.vez && opts.vez !== state._vez) return;
   const itens = vals.itens || [];
+  const limiteFechamento = opts.limiteFechamento || 6;
   state._preenchidoSessao = state._preenchidoSessao || 0;
   const linhaValor = (a) => `<tr data-id="${esc(a.id)}">
       <td>${esc(dataBR(a.data))}<br><small class="muted">${esc(a.hora)}</small></td>
@@ -1511,7 +1517,7 @@ async function renderPendencias(opts = {}) {
   view.innerHTML = `
     <div class="toolbar"><div class="left"><h2>Pendências</h2>
       <span class="badge-pill bp-orange">${itens.length} sem valor</span>
-      <span class="badge-pill bp-gray">${antigas.length} antigos sem desfecho</span>
+      <span class="badge-pill bp-gray">${antigas.length} horários sem desfecho</span>
       ${entregues.length ? `<span class="badge-pill bp-purple">${entregues.length} entregues no Pátio</span>` : ''}</div></div>
     ${entregues.length ? `<div class="panel">
       <div class="panel-head"><h2>${svg(ICO_PATIO)} Entregues no Pátio sem desfecho</h2>
@@ -1528,10 +1534,11 @@ async function renderPendencias(opts = {}) {
       : `<div class="panel-body">${vazio(I.check, 'Todo serviço concluído tem valor 🏁', 'Quando alguém fechar sem valor, ele aparece aqui para você completar.')}</div>`}
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>${svg(I.relogio)} Sem desfecho há mais de 7 dias</h2>
-        <span class="panel-sub">somem do Início e prendem o lead no CRM — marque o que aconteceu</span></div>
-      <div class="panel-body lista" id="pdAntigas" data-saida="tudo">${antigas.length ? antigas.map(a => cartaoAntigo(a, agora)).join('')
-        : vazio(I.check, 'Nada antigo pendente', 'Todo horário com mais de uma semana já tem desfecho.')}</div>
+      <div class="panel-head"><h2>${svg(I.relogio)} Fechar dias anteriores</h2>
+        <span class="panel-sub">Veja os horários que ficaram sem desfecho</span></div>
+      <div class="panel-body lista" id="pdAntigas" data-saida="tudo">${antigas.length ? antigas.slice(0, limiteFechamento).map(a => cartaoAntigo(a, agora)).join('')
+        : vazio(I.check, 'Nada antigo pendente', 'Os horários dos dias anteriores têm desfecho.')}</div>
+      ${antigas.length > limiteFechamento ? `<div class="panel-body"><button class="btn" id="pdMais">Mostrar mais horários</button></div>` : ''}
     </div>`;
 
   // ---- valores
@@ -1571,6 +1578,7 @@ async function renderPendencias(opts = {}) {
   // ---- entregues no Pátio: os dois desfechos de visita (o selo da etapa entra sozinho)
   if ($('#pdEntregues')) bindApptActions($('#pdEntregues'));
   // ---- antigos: desfechos de sempre + "Não veio" sem WhatsApp
+  $('#pdMais')?.addEventListener('click', () => renderPendencias({...opts, limiteFechamento: limiteFechamento + 6}).catch(e => toast(e.message, 'err')));
   const box = $('#pdAntigas');
   bindApptActions(box);
   $$('[data-antigo]', box).forEach(b => b.addEventListener('click', async () => {
@@ -2988,6 +2996,32 @@ window.abrirRemarcar = async function(id) {
    Achou UM horário pendente → abre ele. Achou a ficha → abre a ficha (com o
    histórico e o "Agendar de novo"). Vários pendentes sem ficha → Agenda
    filtrada pelo telefone. Nada → "Novo agendamento" já com o telefone. */
+document.addEventListener('click', async e => {
+  const botao = e.target.closest('#chipConversasSemHorario');
+  if (!botao || botao.disabled || emPresenca()) return;
+  botao.disabled = true;
+  try {
+    const itens = await api('GET', '/conversas-sem-horario');
+    if (!botao.isConnected) return;
+    openModal('<div class="modal-head"><h3>Horários falados no WhatsApp</h3>' +
+      '<button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>' +
+      '<div class="modal-body"><p>Conversas recentes sem horário na Agenda. Confira com o cliente antes de salvar.</p>' +
+      (itens.length ? '<ul>' + itens.map((c, i) =>
+        '<li><button class="btn" data-horario-whatsapp="' + i + '">Agendar para ' +
+        esc(c.nome || c.telefone) + '</button></li>').join('') + '</ul>' :
+        '<p>Nenhuma conversa encontrada nos últimos sete dias.</p>') + '</div>');
+    document.querySelectorAll('[data-horario-whatsapp]').forEach(b => b.addEventListener('click', () => {
+      const c = itens[Number(b.dataset.horarioWhatsapp)];
+      closeModal();
+      abrirEntrada({ tel: c.telefone, nome: c.nome, novo: true });
+    }));
+  } catch (err) {
+    toast('Não consegui buscar as conversas. ' + err.message, 'err');
+  } finally {
+    botao.disabled = false;
+  }
+});
+
 async function abrirEntrada(e) {
   if (!e || emPresenca()) return;
   try {
@@ -4166,8 +4200,8 @@ function pintarContagens(c) {
   const chips = [];
   if (c?.semValor) chips.push(`<button type="button" class="chip-aviso chip-valor" data-ir="pendencias" title="Serviços concluídos sem o valor: o faturamento do CRM fica zerado. Toque para preencher.">
     ${svg(I.money)} ${c.semValor} ${c.semValor === 1 ? 'concluído sem valor' : 'concluídos sem valor'}</button>`);
-  if (c?.antigas) chips.push(`<button type="button" class="chip-aviso" data-ir="pendencias" title="Horários de mais de 7 dias que nunca tiveram desfecho — prendem o lead no CRM.">
-    ${svg(I.relogio)} ${c.antigas} ${c.antigas === 1 ? 'horário antigo sem desfecho' : 'horários antigos sem desfecho'}</button>`);
+  if (c?.antigas) chips.push(`<button type="button" class="chip-aviso" data-ir="pendencias" title="Veja os horários dos dias anteriores que ficaram sem desfecho.">
+    ${svg(I.relogio)} ${c.antigas} ${c.antigas === 1 ? 'horário para fechar' : 'horários para fechar'}</button>`);
   if (c?.entregues) chips.push(`<button type="button" class="chip-aviso" data-ir="pendencias" title="O Pátio entregou o carro, mas a Agenda ainda não tem o desfecho com o valor.">
     ${svg(ICO_PATIO)} ${c.entregues} ${c.entregues === 1 ? 'entregue no Pátio sem desfecho' : 'entregues no Pátio sem desfecho'}</button>`);
   // rodada 5 (equipe toda): amanhã sem confirmação → Agenda filtrada em "sem confirmação" para pedir pelo link
