@@ -163,12 +163,16 @@ function cartaoDeConta(ctx, canal, conexao, conta, linha, recarregar) {
   const guardado = temAcesso
     ? 'Já há um acesso guardado' + (linha && linha.salvo_em ? ' desde ' + dataCurta(linha.salvo_em) : '') + '. Ele nunca aparece aqui; para trocar, cole um novo.'
     : 'Nenhum acesso guardado ainda.';
+  // Trocar o acesso da Meta e do Google é só do administrador (o servidor recusa com so_admin): o gestor vê a situação e o porquê.
+  const papel = ctx.eu && ctx.eu.papel;
+  const podeTrocar = !papel || papel === 'admin' || papel === 'dono';
   return h('article', { class: 'conexao-cartao', 'aria-labelledby': 'tc-' + canal },
     h('div', { class: 'conexao-cab' }, h('h3', { class: 'titulo-p', id: 'tc-' + canal }, nome), selo(situacao[0], situacao[1])),
     conexao.aviso ? h('p', null, conexao.aviso) : null,
     aviso ? h('div', { class: 'conexao-problema' }, icone('alerta', 'icone-p'), h('div', null, h('p', { class: 'forte' }, aviso.titulo), aviso.fazer ? h('p', null, aviso.fazer) : null)) : null,
     detalhes.length ? h('p', { class: 'apoio' }, detalhes.join(' ')) : null,
-    h('details', { class: 'conexao-acessos', open: !temAcesso || conexao.situacao === 'erro' || conexao.situacao === 'token_vencendo' || Boolean(aviso) },
+    !podeTrocar ? h('p', { class: 'apoio' }, (temAcesso ? 'Há um acesso guardado. ' : 'Ainda sem acesso guardado. ') + 'Só o administrador da oficina cola ou troca o acesso.') : null,
+    !podeTrocar ? null : h('details', { class: 'conexao-acessos', open: !temAcesso || conexao.situacao === 'erro' || conexao.situacao === 'token_vencendo' || Boolean(aviso) },
       h('summary', { class: 'ligacao' }, temAcesso ? 'Trocar o acesso' : 'Colar os acessos'),
       h('div', { class: 'conexao-form' },
         h('p', { class: 'apoio' }, guardado),

@@ -43,11 +43,15 @@ export function montar(ctx, alvo) {
   const lista = h('div', { class: 'chaves-lista-caixa' });
   const nova = h('div', { class: 'chave-nova-caixa' });
   const endereco = enderecoDoMcp();
+  // Só o administrador cria chave: para o gestor o formulário nem aparece (antes ele preenchia e só então ouvia o "não").
+  const papel = ctx.eu && ctx.eu.papel;
+  const criar = h('section', { class: 'chaves-bloco', 'aria-labelledby': 'ch-criar-t', hidden: Boolean(papel) && papel !== 'admin' && papel !== 'dono' },
+    h('h3', { class: 'titulo-p', id: 'ch-criar-t' }, 'Criar uma chave'), formulario());
   trocar(alvo,
     h('p', { class: 'apoio chaves-intro' }, 'Uma chave deixa uma IA que você usa no computador (Claude Code ou Codex) ler os números da oficina pelo mesmo caminho do Gestor IA. Ela nunca mexe nos anúncios: no máximo deixa uma sugestão para você aprovar no Gestor.'),
     nova,
     h('section', { class: 'chaves-bloco', 'aria-labelledby': 'ch-lista-t' }, h('h3', { class: 'titulo-p', id: 'ch-lista-t' }, 'Chaves criadas'), lista),
-    h('section', { class: 'chaves-bloco', 'aria-labelledby': 'ch-criar-t' }, h('h3', { class: 'titulo-p', id: 'ch-criar-t' }, 'Criar uma chave'), formulario()),
+    criar,
     h('section', { class: 'chaves-bloco', 'aria-labelledby': 'ch-ligar-t' },
       h('h3', { class: 'titulo-p', id: 'ch-ligar-t' }, 'Como ligar na IA'),
       h('p', { class: 'apoio' }, 'Troque SUA_CHAVE pela chave criada. No Codex, a chave fica na variável INDYCAR_TRAFEGO_CHAVE do computador, fora do arquivo.'),
@@ -62,6 +66,7 @@ export function montar(ctx, alvo) {
     let d;
     try { d = await ctx.api.ler('api/ia/chaves'); } catch (erro) {
       if (saiu) return;
+      if (erro && erro.codigo === 'so_admin') criar.hidden = true;
       if (erro && erro.codigo === 'so_admin') trocar(lista, h('p', { class: 'aviso-caixa' }, icone('info', 'icone-p'), h('span', null, 'Só o administrador da oficina vê, cria e revoga as chaves da IA.')));
       else trocar(lista, h('p', { class: 'campo-erro' }, fraseDoErro(erro)));
       return;
