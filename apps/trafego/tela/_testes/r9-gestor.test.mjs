@@ -28,3 +28,12 @@ test('quemNoDiario: a mudança anotada por uma pessoa não diz que ela "sugeriu"
   assert.equal(quemNoDiario(ia), 'Gestor IA sugeriu · Paulo decidiu');
   assert.equal(quemNoDiario(lerAcao({ id: 'a3', origem: 'radar', status: 'expirada', tipo: 'pausar' })), 'Radar sugeriu');
 });
+
+import { detalheSemCampanha } from '../js/contatos.js';
+test('detalheSemCampanha: na campanha aberta, a linha do contato não repete o nome da campanha', () => {
+  assert.equal(detalheSemCampanha('Troca de óleo R$ 169 › Taubaté 30 km › Vídeo 2', 'Troca de óleo R$ 169'), 'Taubaté 30 km › Vídeo 2');
+  assert.equal(detalheSemCampanha('Troca de óleo R$ 169', 'Troca de óleo R$ 169'), null);
+  assert.equal(detalheSemCampanha('Outra campanha › Vídeo', 'Troca de óleo'), 'Outra campanha › Vídeo');
+  assert.equal(detalheSemCampanha('Taubaté › Vídeo', null), 'Taubaté › Vídeo');
+  assert.equal(detalheSemCampanha('', 'X'), null);
+});

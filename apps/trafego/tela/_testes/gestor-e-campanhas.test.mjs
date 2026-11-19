@@ -128,7 +128,7 @@ test('classificação: distância para a primeira em palavras', () => {
   const [oleo, freios] = ordenar(CAMPANHAS, 'custo_contato');
   assert.equal(distancia(oleo, oleo, 'custo_contato').texto, 'Primeira da classificação');
   assert.equal(distancia(freios, oleo, 'custo_contato').texto, 'R$ 12 a mais por contato que a primeira');
-  assert.equal(distancia(CAMPANHAS[0], CAMPANHAS[1], 'retorno').texto, 'Cada R$ 1 virou R$ 2,45 a menos que na primeira');
+  assert.equal(distancia(CAMPANHAS[0], CAMPANHAS[1], 'retorno').texto, 'R$ 2,45 a menos que a primeira');
   assert.equal(distancia(CAMPANHAS[0], CAMPANHAS[3], 'retorno').texto, 'Empatada com a primeira');
   assert.equal(distancia(CAMPANHAS[2], CAMPANHAS[1], 'retorno').tipo, 'sem_dado');
   assert.equal(distancia(CAMPANHAS[0], CAMPANHAS[1], 'contatos').texto, '13 contatos a menos que a primeira');

@@ -342,7 +342,7 @@ function contatosDaCampanha(ctx, d) {
   const total = ehNumero(d.contatos_total) ? d.contatos_total : itens.length;
   const naJornada = ctx.hrefDaTela('jornada', c.ext ? { campanha: c.ext } : { paga: '1' });
   return bloco('tContatosCampanha', 'Contatos desta campanha', total > itens.length ? 'Os ' + inteiro(itens.length) + ' mais recentes de ' + inteiro(total) + '.' : null,
-    itens.length ? torreDeContatos(ctx, itens, { rotulo: 'Contatos da campanha ' + (c.nome || '') }) : h('p', { class: 'suave' }, 'Nenhum contato chegou por esta campanha no período.'),
+    itens.length ? torreDeContatos(ctx, itens, { rotulo: 'Contatos da campanha ' + (c.nome || ''), campanha: c.nome }) : h('p', { class: 'suave' }, 'Nenhum contato chegou por esta campanha no período.'),
     itens.length ? h('a', { class: 'ligacao', href: naJornada }, total > itens.length ? 'Ver todos os ' + inteiro(total) + ' na Jornada' : 'Ver na Jornada', icone('seta', 'icone-p')) : null);
 }
 

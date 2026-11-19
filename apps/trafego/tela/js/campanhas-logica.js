@@ -75,7 +75,8 @@ export function distancia(campanha, lider, id) {
   const lado = v > l ? 'mais' : 'menos';
   switch (c.id) {
     case 'retorno':
-      return { texto: 'Cada R$ 1 virou ' + dinheiro(dif, { centavos: true }) + ' a ' + lado + ' que na primeira', tipo: 'atras' };
+      // Logo abaixo de "R$ 5,01 cada R$ 1 virou": repetir "Cada R$ 1 virou" na linha de baixo só atrapalhava a leitura.
+      return { texto: dinheiro(dif, { centavos: true }) + ' a ' + lado + ' que a primeira', tipo: 'atras' };
     case 'custo_servico':
       return { texto: dinheiro(dif) + ' a ' + lado + ' por serviço fechado que a primeira', tipo: 'atras' };
     case 'custo_contato':
