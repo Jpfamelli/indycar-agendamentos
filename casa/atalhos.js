@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const MOD = { nome: 'atalhos' };
-  let C = null, L = null, esperandoG = false, timerG = null, aberta = false, ultimoFoco = null, dicaG = null;
+  let C = null, L = null, esperandoG = false, timerG = null, aberta = false, ultimoFoco = null;
   const $ = (s) => document.querySelector(s);
 
   function abrirAjuda() {
@@ -20,14 +20,17 @@
     try { ultimoFoco && ultimoFoco.focus && ultimoFoco.focus(); } catch { /* sumiu */ }
   }
 
+  /* rodada 9: a dica do "g…" usa o aviso da Casa (um relógio só) e não apaga um aviso com botão na tela ("Desfazer", "Concluir a tarefa") */
   function dica(texto) {
     const t = $('#toast');
-    t.textContent = texto; t.hidden = false;
-    clearTimeout(dicaG); dicaG = setTimeout(() => { if (t.textContent === texto) t.hidden = true; }, 1300);
+    if (t && !t.hidden && t.querySelector('.toast-btn')) return;
+    C.toast(texto, 1300);
   }
 
   function teclado(e) {
     if (!C || !C.perfil) return;
+    // ajuda aberta: o Tab não escapa para a página de trás (só tem o botão Fechar)
+    if (aberta && e.key === 'Tab') { e.preventDefault(); $('#ajudaFechar').focus(); return; }
     if (e.key === 'Escape') {
       if (aberta) { e.preventDefault(); fecharAjuda(); }
       return;
@@ -54,7 +57,7 @@
     if (k === '/') { e.preventDefault(); C.busca && C.busca.abrir(); }
     else if (k === '?') { e.preventDefault(); abrirAjuda(); }
     else if (k === 'g' || k === 'G') { esperandoG = true; dica('g…  a Agenda · t Atendimento · c CRM · m Comunicar · p Pátio · o Orçador'); clearTimeout(timerG); timerG = setTimeout(() => { esperandoG = false; }, 1500); }
-    else if (/^[1-6]$/.test(k)) {
+    else if (/^[1-7]$/.test(k)) {
       const app = window.CasaLogica2.ATALHOS_NUMERO[k];
       e.preventDefault();
       if (C.podeUsar(app)) C.abrirNaAba(C.bases[app]); else C.toast(`Você não tem acesso ao ${L.APPS[app].nome}.`);
