@@ -37,21 +37,31 @@ module.exports = (ctx) => {
   }
 
   /* O gasto é da frente do servidor base; aqui só o suficiente para `estado.gasto` e `estado.demo` baterem com as outras telas.
-     Um minuto de memória; se a leitura falhar, `gasto` fica nulo (não se sabe). */
-  let gastoGuardado = { em: 0, valor: null };
-  async function estadoDoGasto() {
-    if (gastoGuardado.valor && Date.now() - gastoGuardado.em < 60_000) return gastoGuardado.valor;
+     Integração r8: com linha na tabela, vale o que existe NO PERÍODO, pela mesma regra de /api/hoje (motor/soma.js): a
+     demonstração de agosto não liga o aviso de "números de demonstração" na Jornada de novembro (visto no banco real).
+     Um minuto de memória por período; se a leitura falhar, `gasto` fica nulo (não se sabe). */
+  const gastoGuardado = new Map();
+  async function estadoDoGasto(periodo) {
+    const chave = periodo ? `${periodo.de}|${periodo.ate}` : '';
+    const guardado = gastoGuardado.get(chave);
+    if (guardado && Date.now() - guardado.em < 60_000) return guardado.valor;
     let valor = { gasto: null, demo: false };
     try {
       const [reais, algum] = await Promise.all([db.temDadosReais(), db.temDados()]);
-      if (reais) valor = { gasto: 'real', demo: false };
-      else if (algum) valor = { gasto: 'demo', demo: true };
-      else valor = { gasto: (await db.temChaves()) ? 'sem_dados' : 'sem_conta', demo: false };
+      if (!algum) valor = { gasto: (await db.temChaves()) ? 'sem_dados' : 'sem_conta', demo: false };
+      else if (!periodo) valor = reais ? { gasto: 'real', demo: false } : { gasto: 'demo', demo: true };
+      else {
+        const S = require('../motor/soma'), fonte = require('../motor/fonte').padrao();
+        const [linhas, conexoes] = await Promise.all([fonte.metricas({ de: periodo.de, ate: periodo.ate, niveis: ['campanha'] }), fonte.conexoes()]);
+        const gasto = S.estadoDoGasto(S.gastoDoTrecho(S.linhasEntre(linhas, periodo.de, periodo.ate), { haReal: reais }).tipo, { haReal: reais, conexoes });
+        valor = { gasto, demo: gasto === 'demo' };
+      }
     } catch { /* fica nulo */ }
-    gastoGuardado = { em: Date.now(), valor };
+    if (gastoGuardado.size > 50) gastoGuardado.clear();
+    gastoGuardado.set(chave, { em: Date.now(), valor });
     return valor;
   }
-  const comGasto = async resposta => ({ ...resposta, estado: { ...resposta.estado, ...(await estadoDoGasto()) } });
+  const comGasto = async (resposta, periodo) => ({ ...resposta, estado: { ...resposta.estado, ...(await estadoDoGasto(periodo)) } });
 
   /* ---------------- leituras ---------------- */
 
@@ -59,13 +69,13 @@ module.exports = (ctx) => {
     limitar(res, usuario, 'lista', 600);
     const periodo = Periodo.periodoDaConsulta(q);
     const filtros = Object.fromEntries(FILTROS.map(k => [k, q.get(k)]));
-    return comGasto(await medir(pedido, 'jornada', () => Jornada.listar({ periodo, filtros, fresco: fresco(q) })));
+    return comGasto(await medir(pedido, 'jornada', () => Jornada.listar({ periodo, filtros, fresco: fresco(q) })), periodo);
   });
 
   rota('GET', '/api/pendencias', async ({ q, res, usuario, pedido }) => {
     limitar(res, usuario, 'lista', 600);
     const periodo = Periodo.periodoDaConsulta(q);
-    return comGasto(await medir(pedido, 'pendencias', () => Jornada.pendencias({ periodo, fresco: fresco(q) })));
+    return comGasto(await medir(pedido, 'pendencias', () => Jornada.pendencias({ periodo, fresco: fresco(q) })), periodo);
   });
 
   rota('GET', new RegExp(`^/api/jornada/${ID}$`, 'i'), async ({ m, res, usuario, pedido }) => {

@@ -236,3 +236,24 @@ test('banco fora do ar: a resposta é uma frase de gente com o número do pedido
     assert.equal(/PGRST|schema cache|relation/i.test(r.texto), false);
   } finally { db.sb = sb; Jornada.esquecer(); }
 });
+
+test('estado.gasto da Jornada segue a regra de /api/hoje: demonstração de outro mês não liga o aviso de demonstração (integração r8)', async () => {
+  const D = require('./apoio/trafego-dados');
+  const antes = { temDados: db.temDados, temDadosReais: db.temDadosReais };
+  db.temDados = async () => true; db.temDadosReais = async () => false;
+  sb.tabelas.ads_metricas_dia = [D.metrica('d1', { data: '2026-08-10', fonte: 'demo', gasto: 80 }), D.metrica('d2', { data: '2026-08-11', fonte: 'demo', gasto: 90 })];
+  sb.tabelas.integracoes_ads = [];
+  try {
+    const abril = await pedir('/api/jornada?de=2026-04-01&ate=2026-04-30');
+    assert.equal(abril.status, 200);
+    assert.deepEqual([abril.json.estado.gasto, abril.json.estado.demo], ['sem_conta', false], 'só há demonstração de agosto: em abril não é demonstração');
+    const pend = await pedir('/api/pendencias?de=2026-04-01&ate=2026-04-30');
+    assert.deepEqual([pend.json.estado.gasto, pend.json.estado.demo], ['sem_conta', false]);
+    const agosto = await pedir('/api/jornada?de=2026-08-01&ate=2026-08-31');
+    assert.deepEqual([agosto.json.estado.gasto, agosto.json.estado.demo], ['demo', true], 'no mês da demonstração o aviso aparece');
+  } finally {
+    Object.assign(db, antes);
+    delete sb.tabelas.ads_metricas_dia; delete sb.tabelas.integracoes_ads;
+    Jornada.esquecer();
+  }
+});
