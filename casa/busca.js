@@ -20,25 +20,28 @@
     const ls = linhasNav();
     if (!ls.length) { ativo = -1; return; }
     ativo = (i + ls.length) % ls.length;
-    ls.forEach((el, k) => { el.classList.toggle('ativa', k === ativo); el.setAttribute('aria-selected', String(k === ativo)); });
+    ls.forEach((el, k) => el.classList.toggle('ativa', k === ativo));
     ls[ativo].scrollIntoView({ block: 'nearest' });
     $('#buscaInput').setAttribute('aria-activedescendant', ls[ativo].id);
+    /* rodada 9: sem a lista falsa de opções (o leitor de tela acusava erro grave); quem usa leitor ouve o item marcado pelas setas */
+    const an = $('#buscaAnuncio');
+    if (an) an.textContent = (ls[ativo].getAttribute('aria-label') || ls[ativo].textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   }
 
   /* comandos da paleta: ">" + palavra, ou texto que casa com o nome do comando */
   function blocoComandos(lista, titulo) {
     if (!lista.length) return '';
-    return `<section class="busca-grupo" aria-label="Comandos"><h3>⚡ ${C.esc(titulo)}</h3>${lista.map((c) => `<button type="button" class="busca-cmd" data-linha id="bc-${C.esc(c.id)}" role="option" aria-selected="false" data-cmd="${C.esc(c.id)}"><span>${C.esc(c.rotulo)}</span>${c.tecla ? `<kbd>${C.esc(c.tecla)}</kbd>` : ''}</button>`).join('')}</section>`;
+    return `<section class="busca-grupo" aria-label="Comandos"><h3>⚡ ${C.esc(titulo)}</h3>${lista.map((c) => `<button type="button" class="busca-cmd" data-linha id="bc-${C.esc(c.id)}" data-cmd="${C.esc(c.id)}"><span>${C.esc(c.rotulo)}</span>${c.tecla ? `<kbd>${C.esc(c.tecla)}</kbd>` : ''}</button>`).join('')}</section>`;
   }
   function telaInicial() {
     const r = recentes();
-    const apps = ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador'].filter((k) => C.podeUsar(k));
+    const apps = ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador', 'ads'].filter((k) => C.podeUsar(k));
     $('#buscaDica').textContent = 'Digite um telefone, parte do nome, a placa ou o número da OS/orçamento.';
     $('#buscaFiltros').hidden = true; filtroBusca = '';
     $('#buscaLista').innerHTML =
       (r.length ? `<section class="busca-grupo"><h3>Buscas recentes <button type="button" class="busca-mini" data-limpar-recentes>limpar</button></h3>${r.map((x) => `<button type="button" class="busca-rec" data-recente="${C.esc(x)}">🕘 ${C.esc(x)}</button>`).join('')}</section>` : '') +
       blocoComandos(C.comandos ? C.comandos.lista().filter((c) => ['novo-horario', 'nova-entrada', 'novo-orcamento', 'nova-tarefa', 'modo-tv', 'tema'].includes(c.id)).slice(0, 5) : [], 'Comandos (digite > para ver todos)') +
-      `<section class="busca-grupo"><h3>Ir para</h3><div class="busca-ir">${apps.map((k) => `<a href="${C.esc(C.bases[k])}" target="${C.esc(L.nomeDaAba(k))}" data-linha id="bl-ir-${k}" role="option">${L.APPS[k].ico} ${C.esc(L.APPS[k].nome)}</a>`).join('')}</div></section>`;
+      `<section class="busca-grupo"><h3>Ir para</h3><div class="busca-ir">${apps.map((k) => `<a href="${C.esc(C.bases[k])}" target="${C.esc(L.nomeDaAba(k))}" data-linha id="bl-ir-${k}">${L.APPS[k].ico} ${C.esc(L.APPS[k].nome)}</a>`).join('')}</div></section>`;
     ativo = -1;
   }
 
@@ -54,9 +57,9 @@
   function blocoPessoas(pessoas) {
     if (!pessoas.length) return '';
     return `<section class="busca-grupo busca-pessoas" aria-label="Pessoas"><h3>👤 Pessoas <small>${pessoas.length}</small></h3>${pessoas.map((p, i) => `<div class="busca-item">
-      <button type="button" class="busca-linha busca-pessoa" id="bp-${i}" data-linha data-ficha data-tel="${C.esc(p.tel55)}" data-nome="${C.esc(p.nome)}" role="option" aria-selected="false">
+      <button type="button" class="busca-linha busca-pessoa" id="bp-${i}" data-linha data-ficha data-tel="${C.esc(p.tel55)}" data-nome="${C.esc(p.nome)}">
         <span class="b-tit">${L.destacar(p.nome, ultimoQ)}</span><span class="b-det">${C.esc(p.telefone)} · está em ${C.esc(p.achouEm.join(', ') || 'nenhum sistema')}</span><span class="pil">Ver ficha</span></button>
-      <span class="busca-atalhos"><button type="button" class="busca-mini" data-copiar-tel="${C.esc(p.tel55)}" aria-label="Copiar o telefone de ${C.esc(p.nome)}">Copiar telefone</button></span></div>`).join('')}</section>`;
+      <span class="busca-atalhos"><button type="button" class="busca-mini" data-copiar-tel="${C.esc(p.tel55)}" aria-label="Copiar telefone de ${C.esc(p.nome)}">Copiar telefone</button></span></div>`).join('')}</section>`;
   }
 
   function desenhar(res, q) {
@@ -71,11 +74,11 @@
       $('#buscaFiltros').hidden = true;
       lista.innerHTML = `<p class="vazio">Nada achado para “${C.esc(q)}” em nenhum sistema.</p>` + (tel ? `
         <section class="busca-grupo"><h3>Telefone novo? Comece por aqui</h3><div class="busca-ir">
-          ${C.podeUsar('agenda') ? `<a href="${C.esc(C.links.agendaNovo({ telefone: tel }))}" target="${L.nomeDaAba('agenda')}" data-linha id="bl-n1" role="option">📅 Marcar horário</a>` : ''}
-          ${C.podeUsar('atendimento') ? `<a href="${C.esc(C.links.conversaTel(tel))}" target="${L.nomeDaAba('atendimento')}" data-linha id="bl-n2" role="option">💬 Abrir conversa</a>` : ''}
-          ${C.podeUsar('orcador') ? `<a href="${C.esc(C.links.novoOrcamento({ telefone: tel }))}" target="${L.nomeDaAba('orcador')}" data-linha id="bl-n3" role="option">🧾 Novo orçamento</a>` : ''}
-          ${C.podeUsar('crm') ? `<a href="${C.esc(C.links.crmTel({ telefone: tel }))}" target="${L.nomeDaAba('crm')}" data-linha id="bl-n4" role="option">📈 Ver no CRM</a>` : ''}
-          <button type="button" class="busca-mini" data-copiar-tel="${C.esc(tel)}" data-linha id="bl-n5" role="option">📋 Copiar telefone</button>
+          ${C.podeUsar('agenda') ? `<a href="${C.esc(C.links.agendaNovo({ telefone: tel }))}" target="${L.nomeDaAba('agenda')}" data-linha id="bl-n1">📅 Marcar horário</a>` : ''}
+          ${C.podeUsar('atendimento') ? `<a href="${C.esc(C.links.conversaTel(tel))}" target="${L.nomeDaAba('atendimento')}" data-linha id="bl-n2">💬 Abrir conversa</a>` : ''}
+          ${C.podeUsar('orcador') ? `<a href="${C.esc(C.links.novoOrcamento({ telefone: tel }))}" target="${L.nomeDaAba('orcador')}" data-linha id="bl-n3">🧾 Novo orçamento</a>` : ''}
+          ${C.podeUsar('crm') ? `<a href="${C.esc(C.links.crmTel({ telefone: tel }))}" target="${L.nomeDaAba('crm')}" data-linha id="bl-n4">📈 Ver no CRM</a>` : ''}
+          <button type="button" class="busca-mini" data-copiar-tel="${C.esc(tel)}" data-linha id="bl-n5">📋 Copiar telefone</button>
         </div></section>` : '');
       ativo = -1; if (linhasNav().length) marcarAtivo(0);
       return;
@@ -86,7 +89,7 @@
     const grupos = filtroBusca && filtroBusca !== 'pessoas' ? todos.filter((g) => g.k === filtroBusca) : (filtroBusca === 'pessoas' ? [] : todos);
     const mostraPessoas = !filtroBusca || filtroBusca === 'pessoas';
     const total = grupos.reduce((s, g) => s + g.linhas.length, 0);
-    $('#buscaDica').textContent = `${total || pessoas.length} resultado${(total || pessoas.length) > 1 ? 's' : ''} em ${todos.length} sistema${todos.length > 1 ? 's' : ''}`;
+    $('#buscaDica').textContent = N.dicaDaBusca(total, pessoas.length, todos.length);
     let n = 0;
     lista.innerHTML = (mostraPessoas ? blocoPessoas(pessoas) : '') + grupos.map((g) => {
       const alem = N.alemDoCorte(g, res.contagens);
@@ -95,7 +98,7 @@
       ${g.linhas.map((r) => {
         const id = 'bl-' + (n++);
         return `<div class="busca-item" data-tel="${C.esc(r.tel || '')}">
-          <a class="busca-linha" id="${id}" data-linha role="option" aria-selected="false" href="${C.esc(r.url)}" target="${C.esc(L.nomeDaAba(r.app))}" data-guardar>
+          <a class="busca-linha" id="${id}" data-linha href="${C.esc(r.url)}" target="${C.esc(L.nomeDaAba(r.app))}" data-guardar>
             <span class="b-tit">${L.destacar(r.titulo, q)}</span>
             <span class="b-det">${L.destacar(r.detalhe || '', q)}</span>
             ${r.selo ? `<span class="pil${r.seloTom ? ' pil-' + r.seloTom : ''}">${C.esc(r.selo)}</span>` : ''}${r.etapa ? `<span class="pil pil-aviso">🔧 ${C.esc(r.etapa)}</span>` : ''}
