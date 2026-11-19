@@ -6,9 +6,9 @@ antigos (2025-03-26 a 2025-11-25: `initialize`) no mesmo endereço. Resposta sem
 As ferramentas, as regras e os erros são os mesmos da porta REST: ver `API-ia.md`.
 
 ## 1. Criar a chave
-Ajustes › Chaves da IA (ou `POST /api/ia/chaves`, só administrador): dê um nome ("Claude Code do João"), escolha
-"ler" e, se quiser que a IA deixe propostas para você aprovar, "propor". Marque "ver dado pessoal" só se a IA precisar
-ler a conversa inteira dos clientes. **A chave (`ica_…`) aparece uma vez só**: guarde num gerenciador de senhas.
+Ajustes › **Acesso da IA de fora** (ou `POST /api/ia/chaves`, só administrador): em **Quem vai usar** dê um nome ("Claude Code do João"),
+escolha **Só ler os números** ou, se quiser que a IA deixe sugestões para você aprovar, **Ler e deixar sugestões**. Marque
+**Ver nome e conversa completa dos clientes** só se a IA precisar ler a conversa inteira. Clique **Criar a chave**. **A chave (`ica_…`) aparece uma vez só**: guarde num gerenciador de senhas.
 Uma chave por IA e por pessoa; se vazar, revogue na mesma tela (vale na hora).
 
 Nunca ponha a chave no endereço (`?chave=` é recusado com 400). Ela vai no cabeçalho `Authorization: Bearer ica_…`.

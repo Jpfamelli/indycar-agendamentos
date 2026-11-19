@@ -35,7 +35,8 @@ procure o mais parecido.
    Perdeu? Gere outro (o antigo pode ser apagado).
 7. Pegue o **número da conta de anúncios**: no Gerenciador de Anúncios, menu da conta › **Configurações da conta** ›
    "ID da conta de anúncios" (só números; pode colar com ou sem `act_`).
-8. No IndyCar Tráfego: **Ajustes › Conexões › Meta**. Cole o **número da conta** e o **token** › **Testar** › **Salvar**.
+8. No IndyCar Tráfego: **Ajustes › Conexões**, cartão **Meta (Facebook e Instagram)** › **Colar os acessos**. Cole o
+   **Número da conta de anúncios** e o **Token de acesso** › **Testar** › **Salvar** (o Salvar só acende depois do teste).
 
 O teste confere: se o token vale, se tem `ads_read`, se a conta existe e está ativa, a versão da API e até quando o
 acesso vale. Se o acesso tiver data para vencer, o app avisa uma semana antes.
@@ -85,9 +86,10 @@ algum lugar antigo, deixe em branco. O caminho que o Google recomenda para a pr�
 8. Ainda no Google Ads: **Administrador** › **Configurações da conta** › **Codificação automática**: deixe
    **ligada**. É ela que cria o código do clique (`gclid`) que o site guarda.
 9. Anote o **ID do cliente**: os 10 dígitos no topo do Google Ads (`123-456-7890`).
-10. No IndyCar Tráfego: **Ajustes › Conexões › Google**. Cole o **ID do cliente**. No campo **Chave da conta de
-    serviço**, abra o arquivo `.json` no Bloco de Notas, copie **tudo** e cole. Se a conta fica debaixo de uma conta
-    gerenciadora (MCC), preencha também o **ID da conta gerenciadora**. **Testar** › **Salvar**.
+10. No IndyCar Tráfego: **Ajustes › Conexões**, cartão **Google Ads** › **Colar os acessos**. Cole o **ID do cliente no
+    Google Ads**. No campo **Conta de serviço (arquivo JSON)**, abra o arquivo `.json` no Bloco de Notas, copie **tudo** e
+    cole. Se a conta fica debaixo de uma conta gerenciadora (MCC), preencha também o **ID da conta gerenciadora (se
+    houver)**. **Testar** › **Salvar**.
 
 ### Caminho antigo (OAuth), que continua funcionando
 Quem já colou **Client ID**, **Client Secret** e **Refresh token** não precisa trocar. Cuidados:
@@ -100,8 +102,8 @@ Quem já colou **Client ID**, **Client Secret** e **Refresh token** não precisa
 |---|---|
 | Projeto do Google Cloud ainda sem acesso às contas reais | Passo 3: peça o nível Explorer. |
 | A Google Ads API não está ativada no projeto | Passo 2, no **mesmo** projeto da conta de serviço. |
-| Falta liberar o acesso na conta (ou a conta gerenciadora) | Passo 7 (o e-mail da conta de serviço precisa estar na conta) ou falta o ID da MCC. |
-| Chave da conta de serviço recusada | Gere uma chave nova (passo 5) e cole o arquivo inteiro. |
+| Falta liberar o acesso na conta (ou a conta gerenciadora) | Passo 7 (o e-mail da conta de serviço precisa estar na conta) ou falta o **ID da conta gerenciadora (se houver)**. |
+| Chave da conta de serviço recusada | Gere uma chave nova (passo 5) e cole o arquivo inteiro no campo **Conta de serviço (arquivo JSON)**. |
 | Conta do Google Ads não encontrada | ID do cliente errado (10 dígitos). |
 | Autorização do Google vencida | Só no caminho antigo: refaça o refresh token ou passe para a conta de serviço. |
 | Developer token do Google não é mais usado | Pode apagar o campo. |
@@ -110,7 +112,7 @@ Quem já colou **Client ID**, **Client Secret** e **Refresh token** não precisa
 
 ## 3. Depois de ligado, o que o app faz sozinho
 - **Coleta de hora em hora** (com o piloto automático ligado; senão, pela rotina /api/cron/sync) os últimos 7 dias das duas plataformas (as plataformas corrigem números de dias passados).
-  Rodar duas vezes não duplica nada. O botão **Coletar agora** funciona uma vez a cada 2 minutos.
+  Rodar duas vezes não duplica nada. O botão **Buscar os números agora** (Ajustes › Conexões, no pé) funciona uma vez a cada 2 minutos.
 - A **demonstração some sozinha** na primeira coleta com dado real. Dado real nunca é apagado.
 - Na Meta: conversas iniciadas, objetivo, situação (ativa, pausada) e a imagem de cada anúncio.
 - No Google: campanha, grupo, anúncio, **palavras-chave e termos de busca**.
