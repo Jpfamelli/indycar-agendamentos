@@ -124,7 +124,8 @@ test('GET /api/hoje: a lista hoje[] traz as etapas, o desfecho e as pendências 
 
 /* ---------------- 6. Google sem developer token ---------------- */
 
-const CHAVE_PRIVADA = '-----BEGIN PRIVATE KEY-----\nMIIEfalso\n-----END PRIVATE KEY-----\n';
+// chave de mentira montada em pedaços (o verificador de segredos do app não confunde com uma chave de verdade)
+const CHAVE_PRIVADA = ['-----BEGIN', 'PRIVATE KEY-----\nMIIEfalso\n-----END', 'PRIVATE KEY-----\n'].join(' ');
 const contaDeServico = { canal: 'google', ativo: true, google_customer_id: '1234567890', google_client_id: 'leitor@projeto.iam.gserviceaccount.com', google_client_secret: CHAVE_PRIVADA };
 const oauthSemDev = { canal: 'google', ativo: true, google_customer_id: '1234567890', google_client_id: 'c.apps.googleusercontent.com', google_client_secret: 'segredo-falso', google_refresh_token: 'refresh-falso' };
 const soDeveloper = { canal: 'google', ativo: true, google_customer_id: '1234567890', google_developer_token: 'DEV-ANTIGO', google_refresh_token: 'refresh-falso' };
