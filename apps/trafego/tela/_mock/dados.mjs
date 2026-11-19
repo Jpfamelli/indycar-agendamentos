@@ -505,6 +505,8 @@ function estadoDe(mundo, lista, periodo) {
     // Campos a mais (recados T2a e T2b): o sistema não registra a resposta da oficina desde a data abaixo.
     respostas: respostasNoPeriodo(mundo, periodo.ate) ? 'ok' : 'sem_registro',
     respostas_desde: respostasNoPeriodo(mundo, periodo.ate) ? null : somarDias(r.respostasAte, 1),
+    // Campos a mais da API-base (T2a): leitura secundária que falhou. ?incompleto=1 na página liga (ver servidor.mjs).
+    incompleto: mundo.incompleto ? ['agenda'] : [], reserva: false, aviso: mundo.incompleto ? 'Não deu para ler agora: a agenda.' : null,
   };
   if (mundo.cenario === 'comeco') { estado.gasto = 'sem_dados'; estado.valores = 'nenhum'; estado.origem = 'nenhuma'; }
   return estado;
@@ -692,8 +694,7 @@ export function responderHoje(mundo, periodoId) {
   const hoje = noPeriodo(mundo, HOJE, HOJE).map((c) => ({
     lead_id: c.lead_id, nome: c.nome_curto, hora: c.chegou_em.slice(11, 16), origem: c.origem, etapa_atual: c.etapa_atual,
     espera_min: c.pendencias.includes('sem_resposta') ? Math.round((AGORA - Date.parse(c.chegou_em)) / MIN) : null,
-    // Campos a mais: com eles a tela desenha os mini-setores também aqui.
-    etapas: c.etapas, desfecho: c.desfecho, pendencias: c.pendencias,
+    // Igual à API-base (T2a): os contatos de hoje vêm SEM etapas; a tela não desenha mini-setores aqui (pedido anotado para a T2a).
   }));
 
   return { periodo: periodoPublico(p), estado, frase, numeros, derivados, fazer: fazer.slice(0, 6), ritmo, funil: montarFunil(mundo, lista, p), origens, hoje, agenda, conexoes };
@@ -804,12 +805,23 @@ export function responderPendencias(mundo, periodoId) {
 export function responderConexoes(mundo) {
   const c = conexoesDe(mundo);
   const passos = [
-    { feito: c.site.rastreio === true, titulo: 'Rastreio do site', como: c.site.rastreio ? 'O site já avisa de onde veio cada clique no botão do WhatsApp.' : 'Cole uma linha no site para saber de onde veio quem clicou no WhatsApp.' },
-    { feito: c.meta.ligado, titulo: 'Conta de anúncios da Meta', como: c.meta.ligado ? 'O gasto do Instagram e do Facebook entra todo dia de manhã.' : 'No Gerenciador de Anúncios, gere o acesso de leitura e cole aqui. Leva uns dez minutos.' },
-    { feito: c.google.ligado, titulo: 'Conta do Google Ads', como: c.google.ligado ? 'O gasto do Google entra todo dia de manhã.' : 'Entre com a conta do Google que cuida dos anúncios e autorize a leitura.' },
-    { feito: c.whatsapp.situacao === 'ok', titulo: 'WhatsApp da oficina', como: c.whatsapp.situacao === 'ok' ? 'Cada conversa nova entra como contato.' : c.whatsapp.situacao === 'chave_recusada' ? 'Gere uma chave nova e cole em Atendimento, Configurações, Integrações. Só o dono da conta consegue.' : 'Ligue o aparelho da oficina no Atendimento.' },
+    { feito: c.whatsapp.situacao === 'ok', titulo: 'WhatsApp da oficina ligado',
+      como: c.whatsapp.situacao === 'ok' ? 'Cada conversa nova entra como contato.' : c.whatsapp.situacao === 'chave_recusada' ? 'No Atendimento, em Configurações e depois Integrações: gere uma chave nova no CodeWords e cole lá. Só o dono da conta consegue.' : 'Ligue o aparelho da oficina no Atendimento.',
+      acao: c.whatsapp.situacao === 'ok' ? null : { rotulo: 'Abrir o Atendimento', ir: '/atendimento/?aba=integracoes' } },
+    { feito: c.site.rastreio === true, titulo: 'Site avisando de onde vem cada contato',
+      como: c.site.rastreio ? 'O botão de WhatsApp do site já manda o código junto com a mensagem.' : 'O botão de WhatsApp do site manda um código junto com a mensagem. Este passo fica pronto no primeiro clique.',
+      acao: { rotulo: 'Ver de onde vêm os contatos', ir: 'ajustes?secao=origem' } },
+    { feito: c.meta.ligado, titulo: 'Conta de anúncios da Meta ligada',
+      como: c.meta.ligado ? 'O gasto do Instagram e do Facebook entra todo dia de manhã.' : 'Em Ajustes, na parte de Conexões: entre com a conta da Meta e escolha a conta de anúncios da oficina.',
+      acao: c.meta.ligado ? null : { rotulo: 'Ligar a Meta', ir: 'ajustes?secao=conexoes' } },
+    { feito: c.google.ligado, titulo: 'Conta do Google Ads ligada',
+      como: c.google.ligado ? 'O gasto do Google entra todo dia de manhã.' : 'Em Ajustes, na parte de Conexões: entre com a conta do Google e escolha a conta de anúncios da oficina.',
+      acao: c.google.ligado ? null : { rotulo: 'Ligar o Google', ir: 'ajustes?secao=conexoes' } },
+    { feito: Boolean(mundo.receita.orcamento), titulo: 'Orçamento do mês definido',
+      como: mundo.receita.orcamento ? 'A tela Hoje mostra se o gasto está no ritmo da verba.' : 'Em Ajustes: diga quanto pretende investir por mês. Com isso a tela mostra se o gasto está no ritmo.',
+      acao: mundo.receita.orcamento ? null : { rotulo: 'Definir o orçamento', ir: 'ajustes?secao=metas' } },
   ];
-  return { ...c, passos };
+  return { ...c, passos, faltam: passos.filter((p) => !p.feito).length, estado: { incompleto: [] } };
 }
 
 /* ------------------------------ gravações ------------------------------ */
@@ -875,3 +887,7 @@ export const PERFIL = {
   acesso: true, motivo_sem_acesso: null, acesso_conferido_no_banco: true, ultimo_acesso_em: '2026-11-18T18:02:00-03:00', ultimo_app: 'ads',
   apps_disponiveis: ['agenda', 'crm', 'atendimento', 'comunicar', 'ads'], eh_admin: true,
 };
+
+/* Para dados-t3b.mjs (frente T3b): as mesmas somas, para Campanhas e relatórios nunca discordarem da Hoje. */
+export { noPeriodo, itemPublico, ehPago, gastoNoPeriodo, estadoDe, conexoesDe, somaDosValores, listaDeDias, dataDe, periodoPublico,
+  ROTULO_DO_CANAL, CAMPANHAS, HOJE, AGORA, MIN, arredondar, dividir, MOTIVOS, isoBr, semana, montarFunil };

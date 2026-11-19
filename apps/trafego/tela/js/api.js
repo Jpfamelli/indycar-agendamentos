@@ -53,17 +53,68 @@ export function criarApi({ base, token, aoRecusar, aoEsperar, aoVoltar, buscar, 
     }
     let dados = null;
     try { dados = await resposta.json(); } catch { dados = null; }
-    if (!resposta.ok) {
-      const codigo = (dados && dados.codigo) || null;
-      if ((resposta.status === 401 || (resposta.status === 403 && codigo)) && aoRecusar) aoRecusar(resposta.status, codigo, dados);
-      const frase = (dados && typeof dados.erro === 'string' && dados.erro) || Rede.mensagem(resposta.status, online()) || 'Não deu certo agora. Tente de novo.';
-      const erro = new ErroApi(frase, { status: resposta.status, codigo, corpo: dados });
-      // Frase vinda do próprio app: ele está acordado. Só a resposta sem frase (página do provedor) conta como "acordando".
-      erro.respondeu = Boolean(dados && typeof dados.erro === 'string' && dados.erro);
-      throw erro;
-    }
+    if (!resposta.ok) throw erroDaResposta(resposta, dados);
     if (dados === null) throw new ErroApi('O servidor respondeu de um jeito que eu não entendi. Tente de novo.', { status: resposta.status });
     return dados;
+  }
+
+  /** Resposta de erro → ErroApi com a frase do app (ou a de rede). 401 e 403 com código avisam a casca. */
+  function erroDaResposta(resposta, dados) {
+    const codigo = (dados && dados.codigo) || null;
+    if ((resposta.status === 401 || (resposta.status === 403 && codigo)) && aoRecusar) aoRecusar(resposta.status, codigo, dados);
+    const frase = (dados && typeof dados.erro === 'string' && dados.erro) || Rede.mensagem(resposta.status, online()) || 'Não deu certo agora. Tente de novo.';
+    const erro = new ErroApi(frase, { status: resposta.status, codigo, corpo: dados });
+    // Frase vinda do próprio app: ele está acordado. Só a resposta sem frase (página do provedor) conta como "acordando".
+    erro.respondeu = Boolean(dados && typeof dados.erro === 'string' && dados.erro);
+    return erro;
+  }
+
+  async function lerErro(resposta) {
+    let dados = null;
+    try { dados = await resposta.json(); } catch { dados = null; }
+    return erroDaResposta(resposta, dados);
+  }
+
+  async function cabecalhos(extra) {
+    const chave = token ? await token() : null;
+    return { ...extra, ...(chave ? { Authorization: 'Bearer ' + chave } : {}) };
+  }
+
+  /**
+   * Pergunta que responde em fluxo (text/event-stream). Devolve a Response com o corpo para ler aos pedaços.
+   * `sinal` (AbortSignal) para o botão "Parar". Uma tentativa só, sem tempo limite (a resposta pode demorar).
+   */
+  async function fluxo(caminho, corpo, { sinal } = {}) {
+    let resposta;
+    try {
+      resposta = await pedir(base + String(caminho).replace(/^[/]+/, ''), {
+        method: 'POST',
+        headers: await cabecalhos({ Accept: 'text/event-stream', 'Content-Type': 'application/json' }),
+        body: JSON.stringify(corpo === undefined ? {} : corpo),
+        signal: sinal,
+        cache: 'no-store',
+      });
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw e;
+      throw new ErroApi(Rede.mensagem(0, online()), { status: 0 });
+    }
+    if (!resposta.ok) throw await lerErro(resposta);
+    if (!resposta.body) throw new ErroApi('O servidor respondeu de um jeito que eu não entendi. Tente de novo.', { status: resposta.status });
+    return resposta;
+  }
+
+  /** Arquivo para baixar (CSV): { blob, nome }. O login vai no cabeçalho, por isso não dá para ser um link simples. */
+  async function baixar(caminho) {
+    let resposta;
+    try {
+      resposta = await pedir(base + String(caminho).replace(/^[/]+/, ''), { method: 'GET', headers: await cabecalhos({ Accept: '*/*' }), cache: 'no-store' });
+    } catch {
+      throw new ErroApi(Rede.mensagem(0, online()), { status: 0 });
+    }
+    if (!resposta.ok) throw await lerErro(resposta);
+    const disposicao = resposta.headers.get('Content-Disposition') || '';
+    const m = /filename="?([^";]+)"?/i.exec(disposicao);
+    return { blob: await resposta.blob(), nome: m ? m[1] : 'arquivo' };
   }
 
   /** Leitura (GET): tenta de novo sozinha enquanto o servidor acorda. */
@@ -85,7 +136,10 @@ export function criarApi({ base, token, aoRecusar, aoEsperar, aoVoltar, buscar, 
   /** Gravação (POST): uma tentativa só. */
   const gravar = (caminho, corpo) => umaVez('POST', caminho, corpo === undefined ? {} : corpo);
 
-  return { ler, gravar };
+  /** Apagar (DELETE): uma tentativa só, como a gravação. */
+  const apagar = (caminho) => umaVez('DELETE', caminho);
+
+  return { ler, gravar, apagar, fluxo, baixar };
 }
 
 /**

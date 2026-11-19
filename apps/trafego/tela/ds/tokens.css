@@ -50,6 +50,17 @@
   --p-azul-400: #60a5fa;
   --p-azul-700: #1d4ed8;
 
+  /* rampa do mapa de dia e hora: um tom só (o vermelho "de anúncio"), do fraco ao forte.
+     Conferida com o validador do dataviz (--ordinal): degraus visíveis e o mais fraco a 2:1 do fundo. */
+  --p-mapa-escuro-1: #862a36;
+  --p-mapa-escuro-2: #b5223b;
+  --p-mapa-escuro-3: #e8293f;
+  --p-mapa-escuro-4: #ff8a94;
+  --p-mapa-claro-1: #f0959f;
+  --p-mapa-claro-2: #e0566a;
+  --p-mapa-claro-3: #c41a2f;
+  --p-mapa-claro-4: #860b19;
+
   /* véus (cor com transparência, para realce de linha e fundo de aviso) */
   --p-veu-claro-06: rgb(255 255 255 / 0.06);
   --p-veu-claro-10: rgb(255 255 255 / 0.1);
@@ -131,6 +142,20 @@
   /* dado sem julgamento (barras "do resto", trilhos) */
   --cor-dado: var(--p-grafite-500);
   --cor-dado-trilho: var(--p-grafite-800);
+
+  /* mapa de dia e hora: quanto mais contato de anúncio, mais forte (no escuro, mais claro) */
+  --cor-mapa-1: var(--p-mapa-escuro-1);
+  --cor-mapa-2: var(--p-mapa-escuro-2);
+  --cor-mapa-3: var(--p-mapa-escuro-3);
+  --cor-mapa-4: var(--p-mapa-escuro-4);
+  --cor-mapa-pico-tinta: var(--p-grafite-950);
+
+  /* papel: a folha A4 e a impressão saem preto no branco, nos dois temas */
+  --papel-fundo: var(--p-branco);
+  --papel-tinta: var(--p-preto);
+  --papel-tinta-2: var(--p-grafite-700);
+  --papel-linha: var(--p-preto);
+  --papel-linha-fraca: var(--p-grafite-300);
 
   /* casca do ecossistema: preta nos dois temas (o logo mora em fundo preto) */
   --cor-casca: var(--p-preto);
@@ -263,6 +288,12 @@
 
   --cor-dado: var(--p-grafite-650);
   --cor-dado-trilho: var(--p-grafite-300);
+
+  --cor-mapa-1: var(--p-mapa-claro-1);
+  --cor-mapa-2: var(--p-mapa-claro-2);
+  --cor-mapa-3: var(--p-mapa-claro-3);
+  --cor-mapa-4: var(--p-mapa-claro-4);
+  --cor-mapa-pico-tinta: var(--p-branco);
 
   --cor-foco: var(--p-grafite-980);
   --sombra-flutua: var(--p-sombra-suave);

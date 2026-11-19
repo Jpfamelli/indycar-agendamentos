@@ -50,6 +50,37 @@ export function vazio({ titulo, texto, acao = null }) {
   return h('div', { class: 'vazio' }, h('p', { class: 'vazio-titulo' }, titulo), texto ? h('p', null, texto) : null, acao);
 }
 
+/**
+ * Uma escolha entre poucas (segmentos com papel de rádio): setas trocam e escolhem, como o período da casca.
+ * `opcoes`: [{ id, rotulo }]. Quem chama decide o que acontece em `aoEscolher(id)`.
+ */
+export function escolhas({ rotulo, opcoes, atual, aoEscolher, classe = '' }) {
+  const grupo = h('div', { class: ('segmentos ' + classe).trim(), role: 'radiogroup', 'aria-label': rotulo },
+    opcoes.map((o) => h('button', {
+      class: 'segmento', type: 'button', role: 'radio', 'aria-checked': String(o.id === atual), tabindex: o.id === atual ? '0' : '-1',
+      data: { id: o.id }, on: { click: () => { if (o.id !== atual) aoEscolher(o.id); } },
+    }, o.rotulo)));
+  if (!opcoes.some((o) => o.id === atual) && grupo.firstChild) grupo.firstChild.setAttribute('tabindex', '0');
+  grupo.addEventListener('keydown', (e) => {
+    const passo = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!passo) return;
+    e.preventDefault();
+    const botoes = [...grupo.querySelectorAll('.segmento')];
+    const agora = botoes.indexOf(document.activeElement);
+    const proximo = botoes[((agora < 0 ? 0 : agora) + passo + botoes.length) % botoes.length];
+    proximo.focus();
+    aoEscolher(proximo.dataset.id);
+  });
+  return grupo;
+}
+
+/** A mesma escolha como lista de opções (para o celular, onde os segmentos não cabem). */
+export function escolhaEmLista({ rotulo, opcoes, atual, aoEscolher, classe = '' }) {
+  const select = h('select', { on: { change: (e) => aoEscolher(e.target.value) } }, opcoes.map((o) => h('option', { value: o.id }, o.rotulo)));
+  select.value = atual;
+  return h('label', { class: ('campo ' + classe).trim() }, h('span', { class: 'campo-rotulo' }, rotulo), select);
+}
+
 /** O "não sei" da casa: palavra, nunca zero e nunca traço. */
 export const semDado = (texto = 'sem dado') => h('span', { class: 'sem-dado' }, texto);
 

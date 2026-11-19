@@ -18,8 +18,10 @@ import * as Estados from './telas/estados.js';
 import * as Hoje from './telas/hoje.js';
 import * as Jornada from './telas/jornada.js';
 import * as Espera from './telas/espera.js';
+import * as Campanhas from './telas/campanhas.js';
+import * as Gestor from './telas/gestor.js';
 
-const TELA = { hoje: Hoje, jornada: Jornada, campanhas: Espera, gestor: Espera, ajustes: Espera };
+const TELA = { hoje: Hoje, jornada: Jornada, campanhas: Campanhas, gestor: Gestor, ajustes: Espera };
 const COM_PERIODO = new Set(['hoje', 'jornada', 'campanhas']);
 const NOME_DO_PAPEL = { admin: 'Administrador', dono: 'Administrador', gestor: 'Gestor', atendente: 'Atendente', agenda: 'Agenda' };
 
@@ -286,6 +288,7 @@ async function navegar({ forcar = false } = {}) {
   faixa('falha', null);
   if (mudouTela) {
     faixa('demo', null);
+    faixa('incompleto', null);
     estado.atualizadoEm = null;
     pintarAtualizado();
     window.scrollTo(0, 0);

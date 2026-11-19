@@ -1,0 +1,365 @@
+/* ============================================================================
+   Gestor IA: a conversa em fluxo, as sugestões para decidir, o plano da
+   semana, o diário de decisões e as conversas anteriores.
+   ============================================================================ */
+
+.gestor-topo {
+  display: grid;
+  gap: var(--p-esp-3);
+}
+.gestor-promessa {
+  max-width: var(--medida-texto);
+  font-size: var(--tam-texto-g);
+  color: var(--cor-tinta-2);
+}
+.gestor-promessa strong {
+  color: var(--cor-tinta);
+}
+.gestor-corpo {
+  display: grid;
+  gap: var(--esp-bloco);
+  align-items: start;
+}
+.gestor-lado {
+  display: grid;
+  gap: var(--esp-bloco);
+  min-width: 0;
+}
+@media (min-width: 62em) {
+  .gestor-corpo {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    column-gap: var(--p-esp-12);
+  }
+}
+
+/* ------------------------------ a conversa ------------------------------ */
+.gestor-fala {
+  display: grid;
+  gap: var(--p-esp-6);
+  align-content: start;
+}
+.gestor-vazio {
+  max-width: var(--medida-texto);
+  color: var(--cor-tinta-2);
+}
+.fala {
+  display: grid;
+  gap: var(--p-esp-2);
+  min-width: 0;
+}
+.fala-quem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-apoio);
+  font-weight: var(--peso-forte);
+  letter-spacing: var(--tracado-rotulo);
+  text-transform: uppercase;
+  color: var(--cor-tinta-2);
+}
+.fala-pessoa {
+  justify-items: end;
+}
+.fala-pessoa .fala-texto {
+  max-width: min(100%, 34rem);
+  padding: var(--p-esp-3) var(--p-esp-4);
+  border-radius: var(--raio-painel);
+  background-color: var(--cor-superficie-2);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.fala-gestor .fala-texto {
+  display: grid;
+  gap: var(--p-esp-3);
+  max-width: var(--medida-texto);
+  font-size: var(--tam-texto-g);
+  overflow-wrap: anywhere;
+}
+.fala-gestor strong {
+  font-weight: var(--peso-destaque);
+}
+.fala-lista {
+  display: grid;
+  gap: var(--p-esp-1);
+  margin: 0;
+  padding-left: var(--p-esp-6);
+  list-style: disc;
+}
+ol.fala-lista {
+  list-style: decimal;
+}
+.fala-lista li::marker {
+  color: var(--cor-tinta-2);
+}
+.fala-nota {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--p-esp-2) var(--p-esp-2);
+  max-width: var(--medida-texto);
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.fala-nota .icone {
+  margin-top: 0.125rem;
+}
+.fala-nota > :nth-child(3) {
+  grid-column: 2;
+  justify-self: start;
+}
+.fala-nota-grave .icone {
+  color: var(--cor-grave);
+}
+.fala-nota-grave > span {
+  color: var(--cor-tinta);
+}
+.gestor-olhando {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--p-esp-2) var(--p-esp-3);
+  min-height: var(--alvo);
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.gestor-olhando-ponto {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.9375rem;
+  border-radius: var(--raio-marca);
+  background-color: var(--cor-marca);
+  transform: skewX(var(--inclinacao));
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gestor-olhando-ponto {
+    animation: gestor-pulso 1.1s var(--curva-saida) infinite alternate;
+  }
+}
+@keyframes gestor-pulso {
+  from { opacity: 1; }
+  to { opacity: 0.25; }
+}
+.gestor-perguntar textarea {
+  min-height: 4.5rem;
+}
+.gestor-perguntar-pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--p-esp-3);
+}
+.gestor-perguntar-pe .botao {
+  margin-left: auto;
+}
+.gestor-prontas {
+  display: grid;
+  gap: var(--p-esp-2);
+}
+.gestor-prontas .fichas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--p-esp-2);
+}
+.gestor-prontas .ficha {
+  white-space: normal;
+  text-align: left;
+  padding-block: var(--p-esp-2);
+}
+
+/* ------------------------------ sugestões para decidir ------------------------------ */
+.gestor-decidir {
+  display: grid;
+  gap: var(--p-esp-4);
+}
+.proposta {
+  display: grid;
+  gap: var(--p-esp-3);
+  padding: var(--p-esp-5);
+  border: 0.0625rem solid var(--cor-linha-forte);
+  border-radius: var(--raio-painel);
+  background-color: var(--cor-superficie);
+}
+.proposta-alto {
+  border-color: var(--cor-grave);
+}
+.proposta-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--p-esp-2);
+}
+.proposta-tipo {
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-apoio);
+  font-weight: var(--peso-forte);
+  letter-spacing: var(--tracado-rotulo);
+  text-transform: uppercase;
+  color: var(--cor-tinta-2);
+}
+.proposta-titulo {
+  font-size: var(--tam-texto-g);
+  font-weight: var(--peso-forte);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.proposta-risco {
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta);
+}
+.proposta-verba strong {
+  font-family: var(--fonte-titulo);
+  font-size: var(--tam-titulo-p);
+}
+.proposta-dados {
+  display: grid;
+  gap: var(--p-esp-1) var(--p-esp-4);
+  margin: 0;
+}
+.proposta-dados dt {
+  font-size: var(--tam-apoio);
+  font-weight: var(--peso-forte);
+  color: var(--cor-tinta-2);
+}
+.proposta-dados dd {
+  margin: 0 0 var(--p-esp-2);
+}
+.proposta-dados ul {
+  display: grid;
+  gap: var(--p-esp-1);
+  margin: 0;
+  padding-left: var(--p-esp-5);
+  list-style: disc;
+}
+@media (min-width: 30em) {
+  .proposta-dados {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+  }
+  .proposta-dados dd {
+    margin: 0;
+  }
+}
+.proposta-nada {
+  display: flex;
+  gap: var(--p-esp-2);
+  align-items: flex-start;
+  padding-top: var(--p-esp-3);
+  border-top: 0.0625rem dotted var(--cor-linha);
+  font-size: var(--tam-apoio);
+  color: var(--cor-tinta-2);
+}
+.proposta-nada .icone {
+  flex: none;
+  margin-top: 0.125rem;
+}
+.proposta-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--p-esp-3);
+}
+
+/* ------------------------------ plano ------------------------------ */
+.gestor-plano {
+  display: grid;
+  gap: var(--p-esp-3);
+  justify-items: start;
+}
+.plano-texto {
+  display: grid;
+  gap: var(--p-esp-3);
+  max-width: var(--medida-texto);
+}
+
+/* ------------------------------ diário ------------------------------ */
+.diario {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.diario-item {
+  display: grid;
+  gap: var(--p-esp-2);
+  padding-block: var(--p-esp-4);
+  border-bottom: 0.0625rem solid var(--cor-linha);
+}
+.diario-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--p-esp-1) var(--p-esp-3);
+}
+.diario-titulo {
+  font-weight: var(--peso-forte);
+  overflow-wrap: anywhere;
+}
+.diario-resultado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--p-esp-2);
+}
+.diario-medidas {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--tam-apoio);
+  font-variant-numeric: tabular-nums;
+}
+.diario-medidas th,
+.diario-medidas td {
+  padding: var(--p-esp-1) var(--p-esp-2);
+  border-bottom: 0.0625rem dotted var(--cor-linha);
+  text-align: right;
+  vertical-align: bottom;
+}
+.diario-medidas th:first-child {
+  text-align: left;
+  font-weight: var(--peso-texto);
+  color: var(--cor-tinta-2);
+}
+.diario-medidas thead th {
+  font-weight: var(--peso-forte);
+  color: var(--cor-tinta-2);
+}
+.diario-periodo {
+  display: block;
+  font-weight: var(--peso-texto);
+  color: var(--cor-tinta-3);
+}
+
+/* ------------------------------ conversas anteriores ------------------------------ */
+.conversas-lista {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 0.0625rem solid var(--cor-linha);
+}
+.conversa-item {
+  display: grid;
+  gap: var(--p-esp-1);
+  width: 100%;
+  min-height: var(--alvo);
+  padding: var(--p-esp-3) var(--p-esp-2);
+  border: 0;
+  border-bottom: 0.0625rem solid var(--cor-linha);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.conversa-item:hover {
+  background-color: var(--cor-realce);
+}
+.conversa-item[aria-current='true'] {
+  background-color: var(--cor-superficie-2);
+}
+.conversa-titulo {
+  font-weight: var(--peso-forte);
+}

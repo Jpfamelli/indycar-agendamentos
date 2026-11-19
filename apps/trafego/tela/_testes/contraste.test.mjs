@@ -68,6 +68,10 @@ export const PARES = [
   ['--cor-foco', '--cor-fundo', 3, 'anel de foco'],
   ['--cor-casca-tinta', '--cor-casca', 4.5, 'barra do ecossistema'],
   ['--cor-casca-tinta-2', '--cor-casca', 4.5, 'barra do ecossistema, apoio'],
+  ['--cor-mapa-1', '--cor-superficie', 2, 'mapa de dia e hora: o degrau mais fraco aparece no painel'],
+  ['--cor-mapa-pico-tinta', '--cor-mapa-4', 4.5, 'mapa de dia e hora: número escrito no horário de pico'],
+  ['--papel-tinta', '--papel-fundo', 4.5, 'folha A4: texto'],
+  ['--papel-tinta-2', '--papel-fundo', 4.5, 'folha A4: texto de apoio'],
 ];
 
 for (const [nomeTema, mapa] of [['escuro', ESCURO], ['claro', CLARO]]) {
