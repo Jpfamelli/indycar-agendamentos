@@ -10,32 +10,21 @@
   let C = null, L = null, N = null, sonda = null, rpc = null, banco = null, leituraEm = 0, timer = null, timerBanco = null, antes = null, aberto = false, ligEm = 0;
   const $ = (s) => document.querySelector(s);
   let vigia = null, montagem = 0, leituraVigia = 0;
-  const CHAVE = 'codewords-chave-recusada';
-  const planos = [
-    [/^(whatsapp-|codewords-|webhook-)/, 'Abra Integrações no Atendimento, confira a conexão e faça o teste de envio.'],
-    [/^anthropic-/, 'Confira a chave e o saldo da IA nas Integrações do Atendimento.'],
-    [/^comunicar-/, 'Abra o Comunicar e confira a fila e o carteiro.'],
-    [/^patio-/, 'Abra o Pátio e confira a rotina de avisos.'],
-    [/^backup-/, 'Peça ao suporte para conferir o último backup e testar a restauração.'],
-    [/^(exclusao-em-massa|admin-novo)$/, 'Confira a atividade da equipe e confirme com o administrador.'],
-  ];
 
+  /* rodada 9: título curto e o que fazer para cada um dos 23 avisos graves (N.faixaDoVigia); o texto cru do Vigia vira detalhe pequeno;
+     selo "Urgente" com ícone e palavra (não só a cor); link para o app certo quando a pessoa tem acesso */
+  function linkDoVigia(abrir) {
+    if (!abrir || !C.podeUsar(abrir.app) || !C.bases[abrir.app]) return '';
+    try {
+      const url = new URL(abrir.q || '', new URL(C.bases[abrir.app], location.origin)).href;
+      return ` <a href="${C.esc(url)}" target="${C.esc(L.nomeDaAba(abrir.app))}">${C.esc(abrir.rotulo)}</a>`;
+    } catch { return ''; }
+  }
   function desenharVigia() {
     const avisos = [];
-    if (vigia?.erro) avisos.push('<li>Não deu para conferir os avisos do Vigia agora.</li>');
-    for (const aviso of vigia?.graves || []) {
-      const chave = aviso.codigo === CHAVE;
-      const titulo = chave ? 'WhatsApp recusado' : (aviso.resumo || N.regraDoCodigo(aviso.codigo)?.frase || 'Problema detectado pelo Vigia');
-      const tempo = Number.isInteger(aviso.dias) && aviso.dias > 0 ? ` há ${aviso.dias} dia${aviso.dias === 1 ? '' : 's'}` : '';
-      const passo = chave ? 'Gere uma chave nova no CodeWords e cole em Atendimento › Integrações.'
-        : planos.find(([codigo]) => codigo.test(aviso.codigo))?.[1] || 'Confira o sistema afetado e peça ajuda ao suporte se a falha continuar.';
-      const link = chave && C.podeUsar('atendimento') ? ` <a href="${C.esc(new URL('?aba=integracoes', new URL(C.bases.atendimento, location.origin)).href)}" target="${C.esc(L.nomeDaAba('atendimento'))}">Abrir Integrações</a>` : '';
-      avisos.push(`<li><strong>${C.esc(titulo + tempo)}</strong><span>${C.esc(passo)}${link}</span></li>`);
-    }
-    if (vigia?.vigia_parado) {
-      const horas = Math.max(1, Math.floor((Date.parse(vigia.gerado_em) - Date.parse(vigia.vigia_conferiu_em)) / 3600000));
-      const titulo = Number.isFinite(horas) ? `O Vigia não confere há ${horas} horas` : 'O Vigia está sem registro da última conferência';
-      avisos.push(`<li><strong>${titulo}</strong><span>Peça ao suporte para conferir a rotina do Vigia.</span></li>`);
+    if (vigia?.erro) avisos.push('<li class="vigia-item vigia-leve"><strong>Não deu para conferir os avisos do Vigia agora.</strong><span>A Casa tenta de novo sozinha em alguns minutos.</span></li>');
+    for (const a of N.faixaDoVigia(vigia)) {
+      avisos.push(`<li class="vigia-item"><span class="vigia-selo"><span aria-hidden="true">⚠</span> Urgente</span><strong>${C.esc(a.titulo)}${a.tempo ? ' ' + C.esc(a.tempo) : ''}</strong><span>${C.esc(a.passo)}${linkDoVigia(a.abrir)}</span>${a.detalhe ? `<small class="vigia-detalhe">O Vigia anotou: ${C.esc(a.detalhe)}</small>` : ''}</li>`);
     }
     for (const el of document.querySelectorAll('[data-avisos-vigia]')) {
       el.hidden = !avisos.length;
