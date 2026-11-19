@@ -175,7 +175,7 @@ export function haQuanto(quando, agora = Date.now()) {
 export function paradoHa(dias) {
   if (!ehNumero(dias)) return null;
   const n = Math.max(0, Math.round(dias));
-  if (n === 0) return 'parado desde hoje';
+  if (n === 0) return 'nesta etapa desde hoje';   // andou hoje: "parado" dava a ideia errada
   return 'parado há ' + n + (n === 1 ? ' dia' : ' dias');
 }
 
