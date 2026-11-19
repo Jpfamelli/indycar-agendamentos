@@ -94,3 +94,40 @@ test('GET /api/hoje: período ou plataforma inválidos dão 400 com frase; banco
   assert.doesNotMatch(fora.texto, /senha|postgres/);
   usarBanco();
 });
+
+test('GET /api/conexoes: as quatro conexões, o passo a passo e nenhum segredo', async () => {
+  usarBanco(D.tabelasDeHoje({ integracoes_ads: [{ canal: 'meta', ativo: true, meta_access_token: 'EAAG-segredo-de-teste', ultimo_sync_em: null }] }));
+  const { status, json, texto } = await D.calado(() => pedir('/api/conexoes'));
+  assert.equal(status, 200);
+  limpo(json);
+  assert.deepEqual(Object.keys(json).slice(0, 5), ['meta', 'google', 'site', 'whatsapp', 'passos']);
+  assert.equal(json.whatsapp.situacao, 'chave_recusada');
+  assert.equal(json.passos.length, 5);
+  for (const p of json.passos) assert.ok(typeof p.feito === 'boolean' && p.titulo && p.como && p.acao && p.acao.ir);
+  assert.equal(json.faltam, json.passos.filter(p => !p.feito).length);
+  assert.doesNotMatch(texto, /EAAG|segredo|access_token|api_key/);
+  assert.equal((await pedir('/api/conexoes', { papel: null })).status, 401);
+  usarBanco();
+});
+
+test('GET /api/campanhas e o detalhe: formato do contrato (§5.4), 404 para campanha fora do período e 400 para endereço ruim', async () => {
+  usarBanco();
+  const lista = await D.calado(() => pedir('/api/campanhas?fresco=1'));
+  assert.equal(lista.status, 200);
+  limpo(lista.json);
+  for (const k of ['periodo', 'estado', 'totais', 'campanhas', 'sem_campanha', 'horarios']) assert.ok(k in lista.json, k);
+  assert.equal(lista.json.estado.gasto, 'sem_conta');
+  const google = lista.json.campanhas.find(c => c.plataforma === 'google');
+  const det = await D.calado(() => pedir(`/api/campanhas/google/${encodeURIComponent(google.chave)}`));
+  assert.equal(det.status, 200);
+  limpo(det.json);
+  for (const k of ['campanha', 'conjuntos', 'palavras', 'termos', 'contatos']) assert.ok(k in det.json, k);
+  assert.equal(det.json.campanha.nome, 'Freios Taubaté');
+
+  const fora = await D.calado(() => pedir('/api/campanhas/meta/999999'));
+  assert.equal(fora.status, 404);
+  assert.equal(fora.json.codigo, 'sem_campanha');
+  assert.equal((await pedir('/api/campanhas/tiktok/1')).status, 400);
+  assert.equal((await pedir('/api/campanhas?plataforma=bing')).status, 400);
+  assert.equal((await pedir('/api/campanhas', { papel: 'gestor_sem_ads' })).status, 403);
+});
