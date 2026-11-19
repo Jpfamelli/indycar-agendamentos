@@ -164,6 +164,8 @@
     comunicar:   { k: 'comunicar',   nome: 'Comunicar',   desc: 'lembretes e réguas',       ico: '📣', base: '/comunicar/' },
     patio:       { k: 'patio',       nome: 'Pátio',       desc: 'carro dentro da oficina',  ico: '🔧', base: PATIO_PADRAO + '/', fora: true },
     orcador:     { k: 'orcador',     nome: 'Orçador',     desc: 'orçamentos com IA',        ico: '🧾', base: ORCADOR_PADRAO + '/', fora: true },
+    /* rodada 8: o Tráfego mora em /trafego/, mas a chave dele em perfis.apps, no sino e na aba nomeada continua "ads" */
+    ads:         { k: 'ads',         nome: 'Tráfego',     desc: 'anúncios e de onde vêm os clientes', ico: '📢', base: '/trafego/' },
   };
   /** Nome da aba de cada app (window.open(url, nome)): a Casa nunca vira o app e clicar de novo volta para a aba dele. */
   const nomeDaAba = (k) => 'indycar-' + k;

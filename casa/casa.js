@@ -19,8 +19,8 @@
   const LS_ERROS = 'indycar_central_erros';
 
   const PAPEL = { admin: 'Administrador', gestor: 'Gestor', atendente: 'Atendente', agenda: 'Agenda (presença)', mecanico: 'Mecânico' };
-  /* ordem dos atalhos na grade */
-  const ORDEM_APPS = ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador'];
+  /* ordem dos atalhos na grade (o Tráfego, chave "ads", entra por último: as teclas 1 a 6 continuam nos mesmos apps) */
+  const ORDEM_APPS = ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador', 'ads'];
 
   let sb = null, sessao = null, perfil = null, emRecuperacao = false;
   let cfg = null, bases = L.bases(), links = L.links(bases);

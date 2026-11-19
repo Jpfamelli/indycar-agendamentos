@@ -31,6 +31,12 @@ process.env.ADS_AUTOMATICO = '1';
 const RAIZ = fileURLToPath(new URL('..', import.meta.url));
 const require = createRequire(import.meta.url);
 const lerJson = (...partes) => JSON.parse(readFileSync(join(RAIZ, ...partes), 'utf8'));
+// As regras puras da Casa (cartões, permissões, links). O "await" fica aqui em cima, antes de qualquer test():
+// com ele no meio do arquivo, um filtro por nome encerrava a raiz antes de os últimos testes serem registrados.
+await import('../casa/logica.js');
+const L = globalThis.CasaLogica;
+const lerCasa = (f) => readFileSync(join(RAIZ, 'casa', f), 'utf8');
+const ORIGEM_CENTRAL = 'https://indycar-agendamentos.onrender.com/';
 
 let srv, porta, APPS, central;
 before(async () => {
@@ -312,4 +318,47 @@ test('dependências: tudo que o Tráfego importa está no package.json da raiz e
   }
   // o que o app declara como dependência dele também tem de existir na raiz
   for (const pacote of Object.keys(lerJson('apps', 'trafego', 'package.json').dependencies || {})) assert.ok(pacote in raiz, `${pacote} está no package.json do app mas não no da raiz`);
+});
+
+/* ------------------------------ 6) cartão na Casa ------------------------------ */
+
+test('Casa: cartão "Tráfego" abre em /trafego/, com a chave de acesso "ads" e o desenho dos outros cartões', () => {
+  assert.deepEqual(L.APPS.ads, { k: 'ads', nome: 'Tráfego', desc: 'anúncios e de onde vêm os clientes', ico: '📢', base: '/trafego/' });
+  assert.equal(L.bases().ads, '/trafego/');
+  assert.equal(L.nomeDaAba('ads'), 'indycar-ads', 'a mesma aba nomeada que os outros apps usam para o Tráfego');
+  assert.equal(L.appDoLink('/trafego/?periodo=7d', ORIGEM_CENTRAL), 'ads');
+  assert.equal(L.appDoLink('/trafego', ORIGEM_CENTRAL), 'ads');
+  assert.equal(L.appDoLink('https://site-de-fora.example/trafego/', ORIGEM_CENTRAL), null);
+  // sem emoji novo: o ícone é o que a Casa já usa para "Anúncios" na origem das tarefas
+  assert.ok(lerCasa('logica4.js').includes(`ads: { ico: '${L.APPS.ads.ico}'`), 'ícone já usado pela Casa');
+  // palavras do dono: sem sigla, sem "lead", sem "veículo", sem travessão
+  assert.doesNotMatch(L.APPS.ads.nome + ' ' + L.APPS.ads.desc, /lead|roas|cpa|ctr|ve[ií]culo|—|–/i);
+});
+
+test('Casa: o cartão aparece para quem tem o app "ads" liberado (mesma regra dos outros cartões)', () => {
+  assert.equal(L.podeUsar({ papel: 'admin', ativo: true, apps: [] }, 'ads'), true, 'administrador vê todos');
+  assert.equal(L.podeUsar({ papel: 'gestor', ativo: true, apps: ['crm', 'ads'] }, 'ads'), true);
+  assert.equal(L.podeUsar({ papel: 'gestor', ativo: true, apps: ['crm', 'agenda'] }, 'ads'), false);
+  assert.equal(L.podeUsar({ papel: 'atendente', ativo: true, apps: ['atendimento', 'crm'] }, 'ads'), false);
+  assert.equal(L.podeUsar({ papel: 'mecanico', ativo: true, apps: ['patio'] }, 'ads'), false);
+  assert.equal(L.podeUsar({ papel: 'agenda', ativo: true, apps: ['agenda', 'ads'] }, 'ads'), false, 'recepção só usa Agenda e Pátio');
+  assert.equal(L.podeUsar({ papel: 'gestor', ativo: false, apps: ['ads'] }, 'ads'), false, 'desativado não vê nada');
+});
+
+test('Casa: aviso do Tráfego no sino leva para dentro de /trafego/ (antes caía na raiz e ia parar na Agenda)', () => {
+  const b = L.bases();
+  assert.equal(L.linkDaNotificacao({ app: 'ads', link: '/?aba=radar' }, b, ORIGEM_CENTRAL), 'https://indycar-agendamentos.onrender.com/trafego/?aba=radar');
+  assert.equal(L.linkDaNotificacao({ app: 'ads', link: '' }, b, ORIGEM_CENTRAL), '/trafego/');
+  assert.equal(L.linkDaNotificacao({ app: 'ads', link: 'javascript:alert(1)' }, b, ORIGEM_CENTRAL), '/trafego/');
+  assert.equal(L.linkDaNotificacao({ app: 'ads', link: 'https://site-de-fora.example/x' }, b, ORIGEM_CENTRAL), '/trafego/');
+});
+
+test('Casa: a grade desenha o Tráfego por último (as posições 1 a 6 dos atalhos não mudam) e a página pede os arquivos novos', () => {
+  const ordem = JSON.parse(/const ORDEM_APPS = (\[[^\]]+\]);/.exec(lerCasa('casa.js'))[1].replace(/'/g, '"'));
+  assert.deepEqual(ordem, ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador', 'ads']);
+  for (const k of ordem) assert.equal(L.APPS[k]?.k, k, `${k} existe na lista de apps (senão a grade quebra ao desenhar)`);
+  const html = lerCasa('index.html');
+  assert.ok(Number(/\/casa\/logica\.js\?v=(\d+)/.exec(html)[1]) >= 5, 'logica.js com versão nova no endereço');
+  assert.ok(Number(/\/casa\/casa\.js\?v=(\d+)/.exec(html)[1]) >= 6, 'casa.js com versão nova no endereço');
+  assert.match(html, /Um login só para Agenda, Atendimento, CRM, Comunicar, Tráfego, Pátio e Orçador\./);
 });
