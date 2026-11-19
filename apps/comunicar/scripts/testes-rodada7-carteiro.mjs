@@ -269,4 +269,3 @@ test('reabordar: a lista do Orçador é peneirada (PARAR e celular ruim) e o que
   assert.equal(r2.fora.ja_reabordado, 1);
   b2.restaurar();
 });
-
