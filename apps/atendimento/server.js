@@ -2264,6 +2264,7 @@ async function salvarChaveCodeWords(chave, { testar = true } = {}) {
   if (r2.error) avisos.push(`Gravou aqui, mas não na Agenda (agenda_ia_config): ${r2.error.message}`);
   SAUDE_CACHE = { em: 0, dados: null };   // a faixa de saúde deve reavaliar logo
   ZAP.limpar();                            // chave nova: a próxima mensagem tenta de verdade
+  pausaSincronia.aceita();                 // e a sincronia volta na próxima rodada (40 s), sem esperar a pausa
   return { ok: true, mascara: COM.mascararChave(k), salvoEm: ['codewords_config', ...(r2.error ? [] : ['agenda_ia_config'])],
            teste, avisos };
 }
