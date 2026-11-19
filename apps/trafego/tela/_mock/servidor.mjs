@@ -364,9 +364,9 @@ export function criar({ base = '/trafego/' } = {}) {
   });
 }
 
-/** Sobe o servidor e devolve { servidor, endereco, fechar }. Só aceita as portas 3430 a 3439. */
+/** Sobe o servidor e devolve { servidor, endereco, fechar }. Só aceita as portas 3430 a 3439 (rodada 8) e 3530 a 3539 (rodada 9). */
 export function subir({ porta = 3430, base = '/trafego/' } = {}) {
-  if (!(porta >= 3430 && porta <= 3439)) throw new Error('Use uma porta de 3430 a 3439 (combinado da rodada).');
+  if (!((porta >= 3430 && porta <= 3439) || (porta >= 3530 && porta <= 3539))) throw new Error('Use uma porta de 3430 a 3439 ou de 3530 a 3539 (combinado das rodadas).');
   const servidor = criar({ base });
   return new Promise((resolve, reject) => {
     servidor.once('error', reject);
