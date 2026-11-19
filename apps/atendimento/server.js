@@ -17,6 +17,8 @@ const PAT  = require('./lib/patio.js');
 const CTX  = require('./lib/contexto.js');
 const IA   = require('./lib/ia-copiloto.js');
 const FUN  = require('./lib/ia-funil.js');
+const { criarPausaSincronia, ehRecusa } = require('./lib/pausa-sincronia.js');
+const pausaSincronia = criarPausaSincronia();
 const RD   = require('./lib/resumo-dia.js');
 const { criarRotasIA } = require('./lib/rotas-ia.js');
 // Rodada 3: segurança, acesso por app, central da equipe, auditoria, rodízio, tarefas, automações
@@ -990,9 +992,12 @@ async function mensagensDoAparelho(g, telefone, limite = 30) {
     const r = await fetch(url, { headers: { Authorization: g.chave }, signal: AbortSignal.timeout(20000) });
     const txt = await r.text();
     if (!r.ok) {
+      // chave recusada: uma linha por pausa (pausa-sincronia.js), não uma por conversa a cada 40 s
+      if (ehRecusa(r.status)) return { erro: `o CodeWords respondeu ${r.status}: ${txt.slice(0, 120)}`, recusada: r.status };
       console.error('sincronia:', r.status, txt.slice(0, 200));
       return { erro: `o CodeWords respondeu ${r.status}: ${txt.slice(0, 120)}` };
     }
+    pausaSincronia.aceita();
     let j; try { j = JSON.parse(txt); } catch {
       console.error('sincronia: resposta não é JSON:', txt.slice(0, 200));
       return { erro: 'resposta do CodeWords em formato inesperado' };
@@ -1013,7 +1018,7 @@ async function mensagensDoAparelho(g, telefone, limite = 30) {
    Devolve quantas mensagens entraram. */
 async function sincronizarConversa(g, conversa) {
   const r = await mensagensDoAparelho(g, conversa.telefone);
-  if (r.erro) return { entraram: 0, erro: r.erro };
+  if (r.erro) return { entraram: 0, erro: r.erro, recusada: r.recusada };
   if (r.desconfigurado) return { entraram: 0, erro: 'aparelho não configurado' };
   const doAparelho = r.lista;
   if (!doAparelho.length) return { entraram: 0 };
@@ -1090,6 +1095,8 @@ async function sincronizarRespostas({ conversaId = null, quantas = 12 } = {}) {
     const r = await sincronizarConversa(g, c);
     total += r.entraram || 0;
     if (r.erro) { falhas++; ultimoErro = r.erro; }
+    // chave recusada vale para todas: para aqui e a próxima rodada espera (pausa-sincronia.js)
+    if (r.recusada) { if (!conversaId) pausaSincronia.recusada(r.recusada); break; }
   }
 
   /* Falhar numa conversa não é motivo para dizer que tudo quebrou — pode ser
@@ -1217,7 +1224,7 @@ function ligarSincronizacaoPeriodica() {
      de 2 minutos, e sem isto as rodadas se empilhariam, dobrando as chamadas
      ao CodeWords justamente quando ele está lento. */
   const rodar = async () => {
-    if (sincroniaRodando) return;
+    if (sincroniaRodando || pausaSincronia.emPausa()) return;
     sincroniaRodando = true;
     try { await sincronizarRespostas(); }
     catch (e) { console.error('sincronia:', e.message); }
