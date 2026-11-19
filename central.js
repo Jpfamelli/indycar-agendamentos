@@ -166,6 +166,7 @@ function lerVersaoAtendimento() {
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/manifest+json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',   // rodada 9: as fontes da Casa moram aqui (saíram do Google)
 };
 const CASA_DIR = join(__dirname, 'casa');
 const CASA = new Map();   // caminho público -> { tipo, buf, br, gz, etag }
@@ -174,7 +175,7 @@ function prepararCasa() {
     const tipo = MIME[extname(f)];
     if (!tipo) continue;
     const buf = readFileSync(join(CASA_DIR, f));
-    const texto = !tipo.startsWith('image/');
+    const texto = !tipo.startsWith('image/') && !tipo.startsWith('font/');   // woff2 já vem comprimido
     const item = {
       tipo, buf, etag: '"' + createHash('sha1').update(buf).digest('base64url').slice(0, 20) + '"',
       br: texto ? zlib.brotliCompressSync(buf) : null, gz: texto ? zlib.gzipSync(buf) : null,
@@ -189,8 +190,8 @@ function prepararCasa() {
 const CSP_CASA = [
   "default-src 'self'",
   "script-src 'self' https://cdn.jsdelivr.net",
-  "style-src 'self' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
+  "style-src 'self'",
+  "font-src 'self'",
   "img-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net",
   "manifest-src 'self'", "worker-src 'self'",
@@ -212,7 +213,8 @@ function servirCasa(req, res, item, caminho) {
   res.setHeader('ETag', item.etag);
   res.setHeader('Vary', 'Accept-Encoding');
   // o HTML e o service worker sempre conferem com o servidor (304 barato); ícones podem ficar 1 dia
-  res.setHeader('Cache-Control', item.tipo.startsWith('image/') ? 'public, max-age=86400' : 'no-cache');
+  // fontes não mudam: 30 dias (o service worker também guarda)
+  res.setHeader('Cache-Control', item.tipo.startsWith('font/') ? 'public, max-age=2592000' : item.tipo.startsWith('image/') ? 'public, max-age=86400' : 'no-cache');
   if (caminho === '/sw.js') res.setHeader('Service-Worker-Allowed', '/');
   const inm = String(req.headers['if-none-match'] || '').replace(/^W\//, '');
   if (inm && inm === item.etag) { res.writeHead(304); return res.end(); }
