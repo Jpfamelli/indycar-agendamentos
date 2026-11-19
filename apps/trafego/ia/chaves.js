@@ -127,7 +127,7 @@ function criarChaves(opcoes = {}) {
   async function criar(dados, { criada_por = null } = {}) {
     const v = validarNova(dados);
     const chave = gerarChave();
-    const linha = { nome: v.nome, prefixo: chave.slice(0, 8), hash: hashDe(chave), escopos: v.escopos, ver_pii: v.ver_pii, criada_por: criada_por || null };
+    const linha = { id: crypto.randomUUID(), nome: v.nome, prefixo: chave.slice(0, 8), hash: hashDe(chave), escopos: v.escopos, ver_pii: v.ver_pii, criada_por: criada_por || null };
     let r = await banco().from('trafego_ia_chaves').insert(linha).select(COLUNAS).single();
     // quem cria pode não estar em perfis (chave estrangeira): grava sem o autor em vez de falhar
     if (r.error && r.error.code === '23503' && linha.criada_por) r = await banco().from('trafego_ia_chaves').insert({ ...linha, criada_por: null }).select(COLUNAS).single();
@@ -209,9 +209,14 @@ function criarChaves(opcoes = {}) {
     if (timer.unref) timer.unref();
   }
 
-  /** Grava agora o uso pendente (o teste chama direto). */
-  async function descarregar() {
+  /** Grava agora o uso pendente (o teste chama direto). Uma gravação por vez: ler e somar não pode cruzar com outra. */
+  let fila = Promise.resolve();
+  function descarregar() {
     if (timer) { clearTimeout(timer); timer = null; }
+    fila = fila.then(gravarPendentes, gravarPendentes);
+    return fila;
+  }
+  async function gravarPendentes() {
     const pendentes = [...usos.entries()];
     usos.clear();
     for (const [id, u] of pendentes) {
