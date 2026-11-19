@@ -106,9 +106,9 @@ const DESLIGAR = [];   // funções de parada (timers)
 
 /* Tráfego (rodada 8): as rotinas dele (coleta nas plataformas, radar de alertas, avisos e relatórios) ficam
    DESLIGADAS na Central e só ligam com TRAFEGO_AUTOMATICO=1, para nada ser coletado nem avisado sem o dono querer.
-   O ADS_AUTOMATICO (nome que o app lê quando roda sozinho) não manda aqui: a Central nunca chama o iniciar() do app
-   (ele abriria uma porta própria e, com ADS_DEMO=1, gravaria a demonstração no banco) e repassa a decisão dela em
-   ADS_AUTOMATICO, para a tela do app dizer a verdade sobre o piloto automático. */
+   O ADS_AUTOMATICO (nome que o app lê quando roda sozinho) não manda aqui: a Central sobe o app com
+   iniciar({ ouvir: false, rotinas }) (sem porta própria e sem gravar a demonstração do ADS_DEMO), dizendo ela mesma
+   se as rotinas ligam, e repassa a decisão em ADS_AUTOMATICO para a tela do app dizer a verdade sobre o piloto. */
 export function rotinasDoTrafegoLigadas(env = process.env) { return env.TRAFEGO_AUTOMATICO === '1'; }
 
 async function carregar(nome, prefixo, fn) {
@@ -149,13 +149,11 @@ async function carregarTudo() {
     const automatico = rotinasDoTrafegoLigadas();
     process.env.ADS_AUTOMATICO = automatico ? '1' : '0';
     const m = require('./apps/trafego/server.js');
-    if (automatico) {
-      const piloto = require('./apps/trafego/agenda.js');   // o mesmo piloto que o iniciar() do app liga, sem a porta
-      piloto.iniciar();
-      DESLIGAR.push(() => piloto.parar());
-    }
-    console.log(`    rotinas do Tráfego ${automatico ? 'LIGADAS (TRAFEGO_AUTOMATICO=1)' : 'desligadas (só ligam com TRAFEGO_AUTOMATICO=1)'}`);
-    return { handler: m.handler, versao: m.VERSAO, ligado: { automatico } };
+    const r = m.iniciar({ ouvir: false, rotinas: automatico });   // sem porta; quem decide as rotinas é a Central, não o ADS_AUTOMATICO
+    if (r?.ouvindo !== false) throw new Error('o Tráfego não confirmou que ficou sem porta própria');
+    if (r.rotinas) DESLIGAR.push(() => m.desligarRotinas());
+    console.log(`    rotinas do Tráfego ${r.rotinas ? 'LIGADAS (TRAFEGO_AUTOMATICO=1)' : 'desligadas (só ligam com TRAFEGO_AUTOMATICO=1)'}`);
+    return { handler: m.handler, versao: m.VERSAO, ligado: { automatico: !!r.rotinas } };
   });
 }
 function lerVersaoAtendimento() {

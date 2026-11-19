@@ -238,7 +238,7 @@ test('rotinas do Tráfego: desligadas por padrão, mesmo com ADS_AUTOMATICO=1; a
   assert.deepEqual(APPS.trafego.ligado, { automatico: false });
   assert.equal(require('../apps/trafego/agenda.js').estado.ligado, false, 'o piloto automático do app está parado');
   assert.equal(process.env.ADS_AUTOMATICO, '0', 'a Central repassa a decisão dela ao app (a tela do app diz a verdade)');
-  assert.equal(require('../apps/trafego/server.js').servidor.listening, false, 'a Central não chama o iniciar() do app');
+  assert.equal(require('../apps/trafego/server.js').servidor.listening, false, 'o app sobe dentro da Central sem abrir porta própria');
 });
 
 test('rotinas do Tráfego: TRAFEGO_AUTOMATICO=1 liga o piloto e o desligamento da Central para ele', () => {
