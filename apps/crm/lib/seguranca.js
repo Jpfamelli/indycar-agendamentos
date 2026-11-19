@@ -83,6 +83,7 @@ function tratarCors(req, res, permitida) {
 /** IP de quem chamou. Na nuvem (proxy do Render) vem no x-forwarded-for. */
 function ipDe(req, { atrasDeProxy = false } = {}) {
   if (atrasDeProxy) {
+    const cf = String(req.headers?.['cf-connecting-ip'] || '').trim(); if (/^[0-9a-f.:]{3,45}$/i.test(cf)) return cf; // Cloudflare (na frente do Render) troca este cabeçalho: não dá para forjar
     const xf = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
     if (xf && xf.length <= 64) return xf;
   }

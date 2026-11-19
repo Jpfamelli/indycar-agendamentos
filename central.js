@@ -287,7 +287,8 @@ export async function handler(req, res) {
 
   if (caminho === '/api/central/saude-apps' && (req.method === 'GET' || req.method === 'HEAD')) {
     // só "está respondendo?" de dois sites públicos — nada sensível; o cache de 40 s protege os sites de enxurrada
-    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '?').split(',')[0].trim().slice(0, 64);
+    const cf = String(req.headers['cf-connecting-ip'] || '').trim(); // Cloudflare troca este cabeçalho: não dá para forjar
+    const ip = /^[0-9a-f.:]{3,45}$/i.test(cf) ? cf : String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '?').split(',')[0].trim().slice(0, 64);
     if (!dentroDoFreioDaSaude(ip)) { res.setHeader('Retry-After', '30'); return json(res, 429, { erro: 'Muitas perguntas seguidas. Espere meio minuto.' }); }
     return json(res, 200, { ...(await saudeDosApps()), internos: internosDaCentral(), central: { versao: VERSAO_CENTRAL, no_ar_desde: NO_AR_DESDE } });
   }

@@ -2306,6 +2306,7 @@ function cabecalhosDeSeguranca(res) {
 const USO_IP = new Map();
 function ipDaRequisicao(req) {
   // atrás do proxy do Render o IP do cliente vem no X-Forwarded-For (o primeiro)
+  const cf = String(req.headers?.['cf-connecting-ip'] || '').trim(); if (/^[0-9a-f.:]{3,45}$/i.test(cf)) return cf; // Cloudflare (na frente do Render) troca este cabeçalho: não dá para forjar
   const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return xff || req.socket?.remoteAddress || 'desconhecido';
 }

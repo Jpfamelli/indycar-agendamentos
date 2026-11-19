@@ -282,6 +282,7 @@ export function lerJson(texto) {
 
 /** IP de quem chamou (o Render põe o cliente no primeiro x-forwarded-for). */
 export function ipDe(req) {
+  const cf = String(req.headers?.['cf-connecting-ip'] || '').trim(); if (/^[0-9a-f.:]{3,45}$/i.test(cf)) return cf; // Cloudflare (na frente do Render) troca este cabeçalho: não dá para forjar
   const xf = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
   return xf || req.socket?.remoteAddress || 'desconhecido';
 }
