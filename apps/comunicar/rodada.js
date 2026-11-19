@@ -223,9 +223,25 @@ export async function enviarFila({ cfg, dados, wa, patio, carteiro, dormir = (ms
     const reservado = await dados.reservarEnvio(envio.id).catch(() => null);
     if (!reservado) continue;
 
-    const instante = agoraEnvio();
-    if (carteiro.envioVencido(envio, instante)
-        || (envio.tipo === 'lembrete' && carteiro.conferirLembrete(envio, agendamento, cfg, instante).acao === 'pular')) {
+    // Confirma de novo depois da reserva: a Agenda pode mudar durante a rodada.
+    if (envio.tipo === 'lembrete') {
+      const atual = await dados.agendamentosPorIds([envio.agendamento_id]).catch(() => null);
+      if (!atual) {
+        await dados.atualizarEnvio(envio.id, {}).catch(() => {});
+        continue;
+      }
+      const c = carteiro.conferirLembrete(envio, atual.get(envio.agendamento_id), cfg, agoraEnvio());
+      if (c.acao === 'pular') {
+        await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: c.motivo }).catch(() => {});
+        pulados++; continue;
+      }
+      if (c.acao === 'atualizar') {
+        await dados.atualizarEnvio(envio.id, { corpo: c.corpo, expira_em: c.expira_em, ...(c.enviar_em ? { enviar_em: c.enviar_em } : {}) }).catch(() => {});
+        reagendados++; continue;
+      }
+    }
+
+    if (carteiro.envioVencido(envio, agoraEnvio())) {
       await dados.marcarEnvio(envio.id, 'pulado', null, undefined, { motivo_pulado: carteiro.MOTIVO_EXPIRADO }).catch(() => {});
       pulados++; continue;
     }
