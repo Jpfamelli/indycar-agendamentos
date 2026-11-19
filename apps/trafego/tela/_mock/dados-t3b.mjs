@@ -523,7 +523,7 @@ export function mensagemPronta(m, corpo) {
   let codigo = '';
   for (let i = 0, x = n * 7919; i < 5; i++, x = Math.floor(x / 31) + 17 * i) codigo += ALFABETO[x % ALFABETO.length];
   const final = texto + ' [ref ' + codigo + ']';
-  const link = 'https://wa.me/5512996830272?text=' + encodeURIComponent(final);
+  const link = 'https://wa.me/5512990001234?text=' + encodeURIComponent(final);
   const plataforma = c.plataforma === 'meta' || c.plataforma === 'google' ? c.plataforma : null;
   const paga = plataforma ? true : c.paga === true;
   return { status: 200, corpo: {

@@ -242,7 +242,7 @@ cadastrado como frase marcaria como anúncio quem nunca viu o anúncio.
                          "campanha": { "ext": null, "nome": "Óleo novembro" }, "conjunto": null, "anuncio": null, "palavra_chave": null,
                          "como": "ref", "como_rotulo": "pelo código da mensagem pronta", "certeza": "certa" } },
   "texto": "Olá! Quero saber da troca de óleo. [ref DZ37K]",
-  "link_whatsapp": "https://wa.me/5512996830272?text=Ol%C3%A1!%20Quero%20saber%20da%20troca%20de%20%C3%B3leo.%20%5Bref%20DZ37K%5D",
+  "link_whatsapp": "https://wa.me/5512990001234?text=Ol%C3%A1!%20Quero%20saber%20da%20troca%20de%20%C3%B3leo.%20%5Bref%20DZ37K%5D",
   "qr_svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 53 53\" width=\"424\" height=\"424\" shape-rendering=\"crispEdges\" role=\"img\" aria-label=\"QR code\">…</svg>" }
 ```
 Sem telefone da oficina no cadastro: grava do mesmo jeito, com `link_whatsapp: null`, `qr_svg: null` e `aviso`.

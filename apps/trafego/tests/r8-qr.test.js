@@ -95,7 +95,7 @@ test('escolhe a menor versão que cabe, sobe a correção sem crescer e recusa c
 });
 
 test('o SVG desenha a matriz, tem margem clara e não leva texto', () => {
-  const link = 'https://wa.me/5512996830272?text=' + encodeURIComponent('Olá! <script>alert(1)</script> [ref K7M2P]');
+  const link = 'https://wa.me/5512990001234?text=' + encodeURIComponent('Olá! <script>alert(1)</script> [ref K7M2P]');
   const qr = QR.codificar(link, { nivel: 'M' });
   const svg = QR.svg(qr);
   assert.match(svg, /^<svg [^>]*viewBox="0 0 (\d+) \1"/);

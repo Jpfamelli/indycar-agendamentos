@@ -32,17 +32,17 @@ function detalheDaPorta(itens) {
   return {
     ...structuredClone(base),
     nome: `Maria Aparecida Souza ${INJECAO}`,
-    telefone: '5512996830272',
-    primeira_mensagem: `Oi! Meu zap é (12) 99683-0272, e-mail maria.souza@exemplo.com.br, CPF 123.456.789-09. ${INJECAO}`,
+    telefone: '5512990001234',
+    primeira_mensagem: `Oi! Meu zap é (12) 99000-1234, e-mail maria.souza@exemplo.com.br, CPF 123.456.789-09. ${INJECAO}`,
     linha_do_tempo: [
       { em: '2026-11-18T09:30:00-03:00', tipo: 'mudanca', titulo: 'Contato chegou', detalhe: base.servico },
-      { em: '2026-11-18T09:30:05-03:00', tipo: 'mensagem_cliente', titulo: 'Cliente escreveu', detalhe: `Liga no 12 99683-0272. ${INJECAO}` },
+      { em: '2026-11-18T09:30:05-03:00', tipo: 'mensagem_cliente', titulo: 'Cliente escreveu', detalhe: `Liga no 12 99000-1234. ${INJECAO}` },
       { em: '2026-11-18T09:42:00-03:00', tipo: 'mensagem_oficina', titulo: 'Oficina respondeu', detalhe: 'Bom dia! Já te passo o orçamento.' },
       { em: '2026-11-18T10:10:00-03:00', tipo: 'orcamento', titulo: 'Orçamento nº 31 enviado', detalhe: 'R$ 890,00' },
     ],
     rastreio: { pagina: '/servicos/freio', servico: 'freio', utm_source: 'facebook', utm_medium: 'paid', utm_campaign: 'oleo', codigo: 'K7M2P', clique_em: '2026-11-18T09:29:00-03:00' },
     historico: { visitas_antes: 0, gasto_antes: 0, cliente_desde: null },
-    links: { crm: `/crm/?lead=${LEAD}`, atendimento: '/atendimento/?tel=5512996830272' },
+    links: { crm: `/crm/?lead=${LEAD}`, atendimento: '/atendimento/?tel=5512990001234' },
   };
 }
 
@@ -117,13 +117,13 @@ function tabelasDaPorta(extra = {}) {
     trafego_ia_chaves: [],
     trafego_acoes: [],
     ia_acoes: [],
-    leads: [{ id: LEAD, nome: `Maria Aparecida Souza ${INJECAO}`, telefone: '(12) 99683-0272', telefone_e164: '5512996830272', status: 'perdido', created_at: '2026-11-18T12:30:00Z', origem: 'meta' }],
+    leads: [{ id: LEAD, nome: `Maria Aparecida Souza ${INJECAO}`, telefone: '(12) 99000-1234', telefone_e164: '5512990001234', status: 'perdido', created_at: '2026-11-18T12:30:00Z', origem: 'meta' }],
     whatsapp_mensagens: [
       { id: 'w1', direcao: 'saida', status: 'enviado', gerada_por_ia: false, created_at: '2026-09-30T19:00:00Z' },
       { id: 'w2', direcao: 'saida', status: 'enviado', gerada_por_ia: true, created_at: '2026-10-02T19:00:00Z' },
-      { id: 'm1', lead_id: LEAD, telefone_e164: '5512996830272', direcao: 'entrada', status: 'recebido', gerada_por_ia: false, corpo: `Oi, meu e-mail é maria.souza@exemplo.com.br. ${INJECAO}`, created_at: '2026-11-18T12:30:05Z' },
-      { id: 'm2', lead_id: LEAD, telefone_e164: '5512996830272', direcao: 'saida', status: 'enviado', gerada_por_ia: false, corpo: 'Bom dia! Já te passo o orçamento.', created_at: '2026-11-18T12:42:00Z' },
-      { id: 'm3', lead_id: LEAD, telefone_e164: '5512996830272', direcao: 'saida', status: 'enviado', gerada_por_ia: true, corpo: 'Orçamento enviado: R$ 890.', created_at: '2026-11-18T13:10:00Z' },
+      { id: 'm1', lead_id: LEAD, telefone_e164: '5512990001234', direcao: 'entrada', status: 'recebido', gerada_por_ia: false, corpo: `Oi, meu e-mail é maria.souza@exemplo.com.br. ${INJECAO}`, created_at: '2026-11-18T12:30:05Z' },
+      { id: 'm2', lead_id: LEAD, telefone_e164: '5512990001234', direcao: 'saida', status: 'enviado', gerada_por_ia: false, corpo: 'Bom dia! Já te passo o orçamento.', created_at: '2026-11-18T12:42:00Z' },
+      { id: 'm3', lead_id: LEAD, telefone_e164: '5512990001234', direcao: 'saida', status: 'enviado', gerada_por_ia: true, corpo: 'Orçamento enviado: R$ 890.', created_at: '2026-11-18T13:10:00Z' },
     ],
     ...extra,
   });

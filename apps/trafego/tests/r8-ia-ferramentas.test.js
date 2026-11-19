@@ -186,10 +186,10 @@ test('contato: jornada completa; sem ver_pii nome curto, telefone nulo, primeira
 
 test('contato com ver_pii: nome inteiro, telefone inteiro e links', async () => {
   const r = await rodar('contato', { lead_id: LEAD }, LER_PII);
-  assert.equal(r.telefone, '5512996830272');
+  assert.equal(r.telefone, '5512990001234');
   assert.ok(r.texto_do_cliente.nome.startsWith('Maria Aparecida Souza'));
   assert.ok(r.links && r.links.crm);
-  assert.match(r.texto_do_cliente.primeira_mensagem, /99683-0272/);
+  assert.match(r.texto_do_cliente.primeira_mensagem, /99000-1234/);
 });
 
 test('conversa (com ver_pii): mensagens em ordem, quem escreveu, texto em texto_do_cliente, cursor; contato inexistente', async () => {
@@ -444,7 +444,7 @@ test('Gestor de dentro do app: mesma lista, sem chave, com permissões e autor p
 });
 
 test('mascarar: telefone, e-mail e CPF; textoDoCliente corta em 300', () => {
-  assert.equal(D.mascarar('(12) 99683-0272 / 12 3632-1111 / +55 12 99683 0272'), '[telefone] / [telefone] / [telefone]');
+  assert.equal(D.mascarar('(12) 99000-1234 / 12 3632-1111 / +55 12 99000 1234'), '[telefone] / [telefone] / [telefone]');
   assert.equal(D.mascarar('ana.b@x.com.br, 123.456.789-09, 12345678909'), '[e-mail], [CPF], [CPF]');
   assert.equal(D.mascarar('Troca de óleo R$ 169 em 2026'), 'Troca de óleo R$ 169 em 2026');
   assert.equal(D.textoDoCliente('a'.repeat(500)).length, 300);
