@@ -61,6 +61,10 @@ function casos() {
     lista.push({ nome: `sem_conta-fila-origem-${largura}-escuro`, busca: '?cenario=sem_conta', hash: '#/jornada?pendencia=sem_origem', largura, tema: 'escuro' });
     for (const tela of ['campanhas', 'gestor', 'ajustes']) lista.push({ nome: `sem_conta-${tela}-${largura}-escuro`, busca: '?cenario=sem_conta', hash: `#/${tela}`, largura, tema: 'escuro' });
   }
+  // 320 px: a tela mais estreita que ainda precisa caber sem rolagem lateral.
+  for (const [tela, hash] of [['hoje', '#/hoje'], ['jornada', '#/jornada'], ['fila', '#/jornada?pendencia=sem_motivo'], ['ajustes', '#/ajustes']]) {
+    lista.push({ nome: 'sem_conta-' + tela + '-320-escuro', busca: '?cenario=sem_conta', hash, largura: 320, tema: 'escuro' });
+  }
   lista.push({ nome: 'cheio-campanhas-1440-claro', busca: '?cenario=cheio', hash: '#/campanhas', largura: 1440, tema: 'claro' });
   lista.push({ nome: 'sem_conta-jornada-anuncio-375-claro', busca: '?cenario=sem_conta', hash: '#/jornada?paga=1', largura: 375, tema: 'claro' });
   lista.push({ nome: 'estado-carregando-375-escuro', busca: '?cenario=sem_conta&lento=5000', hash: '#/hoje', largura: 375, tema: 'escuro', semEsperar: '.esq' });

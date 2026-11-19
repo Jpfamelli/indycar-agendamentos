@@ -768,7 +768,7 @@
   }
 
   .torre-jornada {
-    --torre-colunas: minmax(10rem, 1.2fr) minmax(9rem, 1.1fr) 9.5rem minmax(9.5rem, 0.9fr) 6.5rem 3.5rem;
+    --torre-colunas: minmax(10rem, 1.2fr) minmax(9rem, 1.1fr) 9.5rem minmax(9.5rem, 0.9fr) 6.5rem 4.5rem;
   }
   .torre-jornada .torre-cabeca {
     display: grid;
@@ -776,6 +776,8 @@
   /* Os títulos levam as classes das colunas (jl-origem, jl-chegou), mas não as áreas da ficha do celular. */
   .torre-jornada .torre-cabeca > * {
     grid-area: auto;
+    align-self: center;
+    font-size: inherit;
   }
   .torre-jornada .torre-linha {
     grid-template-columns: var(--torre-colunas);
