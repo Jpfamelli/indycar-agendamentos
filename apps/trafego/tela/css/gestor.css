@@ -375,3 +375,38 @@ ol.fala-lista {
   max-width: var(--medida-texto);
   font-weight: var(--peso-forte);
 }
+
+/* Anotar uma mudança feita por conta própria (rodada 9): fechado por padrão, abre no próprio diário. */
+.anotar {
+  margin-top: var(--p-esp-4);
+}
+.anotar-abrir {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  min-height: var(--alvo);
+  cursor: pointer;
+}
+.anotar-form {
+  display: grid;
+  gap: var(--p-esp-4);
+  padding-top: var(--p-esp-3);
+}
+.anotar-dupla {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--p-esp-4);
+}
+.anotar-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--p-esp-3);
+}
+@media (min-width: 30em) {
+  .anotar-dupla {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.diario-mais {
+  margin-top: var(--p-esp-3);
+}

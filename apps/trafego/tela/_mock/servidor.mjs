@@ -292,6 +292,11 @@ export function criar({ base = '/trafego/' } = {}) {
     if (partes[1] === 'acoes-trafego') {
       if (quebrou('acoes')) return undefined;
       if (leitura && partes.length === 2) return responder(T3b.responderAcoes(m, q));
+      if (req.method === 'POST' && partes.length === 2) {
+        const c = await corpo();
+        if (c === undefined) return invalido();
+        return responder(T3b.registrarPropria(m, c, nome));
+      }
       if (req.method === 'POST' && partes.length === 4) {
         const c = await corpo();
         if (c === undefined) return invalido();

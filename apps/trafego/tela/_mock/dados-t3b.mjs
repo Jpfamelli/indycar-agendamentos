@@ -739,6 +739,22 @@ export function decidir(m, id, corpo, quem) {
   return { status: 200, corpo: { ok: true, acao: rotular(a) } };
 }
 
+/** POST /api/acoes-trafego: a pessoa anota uma mudança que fez por conta própria (API-gestor.md §3). */
+const TIPOS_DO_DIARIO = ['pausar', 'reativar', 'aumentar_verba', 'reduzir_verba', 'trocar_criativo', 'mensagem_pronta', 'negativar_termo', 'ajustar_horario', 'corrigir_rastreio', 'outro'];
+export function registrarPropria(m, corpo, quem) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  if (!TIPOS_DO_DIARIO.includes(c.tipo)) return { status: 422, corpo: { erro: 'Escolha o tipo da mudança.', codigo: 'tipo' } };
+  const titulo = typeof c.titulo === 'string' ? c.titulo.trim() : '';
+  if (titulo.length < 5 || titulo.length > 120) return { status: 422, corpo: { erro: 'Escreva o que foi feito em 5 a 120 letras.', codigo: 'titulo' } };
+  const n = ++estado(m).proximoId;
+  const a = { id: 'a-p' + n, criada_em: '2026-11-19T10:40:00-03:00', origem: 'pessoa', autor: quem, tipo: c.tipo, status: c.ja_fiz === true ? 'feita' : 'aceita',
+    risco: 'baixo', risco_motivo: null, titulo, porque: typeof c.porque === 'string' ? c.porque.trim() : null, alvo: c.alvo || null, evidencias: [],
+    medir_em: '2026-11-26', antes: medida({ contatos: 9, custo_por_contato: 64, gasto: 319, periodo: '12/11 a 18/11' }, { base: 'plataforma', rotulo: 'a oficina inteira' }),
+    depois: null, veredito: null, decidida_por: quem, decidida_em: '2026-11-19T10:40:00-03:00', feita_em: c.ja_fiz === true ? '2026-11-19T10:40:00-03:00' : null, nota: null };
+  estado(m).acoes.unshift(a);
+  return { status: 200, corpo: { ok: true, acao: rotular(a) } };
+}
+
 export function marcarFeita(m, id, corpo) {
   const a = estado(m).acoes.find((x) => x.id === id);
   if (!a) return { status: 404, corpo: { erro: 'Essa proposta não existe mais.', codigo: 'nao_existe' } };
