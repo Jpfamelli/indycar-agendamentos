@@ -1,6 +1,6 @@
 {
   "name": "indycar-trafego",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "IndyCar Tráfego — de onde veio cada contato, quanto custou e como terminou (Meta e Google ligados ao CRM, Agenda, Orçador e Pátio)",
   "private": true,
   "scripts": {
