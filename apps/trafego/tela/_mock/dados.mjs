@@ -806,19 +806,19 @@ export function responderConexoes(mundo) {
   const c = conexoesDe(mundo);
   const passos = [
     { feito: c.whatsapp.situacao === 'ok', titulo: 'WhatsApp da oficina ligado',
-      como: c.whatsapp.situacao === 'ok' ? 'Cada conversa nova entra como contato.' : c.whatsapp.situacao === 'chave_recusada' ? 'No Atendimento, em Configurações e depois Integrações: gere uma chave nova no CodeWords e cole lá. Só o dono da conta consegue.' : 'Ligue o aparelho da oficina no Atendimento.',
+      como: c.whatsapp.situacao === 'ok' ? 'Cada conversa nova entra como contato.' : c.whatsapp.situacao === 'chave_recusada' ? 'No Atendimento, abra Integrações (no grupo Sistema): gere uma chave nova em runtime.codewords.ai e cole lá. Só o dono da conta do CodeWords consegue.' : 'Ligue o aparelho da oficina no Atendimento.',
       acao: c.whatsapp.situacao === 'ok' ? null : { rotulo: 'Abrir o Atendimento', ir: '/atendimento/?aba=integracoes' } },
     { feito: c.site.rastreio === true, titulo: 'Site avisando de onde vem cada contato',
       como: c.site.rastreio ? 'O botão de WhatsApp do site já manda o código junto com a mensagem.' : 'O botão de WhatsApp do site manda um código junto com a mensagem. Este passo fica pronto no primeiro clique.',
       acao: { rotulo: 'Ver de onde vêm os contatos', ir: 'ajustes?secao=origem' } },
     { feito: c.meta.ligado, titulo: 'Conta de anúncios da Meta ligada',
-      como: c.meta.ligado ? 'O gasto do Instagram e do Facebook entra todo dia de manhã.' : 'Em Ajustes, na parte de Conexões: entre com a conta da Meta e escolha a conta de anúncios da oficina.',
+      como: c.meta.ligado ? 'O gasto do Instagram e do Facebook entra todo dia de manhã.' : 'Em Ajustes › Conexões, cartão da Meta: cole o número da conta de anúncios e o token do usuário do sistema (o passo a passo está em "Como pegar o token da Meta"), teste e salve.',
       acao: c.meta.ligado ? null : { rotulo: 'Ligar a Meta', ir: 'ajustes?secao=conexoes' } },
     { feito: c.google.ligado, titulo: 'Conta do Google Ads ligada',
-      como: c.google.ligado ? 'O gasto do Google entra todo dia de manhã.' : 'Em Ajustes, na parte de Conexões: entre com a conta do Google e escolha a conta de anúncios da oficina.',
+      como: c.google.ligado ? 'O gasto do Google entra todo dia de manhã.' : 'Em Ajustes › Conexões, cartão do Google Ads: cole o ID do cliente e o arquivo JSON da conta de serviço, teste e salve.',
       acao: c.google.ligado ? null : { rotulo: 'Ligar o Google', ir: 'ajustes?secao=conexoes' } },
     { feito: Boolean(mundo.receita.orcamento), titulo: 'Orçamento do mês definido',
-      como: mundo.receita.orcamento ? 'A tela Hoje mostra se o gasto está no ritmo da verba.' : 'Em Ajustes: diga quanto pretende investir por mês. Com isso a tela mostra se o gasto está no ritmo.',
+      como: mundo.receita.orcamento ? 'A tela Hoje mostra se o gasto está no ritmo da verba.' : 'Em Ajustes › Metas e verba: diga quanto pretende investir por mês. Com isso a tela mostra se o gasto está no ritmo.',
       acao: mundo.receita.orcamento ? null : { rotulo: 'Definir o orçamento', ir: 'ajustes?secao=metas' } },
   ];
   return { ...c, passos, faltam: passos.filter((p) => !p.feito).length, estado: { incompleto: [] } };
