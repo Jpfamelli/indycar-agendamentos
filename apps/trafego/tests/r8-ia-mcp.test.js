@@ -11,7 +11,7 @@ const Chaves = require('../ia/chaves');
 const Auditoria = require('../ia/auditoria');
 const enderecos = require('../enderecos');
 const db = require('../db');
-const { ambienteDaPorta, ouvirNaFaixa, ondeAparece } = require('./apoio/ia-porta');
+const { ambienteDaPorta, ouvirNaFaixa, ondeAparece, ambienteDeFora, MARCA_DE_FORA, PEDACOS_DE_FORA, LEAD_UTM } = require('./apoio/ia-porta');
 
 const NOVA = '2026-07-28';
 let base, amb, servidor, chaveLer, chavePii, chavePropor;
@@ -274,4 +274,45 @@ test('ponte stdio: initialize, notificação, tools/list e tools/call pela linha
   const ruim = await rodar({ ...env, INDYCAR_TRAFEGO_CHAVE: `ica_${'Q'.repeat(40)}` }, [{ jsonrpc: '2.0', id: 9, method: 'tools/list', params: {} }]);
   const resp = JSON.parse(ruim.saida.trim());
   assert.equal(resp.id, 9); assert.ok(resp.error, 'chave errada vira erro JSON-RPC com o mesmo id');
+});
+
+test('injeção por fora da conversa (UTM forjada, termo de busca, rastreio do site): pelo MCP e pelo REST o texto só vem dentro de texto_do_cliente', async () => {
+  const fora = ambienteDeFora();
+  const { chave } = await Chaves.padrao().criar({ nome: 'Texto de fora', escopos: ['ler'] });
+  F.configurar({ sb: fora.sb, fonte: fora.fonte, jornada: fora.jornada, agora: fora.agora });
+  try {
+    const cab = { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' };
+    const pedidos = [
+      ['contatos', { periodo: 'mes' }], ['contato', { lead_id: LEAD_UTM }], ['palavras_e_termos', { periodo: 'mes' }], ['campanhas', { periodo: 'mes' }],
+      ['motivos_de_nao_fechar', { periodo: 'mes', por: 'campanha' }], ['resumo_do_periodo', { periodo: 'hoje' }],
+    ];
+    let vistos = 0;
+    const pedacos = new Set();
+    for (const [nome, args] of pedidos) {
+      const m = await novo('tools/call', { name: nome, arguments: args }, { chave });
+      assert.equal(m.status, 200, nome); assert.equal(m.json.result.isError, false, nome);
+      const sc = m.json.result.structuredContent;
+      assert.ok(m.json.result.content[0].text.startsWith(sc.resumo), nome);
+      const r = await fetch(`${base}/api/ia/v1/${nome}`, { method: 'POST', headers: cab, body: JSON.stringify(args) });
+      assert.equal(r.status, 200, nome);
+      const rest = await r.json();
+      assert.deepEqual(rest, sc, `${nome}: REST e MCP dão o mesmo`);
+      for (const [porta, corpo] of [['mcp', sc], ['rest', rest]]) {
+        for (const c of ondeAparece(corpo, MARCA_DE_FORA)) assert.match(c, /texto_do_cliente/, `${porta} ${nome}: texto de fora em ${c}`);
+        assert.ok(!corpo.resumo.includes(MARCA_DE_FORA), `${porta} ${nome}: o resumo não leva texto de fora`);
+      }
+      vistos += ondeAparece(sc, MARCA_DE_FORA).length;
+      for (const p of PEDACOS_DE_FORA) if (ondeAparece(sc, p).length) pedacos.add(p);
+    }
+    assert.ok(vistos >= 10, `o texto de fora chegou (como dado) ${vistos} vezes`);
+    assert.deepEqual([...pedacos].sort(), [...PEDACOS_DE_FORA].sort());
+    // GET com a consulta na URL: a mesma resposta
+    const g = await fetch(`${base}/api/ia/v1/contato?lead_id=${LEAD_UTM}`, { headers: { Authorization: `Bearer ${chave}` } });
+    const gj = await g.json();
+    assert.ok(ondeAparece(gj, MARCA_DE_FORA).length >= 4);
+    for (const c of ondeAparece(gj, MARCA_DE_FORA)) assert.match(c, /texto_do_cliente/, c);
+    assert.ok(!ondeAparece(gj, '[historico]').length, 'campo a mais do histórico não passa');
+  } finally {
+    F.configurar({ sb: amb.sb, fonte: amb.fonte, jornada: amb.jornada, agora: amb.agora });
+  }
 });
