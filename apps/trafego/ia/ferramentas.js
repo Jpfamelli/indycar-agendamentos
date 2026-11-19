@@ -183,7 +183,8 @@ function problema(esq, v, caminho) {
     const props = esq.properties || {};
     for (const k of esq.required || []) if (v[k] == null) return `Falta "${caminho ? `${caminho}.` : ''}${k}".`;
     for (const [k, x] of Object.entries(v)) {
-      if (!props[k]) {
+      if (CHAVES_PROIBIDAS.has(k)) return `"${caminho ? `${caminho}.` : ''}${k}" não é um nome de argumento aceito.`;
+      if (!Object.hasOwn(props, k)) {
         if (esq.additionalProperties === false) return `"${caminho ? `${caminho}.` : ''}${k}" não existe aqui. Use só: ${Object.keys(props).join(', ') || '(nenhum argumento)'}.`;
         continue;
       }
@@ -195,6 +196,7 @@ function problema(esq, v, caminho) {
   return null;
 }
 
+const CHAVES_PROIBIDAS = new Set(['__proto__', 'constructor', 'prototype']);
 /** Argumentos limpos (sem nulos) ou ErroDeChamada('args'). */
 function validarArgs(entrada, args) {
   const a = args == null ? {} : args;
@@ -203,9 +205,9 @@ function validarArgs(entrada, args) {
   if (p) throw new ErroDeChamada('args', p);
   if ((a.de && !a.ate) || (a.ate && !a.de)) throw new ErroDeChamada('args', 'Mande "de" e "ate" juntos, ou use "periodo".');
   if ((a.de || a.ate) && a.periodo) throw new ErroDeChamada('args', 'Use "periodo" OU "de" e "ate", não os dois.');
-  const limpos = {};
-  for (const [k, v] of Object.entries(a)) if (v != null) limpos[k] = v;
-  return limpos;
+  const limpos = Object.create(null);
+  for (const [k, v] of Object.entries(a)) if (v != null && !CHAVES_PROIBIDAS.has(k)) limpos[k] = v;
+  return { ...limpos };
 }
 
 /** Converte a consulta da URL (texto) para os tipos do esquema (porta REST, GET). */

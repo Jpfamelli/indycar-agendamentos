@@ -62,16 +62,24 @@ function cors(req, res) {
 }
 
 /* ---------------- limite por IP / usuário ---------------- */
+const MAX_BALDES = 10000;
 function criarLimitador() {
-  const baldes = new Map();   // chave -> { n, inicio }
+  const baldes = new Map();   // chave -> { n, inicio, janela }
+  function faxina(agora) {
+    for (const [k, v] of baldes) if (agora - v.inicio >= v.janela) baldes.delete(k);
+    // ainda cheio (muitos endereços dentro da janela): solta os mais antigos até a metade
+    if (baldes.size > MAX_BALDES / 2) for (const k of baldes.keys()) { baldes.delete(k); if (baldes.size <= MAX_BALDES / 2) break; }
+  }
   function permitir(chave, max, janelaMs, agora = Date.now()) {
     let b = baldes.get(chave);
-    if (!b || agora - b.inicio >= janelaMs) { b = { n: 0, inicio: agora }; baldes.set(chave, b); }
+    if (!b || agora - b.inicio >= janelaMs) {
+      if (!b && baldes.size >= MAX_BALDES) faxina(agora);
+      b = { n: 0, inicio: agora, janela: janelaMs }; baldes.delete(chave); baldes.set(chave, b);
+    }
     b.n++;
-    if (baldes.size > 10000) for (const [k, v] of baldes) if (agora - v.inicio >= janelaMs) baldes.delete(k);
     return b.n <= max ? { ok: true } : { ok: false, esperar: Math.ceil((b.inicio + janelaMs - agora) / 1000) };
   }
-  return { permitir, limpar: () => baldes.clear() };
+  return { permitir, limpar: () => baldes.clear(), tamanho: () => baldes.size };
 }
 
 /* Rotas caras (IA, plataformas, WhatsApp, exportar): por usuário, em 10 min. */
@@ -100,10 +108,19 @@ const LIMITES_CAROS = {
   'POST /api/fechamento/enviar': 5,
 };
 
+/* Revisão de segurança (19/11): o primeiro item do X-Forwarded-For é o que o visitante escreve, então não serve
+   para limite. O Render fica atrás da Cloudflare, que grava o IP que viu em cf-connecting-ip (e apaga o que vier
+   do visitante). Sem ele: o ÚLTIMO item do X-Forwarded-For, que é o que o proxy acrescenta. É a mesma regra do
+   banco (trafego_rastreio_registrar). */
+const IP_VALIDO = /^[0-9a-f.:]{3,45}$/i;
 function ipDe(req) {
-  // Atrás do Render/Netlify o IP real vem no primeiro item do X-Forwarded-For.
-  const xff = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return xff || req.socket?.remoteAddress || 'desconhecido';
+  const h = (req && req.headers) || {};
+  const cf = String(h['cf-connecting-ip'] || '').trim();
+  if (IP_VALIDO.test(cf)) return cf;
+  const partes = String(h['x-forwarded-for'] || '').split(',').map(s => s.trim()).filter(Boolean);
+  const ultimo = partes.length ? partes[partes.length - 1] : '';
+  if (IP_VALIDO.test(ultimo)) return ultimo;
+  return (req && req.socket && req.socket.remoteAddress) || 'desconhecido';
 }
 
 /* ---------------- erros sem detalhe interno ---------------- */

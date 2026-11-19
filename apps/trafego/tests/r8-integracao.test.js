@@ -167,7 +167,7 @@ test('tela antiga e .env.exemplo: sem developer token; META_APP_SECRET documenta
 
 /* ---------------- chave das rotinas no cabeçalho ---------------- */
 
-test('rotinas: a chave vale no cabeçalho X-Cron-Chave ou em ?chave=; errada, vazia ou ausente dá 401', async () => {
+test('rotinas: a chave vale só no cabeçalho X-Cron-Chave; no endereço, errada, vazia ou ausente dá 401', async () => {
   const { servidor, ctxRotas } = require('../server');
   ctxRotas.rotaPublica('GET', '/api/cron/_t7b', ({ q: consulta, req }) => { ctxRotas.exigirCron(consulta, req); return { ok: true }; });
   await new Promise(r => servidor.listen(0, '127.0.0.1', r));
@@ -176,7 +176,7 @@ test('rotinas: a chave vale no cabeçalho X-Cron-Chave ou em ?chave=; errada, va
   try {
     const pedir = async (caminho, cabecalhos = {}) => (await fetch(base + caminho, { headers: cabecalhos })).status;
     assert.equal(await pedir('/api/cron/_t7b', { 'X-Cron-Chave': CHAVE }), 200);
-    assert.equal(await pedir(`/api/cron/_t7b?chave=${encodeURIComponent(CHAVE)}`), 200, 'o jeito antigo continua valendo');
+    assert.equal(await pedir(`/api/cron/_t7b?chave=${encodeURIComponent(CHAVE)}`), 401, 'revisão de segurança (19/11): chave no endereço não vale (fica em log de acesso)');
     assert.equal(await pedir('/api/cron/_t7b', { 'X-Cron-Chave': CHAVE + 'x' }), 401);
     assert.equal(await pedir('/api/cron/_t7b', { 'X-Cron-Chave': '' }), 401);
     assert.equal(await pedir('/api/cron/_t7b'), 401);
@@ -184,9 +184,10 @@ test('rotinas: a chave vale no cabeçalho X-Cron-Chave ou em ?chave=; errada, va
     for (const rota of ['/api/cron/cliques', '/api/cron/plano', '/api/cron/medir', '/api/cron/sync']) {
       assert.equal(await pedir(rota, { 'X-Cron-Chave': 'errada' }), 401, rota);
     }
-    // a rota chamada sem `req` (como nos testes antigos da coleta) segue lendo ?chave=
-    assert.doesNotThrow(() => ctxRotas.exigirCron(q(`chave=${CHAVE}`)));
-    assert.throws(() => ctxRotas.exigirCron(q('chave=outra')), e => e.status === 401);
+    // sem o pedido (sem cabeçalho) nenhuma chave serve, nem a certa no endereço
+    assert.throws(() => ctxRotas.exigirCron(q(`chave=${CHAVE}`)), e => e.status === 401);
+    assert.throws(() => ctxRotas.exigirCron(q(`chave=${CHAVE}`), { headers: {} }), e => e.status === 401);
+    assert.doesNotThrow(() => ctxRotas.exigirCron(q(''), { headers: { 'x-cron-chave': CHAVE } }));
   } finally {
     servidor.closeAllConnections?.();
     await new Promise(r => servidor.close(r));

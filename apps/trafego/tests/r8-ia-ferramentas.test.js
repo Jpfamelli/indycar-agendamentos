@@ -377,3 +377,16 @@ test('mascarar: telefone, e-mail e CPF; textoDoCliente corta em 300', () => {
   assert.equal(D.textoDoCliente('a'.repeat(500)).length, 300);
   assert.equal(D.textoDoCliente('  '), null);
 });
+
+
+test('revisão de segurança (19/11): __proto__, constructor e prototype não passam pela validação dos argumentos', () => {
+  const esq = { type: 'object', additionalProperties: false, properties: { limite: { type: 'integer', minimum: 1, maximum: 50 } } };
+  const ataque = JSON.parse('{"__proto__":{"limite":100000,"status":"x"}}');
+  assert.throws(() => F.validarArgs(esq, ataque), e => e.tipo === 'args' || /não é um nome/.test(e.message));
+  assert.throws(() => F.validarArgs(esq, JSON.parse('{"constructor":{"x":1}}')));
+  const limpos = F.validarArgs(esq, { limite: 10 });
+  assert.deepEqual(limpos, { limite: 10 });
+  assert.equal(Object.getPrototypeOf(limpos), Object.prototype);
+  // mesmo num esquema sem additionalProperties:false, a chave proibida é recusada
+  assert.throws(() => F.validarArgs({ type: 'object', properties: {} }, JSON.parse('{"__proto__":{"a":1}}')));
+});

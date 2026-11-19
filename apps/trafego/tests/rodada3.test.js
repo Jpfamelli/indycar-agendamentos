@@ -38,9 +38,30 @@ test('mensagemPublica: erro interno não vaza detalhe; frase pensada para a tela
   assert.equal(seg.mensagemPublica(Object.assign(new Error('IA fora'), { status: 503, publico: true })), 'IA fora');
 });
 
-test('ipDe: usa o primeiro IP do X-Forwarded-For (Render) e cai no socket', () => {
-  assert.equal(seg.ipDe({ headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1' }, socket: {} }), '1.2.3.4');
+test('ipDe: usa o IP que a Cloudflare viu; sem ele, o último item do X-Forwarded-For; nunca o primeiro (o visitante escreve)', () => {
+  // revisão de segurança (19/11): o primeiro item do X-Forwarded-For é inventável e furava todos os limites por IP
+  assert.equal(seg.ipDe({ headers: { 'cf-connecting-ip': '200.1.2.3', 'x-forwarded-for': '9.9.9.9, 200.1.2.3, 10.0.0.1' }, socket: {} }), '200.1.2.3');
+  assert.equal(seg.ipDe({ headers: { 'x-forwarded-for': '9.9.9.9, 10.0.0.1' }, socket: {} }), '10.0.0.1');
+  assert.equal(seg.ipDe({ headers: { 'cf-connecting-ip': 'lixo <script>', 'x-forwarded-for': '1.2.3.4' }, socket: {} }), '1.2.3.4');
+  assert.equal(seg.ipDe({ headers: { 'cf-connecting-ip': '2804:14c::1' }, socket: {} }), '2804:14c::1');
   assert.equal(seg.ipDe({ headers: {}, socket: { remoteAddress: '::1' } }), '::1');
+  // trocar o X-Forwarded-For a cada pedido não muda o balde quando a Cloudflare diz quem é
+  const lim = seg.criarLimitador();
+  let ok = 0;
+  for (let i = 0; i < 20; i++) {
+    const ip = seg.ipDe({ headers: { 'cf-connecting-ip': '200.1.2.3', 'x-forwarded-for': `10.0.${i}.1` }, socket: {} });
+    if (lim.permitir('api:' + ip, 10, 60000, 1000).ok) ok++;
+  }
+  assert.equal(ok, 10);
+});
+
+test('limitador: o mapa não passa do teto mesmo com milhares de endereços dentro da janela', () => {
+  const lim = seg.criarLimitador();
+  for (let i = 0; i < 25000; i++) lim.permitir('ip:' + i, 5, 600000, 1000 + i);
+  assert.ok(lim.tamanho() <= 10000, 'tamanho ' + lim.tamanho());
+  // quem está no balde continua contado
+  for (let i = 0; i < 5; i++) lim.permitir('ip:fixo', 5, 600000, 30000);
+  assert.equal(lim.permitir('ip:fixo', 5, 600000, 30001).ok, false);
 });
 
 const R1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', R2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

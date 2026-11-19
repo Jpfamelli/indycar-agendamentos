@@ -70,7 +70,9 @@ self.addEventListener('fetch', (e) => {
     try {
       const r = await comTempo(fetch(pedido), TEMPO_REDE_MS);
       if (r.ok) {
-        cache.put(chave, r.clone()).catch(() => {});
+        // navegação só fica guardada como "a tela" se a resposta for HTML (abrir /trafego/rastreio.js por um link não troca a tela)
+        const html = /text\/html/i.test(r.headers.get('content-type') || '');
+        if (pedido.mode !== 'navigate' || html) cache.put(chave, r.clone()).catch(() => {});
         return r;
       }
       if (r.status >= 500) {

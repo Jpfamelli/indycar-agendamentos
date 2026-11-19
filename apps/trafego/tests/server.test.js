@@ -54,7 +54,7 @@ test('token inválido também é 401 sem bater no Supabase (JWT vencido)', async
 });
 
 test('cron sem chave certa é 401', async () => {
-  const r = await pedir('/api/cron/sync?chave=errada', { metodo: 'POST' });
+  const r = await pedir('/api/cron/sync', { metodo: 'POST', cabecalhos: { 'X-Cron-Chave': 'errada' } });
   assert.equal(r.status, 401);
   assert.equal(r.json.erro, 'chave inválida');
 });

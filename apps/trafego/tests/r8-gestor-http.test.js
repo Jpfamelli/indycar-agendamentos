@@ -38,7 +38,9 @@ test('rotas do Gestor e do diário pelo servidor', async t => {
 
   const url = caminho => `http://127.0.0.1:${porta}${caminho}`;
   const pedir = async (metodo, caminho, papel, corpo) => {
-    const r = await fetch(url(caminho), { method: metodo, headers: { 'x-papel': papel || '', 'content-type': 'application/json' }, body: corpo ? JSON.stringify(corpo) : undefined });
+    // a chave das rotinas vai no cabeçalho X-Cron-Chave (o servidor não aceita mais ?chave=)
+    const u = new URL(url(caminho)); const chaveCron = u.searchParams.get('chave'); u.searchParams.delete('chave');
+    const r = await fetch(u, { method: metodo, headers: { 'x-papel': papel || '', 'content-type': 'application/json', ...(chaveCron != null ? { 'x-cron-chave': chaveCron } : {}) }, body: corpo ? JSON.stringify(corpo) : undefined });
     const bruto = await r.text();
     let json = null; try { json = JSON.parse(bruto); } catch { /* fluxo */ }
     return { status: r.status, cab: r.headers, corpo: json, bruto };

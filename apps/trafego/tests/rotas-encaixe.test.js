@@ -16,7 +16,7 @@ ctxRotas.rotaPublica('GET', '/_teste-publico.js', ({ res }) => {
 }, { corsLivre: true });
 ctxRotas.rotaPublica('POST', '/api/_teste/livre', () => ({ ok: true }), { corsLivre: true });
 ctxRotas.rotaPublica('GET', '/api/_teste/erro', () => { throw new ctxRotas.ErroHttp(422, 'faltou o campo'); });
-ctxRotas.rotaPublica('GET', '/api/cron/_teste', ({ q }) => { ctxRotas.exigirCron(q); return { ok: true }; });
+ctxRotas.rotaPublica('GET', '/api/cron/_teste', ({ q, req }) => { ctxRotas.exigirCron(q, req); return { ok: true }; });
 ctxRotas.rota('GET', /^\/api\/_teste\/logada\/(\d+)$/, ({ m }) => ({ n: Number(m[1]) }));
 
 let base;
@@ -96,7 +96,7 @@ test('erro lançado na rota pública sai em JSON com o status certo', async () =
 });
 
 test('rota pública de rotina confere a chave com exigirCron', async () => {
-  const r = await pedir('/api/cron/_teste?chave=errada');
+  const r = await pedir('/api/cron/_teste', { cabecalhos: { 'X-Cron-Chave': 'errada' } });
   assert.equal(r.status, 401);
   assert.equal(r.json.erro, 'chave inválida');
 });

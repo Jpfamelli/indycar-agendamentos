@@ -154,15 +154,17 @@ test('POST /api/fechamento/enviar: sem número = 400; demonstração = 400; com 
 });
 
 test('/api/cron/fechamento: chave errada = 401; fora do dia 1 não envia e diz o motivo; relatório desligado respeita o opt-in', async () => {
-  const errada = await fetch(base + '/api/cron/fechamento?chave=outra');
+  const errada = await fetch(base + '/api/cron/fechamento', { headers: { 'X-Cron-Chave': 'outra' } });
   assert.equal(errada.status, 401);
   cfg = { whatsapp_destinos: ['5512999999999'], relatorio_ativo: true, relatorio_hora: 0, margem_pct: 100 };
   enviados.length = 0;
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-  const r = await (await fetch(base + '/api/cron/fechamento?chave=chave-de-teste')).json();
+  const r = await (await fetch(base + '/api/cron/fechamento', { headers: { 'X-Cron-Chave': 'chave-de-teste' } })).json();
   if (hoje.slice(8, 10) !== '01') { assert.equal(r.enviado, false); assert.match(r.motivo, /dia 1/); assert.equal(enviados.length, 0); }
   cfg = { whatsapp_destinos: ['5512999999999'], relatorio_ativo: false, relatorio_hora: 0, margem_pct: 100 };
-  const desligado = await (await fetch(base + '/api/cron/fechamento?chave=chave-de-teste&forcar=1')).json();
+  const desligado = await (await fetch(base + '/api/cron/fechamento?forcar=1', { headers: { 'X-Cron-Chave': 'chave-de-teste' } })).json();
+  // a chave no endereço não vale mais (fica em log de acesso)
+  assert.equal((await fetch(base + '/api/cron/fechamento?chave=chave-de-teste')).status, 401);
   assert.equal(desligado.enviado, false); assert.match(desligado.motivo, /desligado/);
   assert.equal(enviados.length, 0);
 });

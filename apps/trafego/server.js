@@ -658,7 +658,8 @@ const ROTAS_COM_ERRO = [];
 function chaveDeCronOk(q, req) {
   if (!CRON_TOKEN) return false;
   const doCabecalho = req && req.headers ? req.headers['x-cron-chave'] : null;
-  const dada = String((typeof doCabecalho === 'string' && doCabecalho) || (q && typeof q.get === 'function' && q.get('chave')) || '');
+  // revisão de segurança (19/11): só o cabeçalho; ?chave= no endereço fica em log de acesso e não vale mais
+  const dada = String((typeof doCabecalho === 'string' && doCabecalho) || '');
   if (!dada) return false;
   const resumo = v => require('node:crypto').createHash('sha256').update(String(v)).digest();
   return require('node:crypto').timingSafeEqual(resumo(dada), resumo(CRON_TOKEN));
