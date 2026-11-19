@@ -1,0 +1,29 @@
+{
+  "name": "indycar-trafego",
+  "version": "0.6.0",
+  "description": "IndyCar Tráfego — de onde veio cada contato, quanto custou e como terminou (Meta e Google ligados ao CRM, Agenda, Orçador e Pátio)",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test --test-concurrency=1",
+    "mock": "node scripts/mock-server.mjs",
+    "sync": "node -e \"require('./coletor').sincronizar({dias:30}).then(r=>console.log(r))\"",
+    "demo": "node -e \"require('./coletor').popularDemo(45).then(r=>console.log(r))\"",
+    "radar": "node -e \"require('./radar').rodar({enviar:false}).then(r=>console.log(JSON.stringify(r,null,2)))\"",
+    "relatorio": "node -e \"require('./relatorio').gerarEEnviar({enviar:false}).then(r=>console.log(r.texto))\"",
+    "segredos": "node scripts/segredos.mjs",
+    "auditar": "npm audit --audit-level=high",
+    "e2e:tela": "node scripts/roteiro-navegador.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@supabase/supabase-js": "^2.112.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "axe-core": "^4.10.3",
+    "puppeteer-core": "^25.13.0"
+  }
+}

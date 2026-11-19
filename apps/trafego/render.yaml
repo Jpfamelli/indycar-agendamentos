@@ -1,0 +1,35 @@
+# Publicação no Render (opcional).
+# No plano gratuito o serviço dorme quando ninguém acessa, e um serviço
+# dormindo não roda o piloto automático. Por isso ADS_AUTOMATICO fica em 0
+# aqui: use um agendador externo (cron-job.org, por exemplo) chamando
+#   POST /api/cron/sync?chave=...        de hora em hora
+#   POST /api/cron/radar?chave=...       de hora em hora
+#   POST /api/cron/relatorio?chave=...   uma vez por dia, às 8h
+#   POST /api/cron/semanal?chave=...     segunda, 8h (resumo no sino, não WhatsApp)
+# O relatório só sai se, em Ajustes, "Enviar relatório diário" estiver
+# marcado E houver número cadastrado — desde 15/09/2026 está desligado.
+services:
+  - type: web
+    name: indycar-ads
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: node server.js
+    # /api/ping é público e devolve só {ok:true}; /api/saude exige login.
+    healthCheckPath: /api/ping
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ADS_CRON_TOKEN
+        generateValue: true
+      - key: ADS_AUTOMATICO
+        value: "0"
+      - key: ADS_DEMO
+        value: "1"

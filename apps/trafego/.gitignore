@@ -1,0 +1,20 @@
+# Segredos — o .env NUNCA entra no git
+.env
+.env.*
+!.env.exemplo
+
+# Dependências e lixo
+node_modules/
+*.log
+npm-debug.log*
+
+# Backups e temporários
+backups/
+*.bak
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Configuração local do editor/agente
+.claude/
+qa-out/

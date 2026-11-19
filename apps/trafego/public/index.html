@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0a0a0b" />
+<meta name="color-scheme" content="dark light" />
+<title>IndyCar · Central de Tráfego Pago</title>
+<script src="tema.js"></script>
+
+<!-- Rodada 4: fontes no próprio app (nada do Google; abrem do cache do aparelho com o servidor dormindo) -->
+<link rel="preload" href="/fontes/dm-sans-variavel.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0a0a'/><text y='.85em' x='8' font-size='78' font-family='sans-serif' font-weight='bold' fill='%23e50914'>I</text></svg>" />
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<!-- Rodada 4: servidor acordando (vale no login e no app) -->
+<div id="faixa-acordando" class="faixa faixa-acordando" role="status" aria-live="polite" hidden></div>
+
+<!-- ===================== LOGIN ===================== -->
+<section id="tela-login" class="login">
+  <div class="login-caixa">
+    <p class="marca">INDYCAR</p>
+    <h1>Central de<br />Tráfego Pago</h1>
+
+    <!-- entrar -->
+    <form id="form-login" class="passo-login" data-passo="entrar">
+      <p class="login-sub">Meta e Google num lugar só. Entre com a mesma conta do painel de atendimento.</p>
+      <label>E-mail<input type="email" id="login-email" autocomplete="username" required maxlength="160" /></label>
+      <label>Senha
+        <span class="campo-senha">
+          <input type="password" id="login-senha" autocomplete="current-password" required maxlength="200" />
+          <button type="button" class="btn-olho" data-olho="login-senha" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
+        </span>
+      </label>
+      <p class="mini caps" id="login-caps" role="status" hidden>Caps Lock ligado</p>
+      <div class="login-linha">
+        <label class="linha-check"><input type="checkbox" id="login-lembrar" /> Lembrar meu e-mail</label>
+        <button type="button" class="link" id="btn-esqueci">Esqueci a senha</button>
+      </div>
+      <button type="submit" class="btn btn-primario" id="btn-entrar">Entrar</button>
+    </form>
+
+    <!-- esqueci a senha -->
+    <form id="form-esqueci" class="passo-login" data-passo="esqueci" hidden>
+      <p class="login-sub">Mandamos um link para você criar uma senha nova. O envio de e-mail é limitado a poucos por hora; se não chegar, peça ao administrador uma senha temporária.</p>
+      <label>E-mail<input type="email" id="esqueci-email" autocomplete="username" required maxlength="160" /></label>
+      <button type="submit" class="btn btn-primario" id="btn-esqueci-enviar">Enviar link</button>
+      <button type="button" class="btn btn-fantasma" data-voltar-login>Voltar</button>
+    </form>
+
+    <!-- nova senha (link do e-mail ou troca obrigatória) -->
+    <form id="form-nova-senha" class="passo-login" data-passo="nova" novalidate hidden>
+      <p class="login-sub" id="nova-senha-sub">Crie uma senha nova para continuar.</p>
+      <label>Nova senha
+        <span class="campo-senha">
+          <input type="password" id="nova-senha" autocomplete="new-password" required minlength="8" maxlength="200" />
+          <button type="button" class="btn-olho" data-olho="nova-senha" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
+        </span>
+        <span class="dica">Mínimo 8 caracteres, diferente do seu e-mail.</span>
+      </label>
+      <label>Repita a senha<input type="password" id="nova-senha-2" autocomplete="new-password" required minlength="8" maxlength="200" /></label>
+      <button type="submit" class="btn btn-primario" id="btn-nova-senha">Salvar senha</button>
+      <button type="button" class="btn btn-fantasma" data-sair>Sair</button>
+    </form>
+
+    <!-- código de verificação (duas etapas) -->
+    <form id="form-mfa" class="passo-login" data-passo="mfa" hidden>
+      <p class="login-sub">Digite o código de 6 números do seu aplicativo autenticador.</p>
+      <label>Código<input type="text" id="mfa-codigo" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required /></label>
+      <button type="submit" class="btn btn-primario" id="btn-mfa">Confirmar</button>
+      <button type="button" class="btn btn-fantasma" data-sair>Sair</button>
+    </form>
+
+    <!-- sem acesso -->
+    <div id="painel-sem-acesso" class="passo-login" data-passo="sem-acesso" hidden>
+      <p class="login-sub"><strong>Você não tem acesso a este app.</strong> O Tráfego pago mostra verba e margem: só administradores e gestores liberados entram. Se precisa dele, peça ao administrador para marcar “ads” no seu perfil (Atendimento › Equipe).</p>
+      <p class="mini" id="sem-acesso-quem"></p>
+      <ul class="lista-apps" id="sem-acesso-apps"></ul>
+      <button type="button" class="btn btn-fantasma" data-sair>Sair</button>
+    </div>
+
+    <p class="recado" id="login-recado" role="alert" hidden></p>
+    <p class="recado ok" id="login-ok" role="status" hidden></p>
+  </div>
+</section>
+
+<!-- ===================== APP ===================== -->
+<div id="app" hidden>
+  <aside class="lateral" aria-label="Navegação principal">
+    <div class="lateral-topo">
+      <p class="marca">INDYCAR</p>
+      <label class="eco">
+        <span>Ecossistema IndyCar</span>
+        <select id="seletor-eco" aria-label="Ir para outro sistema do ecossistema IndyCar"></select>
+      </label>
+    </div>
+    <nav aria-label="Abas">
+      <button class="nav-item ativo" data-aba="painel" type="button" aria-current="page" title="Atalho: 1"><span>Painel <span class="pino" id="pino-acoes" aria-label="clientes esperando você" hidden>0</span></span><kbd aria-hidden="true">1</kbd></button>
+      <button class="nav-item" data-aba="leads" type="button" title="Atalho: 2"><span>Leads <span class="pino pino-leads" id="pino-leads" aria-label="leads de hoje" hidden>0</span></span><kbd aria-hidden="true">2</kbd></button>
+      <button class="nav-item" data-aba="resultados" type="button" title="Atalho: 3"><span>Resultados CRM</span><kbd aria-hidden="true">3</kbd></button>
+      <button class="nav-item" data-aba="campanhas" type="button" title="Atalho: 4"><span>Campanhas</span><kbd aria-hidden="true">4</kbd></button>
+      <button class="nav-item" data-aba="criativos" type="button" title="Atalho: 5"><span>Criativos</span><kbd aria-hidden="true">5</kbd></button>
+      <button class="nav-item" data-aba="radar" type="button" title="Atalho: 6"><span>Radar <span class="pino" id="pino-alertas" aria-label="alertas não lidos" hidden>0</span></span><kbd aria-hidden="true">6</kbd></button>
+      <button class="nav-item" data-aba="relatorios" type="button" title="Atalho: 7"><span>Relatórios</span><kbd aria-hidden="true">7</kbd></button>
+      <button class="nav-item" data-aba="ajustes" type="button" title="Atalho: 8"><span>Ajustes</span><kbd aria-hidden="true">8</kbd></button>
+    </nav>
+    <button class="btn btn-fantasma btn-busca" id="btn-busca" type="button" aria-haspopup="dialog" title="Buscar (Ctrl+K)">
+      <span aria-hidden="true">⌕</span> Buscar <kbd aria-hidden="true">Ctrl K</kbd>
+    </button>
+    <div class="lateral-rodape">
+      <div class="conta">
+        <button class="btn-avatar" id="btn-conta" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-conta">
+          <span class="avatar" id="avatar-letra" aria-hidden="true">?</span>
+          <span class="conta-txt"><strong id="quem-nome">—</strong><span id="quem-sou" class="mini"></span></span>
+        </button>
+        <div class="menu-conta" id="menu-conta" role="menu" hidden>
+          <button type="button" role="menuitem" data-menu="perfil">Meu perfil</button>
+          <button type="button" role="menuitem" data-menu="tarefas">Minhas tarefas <span class="pino" id="pino-tarefas" hidden>0</span></button>
+          <button type="button" role="menuitem" data-menu="senha">Trocar senha</button>
+          <button type="button" role="menuitem" data-menu="mfa">Verificação em duas etapas</button>
+          <button type="button" role="menuitem" data-menu="notif">Preferências de notificação</button>
+          <button type="button" role="menuitem" id="btn-tema" aria-pressed="false">☀ Claro</button>
+          <hr />
+          <button type="button" role="menuitem" id="btn-sair">Sair</button>
+          <button type="button" role="menuitem" id="btn-sair-todos">Sair de todos os aparelhos</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="conteudo" id="conteudo" tabindex="-1">
+    <div id="faixa-saude" class="faixa" role="status" aria-live="polite" hidden></div>
+    <!-- Rodada 5: modo sem chaves — tudo que aparece é demonstração até o João colar as chaves -->
+    <div id="faixa-demo" class="faixa faixa-demo" role="note" hidden></div>
+
+    <header class="topo">
+      <div>
+        <h2 id="titulo-aba" tabindex="-1">Painel <span class="selo selo-demo" id="selo-demo" hidden title="Números fabricados para demonstração">demo</span></h2>
+        <p class="mini" id="subtitulo-aba">Últimos 7 dias fechados</p>
+      </div>
+      <div class="topo-acoes">
+        <select id="filtro-periodo" aria-label="Período">
+          <option value="7" selected>Últimos 7 dias</option>
+          <option value="14">Últimos 14 dias</option>
+          <option value="30">Últimos 30 dias</option>
+          <option value="90">Últimos 90 dias</option>
+        </select>
+        <select id="filtro-plataforma" aria-label="Plataforma">
+          <option value="">Meta + Google</option>
+          <option value="meta">Só Meta</option>
+          <option value="google">Só Google</option>
+        </select>
+        <button class="btn btn-fantasma" id="btn-sync" type="button" title="Atalho: R">Atualizar dados</button>
+        <button class="btn btn-fantasma btn-ajuda" id="btn-ajuda" type="button" aria-haspopup="dialog" aria-label="Ajuda e atalhos" title="Ajuda (?)">?</button>
+        <div class="sino-caixa">
+          <button class="btn btn-fantasma btn-sino" id="btn-sino" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="painel-sino" aria-label="Notificações">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3a1.5 1.5 0 0 0-3 0v1.16A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+            <span class="pino" id="pino-sino" hidden>0</span>
+          </button>
+          <div class="painel-sino" id="painel-sino" role="dialog" aria-label="Notificações" hidden>
+            <div class="sino-topo"><strong>Notificações</strong><button type="button" class="link" id="sino-todas">Marcar todas como lidas</button></div>
+            <ul class="sino-lista" id="sino-lista"></ul>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ---------- PAINEL ---------- -->
+    <section class="aba" id="aba-painel" aria-labelledby="titulo-aba">
+      <div class="cartoes" id="cartoes"></div>
+
+      <!-- Rodada 5: leads de hoje no CRM, por canal, com link direto -->
+      <article class="cartao leads-hoje" aria-labelledby="titulo-leads-hoje">
+        <div class="cartao-topo">
+          <h3 id="titulo-leads-hoje">Leads de hoje no CRM</h3>
+          <div class="linha-botoes">
+            <button class="btn btn-fantasma btn-mini" type="button" id="btn-leads-hoje-lista">Ver a lista de hoje</button>
+            <a class="btn btn-fantasma btn-mini" data-eco="crm" href="#" target="_blank" rel="noopener noreferrer">Abrir o CRM</a>
+            <a class="btn btn-fantasma btn-mini" data-eco="atendimento" href="#" target="_blank" rel="noopener noreferrer">Abrir o Atendimento</a>
+          </div>
+        </div>
+        <div id="bloco-leads-hoje" aria-live="polite"><p class="mini">Conferindo o CRM…</p></div>
+      </article>
+
+      <!-- Rodada 7: fila "o que fazer agora": clientes de anúncio esperando o consultor, com atalhos para o CRM, a conversa, o orçamento e a OS -->
+      <article class="cartao" id="cartao-acoes" aria-labelledby="titulo-acoes">
+        <div class="cartao-topo">
+          <h3 id="titulo-acoes">O que fazer agora</h3>
+          <div class="linha-botoes">
+            <button class="btn btn-fantasma btn-mini" type="button" id="acoes-csv">Baixar CSV</button>
+            <button class="btn btn-fantasma btn-mini" type="button" id="acoes-atualizar">Atualizar</button>
+          </div>
+        </div>
+        <p class="mini">Clientes que vieram de anúncio e estão esperando alguém: orçamento aberto e sem resposta, desconto pedido, carro pronto sem retirar, lead novo parado. Os botões abrem cada tela na aba dela.</p>
+        <div id="bloco-acoes" aria-live="polite"><p class="mini">Conferindo o CRM, o Orçador e o Pátio…</p></div>
+      </article>
+
+      <!-- Rodada 6: carros dos leads de anúncio na oficina agora e orçamentos esperando resposta -->
+      <article class="cartao" id="cartao-oficina" aria-labelledby="titulo-oficina">
+        <div class="cartao-topo">
+          <h3 id="titulo-oficina">Oficina agora (leads de anúncio)</h3>
+          <div class="linha-botoes">
+            <button class="btn btn-fantasma btn-mini" type="button" id="btn-oficina-patio">Ver na aba Leads</button>
+            <a class="btn btn-fantasma btn-mini" data-eco="patio" href="#" target="_blank" rel="noopener noreferrer">Abrir o Pátio</a>
+            <a class="btn btn-fantasma btn-mini" data-eco="orcador" href="#" target="_blank" rel="noopener noreferrer">Abrir o Orçador</a>
+          </div>
+        </div>
+        <div id="bloco-oficina" aria-live="polite"><p class="mini">Conferindo o Pátio e o Orçador…</p></div>
+      </article>
+
+      <article class="cartao leitura" aria-labelledby="titulo-leitura">
+        <div class="cartao-topo">
+          <h3 id="titulo-leitura">Leitura da semana <span class="selo selo-ia">IA</span></h3>
+          <button class="btn btn-primario btn-mini" id="btn-leitura" type="button">Pedir leitura</button>
+        </div>
+        <div id="bloco-leitura" aria-live="polite"><p class="mini">Três frases sobre os últimos 7 dias fechados: o que aconteceu, por quê e o que fazer. A IA só sugere — nada muda nas campanhas.</p></div>
+      </article>
+
+      <div class="grade-2">
+        <article class="cartao alto">
+          <h3>Investimento por dia</h3>
+          <div id="grafico-gasto" class="grafico"></div>
+          <details class="tabela-grafico"><summary>Ver em tabela</summary><div id="tabela-gasto"></div></details>
+          <p class="legenda"><span class="chip chip-meta"></span> Meta <span class="chip chip-google"></span> Google</p>
+        </article>
+        <article class="cartao alto">
+          <h3>CPA e conversões</h3>
+          <div id="grafico-cpa" class="grafico"></div>
+          <details class="tabela-grafico"><summary>Ver em tabela</summary><div id="tabela-cpa"></div></details>
+          <p class="legenda"><span class="chip chip-linha"></span> CPA <span class="chip chip-barra"></span> Conversões</p>
+        </article>
+      </div>
+
+      <div class="grade-2">
+        <article class="cartao">
+          <h3>Plataformas</h3>
+          <div id="tabela-plataformas"></div>
+        </article>
+        <article class="cartao">
+          <h3>Mês corrente</h3>
+          <div id="bloco-mes"></div>
+        </article>
+      </div>
+
+      <article class="cartao">
+        <h3>Plataforma × CRM</h3>
+        <p class="mini">A plataforma conta “conversão”. O CRM conta venda fechada. A diferença entre as duas colunas é o que vale investigar.</p>
+        <div id="tabela-crm"></div>
+      </article>
+    </section>
+
+    <!-- ---------- LEADS (rodada 5) ---------- -->
+    <section class="aba" id="aba-leads" hidden>
+      <form id="form-leads" class="filtro-crm filtro-leads" aria-label="Filtros dos leads">
+        <label>Buscar<input type="search" id="leads-q" placeholder="nome, telefone, campanha…" autocomplete="off" maxlength="80" /></label>
+        <label>Canal
+          <select id="leads-canal">
+            <option value="">Todos os canais</option>
+            <option value="pagos">Só anúncios (Meta + Google)</option>
+            <option value="meta">Meta</option>
+            <option value="google">Google</option>
+            <option value="site">Site</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="indicacao">Indicação</option>
+            <option value="organico">Orgânico</option>
+            <option value="telefone">Telefone</option>
+          </select>
+        </label>
+        <label>Status
+          <select id="leads-status">
+            <option value="">Todos</option>
+            <option value="novo">Novo</option>
+            <option value="contato">Em contato</option>
+            <option value="orcamento">Orçamento</option>
+            <option value="agendado">Agendado</option>
+            <option value="em_servico">Em serviço</option>
+            <option value="concluido">Venda fechada</option>
+            <option value="perdido">Perdido</option>
+          </select>
+        </label>
+        <label>Etapa depois do CRM
+          <select id="leads-etapa">
+            <option value="">Qualquer</option>
+            <option value="oficina">Carro já entrou na oficina</option>
+            <option value="patio">Carro no pátio agora</option>
+            <option value="orc_esperando">Orçamento esperando resposta</option>
+            <option value="orc_quente">Abriu o orçamento e não respondeu</option>
+            <option value="desconto">Pediu desconto</option>
+            <option value="follow_vencido">Retorno combinado venceu</option>
+            <option value="orc_aprovado">Orçamento aprovado</option>
+            <option value="entregue">Carro entregue</option>
+            <option value="sem_orcamento">Agendado/em serviço sem orçamento</option>
+          </select>
+        </label>
+        <label>Quando
+          <select id="leads-quando">
+            <option value="hoje">Hoje</option>
+            <option value="ontem">Ontem</option>
+            <option value="7" selected>Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="mes">Mês corrente</option>
+            <option value="topo">Período do topo</option>
+          </select>
+        </label>
+        <label>Ordem
+          <select id="leads-ordem">
+            <option value="recentes" selected>Mais recentes</option>
+            <option value="antigos">Mais antigos</option>
+            <option value="valor">Maior valor</option>
+            <option value="nome">Nome A–Z</option>
+            <option value="parados">Mais parados (novos há mais tempo)</option>
+          </select>
+        </label>
+        <label class="linha-check"><input type="checkbox" id="leads-sem-resp" /> Só sem responsável</label>
+        <div class="linha-botoes">
+          <button class="btn btn-fantasma btn-mini" type="submit">Filtrar</button>
+          <button class="btn btn-fantasma btn-mini" type="button" id="leads-limpar">Limpar</button>
+          <button class="btn btn-fantasma btn-mini" type="button" id="leads-exportar" disabled>Exportar CSV</button>
+        </div>
+      </form>
+      <p id="leads-estado" class="mini" role="status" aria-live="polite"></p>
+      <div class="cartoes" id="leads-kpis"></div>
+      <article class="cartao">
+        <div class="cartao-topo">
+          <h3>Leads do período</h3>
+          <p class="mini" id="leads-criterio">Leads criados no CRM no período (horário de Brasília). Cada linha abre no CRM, no Atendimento ou na Agenda.</p>
+        </div>
+        <div id="lista-leads"></div>
+      </article>
+    </section>
+
+    <!-- ---------- RESULTADOS CRM ---------- -->
+    <section class="aba" id="aba-resultados" hidden>
+      <form id="form-periodo-crm" class="filtro-crm" aria-label="Período dos resultados">
+        <label>De<input type="date" id="crm-de" required /></label>
+        <label>Até<input type="date" id="crm-ate" required /></label>
+        <div class="linha-botoes">
+          <button class="btn btn-fantasma btn-mini" type="submit">Aplicar datas</button>
+          <button class="btn btn-fantasma btn-mini" type="button" id="crm-reset">Usar período do topo</button>
+          <button class="btn btn-fantasma btn-mini" type="button" id="crm-exportar" disabled>Exportar CSV</button>
+        </div>
+      </form>
+      <p id="crm-estado" class="mini" role="status" aria-live="polite"></p>
+      <div id="crm-aviso-demo" class="faixa" role="note" hidden></div>
+      <div class="cartoes" id="crm-kpis"></div>
+
+      <div class="grade-2">
+        <article class="cartao">
+          <h3>Do anúncio à venda</h3>
+          <div id="crm-funil"></div>
+        </article>
+        <article class="cartao">
+          <h3>Contra o período anterior</h3>
+          <div id="crm-comparacao"></div>
+        </article>
+      </div>
+
+      <article class="cartao">
+        <h3>Por canal</h3>
+        <div id="crm-canais"></div>
+      </article>
+      <article class="cartao">
+        <h3>Por campanha</h3>
+        <div id="crm-campanhas"></div>
+      </article>
+      <article class="cartao" id="cartao-ciclo">
+        <div class="cartao-topo">
+          <h3>Do anúncio ao carro entregue</h3>
+          <button class="btn btn-fantasma btn-mini" type="button" id="ciclo-exportar" disabled>Exportar CSV do ciclo</button>
+        </div>
+        <p class="mini">Os leads de anúncio que viraram orçamento no Orçador e carro no Pátio, com o custo de anúncio por carro. Os orçamentos e as OS abrem nas telas deles.</p>
+        <p id="ciclo-ligacao" aria-live="polite"></p>
+        <div id="crm-ciclo" aria-live="polite"></div>
+      </article>
+      <article class="cartao">
+        <h3>Quem converte os leads de anúncio</h3>
+        <p class="mini">Leads pagos do período por responsável no CRM (quem está com o lead). Mostra quanto cada pessoa agenda e fecha do que o tráfego trouxe.</p>
+        <div id="crm-equipe"></div>
+      </article>
+
+      <div class="grade-2">
+        <article class="cartao">
+          <h3>Avisos de atribuição</h3>
+          <div id="crm-alertas"></div>
+          <details class="guia"><summary>Como marcar os anúncios (UTM)</summary>
+            <ol class="mini">
+              <li>Meta: em cada anúncio, “Parâmetros de URL” → <code>utm_source=meta&amp;utm_campaign={{campaign.name}}</code>.</li>
+              <li>Google: sufixo do URL final → <code>utm_source=google&amp;utm_medium=cpc&amp;utm_campaign={campaignname}</code>.</li>
+              <li>O nome da campanha na UTM precisa ser igual ao do Gerenciador (maiúsculas e acentos não importam).</li>
+              <li>Ao concluir o serviço no CRM, lance o <strong>valor pago</strong> — sem ele a receita não aparece.</li>
+            </ol>
+            <a data-eco="crm" href="#" target="_blank" rel="noopener noreferrer">Abrir o CRM</a>
+          </details>
+        </article>
+        <article class="cartao">
+          <h3>Metas do mês</h3>
+          <p class="mini">Metas da loja, salvas no banco e vistas pela equipe toda. Contam os leads pagos criados no mês corrente.</p>
+          <form id="form-meta-crm" class="form-linha">
+            <label>Leads<input id="crm-meta-leads" type="number" min="1" max="100000" step="1" inputmode="numeric" /></label>
+            <label>Agendamentos<input id="crm-meta-ag" type="number" min="1" max="100000" step="1" inputmode="numeric" /></label>
+            <label>Vendas<input id="crm-meta" type="number" min="1" max="100000" step="1" inputmode="numeric" /></label>
+            <div class="linha-botoes">
+              <button type="submit" class="btn btn-fantasma btn-mini">Salvar metas</button>
+              <button type="button" id="crm-limpar-meta" class="btn btn-fantasma btn-mini">Limpar</button>
+            </div>
+          </form>
+          <div id="crm-progresso" role="status" aria-live="polite"></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ---------- CAMPANHAS ---------- -->
+    <section class="aba" id="aba-campanhas" hidden>
+      <article class="cartao">
+        <div class="cartao-topo">
+          <h3>Campanhas no período</h3>
+          <div class="linha-botoes">
+          <input type="search" id="busca-campanhas" class="busca-tabela" placeholder="filtrar campanhas…" aria-label="Filtrar campanhas pelo nome" autocomplete="off" />
+          <button class="btn btn-fantasma btn-mini" type="button" data-csv="campanha">Exportar CSV</button>
+          <select id="ordenar-campanhas" aria-label="Ordenar campanhas por">
+            <option value="gasto">Maior investimento</option>
+            <option value="conversoes">Mais conversões</option>
+            <option value="roas">Melhor ROAS</option>
+            <option value="ctr">Melhor CTR</option>
+            <option value="leads_crm">Mais leads no CRM</option>
+            <option value="custo_venda_crm">Menor custo por venda (CRM)</option>
+          </select>
+          </div>
+        </div>
+        <p class="mini">As colunas <strong>Leads</strong>, <strong>Vendas</strong>, <strong>Custo/lead</strong> e <strong>Custo/venda</strong> vêm do CRM, casando a <code>utm_campaign</code> com o nome da campanha. É o ciclo fechado: anúncio → lead → venda.</p>
+        <div id="tabela-campanhas"></div>
+      </article>
+    </section>
+
+    <!-- ---------- CRIATIVOS ---------- -->
+    <section class="aba" id="aba-criativos" hidden>
+      <article class="cartao">
+        <div class="cartao-topo">
+          <h3>Criativos no período</h3>
+          <div class="linha-botoes">
+            <input type="search" id="busca-criativos" class="busca-tabela" placeholder="filtrar criativos…" aria-label="Filtrar criativos pelo nome" autocomplete="off" />
+            <button class="btn btn-fantasma btn-mini" type="button" data-csv="anuncio">Exportar CSV</button>
+          </div>
+        </div>
+        <p class="mini">Frequência acima de 3 costuma indicar fadiga: as mesmas pessoas vendo o mesmo anúncio.</p>
+        <div id="tabela-criativos"></div>
+      </article>
+    </section>
+
+    <!-- ---------- RADAR ---------- -->
+    <section class="aba" id="aba-radar" hidden>
+      <div class="grade-2">
+        <article class="cartao">
+          <div class="cartao-topo">
+            <h3>Alertas recentes</h3>
+            <div class="linha-botoes">
+              <select id="filtro-severidade" aria-label="Filtrar alertas por severidade">
+                <option value="">Todas as severidades</option>
+                <option value="critico">Só críticos</option>
+                <option value="alerta">Só alertas</option>
+                <option value="info">Só informativos</option>
+              </select>
+              <button class="btn btn-fantasma btn-mini" id="btn-testar-radar" type="button">Testar agora</button>
+              <button class="btn btn-fantasma btn-mini" id="btn-marcar-lidos" type="button">Marcar lidos</button>
+              <button class="btn btn-fantasma btn-mini" id="btn-csv-alertas" type="button">Exportar CSV</button>
+            </div>
+          </div>
+          <div id="lista-alertas"></div>
+        </article>
+
+        <article class="cartao">
+          <div class="cartao-topo">
+            <h3>Regras <span class="mini" id="regras-conta"></span></h3>
+            <button class="btn btn-primario btn-mini" id="btn-nova-regra" type="button" title="Atalho: N">Nova regra</button>
+          </div>
+          <div id="lista-regras"></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ---------- RELATÓRIOS ---------- -->
+    <section class="aba" id="aba-relatorios" hidden>
+      <article class="cartao">
+        <div class="cartao-topo">
+          <h3>Relatório diário</h3>
+          <div class="linha-botoes">
+            <button class="btn btn-fantasma btn-mini" id="btn-previa" type="button">Gerar prévia</button>
+            <button class="btn btn-fantasma btn-mini" id="btn-copiar-relatorio" type="button" hidden title="Copiar o texto para colar no WhatsApp à mão">Copiar texto</button>
+            <button class="btn btn-primario btn-mini" id="btn-enviar-relatorio" type="button">Enviar no WhatsApp</button>
+          </div>
+        </div>
+        <p class="mini" id="relatorio-estado">A prévia não envia nada. O envio vai para os números cadastrados em Ajustes.</p>
+        <pre id="previa-relatorio" class="previa" hidden></pre>
+      </article>
+
+      <article class="cartao">
+        <div class="cartao-topo">
+          <h3>Resumo semanal no sino</h3>
+          <button class="btn btn-fantasma btn-mini" id="btn-semanal" type="button">Ver o resumo agora</button>
+        </div>
+        <p class="mini">Toda segunda, às 8h, os gestores recebem no sino o resumo da semana fechada (investido, leads, agendamentos, vendas, melhor CPA e o que gastou sem converter). Não vai pelo WhatsApp. O botão manda só para você.</p>
+        <p class="mini" id="semanal-estado" role="status" aria-live="polite"></p>
+      </article>
+
+      <article class="cartao" id="cartao-fechamento">
+        <div class="cartao-topo">
+          <h3>Fechamento do mês</h3>
+          <div class="linha-botoes">
+            <input type="month" id="fech-mes" aria-label="Mês do fechamento" />
+            <button class="btn btn-fantasma btn-mini" id="fech-gerar" type="button">Gerar</button>
+            <button class="btn btn-fantasma btn-mini" id="fech-csv" type="button" hidden>Baixar CSV</button>
+            <button class="btn btn-fantasma btn-mini" id="fech-copiar" type="button" hidden>Copiar texto</button>
+            <button class="btn btn-primario btn-mini" id="fech-enviar" type="button" hidden>Enviar no WhatsApp</button>
+          </div>
+        </div>
+        <p class="mini">Quanto o anúncio custou no mês, quantos carros entraram e foram entregues por causa dele e quanto já foi pago, contra o mês anterior. O envio vai para os números de Ajustes.</p>
+        <p class="mini" id="fech-estado" role="status" aria-live="polite"></p>
+        <pre id="fech-texto" class="previa" hidden></pre>
+      </article>
+
+      <article class="cartao">
+        <h3>Histórico</h3>
+        <div id="lista-relatorios"></div>
+      </article>
+    </section>
+
+    <!-- ---------- AJUSTES ---------- -->
+    <section class="aba" id="aba-ajustes" hidden>
+      <article class="cartao" id="cartao-preparo">
+        <h3>Do teste ao real</h3>
+        <div id="bloco-preparo" aria-live="polite"><p class="mini">Conferindo o que falta…</p></div>
+      </article>
+      <form id="form-config" class="form">
+        <div class="grade-2">
+          <article class="cartao">
+            <h3>Metas e orçamento</h3>
+            <label>CPA alvo (R$)<input type="number" step="0.01" min="0" id="cfg-cpa" /></label>
+            <label>ROAS alvo (x)<input type="number" step="0.1" min="0" id="cfg-roas" /></label>
+            <label>Orçamento do mês (R$)<input type="number" step="0.01" min="0" id="cfg-orcamento" /></label>
+            <label>Ticket médio (R$)<input type="number" step="0.01" min="0" id="cfg-ticket" /></label>
+            <label>Margem sobre o ticket (%)
+              <input type="number" step="0.1" min="0" max="100" id="cfg-margem" />
+              <span class="dica">Com 100, o “lucro” do painel é receita menos mídia. Com a margem real, vira lucro de verdade.</span>
+            </label>
+          </article>
+
+          <article class="cartao">
+            <h3>Avisos no WhatsApp</h3>
+            <div id="bloco-avisos" class="estado-avisos" aria-live="polite"></div>
+            <label>Números que recebem
+              <input type="text" id="cfg-destinos" inputmode="tel" placeholder="12 99999-8888, 12 98888-7777" autocomplete="off" />
+              <span class="dica">Separe por vírgula. Máximo 10 números. Sem número cadastrado, nada é enviado. <strong id="cfg-destinos-conta" aria-live="polite"></strong></span>
+            </label>
+            <div class="form-linha">
+              <label class="linha-check"><input type="checkbox" id="cfg-relatorio-ativo" /> Enviar relatório diário</label>
+              <label>Hora do envio (Brasília)<input type="number" min="0" max="23" id="cfg-relatorio-hora" /></label>
+            </div>
+            <div class="form-linha">
+              <label class="linha-check"><input type="checkbox" id="cfg-alertas-ativos" /> Radar de alertas ligado</label>
+              <label>Verificar a cada (min)<input type="number" min="15" max="1440" id="cfg-intervalo" /></label>
+            </div>
+            <div class="linha-botoes fim">
+              <button type="submit" class="btn btn-primario">Salvar</button>
+            </div>
+          </article>
+        </div>
+      </form>
+
+      <div class="grade-2">
+        <article class="cartao">
+          <h3>Canal de envio</h3>
+          <p class="mini">Relatório, alertas e teste entram na <strong>fila do Comunicar</strong> (como qualquer mensagem da casa) e saem pelo WhatsApp da oficina, seg–sáb 8h–21h, respeitando quem pediu PARAR. Este painel não fala com o CodeWords direto.</p>
+          <div id="bloco-whatsapp" class="estado-avisos"></div>
+          <div class="linha-botoes">
+            <button class="btn btn-fantasma btn-mini" id="btn-status-whatsapp" type="button">Conferir canal</button>
+            <button class="btn btn-fantasma btn-mini" id="btn-testar-whatsapp" type="button">Pôr um teste na fila</button>
+            <a class="btn btn-fantasma btn-mini" data-eco="comunicar" href="#" target="_blank" rel="noopener noreferrer">Abrir o Comunicar</a>
+          </div>
+          <div id="bloco-fila"></div>
+          <hr />
+          <h3>Piloto automático</h3>
+          <div id="bloco-saude"></div>
+        </article>
+
+        <article class="cartao">
+          <h3>Conexões</h3>
+          <details class="guia guia-chaves" id="guia-chaves">
+            <summary>Onde pegar cada chave (guia curto)</summary>
+            <ol class="mini">
+              <li><strong>Meta · número da conta</strong>: Gerenciador de Anúncios → Configurações da conta → o número ao lado de <code>act_</code>.</li>
+              <li><strong>Meta · token</strong>: Meta for Developers → seu app → Ferramentas → Explorador da API → marque <code>ads_read</code> → "Gerar token" → troque por um de longa duração (60 dias) e anote a validade em "Vence em".</li>
+              <li><strong>Google · ID do cliente</strong>: o número de 10 dígitos no topo do Google Ads (123-456-7890). Se a conta estiver numa MCC, também o ID da gerenciadora.</li>
+              <li><strong>Google · developer token</strong>: Google Ads → Ferramentas → Central da API (a aprovação do Google leva alguns dias; até lá só funciona em conta de teste).</li>
+              <li><strong>Google · Client ID e secret</strong>: Google Cloud Console → APIs e serviços → Credenciais → "ID do cliente OAuth" (app para computador).</li>
+              <li><strong>Google · refresh token</strong>: OAuth Playground com o escopo <code>https://www.googleapis.com/auth/adwords</code>, usando o Client ID/secret acima → "Exchange authorization code" → copie o <code>refresh_token</code>.</li>
+            </ol>
+            <p class="mini">Cole tudo nos formulários abaixo, toque em <em>Testar sem salvar</em> e depois em <em>Salvar</em>. Enquanto nenhuma chave real estiver salva, o painel mostra números de demonstração (marcados).</p>
+          </details>
+          <div id="lista-integracoes"></div>
+          <div class="linha-botoes">
+            <button class="btn btn-fantasma btn-mini" id="btn-testar-conexoes" type="button">Testar conexões</button>
+          </div>
+          <div id="resultado-conexoes" aria-live="polite"></div>
+
+          <details class="guia" id="guia-meta"><summary>Ligar a Meta (Facebook/Instagram) <span class="guia-progresso" id="progresso-meta"></span></summary>
+            <div class="passos-conexao" id="passos-meta" aria-live="polite"></div>
+            <p class="mini">Links: <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer">Meta for Developers</a> · <a href="https://adsmanager.facebook.com/" target="_blank" rel="noopener noreferrer">Gerenciador de Anúncios</a></p>
+            <form class="form form-cred" data-canal="meta" autocomplete="off">
+              <label>Número da conta de anúncios<input name="meta_ad_account_id" inputmode="numeric" placeholder="act_1234567890" /></label>
+              <label>Token de acesso<input name="meta_access_token" type="password" placeholder="EAA…" spellcheck="false" autocomplete="off" /></label>
+              <label>Vence em (opcional)<input name="meta_token_expira_em" type="date" /></label>
+              <p class="dica">Campo vazio mantém o que já está gravado. O token nunca volta para a tela.</p>
+              <div class="linha-botoes">
+                <button class="btn btn-fantasma btn-mini" type="button" data-acao="testar">Testar sem salvar</button>
+                <button class="btn btn-primario btn-mini" type="submit">Salvar</button>
+              </div>
+              <div class="resultado-cred" aria-live="polite"></div>
+            </form>
+          </details>
+
+          <details class="guia" id="guia-google"><summary>Ligar o Google Ads <span class="guia-progresso" id="progresso-google"></span></summary>
+            <div class="passos-conexao" id="passos-google" aria-live="polite"></div>
+            <p class="mini">Links: <a href="https://ads.google.com/" target="_blank" rel="noopener noreferrer">Google Ads</a> · <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer">Credenciais do Google Cloud</a> · <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer">OAuth Playground</a></p>
+            <form class="form form-cred" data-canal="google" autocomplete="off">
+              <div class="form-linha">
+                <label>ID do cliente<input name="google_customer_id" inputmode="numeric" placeholder="123-456-7890" /></label>
+                <label>Conta gerenciadora (MCC)<input name="google_login_customer_id" inputmode="numeric" placeholder="opcional" /></label>
+              </div>
+              <label>Developer token<input name="google_developer_token" type="password" spellcheck="false" autocomplete="off" /></label>
+              <label>Client ID<input name="google_client_id" placeholder="….apps.googleusercontent.com" spellcheck="false" /></label>
+              <label>Client secret<input name="google_client_secret" type="password" spellcheck="false" autocomplete="off" /></label>
+              <label>Refresh token<input name="google_refresh_token" type="password" spellcheck="false" autocomplete="off" /></label>
+              <p class="dica">Campo vazio mantém o que já está gravado. Nada disso volta para a tela.</p>
+              <div class="linha-botoes">
+                <button class="btn btn-fantasma btn-mini" type="button" data-acao="testar">Testar sem salvar</button>
+                <button class="btn btn-primario btn-mini" type="submit">Salvar</button>
+              </div>
+              <div class="resultado-cred" aria-live="polite"></div>
+            </form>
+          </details>
+          <hr />
+          <h3>Modo demonstração</h3>
+          <p class="mini">Dados fabricados para você ver o sistema funcionando antes de os tokens de Meta e Google saírem. Não se misturam com os reais — são marcados como <code>demo</code>.</p>
+          <div class="linha-botoes">
+            <button class="btn btn-fantasma btn-mini" id="btn-demo" type="button">Popular 45 dias</button>
+            <button class="btn btn-fantasma btn-mini" id="btn-limpar-demo" type="button">Limpar demonstração</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ===================== MINHA CONTA ===================== -->
+<dialog id="modal-conta" aria-labelledby="titulo-conta">
+  <div class="conta-modal">
+    <div class="cartao-topo">
+      <h3 id="titulo-conta">Minha conta</h3>
+      <button type="button" class="btn btn-fantasma btn-mini" data-fechar aria-label="Fechar">✕</button>
+    </div>
+    <div class="abas-conta" role="tablist" aria-label="Seções da conta">
+      <button type="button" role="tab" data-secao="perfil" aria-selected="true">Perfil</button>
+      <button type="button" role="tab" data-secao="senha" aria-selected="false">Senha</button>
+      <button type="button" role="tab" data-secao="mfa" aria-selected="false">Duas etapas</button>
+      <button type="button" role="tab" data-secao="notif" aria-selected="false">Notificações</button>
+    </div>
+
+    <form id="form-perfil" class="secao-conta" data-secao="perfil" role="tabpanel">
+      <div class="perfil-cabeca"><span class="avatar grande" id="perfil-avatar" aria-hidden="true">?</span>
+        <div><p><strong id="perfil-papel"></strong></p><p class="mini" id="perfil-email"></p><p class="mini" id="perfil-acesso"></p></div></div>
+      <label>Nome<input type="text" id="perfil-nome" maxlength="80" required autocomplete="name" /></label>
+      <div class="form-linha">
+        <label>Cargo<input type="text" id="perfil-cargo" maxlength="60" /></label>
+        <label>Telefone<input type="tel" id="perfil-telefone" inputmode="tel" maxlength="20" autocomplete="tel" /></label>
+      </div>
+      <fieldset class="cores"><legend>Cor do avatar</legend><div id="perfil-cores" class="linha-botoes"></div></fieldset>
+      <p class="mini">O e-mail é o do login e não muda por aqui.</p>
+      <div class="linha-botoes fim"><button type="submit" class="btn btn-primario">Salvar perfil</button></div>
+    </form>
+
+    <form id="form-trocar-senha" class="secao-conta" data-secao="senha" role="tabpanel" novalidate hidden>
+      <label>Nova senha
+        <span class="campo-senha">
+          <input type="password" id="troca-senha" autocomplete="new-password" minlength="8" maxlength="200" required />
+          <button type="button" class="btn-olho" data-olho="troca-senha" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
+        </span>
+        <span class="dica">Mínimo 8 caracteres, diferente do seu e-mail.</span>
+      </label>
+      <label>Repita a senha<input type="password" id="troca-senha-2" autocomplete="new-password" minlength="8" maxlength="200" required /></label>
+      <div class="linha-botoes fim"><button type="submit" class="btn btn-primario">Trocar senha</button></div>
+    </form>
+
+    <div class="secao-conta" data-secao="mfa" role="tabpanel" hidden>
+      <p class="mini">Com a verificação em duas etapas, além da senha você digita um código do aplicativo autenticador (Google Authenticator, Microsoft Authenticator, Authy…).</p>
+      <div id="mfa-estado"></div>
+      <div id="mfa-cadastro" hidden>
+        <p class="mini">1. Leia o QR code com o aplicativo. 2. Digite o código que aparecer.</p>
+        <img id="mfa-qr" alt="QR code para o aplicativo autenticador" width="180" height="180" />
+        <p class="mini">Sem câmera? Digite a chave: <code id="mfa-segredo"></code></p>
+        <form id="form-mfa-ativar" class="form-linha">
+          <label>Código<input type="text" id="mfa-ativar-codigo" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required /></label>
+          <div class="linha-botoes"><button type="submit" class="btn btn-primario btn-mini">Ativar</button></div>
+        </form>
+      </div>
+    </div>
+
+    <form id="form-notif" class="secao-conta" data-secao="notif" role="tabpanel" hidden>
+      <p class="mini">O que aparece no sino deste app.</p>
+      <label class="linha-check"><input type="checkbox" id="notif-alertas" /> Alertas do radar de tráfego</label>
+      <label class="linha-check"><input type="checkbox" id="notif-semana" /> Resumo semanal das campanhas (segunda, 8h)</label>
+      <div class="linha-botoes fim"><button type="submit" class="btn btn-primario">Salvar preferências</button></div>
+    </form>
+    <p class="recado" id="conta-recado" role="alert" hidden></p>
+  </div>
+</dialog>
+
+<!-- ===================== MINHAS TAREFAS ===================== -->
+<dialog id="modal-tarefas" aria-labelledby="titulo-tarefas">
+  <div class="cartao-topo">
+    <h3 id="titulo-tarefas">Minhas tarefas</h3>
+    <button type="button" class="btn btn-fantasma btn-mini" data-fechar aria-label="Fechar">✕</button>
+  </div>
+  <form id="form-tarefa" class="form-linha tarefa-nova">
+    <label>Nova tarefa<input type="text" id="tarefa-titulo" maxlength="140" required placeholder="Ex.: revisar UTMs da campanha de revisão" /></label>
+    <label>Vence em<input type="date" id="tarefa-vence" /></label>
+    <div class="linha-botoes"><button type="submit" class="btn btn-primario btn-mini">Criar</button></div>
+  </form>
+  <ul class="lista-tarefas" id="lista-tarefas" aria-live="polite"></ul>
+</dialog>
+
+<!-- ===================== MODAL DE REGRA ===================== -->
+<dialog id="modal-regra" aria-labelledby="titulo-regra">
+  <form id="form-regra" class="form" method="dialog" novalidate>
+    <h3 id="titulo-regra">Nova regra</h3>
+    <input type="hidden" id="regra-id" />
+    <label>Nome<input type="text" id="regra-nome" required maxlength="80" /></label>
+    <div class="form-linha">
+      <label>Onde olhar
+        <select id="regra-nivel">
+          <option value="conta">Conta inteira</option>
+          <option value="campanha" selected>Cada campanha</option>
+          <option value="conjunto">Cada conjunto</option>
+          <option value="anuncio">Cada criativo</option>
+        </select>
+      </label>
+      <label>Plataforma
+        <select id="regra-plataforma">
+          <option value="">Ambas</option>
+          <option value="meta">Meta</option>
+          <option value="google">Google</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-linha">
+      <label>Métrica
+        <select id="regra-metrica">
+          <option value="cpa">CPA</option>
+          <option value="roas">ROAS</option>
+          <option value="ctr">CTR (%)</option>
+          <option value="cpm">CPM</option>
+          <option value="cpc">CPC</option>
+          <option value="frequencia">Frequência</option>
+          <option value="gasto">Investimento</option>
+          <option value="conversoes">Conversões</option>
+          <option value="cliques">Cliques</option>
+          <option value="impressoes">Impressões</option>
+        </select>
+      </label>
+      <label>Quando for
+        <select id="regra-operador">
+          <option value=">">maior que</option>
+          <option value=">=">maior ou igual a</option>
+          <option value="<">menor que</option>
+          <option value="<=">menor ou igual a</option>
+        </select>
+      </label>
+      <label>Valor<input type="number" step="0.01" min="0" id="regra-valor" required /></label>
+    </div>
+    <div class="form-linha">
+      <label>Janela (dias)<input type="number" min="1" max="90" id="regra-janela" value="3" /></label>
+      <label>Severidade
+        <select id="regra-severidade">
+          <option value="info">Informativo</option>
+          <option value="alerta" selected>Alerta</option>
+          <option value="critico">Crítico</option>
+        </select>
+      </label>
+      <label>Repetir só após (h)<input type="number" min="1" max="720" id="regra-cooldown" value="24" /></label>
+    </div>
+    <div class="form-linha">
+      <label>Gasto mínimo (R$)<input type="number" step="0.01" min="0" id="regra-min-gasto" value="100" /></label>
+      <label>Impressões mínimas<input type="number" min="0" id="regra-min-impressoes" value="0" /></label>
+      <label>Conversões mínimas<input type="number" step="0.01" min="0" id="regra-min-conversoes" value="0" /></label>
+    </div>
+    <p class="dica">Os mínimos evitam alarme falso: sem eles, uma campanha com R$ 5 gastos dispara “sem conversão” todo dia.</p>
+    <label>Mensagem do aviso
+      <input type="text" id="regra-mensagem" maxlength="300" placeholder="{entidade} está com {metrica} em {valor} (limite {limite})." />
+      <span class="dica">Variáveis: <code>{entidade}</code> <code>{metrica}</code> <code>{valor}</code> <code>{limite}</code> <code>{janela}</code> <code>{plataforma}</code></span>
+    </label>
+    <p class="recado" id="regra-recado" role="alert" hidden></p>
+    <div class="linha-botoes fim">
+      <button type="button" class="btn btn-fantasma" id="btn-duplicar-regra" hidden title="Cria uma cópia desta regra para você ajustar">Duplicar</button>
+      <button type="button" class="btn btn-fantasma" id="btn-apagar-regra" hidden>Apagar</button>
+      <button type="button" class="btn btn-fantasma" id="btn-cancelar-regra">Cancelar</button>
+      <button type="submit" class="btn btn-primario">Salvar regra</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== BUSCA GLOBAL (Ctrl+K) ===================== -->
+<dialog id="modal-busca" class="modal-busca" aria-label="Buscar em tudo">
+  <form id="form-busca" role="search">
+    <input type="search" id="busca-q" placeholder="Busque campanha, criativo, regra, alerta, lead (nome ou telefone) ou aba…" aria-label="Buscar" autocomplete="off" maxlength="80" />
+  </form>
+  <ul class="busca-lista" id="busca-lista" role="listbox" aria-label="Resultados da busca"></ul>
+  <p class="mini busca-dica">↑↓ navega · Enter abre · Esc fecha. Telefone com 4+ dígitos procura no CRM.</p>
+</dialog>
+
+<!-- ===================== AJUDA E ATALHOS ===================== -->
+<dialog id="modal-ajuda" aria-labelledby="titulo-ajuda">
+  <div class="cartao-topo">
+    <h3 id="titulo-ajuda">Ajuda e atalhos</h3>
+    <button type="button" class="btn btn-fantasma btn-mini" data-fechar aria-label="Fechar">✕</button>
+  </div>
+  <div class="grade-2 ajuda">
+    <div>
+      <h4>Atalhos do teclado</h4>
+      <ul class="atalhos" id="lista-atalhos"></ul>
+    </div>
+    <div>
+      <h4>Como faço…</h4>
+      <ul class="mini comofaco">
+        <li><strong>…para saber quem está esperando você?</strong> Painel → “O que fazer agora”: orçamento que o cliente abriu e não respondeu, desconto pedido, carro pronto sem retirar, lead novo parado. Cada botão abre a conversa, o orçamento ou a OS na aba do app; “Copiar recado” leva um texto pronto para o WhatsApp e “Já tratei” esconde o item por hoje.</li>
+        <li><strong>…para mandar o fechamento do mês ao dono?</strong> Relatórios → “Fechamento do mês”: gera o texto (anúncio, carros, valor pago, custo por carro), copia ou manda no WhatsApp. No dia 1 ele sai sozinho se o relatório diário estiver ligado.</li>
+        <li><strong>…para saber o que falta para os números serem reais?</strong> Ajustes → “Do teste ao real” lista o que falta (chaves da Meta e do Google, número do WhatsApp, metas) em ordem.</li>
+        <li><strong>…para saber o que o anúncio virou na oficina?</strong> Resultados CRM → “Do anúncio ao carro entregue” (orçamento no Orçador, carro no Pátio, custo por carro). No Painel, “Oficina agora” mostra os carros e orçamentos de hoje; cada nome abre a OS ou o orçamento na aba do Pátio/Orçador.</li>
+        <li><strong>…para distribuir os leads sem responsável?</strong> Leads → KPI "Sem responsável" (ou o aviso no Painel) mostra quais são; a distribuição é no CRM.</li>
+        <li><strong>…para ver se o anúncio virou venda?</strong> Campanhas (colunas do CRM) ou Resultados CRM. A campanha casa pela <code>utm_campaign</code>.</li>
+        <li><strong>…para achar um lead pelo telefone?</strong> Ctrl+K e digite os 4 últimos dígitos, ou a aba Leads.</li>
+        <li><strong>…para ligar a Meta e o Google?</strong> Ajustes → Conexões → "Onde pegar cada chave". Até lá, os números são de demonstração.</li>
+        <li><strong>…para receber o relatório no WhatsApp?</strong> Ajustes → Avisos: cadastre o número e marque "Enviar relatório diário". Sai pela fila do Comunicar.</li>
+        <li><strong>…para parar um alerta repetido?</strong> Radar → clique na regra → aumente "Repetir só após" ou desligue o interruptor.</li>
+        <li><strong>…para exportar?</strong> Todo cartão com tabela tem "Exportar CSV" e respeita o filtro da tela.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="mini" id="ajuda-versao"></p>
+</dialog>
+
+<div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
+
+<script src="ecossistema.js"></script>
+<script src="rede.js"></script>
+<script src="busca.js"></script>
+<script src="guia-conexao.js"></script>
+<script src="vendor/supabase.js"></script>
+<script src="app.js"></script>
+<script src="ciclo.js"></script>
+<script src="operacao.js"></script>
+<script src="acoes.js"></script>
+<script src="conta.js"></script>
+</body>
+</html>
