@@ -175,7 +175,7 @@ test('dinheiro e números: formato do Brasil, espaço comum e null quando não s
   assert.equal(T.dinheiro(169), 'R$ 169');
   assert.equal(T.dinheiro(null), null);
   assert.equal(T.dinheiro(NaN), null);
-  assert.doesNotMatch(T.brl(1234.5), / /, 'sem espaço especial entre R$ e o número');
+  assert.doesNotMatch(T.brl(1234.5), /\u00a0/, 'sem espaço especial entre R$ e o número');
   assert.equal(T.inteiro(12345), '12.345');
   assert.equal(T.plural(1, 'contato', 'contatos'), '1 contato');
   assert.equal(T.plural(0, 'contato', 'contatos'), '0 contatos');
