@@ -173,7 +173,7 @@
   /* ---------------- resumo do dia (dono) ---------------- */
   async function copiarResumo(dono, agora) {
     const texto = M.resumoDoDia({ dono, agora, hojeIso: L.hojeSP() });
-    try { await navigator.clipboard.writeText(texto); C.toast('Resumo do dia copiado — é só colar no WhatsApp.'); }
+    try { await navigator.clipboard.writeText(texto); C.toast('Resumo do dia copiado. É só colar no WhatsApp.'); }
     catch { C.toast('Não consegui copiar neste navegador.'); }
   }
 
