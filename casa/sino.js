@@ -165,6 +165,9 @@
     const busca = $('#sinoBusca');
     if (busca) { busca.value = ''; busca.oninput = () => { buscaTexto = busca.value.trim().slice(0, 60); desenhar(); }; }
     $('#painelSino').onclick = (e) => {
+      // Ao redesenhar a lista, o botão clicado sai do DOM antes do clique
+      // chegar ao listener da página, que o confundiria com um clique fora.
+      e.stopPropagation();
       const grupo = e.target.closest('summary')?.parentElement;
       if (grupo?.dataset.grupoTipo) {
         if (grupo.open) gruposAbertos.delete(grupo.dataset.grupoTipo);
@@ -173,7 +176,12 @@
       const f = e.target.closest('[data-filtro]');
       if (f) { filtro = f.dataset.filtro; desenhar(); return; }
       const ler = e.target.closest('[data-ler]');
-      if (ler) { marcar(ler.dataset.ler.split(',')); return; }
+      if (ler) {
+        const tipo = ler.closest('[data-grupo-tipo]')?.dataset.grupoTipo;
+        marcar(ler.dataset.ler.split(','));
+        [...document.querySelectorAll('[data-grupo-tipo]')].find((el) => el.dataset.grupoTipo === tipo)?.querySelector('summary')?.focus();
+        return;
+      }
       const por = e.target.closest('[data-adiar-por]');
       if (por) {
         const o = lerAdiados(); o[por.dataset.adiarId] = N4().ateQuando(por.dataset.adiarPor, new Date()); gravarAdiados(o);
