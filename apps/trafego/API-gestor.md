@@ -12,6 +12,8 @@ Erro antes de qualquer resposta: JSON `{ erro: "frase para gente", codigo }` com
 
 ### `POST /api/gestor/perguntar` (resposta em fluxo)
 Corpo: `{ "pergunta": "texto (1 a 2000 letras)", "conversa_id": "uuid (opcional, continua uma conversa)", "dado_pessoal": false }`
+- `conversa_id` de um **plano da semana** (que é da oficina): abre uma conversa nova da pessoa que começa com o plano
+  (título "Sobre o plano da semana (dd/mm)"); o `conversa_id` do `fim` é o da conversa nova e o plano não muda.
 - `dado_pessoal: true` só vale para administrador (senão 403 `so_admin`): libera, só nesta pergunta, a ferramenta
   `conversa` (mensagens do WhatsApp de um contato) e o nome e o telefone completos. Fica na auditoria
   (`trafego_gestor_dado_pessoal`). Sem isso o Gestor roda **sem** dado pessoal (nome curto, telefone só o final).
@@ -32,7 +34,7 @@ Erros antes do fluxo (JSON):
 
 Resposta `200`, `Content-Type: text/event-stream; charset=utf-8`, `Cache-Control: no-store`. Cada evento é um bloco
 `event: <tipo>` + `data: <json numa linha>` + linha em branco. Linhas que começam com `:` só mantêm a conexão viva
-(ignore). Os tipos:
+(ignore): uma logo no começo e uma a cada 15 s. Os tipos:
 
 | Evento | `data` | Quando |
 |---|---|---|
@@ -120,7 +122,8 @@ Sem plano ainda: `"plano": null`. Sem a tabela: `"ligado": false`, `"plano": nul
 Gera um plano novo e devolve `{ "ok": true, "plano": { …o mesmo objeto…, "uso": { … } } }` (leva até 90 s; não é fluxo).
 Mesmos erros da pergunta (`limite_hora`, `limite_dia`, `sem_chave`, `ia_desligada`) e mais: 503 `sem_migracao` sem a tabela
 das conversas; 502 com `codigo` `modelo`, `modelo_ocupado`, `tempo` ou `recusa` quando a IA não terminou
-(`{ erro, codigo, plano }`, com o que chegou até ali).
+(`{ erro, codigo, plano }`, com o que chegou até ali). 409 `plano_em_andamento` se já há um plano sendo feito agora
+(neste servidor). O plano anterior continua valendo até sair um novo com texto (`GET` mostra o mais recente que tem texto).
 
 ### `POST /api/cron/plano?chave=` (rotina, sem login; também `GET`)
 O mesmo, chamado pela rotina da semana. 401 sem a chave certa. Responde `{ ok: true, plano: { id, feito_em, propostas, parou } }`
@@ -138,7 +141,8 @@ ou `{ ok: false, codigo, erro }`.
   "titulo": "Pausar a campanha Troca de óleo do Google", "porque": "Gastou R$ 319 em 30 dias e nenhum contato fechou.",
   "alvo": { "plataforma": "google", "nivel": "campanha", "ext": "2231", "nome": "Troca de óleo" },
   "alvo_rotulo": "Google › campanha Troca de óleo",
-  "evidencias": [ { "fonte": "campanhas", "dado": "gasto de R$ 319 de 21/10 a 19/11, 0 fechados", "valor": 319 } ],
+  "evidencias": [ { "fonte": "campanhas", "dado": "gasto de R$ 319 de 21/10 a 19/11, 0 fechados", "valor": 319,
+                    "texto": "gasto de R$ 319 de 21/10 a 19/11, 0 fechados" } ],   // texto = dado (+ ": valor" se o dado não tem o valor), pronto para a tela
   "verba": null,                                              // { "atual": 50, "nova": 60, "por": "dia" } nas de verba
   "risco": "normal", "risco_motivo": null,                    // "alto" + frase: aumento acima de 30% ou acima do teto do mês
   "status": "proposta", "status_rotulo": "Esperando decisão",
@@ -164,8 +168,8 @@ ou `{ ok: false, codigo, erro }`.
 ```
   `null` em número = não se sabe (sem conta ligada, sem valor lançado). `erro` = frase quando não deu para ler os números naquela hora.
 - `veredito` (escrito pelo servidor, nunca pela IA): `melhorou` "Melhorou" · `piorou` "Piorou" · `sem_diferenca` "Sem diferença clara" ·
-  `nao_mediu` "Não deu para medir"; `veredito_texto` explica com os números (ex.: "Melhorou: o custo por contato foi de R$ 48 para
-  R$ 36, comparando 06/10 a 12/10 com 14/10 a 20/10.").
+  `nao_mediu` "Não deu para medir"; `veredito_texto` explica com os números (ex.: "Melhorou: o custo por contato foi de R$ 48,00 para
+  R$ 36,00, comparando 06/10 a 12/10 com 14/10 a 20/10."; dinheiro abaixo de R$ 100 vai com centavos).
 
 **Como o servidor mede (regra simples e honesta):**
 1. Base: a campanha do alvo (Meta ou Google, nível campanha); a plataforma inteira para conta, conjunto, anúncio, palavra, termo,
