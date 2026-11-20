@@ -6,9 +6,9 @@
    ============================================================ */
 :root{
   /* ---- superfícies e texto (TEMA ESCURO, padrão) ---- */
-  --preto:#0a0a0b; --grafite:#121214; --carta:#161619; --linha:#26262b;
-  --vermelho:#e50914; --vermelho-esc:#b00710; --vermelho-luz:rgba(229,9,20,.5);
-  --branco:#f5f5f7; --cinza:#9a9aa0; --cinza-2:#6c6c72;
+  --preto:#070a14; --grafite:#0d1220; --carta:#111829; --linha:#283247;
+  --vermelho:#e6192e; --vermelho-esc:#b00710; --vermelho-luz:rgba(229,9,20,.5);
+  --branco:#f5f5f7; --cinza:#9a9aa0; --cinza-2:#959db1;
   --verde:#25d366; --amarelo:#f59e0b;
 
   /* ---- tokens semânticos novos (adaptam por tema) ---- */
@@ -57,7 +57,7 @@
    ============================================================ */
 :root[data-tema="claro"]{
   --preto:#eaecf0; --grafite:#f6f7f9; --carta:#ffffff; --linha:#e3e5ea;
-  --branco:#191a20; --cinza:#585b64; --cinza-2:#878a93;
+  --branco:#191a20; --cinza:#585b64; --cinza-2:#626876;
 
   --texto:#191a20;
   --texto-forte:#0c0d11;
@@ -2195,3 +2195,44 @@ button.app-chip:not(:disabled):hover{border-color:var(--vermelho);color:var(--te
 
 #faixaSaude.saude-codewords { background: #861e25; color: white; font-size: 1rem; padding-block: 10px; }
 #chatOrigem { display: block; overflow-wrap: anywhere; }
+
+/* Triagem e conversa. Os filtros principais ficam visíveis em duas linhas no celular. */
+#aba-conversas .filtros-status {
+  display:grid;
+  margin:0;
+  padding:0;
+  overflow:visible;
+  gap:4px;
+}
+.filtros-principais,.filtros-secundarios {
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+}
+.filtros-extras > summary {
+  cursor:pointer;
+  min-height:44px;
+  padding:10px 8px;
+  font-weight:700;
+}
+.filtros-secundarios {
+  border-top:1px solid var(--linha);
+  padding-top:4px;
+  max-height:140px;
+  overflow:auto;
+}
+.filtros-extras:has(.chip.ativo) > summary {
+  color:var(--vermelho-txt);
+}
+#aba-conversas :is(.chip,.seg,.btn-icone,.btn,.chat-voltar,.busca) {
+  min-height:44px;
+  min-width:44px;
+}
+.app :is(button,a,input,select,textarea,summary):focus-visible {
+  outline:2px solid var(--texto);
+  outline-offset:2px;
+}
+.chat-topo {
+  background:var(--grafite);
+  border-bottom:1px solid var(--linha);
+}

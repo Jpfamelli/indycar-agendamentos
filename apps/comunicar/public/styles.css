@@ -11,7 +11,7 @@
   --border:rgba(255,255,255,.07); --border-2:rgba(255,255,255,.10);
 
   /* ---- texto ---- */
-  --text:#e9ecf4; --text-forte:#ffffff; --muted:#8a92a7; --muted-2:#646c80;
+  --text:#e9ecf4; --text-forte:#ffffff; --muted:#8a92a7; --muted-2:#919ab0;
 
   /* ---- cores da marca e de dado ---- */
   --red:#e6192e; --red-2:#ff2d40; --red-soft:rgba(230,25,46,.14);
@@ -62,7 +62,7 @@
   --panel:#ffffff; --panel-2:#ffffff; --panel-3:#f5f6f9;
   --border:rgba(17,19,25,.10); --border-2:rgba(17,19,25,.15);
 
-  --text:#191a20; --text-forte:#0c0d11; --muted:#575b65; --muted-2:#7b7f8a;
+  --text:#191a20; --text-forte:#0c0d11; --muted:#575b65; --muted-2:#636875;
 
   --red-2:#d31427; --red-soft:rgba(230,25,46,.10);
   --green:#16a34a; --green-soft:rgba(22,163,74,.12);
@@ -1677,3 +1677,40 @@ textarea.invalido,.r6-param .inp.invalido{border-color:var(--red-2)!important}
 .r7-repetir{margin-top:6px}
 .r7-avancado h4{margin:16px 0 6px}
 @media (max-width:480px){.r7-num-grid{grid-template-columns:1fr 1fr}.r7-hora{grid-template-columns:38px 1fr 36px}}
+
+/* O início prioriza a fila e a saúde do WhatsApp. */
+.nav-mais,.inicio-mais-acoes,.inicio-detalhes { min-width:0; }
+:is(.nav-mais,.inicio-mais-acoes,.inicio-detalhes) > summary {
+  min-height:44px;
+  padding:10px 12px;
+  cursor:pointer;
+  font-weight:700;
+}
+.nav-mais:has([aria-current="page"]) > summary { color:var(--red-txt); }
+.inicio-detalhes > summary {
+  border-block:1px solid var(--border-2);
+  margin-bottom:12px;
+}
+.inicio-mais-acoes[open] {
+  background:var(--panel);
+  border:1px solid var(--border-2);
+}
+.inicio-mais-acoes > .btn { display:flex; width:100%; }
+.hero-dia {
+  border-bottom:1px solid var(--border-2);
+  padding-bottom:16px;
+  align-items:start;
+}
+.hero-titulo { text-wrap:balance; }
+.hero-acoes { align-items:start; }
+.stat-grid { font-variant-numeric:tabular-nums; }
+.sidebar,.topbar,.stat { background:var(--panel); }
+.stat { box-shadow:none; }
+:is(.nav-item,.view .btn,.view .item-btn,.view .icon-btn) {
+  min-width:44px;
+  min-height:44px;
+}
+:is(button,a,input,select,textarea,summary):focus-visible {
+  outline:2px solid var(--text);
+  outline-offset:2px;
+}

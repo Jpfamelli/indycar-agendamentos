@@ -329,7 +329,6 @@ async function renderInicio() {
   const [r, saude] = await Promise.all([api('GET', '/resumo'), api('GET', '/saude').catch(() => null)]);
   const s = r.satisfacao || {};
   const hoje = new Date();
-  const dataTxt = hoje.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', weekday:'long', day:'2-digit', month:'long' });
 
   let titulo;
   if (r.pausaGeral) titulo = `Envios pausados <span>· ligue de novo em Réguas › Envio</span>`;
@@ -340,7 +339,7 @@ async function renderInicio() {
   const htmlWhatsapp = (wa) => {
     if (!wa) return '<span class="dot"></span><span>WhatsApp <b>verificando…</b></span>';
     let dot = 'off', txt = 'WhatsApp <b>desconectado</b>';
-    if (wa.chaveRecusada) { txt = 'WhatsApp <b>chave recusada</b>'; }
+    if (wa.chaveRecusada) { txt = 'WhatsApp <b>parado: chave recusada</b>. Troque a chave em Atendimento › Configurações › Integrações.'; }
     else if (wa.conectado) { dot = 'on'; txt = `WhatsApp <b>conectado</b>${wa.numero ? ` · ${esc(telBR(wa.numero))}` : ''}`; }
     else if (wa.ok === false) { dot = 'warn'; txt = 'WhatsApp <b>sem resposta</b>'; }
     return `<span class="dot ${dot}"></span><span>${txt}</span>`;
@@ -362,18 +361,21 @@ async function renderInicio() {
       <span class="num${v.enviadas ? '' : ' zero'}">${v.enviadas}</span>
       <span class="num${v.respondidas ? '' : ' zero'}">${v.respondidas}${v.pararam ? `<small>${v.pararam} pediu p/ parar</small>` : ''}</span>
       <span class="num${v.agendaram ? '' : ' zero'}">${v.agendaram}</span>
-    </div>`).join('') : vazio(I.regua, 'Nada enviado nos últimos 30 dias', 'Ligue as réguas e as mensagens começam a sair sozinhas.');
+    </div>`).join('') : vazio(I.regua, 'Nada enviado nos últimos 30 dias', 'Confira a conexão do WhatsApp e as réguas.');
 
   const aniv = r.aniversariantesDoMes || [];
   const mesNome = hoje.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', month:'long' });
 
   view.innerHTML = `
     <div class="hero-dia">
-      <div><div class="hero-data">${esc(dataTxt)}</div><h2 class="hero-titulo">${titulo}</h2></div>
+      <div><h2 class="hero-titulo">${titulo}</h2></div>
       <div class="hero-acoes">
-        <button type="button" class="btn" id="btnPrevia">${svg(I.olho)} Prévia de hoje</button>
+        <button type="button" class="btn primary" id="btnPrevia">Prévia de hoje</button>
+        <details class="inicio-mais-acoes">
+          <summary>Mais ações</summary>
         <button type="button" class="btn" id="btnMes">${svg(I.calendar)} Próximos 30 dias</button>
-        ${pode('rodar') ? `<button type="button" class="btn primary" id="btnRodar">${svg(I.play)} Rodar agora</button>` : ''}
+        ${pode('rodar') ? `<button type="button" class="btn" id="btnRodar">${svg(I.play)} Rodar agora</button>` : ''}
+        </details>
       </div>
     </div>
     <div class="faixa-equipe" id="faixaEquipe" hidden></div>
@@ -396,6 +398,8 @@ async function renderInicio() {
       ${statCard('wa', s.pct === null || s.pct === undefined ? '—' : s.pct, 'Satisfação', I.smile, { sufixo:'%', sub: s.notaMedia ? `nota média ${String(s.notaMedia).replace('.', ',')} · ${s.total} respostas` : `${s.total || 0} respostas` })}
     </div>
 
+    <details class="inicio-detalhes">
+      <summary>Mais indicadores</summary>
     <div class="cols ia-cols" id="iaLinha">
       <div class="panel ia-panel-resumo"><div class="panel-head"><h2><span class="ia-selo">✨ IA</span> Resumo da semana</h2><span class="panel-sub">cache de 6 h</span></div>
         <div class="panel-body" id="iaResumo"><div class="skel" style="height:72px"></div></div></div>
@@ -429,7 +433,8 @@ async function renderInicio() {
           </div>
         </div>
       </div>
-    </div>`;
+    </div>
+    </details>`;
 
   animarNumeros(view);
   carregarLinhaIA();

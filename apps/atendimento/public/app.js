@@ -908,6 +908,8 @@ function trocarFiltroStatus(status) {
   filtroStatus = status || '';
   $$('#aba-conversas .filtros-status .chip').forEach(x => {
     const ativo = (x.dataset.status || '') === filtroStatus;
+    const extras = x.closest('#filtrosExtras');
+    if (ativo && extras) extras.open = true;
     x.classList.toggle('ativo', ativo);
     x.setAttribute('aria-pressed', ativo ? 'true' : 'false');
   });
@@ -5149,12 +5151,13 @@ async function verConexao({ silencioso = true } = {}) {
      topo da lateral.
      Chamada direta, não em requestAnimationFrame: em aba de fundo o rAF não
      roda, e a tarja acabava aparecendo sobreposta ao voltar para a aba. */
-  reservarEspacoDaTarja();
   if (tt) {
     tt.textContent = meio
       ? 'O WhatsApp está conectado, mas as mensagens não estão chegando no painel.'
-      : 'O WhatsApp da oficina está desconectado — nenhuma mensagem entra nem sai.';
+      : 'WhatsApp desconectado. Mensagens não entram nem saem. Abra Integrações para verificar a conexão.';
   }
+
+  reservarEspacoDaTarja();
 
   if (bolinha && texto) {
     bolinha.className = 'conexao-bolinha ' + (caiu ? 'ruim' : meio ? 'meio' : est.conectado ? 'ok' : '');
@@ -5328,6 +5331,8 @@ function restaurarPreferenciasDaLista() {
   if (doLink && FILTROS_URL.includes(doLink)) filtroStatus = doLink;
   $$('#aba-conversas .filtros-status .chip').forEach(x => {
     const ativo = (x.dataset.status || '') === filtroStatus;
+    const extras = x.closest('#filtrosExtras');
+    if (ativo && extras) extras.open = true;
     x.classList.toggle('ativo', ativo);
     x.setAttribute('aria-pressed', ativo ? 'true' : 'false');
   });
@@ -6563,20 +6568,7 @@ function ajustarNaoLidas(delta) {
   atualizarTituloDaAba(naoLidasBanco);
 }
 
-/* Chips numa linha só: a roda do mouse rola para o lado, e o chip ativo
-   (vindo do link ?filtro= ou de um clique) sempre fica à vista. */
-(() => {
-  const barra = $('#aba-conversas .filtros-status');
-  if (!barra) return;
-  barra.addEventListener('wheel', ev => {
-    if (Math.abs(ev.deltaY) <= Math.abs(ev.deltaX) || barra.scrollWidth <= barra.clientWidth) return;
-    ev.preventDefault();
-    barra.scrollLeft += ev.deltaY;
-  }, { passive: false });
-  const mostrarAtivo = () => $('.chip.ativo', barra)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  barra.addEventListener('click', () => setTimeout(mostrarAtivo, 0));
-  window.addEventListener('load', () => setTimeout(mostrarAtivo, 300));
-})();
+
 
 /* Rodada 3: o servidor agora manda CSP sem 'unsafe-inline' para scripts — atributo
    onclick="…" no HTML gerado deixou de rodar. Os botões "Tentar de novo" e
