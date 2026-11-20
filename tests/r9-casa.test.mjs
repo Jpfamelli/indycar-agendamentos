@@ -499,3 +499,16 @@ test('ficha: erro ao montar e respostas dos links são faladas ao leitor de tela
   assert.match(s, /<p class="vazio" role="status">Sem links para este cliente agora\.<\/p>/);
   assert.doesNotMatch(s, /<p class="vazio">/, 'nenhuma mensagem da ficha sem papel de aviso');
 });
+
+test('faturamento da semana: a comparação diz "a mais" / "a menos" em palavras (antes só a seta e a cor), sem "vs." nem "novo"', () => {
+  assert.equal(N.textoDaVariacao(null), null);
+  assert.deepEqual(N.textoDaVariacao(L.variacao(1120, 1000)), { classe: 'bom', seta: '▲', texto: '12% a mais' });
+  assert.deepEqual(N.textoDaVariacao(L.variacao(950, 1000)), { classe: 'ruim', seta: '▼', texto: '5% a menos' });
+  assert.deepEqual(N.textoDaVariacao(L.variacao(1000, 1000)), { classe: '', seta: '', texto: 'igual' });
+  assert.equal(N.textoDaVariacao(L.variacao(500, 0)).texto, 'a semana passada estava zerada');
+  assert.equal(N.textoDaVariacao(L.variacao(0, 0)), null, 'as duas zeradas: não compara');
+  const p = semComentarios(ler('painel.js'));
+  assert.match(p, /<span aria-hidden="true">\$\{t\.seta\}<\/span>/, 'a seta não é lida; a palavra é');
+  assert.doesNotMatch(p, /vs\. mesma altura|>novo</);
+  assert.match(p, /comparado com a semana passada até este mesmo dia/);
+});

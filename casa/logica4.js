@@ -288,6 +288,19 @@
     return `IndyCar Central, início. ${r.texto}`;
   }
 
+  /**
+   * Comparação do faturamento da semana com a semana passada, em palavras (rodada 9: antes era "▲ 12%" verde ou "▼ 5%"
+   * vermelho, e "novo" quando a semana passada estava zerada; a seta e a cor sozinhas não diziam se era bom).
+   * v vem de CasaLogica.variacao: null (sem dado), { novo }, ou { pct, sinal }.
+   */
+  function textoDaVariacao(v) {
+    if (!v) return null;
+    if (v.novo) return { classe: 'bom', seta: '', texto: 'a semana passada estava zerada' };
+    if (!v.sinal) return { classe: '', seta: '', texto: 'igual' };
+    const pct = Math.abs(v.pct);
+    return v.sinal > 0 ? { classe: 'bom', seta: '▲', texto: `${pct}% a mais` } : { classe: 'ruim', seta: '▼', texto: `${pct}% a menos` };
+  }
+
   /* ---------------- ligações quebradas entre sistemas (r7_x3_ligacoes_quebradas) ---------------- */
   const PESO_GRAV = { alta: 3, media: 2, baixa: 1 };
   const APP_DA_LIGACAO = [[/^Agenda/, 'agenda'], [/^Pátio/, 'patio'], [/^Orçador/, 'orcador'], [/^CRM/, 'crm'], [/^Atendimento/, 'atendimento'], [/^Comunicar/, 'comunicar']];
@@ -460,6 +473,6 @@
     ORIGENS_TAREFA, TIPOS_ORC_TAREFA, infoDaTarefa, ehDoOrcador, contarReabordar, linkDaDescricao, descricaoLimpa,
     NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, FAIXA_VIGIA, faixaDoVigia, saudeSistemas, resumoDaSaude,
     resumoLigacoes, ROTULO_ACAO, fichaDe, OPCOES_ADIAR, ateQuando, quandoVolta, acaoDoAviso, appDoAviso, textoDoAviso, filtrarPorTexto,
-    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc, rotuloDoLogo,
+    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc, rotuloDoLogo, textoDaVariacao,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

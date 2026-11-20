@@ -277,10 +277,9 @@
 
   /* ---------------- visão do dono ---------------- */
   function seta(v) {
-    if (!v) return '';
-    if (v.novo) return '<span class="delta bom">novo</span>';
-    if (!v.sinal) return '<span class="delta">igual</span>';
-    return `<span class="delta ${v.sinal > 0 ? 'bom' : 'ruim'}">${v.sinal > 0 ? '▲' : '▼'} ${Math.abs(v.pct)}%</span>`;
+    const t = window.CasaLogica4.textoDaVariacao(v);
+    if (!t) return '';
+    return `<span class="delta ${t.classe}">${t.seta ? `<span aria-hidden="true">${t.seta}</span> ` : ''}${C.esc(t.texto)}</span>`;
   }
   /* a CSP da Casa não deixa style="" no HTML: alturas e larguras entram pelo CSSOM */
   function medidas(raiz) {
@@ -294,7 +293,7 @@
     const o = d.orcamentos || {};
     $('#donoTiles').innerHTML =
       tile('Faturamento hoje', C.esc(L.brl(f.hoje)), `${f.fechados_hoje || 0} fechado${f.fechados_hoje === 1 ? '' : 's'} · ontem ${C.esc(L.brl(f.ontem))}`) +
-      tile('Faturamento da semana', C.esc(L.brl(f.semana)), `${f.fechados_semana || 0} fechados · média de ${C.esc(L.brl(f.ticket_semana))} por carro`, seta(L.variacao(f.semana, f.semana_passada)) + '<small class="tile-peq">vs. mesma altura da semana passada</small>') +
+      tile('Faturamento da semana', C.esc(L.brl(f.semana)), `${f.fechados_semana || 0} fechados · média de ${C.esc(L.brl(f.ticket_semana))} por carro`, seta(L.variacao(f.semana, f.semana_passada)) + '<small class="tile-peq">comparado com a semana passada até este mesmo dia</small>') +
       tile('Faturamento do mês', C.esc(L.brl(f.mes)), 'só conta quem foi marcado "fechou" na Agenda') +
       tile('Orçamentos aprovados (30 dias)', C.esc(L.brl(o.valor_aprovado)), `${o.aprovados || 0} de ${o.enviados || 0} enviados${conv.orcAprovados === null ? '' : ' · ' + conv.orcAprovados + '%'}`);
     const bs = L.barras(d.serie7);
