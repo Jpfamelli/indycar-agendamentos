@@ -1431,3 +1431,7 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-005** · conserto · Valores do lead rejeitam booleanos em vez de convertê-los em valores monetários (teste R10-CRM-005 em testes/r10-json.test.cjs) · `4911a42`
 - **R10-CRM-006** · conserto · Cadastro exige texto no campo de placa (teste R10-CRM-006 em testes/r10-json.test.cjs) · `4911a42`
 - **R10-CRM-007** · conserto · Motivo de perda exige uma opção em texto (teste R10-CRM-007 em testes/r10-json.test.cjs) · `4911a42`
+- **R10-CRM-008** ? seguran?a ? Perfil rejeita nome enviado como n?mero (teste R10-CRM-008 em testes/r10-perfil.test.cjs) ? `60fc802`
+- **R10-CRM-009** ? seguran?a ? Perfil rejeita cargo enviado como objeto (teste R10-CRM-009 em testes/r10-perfil.test.cjs) ? `60fc802`
+- **R10-CRM-010** ? seguran?a ? Perfil rejeita telefone com letras sem normaliz?-lo silenciosamente (teste R10-CRM-010 em testes/r10-perfil.test.cjs) ? `60fc802`
+- **R10-CRM-011** ? seguran?a ? Perfil exige texto hexadecimal no campo da cor do avatar (teste R10-CRM-011 em testes/r10-perfil.test.cjs) ? `60fc802`
