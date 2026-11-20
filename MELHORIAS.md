@@ -1320,7 +1320,7 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R9-AGE-068** · acessibilidade · Quadro: a grade ganha linhas de verdade para o leitor de tela (cabeçalho e cada horário), sem mudar o desenho · `75ebed2`
 - **R9-AGE-069** · acessibilidade · Tabelas que rolam de lado (Clientes, Equipe, Pendências, Histórico, Janelas, CRM e relatório da Semana) recebem foco pelo teclado e têm nome · `75ebed2`
 - **R9-AGE-070** · acessibilidade · WhatsApp: o campo "URL do Webhook" fica ligado ao rótulo dele · `75ebed2`
-- **R9-AGE-071** · acessibilidade · Janelas "Enviar WhatsApp" e "Novo modelo": o X de fechar passa a ter nome ("Fechar") · `75ebed2`
+- **R9-AGE-071** · acessibilidade · Janela "Veio e fechou": o botão da sugestão mostra e fala a mesma coisa ("Usar R$ 1.890,00"); antes o nome falado era diferente do texto · `c3a42fe`
 - **R9-AGE-072** · celular · Início: os avisos do dia (sem telefone, sem valor, para fechar) viram uma fila que rola de lado; a lista de horários aparece na primeira tela · `75ebed2`
 - **R9-AGE-073** · celular · Menu do celular: rótulos de 8 para 9 px e "PENDÊNCIAS" deixa de quebrar em duas linhas · `75ebed2`
 - **R9-AGE-074** · tela · Quadro: cartões sem a faixa grossa colorida na lateral; a cor do estado vira uma marca pequena ao lado da hora · `75ebed2`
@@ -1332,3 +1332,32 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R9-AGE-080** · texto · Relatórios, ocupação por dia: o número solto vira "3 horários" ao lado das faltas · `75ebed2`
 - **R9-AGE-081** · conserto · Semana: horas de serviço com vírgula ("0,7 h"), não com ponto · `75ebed2`
 - **R9-AGE-082** · teste · Medição no navegador das 18 telas em 375 e 1440 px, claro e escuro (rolagem lateral, toque de 44 px, axe-core e travessão), com servidor de mentira: `scripts/qa-r9-agenda.mjs` · `75ebed2`
+
+- **R9-AGE-083** · segurança · Conectores: salvar o webhook recusa endereço sem https ou de rede interna (localhost, IP, nome de máquina) e diz o porquê · `c3a42fe`
+- **R9-AGE-084** · segurança · Conectores: o botão de testar o webhook não faz o servidor chamar endereço interno nem seguir redirecionamento · `c3a42fe`
+- **R9-AGE-085** · aviso · Conectores: o teste do webhook espera no máximo 8 s e responde em português ("não respondeu em 8 segundos"), sem mostrar o erro cru da rede · `c3a42fe`
+- **R9-AGE-086** · segurança · Conectores: o teste do webhook tem freio de 10 por minuto por pessoa · `c3a42fe`
+- **R9-AGE-087** · segurança · Webhook de saída: endereço interno que já estava salvo deixa de ser chamado; a chamada tem teto de 8 s e não segue redirecionamento · `c3a42fe`
+- **R9-AGE-088** · conserto · Serviços: o servidor recusa nome em branco, preço negativo e duração fora de 5 a 1440 min, ao criar e ao editar (antes gravava) · `c3a42fe`
+- **R9-AGE-089** · conserto · Modelos do WhatsApp: nome e texto obrigatórios e com limite; editar não deixa mais o modelo em branco · `c3a42fe`
+- **R9-AGE-090** · segurança · Apagar um serviço passa a ficar registrado na auditoria (quem e quando) · `c3a42fe`
+- **R9-AGE-091** · segurança · Apagar um modelo do WhatsApp passa a ficar registrado na auditoria · `c3a42fe`
+- **R9-AGE-092** · conserto · Apagar um consultor que não existe devolve "não encontrado" e não grava um "apagou" falso na auditoria · `c3a42fe`
+- **R9-AGE-093** · conserto · Dados da oficina: tamanho do nome, do endereço e da frase e o telefone são conferidos; só esses quatro campos vão para o banco · `c3a42fe`
+- **R9-AGE-094** · texto · Recados de desfecho, de desfazer e de copiar (Veio e fechou, Não veio, Chegou, telefone copiado) sem travessão · `c3a42fe`
+- **R9-AGE-095** · texto · Login e sessão (sessão expirada, muitas tentativas, Caps Lock, "Já tenho conta, entrar") em frases curtas, sem travessão · `c3a42fe`
+- **R9-AGE-096** · texto · Faixas e recados de conexão ("Sem internet. O que você marcar agora fica guardado...", "O sistema voltou") em frases separadas · `c3a42fe`
+- **R9-AGE-097** · texto · Títulos sem travessão: "Follow-up: retornos pendentes", subtítulo das Pendências e cabeçalho da folha impressa do dia · `c3a42fe`
+- **R9-AGE-098** · texto · Ajuda e tour: respostas reescritas sem travessão (Remarcar, Ver tudo de um cliente, Não veio) · `c3a42fe`
+- **R9-AGE-099** · texto · Configurações, Equipe, Serviços e WhatsApp: notas sem travessão e a janela de atendimento lida como "08:00 às 12:00" · `c3a42fe`
+- **R9-AGE-100** · texto · Quadro e Semana: avisos de mover e de arrastar, lembrete desligado e o texto do dia que se copia para o WhatsApp sem travessão · `c3a42fe`
+- **R9-AGE-101** · texto · Listas de escolha: "sem login ligado" e "Mensagem livre" sem os traços em volta · `c3a42fe`
+- **R9-AGE-102** · texto · Recados que vêm do servidor (horário que já teve desfecho, fila do Comunicar, tarefas e avisos automáticos, nome do calendário no Google Agenda) sem travessão · `c3a42fe`
+- **R9-AGE-103** · tela · Sai o brilho de enfeite dos botões "Horários livres", da linha "Próximos dias" e do botão de sugerir valor das Pendências (que ganha o ícone de dinheiro) · `c3a42fe`
+- **R9-AGE-104** · conserto · A Ajuda citava um botão "Sugerir horário" que não existe com esse nome; agora cita "Horários livres" e "Achar pelo nome" · `c3a42fe`
+- **R9-AGE-105** · tela · Texto em Archivo, a fonte do guia visual do ecossistema, no lugar da Inter · `c3a42fe`
+- **R9-AGE-106** · desempenho · Fontes servidas do próprio app: três conexões e uma folha de estilo de fora a menos na abertura, um dia de cache e a fonte dentro da casca que abre sem internet · `c3a42fe`
+- **R9-AGE-107** · segurança · A política de conteúdo da Agenda não libera mais os domínios de fonte de fora (estilo e fonte só do próprio app) · `c3a42fe`
+- **R9-AGE-108** · tela · Botões principais ("Novo agendamento", salvar, filtro ativo) em vermelho chapado, sem gradiente · `c3a42fe`
+- **R9-AGE-109** · acessibilidade · Botão verde: letra branca sobre verde claro dava 3,3; com o verde mais fechado passa de 4,5:1 · `c3a42fe`
+- **R9-AGE-110** · tela · Novo agendamento: o campo "Marcar rápido" segue o desenho dos outros campos (antes o campo cru do navegador) · `c3a42fe`
