@@ -2440,18 +2440,9 @@ function servirArquivo(req, res, filePath, info) {
    o supabase-js do jsDelivr (as fontes são do próprio app desde a rodada 9); fala com o Supabase direto
    do navegador (login). frame-ancestors 'none' = ninguém embute a Agenda num
    iframe (clickjacking). */
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self'",
-  "img-src 'self' data: blob:",
-  // jsdelivr: o service worker guarda a biblioteca do login (versão fixa) para a casca abrir sem rede
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ');
+/* rodada 10: a tela só fala com o projeto do Supabase configurado (antes valia qualquer projeto do supabase.co, inclusive
+   o projeto de outra pessoa: um script injetado mandaria dados para lá). A regra está em regras.js › politicaDeConteudo. */
+const CSP = politicaDeConteudo(SUPA_URL);
 function cabecalhosDeSeguranca(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');

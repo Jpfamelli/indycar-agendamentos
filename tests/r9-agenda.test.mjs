@@ -200,7 +200,7 @@ test('R9 lote 7: fontes do próprio app (Archivo e Barlow Condensed), sem Inter 
     assert.ok(ler('public/sw.js').includes(`'fontes/${arq}'`), arq + ' na casca guardada');
   }
   assert.ok(html.includes('<link rel="preload" href="./fontes/archivo-variavel.woff2" as="font" type="font/woff2" crossorigin />'));
-  const srv = ler('server.js');
+  const srv = ler('server.js') + ler('regras.js');   // rodada 10: a política de conteúdo mora em regras.js (politicaDeConteudo)
   assert.ok(srv.includes(`"font-src 'self'",`) && srv.includes(`"style-src 'self' 'unsafe-inline'",`));
   assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(srv));
 });
