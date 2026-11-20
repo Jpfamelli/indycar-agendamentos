@@ -401,3 +401,13 @@ test('recolher cartão: o nome do botão diz a ação e o cartão de agora (mec�
   assert.match(f, /\(fechado \? 'Mostrar a lista de ' : 'Esconder a lista de '\) \+ rot/);
   assert.match(s, /C\.aoAgora = \(d\) => \{ pintarMeuDia\(d\); ligarRecolher\(\); \};/, 'refaz depois de cada desenho do painel');
 });
+
+test('tarefas: o foco não se perde (concluir vai para a próxima, adiar fica na mesma); botões de adiar dizem quanto', () => {
+  const s = semComentarios(ler('tarefas.js'));
+  assert.match(s, /focar\(proxima \? seletorDe\('data-tarefa', proxima\) : '#tTitulo'\);/);
+  assert.match(s, /focar\(seletorDe\(dias > 1 \? 'data-adiar-mais' : 'data-adiar', id\)\);/);
+  assert.match(s, />adiar 1 dia<\/button>/);
+  assert.match(s, />adiar 3 dias<\/button>/);
+  assert.doesNotMatch(s, />adiar ›<|>\+3 dias</);
+  for (const [vis, nome] of [['adiar 1 dia', 'Adiar 1 dia útil: '], ['adiar 3 dias', 'Adiar 3 dias úteis: ']]) assert.ok(nome.toLowerCase().startsWith(vis), 'o nome falado começa pelo texto que se vê: ' + vis);
+});

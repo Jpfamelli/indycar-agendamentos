@@ -263,6 +263,19 @@ try {
   await e.page.close();
   });
 
+  // 18. tarefas pelo teclado: depois de concluir o foco vai para a próxima; depois de adiar fica na mesma
+  await passo("18. tarefas: o foco não se perde ao concluir nem ao adiar", async () => {
+  const t = await abrir({ papel: 'admin' }, 1440);
+  const ids = await t.page.$$eval('#listaTarefas li[data-tid]', (lis) => lis.map((li) => li.dataset.tid));
+  await t.page.focus(`[data-tarefa="${ids[0]}"]`); await t.page.keyboard.press('Space'); await espera(500);
+  const foco1 = await t.page.evaluate(() => { const a = document.activeElement; return a ? (a.dataset.tarefa || a.id || a.tagName) : ''; });
+  conferir('concluir pelo teclado: o foco vai para a tarefa seguinte', foco1 === ids[1], foco1 + ' (esperado ' + ids[1] + ')');
+  await t.page.focus(`[data-adiar="${ids[1]}"]`); await t.page.keyboard.press('Enter'); await espera(400);
+  const foco2 = await t.page.evaluate(() => { const a = document.activeElement; return a ? (a.dataset.adiar || a.id || a.tagName) : ''; });
+  conferir('adiar pelo teclado: o foco fica no adiar da mesma tarefa', foco2 === ids[1], foco2);
+  await t.page.close();
+  });
+
   // 17. busca que falhou tem "tentar de novo" (antes só apagando e digitando de novo)
   await passo("17. busca com erro oferece tentar de novo", async () => {
   const b = await abrir({ papel: 'admin', falhar: ['r6_busca_global'] }, 1440);
