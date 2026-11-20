@@ -187,13 +187,17 @@ function prepararCasa() {
   }
 }
 
+/* rodada 9: o CDN entra só no caminho da biblioteca do Supabase (versão fixa, com integrity no index). Antes valia
+   o cdn.jsdelivr.net inteiro, que serve qualquer pacote do npm e qualquer arquivo do GitHub: um script injetado podia
+   puxar código de lá e passar pela CSP. */
+const LIB_SUPABASE = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/';
 const CSP_CASA = [
   "default-src 'self'",
-  "script-src 'self' https://cdn.jsdelivr.net",
+  `script-src 'self' ${LIB_SUPABASE}`,
   "style-src 'self'",
   "font-src 'self'",
   "img-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${LIB_SUPABASE}`,
   "manifest-src 'self'", "worker-src 'self'",
   "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'",
 ].join('; ');
