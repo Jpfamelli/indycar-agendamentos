@@ -142,7 +142,7 @@
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
         <input aria-label="Buscar contatos" id="search" type="search" enterkeyhint="search" placeholder="Nome, telefone ou placa" />
       </div>
-      <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Buscar tudo: nome, telefone ou placa" aria-keyshortcuts="Control+K" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd aria-hidden="true">Ctrl K</kbd></button>
+      <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Buscar tudo Ctrl K" aria-keyshortcuts="Control+K" title="Buscar por nome, telefone ou placa"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd aria-hidden="true">Ctrl K</kbd></button>
       <button type="button" class="fila-chip" id="filaChip" hidden aria-live="polite"></button>
       <button class="btn btn-primary" id="btnNovo">+ Novo contato</button>
       <div class="topo-icones">
@@ -315,7 +315,7 @@
         <label class="ordem-cli">Ordenar <select id="ordemClientes"><option value="gasto">Quem mais gastou</option><option value="recente">Contato recente</option><option value="sumido">Sumidos há mais tempo</option><option value="nome">Nome A–Z</option></select></label>
         <span class="filter-count" id="cliCount" aria-live="polite"></span>
       </div>
-      <div class="table-wrap"><table class="table" id="tblClientes"></table></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Lista de clientes"><table class="table" id="tblClientes"></table></div>
       <nav class="paginacao" id="pagClientes" aria-label="Páginas de clientes"></nav>
     </div>
   </section>
