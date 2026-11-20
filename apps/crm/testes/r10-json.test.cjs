@@ -80,3 +80,28 @@ test('R10-CRM-003: corpo JSON compactado recebe resposta de formato nao aceito',
   assert.equal(resposta.status, 415);
   assert.equal(app.db.leads.length, 0);
 });
+
+test('R10-CRM-025: criação rejeita data de cadastro fora do calendário', async (t) => {
+  const app = await subirServidor();
+  t.after(() => app.fechar());
+  const resposta = await app.req('gestor', '/api/leads', {
+    method: 'POST',
+    body: { ...dadosValidacao, created_at: '2026-02-30T09:00:00.000Z' },
+  });
+  assert.equal(resposta.status, 400);
+  assert.equal(app.db.leads.length, 0);
+});
+
+test('R10-CRM-026: edição recusa valor monetário em branco sem zerar o orçamento', async (t) => {
+  const app = await subirServidor();
+  t.after(() => app.fechar());
+  const criado = await app.req('gestor', '/api/leads', {
+    method: 'POST', body: { ...dadosValidacao, valor_orcado: 150 },
+  });
+  assert.equal(criado.status, 201);
+  const resposta = await app.req('gestor', '/api/leads/' + criado.corpo.id, {
+    method: 'PATCH', body: { valor_orcado: '  ' },
+  });
+  assert.equal(resposta.status, 400);
+  assert.equal(app.db.leads[0].valor_orcado, 150);
+});

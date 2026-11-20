@@ -655,6 +655,15 @@ async function handler(req, res) {
       if (pathname === '/api/leads' && req.method === 'POST') {
         const body = await readBody(req);
         const falha = utils.validarLead(body); if (falha) return json(res,400,{erro:falha});
+        if (body.created_at != null) {
+          const data = body.created_at;
+          const dia = typeof data === 'string' && /^\d{4}-\d{2}-\d{2}(?:$|T)/.test(data) ? data.slice(0, 10) : '';
+          const calendario = new Date(dia + 'T00:00:00Z');
+          if (!Number.isFinite(calendario.getTime()) || calendario.toISOString().slice(0, 10) !== dia ||
+              !Number.isFinite(Date.parse(data))) {
+            return json(res, 400, { erro: 'Informe uma data de cadastro válida.' });
+          }
+        }
         if (!dentroDoLimite(`criar-lead:${quem.id}`, 60, 60_000)) return json(res, 429, { erro: 'Muitos leads seguidos. Espere um minuto.' });
         /* O gatilho do banco põe como responsável quem cuida da conversa do
            cliente; sem conversa, quem criou. Aqui o servidor fala com a chave de

@@ -27,6 +27,7 @@
     for (const k of ['valor_orcado','valor_pago']) {
       const valor = d[k];
       if (valor == null) continue;
+      if (typeof valor === 'string' && !valor.trim()) return 'Informe um valor numérico.';
       if ((typeof valor !== 'number' && typeof valor !== 'string') || !Number.isFinite(Number(valor)) || Number(valor) < 0 || Number(valor) > 10000000) return 'Informe valores entre zero e R$ 10 milhões.';
     }
     if ('status' in d && !['novo','contato','orcamento','agendado','em_servico','concluido','perdido'].includes(d.status)) return 'Etapa inválida.';
