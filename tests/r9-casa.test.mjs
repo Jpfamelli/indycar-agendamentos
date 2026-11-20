@@ -303,3 +303,8 @@ test('listas dos cartões: coluna minmax(0, 1fr) (valor e tempo não saem do car
   assert.match(css, /\.agora-lista \{ grid-template-columns: minmax\(0, 1fr\); \}/);
   assert.match(css, /@media \(max-width: 520px\) \{ \.agora-lista \.linha \.l-a \{ white-space: normal;/);
 });
+
+test('gráfico de 7 dias: valor curto em cima da barra (cabe nos 40 px do celular), vazio quando o dia não tem valor', () => {
+  assert.deepEqual([0, null, 850, 999.6, 1750, 12500, 1234567].map(N.rotuloDaBarra), ['', '', '850', '1 mil', '1,8 mil', '12,5 mil', '1,2 mi']);
+  assert.match(semComentarios(ler('painel.js')), /rotuloDaBarra\(b\.valor\)/);
+});
