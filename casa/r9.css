@@ -147,3 +147,13 @@ button.t-texto:hover { text-decoration: underline dotted; }
 .app { position: relative; }
 .app .app-selo { position: absolute; top: 10px; right: 10px; margin: 0; }
 .app:has(.app-selo:not([hidden])) .app-nome { padding-right: 26px; }
+
+/* meta do mês no próprio bloco (era uma janela do navegador) */
+.meta-form { display: grid; gap: 6px; margin-top: 10px; }
+.meta-form label { font-weight: 700; color: var(--texto); }
+.meta-form-linha { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.meta-form input { flex: 1 1 160px; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--borda-2); background: var(--bg); color: var(--texto); font: inherit; }
+.meta-form input[aria-invalid="true"] { border-color: var(--cor-grave); }
+.meta-form .btn-meta { min-height: 44px; padding: 0 18px; }
+.meta-form .btn-link { min-height: 44px; }
+.meta-form small { color: var(--muted); }

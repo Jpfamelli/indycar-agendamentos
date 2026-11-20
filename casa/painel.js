@@ -358,8 +358,45 @@
         `<p class="meta-linha">No ritmo de agora o mês fecha em <b>${C.esc(L.brl(p.projecao))}</b> <small>(${p.passados} de ${p.total} dias úteis passados)</small></p>`) +
       (pm ? `<div class="conv-linha"><span>Meta de ${C.esc(L.brl(meta))}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${pm.batida ? '' : 'ruim'}" data-w="${Math.min(100, pm.pct)}"></span></span><b>${pm.pct}%</b></div>
         <p class="dono-nota">${pm.batida ? 'Meta batida! 🏁' : 'Faltam ' + C.esc(L.brl(pm.falta)) + (p.faltam ? ' em ' + p.faltam + ' dias úteis (' + C.esc(L.brl(Math.ceil(pm.falta / p.faltam))) + ' por dia)' : '')}</p>` : '<p class="dono-nota">Defina uma meta para acompanhar a barra.</p>') +
-      `<div class="dono-botoes"><button type="button" class="btn-link" data-meta>${meta ? 'mudar a meta' : 'definir a meta do mês'}</button> <button type="button" class="btn-link" data-copiar-resumo>copiar resumo do dia</button></div>`;
+      (editandoMeta ? formularioDaMeta(meta) :
+      `<div class="dono-botoes"><button type="button" class="btn-link" data-meta>${meta ? 'mudar a meta' : 'definir a meta do mês'}</button> <button type="button" class="btn-link" data-copiar-resumo>copiar resumo do dia</button></div>`);
     medidas(box);
+  }
+  /* rodada 9: a meta era pedida numa janela do navegador (window.prompt): no celular ela cobre a tela, não mostra o
+     teclado de números e o erro voltava num aviso que sumia. Agora é um campo dentro do próprio bloco. */
+  let editandoMeta = false, erroMeta = '', rascunhoMeta = '';
+  function formularioDaMeta(meta) {
+    const valor = erroMeta ? rascunhoMeta : (meta ? meta.toLocaleString('pt-BR') : '');   // com erro, o que a pessoa digitou fica para ela corrigir
+    return `<form class="meta-form" data-meta-form novalidate>
+      <label for="metaValor">Meta de faturamento do mês</label>
+      <div class="meta-form-linha"><input id="metaValor" name="valor" inputmode="decimal" autocomplete="off" value="${C.esc(valor)}" placeholder="Ex.: 80.000 ou 80 mil" aria-describedby="metaAjuda${erroMeta ? ' metaErro' : ''}"${erroMeta ? ' aria-invalid="true"' : ''} />
+      <button type="submit" class="btn btn-meta">Guardar</button><button type="button" class="btn-link" data-meta-cancelar>Cancelar</button></div>
+      <small id="metaAjuda">Escreva como preferir: 80000, 80.000 ou R$ 80 mil. Deixe vazio para tirar a meta.</small>
+      ${erroMeta ? `<p id="metaErro" class="vazio-erro" role="alert">${C.esc(erroMeta)}</p>` : ''}
+    </form>`;
+  }
+  function editarMeta(ligar) {
+    editandoMeta = ligar; erroMeta = '';
+    if (dono) desenharMeta(dono.faturamento || {});
+    const alvo = ligar ? $('#metaValor') : $('#donoMeta [data-meta]');
+    if (alvo) { alvo.focus(); if (ligar) alvo.select(); }
+  }
+  function guardarMetaDoForm(texto) {
+    const lido = window.CasaLogica2.valorDaMeta(texto);   // rodada 9: aceita "R$ 80.000", "80 mil", "80k"
+    if (Number.isNaN(lido)) {
+      rascunhoMeta = String(texto || '');
+      erroMeta = 'Não entendi esse valor. Escreva só o número, como 80000, 80.000 ou 80 mil.';
+      if (dono) desenharMeta(dono.faturamento || {});
+      const i = $('#metaValor'); if (i) i.focus();
+      return;
+    }
+    const meta = lido || 0;
+    editandoMeta = false; erroMeta = '';
+    metaRemota = meta || null;                       // a barra já mostra o valor novo; o banco confirma em seguida
+    gravar(LS_META, meta ? String(meta) : '');
+    if (dono) desenharMeta(dono.faturamento || {});
+    const b = $('#donoMeta [data-meta]'); if (b) b.focus();
+    salvarMeta(meta);
   }
   function desenharConsultores(r) {
     const M2 = window.CasaLogica2, box = $('#donoConsultores');
@@ -473,24 +510,16 @@
       e.preventDefault(); e.stopPropagation();
       trocarVisao(abas[j].dataset.visao); abas[j].focus();
     };
+    editandoMeta = false; erroMeta = '';
+    $('#donoMeta').onsubmit = (e) => { if (!e.target.matches('[data-meta-form]')) return; e.preventDefault(); guardarMetaDoForm($('#metaValor').value); };
+    $('#donoMeta').onkeydown = (e) => { if (e.key === 'Escape' && editandoMeta) { e.preventDefault(); e.stopPropagation(); editarMeta(false); } };
     $('#miolo').onclick = (e) => {
       if (e.target.closest('[data-recarregar]')) { C.painel.atualizar(); return; }
       const f = e.target.closest('[data-filtro-hoje]');
       if (f) { filtroHoje = f.dataset.filtroHoje; if (dados?.agenda) desenharHoje(dados.agenda); return; }
       if (e.target.closest('[data-abrir-busca]')) { C.busca && C.busca.abrir(); return; }
-      if (e.target.closest('[data-meta]')) {
-        const atual = metaAtual() || '';
-        const v = window.prompt('Meta de faturamento do mês, em reais (deixe vazio para tirar):', atual);
-        if (v === null) return;
-        const lido = window.CasaLogica2.valorDaMeta(v);   // rodada 9: aceita "R$ 80.000", "80 mil", "80k"
-        if (Number.isNaN(lido)) { C.toast('Não entendi esse valor. Escreva como preferir: 80000, 80.000 ou 80 mil.', 'err'); return; }
-        const meta = lido || 0;
-        metaRemota = meta || null;                       // a barra já mostra o valor novo; o banco confirma em seguida
-        gravar(LS_META, meta ? String(meta) : '');
-        if (dono) desenharMeta(dono.faturamento || {});
-        salvarMeta(meta);
-        return;
-      }
+      if (e.target.closest('[data-meta]')) { editarMeta(true); return; }
+      if (e.target.closest('[data-meta-cancelar]')) { editarMeta(false); return; }
       if (e.target.closest('[data-copiar-resumo]')) { if (dono && dados) C.copiarResumo(dono, dados); else C.toast('Espere o painel carregar.'); }
     };
     relogio();
