@@ -278,6 +278,7 @@ function esqueleto(rota) {
 
 async function route(r, opts = {}) {
   const quieto = opts.quieto === true;
+  if (quieto && view.getAttribute('aria-busy') === 'true') return;
   if (r) state.route = r;
   const vez = state._vez = (state._vez || 0) + 1;
   $$('.nav-item').forEach(n => { const ativo = n.dataset.route === state.route; n.classList.toggle('active', ativo);
@@ -286,21 +287,27 @@ async function route(r, opts = {}) {
   const mudouDeTela = !quieto && state._rotaAnunciada !== state.route;
   if (!quieto) { view.classList.add('entrando'); view.innerHTML = esqueleto(state.route); view.setAttribute('aria-busy', 'true'); }
   try {
-    await (ROUTES[state.route] || renderInicio)({ quieto });
+    await (ROUTES[state.route] || renderInicio)({ quieto, vez });
     if (vez === state._vez && !quieto) {
       clearTimeout(state._entraTimer);
       state._entraTimer = setTimeout(() => view.classList.remove('entrando'), 1200);
     }
   } catch (e) {
-    if (vez === state._vez) view.innerHTML = vazio(I.alerta, 'Não deu para abrir esta tela', esc(e.message) + (e.status === 0 || e.status >= 500 ? '<br><button type="button" class="btn btn-mini" data-tentar-tela>Tentar de novo</button>' : ''));
-    $('[data-tentar-tela]', view)?.addEventListener('click', () => route(state.route));
+    if (vez !== state._vez) return;
+    if (quieto) {
+      toast('Não deu para atualizar esta tela. Tente de novo em instantes.', 'err');
+      return;
+    }
+    view.innerHTML = vazio(I.alerta, 'Não deu para abrir esta tela', esc(e.message) + (e.status === 0 || e.status >= 500 ? '<br><button type="button" class="btn btn-mini" data-tentar-tela>Tentar de novo</button>' : ''));
+    $('[data-tentar-tela]', view)?.addEventListener('click', () => route(state.route), { once: true });
   } finally {
     if (vez === state._vez) view.removeAttribute('aria-busy');
   }
+  if (vez !== state._vez) return;
   /* acessibilidade (rodada 4): título da aba, aviso para leitor de tela e foco no título da tela nova */
   const nomeTela = NOMES_TELA[state.route] || 'Início';
   document.title = `${nomeTela} · IndyCar Comunicar`;
-  if (mudouDeTela && vez === state._vez) {
+  if (mudouDeTela) {
     state._rotaAnunciada = state.route;
     const an = $('#anuncioTela'); if (an) an.textContent = `Tela ${nomeTela}`;
     if (state._focarTela) { const h = $('h2', view); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll:true }); } }
@@ -505,8 +512,9 @@ async function abrirPrevia(regua = null) {
 // ============================================================================
 // RÉGUAS — réguas automáticas + envio
 // ============================================================================
-async function renderReguas() {
+async function renderReguas({ vez = state._vez } = {}) {
   const [cfg, regras] = await Promise.all([api('GET', '/comunicar/config'), api('GET', '/regras-retorno').catch(() => [])]);
+  if (vez !== state._vez) return;
   state.cfg = cfg; state.cfgEdit = {}; state.regras = regras;
   /* rodada 4: alterações que não foram salvas (aba fechada, servidor dormindo) voltam */
   const rascunho = ehGestor() ? window.R4?.lerRascunhoReguas(cfg) : null;
@@ -799,7 +807,7 @@ function ligarRegras() {
 // ============================================================================
 // MENSAGENS — fila e histórico
 // ============================================================================
-async function renderMensagens({ quieto } = {}) {
+async function renderMensagens({ quieto, vez = state._vez } = {}) {
   const f = state.msg;
   const q = new URLSearchParams();
   if (f.status !== 'todas') q.set('status', f.status);
@@ -814,6 +822,7 @@ async function renderMensagens({ quieto } = {}) {
   const POR_PAGINA = 100;
   q.set('limite', String(POR_PAGINA));
   const lista = await api('GET', '/envios?' + q);
+  if (vez !== state._vez) return;
   state._msgLista = lista; state._msgFim = lista.length < POR_PAGINA;
   const htmlLista = () => lista.length ? lista.map(cartaoEnvio).join('')
     : vazio(I.wa, f.q || f.de || f.ate || f.intencao !== 'todas' || f.origem !== 'todas' || f.status !== 'todas' || f.tipo !== 'todos' ? 'Nada com esse filtro' : 'Nenhuma mensagem ainda',
@@ -973,8 +982,9 @@ function ligarAcoesEnvio(root) {
 // ============================================================================
 // CAMPANHAS — nova campanha em passos + histórico
 // ============================================================================
-async function renderCampanhas() {
+async function renderCampanhas({ vez = state._vez } = {}) {
   const envios = await api('GET', '/envios?tipo=campanha&limite=1000');
+  if (vez !== state._vez) return;
   /* agrupa por (mensagem + dia): como o servidor grava o corpo JÁ com o nome e
      o carro de cada cliente, a chave usa o começo do texto sem o nome. */
   const grupos = new Map();
@@ -1257,8 +1267,9 @@ window.openCampanhaModal = async function (pre = {}) {
 // ============================================================================
 // CLIENTES — busca, aniversário, opt-out, ficha e importação
 // ============================================================================
-async function renderClientes() {
+async function renderClientes({ vez = state._vez } = {}) {
   const lista = await api('GET', '/clientes' + (state.cliQ ? `?q=${encodeURIComponent(state.cliQ)}` : ''));
+  if (vez !== state._vez) return;
   const comNasc = lista.filter(c => c.nascimento).length, fora = lista.filter(c => c.aceita_mensagens === false).length;
   view.innerHTML = `
     <div class="toolbar">
@@ -1493,8 +1504,9 @@ function lerPlanilha(texto) {
 // ============================================================================
 // SATISFAÇÃO
 // ============================================================================
-async function renderSatisfacao() {
+async function renderSatisfacao({ vez = state._vez } = {}) {
   const [respostas, resumo] = await Promise.all([api('GET', '/satisfacao'), api('GET', '/resumo').catch(() => null)]);
+  if (vez !== state._vez) return;
   const s = resumo?.satisfacao || (() => { const total = respostas.length, felizes = respostas.filter(r => r.satisfeito).length;
     const notas = respostas.map(r => Number(r.nota)).filter(n => n >= 1 && n <= 5);
     return { total, satisfeitos:felizes, insatisfeitos:total - felizes, pct: total ? Math.round((felizes / total) * 100) : null,
