@@ -487,9 +487,20 @@ async function abrirPrevia(regua = null) {
   const titulo = regua ? `Quem receberia hoje · ${TIPO[regua]?.rotulo || regua}` : 'Prévia de hoje';
   openModal(`<div class="modal-head"><h3>${svg(I.olho)} ${esc(titulo)}</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
     <div class="modal-body"><div class="esqueleto"><div class="skel" style="height:60px"></div><div class="skel" style="height:60px"></div></div></div>`, { larga:true });
+  const corpo = $('.modal-body', modal);
+  corpo.setAttribute('aria-busy', 'true');
   let p;
   try { p = await api('GET', '/previa' + (regua ? `?regua=${encodeURIComponent(regua)}` : '')); }
-  catch (e) { $('.modal-body', modal).innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
+  catch {
+    if (!modalAberto() || !corpo.isConnected) return;
+    corpo.innerHTML = '<p class="form-msg erro" role="alert">Não consegui carregar a prévia.</p><button type="button" class="btn">Tentar novamente</button>';
+    $('button', corpo).addEventListener('click', () => abrirPrevia(regua));
+    $('button', corpo).focus({ preventScroll:true });
+    return;
+  } finally {
+    corpo.removeAttribute('aria-busy');
+  }
+  if (!modalAberto() || !corpo.isConnected) return;
 
   const lista = p.previa || [], pulados = p.puladosDetalhe || [], adiados = p.adiadosDetalhe || [];
   const resumo = Object.entries(p.porRegua || {}).filter(([t]) => !regua || t === regua).map(([t, v]) =>
@@ -498,7 +509,7 @@ async function abrirPrevia(regua = null) {
       <div class="q"><span><b>${esc(x.nome || x.telefone)}</b> <small>· ${esc(telBR(x.telefone))}</small></span>${pillTipo(x.tipo)}</div>
       <div class="c">${esc(x.corpo)}</div>${extra ? `<div class="motivo">${esc(extra)}</div>` : ''}</div>`;
 
-  $('.modal-body', modal).innerHTML = `
+  corpo.innerHTML = `
     <div class="previa-resumo">${resumo || '<span class="dica">Nenhuma régua rodou.</span>'}</div>
     ${p.erros?.length ? `<p class="form-msg erro">${p.erros.map(e => `${esc(TIPO[e.tipo]?.rotulo || e.tipo)}: ${esc(e.erro)}`).join('<br>')}</p>` : ''}
     <div class="dica">Simulação: nada foi gravado. Com a régua ligada, isto entra na fila na próxima rodada do carteiro${regua ? '' : ' (réguas desligadas aparecem só para você ver)'}.</div>
@@ -1628,21 +1639,23 @@ const overlay = $('#modalOverlay'), modal = $('#modal');
 const FOCAVEIS = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 let _focoAntes = null;
 function openModal(html, opts = {}) {
-  _focoAntes = document.activeElement;
+  if (!modalAberto()) _focoAntes = document.activeElement;
   modal.className = 'modal' + (opts.larga ? ' larga' : '') + (opts.classe ? ` ${opts.classe}` : '');
   modal.innerHTML = html;
   overlay.classList.add('open');
   const titulo = $('.modal-head h3', modal);
   if (titulo) { titulo.id = 'modalTitulo'; modal.setAttribute('aria-labelledby', 'modalTitulo'); }
-  const primeiro = $$('.modal-body ' + FOCAVEIS, modal).find(el => el.offsetParent !== null) || $('.modal-close', modal);
-  setTimeout(() => primeiro?.focus({ preventScroll:true }), 30);
+  else modal.removeAttribute('aria-labelledby');
+  const primeiro = $$(FOCAVEIS, $('.modal-body', modal) || modal).find(el => el.offsetParent !== null) || $('.modal-close', modal);
+  primeiro?.focus({ preventScroll:true });
 }
 function closeModal() {
   if (!overlay.classList.contains('open')) return;
+  const focoAntes = _focoAntes;
+  _focoAntes = null;
   overlay.classList.remove('open');
   overlay.dispatchEvent(new Event('fechou'));
-  if (_focoAntes?.isConnected && typeof _focoAntes.focus === 'function') _focoAntes.focus({ preventScroll:true });
-  _focoAntes = null;
+  if (!modalAberto() && focoAntes?.isConnected) focoAntes.focus({ preventScroll:true });
 }
 const modalAberto = () => overlay.classList.contains('open');
 overlay.addEventListener('click', e => { if (e.target === overlay || e.target.closest('.modal-close,[data-fechar]')) closeModal(); });
@@ -2044,9 +2057,21 @@ async function abrirAniversariosBase() {
     <div class="modal-body" id="anivCorpo"><div class="skel" style="height:160px"></div></div>
     <div class="modal-foot"><button type="button" class="btn" id="anivPlanilha">${svg(I.upload)} Importar planilha</button><button type="button" class="btn primary" data-fechar>Pronto</button></div>`, { larga:true });
   $('#anivPlanilha').addEventListener('click', () => { closeModal(); openImportarModal(); });
-  let d; try { d = await api('GET', '/aniversarios'); } catch (e) { $('#anivCorpo').innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
+  const corpo = $('#anivCorpo');
+  corpo.setAttribute('aria-busy', 'true');
+  let d;
+  try { d = await api('GET', '/aniversarios'); }
+  catch {
+    if (!modalAberto() || !corpo.isConnected) return;
+    corpo.innerHTML = '<p class="form-msg erro" role="alert">Não consegui carregar os aniversários.</p><button type="button" class="btn">Tentar novamente</button>';
+    $('button', corpo).addEventListener('click', abrirAniversariosBase);
+    return;
+  } finally {
+    corpo.removeAttribute('aria-busy');
+  }
+  if (!modalAberto() || !corpo.isConnected) return;
   const pctData = d.total ? Math.round((d.comData / d.total) * 100) : 0;
-  $('#anivCorpo').innerHTML = `
+  corpo.innerHTML = `
     <div class="rel-nums"><div><b>${d.comData}</b><small>com aniversário</small></div><div><b>${d.total}</b><small>clientes com telefone</small></div><div class="g"><b>${d.proximos.length}</b><small>nos próximos 30 dias</small></div></div>
     <div class="barra-prog" role="progressbar" aria-valuenow="${pctData}" aria-valuemin="0" aria-valuemax="100" aria-label="Clientes com aniversário"><i style="width:${Math.max(pctData, d.comData ? 2 : 0)}%"></i></div>
     <p class="dica">O CRM, a Agenda e o Atendimento usam a <b>mesma</b> ficha de cliente: quem já tem data aparece aqui sozinho e entra na régua Aniversário. ${d.comData ? '' : 'Ainda ninguém tem data — cadastre pelos atendidos abaixo ou importe a planilha.'}</p>
