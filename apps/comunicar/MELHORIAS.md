@@ -1004,3 +1004,19 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **Pátio:** passar a chamar `r7_c5_fila_do_patio` na tela da ordem (contrato na seção 15 do CONTRATOS.md).
 - **Atendimento:** abrir a conversa direto pelo `conversa_id` da lista de respostas sem atender.
 - **Publicar:** é com o coordenador (Central); depois rodar "Prévia exata" uma vez e olhar a retomada se o WhatsApp tiver caído.
+
+
+## Rodada 9 (19-20/11/2026)
+
+- **R9-COM-001** · aviso · O Início explica onde trocar a chave recusada do WhatsApp. · `9301455`
+- **R9-COM-002** · texto · O histórico vazio orienta a conferir a conexão e as réguas. · `9301455`
+- **R9-COM-003** · enxugar · O Início remove a data decorativa acima do título. · `9301455`
+- **R9-COM-004** · tela · Prévia de hoje ganha prioridade visual. · `9301455`
+- **R9-COM-005** · enxugar · Rodar agora e ações secundárias ficam em Mais ações. · `9301455`
+- **R9-COM-006** · enxugar · Indicadores detalhados ficam em Mais indicadores. · `9301455`
+- **R9-COM-007** · enxugar · Campanhas, Clientes e Satisfação ficam em Mais. · `9301455`
+- **R9-COM-008** · tela · Mais sinaliza quando uma de suas telas está ativa. · `9301455`
+- **R9-COM-009** · acessibilidade · Textos secundários ganham contraste nos dois temas. · `9301455`
+- **R9-COM-010** · celular · Navegação e botões da tela têm área mínima de 44 px. · `9301455`
+- **R9-COM-011** · acessibilidade · Controles exibem contorno visível ao navegar com teclado. · `9301455`
+- **R9-COM-012** · tela · Números dos indicadores mantêm largura uniforme. · `9301455`

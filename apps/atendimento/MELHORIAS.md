@@ -1354,3 +1354,19 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - Link "Acompanhar o carro" (`acompanhar` de `r7_p3b_links_cliente`) já chega na resposta de `/api/r7/cliente-links`, mas ainda não tem botão próprio (o botão "🔗 Link do carro" da R6 segue valendo).
 - Migrações aplicadas: `r7_c4_zap_retomadas` e `r7_c4_indice_manipulacao` (cópias em `indycar-ferramentas/sql/`).
 - Movere real continua pendente (T16) e a publicação da Central é do coordenador: nada foi publicado.
+
+
+## Rodada 9 (19-20/11/2026)
+
+- **R9-ATD-001** · enxugar · Triagem diária fica à vista e filtros adicionais abrem em Mais filtros. · `9301455`
+- **R9-ATD-002** · acessibilidade · Leitores de tela identificam a navegação do Atendimento. · `9301455`
+- **R9-ATD-003** · acessibilidade · Filtros anunciam um grupo de controles sem semântica de barra de ferramentas. · `9301455`
+- **R9-ATD-004** · celular · Filtros quebram em linhas em vez de exigir rolagem horizontal. · `9301455`
+- **R9-ATD-005** · celular · Controles de conversa têm área mínima de 44 px. · `9301455`
+- **R9-ATD-006** · acessibilidade · Controles exibem contorno visível ao navegar com teclado. · `9301455`
+- **R9-ATD-007** · tela · A lista e a conversa adotam os fundos escuros definidos para a IndyCar. · `9301455`
+- **R9-ATD-008** · acessibilidade · Textos secundários ganham contraste nos dois temas. · `9301455`
+- **R9-ATD-009** · tela · O cabeçalho da conversa ganha uma divisória fixa em relação às mensagens. · `9301455`
+- **R9-ATD-010** · aviso · A faixa explica a interrupção e aponta para Integrações. · `9301455`
+- **R9-ATD-011** · conserto · A faixa reserva espaço depois de atualizar o texto. · `9301455`
+- **R9-ATD-012** · conserto · O filtro adicional selecionado por link abre o painel automaticamente. · `9301455`
