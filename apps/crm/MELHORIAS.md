@@ -1311,3 +1311,14 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-017** · acessibilidade · Campo de tarefa na ficha identifica o contato pelo nome usado na tela · `9299314`
 - **R9-CRM-018** · acessibilidade · Busca no catálogo de serviços tem nome acessível · `9299314`
 - **R9-CRM-019** · acessibilidade · Seletor de mês no relatório de retorno tem nome acessível · `9299314`
+
+- **R9-CRM-020** · acessibilidade · O telefone no cadastro de contato aceita preenchimento automático. · `254ecdc`
+- **R9-CRM-021** · celular · O teclado deixa de sugerir correções para a placa do contato. · `254ecdc`
+- **R9-CRM-022** · texto · O cadastro chama a posição no funil de Etapa. · `254ecdc`
+- **R9-CRM-023** · texto · A busca da lista mostra exemplos de termos pesquisáveis. · `254ecdc`
+- **R9-CRM-024** · celular · O teclado indica a conclusão ao nomear um filtro salvo. · `254ecdc`
+- **R9-CRM-025** · celular · O teclado indica a entrada na tela de login. · `254ecdc`
+- **R9-CRM-026** · celular · O teclado indica o envio na recuperação de senha. · `254ecdc`
+- **R9-CRM-027** · celular · O teclado indica a conclusão do código de verificação. · `254ecdc`
+- **R9-CRM-028** · acessibilidade · A busca global anuncia Contatos e Clientes conforme a navegação. · `254ecdc`
+- **R9-CRM-029** · texto · A distribuição da equipe explica o critério usando Contatos. · `254ecdc`

@@ -1262,3 +1262,14 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R9-AGE-014** · celular · Teclado do código de verificação indica a conclusão · `9299314`
 - **R9-AGE-015** · celular · Teclado da senha de login indica a entrada no app · `9299314`
 - **R9-AGE-016** · celular · Teclado do e-mail de recuperação indica o envio · `9299314`
+
+- **R9-AGE-017** · celular · A busca de agendamentos usa um campo de pesquisa e uma dica curta. · `254ecdc`
+- **R9-AGE-018** · celular · A busca de clientes usa o teclado de pesquisa. · `254ecdc`
+- **R9-AGE-019** · acessibilidade · A busca do catálogo tem nome persistente para o leitor de tela. · `254ecdc`
+- **R9-AGE-020** · acessibilidade · O nome da oficina tem rótulo associado. · `254ecdc`
+- **R9-AGE-021** · acessibilidade · O endereço do webhook tem rótulo associado e teclado para URL. · `254ecdc`
+- **R9-AGE-022** · acessibilidade · A configuração do ID do número tem rótulo associado e teclado numérico. · `254ecdc`
+- **R9-AGE-023** · acessibilidade · O número exibido tem rótulo associado e teclado de telefone. · `254ecdc`
+- **R9-AGE-024** · celular · A placa no agendamento usa maiúsculas e dispensa correções de palavras. · `254ecdc`
+- **R9-AGE-025** · acessibilidade · O cadastro da equipe identifica o campo como nome. · `254ecdc`
+- **R9-AGE-026** · texto · A busca global informa que aceita números de telefone e de placa desde o segundo caractere. · `254ecdc`

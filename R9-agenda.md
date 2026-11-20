@@ -18,3 +18,11 @@ Para o Claude, faltam completar a matriz de navegador, axe-core, inventário e c
 ## Terceiro lote parcial
 
 O commit `9299314` leva a Agenda a 16/125. Suíte local 463/463 com subprocessos Node e Supabase fictício. Próxima entrada R9-AGE-017. Conferência do teclado em celular fica pendente.
+
+## Quarto lote
+
+O commit `254ecdc` adiciona 10 melhorias e leva o app a 26/125. Suíte local 463/463 com Supabase fictício. Próxima entrada R9-AGE-027. A conferência de navegador e leitor de tela deste lote segue pendente.
+
+| Antes | Depois |
+| --- | --- |
+| Phone Number ID | ID do número |

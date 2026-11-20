@@ -32,3 +32,11 @@ O commit `9299314` leva o CRM a 19/125. Suíte local 323/323. Próxima entrada R
 | Buscar leads (leitor de tela) | Buscar contatos (leitor de tela) |
 
 Validação de leitor de tela e capturas deste lote ficam pendentes.
+
+## Quarto lote
+
+O commit `254ecdc` adiciona 10 melhorias e leva o app a 29/125. Suíte local 323/323 com Supabase fictício. Próxima entrada R9-CRM-030. A conferência de navegador e leitor de tela deste lote segue pendente.
+
+| Antes | Depois |
+| --- | --- |
+| Status (cadastro) | Etapa |
