@@ -153,6 +153,8 @@
     'agenda-fora': APP_FORA('Agenda'),
     'comunicar-fora': APP_FORA('Comunicar'),
     'crm-fora': APP_FORA('CRM'),
+    /* rodada 9: o Vigia passou a conferir o Pátio no Netlify (indycar-vigia, patio-fora, grave) */
+    'patio-fora': { titulo: 'Pátio fora do ar', passo: 'Anote as etapas e o checklist no papel e lance no Pátio quando voltar. Se passar de 1 hora, avise o suporte.' },
     'orcador-fora': { titulo: 'Orçador fora do ar', passo: 'Anote o orçamento no papel ou no WhatsApp e lance no Orçador quando voltar. Se passar de 1 hora, avise o suporte.' },
     'site-fora': { titulo: 'Site da oficina fora do ar', passo: 'Quem procura a oficina na internet não consegue abrir o site. Avise o suporte.' },
     'exclusao-em-massa': { titulo: 'Muita coisa apagada de uma vez', passo: 'Confirme com a equipe quem apagou. Se não foi de propósito, peça ao suporte para restaurar do backup.' },

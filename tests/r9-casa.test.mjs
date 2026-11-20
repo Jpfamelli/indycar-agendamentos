@@ -115,10 +115,10 @@ test('ficha: erro dos links em português, sem "Failed to fetch", com tentar de 
 
 const GRAVES = ['whatsapp-sem-config', 'codewords-chave-recusada', 'codewords-fora', 'whatsapp-desconectado', 'whatsapp-sem-receber', 'sincronia-parada', 'webhook-fora',
   'atendimento-fora', 'agenda-fora', 'comunicar-fora', 'crm-fora', 'orcador-fora', 'site-fora', 'exclusao-em-massa', 'admin-novo', 'anthropic-chave-recusada',
-  'anthropic-sem-credito', 'anthropic-fora', 'comunicar-carteiro-parado', 'comunicar-fila-parada', 'patio-avisos-parados', 'backup-faltando', 'backup-ensaio-falhou'];
+  'anthropic-sem-credito', 'anthropic-fora', 'comunicar-carteiro-parado', 'comunicar-fila-parada', 'patio-avisos-parados', 'backup-faltando', 'backup-ensaio-falhou', 'patio-fora'];
 
-test('Vigia na Casa: os 23 avisos graves têm título curto e o que fazer (nada do texto cru como título)', () => {
-  assert.equal(Object.keys(N.FAIXA_VIGIA).length, 23);
+test('Vigia na Casa: os 24 avisos graves têm título curto e o que fazer (nada do texto cru como título)', () => {
+  assert.equal(Object.keys(N.FAIXA_VIGIA).length, 24);
   for (const c of GRAVES) {
     const [a] = N.faixaDoVigia({ graves: [{ codigo: c, resumo: 'texto comprido do vigia '.repeat(30), dias: 2 }] });
     assert.ok(a.titulo.length > 5 && a.titulo.length <= 45, c + ': título curto → ' + a.titulo);
