@@ -308,3 +308,13 @@ test('gráfico de 7 dias: valor curto em cima da barra (cabe nos 40 px do celula
   assert.deepEqual([0, null, 850, 999.6, 1750, 12500, 1234567].map(N.rotuloDaBarra), ['', '', '850', '1 mil', '1,8 mil', '12,5 mil', '1,2 mi']);
   assert.match(semComentarios(ler('painel.js')), /rotuloDaBarra\(b\.valor\)/);
 });
+
+test('ligações entre sistemas: resumo diz "registros soltos para arrumar" (não "casos em 1 tipo") e explica o que é solto', () => {
+  assert.equal(N.textoDasLigacoes({ total: 3, tipos: 1, alta: 0 }), '3 registros soltos para arrumar');
+  assert.equal(N.textoDasLigacoes({ total: 1, tipos: 1, alta: 1 }), '1 registro solto para arrumar · 1 assunto grave');
+  assert.equal(N.textoDasLigacoes({ total: 0 }), 'Nenhum registro solto.');
+  assert.match(N.EXPLICA_LIGACOES, /não acha no outro/);
+  const s = semComentarios(ler('saude.js'));
+  assert.doesNotMatch(s, /tipo\$\{/);
+  assert.match(s, /N\.textoDasLigacoes\(r\)/);
+});
