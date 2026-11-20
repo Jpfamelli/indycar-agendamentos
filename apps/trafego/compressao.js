@@ -37,7 +37,7 @@ function preparar(req, buf, tipo) {
 const memoria = new Map();
 /* Rodada 10: a casca da tela nova tem 61 arquivos e a memória guardava 40. Como o navegador pede sempre os mesmos
    61, na mesma ordem, cada pedido expulsava justamente o arquivo que seria pedido em seguida: toda abertura do app
-   relia e recomprimia os 53 arquivos de texto (1,7 s de processador no servidor, medido). Agora cabem 300 arquivos,
+   relia e recomprimia os 53 arquivos de texto (53 leituras de disco e uns 65 ms de processador parado, medido). Agora cabem 300,
    com teto no total de bytes (o que protege a memória é o tamanho, não a quantidade). */
 const LIMITE_MEMORIA = 300;
 const LIMITE_BYTES = 32 * 1024 * 1024;

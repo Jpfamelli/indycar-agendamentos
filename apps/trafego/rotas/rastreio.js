@@ -15,6 +15,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const compressao = require('../compressao');
 
 const ARQUIVO = path.join(__dirname, '..', 'rastreio', 'rastreio.js');
 const LIMITE_CORPO = 4096;
@@ -120,17 +122,30 @@ module.exports = (ctx) => {
   const { rotaPublica, limitador, db } = ctx;
   let script = null;
 
-  rotaPublica('GET', '/rastreio.js', ({ res }) => {
-    if (script == null) script = scriptServido();
-    res.writeHead(200, {
-      'Content-Type': 'text/javascript; charset=utf-8',
+  /* Rodada 10: o script vai em cada página do site de fora e era baixado inteiro, sem compressão, a cada hora por
+     visitante. Agora sai com gzip (quando o navegador aceita) e com ETag: quem já tem recebe 304 sem corpo. */
+  let etag = null;
+  rotaPublica('GET', '/rastreio.js', ({ req, res }) => {
+    if (script == null) {
+      script = Buffer.from(scriptServido(), 'utf8');
+      etag = 'W/"' + crypto.createHash('sha1').update(script).digest('base64url').slice(0, 20) + '"';
+    }
+    const comuns = {
       'Cache-Control': 'public, max-age=3600',
       'Cross-Origin-Resource-Policy': 'cross-origin',
       'Access-Control-Allow-Origin': '*',
-      'X-Content-Type-Options': 'nosniff',
-      'Content-Length': Buffer.byteLength(script),
-    });
-    res.end(script);
+      ETag: etag,
+      Vary: 'Accept-Encoding',
+    };
+    const pedida = String(req.headers['if-none-match'] || '');
+    if (pedida && pedida.split(',').some(t => t.trim() === '*' || t.trim().replace(/^W\//, '') === etag.replace(/^W\//, ''))) {
+      res.writeHead(304, comuns);
+      return res.end();
+    }
+    const tipo = 'text/javascript; charset=utf-8';
+    const { corpo, cabecalhos } = compressao.preparar(req, script, tipo);
+    res.writeHead(200, { ...comuns, ...cabecalhos, 'Content-Type': tipo, 'X-Content-Type-Options': 'nosniff', 'Content-Length': corpo.length });
+    res.end(corpo);
   }, { corsLivre: true });
 
   rotaPublica('POST', '/api/rastreio', async ({ req, res, ip }) => {

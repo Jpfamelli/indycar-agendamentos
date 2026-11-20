@@ -243,6 +243,10 @@ function criarChaves(opcoes = {}) {
 let _padrao = null;
 const padrao = () => (_padrao || (_padrao = criarChaves()));
 
+const { ipDe, criarLimitador } = require('../seguranca');
+const MAX_ERRADAS = 20, JANELA_ERRADAS_MS = 10 * 60_000;
+const tentativas = criarLimitador();
+
 const ENSINA = 'Envie a chave no cabeçalho "Authorization: Bearer ica_…" (crie a chave em Ajustes › Chaves da IA).';
 
 /**
@@ -257,10 +261,19 @@ async function autenticar(req, q, chaves = padrao()) {
   }
   const veio = chaveDoCabecalho(req);
   if (veio.erro === 'sem_chave') return { ok: false, status: 401, codigo: 'sem_chave', mensagem: `Falta a chave. ${ENSINA}`, cabecalhos: { 'WWW-Authenticate': 'Bearer realm="indycar-trafego"' } };
-  if (veio.erro) return { ok: false, status: 401, codigo: 'chave_invalida', mensagem: `Chave em formato errado. ${ENSINA}`, cabecalhos: { 'WWW-Authenticate': 'Bearer realm="indycar-trafego", error="invalid_token"' } };
+  /* Rodada 10: vinte chaves erradas do mesmo endereço em 10 minutos fecham a porta para ele até a janela acabar,
+     sem nem perguntar ao banco (cada chave errada era uma consulta). Chave certa não conta. */
+  const doIp = `ia-chave-errada|${ipDe(req)}`;
+  const visto = tentativas.espiar(doIp, JANELA_ERRADAS_MS);
+  if (visto.n >= MAX_ERRADAS) {
+    return { ok: false, status: 429, codigo: 'limite', cabecalhos: { 'Retry-After': String(visto.esperar) },
+      mensagem: `Muitas chaves erradas seguidas deste endereço. Espere ${Math.max(1, Math.ceil(visto.esperar / 60))} min e confira a chave em Ajustes › Chaves da IA.` };
+  }
+  const errou = () => { tentativas.permitir(doIp, MAX_ERRADAS, JANELA_ERRADAS_MS); };
+  if (veio.erro) { errou(); return { ok: false, status: 401, codigo: 'chave_invalida', mensagem: `Chave em formato errado. ${ENSINA}`, cabecalhos: { 'WWW-Authenticate': 'Bearer realm="indycar-trafego", error="invalid_token"' } }; }
   const r = await chaves.conferir(veio.chave);
   if (!r.ok && r.motivo === 'indisponivel') return { ok: false, status: 503, codigo: r.sem_tabela ? 'sem_migracao' : 'indisponivel', mensagem: r.aviso, cabecalhos: { 'Retry-After': '30' } };
-  if (!r.ok) return { ok: false, status: 401, codigo: 'chave_invalida', mensagem: 'Chave inválida ou revogada. Peça uma chave nova ao administrador (Ajustes › Chaves da IA).', cabecalhos: { 'WWW-Authenticate': 'Bearer realm="indycar-trafego", error="invalid_token"' } };
+  if (!r.ok) { errou(); return { ok: false, status: 401, codigo: 'chave_invalida', mensagem: 'Chave inválida ou revogada. Peça uma chave nova ao administrador (Ajustes › Chaves da IA).', cabecalhos: { 'WWW-Authenticate': 'Bearer realm="indycar-trafego", error="invalid_token"' } }; }
   const lim = chaves.limitar(r.chave.id);
   if (!lim.ok) {
     return { ok: false, status: 429, codigo: 'limite', cabecalhos: { 'Retry-After': String(lim.esperar) },
@@ -273,5 +286,5 @@ async function autenticar(req, q, chaves = padrao()) {
 module.exports = {
   ALFABETO, TAMANHO, FORMATO, ESCOPOS, MEMORIA_MS, POR_MINUTO, POR_DIA, SEM_TABELA,
   ErroDeChave, gerarChave, hashDe, formatoValido, mesmoHash, chaveDoCabecalho, chaveNaUrl, validarNova, publico, proximaMeiaNoiteBR,
-  tabelaAusente, criarChaves, padrao, autenticar,
+  tabelaAusente, criarChaves, padrao, autenticar, tentativas, MAX_ERRADAS,
 };

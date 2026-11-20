@@ -354,24 +354,39 @@ function urlPermitida(url, hosts = HOSTS_MINIATURA) {
   } catch { return false; }
 }
 
+const TTL_SEM_MINIATURA = 10 * 60_000;
+const semMiniatura = new Map();   // "plataforma|anúncio" -> até quando vale o "não tem"
+
 /** { ok, tipo, corpo } ou { ok: false, status }. */
 async function miniatura({ plataforma, anuncio, sb = db.sb, fetch: f = globalThis.fetch, hosts = HOSTS_MINIATURA, agora = Date.now() } = {}) {
   if (!['meta', 'google'].includes(plataforma) || !ID_ANUNCIO.test(String(anuncio || ''))) return { ok: false, status: 404 };
   const chave = `${plataforma}|${anuncio}`;
   const cache = cacheMiniaturas.get(chave);
   if (cache && cache.ate > agora) return { ok: true, tipo: cache.tipo, corpo: cache.corpo };
+  /* Rodada 10: a rota é pública (o <img> não manda login) e cada pedido de um anúncio sem imagem ia ao banco, e
+     cada imagem que a Meta já tirou do ar era pedida de novo a cada abertura das Campanhas. O "não tem" fica
+     lembrado por 10 minutos (a próxima coleta pode trazer a imagem). Banco fora não conta: aí não se sabe. */
+  const semImagemAte = semMiniatura.get(chave);
+  if (semImagemAte && semImagemAte > agora) return { ok: false, status: 404 };
+  const naoTem = () => {
+    if (semMiniatura.size >= 2000) semMiniatura.delete(semMiniatura.keys().next().value);
+    semMiniatura.delete(chave); semMiniatura.set(chave, agora + TTL_SEM_MINIATURA);
+    return { ok: false, status: 404 };
+  };
   const { data, error } = await sb.from('ads_metricas_dia').select('miniatura_url, data')
     .eq('plataforma', plataforma).eq('nivel', 'anuncio').eq('anuncio_ext', String(anuncio))
     .not('miniatura_url', 'is', null).order('data', { ascending: false }).limit(1);
-  const url = !error && data?.[0]?.miniatura_url;
-  if (!url || !urlPermitida(url, hosts)) return { ok: false, status: 404 };
+  if (error) return { ok: false, status: 404 };
+  const url = data?.[0]?.miniatura_url;
+  if (!url || !urlPermitida(url, hosts)) return naoTem();
   let r;
   try { r = await f(url, { redirect: 'error', headers: { Accept: 'image/*' }, signal: AbortSignal.timeout(8_000) }); }
-  catch { return { ok: false, status: 404 }; }
+  catch { return naoTem(); }
   const tipo = String(r.headers.get('content-type') || '').split(';')[0].trim();
-  if (!r.ok || !TIPOS_IMAGEM.test(tipo) || Number(r.headers.get('content-length') || 0) > MAX_MINIATURA) return { ok: false, status: 404 };
+  if (!r.ok || !TIPOS_IMAGEM.test(tipo) || Number(r.headers.get('content-length') || 0) > MAX_MINIATURA) return naoTem();
   const corpo = Buffer.from(await r.arrayBuffer());
-  if (corpo.length > MAX_MINIATURA) return { ok: false, status: 404 };
+  if (corpo.length > MAX_MINIATURA) return naoTem();
+  semMiniatura.delete(chave);
   guardarMiniatura(chave, { tipo, corpo, ate: agora + TTL_MINIATURA });
   return { ok: true, tipo, corpo };
 }
