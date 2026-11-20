@@ -1,4 +1,5 @@
 'use strict';
+process.env.TRAFEGO_TELA_ANTIGA = '1'; // rodada 10: estas rotas são da tela antiga e ficam fechadas sem esta chave
 /* Servidor com os papéis da casa (porteiro e banco falsos): quem entra,
    quem recebe 403 com o código certo, e os cabeçalhos de segurança. */
 const test = require('node:test');

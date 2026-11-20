@@ -50,7 +50,7 @@ const MIME = {
 };
 /* A mesma política do servidor de verdade (apps/trafego/seguranca.js): se a tela violar, o navegador reclama aqui também. */
 const CSP = ["default-src 'self'", "script-src 'self'", "style-src 'self'", "style-src-attr 'unsafe-inline'", "font-src 'self'", "img-src 'self' data: blob:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co", "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'"].join('; ');
+  "connect-src 'self' https://*.supabase.co", "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'"].join('; ');
 
 function cabecalhos(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');

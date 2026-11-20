@@ -245,6 +245,7 @@ export const CASOS = {
     conferir(!/modo=|contato=|volta=/.test(hash), 'a fila de novo: ' + hash);
     conferir((await texto(pagina, '.fila-nome')) === nome, 'o mesmo contato da vez');
     await pagina.goto(endereco + '?cenario=cheio#/jornada', { waitUntil: 'networkidle0' });
+    await pagina.waitForSelector('.torre-linha .torre-abre');   // a troca é só de âncora: networkidle0 volta antes de a lista pintar
     await pagina.click('.torre-linha .torre-abre');
     await pagina.waitForSelector('.detalhe-voltar');
     conferir((await texto(pagina, '.detalhe-voltar')) === 'Voltar para a lista', 'aberto pela lista, volta para a lista');

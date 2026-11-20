@@ -69,7 +69,12 @@ module.exports = (ctx) => {
 
   rota('GET', '/api/gestor/conversas', ({ usuario }) => gestor().listarConversas(usuario));
 
-  rota('GET', /^\/api\/gestor\/conversas\/([^/]+)$/, ({ usuario, m }) => gestor().abrirConversa(decodeURIComponent(m[1]).toLowerCase(), usuario));
+  rota('GET', /^\/api\/gestor\/conversas\/([^/]+)$/, ({ usuario, m }) => {
+    // Rodada 10: "%" torto no endereço (ex.: %E0%A4%A) estourava o decodificador e a rota respondia erro interno.
+    let id;
+    try { id = decodeURIComponent(m[1]); } catch { throw new ctx.ErroHttp(400, 'Endereço da conversa inválido.', { codigo: 'conversa' }); }
+    return gestor().abrirConversa(id.toLowerCase().slice(0, 80), usuario);
+  });
 
   rota('POST', '/api/gestor/conversas', async ({ usuario, corpo }) => gestor().criarConversa(await corpo(), usuario));
 

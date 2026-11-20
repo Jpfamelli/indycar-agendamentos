@@ -1,4 +1,5 @@
 'use strict';
+process.env.TRAFEGO_TELA_ANTIGA = '1'; // rodada 10: estas rotas são da tela antiga e ficam fechadas sem esta chave
 /* Rodada 7: as rotas novas com porteiro e banco falsos (quem entra, o que volta, o que fica gravado na auditoria). */
 process.env.ADS_CRON_TOKEN = 'chave-de-teste';
 const test = require('node:test');

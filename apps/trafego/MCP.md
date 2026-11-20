@@ -33,7 +33,7 @@ para o `/mcp` com o cabeçalho da chave.
 2. Em Configurações › Desenvolvedor › Editar configuração, cole o bloco de `mcp/exemplos/claude-desktop.json`, troque o caminho
    da ponte e a chave, e reinicie o Desktop.
 3. A ponte só aceita `https://` (ou `http://localhost` para teste) e nunca imprime a chave.
-Atenção: nesse arquivo a chave fica gravada no computador. Use uma chave só de leitura, sem "ver dado pessoal".
+Atenção: nesse arquivo a chave fica gravada no computador. Use uma chave "Só ler os números", sem marcar "Ver nome e conversa completa dos clientes".
 
 ## 5. claude.ai, celular e ChatGPT (próximo passo, ainda não feito)
 Esses clientes conectam pela nuvem deles e pedem **OAuth** (o claude.ai só aceita cabeçalho fixo na seção beta
