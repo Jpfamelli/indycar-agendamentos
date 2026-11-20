@@ -345,8 +345,12 @@ export function criarApi(deps) {
     return f ? ok(res, f) : naoAchou(res);
   });
   rota('POST', '/api/clientes/importar', async ({ res, usuario, body }) => {
-    const linhas = Array.isArray(body.linhas) ? body.linhas.slice(0, 2000) : [];
+    const linhas = Array.isArray(body.linhas) ? body.linhas : [];
     if (!linhas.length) return bad(res, 'Nenhuma linha para importar.');
+    if (linhas.length > 2000) return bad(res, 'Importe até 2.000 linhas por vez.', { campo: 'linhas' });
+    if (linhas.some((linha) => !linha || typeof linha !== 'object' || Array.isArray(linha))) {
+      return bad(res, 'Confira o formato das linhas antes de importar.', { campo: 'linhas' });
+    }
     const r = await dados.importarClientes(linhas);
     auditar(usuario, 'clientes_importados', 'clientes', null, { linhas: linhas.length, criados: r?.criados, atualizados: r?.atualizados, ignorados: r?.ignorados });
     return ok(res, r);
@@ -441,6 +445,7 @@ export function criarApi(deps) {
   rota('POST', `/api/envios/${U}/adiar`, async ({ res, usuario, body, url }) => {
     const id = idDe(url.pathname);
     if (!(await podeMexerNoEnvio(usuario, id))) return proibido(res, 'cancelar_qualquer');
+    if (typeof body.enviar_em !== 'string') return bad(res, 'Escolha uma data e hora válidas.', { campo: 'enviar_em' });
     const r = await dados.adiarManual(id, body.enviar_em);
     if (!r.ok) return send(res, r.status || 400, { erro: r.erro });
     esquecerCache('agenda', 'fila', 'resumo');
@@ -453,6 +458,7 @@ export function criarApi(deps) {
     if (body.tipo != null && !dados.TIPOS_ENVIO.includes(body.tipo)) {
       return bad(res, 'Escolha um tipo de mensagem válido.', { campo: 'tipo' });
     }
+    if (typeof body.enviar_em !== 'string') return bad(res, 'Escolha uma data e hora válidas.', { campo: 'enviar_em' });
     const r = await dados.adiarDia(dia, body.enviar_em, body.tipo ?? null);
     if (!r.ok) return bad(res, r.erro);
     esquecerCache('agenda', 'fila', 'resumo');
@@ -755,7 +761,10 @@ export function criarApi(deps) {
       const erro = r7.validarTextoR7(k, body[k]);
       if (erro) return bad(res, erro, { campo: k });
     }
-    if (body?.texto_rodape_parar !== undefined && !/parar/i.test(String(body.texto_rodape_parar))) return bad(res, 'O rodapé precisa dizer como sair: inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
+    if (body.texto_rodape_parar !== undefined &&
+        (typeof body.texto_rodape_parar !== 'string' || !/parar/i.test(body.texto_rodape_parar))) {
+      return bad(res, 'O rodapé precisa dizer como sair: inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
+    }
     const antes = await dados.obterConfig();
     const depois = await dados.salvarConfig(body);
     esquecerCache('resumo', 'pronto', 'projecao', 'carteiro');
@@ -822,6 +831,7 @@ export function criarApi(deps) {
     return ok(res, { ativo: cfg.ativo, temChave: !!chave, autonomia: cfg.autonomia, chamadasHoje: hojeN, limite: cfg.limite });
   });
   rota('POST', '/api/ia/escrever', async ({ res, usuario, body }) => {
+    if (body.pedido != null && typeof body.pedido !== 'string') return bad(res, 'Escreva o pedido em texto.', { campo: 'pedido' });
     const regua = String(body.regua || 'campanha');
     if (!ia?.VARIAVEIS_POR_REGUA?.[regua]) return bad(res, 'Régua desconhecida.');
     const pedido = String(body.pedido || '').slice(0, 500), texto = String(body.texto || '').slice(0, 1500);

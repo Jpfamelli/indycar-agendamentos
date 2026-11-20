@@ -40,6 +40,24 @@ async function subir({ simular = null, livre = false } = {}) {
 }
 test.after(() => banco.restaurar());
 
+for (const [id, metodo, caminho, corpo, campo] of [
+  ['047', 'POST', '/api/clientes/importar', { linhas: Array(2001).fill(null) }, 'linhas'],
+  ['048', 'POST', '/api/clientes/importar', { linhas: [null] }, 'linhas'],
+  ['049', 'POST', `/api/envios/${ID(989)}/adiar`, { enviar_em: [new Date(Date.now() + 3600000).toISOString()] }, 'enviar_em'],
+  ['050', 'POST', '/api/agenda/adiar-dia', { dia: H, enviar_em: [new Date(Date.now() + 3600000).toISOString()] }, 'enviar_em'],
+  ['051', 'PUT', '/api/comunicar/config', { texto_rodape_parar: ['PARAR'] }, 'texto_rodape_parar'],
+  ['052', 'POST', '/api/ia/escrever', { pedido: { texto: 'Olá' } }, 'pedido'],
+]) {
+  test(`R10-COM-${id}: recusa ${campo} inválido em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', metodo, caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+
 for (const [id, caminho, corpo] of [
   ['028', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, nota: true }],
   ['029', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, comentario: 'a'.repeat(1001) }],
