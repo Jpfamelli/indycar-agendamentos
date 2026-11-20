@@ -487,9 +487,20 @@ async function abrirPrevia(regua = null) {
   const titulo = regua ? `Quem receberia hoje · ${TIPO[regua]?.rotulo || regua}` : 'Prévia de hoje';
   openModal(`<div class="modal-head"><h3>${svg(I.olho)} ${esc(titulo)}</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
     <div class="modal-body"><div class="esqueleto"><div class="skel" style="height:60px"></div><div class="skel" style="height:60px"></div></div></div>`, { larga:true });
+  const corpo = $('.modal-body', modal);
+  corpo.setAttribute('aria-busy', 'true');
   let p;
   try { p = await api('GET', '/previa' + (regua ? `?regua=${encodeURIComponent(regua)}` : '')); }
-  catch (e) { $('.modal-body', modal).innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
+  catch {
+    if (!modalAberto() || !corpo.isConnected) return;
+    corpo.innerHTML = '<p class="form-msg erro" role="alert">Não consegui carregar a prévia.</p><button type="button" class="btn">Tentar novamente</button>';
+    $('button', corpo).addEventListener('click', () => abrirPrevia(regua));
+    $('button', corpo).focus({ preventScroll:true });
+    return;
+  } finally {
+    corpo.removeAttribute('aria-busy');
+  }
+  if (!modalAberto() || !corpo.isConnected) return;
 
   const lista = p.previa || [], pulados = p.puladosDetalhe || [], adiados = p.adiadosDetalhe || [];
   const resumo = Object.entries(p.porRegua || {}).filter(([t]) => !regua || t === regua).map(([t, v]) =>
@@ -498,7 +509,7 @@ async function abrirPrevia(regua = null) {
       <div class="q"><span><b>${esc(x.nome || x.telefone)}</b> <small>· ${esc(telBR(x.telefone))}</small></span>${pillTipo(x.tipo)}</div>
       <div class="c">${esc(x.corpo)}</div>${extra ? `<div class="motivo">${esc(extra)}</div>` : ''}</div>`;
 
-  $('.modal-body', modal).innerHTML = `
+  corpo.innerHTML = `
     <div class="previa-resumo">${resumo || '<span class="dica">Nenhuma régua rodou.</span>'}</div>
     ${p.erros?.length ? `<p class="form-msg erro">${p.erros.map(e => `${esc(TIPO[e.tipo]?.rotulo || e.tipo)}: ${esc(e.erro)}`).join('<br>')}</p>` : ''}
     <div class="dica">Simulação: nada foi gravado. Com a régua ligada, isto entra na fila na próxima rodada do carteiro${regua ? '' : ' (réguas desligadas aparecem só para você ver)'}.</div>
@@ -513,9 +524,10 @@ async function abrirPrevia(regua = null) {
 // RÉGUAS — réguas automáticas + envio
 // ============================================================================
 async function renderReguas({ vez = state._vez } = {}) {
-  const [cfg, regras] = await Promise.all([api('GET', '/comunicar/config'), api('GET', '/regras-retorno').catch(() => [])]);
+  const [cfg, regras] = await Promise.all([api('GET', '/comunicar/config'), api('GET', '/regras-retorno').catch(() => null)]);
   if (vez !== state._vez) return;
   state.cfg = cfg; state.cfgEdit = {}; state.regras = regras;
+  const regrasHtml = regras ? htmlRegras(regras, ehGestor()) : '<p role="status">Não deu para carregar os prazos por serviço.</p><button type="button" class="btn" id="btnRecarregarRegras">Tentar de novo</button>';
   /* rodada 4: alterações que não foram salvas (aba fechada, servidor dormindo) voltam */
   const rascunho = ehGestor() ? window.R4?.lerRascunhoReguas(cfg) : null;
   if (rascunho && Object.keys(rascunho).length) { state.cfgEdit = rascunho; state._rascunhoRestaurado = Object.keys(rascunho).length; }
@@ -548,7 +560,7 @@ async function renderReguas({ vez = state._vez } = {}) {
             <button type="button" class="var-chip ia-chip" data-ia="${tipo}" ${gestor ? '' : 'disabled'} title="Gera 3 opções no tom da casa">✨ Escrever com IA</button></div>
           <div class="ia-box" data-ia-box="${tipo}" hidden></div></div>
         <div class="previa"><small>Prévia · como a ${esc(EXEMPLO.nome.split(' ')[0])} vê no celular <button type="button" class="link-mini" data-previa-real="${tipo}" title="Escolher um cliente de verdade e ver a mensagem dele (com os links dele)">ver como um cliente real</button></small>${celularWA(`<div class="bolha wa-rec" data-previa="${tipo}"></div>`)}</div>
-        ${tipo === 'retorno' ? `<div class="regras" id="regrasBox">${htmlRegras(regras, gestor)}</div>` : ''}
+        ${tipo === 'retorno' ? `<div class="regras" id="regrasBox">${regrasHtml}</div>` : ''}
         <div class="regua-acoes">
           ${tipo !== 'avaliacao' ? `<button type="button" class="btn" data-quem="${tipo}">${svg(I.olho)} Quem receberia hoje</button>` : ''}
           <button type="button" class="btn wa" data-teste="${tipo}" ${gestor ? '' : 'disabled'}>${svg(I.wa)} Mandar teste para mim</button>
@@ -590,32 +602,49 @@ async function renderReguas({ vez = state._vez } = {}) {
             <input id="cfg_mc" type="number" inputmode="numeric" min="0" max="1440" value="${esc(v('intervalo_mesmo_cliente_min') ?? 60)}" data-cfg="intervalo_mesmo_cliente_min" ${gestor ? '' : 'disabled'}>
             <small>minutos entre dois avisos para a mesma pessoa</small></div>
           <div class="field curto"><span class="rot">Só horário da loja</span>
-            <label class="sw" style="padding:9px 0" title="Seg–sáb, 8h às 17h30: fora disso o carteiro espera a loja abrir"><input type="checkbox" data-cfg="so_horario_comercial" ${v('so_horario_comercial') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('so_horario_comercial') ? 'Seg–sáb 8h–17h30' : 'Janela acima'}</span></label></div>
+            <label class="sw" style="padding:9px 0" title="Seg–sáb, 8h às 17h30: fora disso o carteiro espera a loja abrir"><input type="checkbox" aria-label="Limitar ao horário da loja" data-cfg="so_horario_comercial" ${v('so_horario_comercial') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('so_horario_comercial') ? 'Seg–sáb 8h–17h30' : 'Janela acima'}</span></label></div>
           <div class="field"><label for="cfg_tel">Telefone de teste</label><input id="cfg_tel" type="tel" inputmode="tel" placeholder="(12) 99999-9999" value="${esc(telBR(v('telefone_teste')) === '—' ? '' : telBR(v('telefone_teste')))}" data-cfg="telefone_teste" ${gestor ? '' : 'disabled'}></div>
           <div class="field curto"><span class="rot">Domingo</span>
-            <label class="sw" style="padding:9px 0"><input type="checkbox" data-cfg="envia_domingo" ${v('envia_domingo') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('envia_domingo') ? 'Envia' : 'Não envia'}</span></label></div>
+            <label class="sw" style="padding:9px 0"><input type="checkbox" aria-label="Enviar aos domingos" data-cfg="envia_domingo" ${v('envia_domingo') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('envia_domingo') ? 'Envia' : 'Não envia'}</span></label></div>
         </div>
         <div class="pausa${v('pausa_geral') ? ' ligada' : ''}" id="pausaBox">
           <div class="p-txt"><b>${svg(I.pausa)} Pausa geral</b><small>Segura TODOS os envios automáticos. A fila continua se formando; nada sai até desligar.</small></div>
-          <label class="sw vermelho"><input type="checkbox" data-cfg="pausa_geral" ${v('pausa_geral') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('pausa_geral') ? 'Pausado' : 'Enviando'}</span></label>
+          <label class="sw vermelho"><input type="checkbox" aria-label="Pausa geral de envios" data-cfg="pausa_geral" ${v('pausa_geral') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('pausa_geral') ? 'Pausado' : 'Enviando'}</span></label>
         </div>
       </div>
     </section>
 
     <div class="reguas-grid">${REGUAS.map(cartao).join('')}</div>
     <div class="barra-salvar" id="barraSalvar" hidden>
-      <div class="b-txt"><span class="n" id="nAlteracoes">0</span><span id="txtAlteracoes">alterações sem salvar</span></div>
+      <div class="b-txt" role="status"><span class="n" id="nAlteracoes">0</span><span id="txtAlteracoes">alterações sem salvar</span></div>
       <div class="b-acoes"><button type="button" class="btn" id="btnDescartar">Descartar</button><button type="button" class="btn primary" id="btnSalvar">${svg(I.check)} Salvar</button></div>
     </div>`;
 
   REGUAS.forEach(atualizarPrevia);
   ligarCamposConfig();
   ligarRegras();
+  $('#btnRecarregarRegras')?.addEventListener('click', async (btnEvent) => {
+    const btn = btnEvent.currentTarget;
+    btn.disabled = true;
+    try {
+      const lista = await api('GET', '/regras-retorno');
+      if (!btn.isConnected) return;
+      state.regras = lista;
+      $('#regrasBox').innerHTML = htmlRegras(lista, gestor);
+      ligarRegras();
+      $('#regrasBox').querySelector('input:not(:disabled), button:not(:disabled)')?.focus();
+    } catch {
+      if (btn.isConnected) toast('Ainda não deu para carregar os prazos por serviço.', 'err');
+    } finally { btn.disabled = false; }
+  });
   $$('[data-quem]', view).forEach(b => b.addEventListener('click', () => abrirPrevia(b.dataset.quem)));
   $$('[data-teste]', view).forEach(b => b.addEventListener('click', () => mandarTeste(b)));
   $('#btnSalvar').addEventListener('click', salvarConfig);
   $('#btnSalvarTopo').addEventListener('click', salvarConfig);
-  $('#btnDescartar').addEventListener('click', () => route('reguas'));
+  $('#btnDescartar').addEventListener('click', () => {
+    window.R4?.guardarRascunhoReguas({});
+    route('reguas');
+  });
   $$('[data-ia]', view).forEach(b => b.addEventListener('click', () => {
     const tipo = b.dataset.ia, ta = $(`#msg_${tipo}`);
     painelEscreverIA($(`[data-ia-box="${tipo}"]`, view), { regua: tipo, lerTexto: () => ta.value,
@@ -652,7 +681,7 @@ function ligarCamposConfig() {
     const ev = el.tagName === 'TEXTAREA' || el.type === 'text' || el.type === 'url' || el.type === 'tel' || el.type === 'number' ? 'input' : 'change';
     el.addEventListener(ev, () => {
       const campo = el.dataset.cfg, novo = valorCampo(el);
-      const original = campo === 'telefone_teste' ? soDigitos(state.cfg[campo]) : state.cfg[campo];
+      const original = campo === 'telefone_teste' ? soDigitos(state.cfg[campo]) : (state.cfg[campo] ?? el.defaultValue);
       if (el.type === 'number') {
         const n = Number(el.value), min = Number(el.min), max = Number(el.max);
         el.classList.toggle('invalido', el.value === '' || n < min || n > max || !Number.isInteger(n));
@@ -664,6 +693,7 @@ function ligarCamposConfig() {
       if (campo === 'pausa_geral') { $('#pausaBox').classList.toggle('ligada', novo); $('#pausaBox .sw-txt').textContent = novo ? 'Pausado' : 'Enviando'; }
       if (campo === 'envia_domingo') el.closest('.sw').querySelector('.sw-txt').textContent = novo ? 'Envia' : 'Não envia';
       if (campo === 'so_horario_comercial') el.closest('.sw').querySelector('.sw-txt').textContent = novo ? 'Seg–sáb 8h–17h30' : 'Janela acima';
+      if (campo === 'hora_envio') REGUAS.forEach(atualizarPrevia);
       if (campo === 'intervalo_minimo_dias') $$('.regua-meta .chip-sil', view).forEach(ch => { ch.textContent = `silêncio ${novo} d`; });
       if (campo === 'telefone_teste' && ev === 'input') { const f = telBR(novo); if (f !== '—' && soDigitos(novo).length >= 10) el.value = f; }
       if (card) { card.classList.toggle('alterada', Object.keys(state.cfgEdit).some(k => k.endsWith('_' + card.dataset.regua) || k === TIPO[card.dataset.regua]?.param?.campo || (card.dataset.regua === 'avaliacao' && k === 'link_avaliacao'))); atualizarPrevia(card.dataset.regua); }
@@ -671,11 +701,15 @@ function ligarCamposConfig() {
     });
   });
   // chips de variável: inserem {var} onde está o cursor
-  $$('.var-chip', view).forEach(ch => ch.addEventListener('click', () => {
+  $$('.var-chip[data-var][data-alvo]', view).forEach(ch => ch.addEventListener('click', () => {
     const ta = $('#' + ch.dataset.alvo); if (!ta || ta.disabled) return;
     const ini = ta.selectionStart ?? ta.value.length, fim = ta.selectionEnd ?? ini;
     const tok = `{${ch.dataset.var}}`;
-    ta.value = ta.value.slice(0, ini) + tok + ta.value.slice(fim);
+    if (ta.maxLength >= 0 && ta.value.length - (fim - ini) + tok.length > ta.maxLength) {
+      ta.focus();
+      return toast(`A mensagem aceita até ${ta.maxLength} caracteres.`, 'err');
+    }
+    ta.setRangeText(tok, ini, fim, 'end');
     ta.focus(); ta.setSelectionRange(ini + tok.length, ini + tok.length);
     ta.dispatchEvent(new Event('input', { bubbles:true }));
   }));
@@ -697,6 +731,8 @@ function atualizarBarra() {
   window.R4?.guardarRascunhoReguas(state.cfgEdit);
 }
 async function salvarConfig() {
+  if (state._salvandoReguas) return;
+  const vez = state._vez;
   const dados = { ...state.cfgEdit };
   if (!Object.keys(dados).length) return;
   const textoRuim = $('.r6-texto textarea.invalido', view);
@@ -705,20 +741,33 @@ async function salvarConfig() {
   if (invalido) { invalido.focus(); return toast('Confira o número destacado: ele está fora da faixa.', 'err'); }
   if (dados.janela_inicio !== undefined || dados.janela_fim !== undefined) {
     const ini = dados.janela_inicio ?? state.cfg.janela_inicio, fim = dados.janela_fim ?? state.cfg.janela_fim;
-    if (ini >= fim) return toast('A janela precisa começar antes de terminar.', 'err');
+    if (ini >= fim) {
+      $('#cfg_ji')?.focus();
+      return toast('A janela precisa começar antes de terminar.', 'err');
+    }
   }
-  if (dados.link_avaliacao !== undefined && dados.link_avaliacao && !/^https?:\/\/\S+$/i.test(dados.link_avaliacao)) return toast('O link da avaliação precisa começar com https://', 'err');
+  if (dados.link_avaliacao !== undefined && dados.link_avaliacao && !/^https?:\/\/\S+$/i.test(dados.link_avaliacao)) {
+    $('#cfg_link')?.focus();
+    return toast('Use um endereço completo para a avaliação, com http:// ou https://.', 'err');
+  }
   if (dados.telefone_teste !== undefined && dados.telefone_teste && dados.telefone_teste.length < 10) return toast('Telefone de teste incompleto.', 'err');
   const btns = [$('#btnSalvar'), $('#btnSalvarTopo')].filter(Boolean); btns.forEach(b => (b.disabled = true));
+  const campos = $$('[data-cfg]:enabled, #btnDescartar', view);
+  campos.forEach(el => { el.disabled = true; });
+  state._salvandoReguas = true;
   try {
     const cfg = await api('PUT', '/comunicar/config', dados);
+    if (vez !== state._vez) return;
     state.cfg = cfg; state.cfgEdit = {};
     window.R4?.guardarRascunhoReguas({});
     toast('Réguas salvas — valem a partir da próxima rodada.');
     await route('reguas', { quieto:true });
   } catch (e) {
     toast(e.status === 403 ? 'Só gestor altera as réguas. Use "Pedir ao gestor".' : `${e.message} Suas alterações continuam guardadas neste aparelho.`, 'err', 6000);
-    btns.forEach(b => (b.disabled = false));
+  } finally {
+    state._salvandoReguas = false;
+    campos.forEach(el => { el.disabled = false; });
+    if (vez === state._vez) atualizarBarra();
   }
 }
 async function mandarTeste(btn) {
@@ -743,8 +792,8 @@ function htmlRegras(regras, gestor) {
       <input class="rot" value="${esc(r.rotulo)}" data-campo="rotulo" aria-label="Nome da regra" ${gestor ? '' : 'disabled'}>
       <input class="palavras" value="${esc((r.palavras || []).join(', '))}" data-campo="palavras" aria-label="Palavras do serviço" placeholder="palavras, separadas, por vírgula" ${gestor ? '' : 'disabled'}>
       <input class="meses" type="number" min="1" max="36" value="${esc(r.meses)}" data-campo="meses" aria-label="Meses" ${gestor ? '' : 'disabled'}>
-      <label class="sw" aria-label="Regra ativa"><input type="checkbox" data-campo="ativo" ${r.ativo ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span></label>
-      <div class="acoes"><button type="button" class="icon-btn" data-msg aria-label="Mensagem própria desta regra" title="Mensagem própria (opcional)">${svg(I.edit)}</button>
+      <label class="sw"><input type="checkbox" aria-label="Regra ativa" data-campo="ativo" ${r.ativo ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span></label>
+      <div class="acoes"><button type="button" class="icon-btn" data-msg aria-expanded="false" aria-label="Mensagem própria desta regra" title="Mensagem própria (opcional)">${svg(I.edit)}</button>
         <button type="button" class="icon-btn red" data-apagar aria-label="Apagar regra" ${gestor ? '' : 'disabled'}>${svg(I.trash)}</button></div>
       <div class="regra-msg" hidden><input value="${esc(r.mensagem || '')}" data-campo="mensagem" placeholder="Mensagem só para esta regra (vazio = usa a da régua)" aria-label="Mensagem da regra" ${gestor ? '' : 'disabled'}><small>{meses} {servico}</small></div>
     </div>`;
@@ -769,7 +818,7 @@ function ligarRegras() {
     ativo: $('[data-campo="ativo"]', linha)?.checked ?? true,
     mensagem: $('[data-campo="mensagem"]', linha)?.value ?? '',
   });
-  box.addEventListener('change', async (e) => {
+  box.onchange = async (e) => {
     const linha = e.target.closest('.regra'); if (!linha || linha.hasAttribute('data-nova')) return;
     const campo = e.target.dataset.campo; if (!campo) return;
     const d = lerLinha(linha);
@@ -780,28 +829,50 @@ function ligarRegras() {
       if (campo === 'palavras') $('[data-campo="palavras"]', linha).value = (r.palavras || []).join(', ');
       toast('Regra salva.', 'ok', 1800);
     } catch (err) { toast(err.status === 403 ? 'Só gestor altera as regras.' : err.message, 'err'); }
-  });
-  box.addEventListener('click', async (e) => {
+  };
+  box.onclick = async (e) => {
     const linha = e.target.closest('.regra'); if (!linha) return;
-    if (e.target.closest('[data-msg]')) { const m = $('.regra-msg', linha); m.hidden = !m.hidden; if (!m.hidden) $('input', m).focus(); return; }
-    if (e.target.closest('[data-apagar]')) {
-      if (!confirm(`Apagar a regra "${$('[data-campo="rotulo"]', linha).value}"? Os serviços dela passam a usar o prazo padrão.`)) return;
-      try { await api('DELETE', `/regras-retorno/${linha.dataset.id}`); linha.remove(); toast('Regra apagada.'); }
-      catch (err) { toast(err.message, 'err'); }
+    const mensagem = e.target.closest('[data-msg]');
+    if (mensagem) {
+      const m = $('.regra-msg', linha);
+      m.hidden = !m.hidden;
+      mensagem.setAttribute('aria-expanded', String(!m.hidden));
+      if (!m.hidden && !$('input', m).disabled) $('input', m).focus();
       return;
     }
-    if (e.target.closest('[data-adicionar]')) {
+    const apagar = e.target.closest('[data-apagar]');
+    if (apagar) {
+      if (!confirm(`Apagar a regra "${$('[data-campo="rotulo"]', linha).value}"? Os serviços dela passam a usar o prazo padrão.`)) return;
+      apagar.disabled = true;
+      try {
+        await api('DELETE', `/regras-retorno/${linha.dataset.id}`);
+        if (!box.isConnected) return;
+        state.regras = state.regras?.filter(r => String(r.id) !== linha.dataset.id) ?? [];
+        linha.remove();
+        $('.lista-sep em', box).textContent = state.regras.length;
+        $('[data-nova] [data-campo="rotulo"]', box)?.focus();
+        toast('Regra apagada.');
+      } catch (err) { toast(err.message, 'err'); }
+      finally { apagar.disabled = false; }
+      return;
+    }
+    const adicionar = e.target.closest('[data-adicionar]');
+    if (adicionar) {
       const d = lerLinha(linha);
       if (!d.rotulo || !d.palavras.trim()) return toast('Dê um nome e pelo menos uma palavra do serviço.', 'err');
       if (!Number.isInteger(d.meses) || d.meses < 1 || d.meses > 36) return toast('Meses entre 1 e 36.', 'err');
+      adicionar.disabled = true;
       try {
-        await api('POST', '/regras-retorno', d);
-        state.regras = await api('GET', '/regras-retorno');
+        const regra = await api('POST', '/regras-retorno', d);
+        if (!box.isConnected) return;
+        state.regras = [...state.regras, regra];
         box.innerHTML = htmlRegras(state.regras, ehGestor());
+        $('[data-nova] [data-campo="rotulo"]', box)?.focus();
         toast('Regra adicionada.');
       } catch (err) { toast(err.message, 'err'); }
+      finally { adicionar.disabled = false; }
     }
-  });
+  };
 }
 
 // ============================================================================
@@ -1030,8 +1101,8 @@ async function renderCampanhas({ vez = state._vez } = {}) {
   $$('[data-cancelar-lote]', view).forEach(b => b.addEventListener('click', async () => {
     if (!confirm(`Cancelar as ${b.dataset.n} mensagens dessa campanha que ainda não saíram? As que já saíram não mudam.`)) return;
     b.disabled = true;
-    try { const r = await api('POST', `/lotes/${b.dataset.cancelarLote}/cancelar`, {}); toast(`${plural(r.cancelados, 'mensagem cancelada', 'mensagens canceladas')}.`); renderCampanhas(); }
-    catch (e) { toast(e.message || 'Não consegui cancelar agora.'); b.disabled = false; }
+    try { const r = await api('POST', `/lotes/${b.dataset.cancelarLote}/cancelar`, {}); toast(`${plural(r.cancelados, 'mensagem cancelada', 'mensagens canceladas')}.`); if (vez === state._vez) await route(null, { quieto: true }); }
+    catch (e) { toast(e.message || 'Não consegui cancelar agora.', 'err'); b.disabled = false; }
   }));
   pintarAprovacoes();
   window.R6?.pintarCampanhas();
@@ -1050,13 +1121,28 @@ async function carregarSegmentos() { if (!state.segmentos) state.segmentos = awa
 async function carregarModelos() { if (!state.modelos) state.modelos = await api('GET', '/modelos').catch(() => []); return state.modelos; }
 
 /* Modal "Nova campanha" em 3 passos: para quem → mensagem → quando. */
+let aberturaCampanha = 0;
 window.openCampanhaModal = async function (pre = {}) {
+  const abertura = ++aberturaCampanha;
+  const vez = state._vez;
+  const janelaAnterior = modal.firstElementChild;
+  const estavaAberta = modalAberto();
   const c = { passo:1, alvo: pre.cliente ? 'cliente' : 'segmento', filtro:'todos', valor:'', cliente: pre.cliente || null,
     previa:null, corpo: window.R4?.lerRascunho('campanha') || '', quando:'agora', enviar_em:'', sugestao:null, segSalvoId:null };
   window.R7?.aplicarRepetir(c, pre);
-  if (c.corpo) setTimeout(() => toast('Recuperei a mensagem que você estava escrevendo.'), 300);
+  const rascunho = c.corpo;
   // rodada 5: segmentos salvos chegam junto (em paralelo) com segmentos e modelos
-  const [segmentos, modelos, salvos] = await Promise.all([carregarSegmentos(), carregarModelos(), window.R5 ? window.R5.segmentosSalvos().catch(() => []) : Promise.resolve([])]);
+  const aberturaAtual = () => abertura === aberturaCampanha && vez === state._vez &&
+    janelaAnterior === modal.firstElementChild && estavaAberta === modalAberto();
+  let segmentos, modelos, salvos;
+  try {
+    [segmentos, modelos, salvos] = await Promise.all([carregarSegmentos(), carregarModelos(), window.R5 ? window.R5.segmentosSalvos().catch(() => []) : Promise.resolve([])]);
+  } catch (e) {
+    if (aberturaAtual()) toast(e.message || 'Não consegui abrir a campanha. Tente novamente.', 'err');
+    return;
+  }
+  if (!aberturaAtual()) return;
+  if (rascunho) toast('Recuperei a mensagem que você estava escrevendo.');
 
   openModal(`<div class="modal-head"><h3>${svg(I.megafone)} Nova campanha</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
     <div class="passos" aria-label="Passos">
@@ -1069,18 +1155,21 @@ window.openCampanhaModal = async function (pre = {}) {
       <button type="button" class="btn" data-fechar>Cancelar</button><button type="button" class="btn primary" id="campAvancar">Avançar ${svg(I.seta)}</button></div>`, { larga:true, classe:'com-passos' });
 
   const body = $('#campBody');
+  const campanhaAberta = () => body.isConnected && modalAberto();
+  let consultaSegmento = 0;
   const alvoResumo = () => c.alvo === 'cliente' ? (c.cliente ? c.cliente.nome : 'nenhum cliente escolhido')
     : `${c.previa?.total ?? '…'} cliente(s) · ${segmentos.find(s => s.id === c.filtro)?.rotulo || c.filtro}${c.valor ? ` (${c.valor})` : ''}`;
   const clienteDaPrevia = () => c.alvo === 'cliente' ? c.cliente : (c.previa?.amostra?.[0] || null);
   /* atendente: campanha para um grupo vai para o gestor aprovar; avulsa sai direto */
   const precisaAprovar = () => c.alvo === 'segmento' && !pode('campanha_aprovar');
 
-  const atualizarSegPrevia = debounce(async () => {
-    const box = $('#segPrevia'); if (!box) return;
-    box.innerHTML = `<div class="skel" style="height:54px"></div>`;
+  const buscarSegPrevia = debounce(async (box, consulta) => {
+    const atual = () => campanhaAberta() && box.isConnected && consulta === consultaSegmento;
+    if (!atual()) return;
     try {
       const seg = segmentos.find(s => s.id === c.filtro);
       const p = await api('GET', `/segmentos/previa?filtro=${encodeURIComponent(c.filtro)}&valor=${encodeURIComponent(seg?.valor !== undefined ? (c.valor || seg.valor) : '')}`);
+      if (!atual()) return;
       c.previa = p;
       box.innerHTML = `<div class="top"><span class="n">${p.total}</span><span class="t">${p.total === 1 ? 'cliente recebe' : 'clientes recebem'}</span>
           <button type="button" class="btn btn-mini" id="segSalvar" title="Guardar este segmento com um nome para usar de novo">${svg(I.plus)} Salvar segmento</button></div>
@@ -1089,10 +1178,23 @@ window.openCampanhaModal = async function (pre = {}) {
       $('#segSalvar')?.addEventListener('click', async () => {
         const seg = segmentos.find(s => s.id === c.filtro);
         const s = await window.R5?.salvarSegmento(c.filtro, seg?.valor !== undefined ? (c.valor || seg.valor) : null, `${seg?.rotulo || c.filtro}${c.valor ? ` ${c.valor}` : ''}`);
-        if (s) { c.segSalvoId = s.id; salvos.unshift(s); passo1(); }
+        if (s && atual()) { c.segSalvoId = s.id; salvos.unshift(s); passo1(); }
       });
-    } catch (e) { box.innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; }
+    } catch (e) {
+      if (!atual()) return;
+      box.innerHTML = `<p class="form-msg erro">${esc(e.message)}</p><button type="button" class="btn" data-repetir> Tentar novamente</button>`;
+      $('[data-repetir]', box).addEventListener('click', atualizarSegPrevia);
+    } finally {
+      if (atual()) box.removeAttribute('aria-busy');
+    }
   }, 350);
+  const atualizarSegPrevia = () => {
+    c.previa = null;
+    const box = $('#segPrevia', body);
+    box.setAttribute('aria-busy', 'true');
+    box.innerHTML = '<div class="skel" style="height:54px"></div>';
+    buscarSegPrevia(box, ++consultaSegmento);
+  };
 
   const passo1 = () => {
     const seg = segmentos.find(s => s.id === c.filtro);
@@ -1110,7 +1212,7 @@ window.openCampanhaModal = async function (pre = {}) {
           <div class="field curto" id="campValorBox" ${seg?.valor !== undefined ? '' : 'hidden'}><label for="campValor">${esc(seg?.unidade === 'texto' ? 'Palavra' : seg?.unidade || 'Valor')}</label>
             <input id="campValor" ${seg?.unidade === 'texto' ? 'type="text"' : 'type="number" inputmode="numeric" min="1"'} value="${esc(c.valor || seg?.valor || '')}"></div>
         </div>
-        <div class="seg-previa" id="segPrevia" style="margin-top:12px"></div>
+        <div class="seg-previa" id="segPrevia" aria-live="polite" style="margin-top:12px"></div>
       </div>
       <div id="alvoCli" ${c.alvo === 'cliente' ? '' : 'hidden'}>
         ${c.cliente ? `<div class="cli-escolhido"><span><b>${esc(c.cliente.nome)}</b><small>${esc(telBR(c.cliente.telefone))}${c.cliente.carro ? ` · ${esc(c.cliente.carro)}` : ''}</small></span><button type="button" class="btn btn-mini" id="trocarCli">Trocar</button></div>`
@@ -1122,14 +1224,23 @@ window.openCampanhaModal = async function (pre = {}) {
       $('#campIA').addEventListener('click', async (ev) => {
         const b = ev.currentTarget; b.disabled = true;
         $('#campIASug').innerHTML = '<div class="ia-pensando"><span class="ia-pontos"><i></i><i></i><i></i></span> olhando os números da oficina…</div>';
-        try { c.sugestao = await api('POST', '/ia/publico'); $('#campIASug').innerHTML = htmlSugestao(c.sugestao); ligarSugestao(); }
-        catch (err) { $('#campIASug').innerHTML = `<p class="form-msg erro">${esc(err.message)}</p>`; }
+        const box = $('#campIASug');
+        const atual = () => campanhaAberta() && box.isConnected;
+        try {
+          const sugestao = await api('POST', '/ia/publico');
+          if (!atual()) return;
+          c.sugestao = sugestao;
+          box.innerHTML = htmlSugestao(sugestao);
+          ligarSugestao();
+        } catch (err) {
+          if (atual()) box.innerHTML = `<p class="form-msg erro">${esc(err.message)}</p>`;
+        }
         finally { b.disabled = false; }
       });
       const ligarSugestao = () => {
         if (c.sugestao) pintarBolha($('#campIASug [data-sug-bolha]'), renderTemplate(c.sugestao.mensagem, { nome: c.sugestao.previa?.amostra?.[0]?.nome || EXEMPLO.nome, carro: c.sugestao.previa?.amostra?.[0]?.carro || EXEMPLO.carro }));
         $('#usarSug')?.addEventListener('click', () => {
-          c.filtro = c.sugestao.segmento; c.valor = c.sugestao.valor ?? ''; c.corpo = c.sugestao.mensagem || c.corpo; c.sugestao.usada = true;
+          c.filtro = c.sugestao.segmento; c.segSalvoId = null; c.valor = c.sugestao.valor ?? ''; c.corpo = c.sugestao.mensagem || c.corpo; c.sugestao.usada = true;
           toast('Sugestão aplicada: segmento escolhido e mensagem pronta no passo 2.'); passo1();
         });
       };
@@ -1141,15 +1252,27 @@ window.openCampanhaModal = async function (pre = {}) {
         const s = salvos.find(x => x.id === b.dataset.segUsar); if (!s) return;
         c.filtro = s.filtro; c.valor = s.valor ?? ''; c.segSalvoId = s.id; passo1();
       }));
-      $('#campValor')?.addEventListener('input', e => { c.valor = e.target.value; atualizarSegPrevia(); });
+      $('#campValor')?.addEventListener('input', e => { c.valor = e.target.value; c.segSalvoId = null; atualizarSegPrevia(); });
       atualizarSegPrevia();
     } else {
       $('#trocarCli')?.addEventListener('click', () => { c.cliente = null; passo1(); });
       const inp = $('#campBusca');
-      inp?.addEventListener('input', debounce(async () => {
-        const q = inp.value.trim(); const sug = $('#campSug');
-        if (q.length < 2) { sug.hidden = true; return; }
-        const r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`).catch(() => []);
+      const sug = $('#campSug', body);
+      let consultaCliente = 0;
+      const buscar = debounce(async (q, consulta) => {
+        const atual = () => campanhaAberta() && inp.isConnected && consulta === consultaCliente;
+        if (!atual()) return;
+        let r;
+        try {
+          r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`);
+        } catch {
+          if (atual()) {
+            sug.textContent = 'Não consegui buscar clientes. Altere a busca para tentar novamente.';
+            sug.hidden = false;
+          }
+          return;
+        }
+        if (!atual()) return;
         const comTel = r.filter(x => x.telefone).slice(0, 8);
         sug.innerHTML = comTel.length ? comTel.map(x => `<button type="button" class="sugestao" data-id="${esc(x.id)}"><b>${esc(x.nome)}${x.aceita_mensagens === false ? ' 🚫' : ''}</b><small>${esc(telBR(x.telefone))}${x.carro ? ` · ${esc(x.carro)}` : ''}</small></button>`).join('')
           : '<div class="dica" style="padding:8px">Ninguém com esse nome (e telefone).</div>';
@@ -1159,8 +1282,14 @@ window.openCampanhaModal = async function (pre = {}) {
           if (x?.aceita_mensagens === false) return toast('Esse cliente pediu para não receber mensagens.', 'err');
           c.cliente = x; passo1();
         }));
-      }, 250));
-      setTimeout(() => inp?.focus(), 30);
+      }, 250);
+      inp?.addEventListener('input', () => {
+        sug.hidden = true;
+        const consulta = ++consultaCliente;
+        const q = inp.value.trim();
+        if (q.length >= 2) buscar(q, consulta);
+      });
+      inp?.focus();
     }
   };
 
@@ -1195,11 +1324,17 @@ window.openCampanhaModal = async function (pre = {}) {
       exemplo: () => { const x = clienteDaPrevia(); return x ? { nome: x.nome, carro: x.carro, placa: x.placa } : null; } }));
     $('#campModelo').addEventListener('change', e => { const m = modelos.find(x => x.id === e.target.value); if (m) { ta.value = m.corpo; pintar(); ta.focus(); } });
     $('#campTesteMeu').addEventListener('click', (e) => window.R5?.testeMeu(ta.value, e.currentTarget));
-    $$('.var-chip', body).forEach(ch => ch.addEventListener('click', () => {
+    $$('[data-var]', body).forEach(ch => ch.addEventListener('click', () => {
       const ini = ta.selectionStart ?? ta.value.length, fim = ta.selectionEnd ?? ini, tok = `{${ch.dataset.var}}`;
-      ta.value = ta.value.slice(0, ini) + tok + ta.value.slice(fim); ta.focus(); ta.setSelectionRange(ini + tok.length, ini + tok.length); pintar();
+      if (ta.value.length - (fim - ini) + tok.length > ta.maxLength) {
+        toast('A mensagem chegou ao limite de 2.000 caracteres.', 'err');
+        return;
+      }
+      ta.setRangeText(tok, ini, fim, 'end');
+      ta.focus();
+      pintar();
     }));
-    setTimeout(() => ta.focus(), 30);
+    ta.focus();
   };
 
   const passo3 = () => {
@@ -1225,7 +1360,13 @@ window.openCampanhaModal = async function (pre = {}) {
 
   const ir = (n) => {
     c.passo = n;
-    $$('.passo', modal).forEach(p => { const k = Number(p.dataset.passo); p.classList.toggle('ativo', k === n); p.classList.toggle('feito', k < n); });
+    $$('.passo', modal).forEach(p => {
+      const k = Number(p.dataset.passo);
+      p.classList.toggle('ativo', k === n);
+      p.classList.toggle('feito', k < n);
+      if (k === n) p.setAttribute('aria-current', 'step');
+      else p.removeAttribute('aria-current');
+    });
     $('#campVoltar').hidden = n === 1;
     $('#campAvancar').innerHTML = n === 3 ? (precisaAprovar() ? `${svg(I.check)} Pedir aprovação` : `${svg(I.send)} Colocar na fila`) : `Avançar ${svg(I.seta)}`;
     [passo1, passo2, passo3][n - 1]();
@@ -1245,7 +1386,9 @@ window.openCampanhaModal = async function (pre = {}) {
     let enviar_em = null;
     if (c.quando === 'data') {
       if (!c.enviar_em) return toast('Escolha o dia e a hora.', 'err');
-      enviar_em = new Date(c.enviar_em).toISOString();
+      const horario = new Date(c.enviar_em);
+      if (!Number.isFinite(horario.getTime()) || horario <= new Date()) return toast('Escolha uma data e hora futuras.', 'err');
+      enviar_em = horario.toISOString();
     }
     const bloqueio = window.R6?.bloqueioDeEnvio(c); if (bloqueio) return toast(bloqueio, 'err', 6500);
     const quantos = c.alvo === 'cliente' ? 1 : c.previa.total;
@@ -1257,14 +1400,15 @@ window.openCampanhaModal = async function (pre = {}) {
         ? { tipo:'avulsa', corpo, enviar_em, destinos:[{ cliente_id:c.cliente.id, telefone:c.cliente.telefone, nome:c.cliente.nome, carro:c.cliente.carro, placa:c.cliente.placa }] }
         : { corpo, enviar_em, segmento:{ filtro:c.filtro, valor: c.valor || segmentos.find(s => s.id === c.filtro)?.valor }, segmento_salvo_id: c.segSalvoId || undefined };
       const r = await api('POST', '/envios', window.R7 ? window.R7.completarPedido(c, window.R6 ? window.R6.completarPedido(c, payload) : payload) : (window.R6 ? window.R6.completarPedido(c, payload) : payload));
-      window.R4?.guardarRascunho('campanha', '');
+      if (campanhaAberta()) window.R4?.guardarRascunho('campanha', '');
       if (r.aguardando) {
         toast('Campanha mandada para aprovação — o gestor foi avisado no sino.', 'ok', 5500);
-        closeModal(); state.route === 'campanhas' ? route(null, { quieto:true }) : route('campanhas');
+        if (campanhaAberta()) { closeModal(); state.route === 'campanhas' ? route(null, { quieto:true }) : route('campanhas'); }
         return;
       }
       toast(`${plural(r.enfileirados, 'mensagem', 'mensagens')} na fila${r.pulados ? ` · ${r.pulados} pulada(s) (pediu para parar ou recebeu outra há pouco)` : ''}${r.dias > 1 ? ` · escalonadas em ${r.dias} dias (limite de ${r.limitePorDia}/dia)` : ''}.`, 'ok', 6000);
-      closeModal(); refreshBadge();
+      if (campanhaAberta()) closeModal();
+      refreshBadge();
       if (state.route === 'campanhas' || state.route === 'mensagens') route(null, { quieto:true });
     } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
   });
@@ -1277,13 +1421,17 @@ window.openCampanhaModal = async function (pre = {}) {
 async function renderClientes({ vez = state._vez } = {}) {
   const lista = await api('GET', '/clientes' + (state.cliQ ? `?q=${encodeURIComponent(state.cliQ)}` : ''));
   if (vez !== state._vez) return;
-  const comNasc = lista.filter(c => c.nascimento).length, fora = lista.filter(c => c.aceita_mensagens === false).length;
+  const contagem = (clientes) => {
+    const comNasc = clientes.filter(c => c.nascimento).length;
+    const fora = clientes.filter(c => c.aceita_mensagens === false).length;
+    return `<span class="badge-pill bp-gray">${clientes.length}${state.cliQ ? ' encontrados' : ''}</span>
+      <span class="badge-pill bp-green">🎂 ${comNasc} com aniversário</span>
+      ${fora ? `<span class="badge-pill bp-red">🚫 ${fora} fora da lista</span>` : ''}`;
+  };
   view.innerHTML = `
     <div class="toolbar">
       <div class="left"><h2>Clientes</h2>
-        <span class="badge-pill bp-gray">${lista.length}${state.cliQ ? ' encontrados' : ''}</span>
-        <span class="badge-pill bp-green">🎂 ${comNasc} com aniversário</span>
-        ${fora ? `<span class="badge-pill bp-red">🚫 ${fora} fora da lista</span>` : ''}</div>
+        <span id="cliContagem" role="status">${contagem(lista)}</span></div>
       <div class="right">
         <div class="search">${svg(I.search)}<input id="qCli" placeholder="Nome, telefone ou placa…" value="${esc(state.cliQ)}" aria-label="Buscar clientes"></div>
         <button type="button" class="btn" id="btnAniv">${svg(I.gift)} Aniversários</button>
@@ -1300,14 +1448,22 @@ async function renderClientes({ vez = state._vez } = {}) {
     const termo = state.cliQ;
     const pesquisa = ++busca;
     const atual = () => inp.isConnected && pesquisa === busca && inp.value.trim() === termo;
+    const resultados = $('#cliLista');
+    resultados.setAttribute('aria-busy', 'true');
     try {
       const r = await api('GET', '/clientes' + (termo ? `?q=${encodeURIComponent(termo)}` : ''));
       if (!atual()) return;
-      const resultados = $('#cliLista');
+      $('#cliContagem').innerHTML = contagem(r);
       resultados.innerHTML = linhasClientes(r);
       ligarClientes(resultados, r);
     } catch {
-      if (atual()) toast('Não deu para buscar os clientes. Tente de novo.', 'err');
+      if (atual()) {
+        $('#cliContagem').textContent = '';
+        resultados.innerHTML = '<p class="form-msg erro" role="alert">Não deu para buscar os clientes.</p><button class="btn" type="button">Tentar de novo</button>';
+        $('button', resultados).onclick = () => { inp.focus(); inp.dispatchEvent(new Event('input')); };
+      }
+    } finally {
+      if (pesquisa === busca) resultados.removeAttribute('aria-busy');
     }
   }, 250));
   $('#btnImportar')?.addEventListener('click', () => openImportarModal());
@@ -1317,7 +1473,7 @@ async function renderClientes({ vez = state._vez } = {}) {
 /* Quem saiu da lista só volta pela mão do gestor (o servidor também barra). */
 const travaReligar = (c) => (c.aceita_mensagens === false && !pode('optout_religar') ? 'disabled title="Só gestor volta a mandar para quem saiu da lista"' : '');
 function linhasClientes(lista) {
-  if (!lista.length) return vazio(I.user, state.cliQ ? 'Ninguém com esse nome' : 'Nenhum cliente', state.cliQ ? 'Tente pelo telefone ou pela placa.' : 'A base é a mesma do CRM, da Agenda e do Atendimento.');
+  if (!lista.length) return vazio(I.user, state.cliQ ? 'Nenhum cliente encontrado' : 'Nenhum cliente', state.cliQ ? 'Confira o nome, telefone ou placa e tente de novo.' : 'A base é a mesma do CRM, da Agenda e do Atendimento.');
   return lista.map(c => `<div class="cli${c.aceita_mensagens === false ? ' fora' : ''}" data-id="${esc(c.id)}">
     <button type="button" class="cli-nome" data-ficha="${esc(c.id)}" title="Abrir ficha"><span class="av">${esc(iniciais(c.nome) || 'IC')}</span><b>${esc(c.nome)}</b>${c.aceita_mensagens === false ? '<span class="selo">não quer mensagens</span>' : ''}</button>
     <span class="cli-meta"><span class="col tel">${svg(I.phone)} ${esc(telBR(c.telefone))}</span>
@@ -1341,8 +1497,11 @@ function ligarClientes(root, lista) {
 }
 async function mudarAceite(c, aceita, sw) {
   if (aceita) {
+    if (sw) sw.disabled = true;
     try { const r = await api('PUT', `/clientes/${c.id}`, { aceita_mensagens:true }); Object.assign(c, r); toast(`${c.nome} volta a receber mensagens.`); sw?.closest('.cli')?.classList.remove('fora'); sw?.closest('.cli')?.querySelector('.selo')?.remove(); }
     catch (e) { toast(e.message, 'err'); if (sw) sw.checked = false; }
+    finally { if (sw) sw.disabled = false; }
+    abrirFicha(c.id, true);
     return;
   }
   openModal(`<div class="modal-head"><h3>${svg(I.x)} Parar de mandar para ${esc(c.nome)}</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
@@ -1350,12 +1509,17 @@ async function mudarAceite(c, aceita, sw) {
       <div class="field"><label for="opt_motivo">Motivo (opcional)</label><input id="opt_motivo" maxlength="120" placeholder="Ex.: pediu no balcão"></div></div>
     <div class="modal-foot"><button type="button" class="btn" data-fechar>Voltar</button><button type="button" class="btn primary" id="opt_ok">Confirmar</button></div>`);
   let feito = false;
-  $('#opt_ok').addEventListener('click', async () => {
+  $('#opt_ok').addEventListener('click', async ({ currentTarget: btn }) => {
+    btn.disabled = true;
     try {
       const r = await api('PUT', `/clientes/${c.id}`, { aceita_mensagens:false, motivo: $('#opt_motivo').value.trim() || undefined });
-      Object.assign(c, r); feito = true; closeModal(); toast(`${c.nome} não recebe mais mensagens.`);
+      Object.assign(c, r); feito = true;
+      if (btn.isConnected) closeModal();
+      abrirFicha(c.id, true);
+      toast(`${c.nome} não recebe mais mensagens.`);
       if (state.route === 'clientes') route(null, { quieto:true });
     } catch (e) { toast(e.message, 'err'); }
+    finally { btn.disabled = false; if (feito && sw) sw.checked = false; }
   });
   const volta = () => { if (!feito && sw) sw.checked = true; overlay.removeEventListener('fechou', volta); };
   overlay.addEventListener('fechou', volta);
@@ -1368,15 +1532,22 @@ window.openNascimentoModal = function (c) {
       <input id="n_data" inputmode="numeric" placeholder="DD/MM/AAAA (ou só DD/MM)" value="${c.nascimento ? esc(nascBR(c.nascimento)) : ''}">
       <small>Pode ser só dia e mês — para os parabéns o ano não importa.</small></div></div>
     <div class="modal-foot"><button type="button" class="btn" data-fechar>Cancelar</button><button type="button" class="btn primary" id="n_salvar">${svg(I.check)} Salvar</button></div>`);
-  $('#n_salvar').addEventListener('click', async () => {
-    const v = $('#n_data').value.trim();
-    if (v && !/^\d{1,2}\/\d{1,2}(\/\d{4})?$/.test(v)) return toast('Use DD/MM/AAAA ou DD/MM.', 'err');
+  $('#n_salvar').addEventListener('click', async ({ currentTarget: btn }) => {
+    const campo = $('#n_data');
+    const v = campo.value.trim();
+    if (v && !/^\d{1,2}\/\d{1,2}(\/\d{4})?$/.test(v)) {
+      campo.focus();
+      return toast('Use DD/MM/AAAA ou DD/MM.', 'err');
+    }
+    btn.disabled = true;
     try {
       const r = await api('PUT', `/clientes/${c.id}`, { nascimento: v });
-      Object.assign(c, r); toast(v ? 'Aniversário salvo 🎂' : 'Aniversário removido.'); closeModal();
+      Object.assign(c, r); toast(v ? 'Aniversário salvo 🎂' : 'Aniversário removido.');
+      if (btn.isConnected) closeModal();
       if (state.route === 'clientes') route(null, { quieto:true });
       if (!$('#gavetaOverlay').hidden) abrirFicha(c.id, true);
     } catch (e) { toast(e.message, 'err'); }
+    finally { btn.disabled = false; }
   });
 };
 
@@ -1568,11 +1739,11 @@ async function renderSatisfacao({ vez = state._vez } = {}) {
           <div class="field"><label for="sat_busca">Cliente</label><div class="search" style="max-width:none">${svg(I.search)}<input id="sat_busca" placeholder="Nome, telefone ou placa…" autocomplete="off"></div>
             <div class="sugestoes" id="sat_sug" hidden></div><div id="sat_escolhido"></div></div>
           <div class="field"><span class="rot">Como o cliente ficou?</span>
-            <div class="sat-botoes"><button type="button" class="btn sat-opcao" data-sat="1">${svg(I.smile)} Satisfeito</button><button type="button" class="btn sat-opcao" data-sat="0">${svg(I.sad)} Insatisfeito</button></div></div>
+            <div class="sat-botoes"><button type="button" class="btn sat-opcao" data-sat="1" aria-pressed="false">${svg(I.smile)} Satisfeito</button><button type="button" class="btn sat-opcao" data-sat="0" aria-pressed="false">${svg(I.sad)} Insatisfeito</button></div></div>
           <div class="field"><span class="rot">Nota (opcional)</span><div class="estrelas" role="radiogroup" aria-label="Nota de 1 a 5">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="estrela" data-nota="${n}" role="radio" aria-checked="false" aria-label="${n} ${n === 1 ? 'estrela' : 'estrelas'}">★</button>`).join('')}</div></div>
           <div class="field"><label for="sat_coment">Comentário (opcional)</label><textarea id="sat_coment" placeholder="O que o cliente disse…"></textarea></div>
           <div><button type="button" class="btn primary" id="sat_salvar">${svg(I.check)} Registrar</button></div>
-          <p class="form-msg" id="sat_msg" hidden></p>
+          <p class="form-msg" id="sat_msg" role="status" hidden></p>
         </div>
       </div>
       <div class="panel">
@@ -1594,25 +1765,40 @@ async function renderSatisfacao({ vez = state._vez } = {}) {
 
   let escolha = null, nota = null, cliente = null;
   const inp = $('#sat_busca'), sug = $('#sat_sug');
-  inp.addEventListener('input', debounce(async () => {
-    const q = inp.value.trim(); if (q.length < 2) { sug.hidden = true; return; }
-    const r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`).catch(() => []);
+  let busca = 0;
+  const pesquisar = debounce(async (q, consulta) => {
+    if (!inp.isConnected || consulta !== busca || q.length < 2) return;
+    const r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`).catch(() => null);
+    if (!inp.isConnected || consulta !== busca) return;
+    if (!r) {
+      sug.innerHTML = '<p class="dica" role="alert">Não deu para buscar o cliente. Edite a busca para tentar de novo.</p>';
+      sug.hidden = false;
+      return;
+    }
     sug.innerHTML = r.length ? r.slice(0, 8).map(x => `<button type="button" class="sugestao" data-id="${esc(x.id)}"><b>${esc(x.nome)}</b><small>${esc(telBR(x.telefone))}</small></button>`).join('') : '<div class="dica" style="padding:8px">Ninguém com esse nome.</div>';
     sug.hidden = false;
-    $$('.sugestao', sug).forEach(b => b.addEventListener('click', () => { cliente = r.find(y => y.id === b.dataset.id); inp.value = cliente.nome; sug.hidden = true;
+    $$('.sugestao', sug).forEach(b => b.addEventListener('click', () => { ++busca; cliente = r.find(y => y.id === b.dataset.id); inp.value = cliente.nome; sug.hidden = true;
       $('#sat_escolhido').innerHTML = `<div class="cli-escolhido" style="margin-top:6px"><span><b>${esc(cliente.nome)}</b><small>${esc(telBR(cliente.telefone))}</small></span></div>`; }));
-  }, 250));
-  $$('.sat-opcao').forEach(b => b.addEventListener('click', () => { escolha = b.dataset.sat === '1'; $$('.sat-opcao').forEach(x => { x.classList.toggle('ativa', x === b); x.classList.toggle('feliz', x === b && escolha); }); }));
+  }, 250);
+  inp.addEventListener('input', () => {
+    cliente = null;
+    $('#sat_escolhido').replaceChildren();
+    sug.hidden = true;
+    pesquisar(inp.value.trim(), ++busca);
+  });
+  $$('.sat-opcao').forEach(b => b.addEventListener('click', () => { escolha = b.dataset.sat === '1'; $$('.sat-opcao').forEach(x => { x.classList.toggle('ativa', x === b); x.classList.toggle('feliz', x === b && escolha); x.setAttribute('aria-pressed', String(x === b)); }); }));
   $$('.estrela').forEach(b => b.addEventListener('click', () => { nota = Number(b.dataset.nota); $$('.estrela').forEach(x => { const on = Number(x.dataset.nota) <= nota; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(Number(x.dataset.nota) === nota)); }); }));
   $('#sat_salvar').addEventListener('click', async () => {
     const msg = (t, okk) => { const el = $('#sat_msg'); el.textContent = t; el.className = 'form-msg ' + (okk ? 'ok' : 'erro'); el.hidden = false; };
-    if (!cliente) return msg('Escolha um cliente da lista.', false);
-    if (escolha === null) return msg('Diga se ele ficou satisfeito ou não.', false);
+    if (!cliente) { inp.focus(); return msg('Escolha um cliente da lista.', false); }
+    if (escolha === null) { $('[data-sat]', view).focus(); return msg('Diga se ele ficou satisfeito ou não.', false); }
     const btn = $('#sat_salvar'); btn.disabled = true;
     try {
       await api('POST', '/satisfacao', { cliente_id: cliente.id, satisfeito: escolha, nota, comentario: $('#sat_coment').value.trim() || null });
-      toast('Retorno registrado.'); route(null, { quieto:true });
-    } catch (e) { msg(e.message, false); btn.disabled = false; }
+      toast('Retorno registrado.');
+      if (btn.isConnected) route(null, { quieto:true });
+    } catch (e) { if (btn.isConnected) msg(e.message, false); }
+    finally { btn.disabled = false; }
   });
   $$('[data-apagar]', view).forEach(b => b.addEventListener('click', async () => {
     if (!confirm('Apagar este registro de satisfação?')) return;
@@ -1628,21 +1814,23 @@ const overlay = $('#modalOverlay'), modal = $('#modal');
 const FOCAVEIS = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 let _focoAntes = null;
 function openModal(html, opts = {}) {
-  _focoAntes = document.activeElement;
+  if (!modalAberto()) _focoAntes = document.activeElement;
   modal.className = 'modal' + (opts.larga ? ' larga' : '') + (opts.classe ? ` ${opts.classe}` : '');
   modal.innerHTML = html;
   overlay.classList.add('open');
   const titulo = $('.modal-head h3', modal);
   if (titulo) { titulo.id = 'modalTitulo'; modal.setAttribute('aria-labelledby', 'modalTitulo'); }
-  const primeiro = $$('.modal-body ' + FOCAVEIS, modal).find(el => el.offsetParent !== null) || $('.modal-close', modal);
-  setTimeout(() => primeiro?.focus({ preventScroll:true }), 30);
+  else modal.removeAttribute('aria-labelledby');
+  const primeiro = $$(FOCAVEIS, $('.modal-body', modal) || modal).find(el => el.offsetParent !== null) || $('.modal-close', modal);
+  primeiro?.focus({ preventScroll:true });
 }
 function closeModal() {
   if (!overlay.classList.contains('open')) return;
+  const focoAntes = _focoAntes;
+  _focoAntes = null;
   overlay.classList.remove('open');
   overlay.dispatchEvent(new Event('fechou'));
-  if (_focoAntes?.isConnected && typeof _focoAntes.focus === 'function') _focoAntes.focus({ preventScroll:true });
-  _focoAntes = null;
+  if (!modalAberto() && focoAntes?.isConnected) focoAntes.focus({ preventScroll:true });
 }
 const modalAberto = () => overlay.classList.contains('open');
 overlay.addEventListener('click', e => { if (e.target === overlay || e.target.closest('.modal-close,[data-fechar]')) closeModal(); });
@@ -2044,9 +2232,21 @@ async function abrirAniversariosBase() {
     <div class="modal-body" id="anivCorpo"><div class="skel" style="height:160px"></div></div>
     <div class="modal-foot"><button type="button" class="btn" id="anivPlanilha">${svg(I.upload)} Importar planilha</button><button type="button" class="btn primary" data-fechar>Pronto</button></div>`, { larga:true });
   $('#anivPlanilha').addEventListener('click', () => { closeModal(); openImportarModal(); });
-  let d; try { d = await api('GET', '/aniversarios'); } catch (e) { $('#anivCorpo').innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
+  const corpo = $('#anivCorpo');
+  corpo.setAttribute('aria-busy', 'true');
+  let d;
+  try { d = await api('GET', '/aniversarios'); }
+  catch {
+    if (!modalAberto() || !corpo.isConnected) return;
+    corpo.innerHTML = '<p class="form-msg erro" role="alert">Não consegui carregar os aniversários.</p><button type="button" class="btn">Tentar novamente</button>';
+    $('button', corpo).addEventListener('click', abrirAniversariosBase);
+    return;
+  } finally {
+    corpo.removeAttribute('aria-busy');
+  }
+  if (!modalAberto() || !corpo.isConnected) return;
   const pctData = d.total ? Math.round((d.comData / d.total) * 100) : 0;
-  $('#anivCorpo').innerHTML = `
+  corpo.innerHTML = `
     <div class="rel-nums"><div><b>${d.comData}</b><small>com aniversário</small></div><div><b>${d.total}</b><small>clientes com telefone</small></div><div class="g"><b>${d.proximos.length}</b><small>nos próximos 30 dias</small></div></div>
     <div class="barra-prog" role="progressbar" aria-valuenow="${pctData}" aria-valuemin="0" aria-valuemax="100" aria-label="Clientes com aniversário"><i style="width:${Math.max(pctData, d.comData ? 2 : 0)}%"></i></div>
     <p class="dica">O CRM, a Agenda e o Atendimento usam a <b>mesma</b> ficha de cliente: quem já tem data aparece aqui sozinho e entra na régua Aniversário. ${d.comData ? '' : 'Ainda ninguém tem data — cadastre pelos atendidos abaixo ou importe a planilha.'}</p>

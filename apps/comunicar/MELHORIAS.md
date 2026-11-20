@@ -1039,3 +1039,72 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-029** · teste · O roteiro protegido confere e captura os painéis nos temas claro e escuro. · `8e5b653`
 - **R9-COM-030** · teste · O Chrome reproduz a navegação durante consulta atrasada e uma atualização que falha. · `8e5b653`
 - **R9-COM-031** · teste · O roteiro verifica que um período invertido preserva o filtro e pode ser limpo. · `8e5b653`
+- **R9-COM-032** · conserto · A ficha de um cliente ignora respostas de outra ficha ou de uma ficha já fechada. · `ea9c56f`
+- **R9-COM-033** · aviso · A abertura da ficha pode ser repetida pelo aviso de erro. · `ea9c56f`
+- **R9-COM-034** · aviso · Uma falha de atualização mantém a ficha atual visível. · `ea9c56f`
+- **R9-COM-035** · acessibilidade · A ficha recebe foco ao abrir e o recupera após atualizar os controles. · `ea9c56f`
+- **R9-COM-036** · conserto · A resposta da prévia não altera outra janela aberta durante a consulta. · `e5040f5`
+- **R9-COM-037** · aviso · A prévia oferece nova tentativa quando a consulta falha. · `e5040f5`
+- **R9-COM-038** · conserto · A lista de aniversários ignora respostas de uma janela que já foi fechada. · `e5040f5`
+- **R9-COM-039** · aviso · A lista de aniversários oferece nova tentativa quando a consulta falha. · `e5040f5`
+- **R9-COM-040** · acessibilidade · A prévia e os aniversários indicam carregamento para tecnologia assistiva. · `e5040f5`
+- **R9-COM-041** · acessibilidade · Ao fechar uma janela cujo conteúdo foi substituído, o foco volta ao controle que a abriu. · `e5040f5`
+- **R9-COM-042** · acessibilidade · O foco entra na janela imediatamente e prioriza o primeiro controle visível do formulário. · `e5040f5`
+- **R9-COM-043** · conserto · O cancelamento de campanha atualiza o histórico só enquanto a aba ainda é a mesma. · `044da23`
+- **R9-COM-044** · aviso · Falha ao cancelar campanha aparece como erro. · `044da23`
+- **R9-COM-045** · conserto · A abertura da campanha descarta a consulta se outra abertura, janela ou navegação tomar seu lugar. · `044da23`
+- **R9-COM-046** · aviso · A abertura da campanha informa quando a lista de segmentos não pode ser carregada. · `044da23`
+- **R9-COM-047** · conserto · Mudar o segmento ou seu valor invalida a contagem anterior antes de permitir avançar. · `044da23`
+- **R9-COM-048** · conserto · Uma resposta atrasada deixa intacta a prévia do público selecionado depois. · `044da23`
+- **R9-COM-049** · aviso · A prévia de segmento pode ser repetida após uma falha. · `044da23`
+- **R9-COM-050** · acessibilidade · A prévia do segmento sinaliza a consulta e anuncia o resultado. · `044da23`
+- **R9-COM-051** · conserto · Editar o valor ou adotar uma sugestão desvincula o segmento salvo anteriormente. · `044da23`
+- **R9-COM-052** · conserto · A sugestão da IA deixa intacto o assistente que substituiu o passo de origem. · `044da23`
+- **R9-COM-053** · conserto · A busca de destinatário avulso descarta resultados de consultas anteriores. · `044da23`
+- **R9-COM-054** · aviso · A busca de destinatário informa falha de consulta separadamente da lista vazia. · `044da23`
+- **R9-COM-055** · conserto · Os botões de IA e teste no próprio celular deixam de inserir uma variável inexistente no texto. · `044da23`
+- **R9-COM-056** · conserto · As variáveis respeitam o limite de 2.000 caracteres ao editar a mensagem. · `044da23`
+- **R9-COM-057** · acessibilidade · O assistente anuncia o passo atual para leitores de tela. · `044da23`
+- **R9-COM-058** · conserto · O assistente recusa agendamento inválido ou passado antes de tentar gravar. · `044da23`
+- **R9-COM-059** · conserto · A confirmação atrasada do envio preserva a janela e o rascunho abertos depois. · `044da23`
+- **R9-COM-060** · teste · O cenário de adiamento seletivo usa validade posterior ao novo horário e confere a data gravada. · `fb90dce`
+- **R9-COM-061** · teste · O Chrome verifica o bloqueio do avanço com a prévia desatualizada nos dois temas e larguras, com escritas e rede externa bloqueadas. · `ee3c8a5`
+- **R9-COM-062** · aviso · Falha ao carregar prazos aparece separada de uma lista vazia. · `41fc2d5`
+- **R9-COM-063** · conserto · A nova tentativa recupera prazos sem perder edições nas réguas. · `41fc2d5`
+- **R9-COM-064** · acessibilidade · Após recuperar prazos, o foco passa para o primeiro controle disponível. · `41fc2d5`
+- **R9-COM-065** · conserto · Descartar limpa o rascunho local. · `41fc2d5`
+- **R9-COM-066** · conserto · O botão de IA fica fora do tratamento dos chips de variáveis. · `41fc2d5`
+- **R9-COM-067** · conserto · A inserção de uma variável respeita o limite da mensagem. · `41fc2d5`
+- **R9-COM-068** · acessibilidade · A pausa geral tem nome estável para leitor de tela. · `41fc2d5`
+- **R9-COM-069** · acessibilidade · O alternador de domingo identifica a ação de envio. · `41fc2d5`
+- **R9-COM-070** · acessibilidade · O alternador de horário comercial identifica a restrição. · `41fc2d5`
+- **R9-COM-071** · acessibilidade · O total de alterações pendentes é anunciado. · `41fc2d5`
+- **R9-COM-072** · conserto · Mudar o horário atualiza a prévia de todas as réguas. · `41fc2d5`
+- **R9-COM-073** · conserto · Restaurar o valor padrão limpa o estado de alteração. · `41fc2d5`
+- **R9-COM-074** · conserto · O salvamento ignora cliques repetidos. · `41fc2d5`
+- **R9-COM-075** · acessibilidade · Uma janela invertida leva o foco ao horário inicial. · `41fc2d5`
+- **R9-COM-076** · acessibilidade · Um link inválido leva o foco ao campo de avaliação e explica os formatos aceitos. · `41fc2d5`
+- **R9-COM-077** · conserto · O formulário evita edições e descarte durante o salvamento. · `41fc2d5`
+- **R9-COM-078** · conserto · A resposta do salvamento preserva a tela aberta após sair de Réguas. · `41fc2d5`
+- **R9-COM-079** · acessibilidade · O botão da mensagem de regra anuncia se ela está aberta. · `41fc2d5`
+- **R9-COM-080** · acessibilidade · O nome Regra ativa é associado diretamente à caixa de seleção. · `41fc2d5`
+- **R9-COM-081** · conserto · Criar uma regra usa o retorno da gravação e elimina uma consulta que podia indicar falha após o cadastro. · `41fc2d5`
+- **R9-COM-082** · conserto · Os totais em Clientes acompanham os resultados da busca. · `d6e492a`
+- **R9-COM-083** · acessibilidade · A lista de clientes anuncia o carregamento da pesquisa. · `d6e492a`
+- **R9-COM-084** · aviso · A busca de clientes exibe a falha e permite repetir o mesmo termo. · `d6e492a`
+- **R9-COM-085** · texto · O resultado vazio orienta a conferir nome, telefone ou placa. · `d6e492a`
+- **R9-COM-086** · conserto · O alternador impede uma segunda ação enquanto libera mensagens. · `d6e492a`
+- **R9-COM-087** · conserto · A ficha aberta reflete a nova permissão de mensagens e atualiza suas ações. · `d6e492a`
+- **R9-COM-088** · conserto · A confirmação de parar mensagens bloqueia cliques repetidos. · `d6e492a`
+- **R9-COM-089** · conserto · A resposta do pedido de parar preserva uma janela aberta depois. · `d6e492a`
+- **R9-COM-090** · conserto · O alternador permanece desligado após a confirmação, inclusive se a janela tiver sido fechada durante a gravação. · `d6e492a`
+- **R9-COM-091** · acessibilidade · Uma data em formato inválido devolve o foco ao campo de aniversário. · `d6e492a`
+- **R9-COM-092** · conserto · Salvar aniversário bloqueia gravações repetidas enquanto aguarda resposta. · `d6e492a`
+- **R9-COM-093** · conserto · Salvar aniversário preserva a janela aberta depois. · `d6e492a`
+- **R9-COM-094** · acessibilidade · As opções de satisfação anunciam qual foi selecionada. · `d6e492a`
+- **R9-COM-095** · acessibilidade · O erro no registro de satisfação é anunciado. · `d6e492a`
+- **R9-COM-096** · conserto · A busca de satisfação ignora resultados de pesquisas antigas. · `d6e492a`
+- **R9-COM-097** · conserto · Editar a busca limpa o cliente selecionado antes de permitir salvar. · `d6e492a`
+- **R9-COM-098** · aviso · A busca de satisfação distingue erro de consulta de resultado vazio. · `d6e492a`
+- **R9-COM-099** · acessibilidade · O registro incompleto leva o foco ao cliente ou à escolha de satisfação. · `d6e492a`
+- **R9-COM-100** · conserto · O retorno de um registro de satisfação preserva a tela aberta depois. · `d6e492a`

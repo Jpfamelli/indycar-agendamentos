@@ -226,12 +226,16 @@ test('R7 API: adiar o dia só das campanhas deixa os outros tipos onde estão', 
   try {
     const dia = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const amanhaCedo = new Date(`${dia}T12:00:00Z`).toISOString();
-    tabelas.posvenda_envios.push(pend(831, { tipo: 'campanha', enviar_em: amanhaCedo }), pend(832, { tipo: 'posvenda', enviar_em: amanhaCedo }));
     const depois = new Date(Date.now() + 3 * 86400000).toISOString();
+    const validade = new Date(Date.parse(depois) + 86400000).toISOString();
+    tabelas.posvenda_envios.push(
+      pend(831, { tipo: 'campanha', enviar_em: amanhaCedo, expira_em: validade }),
+      pend(832, { tipo: 'posvenda', enviar_em: amanhaCedo, expira_em: validade }),
+    );
     const r = await s.chamar('gestor', 'POST', '/api/agenda/adiar-dia', { dia, enviar_em: depois, tipo: 'campanha' });
     assert.equal(r.status, 200, JSON.stringify(r.json));
     assert.equal(tabelas.posvenda_envios.find((e) => e.id === ID(832)).enviar_em, amanhaCedo);
-    assert.notEqual(tabelas.posvenda_envios.find((e) => e.id === ID(831)).enviar_em, amanhaCedo);
+    assert.equal(tabelas.posvenda_envios.find((e) => e.id === ID(831)).enviar_em, depois);
   } finally { await s.fechar(); }
 });
 
