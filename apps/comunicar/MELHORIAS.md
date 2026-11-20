@@ -1050,3 +1050,22 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-040** · acessibilidade · A prévia e os aniversários indicam carregamento para tecnologia assistiva. · `e5040f5`
 - **R9-COM-041** · acessibilidade · Ao fechar uma janela cujo conteúdo foi substituído, o foco volta ao controle que a abriu. · `e5040f5`
 - **R9-COM-042** · acessibilidade · O foco entra na janela imediatamente e prioriza o primeiro controle visível do formulário. · `e5040f5`
+- **R9-COM-043** · conserto · O cancelamento de campanha atualiza o histórico só enquanto a aba ainda é a mesma. · `044da23`
+- **R9-COM-044** · aviso · Falha ao cancelar campanha aparece como erro. · `044da23`
+- **R9-COM-045** · conserto · A abertura da campanha descarta a consulta se outra abertura, janela ou navegação tomar seu lugar. · `044da23`
+- **R9-COM-046** · aviso · A abertura da campanha informa quando a lista de segmentos não pode ser carregada. · `044da23`
+- **R9-COM-047** · conserto · Mudar o segmento ou seu valor invalida a contagem anterior antes de permitir avançar. · `044da23`
+- **R9-COM-048** · conserto · Uma resposta atrasada deixa intacta a prévia do público selecionado depois. · `044da23`
+- **R9-COM-049** · aviso · A prévia de segmento pode ser repetida após uma falha. · `044da23`
+- **R9-COM-050** · acessibilidade · A prévia do segmento sinaliza a consulta e anuncia o resultado. · `044da23`
+- **R9-COM-051** · conserto · Editar o valor ou adotar uma sugestão desvincula o segmento salvo anteriormente. · `044da23`
+- **R9-COM-052** · conserto · A sugestão da IA deixa intacto o assistente que substituiu o passo de origem. · `044da23`
+- **R9-COM-053** · conserto · A busca de destinatário avulso descarta resultados de consultas anteriores. · `044da23`
+- **R9-COM-054** · aviso · A busca de destinatário informa falha de consulta separadamente da lista vazia. · `044da23`
+- **R9-COM-055** · conserto · Os botões de IA e teste no próprio celular deixam de inserir uma variável inexistente no texto. · `044da23`
+- **R9-COM-056** · conserto · As variáveis respeitam o limite de 2.000 caracteres ao editar a mensagem. · `044da23`
+- **R9-COM-057** · acessibilidade · O assistente anuncia o passo atual para leitores de tela. · `044da23`
+- **R9-COM-058** · conserto · O assistente recusa agendamento inválido ou passado antes de tentar gravar. · `044da23`
+- **R9-COM-059** · conserto · A confirmação atrasada do envio preserva a janela e o rascunho abertos depois. · `044da23`
+- **R9-COM-060** · teste · O cenário de adiamento seletivo usa validade posterior ao novo horário e confere a data gravada. · `fb90dce`
+- **R9-COM-061** · teste · O Chrome verifica o bloqueio do avanço com a prévia desatualizada nos dois temas e larguras, com escritas e rede externa bloqueadas. · `ee3c8a5`
