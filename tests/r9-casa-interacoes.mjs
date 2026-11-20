@@ -193,6 +193,20 @@ try {
   conferir('sair: tema e e-mail lembrado continuam (são do aparelho)', sobra[2] && sobra[3], JSON.stringify(sobra));
   await s.page.close();
   });
+
+  // 14. cartões vazios: a dica quebra linha e nada passa da largura do cartão; o mecânico tem o texto dele
+  await passo("14. cartões do Agora vazios cabem no cartão (375 e 1440); mecânico com texto próprio", async () => {
+  for (const larg of [375, 1440]) {
+    const v = await abrir({ papel: 'admin', vazio: true }, larg);
+    const largos = await v.page.evaluate(() => [...document.querySelectorAll('.agora-cartao')].filter((c) => !c.hidden && c.scrollWidth > c.clientWidth + 1).map((c) => c.id + ' ' + c.scrollWidth + '/' + c.clientWidth));
+    conferir(`cartões vazios em ${larg} px: nenhum passa da largura`, !largos.length, largos.join(', '));
+    await v.page.close();
+  }
+  const m = await abrir({ papel: 'mecanico', vazio: true }, 375);
+  const txt = await m.page.$eval('#cPatio [data-lista]', (l) => l.innerText);
+  conferir('mecânico sem carro: fala dos carros dele, sem "+ Nova entrada"', /passado para você/.test(txt) && !/Nova entrada/.test(txt), txt.slice(0, 80));
+  await m.page.close();
+  });
 } finally {
   await browser.close();
 }

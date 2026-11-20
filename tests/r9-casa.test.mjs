@@ -280,3 +280,20 @@ test('sair: buscas recentes (nome e telefone de cliente) e avisos adiados saem d
   const saiuFora = s.slice(s.indexOf("evento === 'SIGNED_OUT'"), s.indexOf("evento === 'SIGNED_OUT'") + 200);
   assert.match(saiuFora, /esquecerPessoa\(\)/, 'saiu em outra aba/app também esquece');
 });
+
+test('cartões do Agora vazios: dica quebra linha (grade, sem nowrap) e coluna do cartão nunca passa da largura', () => {
+  const css = ler('r9.css');
+  assert.match(css, /\.agora-cartao \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  assert.match(css, /\.agora-lista li\.vazio-ensina \{ display: grid;/);
+  assert.match(css, /\.agora-lista li\.vazio-ensina span \{ white-space: normal;/);
+});
+
+test('mecânico sem carro: texto dos carros dele (não o da oficina inteira, nem o "+ Nova entrada" que ele não tem)', () => {
+  const v = M.VAZIOS.cPatioMeus;
+  assert.ok(v && v.texto && v.dica);
+  assert.match(v.texto, /para você/);
+  assert.doesNotMatch(v.texto + v.dica, /Nova entrada|—/);
+  const p = semComentarios(ler('painel.js'));
+  assert.match(p, /vazio: V\.soMeusCarros \? 'cPatioMeus' : 'cPatio'/);
+  assert.match(p, /VAZIOS\[vazio \|\| el\.id\]/);
+});
