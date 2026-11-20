@@ -252,9 +252,8 @@
     }
     if (!box.isConnected) return;
     const hoje = agoraSP().data;
-    box.innerHTML = dias.map((x) => `<button type="button" class="qd-dia${x.data === dataAtual ? ' atual' : ''}${x.data === hoje ? ' hoje' : ''}${x.aberto ? '' : ' fechado'}" data-qd-dia="${esc(x.data)}" aria-pressed="${x.data === dataAtual}"
-        aria-label="${esc(rotuloDiaCurto(x.data))}: ${x.aberto ? x.total + ' horários' : 'oficina fechada'}" title="${x.aberto ? x.vivos + ' ainda por vir' + (x.faltaram ? ' · ' + x.faltaram + ' não vieram' : '') : 'A oficina não abre'}">
-        <span class="qd-dia-n">${esc(rotuloDiaCurto(x.data))}</span><b>${x.aberto ? x.total : '–'}</b>
+    box.innerHTML = dias.map((x) => `<button type="button" class="qd-dia${x.data === dataAtual ? ' atual' : ''}${x.data === hoje ? ' hoje' : ''}${x.aberto ? '' : ' fechado'}" data-qd-dia="${esc(x.data)}" aria-pressed="${x.data === dataAtual}" title="${x.aberto ? x.vivos + ' ainda por vir' + (x.faltaram ? ' · ' + x.faltaram + ' não vieram' : '') : 'A oficina não abre'}">
+        <span class="qd-dia-n">${esc(rotuloDiaCurto(x.data))}</span>${x.aberto ? `<b>${x.total}<span class="so-leitor"> ${x.total === 1 ? 'horário' : 'horários'}</span></b>` : '<b aria-hidden="true">–</b><span class="so-leitor">oficina fechada</span>'}
         ${x.lotacao !== null ? `<span class="qd-lot" aria-hidden="true"><i data-lot="${x.lotacao}"></i></span>` : ''}</button>`).join('');
     $$('[data-lot]', box).forEach((i) => { i.style.width = Math.max(4, Number(i.dataset.lot)) + '%'; });
     $$('[data-qd-dia]', box).forEach((b) => b.addEventListener('click', () => {

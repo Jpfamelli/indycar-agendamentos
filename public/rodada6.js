@@ -42,8 +42,7 @@
   }
   function seloOrc(o) {
     const valor = o.total > 0 ? ' · ' + reais(o.total) : '';
-    return `<a class="badge-pill ${esc(o.tom)} selo-orc" href="${esc(o.abrir)}" title="Orçamento ${esc(o.numero_rotulo)} no Orçador — toque para abrir"
-      aria-label="Orçamento ${esc(o.numero_rotulo)}, ${esc(o.status_rotulo)}. Abrir no Orçador">🧾 ${esc(o.numero_rotulo)} · ${esc(o.status_rotulo)}${esc(valor)}${o.visto && o.status === 'enviado' ? ' · visto' : ''}</a>`;
+    return `<a class="badge-pill ${esc(o.tom)} selo-orc" href="${esc(o.abrir)}" title="Orçamento ${esc(o.numero_rotulo)} no Orçador, toque para abrir"><span aria-hidden="true">🧾 </span><span class="so-leitor">Orçamento </span>${esc(o.numero_rotulo)} · ${esc(o.status_rotulo)}${esc(valor)}${o.visto && o.status === 'enviado' ? ' · visto' : ''}<span class="so-leitor">. Abrir no Orçador</span></a>`;
   }
   async function decorarOrcamentos(root) {
     if (!root || semAcessoDeEquipe()) return;

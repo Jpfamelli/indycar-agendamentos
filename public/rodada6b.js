@@ -274,7 +274,7 @@
     let linhas = '';
     for (const t of SLOTS) {
       const agoraLinha = hojeFlag && agora.min >= t && agora.min < t + PASSO;
-      linhas += `<div class="qd-hh${agoraLinha ? ' agora' : ''}" role="rowheader">${hm(t)}</div>`;
+      linhas += `<div class="qd-linha" role="row"><div class="qd-hh${agoraLinha ? ' agora' : ''}" role="rowheader">${hm(t)}</div>`;
       for (const c of cols) {
         const k = chaveCel(t, c.id);
         const cards = (porCel.get(k) || []).sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
@@ -286,6 +286,7 @@
           ${livre && !cards.length ? `<button type="button" class="qd-mais" data-qd-novo aria-label="Novo agendamento ${hm(t)} com ${esc(c.nome)}" title="Marcar ${hm(t)} com ${esc(c.nome)}">+</button>` : ''}
         </div>`;
       }
+      linhas += '</div>';
     }
     const nCols = cols.length;
     const vivos = vis.filter((a) => VIVO.has(a.status)).length;
@@ -300,7 +301,7 @@
     const chips = estreito() ? `<div class="qd-chips" role="group" aria-label="Consultor">${colunas(d).map((c) => `<button type="button" class="pilula ${(c.id || '') === _q.foco ? 'ativa' : ''}" data-qd-foco="${esc(c.id || '')}" aria-pressed="${(c.id || '') === _q.foco}">${esc(c.nome)}</button>`).join('')}</div>` : '';
     const caixaChips = $('#qdChips'); if (caixaChips) { caixaChips.innerHTML = chips; $$('[data-qd-foco]', caixaChips).forEach((b) => b.addEventListener('click', () => { _q.foco = b.dataset.qdFoco; desenhar(_q.dados); })); }
     host.innerHTML = `<div class="qd-grade${_q.movendo ? ' modo-mover' : ''}" style="--qd-cols:${nCols}" role="grid" aria-label="Quadro por consultor">
-      <div class="qd-th qd-canto" role="columnheader">hora</div>${cabeca}${linhas}</div>`;
+      <div class="qd-linha" role="row"><div class="qd-th qd-canto" role="columnheader">hora</div>${cabeca}</div>${linhas}</div>`;
     ligar(host);
     if (_q.movendo) marcarAlvos();
     decorarExtras(d);

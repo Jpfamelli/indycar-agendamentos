@@ -138,8 +138,8 @@ function itemSemana(a, u) {
   const conf = fim ? [] : pl.conflitos(u.lista, a, capacidadeRecepcao());
   const podeMover = !['concluido', 'nao_fechou'].includes(a.status);
   return `<li class="sem-item s-${esc(a.status)}${fim ? ' finalizado' : ''}" data-id="${esc(a.id)}" ${podeMover ? 'draggable="true"' : ''}>
-    <button type="button" class="sem-abrir" data-abrir="${esc(a.id)}" aria-label="Abrir ${esc(a.cliente_nome)}, ${esc(a.hora)}">
-      <span class="sem-hora">${esc(a.hora)}</span>
+    <button type="button" class="sem-abrir" data-abrir="${esc(a.id)}">
+      <span class="so-leitor">Abrir </span><span class="sem-hora">${esc(a.hora)}</span>
       <span class="sem-txt"><b>${esc(a.cliente_nome)}</b>
         <small>${esc(a.servico)} · ~${pl.duracao(a.servico, u.tabela)} min</small>
         <small>${esc(a.consultor_nome || 'sem consultor')}${!a.telefone ? ' · sem telefone' : ''}</small></span>
@@ -193,7 +193,7 @@ function pintarSemana() {
         </header>
         <div class="ocup-linha" title="${oc.ativos} de ${oc.vagas} vagas de recepção (meia hora × ${vagasPorJanela})">
           <i class="ocup ${oc.pct >= 80 ? 'cheio' : oc.pct >= 50 ? 'medio' : ''}" style="--pct:${oc.pct}%"></i>
-          <small>${oc.ativos} ${oc.ativos === 1 ? 'horário' : 'horários'} · ${oc.pct}% ocupado${oc.cargaMin ? ` · ~${Math.round(oc.cargaMin / 6) / 10} h de serviço` : ''}</small>
+          <small>${oc.ativos} ${oc.ativos === 1 ? 'horário' : 'horários'} · ${oc.pct}% ocupado${oc.cargaMin ? ` · ~${String(Math.round(oc.cargaMin / 6) / 10).replace(".", ",")} h de serviço` : ''}</small>
         </div>
         ${u.modo === 'dia' && !passado ? gradeDeHoras(d, itens, hoje, vagasPorJanela) : ''}
         ${itens.length ? `<ul class="sem-lista">${itens.map(a => itemSemana(a, u)).join('')}</ul>`
@@ -204,7 +204,7 @@ function pintarSemana() {
 
   const grupos = (campo, titulo) => {
     const g = pl.grupos(lista, campo);
-    return `<div class="sem-tabela"><table class="table"><caption>${esc(titulo)}</caption>
+    return `<div class="sem-tabela" tabindex="0" role="region" aria-label="Tabela: ${esc(titulo)}"><table class="table"><caption>${esc(titulo)}</caption>
       <thead><tr><th scope="col">${esc(titulo)}</th><th scope="col">Total</th><th scope="col">Vieram</th><th scope="col">Fecharam</th><th scope="col">Faltaram</th><th scope="col">Falta</th></tr></thead>
       <tbody>${g.map(x => `<tr><th scope="row">${esc(x.nome)}</th><td>${x.total}</td><td>${x.veio}</td><td>${x.fechou}</td><td>${x.faltou}</td>
         <td class="${x.taxaFalta >= 30 ? 'alerta' : ''}">${x.taxaFalta}%</td></tr>`).join('') || '<tr><td colspan="6">Sem dados neste período</td></tr>'}</tbody></table></div>`;

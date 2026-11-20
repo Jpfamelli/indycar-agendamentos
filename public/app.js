@@ -750,8 +750,8 @@ function seloPatioHtml(os) {
   const pend = os.extras_pendentes ? ` · ${os.extras_pendentes} p/ aprovar` : '';
   const num = os.numero ? `OS ${os.numero} · ` : '';
   return `<a class="badge-pill ${esc(os.etapa_tom)} selo-patio" href="${esc(os.abrir)}" target="_blank" rel="noopener"
-      title="Ordem nº ${esc(os.numero ?? '')} no Pátio — toque para abrir" aria-label="No Pátio: ordem ${esc(os.numero ?? '')}, ${esc(os.etapa_rotulo)}${esc(pend)}. Abrir no Pátio">
-      ${svg(ICO_PATIO)} ${esc(num)}${esc(os.etapa_rotulo)}${esc(pend)}</a>`;
+      title="Ordem nº ${esc(os.numero ?? '')} no Pátio, toque para abrir">
+      ${svg(ICO_PATIO)} <span class="so-leitor">No Pátio: </span>${esc(num)}${esc(os.etapa_rotulo)}${esc(pend)}<span class="so-leitor">. Abrir no Pátio</span></a>`;
 }
 /* Recado depois do "Chegou": o nº da OS que o Pátio abriu e o botão para abrir lá. */
 function recadoDaOs(nome, r) {
@@ -993,12 +993,12 @@ function pintarInicio(d, opts = {}) {
         <h2 class="hero-titulo">Agenda de hoje</h2>
         <p class="hero-data">${esc(dataExtenso(d.data))}</p>
         ${frase ? `<p class="hero-situacao">${frase}</p>` : ''}
-        ${c.semTelefone30d > 0 ? `<button type="button" class="chip-aviso" id="chipSemTel"
+        <div class="hero-chips">${c.semTelefone30d > 0 ? `<button type="button" class="chip-aviso" id="chipSemTel"
             title="Sem telefone o cliente não recebe lembrete nem pós-venda. Toque para ver e corrigir.">
             ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
         <span class="chips-gestor" id="chipsGestor"></span>
         <span class="chips-gestor" id="chipsEquipe"></span>
-        <button class="btn" type="button" id="chipConversasSemHorario">Horários falados no WhatsApp</button>
+        <button class="btn" type="button" id="chipConversasSemHorario">Horários falados no WhatsApp</button></div>
         ${opts.doCache ? '<small class="marca-cache" aria-live="polite">Atualizando os horários. A lista ainda pode mudar.</small>' : ''}
       </div>
       ${prox ? `<div class="hero-prox">
@@ -1289,7 +1289,7 @@ async function renderClientes(opts = {}) {
         <span class="badge-pill bp-gray" id="cliTotal">${list.length} ${list.length === 1 ? 'cliente' : 'clientes'}</span></div>
       <button class="btn primary" onclick="openClienteModal()">${svg(I.plus)} Novo cliente</button>
     </div>
-    <div class="panel"><div class="tabela-rolagem"><table class="table"><thead><tr>
+    <div class="panel"><div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table"><thead><tr>
       <th>Nome</th><th>Telefone</th><th>Carro</th><th>Placa</th><th>Origem</th><th></th>
     </tr></thead><tbody id="cliBody">${clienteRows(list, q0)}</tbody></table></div></div>`;
   bindCliRows();
@@ -1374,7 +1374,7 @@ async function renderEquipe() {
       <div class="left">
         ${gestor && (semHoje || semAmanha) ? `<button class="btn" id="btnDistribuir" title="Dá os horários sem consultor para quem tem menos carros (sem dois no mesmo horário)">${svg(I.user)} Distribuir ${semHoje + semAmanha} sem consultor</button>` : ''}
         <button class="btn primary so-gestor" onclick="openConsultorModal()">${svg(I.plus)} Novo consultor</button></div></div>
-    <div class="panel"><div class="tabela-rolagem"><table class="table"><thead><tr>
+    <div class="panel"><div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table"><thead><tr>
       <th scope="col">Consultor</th><th scope="col">Login</th><th scope="col">Hoje</th><th scope="col">Amanhã</th><th scope="col">Próx. 7 dias</th><th scope="col">Status</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
       <tbody>${list.length ? list.map(c => `<tr data-id="${esc(c.id)}">
         <td><span style="display:inline-flex;align-items:center;gap:9px">
@@ -1466,7 +1466,7 @@ async function renderCrm() {
           </div>`).join('')
           : '<div class="empty">Sem dados.</div>'}</div></div>
       <div class="panel"><div class="panel-head"><h2>${svg(I.user)} Desempenho por consultor</h2></div>
-        <div class="panel-body tabela-rola"><table class="table"><thead><tr><th scope="col">Consultor</th><th scope="col">Agend.</th><th scope="col">Vieram</th><th scope="col">Faltas</th><th scope="col">Fecharam</th><th scope="col">Fechamento</th><th scope="col">Faturado</th></tr></thead>
+        <div class="panel-body tabela-rola" tabindex="0" role="region" aria-label="Tabela por consultor"><table class="table"><thead><tr><th scope="col">Consultor</th><th scope="col">Agend.</th><th scope="col">Vieram</th><th scope="col">Faltas</th><th scope="col">Fecharam</th><th scope="col">Fechamento</th><th scope="col">Faturado</th></tr></thead>
         <tbody>${d.porConsultor.map(c => `<tr><th scope="row">${esc(c.nome)}${c.ativo === 0 ? ' <small class="muted">(inativo)</small>' : ''}</th><td>${c.total}</td><td>${c.vieram ?? '—'}</td><td>${c.faltas ?? '—'}</td><td>${c.concluidos||0}</td><td>${c.taxaFechamento ?? 0}%</td><td>${c.faturamento ? esc(P.reais(c.faturamento)) : '—'}</td></tr>`).join('')}
         ${d.semConsultor ? `<tr class="muted"><th scope="row">Sem consultor</th><td>${d.semConsultor}</td><td colspan="5">escolha o consultor no agendamento para contar aqui</td></tr>` : ''}
         </tbody></table></div></div>
@@ -1527,7 +1527,7 @@ async function renderPendencias(opts = {}) {
       <div class="panel-head"><h2>${svg(I.money)} Concluídos sem valor</h2>
         <span class="panel-sub">últimos ${esc(vals.dias)} dias · o valor vai para o faturamento do CRM</span>
         <span class="panel-sub" id="pdTotal" aria-live="polite">${state._preenchidoSessao ? 'preenchido agora: ' + esc(P.reais(state._preenchidoSessao)) : ''}</span></div>
-      ${itens.length ? `<div class="tabela-rolagem"><table class="table tabela-valores"><thead><tr>
+      ${itens.length ? `<div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table tabela-valores"><thead><tr>
           <th scope="col">Quando</th><th scope="col">Cliente</th><th scope="col">Serviço</th><th scope="col">Valor</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
         <tbody id="pdValores">${itens.map(linhaValor).join('')}</tbody></table></div>`
       : `<div class="panel-body">${vazio(I.check, 'Todo serviço concluído tem valor 🏁', 'Quando alguém fechar sem valor, ele aparece aqui para você completar.')}</div>`}
@@ -1768,7 +1768,7 @@ async function renderFollowup() {
 async function renderHistorico() {
   const list = await api('GET', '/historico');
   view.innerHTML = `
-    <div class="panel"><div class="tabela-rolagem"><table class="table"><thead><tr>
+    <div class="panel"><div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table"><thead><tr>
       <th scope="col">Data</th><th scope="col">Hora</th><th scope="col">Cliente</th><th scope="col">Serviço</th><th scope="col">Consultor</th><th scope="col">Status</th>
     </tr></thead><tbody>
       ${list.length ? list.map(a => `<tr>
@@ -1968,7 +1968,7 @@ async function cfgOficina(box) {
             <div><b>É daqui que a IA tira o horário que oferece no WhatsApp.</b> Para cada tipo de
             serviço ela só propõe dia e hora dentro destas faixas. Fora delas, ela não agenda.
             Esta tabela é <b>só leitura</b> — a lista é a mesma para os três sistemas.</div></div>
-          <div class="tabela-rolagem">
+          <div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo">
             <table class="table">
               <thead><tr><th>Tipo de serviço</th><th>Dias</th><th>Faixa de horário</th><th>Observação</th></tr></thead>
               <tbody>${janelas.length ? janelas.map(j => `<tr>
@@ -2309,7 +2309,7 @@ async function renderWhatsapp() {
     : '<span class="badge-pill bp-orange">Modo link (wa.me)</span>';
   view.innerHTML = `
     <div class="toolbar">
-      <div class="left"><h2 style="font-size:18px;display:flex;align-items:center;gap:8px;color:#25d366">${svg(I.wa)} WhatsApp</h2>${badge}</div>
+      <div class="left"><h2 class="titulo-wa" style="font-size:18px;display:flex;align-items:center;gap:8px">${svg(I.wa)} WhatsApp</h2>${badge}</div>
       <button class="btn green" onclick="openWhatsappModal()">${svg(I.send)} Enviar mensagem</button>
     </div>
     <div class="tabs">
@@ -2447,7 +2447,7 @@ async function waConfig(box, cfg) {
       <div class="panel">
         <div class="panel-head"><h2>${svg(I.wa)} Webhook & ajuda</h2></div>
         <div class="panel-body">
-          <div class="field"><label>URL do Webhook (cole na Meta)</label>
+          <div class="field"><label for="cfg_webhook">URL do Webhook (cole na Meta)</label>
             <input id="cfg_webhook" value="${esc(webhook)}" readonly onclick="this.select()"></div>
           <div class="field"><label for="cfg_verify">Token de verificação</label><input id="cfg_verify" spellcheck="false" value="${esc(cfg.verify_token||'indycar')}"></div>
           <!-- Lembretes de agendamento saíram daqui (09/10): quem manda é o Comunicar,
@@ -3626,7 +3626,7 @@ window.openTemplateModal = async function(id){
   let t = {nome:'',gatilho:'manual',corpo:''};
   if (id) t = await api('GET','/whatsapp/templates').then(l=>l.find(x=>x.id===id)) || t;
   openModal(`
-    <div class="modal-head"><h3>${svg(I.wa)} ${id?'Editar':'Novo'} modelo</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-head"><h3>${svg(I.wa)} ${id?'Editar':'Novo'} modelo</h3><button type="button" class="modal-close" aria-label="Fechar" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="grid2">
         <div class="field"><label for="t_nome">Nome *</label><input id="t_nome" value="${esc(t.nome)}"></div>
@@ -3654,7 +3654,7 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
   if (agendamentoId){ const a=await api('GET',`/agendamentos/${agendamentoId}`).catch(()=>null); if(a){nome=a.cliente_nome;telefone=a.telefone;} }
   else if (clienteId){ const c=await api('GET',`/clientes/${clienteId}/ficha`).catch(()=>null); if(c){nome=c.nome;telefone=c.telefone;} }
   openModal(`
-    <div class="modal-head"><h3 style="color:#25d366">${svg(I.wa)} Enviar WhatsApp</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-head"><h3 class="titulo-wa">${svg(I.wa)} Enviar WhatsApp</h3><button type="button" class="modal-close" aria-label="Fechar" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="grid2">
         <div class="field"><label for="w_nome">Nome</label><input id="w_nome" value="${esc(nome)}"></div>
@@ -4222,7 +4222,7 @@ async function loadConsultores(){ state.consultores = await api('GET','/consulto
 async function loadEmpresa(){
   state.empresa = await api('GET','/empresa');
   $('#empresaNome').textContent = state.empresa.nome;
-  $('#empresaEndereco').textContent = state.empresa.endereco;
+  $('#empresaEndereco').textContent = String(state.empresa.endereco || '').replace(/\s+[—–]\s+/g, ', ');   // sem travessão na tela
   $('#empresaSlogan').textContent = state.empresa.slogan;
 }
 /* Perfil de quem entrou — só para as iniciais do rodapé e a aba Configurações.
@@ -4235,6 +4235,7 @@ function aplicarPerfilNaTela(){
   const el = $('#avatarPerfil'), p = state.perfil;
   if (!el || !p) return;
   el.textContent = iniciais(p.nome) || 'IC';               // textContent: sem HTML
+  el.setAttribute('aria-label', `${el.textContent}, sua conta. Abrir o menu`);   // o nome falado contém o que se vê
   if (/^#[0-9a-fA-F]{6}$/.test(p.avatar_cor || '')) { el.style.background = p.avatar_cor; el.style.borderColor = 'transparent'; }
   // o que só gestor/admin pode fazer some da tela de quem não é (o servidor recusa de qualquer jeito)
   document.body.classList.toggle('gestor', p.papel === 'admin' || p.papel === 'gestor');
