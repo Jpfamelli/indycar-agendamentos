@@ -122,3 +122,8 @@ button.t-texto:hover { text-decoration: underline dotted; }
 .agora-cartao { grid-template-columns: minmax(0, 1fr); }
 .agora-lista li.vazio-ensina { display: grid; gap: 4px; }
 .agora-lista li.vazio-ensina span { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+/* listas dos cartões: a coluna da grade media o nome inteiro (que não quebra) e empurrava valor e tempo para fora
+   do cartão no celular ("2 dias", "1 h 30 min" cortados). Com minmax(0, 1fr) o nome encurta com "…" e o valor fica. */
+.agora-lista { grid-template-columns: minmax(0, 1fr); }
+/* no celular o nome pode descer de linha: com "…" o selo "aprovado · sem horário" sumia */
+@media (max-width: 520px) { .agora-lista .linha .l-a { white-space: normal; overflow-wrap: anywhere; } }
