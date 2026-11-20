@@ -411,3 +411,15 @@ test('tarefas: o foco não se perde (concluir vai para a próxima, adiar fica na
   assert.doesNotMatch(s, />adiar ›<|>\+3 dias</);
   for (const [vis, nome] of [['adiar 1 dia', 'Adiar 1 dia útil: '], ['adiar 3 dias', 'Adiar 3 dias úteis: ']]) assert.ok(nome.toLowerCase().startsWith(vis), 'o nome falado começa pelo texto que se vê: ' + vis);
 });
+
+test('entrada: erro aponta o campo (aria-invalid, foco e texto selecionado) e o campo lê a mensagem de erro', () => {
+  const s = semComentarios(ler('casa.js'));
+  assert.match(s, /function apontar\(form, sel\)/);
+  assert.match(s, /apontar\('#fLogin', !email \? '#lEmail' : '#lSenha'\)/);
+  assert.match(s, /apontar\('#fLogin', '#lSenha'\); \}/, 'senha errada volta para a senha');
+  assert.match(s, /apontar\('#fSenha', '#sRepete'\)/);
+  assert.match(s, /apontar\('#fMfa', '#mCodigo'\)/);
+  const h = ler('index.html');
+  for (const [id, err] of [['lEmail', 'lErro'], ['lSenha', 'lErro lCaps'], ['mCodigo', 'mErro'], ['sNova', 'sErro'], ['sRepete', 'sErro']]) assert.match(h, new RegExp(`id="${id}"[^>]*aria-describedby="${err}"`), id);
+  assert.match(ler('r9.css'), /\.campo input\[aria-invalid="true"\]/);
+});
