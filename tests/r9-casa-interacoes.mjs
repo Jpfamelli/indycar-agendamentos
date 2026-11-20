@@ -387,6 +387,20 @@ try {
   conferir('busca reaberta: setas até "Agenda" e Enter abrem a Agenda', cliques.includes('/agenda/'), JSON.stringify({ cliques, ir }));
   await b.page.close();
   });
+
+  // 25. buscas recentes pelas setas (antes as setas pulavam direto para os comandos)
+  await passo("25. buscas recentes entram nas setas", async () => {
+  const b = await abrir({ papel: 'admin' }, 1440);
+  await b.page.evaluate(() => { localStorage.setItem('indycar_central_buscas', JSON.stringify(['HB20'])); document.activeElement && document.activeElement.blur(); });
+  await b.page.keyboard.press('/'); await espera(200);
+  await b.page.keyboard.press('ArrowDown'); await espera(50);
+  const r = await b.page.evaluate(() => ({ ativo: document.querySelector('#buscaLista .ativa')?.id || '', desc: document.querySelector('#buscaInput').getAttribute('aria-activedescendant'), ouve: document.querySelector('#buscaAnuncio')?.textContent || '' }));
+  conferir('busca: a 1ª seta marca a busca recente e o leitor ouve "Buscar de novo: HB20"', r.ativo === 'br-0' && r.desc === 'br-0' && /Buscar de novo: HB20/.test(r.ouve), JSON.stringify(r));
+  await b.page.keyboard.press('Enter'); await espera(900);
+  const depois = await b.page.evaluate(() => ({ campo: document.querySelector('#buscaInput').value, achou: document.querySelectorAll('#buscaLista [data-linha]').length }));
+  conferir('busca: Enter na recente busca de novo', depois.campo === 'HB20' && depois.achou > 0, JSON.stringify(depois));
+  await b.page.close();
+  });
 } finally {
   await browser.close();
 }

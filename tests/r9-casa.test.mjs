@@ -532,3 +532,9 @@ test('busca reaberta: a pesquisa da vez anterior não trava o Enter da tela inic
   assert.match(abrir, /ultimaBusca = '';\s*if \(inp\.value\) buscar\(inp\.value\); else telaInicial\(\);/);
   assert.match(readFileSync(join(RAIZ, 'tests', 'r9-casa-interacoes.mjs'), 'utf8'), /busca reaberta: setas até "Agenda" e Enter abrem a Agenda/);
 });
+
+test('busca: as buscas recentes entram nas setas (antes pulavam direto para os comandos) e têm nome falado', () => {
+  const s = semComentarios(ler('busca.js'));
+  assert.match(s, /class="busca-rec" data-linha id="br-\$\{i\}" data-recente="\$\{C\.esc\(x\)\}" aria-label="Buscar de novo: \$\{C\.esc\(x\)\}"/);
+  assert.match(ler('r9.css'), /\.busca-rec\.ativa \{ background: var\(--panel-2\); box-shadow: inset 0 0 0 1px var\(--red\); \}/);
+});

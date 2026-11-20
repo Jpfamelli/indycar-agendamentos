@@ -39,7 +39,7 @@
     $('#buscaDica').textContent = 'Digite um telefone, parte do nome, a placa ou o número da OS/orçamento.';
     $('#buscaFiltros').hidden = true; filtroBusca = '';
     $('#buscaLista').innerHTML =
-      (r.length ? `<section class="busca-grupo"><h3>Buscas recentes <button type="button" class="busca-mini" data-limpar-recentes>limpar</button></h3>${r.map((x) => `<button type="button" class="busca-rec" data-recente="${C.esc(x)}">🕘 ${C.esc(x)}</button>`).join('')}</section>` : '') +
+      (r.length ? `<section class="busca-grupo"><h3>Buscas recentes <button type="button" class="busca-mini" data-limpar-recentes>limpar</button></h3>${r.map((x, i) => `<button type="button" class="busca-rec" data-linha id="br-${i}" data-recente="${C.esc(x)}" aria-label="Buscar de novo: ${C.esc(x)}">🕘 ${C.esc(x)}</button>`).join('')}</section>` : '') +
       blocoComandos(C.comandos ? C.comandos.lista().filter((c) => ['novo-horario', 'nova-entrada', 'novo-orcamento', 'nova-tarefa', 'modo-tv', 'tema'].includes(c.id)).slice(0, 5) : [], 'Comandos (digite > para ver todos)') +
       `<section class="busca-grupo"><h3>Ir para</h3><div class="busca-ir">${apps.map((k) => `<a href="${C.esc(C.bases[k])}" target="${C.esc(L.nomeDaAba(k))}" data-linha id="bl-ir-${k}">${L.APPS[k].ico} ${C.esc(L.APPS[k].nome)}</a>`).join('')}</div></section>`;
     ativo = -1;
