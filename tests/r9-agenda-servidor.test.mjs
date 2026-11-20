@@ -52,6 +52,19 @@ async function chamar(quem, metodo, rota, corpo) {
   return { status: r.status, j: await r.json().catch(() => null) };
 }
 
+test('R10-AGE-001: Configurações rejeita JSON que não é objeto', async () => {
+  for (const corpo of [[], 42, 'texto', null]) {
+    const r = await fetch(base + '/api/integracoes', {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer gestor', 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo),
+    });
+    assert.equal(r.status, 400, JSON.stringify(corpo));
+    assert.match((await r.json()).erro, /objeto JSON/);
+    assert.equal(gravado.integracoes, undefined);
+  }
+});
+
 test('R9 webhook: a regra aceita só https com domínio público', () => {
   assert.equal(urlDeWebhookSegura(' https://hooks.zapier.com/hooks/catch/1/abc ').url, 'https://hooks.zapier.com/hooks/catch/1/abc');
   for (const ruim of ['http://hooks.zapier.com/x', 'https://localhost/x', 'https://127.0.0.1/x', 'https://10.0.0.5/x', 'https://169.254.169.254/latest/meta-data',

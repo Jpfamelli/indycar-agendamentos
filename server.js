@@ -139,8 +139,10 @@ function readBody(req) {
       if (!raw.trim()) return resolve({});
       try {
         const j = JSON.parse(raw);
-        // array ou valor solto no lugar do objeto quebraria o `body.campo` lá na frente
-        resolve(j && typeof j === 'object' && !Array.isArray(j) ? j : {});
+        if (!j || typeof j !== 'object' || Array.isArray(j)) {
+          return reject(new ErroHttp(400, 'O corpo precisa ser um objeto JSON.'));
+        }
+        resolve(j);
       } catch { reject(new ErroHttp(400, 'Corpo inválido: envie JSON.')); }
     });
   });
