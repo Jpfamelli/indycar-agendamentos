@@ -447,7 +447,12 @@ export function criarApi(deps) {
     return ok(res, r);
   });
   rota('POST', '/api/agenda/adiar-dia', async ({ res, usuario, body }) => {
-    const r = await dados.adiarDia(String(body.dia || ''), body.enviar_em, dados.TIPOS_ENVIO.includes(body.tipo) ? body.tipo : null);
+    const dia = typeof body.dia === 'string' && conexoes.diaValido(body.dia);
+    if (!dia) return bad(res, 'Informe o dia no formato AAAA-MM-DD.', { campo: 'dia' });
+    if (body.tipo != null && !dados.TIPOS_ENVIO.includes(body.tipo)) {
+      return bad(res, 'Escolha um tipo de mensagem válido.', { campo: 'tipo' });
+    }
+    const r = await dados.adiarDia(dia, body.enviar_em, body.tipo ?? null);
     if (!r.ok) return bad(res, r.erro);
     esquecerCache('agenda', 'fila', 'resumo');
     auditar(usuario, 'dia_adiado', 'posvenda_envios', null, { dia: body.dia, para: r.quando, adiadas: r.adiadas, ficaram: r.ficaram });
@@ -930,7 +935,8 @@ export function criarApi(deps) {
   });
 
   rota('POST', '/api/aniversarios/analisar', async ({ res, body }) => {
-    const texto = String(body.texto ?? '');
+    const texto = body.texto ?? '';
+    if (typeof texto !== 'string') return bad(res, 'Informe a lista em texto.', { campo: 'texto' });
     if (!texto.trim()) return bad(res, 'Cole a lista (ou escolha o arquivo) primeiro.');
     if (texto.length > 600_000) return bad(res, 'Lista grande demais: divida em partes de até 3.000 linhas.');
     const lido = aniv.lerLista(texto);
@@ -941,10 +947,17 @@ export function criarApi(deps) {
   });
 
   rota('POST', '/api/aniversarios/gravar', async ({ res, usuario, body }) => {
-    const brutos = Array.isArray(body.itens) ? body.itens.slice(0, 3000) : [];
-    const itens = brutos.filter((i) => i && dados.ehUuid(i.cliente_id) && aniv.lerData(i.nascimento))
-      .map((i) => ({ cliente_id: i.cliente_id, nascimento: aniv.lerData(i.nascimento) }));
-    if (!itens.length) return bad(res, 'Nada para gravar: escolha pelo menos um cliente com data válida.');
+    if (!Array.isArray(body.itens) || !body.itens.length || body.itens.length > 3000) {
+      return bad(res, 'Escolha de 1 a 3.000 aniversários por vez.', { campo: 'itens' });
+    }
+    const itens = [];
+    for (const item of body.itens) {
+      const nascimento = typeof item?.nascimento === 'string' ? aniv.lerData(item.nascimento) : null;
+      if (!dados.ehUuid(item?.cliente_id) || !nascimento) {
+        return bad(res, 'Confira o cliente e a data de cada aniversário selecionado.', { campo: 'itens' });
+      }
+      itens.push({ cliente_id: item.cliente_id, nascimento });
+    }
     if (itens.length > 1 && !A.pode(usuario, 'importar'))
       return send(res, 403, { erro: 'Gravar uma lista inteira é com o gestor. Peça a ele, ou cadastre um por vez na ficha.', codigo: 'sem_permissao' });
     const r = await dados.gravarNascimentos(itens, { substituir: body.substituir === true && A.pode(usuario, 'importar') });
@@ -970,8 +983,11 @@ export function criarApi(deps) {
     rodar: 'rodar o carteiro agora', optout: 'voltar a mandar para um cliente que saiu da lista', campanha: 'aprovar uma campanha', outro: 'uma ajuda no Comunicar',
   };
   rota('POST', '/api/pedir-gestor', async ({ res, usuario, body }) => {
-    const assunto = ASSUNTOS_PEDIDO[body.assunto] ? body.assunto : 'outro';
-    const detalhe = String(body.detalhe || '').trim().slice(0, 300) || null;
+    const assunto = typeof body.assunto === 'string' && Object.hasOwn(ASSUNTOS_PEDIDO, body.assunto) ? body.assunto : 'outro';
+    if (body.detalhe != null && typeof body.detalhe !== 'string') {
+      return bad(res, 'Escreva o detalhe do pedido em texto.', { campo: 'detalhe' });
+    }
+    const detalhe = body.detalhe?.trim().slice(0, 300) || null;
     const ids = (await dados.gestores().catch(() => [])).filter((id) => id !== usuario.id);
     if (!ids.length) return bad(res, 'Não achei um gestor para avisar. Fale com o administrador.');
     const dia = dados.hoje();

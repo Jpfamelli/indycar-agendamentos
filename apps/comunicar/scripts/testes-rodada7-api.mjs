@@ -342,3 +342,21 @@ test('R10-COM-034: a triagem recusa seleção parcialmente inválida sem cancela
     }
   } finally { await s.fechar(); }
 });
+
+for (const [id, caminho, corpo, campo] of [
+  ['035', '/api/agenda/adiar-dia', { dia: '2026-11-20', tipo: 'inventado' }, 'tipo'],
+  ['036', '/api/agenda/adiar-dia', { dia: ['2026-11-20'] }, 'dia'],
+  ['037', '/api/aniversarios/analisar', { texto: ['Maria,20/11'] }, 'texto'],
+  ['038', '/api/aniversarios/gravar', { itens: [{ cliente_id: ID(10), nascimento: '20/11' }, { cliente_id: 'inválido' }] }, 'itens'],
+  ['039', '/api/aniversarios/gravar', { itens: Array(3001).fill({ cliente_id: ID(10), nascimento: '20/11' }) }, 'itens'],
+  ['040', '/api/pedir-gestor', { assunto: 'teste', detalhe: { texto: 'Ajuda' } }, 'detalhe'],
+]) {
+  test(`R10-COM-${id}: valida ${campo} em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'POST', caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
