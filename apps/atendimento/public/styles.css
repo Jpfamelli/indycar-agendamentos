@@ -273,10 +273,6 @@ svg{display:block}
 .aviso{color:var(--cinza-2);font-size:.82rem;margin-top:10px}
 .ia-saida{margin-top:14px;padding:15px;border-radius:11px;background:rgba(229,9,20,.06);
   border:1px solid rgba(229,9,20,.25);white-space:pre-wrap;font-size:.94rem;line-height:1.6}
-.equipe{display:flex;flex-direction:column;gap:9px}
-.equipe-item{display:flex;align-items:center;gap:11px;padding:9px;border-radius:10px;
-  background:var(--superficie)}
-.equipe-item small{color:var(--cinza-2);font-size:.78rem}
 
 /* Seletor interno das Configurações (Minha conta / Equipe e sistema) */
 .config-tabs{display:inline-flex;gap:4px;padding:4px;border-radius:12px;background:var(--superficie);
@@ -456,9 +452,6 @@ svg{display:block}
 .atalho-dica{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;
   background:rgba(229,9,20,.2);color:var(--vermelho-txt);border-radius:5px;font-family:monospace;
   font-size:.82rem;font-weight:700;vertical-align:1px}
-.nav-externo{text-decoration:none}
-.nav-externo .ico-sai{width:12px;height:12px;opacity:.45;flex:none}
-.nav-externo:hover .ico-sai{opacity:.9}
 
 /* menu que abre ao digitar "/" */
 .atalho-menu{position:absolute;bottom:calc(100% + 9px);left:14px;right:14px;max-height:330px;
@@ -798,13 +791,6 @@ select option:checked,select option:hover{
   .chat-acoes{flex-wrap:wrap;justify-content:flex-end}
 }
 
-/* Equipe — cadastro e estado do acesso */
-.sub-titulo{font-family:var(--fonte-cond);font-weight:700;font-size:1.05rem;
-  margin:22px 0 6px;padding-top:18px;border-top:1px solid var(--linha)}
-.equipe-item{display:flex;align-items:center;gap:11px}
-.equipe-item .equipe-txt{flex:1;min-width:0}
-.equipe-item.inativo{opacity:.55}
-.equipe-item.inativo strong{text-decoration:line-through}
 
 /* Botão de assumir o atendimento */
 .btn-assumir{background:rgba(14,165,233,.14);border:1px solid rgba(14,165,233,.5);color:var(--azul-txt)}
@@ -877,15 +863,6 @@ select option:checked,select option:hover{
 .pareamento-passos{margin:0;padding-left:20px;font-size:.86rem;line-height:1.7;color:var(--texto-fraco)}
 .pareamento-passos b{color:var(--texto)}
 
-/* Função de cada pessoa na lista da equipe */
-.equipe-papel{
-  flex:none;padding:5px 8px;border-radius:8px;
-  border:1px solid var(--borda);background:var(--grafite);color:var(--texto);
-  font:inherit;font-size:.8rem;cursor:pointer;
-}
-.equipe-papel:disabled{opacity:.5;cursor:wait}
-.equipe-papel-txt{flex:none;font-size:.8rem;color:var(--texto-fraco)}
-.equipe-txt .voce{font-style:normal;font-size:.78rem;color:var(--texto-fraco);font-weight:600}
 
 /* ============================================================
    DONO DO CLIENTE
@@ -911,11 +888,6 @@ select option:checked,select option:hover{
   font-weight:600;letter-spacing:0;
 }
 
-/* Filtro "meus" — separado dos chips de situação, porque filtra outra coisa */
-.chip-minhas.ativo{
-  background:linear-gradient(135deg,var(--vermelho),var(--vermelho-esc));
-  color:#fff;border-color:transparent;
-}
 
 /* Excluir conversa: discreto até o mouse chegar perto. Ação sem desfazer
    não deve competir por atenção com os botões do dia a dia. */
@@ -927,13 +899,6 @@ select option:checked,select option:hover{
   border-color:#ef4444;color:#ef4444;background:rgba(239,68,68,.1);
 }
 
-/* Entrar/sair do rodízio, na lista da equipe */
-.equipe-rodizio{
-  display:inline-flex;align-items:center;gap:5px;flex:none;
-  font-size:.76rem;color:var(--texto-fraco);cursor:pointer;user-select:none;
-}
-.equipe-rodizio input{accent-color:var(--vermelho);cursor:pointer}
-.equipe-rodizio input:disabled{cursor:wait}
 
 /* ============================================================
    FICHA EDITÁVEL
@@ -1421,10 +1386,6 @@ kbd{display:inline-block;padding:2px 7px;border-radius:6px;border:1px solid var(
 .kpi .delta.neutro{color:var(--cinza-2)}
 
 /* ---------- Equipe ---------- */
-.equipe-carga{display:block;font-size:.76rem;color:var(--cinza);margin-top:2px}
-.equipe-carga:empty{display:none}
-.equipe-carga b{color:var(--texto-forte)}
-.equipe-carga .carga-alerta{color:var(--amarelo-txt)}
 .carga-zero{color:var(--cinza-2)}
 
 /* ---------- Sem internet ---------- */

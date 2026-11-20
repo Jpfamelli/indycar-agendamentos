@@ -26,8 +26,6 @@ function horaCurta(iso) {
   if (d.toDateString() === ontem.toDateString()) return 'ontem';
   return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
 }
-const dataLonga = iso => !iso ? '' :
-  new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
 
 /* Rodada 4: erro técnico vira português claro em qualquer aviso (toast e estados de erro).
    Quem lê é o atendente, não o programador. */
@@ -252,16 +250,6 @@ $('#formPrimeiro').addEventListener('submit', async (e) => {
     btn.disabled = false; btn.textContent = 'Criar minha conta de administrador';
   }
 });
-
-function traduzErroAuth(m = '') {
-  if (typeof Acesso !== 'undefined') return Acesso.traduzirErro(m);
-  const t = m.toLowerCase();
-  if (t.includes('invalid login')) return 'E-mail ou senha incorretos.';
-  if (t.includes('already registered')) return 'Esse e-mail já tem conta. Use "Entrar".';
-  if (t.includes('email not confirmed')) return 'Confirme o e-mail antes de entrar.';
-  if (t.includes('password')) return 'Senha muito curta (mínimo 6 caracteres).';
-  return m || 'Não consegui entrar.';
-}
 
 // Sair: abre a escolha de limpar o aparelho (acesso.js)
 $('#btnSair').addEventListener('click', () => Acesso.pedirSair());
@@ -3625,7 +3613,7 @@ async function distribuirPeloRodizio(conv) {
   try {
     const r = await fetch(`/api/conversas/${encodeURIComponent(conv.id)}/distribuir`, { method: 'POST', headers: await authCabecalhos(), body: '{}' });
     const j = await r.json().catch(() => ({}));
-    if (r.status === 404 && !j.codigo) throw new Error('o servidor ainda não tem o rodízio (POST /api/conversas/:id/distribuir)');
+    if (r.status === 404 && !j.codigo) throw new Error('Ainda não dá para distribuir por aqui: o servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor.');
     if (!r.ok || j.ok === false) {
       if (j.atribuida_a) { conv.atribuida_a = j.atribuida_a; renderDonoDoChat(); renderConversas(); }
       throw new Error(j.erro || `o servidor respondeu ${r.status}`);
@@ -5028,7 +5016,7 @@ function aplicarTema(tema, { salvar = true } = {}) {
   }
 
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', claro ? '#eaecf0' : '#0a0a0b');
+  if (meta) meta.setAttribute('content', claro ? '#f6f7f9' : '#0d1220');
 
   const ico = $('#temaIco'), txt = $('#temaTxt');
   if (ico) ico.textContent = claro ? '☀️' : '🌙';
@@ -6130,29 +6118,6 @@ function pintarDeltas() {
   });
 }
 
-/* ---------------- Equipe: quem está com quantos clientes ---------------- */
-async function pintarCargaDaEquipe() {
-  const alvos = $$('#listaEquipe [data-carga]');
-  if (!alvos.length) return;
-  try {
-    const { data, error } = await sb.from('conversas').select('atribuida_a,nao_lidas,aguardando_consultor')
-      .eq('tipo', 'atendimento').is('desfecho', null).not('atribuida_a', 'is', null).limit(5000);
-    if (error) throw error;
-    const por = new Map();
-    for (const c of data || []) {
-      const p = por.get(c.atribuida_a) || { total: 0, naoLidas: 0, espera: 0 };
-      p.total++; if (c.nao_lidas > 0) p.naoLidas++; if (c.aguardando_consultor) p.espera++;
-      por.set(c.atribuida_a, p);
-    }
-    alvos.forEach(el => {
-      const p = por.get(el.dataset.carga);
-      el.innerHTML = !p ? '<span class="carga-zero">nenhum cliente em aberto</span>'
-        : `<b>${esc(String(p.total))}</b> cliente${p.total > 1 ? 's' : ''} em aberto${
-            p.naoLidas ? ` · <b class="carga-alerta">${esc(String(p.naoLidas))}</b> sem ler` : ''}${
-            p.espera ? ` · <b class="carga-alerta">${esc(String(p.espera))}</b> esperando consultor` : ''}`;
-    });
-  } catch { alvos.forEach(el => { el.textContent = ''; }); }
-}
 
 /* ---------------- Atalhos favoritos (por pessoa, neste navegador) ---------------- */
 const chaveFavoritos = () => `indycar_atalhos_fav_${perfil?.id || 'anon'}`;
@@ -6276,7 +6241,7 @@ $('#btnTestarAviso')?.addEventListener('click', () => {
   if (!a.notificacao && !a.som) return toast('Ligue a notificação ou o som primeiro.');
   if (a.som) tocarSom();
   if (a.notificacao && 'Notification' in window && Notification.permission === 'granted') {
-    new Notification('💬 Teste: IndyCar Atendimento', { body: 'É assim que a mensagem nova aparece.', icon: '/icon-192.png', tag: 'teste' });
+    new Notification('💬 Teste: IndyCar Atendimento', { body: 'É assim que a mensagem nova aparece.', icon: new URL('icon-192.png', document.baseURI).href, tag: 'teste' });
   }
 });
 $('#btnVerAtalhosTeclado')?.addEventListener('click', () => abrirAjudaTeclado());
@@ -6311,7 +6276,7 @@ function avisarMensagemNova(m) {
     try {
       const n = new Notification(`💬 ${m.nome || telefoneBonito(m.telefone) || 'Cliente'}`, {
         body: String(m.corpo || (m.anexo ? '📎 anexo' : 'mensagem nova')).slice(0, 140),
-        icon: '/icon-192.png', tag: 'conv-' + (m.conversa_id || ''), renotify: true,
+        icon: new URL('icon-192.png', document.baseURI).href, tag: 'conv-' + (m.conversa_id || ''), renotify: true,
       });
       n.onclick = () => { window.focus(); if (m.conversa_id) irParaConversa(m.conversa_id); n.close(); };
     } catch { /* alguns navegadores só notificam pelo service worker */ }

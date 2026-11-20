@@ -49,7 +49,7 @@ function guardar(chave, r) {
 }
 
 const PAGINA_OFFLINE = () => new Response('<!doctype html><meta charset="utf-8"><title>IndyCar · Atendimento</title>'
-  + '<body style="font-family:system-ui;background:#0a0a0b;color:#f5f5f7;display:grid;place-items:center;height:100vh;margin:0;text-align:center">'
+  + '<body style="font-family:system-ui;background:#070a14;color:#f5f5f7;display:grid;place-items:center;height:100vh;margin:0;text-align:center">'
   + '<div><h1 style="font-size:1.3rem">Sem conexão com o Atendimento</h1><p>Confira a internet. Esta página tenta de novo sozinha.</p>'
   + '<script>setTimeout(function(){location.reload()},15000)</script></div>',
   { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });

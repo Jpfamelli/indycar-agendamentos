@@ -140,3 +140,36 @@ test('R9: os geradores de gráfico rodam e descrevem os dados', () => {
   assert.match(G.mapaCalorSvg({ matriz }), /pico em Terça às 14h, com 6 mensagens/);
   assert.match(G.tabelaHtml({ colunas: ['Pessoa', 'Leads'], linhas: [['Ana', 2]] }), /aria-label="Tabela: Pessoa, Leads \(role para o lado com as setas\)"/);
 });
+
+/* ---------------- lote 3 ---------------- */
+test('R9 enxugar: código morto da lista antiga da equipe saiu da tela', () => {
+  for (const nome of ['pintarCargaDaEquipe', 'traduzErroAuth', 'dataLonga']) assert.ok(!app.includes(nome), nome + ' ainda está no app.js');
+  assert.ok(!html.includes('id="listaEquipe"'), 'a lista escondida saiu do HTML');
+  for (const classe of ['.equipe-item', '.equipe-papel', '.equipe-rodizio', '.equipe-carga', '.chip-minhas', '.nav-externo', '.sub-titulo']) {
+    assert.ok(!css.includes(classe), classe + ' ainda está no styles.css');
+  }
+  // o que está em uso continua
+  assert.ok(html.includes('id="btnIrEquipe"') && css.includes('.carga-zero'));
+});
+
+test('R9: barra do celular e abertura do app instalado na cor do app', () => {
+  assert.ok(html.includes('<meta name="theme-color" content="#0d1220" />'));
+  assert.ok(app.includes("meta.setAttribute('content', claro ? '#f6f7f9' : '#0d1220');"));
+  assert.equal(JSON.parse(pub('manifest.json')).background_color, '#070a14');
+  assert.ok(pub('sw.js').includes('background:#070a14'));
+  for (const f of [html, app, pub('sw.js'), pub('manifest.json')]) assert.ok(!f.includes('#0a0a0b'), 'sobrou a cor antiga');
+});
+
+test('R9: ícone da notificação acompanha a pasta onde o app está montado', () => {
+  assert.ok(!app.includes("icon: '/icon-192.png'"));
+  assert.equal(app.split("icon: new URL('icon-192.png', document.baseURI).href").length - 1, 2);
+});
+
+test('R9 texto: avisos de servidor antigo sem nome de rota e com o que fazer', () => {
+  const telas = [pub('equipe.js'), tarefas, app].join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const linhasDeTela = telas.split('\n').map(l => l.replace(/(^|\s)\/\/\s.*$/, '')).filter(l => /(GET|POST|PATCH) \/api\//.test(l) && !/^\s*(\/\/|\*)/.test(l) && !/fetch\(|api\(/.test(l));
+  assert.deepEqual(linhasDeTela.map(l => l.trim().slice(0, 80)), []);
+  assert.ok(pub('equipe.js').includes('Peça a quem cuida do sistema para publicar a versão nova do servidor.'));
+  assert.ok(pub('equipe.js').includes("avisoSemRota('A lista completa da equipe')"));
+  assert.ok(tarefas.includes('Carga calculada aqui na tela, só com as conversas já carregadas.'));
+});

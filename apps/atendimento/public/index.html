@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0a0a0b" />
+  <meta name="theme-color" content="#0d1220" />
   <title>IndyCar · Atendimento</title>
 
   <!-- Tema (claro/escuro) aplicado ANTES de pintar a tela, para não piscar.
@@ -17,7 +17,7 @@
         if (t === 'claro') {
           document.documentElement.setAttribute('data-tema', 'claro');
           var m = document.querySelector('meta[name="theme-color"]');
-          if (m) m.setAttribute('content', '#eaecf0');
+          if (m) m.setAttribute('content', '#f6f7f9');
         }
       } catch (e) {}
     })();
@@ -1134,7 +1134,6 @@
         <div class="cartao">
           <h3>Equipe</h3>
           <p class="cartao-sub">Convites, papéis, apps permitidos e acessos agora ficam numa tela só.</p>
-          <div id="listaEquipe" class="equipe" hidden></div>
           <button type="button" class="btn btn-primary sm" id="btnIrEquipe">Abrir a tela Equipe →</button>
         </div>
         </div>
