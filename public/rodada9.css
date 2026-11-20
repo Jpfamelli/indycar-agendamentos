@@ -199,3 +199,37 @@
 }
 /* histórico na ficha do cliente (toque para abrir o agendamento): 22 px de altura */
 @media (max-width:720px),(pointer:coarse){ .ctx-item{min-height:var(--alvo)} }
+
+/* ============================================================================
+   RODADA 10: modo presença no celular (até 560 px). Medido em 375 x 800: o primeiro
+   cartão começava em 927 px (fora da primeira tela). O relógio, as ferramentas, os
+   contadores e as abas viram faixas de uma linha que rolam de lado; o cabeçalho encolhe.
+   ============================================================================ */
+@media (max-width:560px){
+  body.recepcao .faixa{padding:6px 12px;font-size:12px;gap:8px}
+  body.recepcao .faixa > :is(span,div,p):not(.faixa-ico){display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  body.recepcao .topbar{padding:8px 12px;gap:8px;flex-direction:row;align-items:center;flex-wrap:nowrap}
+  body.recepcao .topbar .company{flex:1 1 0;min-width:0;gap:8px}
+  body.recepcao .topbar .company > div{min-width:0;flex:1 1 0}
+  body.recepcao .topbar .company-logo,body.recepcao .topbar .company-sub{display:none}
+  body.recepcao .topbar .company-title{flex-wrap:nowrap;min-width:0}
+  body.recepcao .topbar .company-title h1{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  body.recepcao .topbar .topo-acoes{flex:0 0 auto;width:auto}
+  body.recepcao .topbar .tag-dashboard{flex:0 0 auto}
+  body.recepcao .view{padding:10px 12px 24px}
+  body.recepcao .rec-topo{gap:8px;margin-bottom:8px}
+  body.recepcao .rec-relogio{gap:8px;flex-wrap:nowrap;min-width:0}
+  body.recepcao .rec-relogio b{font-size:calc(30px * var(--rec,1))}
+  body.recepcao .rec-relogio span{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1 1 0}
+  body.recepcao .rec-relogio{max-width:100%;overflow:hidden}
+  body.recepcao :is(.rec-ferramentas,.rec-resumo,.rec-abas){flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
+  body.recepcao :is(.rec-ferramentas,.rec-resumo,.rec-abas)::-webkit-scrollbar{display:none}
+  body.recepcao :is(.rec-ferramentas,.rec-resumo,.rec-abas) > *{flex:0 0 auto;white-space:nowrap}
+  body.recepcao :is(.rec-ferramentas,.rec-resumo,.rec-abas){width:calc(100% + 24px);box-sizing:border-box}
+  body.recepcao .rec-topo{flex-direction:column;align-items:stretch}
+  body.recepcao .rec-resumo{margin-bottom:8px}
+  body.recepcao .rec-busca{margin-bottom:8px}
+  body.recepcao .rec-lista{margin-top:8px}
+  body.recepcao .rec-cartao{padding:14px!important;gap:10px 14px}
+  body.recepcao .rec-btn{min-width:0;flex:1 1 120px;min-height:56px;padding:0 14px}
+}

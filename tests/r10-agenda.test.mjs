@@ -82,3 +82,19 @@ test('R10-AGE-037: página de confirmação sem travessão no horário de funcio
   // o id interno do horário saiu da resposta pública (R10-AGE-029): o calendário não depende mais dele
   assert.doesNotMatch(conf, /ag\.id\b/);
 });
+
+test('R10-AGE-038: modo presença no celular (até 560 px): relógio, ferramentas, contadores e abas em uma linha cada, cabeçalho curto', () => {
+  const css = ler('public/rodada9.css');
+  const i = css.indexOf('RODADA 10: modo presença no celular');
+  assert.ok(i > 0, 'o bloco da rodada 10 existe');
+  const bloco = css.slice(i);
+  assert.match(bloco, /@media \(max-width:560px\)\{/);
+  assert.match(bloco, /body\.recepcao :is\(\.rec-ferramentas,\.rec-resumo,\.rec-abas\)\{flex-wrap:nowrap;overflow-x:auto/);
+  assert.match(bloco, /body\.recepcao \.rec-relogio b\{font-size:calc\(30px \* var\(--rec,1\)\)\}/, 'o relógio encolhe mas continua seguindo o tamanho da letra');
+  assert.match(bloco, /body\.recepcao \.topbar \.company-logo,body\.recepcao \.topbar \.company-sub\{display:none\}/);
+  assert.match(bloco, /body\.recepcao \.topbar\{[^}]*flex-direction:row/);
+  assert.match(bloco, /body\.recepcao \.rec-btn\{[^}]*min-height:56px/, 'Chegou e Não veio continuam grandes');
+  // fora do celular nada muda: todas as regras novas estão dentro do @media
+  assert.doesNotMatch(bloco.slice(0, bloco.indexOf('@media')), /\{[^}]*\}/);
+  assert.ok(Number(ler('public/sw.js').match(/indycar-agenda-v(\d+)/)[1]) >= 38, 'casca guardada com versão nova');
+});
