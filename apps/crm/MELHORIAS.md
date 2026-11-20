@@ -1431,7 +1431,11 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-005** · conserto · Valores do lead rejeitam booleanos em vez de convertê-los em valores monetários (teste R10-CRM-005 em testes/r10-json.test.cjs) · `4911a42`
 - **R10-CRM-006** · conserto · Cadastro exige texto no campo de placa (teste R10-CRM-006 em testes/r10-json.test.cjs) · `4911a42`
 - **R10-CRM-007** · conserto · Motivo de perda exige uma opção em texto (teste R10-CRM-007 em testes/r10-json.test.cjs) · `4911a42`
-- **R10-CRM-008** ? seguran?a ? Perfil rejeita nome enviado como n?mero (teste R10-CRM-008 em testes/r10-perfil.test.cjs) ? `60fc802`
-- **R10-CRM-009** ? seguran?a ? Perfil rejeita cargo enviado como objeto (teste R10-CRM-009 em testes/r10-perfil.test.cjs) ? `60fc802`
-- **R10-CRM-010** ? seguran?a ? Perfil rejeita telefone com letras sem normaliz?-lo silenciosamente (teste R10-CRM-010 em testes/r10-perfil.test.cjs) ? `60fc802`
-- **R10-CRM-011** ? seguran?a ? Perfil exige texto hexadecimal no campo da cor do avatar (teste R10-CRM-011 em testes/r10-perfil.test.cjs) ? `60fc802`
+- **R10-CRM-008** · segurança · Perfil rejeita nome enviado como número (teste R10-CRM-008 em testes/r10-perfil.test.cjs) · `60fc802`
+- **R10-CRM-009** · segurança · Perfil rejeita cargo enviado como objeto (teste R10-CRM-009 em testes/r10-perfil.test.cjs) · `60fc802`
+- **R10-CRM-010** · segurança · Perfil rejeita telefone com letras sem normalizá-lo silenciosamente (teste R10-CRM-010 em testes/r10-perfil.test.cjs) · `60fc802`
+- **R10-CRM-011** · segurança · Perfil exige texto hexadecimal no campo da cor do avatar (teste R10-CRM-011 em testes/r10-perfil.test.cjs) · `60fc802`
+- **R10-CRM-012** · segurança · Mudança de papel exige uma função válida antes de alterar permissões (teste R10-CRM-012 em testes/r10-equipe.test.cjs) · `e8f518b`
+- **R10-CRM-013** · segurança · A ativação ou desativação de acesso exige um booleano explícito (testes R10-CRM-013 em testes/r10-equipe.test.cjs) · `e8f518b`
+- **R10-CRM-014** · conserto · Cadastro da equipe recusa senha temporária longa demais em vez de truncá-la (teste R10-CRM-014 em testes/r10-equipe.test.cjs) · `e8f518b`
+- **R10-CRM-015** · conserto · Cadastro da equipe valida a opção de troca obrigatória de senha (teste R10-CRM-015 em testes/r10-equipe.test.cjs) · `e8f518b`
