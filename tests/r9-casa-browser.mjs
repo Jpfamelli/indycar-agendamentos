@@ -116,7 +116,9 @@ async function abrirPagina(cenario, largura, tema) {
     if (!/^\/casa\/[\w.-]+$/.test(caminho)) return req.respond({ status: 404, body: '' });
     const arq = join(FONTE, caminho);
     if (!existsSync(arq)) return req.respond({ status: 404, body: '' });
-    return req.respond({ status: 200, contentType: TIPOS[caminho.slice(caminho.lastIndexOf('.'))] || 'application/octet-stream', body: readFileSync(arq) });
+    // o Supabase de mentira não bate com o hash (integrity) da biblioteca de verdade: no teste o index vai sem o integrity
+    const corpo = caminho.endsWith('/index.html') ? readFileSync(arq, 'utf8').replace(/ integrity="[^"]*"/g, '') : readFileSync(arq);
+    return req.respond({ status: 200, contentType: TIPOS[caminho.slice(caminho.lastIndexOf('.'))] || 'application/octet-stream', body: corpo });
   });
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   return { page, erros };

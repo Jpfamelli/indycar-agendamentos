@@ -423,3 +423,11 @@ test('entrada: erro aponta o campo (aria-invalid, foco e texto selecionado) e o 
   for (const [id, err] of [['lEmail', 'lErro'], ['lSenha', 'lErro lCaps'], ['mCodigo', 'mErro'], ['sNova', 'sErro'], ['sRepete', 'sErro']]) assert.match(h, new RegExp(`id="${id}"[^>]*aria-describedby="${err}"`), id);
   assert.match(ler('r9.css'), /\.campo input\[aria-invalid="true"\]/);
 });
+
+test('biblioteca do Supabase (CDN) com integrity sha384: arquivo trocado no CDN não roda na Casa', () => {
+  const tag = ler('index.html').match(/<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@2\.117\.2\/dist\/umd\/supabase\.min\.js"[^>]*>/);
+  assert.ok(tag, 'versão fixa no endereço');
+  assert.match(tag[0], /integrity="sha384-[A-Za-z0-9+/]{64}"/);
+  assert.match(tag[0], /crossorigin="anonymous"/);
+  for (const f of ['r9-casa-browser.mjs', 'r9-casa-interacoes.mjs']) assert.match(readFileSync(join(RAIZ, 'tests', f), 'utf8'), /replace\(\/ integrity="\[\^"\]\*"\/g, ''\)/, f + ': o teste tira o integrity só para usar o Supabase de mentira');
+});

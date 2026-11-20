@@ -49,7 +49,9 @@ async function abrir(cenario, largura = 1440, toque = false) {
     const caminho = u.pathname === '/' ? '/casa/index.html' : u.pathname;
     const arq = join(FONTE, caminho);
     if (!/^\/casa\/[\w.-]+$/.test(caminho) || !existsSync(arq)) return req.respond({ status: 404, body: '' });
-    return req.respond({ status: 200, contentType: TIPOS[caminho.slice(caminho.lastIndexOf('.'))] || 'application/octet-stream', body: readFileSync(arq) });
+    // o Supabase de mentira não bate com o hash (integrity) da biblioteca de verdade: no teste o index vai sem o integrity
+    const corpo = caminho.endsWith('/index.html') ? readFileSync(arq, 'utf8').replace(/ integrity="[^"]*"/g, '') : readFileSync(arq);
+    return req.respond({ status: 200, contentType: TIPOS[caminho.slice(caminho.lastIndexOf('.'))] || 'application/octet-stream', body: corpo });
   });
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector(cenario.sessao === false ? '#fLogin:not([hidden])' : '#casa:not([hidden])', { timeout: 8000 });
