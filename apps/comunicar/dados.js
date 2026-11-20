@@ -2951,7 +2951,8 @@ export async function adiarManual(id, quandoIso) {
   if (!e) return { ok: false, erro: 'Mensagem não encontrada.', status: 404 };
   const v = conexoes.validarAdiamento(e, quandoIso);
   if (!v.ok) return v;
-  await atualizarUm(T.envios, `id=eq.${id}&status=eq.pendente&enviando_em=is.null`, { enviar_em: v.quando, motivo_pulado: null });
+  const atualizado = await atualizarUm(T.envios, `id=eq.${id}&status=eq.pendente&enviando_em=is.null`, { enviar_em: v.quando, motivo_pulado: null });
+  if (!atualizado) return { ok: false, status: 409, erro: 'A mensagem mudou enquanto você reagendava. Atualize a fila.' };
   return { ok: true, quando: v.quando };
 }
 
@@ -2973,10 +2974,11 @@ export async function adiarDia(dia, quandoIso, tipo = null) {
   for (const e of lista) {
     const v = conexoes.validarAdiamento(e, quandoIso);
     if (!v.ok) { ficaram++; continue; }
-    await atualizarUm(T.envios, `id=eq.${e.id}&status=eq.pendente&enviando_em=is.null`, { enviar_em: v.quando, motivo_pulado: null });
-    adiadas++;
+    const atualizado = await atualizarUm(T.envios, `id=eq.${e.id}&status=eq.pendente&enviando_em=is.null`, { enviar_em: v.quando, motivo_pulado: null });
+    if (atualizado) adiadas++;
+    else ficaram++;
   }
-  return { ok: true, adiadas, ficaram, total: lista.length, quando: new Date(q).toISOString(), aviso: ficaram ? `${ficaram} ficaram onde estavam: passariam da validade.` : null };
+  return { ok: true, adiadas, ficaram, total: lista.length, quando: new Date(q).toISOString(), aviso: ficaram ? `${ficaram} não foram reagendadas. Confira o estado e a validade delas na fila.` : null };
 }
 
 /** As conferências que o carteiro faz com os outros sistemas ANTES de enviar, para o "por que não saiu?" dizer o mesmo. */

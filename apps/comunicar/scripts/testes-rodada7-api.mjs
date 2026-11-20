@@ -347,6 +347,39 @@ test('R7 API: rotas caras têm limite por minuto (429) sem afetar outra pessoa',
   } finally { await s.fechar(); }
 });
 
+for (const individual of [true, false]) {
+  const numero = individual ? '053' : '054';
+  test(`R10-COM-${numero}: informa perda da disputa pelo reagendamento`, async () => {
+    const s = await subir({ livre: true });
+    const envio = pend(989, { enviar_em: futuro(24 * 60), expira_em: futuro(4 * 24 * 60) });
+    const filaAnterior = tabelas.posvenda_envios;
+    tabelas.posvenda_envios = [envio];
+    const buscar = globalThis.fetch;
+    globalThis.fetch = (url, opts) => {
+      if (opts?.method === 'PATCH' && new URL(url).pathname === '/rest/v1/posvenda_envios') {
+        envio.enviando_em = new Date().toISOString();
+      }
+      return buscar(url, opts);
+    };
+    try {
+      const dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', dateStyle: 'short' })
+        .format(new Date(envio.enviar_em));
+      const caminho = individual ? `/api/envios/${envio.id}/adiar` : '/api/agenda/adiar-dia';
+      const r = await s.chamar('gestor', 'POST', caminho, { dia, enviar_em: futuro(2 * 24 * 60) });
+      assert.equal(r.status, individual ? 409 : 200);
+      if (!individual) {
+        assert.equal(r.json.total, 1);
+        assert.equal(r.json.adiadas, 0);
+        assert.equal(r.json.ficaram, 1);
+      }
+    } finally {
+      globalThis.fetch = buscar;
+      tabelas.posvenda_envios = filaAnterior;
+      await s.fechar();
+    }
+  });
+}
+
 test('R10-COM-034: a triagem recusa seleção parcialmente inválida sem cancelar mensagens', async () => {
   const s = await subir({ livre: true });
   try {
