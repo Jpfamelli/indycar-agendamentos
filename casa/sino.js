@@ -8,6 +8,8 @@
   let C = null, L = null, notifs = [], filtro = '', soNovas = false, canal = null, timerSync = null, primeiraCarga = true, buscaTexto = '', limite = 60, adiarAberto = null;
   /* rodada 9: estado da leitura, para o sino dizer "carregando" e "não consegui ler" em vez de ficar em branco */
   let leitura = 'carregando';
+  /* rodada 10: relógio que junta uma rajada de avisos do tempo real numa leitura só */
+  let debLeitura = null, lidoEm = 0;
   const LIMITE_MAX = 300;
   const LS_ADIADOS = 'indycar_central_sino_adiados';
   const M2 = () => window.CasaLogica2;
@@ -100,8 +102,8 @@
         .order('created_at', { ascending: false }).limit(limite));
     } catch (e) { error = e; }
     if (!C) return;   // saiu enquanto lia
-    if (error) { leitura = 'falhou'; desenhar(); return; }
-    leitura = 'ok';
+    if (error) { leitura = 'falhou'; desenhar(); C.sessaoVenceu && C.sessaoVenceu(error); return; }
+    leitura = 'ok'; lidoEm = Date.now();
     const antes = new Set(notifs.map((n) => n.id));
     const adiados = lerAdiados();
     const lista = (data || []).map((n) => (n.app ? n : { ...n, app: N4().appDoAviso(n) }));
@@ -242,18 +244,23 @@
     carregar();
     try {
       canal = C.sb.channel('casa-sino-' + C.perfil.id)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'notificacoes', filter: `perfil_id=eq.${C.perfil.id}` }, () => carregar())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notificacoes', filter: `perfil_id=eq.${C.perfil.id}` }, agendarLeitura)
         .subscribe();
     } catch { /* sem tempo real: o relógio abaixo cobre */ }
     clearInterval(timerSync);
     timerSync = setInterval(() => { if (!document.hidden) carregar(); }, 90_000);
     document.addEventListener('visibilitychange', onVisivel);
+    window.addEventListener('online', aoVoltarARede);   // rodada 10: a internet voltou, o sino relê na hora (antes esperava até 90 s)
   };
-  function onVisivel() { if (!document.hidden && C && C.perfil) carregar(); }
+  /* dez avisos chegando juntos (a rotina da manhã, um lote do Comunicar) viravam dez leituras da lista inteira: agora uma, 400 ms depois do último */
+  function agendarLeitura() { clearTimeout(debLeitura); debLeitura = setTimeout(() => { if (C && C.perfil) carregar(); }, 400); }
+  function aoVoltarARede() { if (C && C.perfil) carregar(); }
+  function onVisivel() { if (!document.hidden && C && C.perfil && Date.now() - lidoEm > 15_000) carregar(); }   // rodada 10: leitura de segundos atrás não se repete
   MOD.desmontar = function () {
     try { if (canal && C) C.sb.removeChannel(canal); } catch { /* segue */ }
-    canal = null; clearInterval(timerSync); notifs = [];
+    canal = null; clearInterval(timerSync); clearTimeout(debLeitura); notifs = []; lidoEm = 0;
     document.removeEventListener('visibilitychange', onVisivel);
+    window.removeEventListener('online', aoVoltarARede);
     document.title = 'IndyCar Central';
   };
   (window.CasaModulos = window.CasaModulos || []).push(MOD);

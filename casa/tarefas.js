@@ -11,6 +11,10 @@
   let ligas = {}, orcs = {}, fones = {}, carregandoLigas = null;
   /* rodada 9: estado da leitura (a lista não fica em branco quando o banco falha) e trava do "Criar" (dois toques não criam duas tarefas) */
   let leitura = 'carregando', criando = false;
+  /* rodada 10: tarefa com gravação em andamento (dois toques em "adiar" não adiam dois dias), hora da última leitura
+     boa e o relógio que junta uma rajada de mudanças do tempo real numa leitura só */
+  const gravando = new Set();
+  let lidoEm = 0, debLeitura = null, timerLeitura = null;
   const $ = (s) => document.querySelector(s);
 
   /** vence_em (ISO) para "hoje 17h30", "amanhã 9h" ou "em 7 dias". Oficina em UTC-3 (sem horário de verão). */
@@ -124,8 +128,8 @@
         .eq('status', 'aberta').order('prioridade', { ascending: true }).order('vence_em', { ascending: true, nullsFirst: false }).limit(120));
     } catch (e) { error = e; }
     if (!C) return;
-    if (error) { leitura = 'falhou'; desenhar(); return; }
-    leitura = 'ok';
+    if (error) { leitura = 'falhou'; desenhar(); C.sessaoVenceu && C.sessaoVenceu(error); return; }
+    leitura = 'ok'; lidoEm = Date.now();
     {
       tarefas = data || []; desenhar(); C.painel && C.painel.redesenhar && C.painel.redesenhar();
       if (tarefas.some((t) => t.origem === 'orcador')) carregarLigas().then(() => { desenhar(); C.painel && C.painel.redesenhar && C.painel.redesenhar(); });
@@ -163,11 +167,15 @@
   }
   async function adiar(id, dias = 1) {
     const t = tarefas.find((x) => x.id === id); if (!t) return;
+    if (gravando.has(id)) return;   // o primeiro toque ainda está indo para o banco
+    gravando.add(id);
     const antes = t.vence_em;
     const novo = new Date(M.adiarTarefa(antes, new Date(), dias)).toISOString();
     t.vence_em = novo; desenhar();
     focar(seletorDe(dias > 1 ? 'data-adiar-mais' : 'data-adiar', id));
-    const { error } = await C.sb.from('tarefas').update({ vence_em: novo }).eq('id', id);
+    let error = null;
+    try { ({ error } = await C.sb.from('tarefas').update({ vence_em: novo }).eq('id', id)); } catch (e) { error = e; } finally { gravando.delete(id); }
+    if (!C) return;
     if (error) { t.vence_em = antes; desenhar(); return C.toast('Não consegui adiar agora.'); }
     toastDesfazer('Tarefa adiada para ' + M.textoDoPrazo(novo) + '.', async () => {
       t.vence_em = antes; desenhar();
@@ -247,13 +255,29 @@
     carregar(); carregarNomes();
     try {
       canal = C.sb.channel('casa-tarefas-' + C.perfil.id)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'tarefas' }, () => carregar())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tarefas' }, agendarLeitura)
         .subscribe();
     } catch { /* sem tempo real */ }
+    /* rodada 10: as tarefas só eram relidas pelo tempo real. Se ele caísse (ou a internet), a lista ficava velha, ou em
+       "não consegui ler", até alguém clicar. Agora relê quando a internet volta e quando a pessoa volta para a aba
+       depois de mais de 1 minuto. */
+    window.addEventListener('online', aoVoltarARede);
+    document.addEventListener('visibilitychange', aoVisivel);
+    /* e de 2 em 2 minutos com a aba à vista (a Casa fica aberta o dia todo no balcão: se o tempo real caísse, as tarefas
+       novas só apareciam recarregando a página). O painel e o sino já tinham relógio; as tarefas não. */
+    clearInterval(timerLeitura);
+    timerLeitura = setInterval(() => { if (!document.hidden && C && C.perfil && Date.now() - lidoEm > 110_000) carregar(); }, 120_000);
   };
+  /* uma rajada de mudanças (o Orçador criando 8 tarefas, alguém concluindo várias) vira UMA leitura, 400 ms depois da última */
+  function agendarLeitura() { clearTimeout(debLeitura); debLeitura = setTimeout(() => { if (C && C.perfil) carregar(); }, 400); }
+  function aoVoltarARede() { if (C && C.perfil) carregar(); }
+  function aoVisivel() { if (!document.hidden && C && C.perfil && Date.now() - lidoEm > 60_000) carregar(); }
   MOD.desmontar = function () {
     try { if (canal && C) C.sb.removeChannel(canal); } catch { /* segue */ }
     canal = null; tarefas = []; ligas = {}; orcs = {}; fones = {};
+    clearTimeout(debLeitura); clearInterval(timerLeitura); gravando.clear(); lidoEm = 0;
+    window.removeEventListener('online', aoVoltarARede);
+    document.removeEventListener('visibilitychange', aoVisivel);
   };
   MOD.prazoISO = prazoISO;
   (window.CasaModulos = window.CasaModulos || []).push(MOD);

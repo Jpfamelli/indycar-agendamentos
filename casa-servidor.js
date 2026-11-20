@@ -9,10 +9,42 @@
 
 const EQUIPE = new Set(['admin', 'gestor', 'atendente']);
 const LIMITE_POR_MINUTO = 20;
+/* rodada 10: quem erra o login 10 vezes em 1 minuto do mesmo endereço espera, sem a Central perguntar de novo ao Supabase */
+const FALHAS_POR_MINUTO = 10;
+
+/** De onde veio o pedido. Atrás da Cloudflare vale o cf-connecting-ip (o cliente não consegue forjar); sem ele, o de antes. */
+export function ipDoPedido(req) {
+  const cf = String(req?.headers?.['cf-connecting-ip'] || '').trim();
+  if (/^[0-9a-f.:]{3,45}$/i.test(cf)) return cf;
+  return String(req?.headers?.['x-forwarded-for'] || req?.socket?.remoteAddress || '?').split(',')[0].trim().slice(0, 64);
+}
+
+/**
+ * rodada 10: tira do mapa só o que já venceu e, se ainda passar do teto, os mais antigos. Antes o mapa era zerado
+ * inteiro ao passar do teto: uma enxurrada de endereços (ou de tokens inventados) apagava o freio de quem já estava
+ * barrado e o login guardado de quem estava trabalhando.
+ */
+export function podar(mapa, teto, vivo, peso = () => 0) {
+  if (mapa.size <= teto) return;
+  for (const [k, v] of mapa) if (!vivo(v)) mapa.delete(k);
+  if (mapa.size <= teto) return;
+  // ainda sobra: sai primeiro quem pesa menos (um endereço que perguntou uma vez sai antes de quem já está freado)
+  const ordem = [...mapa].sort((a, b) => peso(a[1]) - peso(b[1]));
+  for (const [k] of ordem.slice(0, mapa.size - teto)) mapa.delete(k);
+}
+
+/** Um token do Supabase tem três pedaços em base64url e o do meio é um objeto JSON. O que não tem essa forma nem vai à rede. */
+export function formaDeJwt(token) {
+  if (typeof token !== 'string' || token.length > 4096 || !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) return false;
+  try { const p = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')); return !!p && typeof p === 'object' && !Array.isArray(p); } catch { return false; }
+}
+/** O motivo que o banco devolve só passa se for um código curto (cliente_nao_encontrado); frase de erro do banco não vai para a tela. */
+export const motivoSeguro = (m) => (typeof m === 'string' && /^[a-z][a-z0-9_]{2,39}$/.test(m) ? m : 'indisponivel');
 
 export function criarLinksCliente({ env = process.env, fetchFn = globalThis.fetch, agora = () => Date.now() } = {}) {
   const cacheLogin = new Map();           // token → { usuario, expira }
   const janelas = new Map();              // user id → [instantes]
+  const falhas = new Map();               // endereço → [instantes de login recusado]
 
   const url = () => String(env.SUPABASE_URL || '').replace(/\/+$/, '');
   const configurado = () => !!(url() && env.SUPABASE_ANON_KEY && env.SUPABASE_SERVICE_ROLE_KEY);
@@ -29,11 +61,13 @@ export function criarLinksCliente({ env = process.env, fetchFn = globalThis.fetc
     const m = /^\s*bearer\s+(\S+)\s*$/i.exec(String(req.headers['authorization'] || ''));
     const token = m ? m[1] : null;
     if (!token || !configurado()) return { erro: 'sem_login' };
+    if (!formaDeJwt(token)) return { erro: 'sem_login' };   // rodada 10: lixo não vira consulta ao Supabase
     const lembrado = cacheLogin.get(token);
     if (lembrado && lembrado.expira > agora()) return lembrado.erro ? { erro: lembrado.erro } : { usuario: lembrado.usuario };
     const vence = venceEm(token);
     if (vence && vence <= agora()) return { erro: 'sem_login' };
-    const negar = (erro) => { if (cacheLogin.size > 300) cacheLogin.clear(); cacheLogin.set(token, { erro, expira: agora() + 30_000 }); return { erro }; };
+    const guardar = (v) => { cacheLogin.set(token, v); podar(cacheLogin, 300, (x) => x.expira > agora(), (x) => (x.usuario ? 1 : 0)); };
+    const negar = (erro) => { guardar({ erro, expira: agora() + 30_000 }); return { erro }; };
     try {
       const r = await fetchFn(`${url()}/auth/v1/user`, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) });
       if (!r.ok) return negar('sem_login');
@@ -47,8 +81,7 @@ export function criarLinksCliente({ env = process.env, fetchFn = globalThis.fetc
       if (!perfil.ativo) return negar('desativado');
       if (!EQUIPE.has(perfil.papel)) return negar('sem_permissao');
       const usuario = { id: u.id, papel: perfil.papel };
-      if (cacheLogin.size > 300) cacheLogin.clear();
-      cacheLogin.set(token, { usuario, expira: Math.min(agora() + 60_000, vence || Infinity) });
+      guardar({ usuario, expira: Math.min(agora() + 60_000, vence || Infinity) });
       return { usuario };
     } catch { return { erro: 'indisponivel' }; }
   }
@@ -58,8 +91,13 @@ export function criarLinksCliente({ env = process.env, fetchFn = globalThis.fetc
     const lista = (janelas.get(id) || []).filter((x) => t - x < 60_000);
     if (lista.length >= LIMITE_POR_MINUTO) { janelas.set(id, lista); return false; }
     lista.push(t); janelas.set(id, lista);
-    if (janelas.size > 500) janelas.clear();
+    podar(janelas, 500, (l) => l.some((x) => t - x < 60_000), (l) => l.length);
     return true;
+  }
+  const falhasDe = (ip) => (falhas.get(ip) || []).filter((x) => agora() - x < 60_000);
+  function anotarFalha(ip) {
+    const lista = falhasDe(ip); lista.push(agora()); falhas.set(ip, lista);
+    podar(falhas, 500, (l) => l.some((x) => agora() - x < 60_000), (l) => l.length);
   }
 
   const soHttps = (u) => { try { const x = new URL(String(u)); return x.protocol === 'https:' && !x.username && !x.password ? x.href : null; } catch { return null; } };
@@ -67,18 +105,25 @@ export function criarLinksCliente({ env = process.env, fetchFn = globalThis.fetc
   async function lerCorpo(req, max = 2048) {
     let n = 0; const partes = [];
     for await (const c of req) { n += c.length; if (n > max) throw Object.assign(new Error('grande'), { codigo: 413 }); partes.push(c); }
-    try { return JSON.parse(Buffer.concat(partes).toString('utf8') || '{}'); } catch { throw Object.assign(new Error('json'), { codigo: 400 }); }
+    let v;
+    try { v = JSON.parse(Buffer.concat(partes).toString('utf8') || '{}'); } catch { throw Object.assign(new Error('json'), { codigo: 400 }); }
+    // rodada 10: "null", número, texto ou lista não são um pedido (antes "null" derrubava a rota com erro 500)
+    if (!v || typeof v !== 'object' || Array.isArray(v)) throw Object.assign(new Error('forma'), { codigo: 400 });
+    return v;
   }
 
-  /** Devolve { status, corpo }. Quem chama escreve a resposta (assim o roteador da Central mantém os cabeçalhos dele). */
+  /** Devolve { status, corpo, cabecalhos? }. Quem chama escreve a resposta (assim o roteador da Central mantém os cabeçalhos dele). */
   async function tratar(req) {
-    if (req.method !== 'POST') return { status: 405, corpo: { erro: 'Use POST.' } };
+    if (req.method !== 'POST') return { status: 405, corpo: { erro: 'Use POST.' }, cabecalhos: { Allow: 'POST' } };
+    const ip = ipDoPedido(req);
+    if (falhasDe(ip).length >= FALHAS_POR_MINUTO) return { status: 429, corpo: { erro: 'Muitas tentativas sem login válido. Espere um minuto.', codigo: 'limite' }, cabecalhos: { 'Retry-After': '60' } };
     const q = await quemE(req);
     if (q.erro) {
       const status = q.erro === 'sem_login' || q.erro === 'mfa_pendente' ? 401 : q.erro === 'indisponivel' ? 503 : 403;
-      return { status, corpo: { erro: { sem_login: 'Entre de novo na Central.', mfa_pendente: 'Falta o código de verificação.', desativado: 'Seu acesso foi desativado.', sem_permissao: 'Só a equipe gera esses links.', indisponivel: 'Não consegui conferir o seu acesso agora.' }[q.erro], codigo: q.erro } };
+      if (q.erro === 'sem_login') anotarFalha(ip);
+      return { status, ...(status === 503 ? { cabecalhos: { 'Retry-After': '30' } } : {}), corpo: { erro: { sem_login: 'Entre de novo na Central.', mfa_pendente: 'Falta o código de verificação.', desativado: 'Seu acesso foi desativado.', sem_permissao: 'Só a equipe gera esses links.', indisponivel: 'Não consegui conferir o seu acesso agora.' }[q.erro], codigo: q.erro } };
     }
-    if (!dentroDoLimite(q.usuario.id)) return { status: 429, corpo: { erro: 'Muitos pedidos seguidos. Espere um minuto.', codigo: 'limite' } };
+    if (!dentroDoLimite(q.usuario.id)) return { status: 429, corpo: { erro: 'Muitos pedidos seguidos. Espere um minuto.', codigo: 'limite' }, cabecalhos: { 'Retry-After': '60' } };
     let corpo;
     try { corpo = await lerCorpo(req); } catch (e) { return { status: e.codigo || 400, corpo: { erro: e.codigo === 413 ? 'Pedido grande demais.' : 'Pedido inválido.' } }; }
     const tel = String(corpo.telefone || '').replace(/\D/g, '');
@@ -90,7 +135,7 @@ export function criarLinksCliente({ env = process.env, fetchFn = globalThis.fetc
       });
       if (!r.ok) return { status: 502, corpo: { erro: 'O banco não respondeu os links agora.', codigo: 'banco' } };
       const d = await r.json();
-      if (!d || d.ok !== true) return { status: 200, corpo: { ok: false, motivo: String(d && d.erro || 'indisponivel').slice(0, 40) } };
+      if (!d || d.ok !== true) return { status: 200, corpo: { ok: false, motivo: motivoSeguro(d && d.erro) } };
       return { status: 200, corpo: {
         ok: true, nome: String(d.nome || '').slice(0, 80), aceita_mensagens: d.aceita_mensagens !== false,
         minha: soHttps(d.minha), indique: soHttps(d.indique), acompanhar: soHttps(d.acompanhar),
@@ -99,5 +144,5 @@ export function criarLinksCliente({ env = process.env, fetchFn = globalThis.fetc
     } catch { return { status: 502, corpo: { erro: 'O banco não respondeu os links agora.', codigo: 'banco' } }; }
   }
 
-  return { tratar, quemE, limparCache: () => { cacheLogin.clear(); janelas.clear(); } };
+  return { tratar, quemE, limparCache: () => { cacheLogin.clear(); janelas.clear(); falhas.clear(); } };
 }
