@@ -497,6 +497,8 @@ rota('POST', '/api/config', async ({ corpo, usuario }) => {
   const v = validarConfig(await corpo());
   if (v.whatsapp_destinos !== undefined) soAdmin(usuario, 'trocar os números que recebem os relatórios');
   await db.salvarConfig(v);
+  // A verba e o valor médio novos valem na hora: o Hoje não pode seguir 30 s com o ritmo calculado pelas metas antigas.
+  require('./motor/fonte').esquecerLeituras();
   // Telefones mascarados no registro (só os 4 últimos dígitos).
   const detalhes = { ...v };
   if (v.whatsapp_destinos) detalhes.whatsapp_destinos = v.whatsapp_destinos.map(t => '•••' + t.slice(-4));
