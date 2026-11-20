@@ -212,6 +212,14 @@ export const CASOS = {
     const todas = await pagina.$$eval('.camp-linha', (l) => [...new Set(l.map((li) => li.dataset.chave.split('|')[0]))]);
     conferir(todas.includes('meta') && todas.includes('google'), 'Ver todas volta às duas: ' + todas.join(','));
   },
+
+  /* Hoje › De onde vieram: o leitor de tela ouve "1 contato", não "1 contatos". */
+  async 'hoje-origens-leitor'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/hoje?periodo=hoje', { waitUntil: 'networkidle0' });
+    const lidos = await pagina.$$eval('.origens-n', (l) => l.map((s) => s.textContent.trim()));
+    conferir(lidos.some((t) => t === '1 contato'), 'a origem com um contato: ' + lidos.join(' | '));
+    conferir(lidos.every((t) => !/^1 contatos$/.test(t)), 'nada de "1 contatos"');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();

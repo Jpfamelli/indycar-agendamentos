@@ -266,7 +266,7 @@ function origens(ctx, d) {
       lista.map((o) => h('li', { class: 'origens-linha' },
         h('a', { class: 'origens-nome torre-abre', href: ctx.hrefDaTela('jornada', { canal: o.id }) }, marcaDaOrigem(o)),
         barra([{ v: (o.contatos || 0) / maior, marca: o.paga === true }], 'origens-barra'),
-        h('span', { class: 'origens-n numero' }, inteiro(o.contatos), h('span', { class: 'so-leitor' }, ' contatos')),
+        h('span', { class: 'origens-n numero' }, inteiro(o.contatos), h('span', { class: 'so-leitor' }, o.contatos === 1 ? ' contato' : ' contatos')),
         h('span', { class: 'origens-dados' },
           dado('fecharam', ehNumero(o.fecharam) ? inteiro(o.fecharam) : 'sem dado'),
           dado('faturado', ehNumero(o.faturado) ? dinheiro(o.faturado) : 'sem dado'),
