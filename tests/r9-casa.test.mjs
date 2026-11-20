@@ -331,3 +331,16 @@ test('busca: botão de fechar diz "Fechar" (não "Esc"); no toque some a cola de
   const bloco = css.slice(css.indexOf('@media (hover: none) and (pointer: coarse)'));
   assert.match(bloco, /\.busca-pe, \.kbd-css, \.acao-busca kbd, \.busca-cmd kbd \{ display: none; \}/);
 });
+
+test('pede atenção e gargalos: horas por extenso (o "4 h" partia em "4" e "h" no celular) e "1 deles" no lugar de "1 há"', () => {
+  const l = L.links(L.bases());
+  const g = L.gargalos({ gargalos: { pronto_parado_4h: 1, conversas_2h: 2, orcamentos_24h: 1 } }, l).map((x) => x.texto);
+  assert.ok(g.includes('1 carro pronto há mais de 4 horas sem retirar'));
+  assert.ok(g.includes('2 conversas sem resposta há mais de 2 horas'));
+  assert.ok(g.includes('1 orçamento enviado há mais de 24 horas sem resposta'));
+  const velha = new Date(Date.now() - 5 * 36e5).toISOString(), nova = new Date().toISOString();
+  const extra = (lista) => L.atencao({ patio: { prontos: lista.length, lista } }, { patio: true }, l).find((x) => x.k === 'prontos').extra;
+  assert.equal(extra([{ etapa: 'pronto', etapa_em: velha }]), 'esperando há mais de 4 horas');
+  assert.equal(extra([{ etapa: 'pronto', etapa_em: velha }, { etapa: 'pronto', etapa_em: nova }]), '1 deles há mais de 4 horas');
+  assert.equal(extra([{ etapa: 'pronto', etapa_em: velha }, { etapa: 'pronto', etapa_em: velha }]), 'todos há mais de 4 horas');
+});
