@@ -8,6 +8,7 @@
    POST|GET /api/cron/medir?chave=             → expira propostas velhas e mede o que chegou na data (sem login)
 
    Decidir, marcar como feita e registrar: SÓ pessoa logada (estas rotas exigem login), e tudo vai para a auditoria.
+   Rodada 9: escrita com limite por pessoa (60 em 10 min, as três rotas somadas), para o diário não virar enxurrada.
    Nenhuma ferramenta da IA chega aqui; aceitar não muda nada no anúncio, só registra a decisão.
    ============================================================ */
 'use strict';
@@ -15,29 +16,40 @@
 const Decisoes = require('../ia/decisoes');
 
 const ID = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
+const ESCRITAS_EM_10_MIN = 60;
 
 module.exports = (ctx) => {
-  const { rota, rotaPublica, exigirCron, equipe } = ctx;
+  const { rota, rotaPublica, exigirCron, equipe, limitador, ErroHttp } = ctx;
+  function limitar(res, usuario) {
+    if (!limitador) return;
+    const r = limitador.permitir(`u|${(usuario && usuario.id) || '?'}|acoes-trafego:escrita`, ESCRITAS_EM_10_MIN, 10 * 60_000);
+    if (r.ok) return;
+    if (res && res.setHeader) res.setHeader('Retry-After', String(r.esperar));
+    throw new ErroHttp(429, `Você mexeu no diário muitas vezes agora. Espere ${Math.max(1, Math.ceil(r.esperar / 60))} min.`, { codigo: 'limite' });
+  }
   const diario = () => Decisoes.padrao();
   const auditar = (usuario, acao, registro, detalhes) =>
     Promise.resolve().then(() => equipe.banco().auditar(usuario, acao, { tabela: 'trafego_acoes', registro, detalhes })).catch(() => {});
 
   rota('GET', '/api/acoes-trafego', ({ q }) => diario().listar({ status: q.get('status'), limite: q.get('limite') }));
 
-  rota('POST', new RegExp(`^/api/acoes-trafego/${ID}/decidir$`, 'i'), async ({ usuario, corpo, m }) => {
+  rota('POST', new RegExp(`^/api/acoes-trafego/${ID}/decidir$`, 'i'), async ({ usuario, corpo, m, res }) => {
+    limitar(res, usuario);
     const c = await corpo();
     const acao = await diario().decidir(m[1].toLowerCase(), c, usuario);
     await auditar(usuario, acao.status === 'aceita' ? 'trafego_acao_aceita' : 'trafego_acao_recusada', acao.id, { tipo: acao.tipo, origem: acao.origem });
     return { ok: true, acao };
   });
 
-  rota('POST', new RegExp(`^/api/acoes-trafego/${ID}/feita$`, 'i'), async ({ usuario, corpo, m }) => {
+  rota('POST', new RegExp(`^/api/acoes-trafego/${ID}/feita$`, 'i'), async ({ usuario, corpo, m, res }) => {
+    limitar(res, usuario);
     const r = await diario().marcarFeita(m[1].toLowerCase(), await corpo(), usuario);
     await auditar(usuario, 'trafego_acao_feita', r.acao.id, { tipo: r.acao.tipo, medir_em: r.acao.medir_em });
     return { ok: true, acao: r.acao, aviso: r.aviso };
   });
 
-  rota('POST', '/api/acoes-trafego', async ({ usuario, corpo }) => {
+  rota('POST', '/api/acoes-trafego', async ({ usuario, corpo, res }) => {
+    limitar(res, usuario);
     const acao = await diario().registrarPropria(await corpo(), usuario);
     await auditar(usuario, 'trafego_acao_registrada', acao.id, { tipo: acao.tipo, status: acao.status });
     return { ok: true, acao };
