@@ -1477,3 +1477,14 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - **R10-ATD-004** · segurança · Campos inteiros recusam booleanos, listas e texto em branco (teste R10-ATD-004 em r10-validacao.test.js) · `eb742d1`
 - **R10-ATD-005** · conserto · A validação de instantes rejeita dias inexistentes (teste R10-ATD-005 em r10-validacao.test.js) · `eb742d1`
 - **R10-ATD-006** · conserto · A espera informada pelo limitador volta a zero quando a janela vence (teste R10-ATD-006 em r10-validacao.test.js) · `eb742d1`
+- **R10-ATD-007** · segurança · Enviar arquivo: a conversa precisa ser um id de verdade; antes "../outro-balde" gravava a cópia fora da pasta dos anexos com a chave do servidor (teste R10-ATD-007 em r10-arquivo.test.js) · `805f7af`
+- **R10-ATD-008** · segurança · Enviar arquivo: telefone conferido (DDD + número) antes de falar com o aparelho e tipo de arquivo fora do formato vira arquivo comum (teste R10-ATD-008 em r10-arquivo.test.js) · `805f7af`
+- **R10-ATD-009** · conserto · Arquivo com # ou % no nome guarda a cópia inteira; antes o # cortava o endereço e a cópia ficava com outro nome, sem abrir pelo chat (teste R10-ATD-009 em r10-arquivo.test.js) · `805f7af`
+- **R10-ATD-010** · segurança · Envio de arquivo com corpo null, lista ou número responde 400 em vez de erro 500 do servidor (teste R10-ATD-010 em r10-arquivo.test.js) · `805f7af`
+- **R10-ATD-011** · segurança · Arquivo recusado pelo aparelho ou rede caída: a tela recebe uma frase simples e o texto cru de fora fica só no log do servidor (teste R10-ATD-011 em r10-arquivo.test.js) · `805f7af`
+- **R10-ATD-012** · segurança · Webhook do CodeWords: token errado tem limite por endereço (10 em 10 min) e, passado o limite, responde 429 sem gravar evento no banco; token certo passa sempre (teste R10-ATD-012 em r10-entradas.test.js) · `554df18`
+- **R10-ATD-013** · segurança · Webhook só grava mensagem de telefone com 10 a 15 dígitos; texto solto, número curto e grupo não viram conversa nem lead (teste R10-ATD-013 em r10-entradas.test.js) · `554df18`
+- **R10-ATD-014** · conserto · Endereço de API com "%" torto responde 400 em vez de erro 500 com código de suporte, em todas as rotas com id no caminho (teste R10-ATD-014 em r10-entradas.test.js) · `554df18`
+- **R10-ATD-015** · segurança · Retomada do WhatsApp: pedido com corpo quebrado ou lista em formato errado é recusado; antes virava "reenviar tudo o que está parado" (teste R10-ATD-015 em r10-entradas.test.js) · `554df18`
+- **R10-ATD-016** · segurança · Religar o WhatsApp (6 em 5 min) e Testar conexão (5 em 10 min) têm limite de tentativas; antes cada clique ia ao CodeWords sem freio (teste R10-ATD-016 em r10-entradas.test.js) · `554df18`
+- **R10-ATD-017** · segurança · Enviar mensagem confere se o telefone do pedido é o da mensagem gravada; antes dava para marcar uma mensagem como enviada mandando o texto para outro número (testes R10-ATD-017 em r10-entradas.test.js) · `554df18`
