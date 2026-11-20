@@ -13,7 +13,7 @@ import { selo, setores, origem as marcaDaOrigem, barra, botaoDaAcao, vazio, semD
 import { rotuloDaEtapa } from '../setores.js';
 import * as Estados from './estados.js';
 import { mostrarAviso } from '../aviso.js';
-import { faltaLigar, seloDoRitmo } from '../hoje-logica.js';
+import { faltaLigar, seloDoRitmo, textoDaPassagem } from '../hoje-logica.js';
 
 const ICONE_DA_DIRECAO = { sobe: 'sobe', desce: 'desce', igual: 'igual' };
 const LEITURA_DO_TOM = { bom: 'bom sinal', atencao: 'pede atenção' };
@@ -231,7 +231,7 @@ function caminho(ctx, d) {
           tem ? barra([{ v: anuncio / maior, marca: true }, { v: (e.total - anuncio) / maior }], 'barra-g funil-barra') : h('span', { class: 'barra barra-g funil-barra', 'aria-hidden': 'true' }),
           h('span', { class: 'funil-info' },
             tem && ehNumero(e.anuncio) ? h('span', { class: 'funil-anuncio' }, h('span', { class: 'marca-anuncio', 'aria-hidden': 'true' }), inteiro(e.anuncio) + ' de anúncio') : null,
-            i === 0 ? null : h('span', { class: 'funil-passagem' }, ehNumero(e.passagem) ? porcento(e.passagem) + ' da etapa anterior' : 'passagem sem dado')));
+            i === 0 ? null : h('span', { class: 'funil-passagem' }, textoDaPassagem(e, etapas[i - 1], porcento))));
       })),
       h('div', { class: 'perdidos' },
         h('h3', { class: 'titulo-p' }, 'Não fecharam'),

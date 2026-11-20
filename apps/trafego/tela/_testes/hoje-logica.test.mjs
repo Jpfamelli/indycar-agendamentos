@@ -28,3 +28,14 @@ test('seloDoRitmo: "acima" diz se já passou ou se vai passar da verba; "abaixo"
   assert.equal(seloDoRitmo({ situacao: 'sem_meta' }), null);
   assert.equal(seloDoRitmo(null), null);
 });
+
+import { textoDaPassagem } from '../js/hoje-logica.js';
+test('textoDaPassagem: diz por que não há porcentagem, em vez de "passagem sem dado" para tudo', () => {
+  const pct = (v) => Math.round(v * 100) + '%';
+  assert.equal(textoDaPassagem({ total: 2, passagem: 0.333 }, { total: 6 }, pct), '33% da etapa anterior');
+  assert.equal(textoDaPassagem({ total: 0, passagem: null }, { total: 0 }, pct), 'ninguém na etapa anterior');
+  assert.equal(textoDaPassagem({ total: 5, passagem: null }, { total: 3 }, pct), 'inclui quem pulou etapa');
+  assert.equal(textoDaPassagem({ total: null, passagem: null }, { total: 4 }, pct), null, 'o total desta etapa já diz "sem dado"');
+  assert.equal(textoDaPassagem({ total: 3, passagem: null }, { total: null }, pct), 'sem dado da etapa anterior');
+  for (const t of ['ninguém na etapa anterior', 'inclui quem pulou etapa', 'sem dado da etapa anterior']) assert.doesNotMatch(t, /passagem/);
+});

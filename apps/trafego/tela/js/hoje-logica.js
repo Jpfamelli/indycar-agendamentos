@@ -24,3 +24,19 @@ export function seloDoRitmo(r) {
     default: return null;
   }
 }
+
+/**
+ * A linha de baixo de cada etapa do "Do contato ao serviço fechado". O servidor só manda a passagem (fração) quando
+ * dá para calcular; antes a tela dizia "passagem sem dado" em todos os outros casos, até quando a etapa anterior
+ * tinha zero contatos ou quando mais gente chegou aqui do que lá (quem pula etapa: agendou sem orçamento).
+ */
+export function textoDaPassagem(etapa, anterior, porcento) {
+  if (!etapa) return null;
+  if (typeof etapa.passagem === 'number' && Number.isFinite(etapa.passagem)) return porcento(etapa.passagem) + ' da etapa anterior';
+  const n = (x) => (x && typeof x.total === 'number' && Number.isFinite(x.total) ? x.total : null);
+  if (n(etapa) == null) return null;   // o total desta etapa já diz "sem dado"
+  if (n(anterior) === 0) return 'ninguém na etapa anterior';
+  if (n(anterior) != null && n(etapa) != null && n(etapa) > n(anterior)) return 'inclui quem pulou etapa';
+  return 'sem dado da etapa anterior';
+}
+
