@@ -149,18 +149,30 @@ async function recarregarTarefas() {
     const [m, v] = await Promise.all([buscarTarefas('minhas'), FILTRO_TAREFA === 'minhas' ? null : buscarTarefas(FILTRO_TAREFA)]);
     if (ger !== GER_TAREFAS) return;
     MINHAS = m; VISTA = v || m; TAREFAS_ERRO = null;
-  } catch (e) { TAREFAS_ERRO = e.message || 'erro'; }
+  } catch (e) {
+    if (ger !== GER_TAREFAS) return;
+    TAREFAS_ERRO = e.message || 'erro';
+  }
   renderTarefas();
   if (LEAD_ABERTO) carregarTarefasLead(LEAD_ABERTO);
 }
 let TAREFAS_ERRO = null;
+let estadoTarefasContato = {id: null, carregando: false, erro: false};
 async function carregarTarefasLead(leadId) {
   if (!sb || !U.ehUuid(leadId)) { TAREFAS_LEAD = []; renderTarefas(); return; }
+  const estado = {id: leadId, carregando: true, erro: false};
+  estadoTarefasContato = estado;
+  renderTarefas();
   try {
     const {data, error} = await sb.from('tarefas').select(COLS_TAREFA).eq('lead_id', leadId).in('status', ['aberta', 'feita']).order('created_at', {ascending: false}).limit(50);
     if (error) throw error;
-    if (String(LEAD_ABERTO) === String(leadId)) { TAREFAS_LEAD = data || []; renderTarefas(); }
-  } catch { TAREFAS_LEAD = []; $('#tarefasLead').innerHTML = '<p class="vazio-curto">Não consegui carregar as tarefas deste lead.</p>'; }
+    if (estadoTarefasContato === estado) TAREFAS_LEAD = data || [];
+  } catch {
+    estado.erro = true;
+  } finally {
+    estado.carregando = false;
+    if (estadoTarefasContato === estado) renderTarefas();
+  }
 }
 window.addEventListener('indycar:lead', e => { TAREFAS_LEAD = []; if (e.detail?.leadId) carregarTarefasLead(e.detail.leadId); });
 function ouvirTarefas() {
@@ -182,7 +194,7 @@ function itemTarefa(t, {comLead = true} = {}) {
   return `<div class="tarefa ${s}${Number(t.prioridade) === 3 ? ' urgente' : ''}" data-tarefa="${esc(t.id)}">
     <input type="checkbox" class="tarefa-ok" aria-label="${feita ? 'Reabrir' : 'Concluir'}: ${esc(t.titulo)}" ${feita ? 'checked' : ''}>
     <span class="tarefa-txt">${Number(t.prioridade) === 3 ? '<b class="tarefa-urg">Urgente</b> ' : ''}${esc(t.titulo)}
-      ${lead ? ` <button type="button" class="tarefa-lead" data-lead="${esc(lead.id)}">${esc(lead.nome)}</button>` : comLead && t.lead_id ? ` <button type="button" class="tarefa-lead" data-lead="${esc(t.lead_id)}">abrir lead</button>` : ''}
+      ${lead ? ` <button type="button" class="tarefa-lead" data-lead="${esc(lead.id)}">${esc(lead.nome)}</button>` : comLead && t.lead_id ? ` <button type="button" class="tarefa-lead" data-lead="${esc(t.lead_id)}">Abrir contato</button>` : ''}
       ${t.responsavel_id && String(t.responsavel_id) !== eu ? ' ' + chipResponsavel(t.responsavel_id) : ''}${t.origem && t.origem !== 'crm' && t.origem !== 'manual' ? ` <span class="tag mini">${esc(t.origem)}</span>` : ''}</span>
     ${t.vence_em ? `<span class="tarefa-data">${s === 'atrasada' ? '<b>Atrasada</b> · ' : s === 'hoje' ? '<b>Hoje</b> · ' : ''}${esc(s === 'hoje' ? quandoTarefa(t).replace(/^hoje /, '') : quandoTarefa(t))}</span>` : ''}
     ${podeCancelar && !feita ? `<button type="button" class="tarefa-x" aria-label="Cancelar tarefa: ${esc(t.titulo)}" title="Cancelar tarefa">×</button>` : ''}</div>`;
@@ -192,19 +204,24 @@ function renderTarefas() {
   const painel = $('#tarefasPainel'); if (!painel) return;
   const g = U.agruparTarefas(MINHAS), feitas = [...FEITAS_AGORA.values()];
   const nav = $('.nav-item[data-view="dashboard"]'), pend = g.atrasadas.length + g.hoje.length;
-  nav.dataset.badge = pend || ''; nav.setAttribute('aria-label', 'Dashboard' + (pend ? `, ${pend} tarefa(s) para hoje ou atrasadas` : ''));
+  nav.dataset.badge = pend || ''; nav.setAttribute('aria-label', 'Painel' + (pend ? `, ${pend} ${pend === 1 ? 'tarefa para hoje ou atrasada' : 'tarefas para hoje ou atrasadas'}` : ''));
   $('#tarefasResumo').textContent = [g.atrasadas.length && `${g.atrasadas.length} atrasada${g.atrasadas.length === 1 ? '' : 's'}`, g.hoje.length && `${g.hoje.length} hoje`].filter(Boolean).join(' · ');
-  if (TAREFAS_ERRO && !MINHAS.length) painel.innerHTML = `<p class="vazio-curto">Não consegui carregar as tarefas agora (${esc(TAREFAS_ERRO)}).</p>`;
+  if (TAREFAS_ERRO) painel.innerHTML = '<p class="vazio-curto" role="alert">Não consegui carregar as tarefas agora.</p><button type="button" class="btn btn-ghost" data-tarefa-tentar="painel">Tentar novamente</button>';
   else if (FILTRO_TAREFA === 'minhas') {
     const html = grupoTarefas('Atrasadas', g.atrasadas, 'g-atrasada') + grupoTarefas('Agenda de hoje', g.hoje, 'g-hoje') + grupoTarefas('Próximas', g.proximas.slice(0, 15), '') + grupoTarefas('Sem data', g.semData.slice(0, 10), '') + grupoTarefas('Feitas agora', feitas, 'g-feita');
     painel.innerHTML = html || '<p class="vazio-curto">Nenhuma tarefa aberta. Anote o próximo passo para não esquecer. 🏁</p>';
   } else {
     const lista = U.ordenarTarefasDb(VISTA);
-    painel.innerHTML = lista.length ? lista.slice(0, 60).map(t => itemTarefa(t)).join('') : '<p class="vazio-curto">Nada por aqui.</p>';
+    painel.innerHTML = lista.length ? lista.slice(0, 60).map(t => itemTarefa(t)).join('') : '<p class="vazio-curto">Nenhuma tarefa aberta neste filtro.</p>';
   }
   if (LEAD_ABERTO) {
     const doLead = TAREFAS_LEAD.filter(t => String(t.lead_id) === String(LEAD_ABERTO)), lista = U.ordenarTarefasDb(doLead);
-    $('#tarefasLead').innerHTML = lista.length ? lista.map(t => itemTarefa(t, {comLead: false})).join('') : '<p class="vazio-curto">Nenhuma tarefa para este lead.</p>';
+    const estado = String(estadoTarefasContato.id) === String(LEAD_ABERTO) ? estadoTarefasContato : {};
+    const alvo = $('#tarefasLead');
+    alvo.setAttribute('aria-busy', String(!!estado.carregando));
+    if (estado.carregando) alvo.innerHTML = '<p class="vazio-curto">Carregando tarefas…</p>';
+    else if (estado.erro) alvo.innerHTML = '<p class="vazio-curto" role="alert">Não consegui carregar as tarefas deste contato.</p><button type="button" class="btn btn-ghost" data-tarefa-tentar="contato">Tentar novamente</button>';
+    else alvo.innerHTML = lista.length ? lista.map(t => itemTarefa(t, {comLead: false})).join('') : '<p class="vazio-curto">Nenhuma tarefa para este contato.</p>';
     const abertas = doLead.filter(t => t.status === 'aberta').length; $('#lfQtdLembretes').textContent = abertas || '';
   }
 }
@@ -260,22 +277,29 @@ async function mudarStatusTarefa(t, status) {
   return data || {...t, status};
 }
 for (const alvo of ['#tarefasPainel', '#tarefasLead']) $(alvo).addEventListener('click', async e => {
+  const tentar = e.target.closest('[data-tarefa-tentar]');
+  if (tentar) return tentar.dataset.tarefaTentar === 'painel' ? recarregarTarefas() : carregarTarefasLead(LEAD_ABERTO);
   const box = e.target.closest('[data-tarefa]'); if (!box) return;
   if (e.target.closest('.tarefa-lead')) return abrirModal(e.target.closest('.tarefa-lead').dataset.lead);
   const id = box.dataset.tarefa, t = [...MINHAS, ...VISTA, ...TAREFAS_LEAD, ...FEITAS_AGORA.values()].find(x => x.id === id); if (!t) return;
   const ok = e.target.classList.contains('tarefa-ok'), cancelar = e.target.closest('.tarefa-x');
   if (!ok && !cancelar) return;
   const novo = cancelar ? 'cancelada' : (e.target.checked ? 'feita' : 'aberta');
+  const controle = cancelar || e.target;
+  controle.disabled = true;
   try {
     const salvo = await mudarStatusTarefa(t, novo);
     if (novo === 'feita') FEITAS_AGORA.set(id, salvo); else FEITAS_AGORA.delete(id);
     TAREFAS_LEAD = TAREFAS_LEAD.map(x => x.id === id ? salvo : x).filter(x => x.status !== 'cancelada');
     await recarregarTarefas();
     toastAcao(novo === 'feita' ? '✅ Tarefa concluída' : novo === 'cancelada' ? 'Tarefa cancelada' : 'Tarefa reaberta', 'Desfazer', async () => {
-      const v = await mudarStatusTarefa(t, 'aberta'); FEITAS_AGORA.delete(id); TAREFAS_LEAD = TAREFAS_LEAD.filter(x => x.id !== id); if (String(LEAD_ABERTO) === String(v.lead_id)) TAREFAS_LEAD.unshift(v);
-      await recarregarTarefas(); toast('Tarefa de volta');
+      const v = await mudarStatusTarefa(t, t.status);
+      if (v.status === 'feita') FEITAS_AGORA.set(id, v); else FEITAS_AGORA.delete(id);
+      TAREFAS_LEAD = TAREFAS_LEAD.filter(x => x.id !== id); if (String(LEAD_ABERTO) === String(v.lead_id)) TAREFAS_LEAD.unshift(v);
+      await recarregarTarefas(); toast('Alteração desfeita');
     });
   } catch (err) { toast('⚠️ ' + err.message); if (ok) e.target.checked = !e.target.checked; }
+  finally { controle.disabled = false; }
 });
 /* lembretes antigos (só neste aparelho) → tabela tarefas, uma vez */
 const chaveImportado = () => 'indycar_crm_tarefas_importadas_' + (PERFIL?.id || 'anon');

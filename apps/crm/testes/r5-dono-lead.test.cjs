@@ -27,8 +27,8 @@ test('regra pura (tela e servidor usam a mesma)', () => {
   assert.equal(CU.podeEditarLead({ responsavel_id: PESSOAS.atendente2.id }, gestor), true);
   assert.equal(CU.podeEditarLead({ responsavel_id: PESSOAS.atendente2.id }, PESSOAS.admin), true);
   assert.equal(CU.podeEditarLead({ responsavel_id: null }, null), false);
-  assert.equal(CU.avisoLeadDeOutro('Bruno Vendedor'), 'Este lead é do Bruno. Peça para ele ou para o gestor.');
-  assert.equal(CU.avisoLeadDeOutro(''), 'Este lead é de um colega. Peça para ele ou para o gestor.');
+  assert.equal(CU.avisoLeadDeOutro('Bruno Vendedor'), 'Bruno é responsável por este contato. Peça ajuda à pessoa responsável ou ao gestor.');
+  assert.equal(CU.avisoLeadDeOutro(''), 'Um colega é responsável por este contato. Peça ajuda à pessoa responsável ou ao gestor.');
 });
 
 test('atendente vê todos, edita o dele e o sem dono; lead do colega dá 403 com o nome', async () => {
@@ -48,7 +48,7 @@ test('atendente vê todos, edita o dele e o sem dono; lead do colega dá 403 com
     for (const corpo of [{ status: 'perdido', observacoes: 'Motivo da perda: preço' }, { valor_pago: 900 }, { nome: 'Outro Nome' }, { observacoes: 'nota' }]) {
       const r = await s.req('atendente', '/api/leads/' + L(2), { method: 'PATCH', body: corpo });
       assert.equal(r.status, 403, JSON.stringify(corpo));
-      assert.equal(r.corpo.erro, 'Este lead é do Bruno. Peça para ele ou para o gestor.');
+      assert.equal(r.corpo.erro, 'Bruno é responsável por este contato. Peça ajuda à pessoa responsável ou ao gestor.');
       assert.equal(r.corpo.codigo, 'lead_de_outro'); assert.equal(r.corpo.responsavel_nome, 'Bruno Vendedor');
     }
     const l2 = s.db.leads.find(l => l.id === L(2));
@@ -77,7 +77,7 @@ test('IA do CRM: atendente não executa nem desfaz mudança em lead de colega (a
   ] } });
   try {
     const r = await s.req('atendente', `/api/ia/acoes/${A(1)}/executar`, { body: {} });
-    assert.equal(r.status, 403); assert.equal(r.corpo.codigo, 'lead_de_outro'); assert.match(r.corpo.erro, /Este lead é do Bruno/);
+    assert.equal(r.status, 403); assert.equal(r.corpo.codigo, 'lead_de_outro'); assert.match(r.corpo.erro, /Bruno é responsável por este contato/);
     assert.equal(s.db.ia_acoes.find(x => x.id === A(1)).status, 'proposta', 'não tranca a ação à toa');
     assert.equal(s.db.leads.find(l => l.id === L(2)).status, 'novo');
     const lote = await s.req('atendente', '/api/ia/acoes/executar-lote', { body: { ids: [A(1), A(2)] } });

@@ -240,7 +240,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   background:linear-gradient(160deg,var(--card),var(--graphite));border:1px solid var(--line);
   border-radius:var(--radius);padding:22px;margin-bottom:18px;box-shadow:var(--sombra-card);
 }
-.card h3{font-family:var(--font-cond);font-weight:700;font-size:1.3rem;letter-spacing:.01em;margin-bottom:4px}
+.card :is(h3,#sdTitulo){font-family:var(--font-cond);font-weight:700;font-size:1.3rem;letter-spacing:.01em;margin-bottom:4px}
 .card-sub{color:var(--gray);font-size:.88rem;margin-bottom:16px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 
@@ -728,7 +728,7 @@ html[data-trocando-tema] *,html[data-trocando-tema] *::before,html[data-trocando
 kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78em;padding:2px 6px;border-radius:5px;border:1px solid var(--line);border-bottom-width:2px;background:var(--superficie);color:var(--texto)}
 .nota-local{font-size:.75rem;color:var(--gray-2);font-style:italic}
 .card-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
-.card-topo h3{margin:0}
+.card-topo :is(h3,#sdTitulo){margin:0}
 .vazio-curto{color:var(--gray);font-size:.88rem;padding:14px 4px}
 .vazio-celula{padding:30px 16px!important;text-align:center;color:var(--gray);line-height:1.7}
 .table tbody tr.sem-clique{cursor:default}
@@ -782,7 +782,7 @@ kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78em;padding:2p
 .tarefa-txt{flex:1;font-size:.88rem;min-width:0;overflow-wrap:anywhere}
 .tarefa-data{font-size:.75rem;color:var(--gray);white-space:nowrap}
 .tarefa.atrasada .tarefa-data b{color:var(--vermelho-txt)} .tarefa.hoje .tarefa-data b{color:var(--amarelo-txt)}
-.tarefa-x{border:none;background:none;color:var(--gray);font-size:1.15rem;cursor:pointer;width:28px;height:28px;border-radius:50%}
+.tarefa-x{border:none;background:none;color:var(--gray);font-size:1.15rem;cursor:pointer;width:var(--alvo);height:var(--alvo);border-radius:50%}
 .tarefa-x:hover{background:var(--superficie-2);color:var(--vermelho-txt)}
 .tarefa-lead{border:none;background:none;color:var(--azul-txt);text-decoration:underline;cursor:pointer;font-size:.8rem;padding:0}
 
@@ -935,7 +935,7 @@ body.sem-rede .topbar::after{content:'Sem internet';position:fixed;top:10px;righ
    Rodada 3 (13/10/2026): topo com sino e perfil, login completo,
    responsável do lead, tarefas, metas e ranking da equipe.
    ============================================================ */
-.avatar{background:var(--cor-avatar,linear-gradient(135deg,var(--red),var(--red-dark)))}
+.avatar{background:#9c1230;background:color-mix(in srgb,var(--cor-avatar,#e6192e) 45%,#000);color:#fff}
 .avatar.mini{width:38px;height:38px;font-size:.95rem}
 .avatar.xs{width:22px;height:22px;font-size:.66rem;letter-spacing:0}
 .topo-icones{display:flex;gap:8px;align-items:center}
@@ -998,7 +998,7 @@ body.sem-rede .topbar::after{content:'Sem internet';position:fixed;top:10px;righ
 .cores-avatar legend{font-size:.85rem;color:var(--rotulo);margin-bottom:6px}
 .cor-avatar{position:relative;cursor:pointer}
 .cor-avatar input{position:absolute;opacity:0;inset:0;cursor:pointer}
-.cor-avatar span{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--cor-avatar);color:#fff;font-family:var(--font-cond);font-weight:700;font-size:.85rem;border:2px solid transparent}
+.cor-avatar span{width:var(--alvo);height:var(--alvo);border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--cor-avatar) 45%,#000);color:#fff;font-family:var(--font-cond);font-weight:700;font-size:.85rem;border:2px solid transparent}
 .cor-avatar input:checked+span{border-color:var(--texto);box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--cor-avatar)}
 .cor-avatar input:focus-visible+span{outline:2px solid var(--red);outline-offset:3px}
 .mini-nota{font-size:.8rem}
@@ -1136,7 +1136,7 @@ dialog.dlg .dv-cort{flex-direction:row;align-items:center;gap:6px;white-space:no
 /* distribuir */
 .dist-grade{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;margin-bottom:18px}
 .dist-grade .card{margin:0}
-.ds-grupo{border:none;padding:0;margin:0 0 14px}
+.ds-grupo{min-inline-size:0;border:none;padding:0;margin:0 0 14px}
 .ds-grupo legend{font:600 .78rem var(--font-cond);letter-spacing:.12em;text-transform:uppercase;color:var(--gray);margin-bottom:8px}
 .ds-grupo .filtro-pill small{opacity:.75;margin-left:3px}
 .ds-idade{display:flex;flex-direction:column;gap:6px;font-size:.88rem;color:var(--rotulo);max-width:260px;margin-bottom:10px}
@@ -1146,6 +1146,7 @@ dialog.dlg .dv-cort{flex-direction:row;align-items:center;gap:6px;white-space:no
 .ds-pessoa:has(input:checked){border-color:var(--red);background:color-mix(in srgb,var(--red) 7%,var(--card))}
 .ds-pessoa input{accent-color:var(--red);width:17px;height:17px}
 .ds-pessoa small{margin-left:auto;color:var(--gray);font-size:.78rem}
+.ds-pessoa{min-height:var(--alvo)}
 .ds-detalhe{margin:14px 0}
 .ds-detalhe summary{cursor:pointer;color:var(--azul-txt);font-size:.88rem}
 .ds-hist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
@@ -1202,6 +1203,7 @@ dialog.dlg .dv-cort{flex-direction:row;align-items:center;gap:6px;white-space:no
 }
 /* rodada 4: textos só para leitor de tela (.sr, absolutos) dentro das tabelas largas empurravam a página para o lado em 375 px — a caixa da tabela vira o bloco de referência e corta */
 .table-wrap{position:relative}
+.table-wrap[tabindex]:focus-visible{outline:2px solid var(--foco);outline-offset:2px}
 .motivo-row b{white-space:nowrap}
 /* valores em lote no celular: cada venda vira um cartão (o campo do valor fica à vista, sem rolar de lado) */
 @media (max-width:600px){
@@ -1224,7 +1226,8 @@ dialog.dlg .dv-cort{flex-direction:row;align-items:center;gap:6px;white-space:no
 
 /* ---- Rodada 5 (16/10/2026): busca global, filtros salvos, ficha 360, leads sem dono, previsão, campanha ---- */
 .busca-global-btn{display:inline-flex;align-items:center;gap:7px;color:var(--gray)}
-.busca-global-btn kbd{font-size:.68rem;padding:1px 6px;border:1px solid var(--line);border-radius:5px;background:var(--superficie);color:var(--gray-2)}
+.busca-global-btn kbd{font-size:.68rem;padding:1px 6px;border:1px solid var(--line);border-radius:5px;background:var(--superficie);color:var(--texto)}
+.busca-global-btn kbd::before{content:"Ctrl K"}
 .busca-global-btn:hover{color:var(--texto)}
 dialog.dlg-busca{width:min(640px,calc(100vw - 32px));padding:14px;margin-top:8vh}
 .bg-campo{display:flex;align-items:center;gap:10px;padding:4px 8px;border:1px solid var(--line);border-radius:12px;background:var(--campo-fundo)}
@@ -1260,6 +1263,11 @@ dialog.dlg-busca{width:min(640px,calc(100vw - 32px));padding:14px;margin-top:8vh
 .sd-chip b{font-family:var(--font-cond);font-size:1.1rem;color:var(--texto)}
 .sd-sep{width:1px;height:22px;background:var(--line);margin:0 4px}
 .sd-rodizio .table td,.sd-rodizio .table th{padding:8px 10px}
+@media (max-width:480px){
+  #view-distribuir .int-actions{flex-wrap:wrap}
+  #view-distribuir .int-actions .spacer{display:none}
+  #view-distribuir .int-actions .btn{min-height:var(--alvo);max-width:100%;white-space:normal}
+}
 /* previsão pelo funil */
 .pv-topo{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
 .pv-num{display:flex;flex-direction:column}
@@ -1335,7 +1343,7 @@ body{background:var(--black)}
   .topbar h1{font-size:2rem}
 }
 @media (prefers-reduced-motion:reduce){
-  :is(.nav,#view-leads,.topbar) *{transition:none!important;animation:none!important}
+  .view,.view *,:is(.nav,.topbar) *{transition:none!important;animation:none!important}
 }
 
 /* Mantém o fechamento acessível dentro da própria janela em telas estreitas. */

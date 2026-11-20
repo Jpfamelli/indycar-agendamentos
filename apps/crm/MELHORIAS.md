@@ -1334,3 +1334,90 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-037** · celular · O ID da conta do Google abre um teclado com dígitos e hífen. · `af408bd`
 - **R9-CRM-038** · celular · O ID da conta administradora do Google abre um teclado com dígitos e hífen. · `af408bd`
 - **R9-CRM-039** · acessibilidade · O filtro de idade da distribuição tem nome acessível que explica a data de referência. · `af408bd`
+
+- **R9-CRM-040** · texto · O Painel identifica a lista como Contatos recentes. · `ab25d95`
+- **R9-CRM-041** · texto · O funil da equipe informa que mostra a distribuição atual. · `ab25d95`
+- **R9-CRM-042** · texto · O painel de distribuição chama a fila de Contatos sem responsável. · `ab25d95`
+- **R9-CRM-043** · texto · O primeiro passo da distribuição explicita quais contatos entram na seleção. · `ab25d95`
+- **R9-CRM-044** · texto · O relatório de funil esclarece qual data define a inclusão no período. · `ab25d95`
+- **R9-CRM-045** · texto · O relatório de perdas explica o evento contado no período. · `ab25d95`
+- **R9-CRM-046** · texto · O painel de canais usa Resultados e mantém o intervalo explícito. · `ab25d95`
+- **R9-CRM-047** · texto · O relatório da equipe esclarece que a mediana se refere ao tempo de espera. · `ab25d95`
+- **R9-CRM-048** · texto · O cadastro mostra um exemplo de campanha ligado a um serviço. · `ab25d95`
+- **R9-CRM-049** · texto · O campo de campanha identifica a anotação como interna. · `ab25d95`
+- **R9-CRM-050** · texto · A ajuda de campanha orienta como escrever a mensagem em linguagem de oficina. · `ab25d95`
+- **R9-CRM-051** · acessibilidade · Os campos de data de tarefa anunciam a finalidade no leitor de tela. · `ab25d95`
+- **R9-CRM-052** · celular · A busca global mostra Buscar no teclado do celular. · `ab25d95`
+- **R9-CRM-053** · celular · O campo Carro inicia cada palavra com maiúscula no teclado compatível. · `ab25d95`
+- **R9-CRM-054** · celular · O teclado deixa os identificadores de campanha, origem e mídia sem maiúsculas automáticas. · `ab25d95`
+- **R9-CRM-055** · acessibilidade · O leitor de tela anuncia as instruções do campo de mensagem. · `ab25d95`
+- **R9-CRM-056** · conserto · Uma busca que mistura texto e números não traz contatos apenas pelo final do telefone. · `2bb6191`
+- **R9-CRM-057** · conserto · A lista volta a paginar de 50 em 50 quando recebe um tamanho de página inválido. · `2bb6191`
+- **R9-CRM-058** · texto · O aviso de edição bloqueada identifica quem responde pelo contato e a quem pedir ajuda. · `2bb6191`
+- **R9-CRM-059** · texto · A busca em Clientes usa “1 cliente encontrado” quando há um resultado. · `bba7a4b`
+- **R9-CRM-060** · tela · O catálogo distingue base vazia de filtro sem resultados e indica como limpar o filtro. · `bba7a4b`
+- **R9-CRM-061** · acessibilidade · A seleção do filtro de disponibilidade dos serviços é anunciada ao leitor de tela. · `bba7a4b`
+- **R9-CRM-062** · acessibilidade · Minha conta e Equipe e sistema anunciam o painel selecionado. · `bba7a4b`
+- **R9-CRM-063** · acessibilidade · As telas do CRM respeitam a preferência de movimento reduzido. · `bba7a4b`
+- **R9-CRM-064** · texto · O título Distribuir contatos descreve a tarefa e a prévia antes de aplicar. · `bba7a4b`
+- **R9-CRM-065** · conserto · A busca de clientes descarta resultados e erros de pedidos anteriores. · `bba7a4b`
+- **R9-CRM-066** · acessibilidade · A tabela de clientes informa que está carregando ao leitor de tela. · `bba7a4b`
+- **R9-CRM-067** · aviso · Uma falha em Clientes limpa os controles do resultado anterior e oferece nova tentativa. · `bba7a4b`
+- **R9-CRM-068** · texto · O catálogo usa “carros” para indicar o escopo do serviço. · `bba7a4b`
+- **R9-CRM-069** · aviso · Uma falha no catálogo é anunciada e pode ser recuperada na própria tela. · `bba7a4b`
+- **R9-CRM-070** · acessibilidade · Trocar de página na lista mantém o foco nos controles de paginação. · `bba7a4b`
+- **R9-CRM-071** · conserto · A fila Hoje descarta respostas atrasadas depois que chega um pedido mais recente. · `1151ad1`
+- **R9-CRM-072** · acessibilidade · A lista da fila Hoje indica quando está atualizando. · `1151ad1`
+- **R9-CRM-073** · conserto · Atender o próximo fica indisponível enquanto a fila carrega, evitando ações sobre o resultado anterior. · `1151ad1`
+- **R9-CRM-074** · aviso · Uma falha na fila Hoje anuncia o erro e retira os totais e as ações desatualizadas. · `1151ad1`
+- **R9-CRM-075** · celular · A busca na fila Hoje mostra a ação Buscar no teclado do celular. · `1151ad1`
+- **R9-CRM-076** · acessibilidade · A barra da meta diária informa os contatos feitos, mesmo quando o total ultrapassa a meta. · `1151ad1`
+- **R9-CRM-077** · tela · A fila Hoje diferencia uma busca sem resultados de uma fila zerada. · `1151ad1`
+- **R9-CRM-078** · acessibilidade · O catálogo anuncia a quantidade de resultados ao editar a busca ou os filtros. · `1151ad1`
+- **R9-CRM-079** · enxugar · A aba Clientes deixa de reter uma cópia sem consumidores da última resposta. · `1151ad1`
+- **R9-CRM-080** · celular · Os grupos de filtros da distribuição podem encolher e quebrar linha dentro da tela. · `1151ad1`
+- **R9-CRM-081** · acessibilidade · A seleção de quem recebe os contatos tem alvo mínimo de 44 px. · `1151ad1`
+- **R9-CRM-082** · texto · A distribuição informa de forma direta que só inclui contatos sem responsável. · `1151ad1`
+- **R9-CRM-083** · texto · A prévia usa “Ver contato por contato” para abrir a lista detalhada. · `1151ad1`
+- **R9-CRM-084** · celular · As ações da distribuição cabem em 375 px, incluindo Aplicar o rodízio sugerido. · `be91453`
+- **R9-CRM-085** · tela · A distribuição indica que está carregando a equipe antes de apresentar os nomes. · `be91453`
+- **R9-CRM-086** · aviso · Uma falha na busca da equipe permanece visível e oferece nova tentativa. · `be91453`
+- **R9-CRM-087** · conserto · A prévia da distribuição só fica disponível com candidatos e pelo menos uma pessoa escolhida. · `be91453`
+- **R9-CRM-088** · acessibilidade · Alterar um filtro de distribuição mantém o foco no filtro. · `be91453`
+- **R9-CRM-089** · acessibilidade · Marcar um nome da equipe atualiza a contagem sem recriar a caixa de seleção. · `be91453`
+- **R9-CRM-090** · acessibilidade · A contagem de pessoas escolhidas é anunciada ao leitor de tela. · `be91453`
+- **R9-CRM-091** · texto · A contagem filtrada e a tabela de distribuição usam “contato”. · `be91453`
+- **R9-CRM-092** · conserto · Cancelar a confirmação de desfazer deixa o botão do histórico disponível para uso posterior. · `be91453`
+- **R9-CRM-093** · conserto · O relatório descarta tempos de resposta de consultas antigas ao trocar o período. · `be91453`
+- **R9-CRM-094** · conserto · Um período inválido limpa as métricas anteriores e bloqueia CSV e PDF até a correção. · `be91453`
+- **R9-CRM-095** · aviso · O relatório exibe “dado indisponível” se o tempo de resposta não carregar. · `be91453`
+- **R9-CRM-096** · acessibilidade · As duas tabelas de relatório anunciam o título correspondente ao leitor de tela. · `be91453`
+- **R9-CRM-097** · conserto · Um erro de carregamento antigo não substitui a lista atual de tarefas do Painel. · `e6df968`
+- **R9-CRM-098** · conserto · Uma resposta atrasada de tarefas não substitui a lista da ficha atual. · `e6df968`
+- **R9-CRM-099** · tela · A ficha informa que as tarefas estão carregando antes de exibir um estado vazio. · `e6df968`
+- **R9-CRM-100** · aviso · A ficha mantém o aviso de erro das tarefas e oferece nova tentativa. · `e6df968`
+- **R9-CRM-101** · aviso · O Painel oferece nova tentativa se uma consulta de tarefas falhar, inclusive quando há resultados antigos. · `e6df968`
+- **R9-CRM-102** · texto · O estado vazio do Painel informa que é o filtro atual que não tem tarefas abertas. · `e6df968`
+- **R9-CRM-103** · acessibilidade · A navegação anuncia Painel e a quantidade de tarefas no singular ou plural. · `e6df968`
+- **R9-CRM-104** · texto · O atalho da tarefa usa “Abrir contato” quando o nome ainda não está disponível. · `e6df968`
+- **R9-CRM-105** · conserto · O controle de mudança de situação da tarefa fica bloqueado enquanto a alteração é gravada. · `e6df968`
+- **R9-CRM-106** · conserto · Desfazer restaura a situação anterior da tarefa, inclusive ao desfazer uma reabertura. · `e6df968`
+- **R9-CRM-107** · acessibilidade · Cancelar tarefa tem alvo de 44 px no Painel e na ficha. · `e6df968`
+- **R9-CRM-108** · conserto · O vencimento rejeita horas e minutos fora do relógio em vez de ajustar silenciosamente. · `e6df968`
+- **R9-CRM-109** · conserto · O vencimento rejeita mês ou dia inválido e preserva os quatro dígitos do ano. · `e6df968`
+- **R9-CRM-110** · conserto · A prioridade da tarefa aceita apenas as três opções válidas, com Normal quando está vazia. · `e6df968`
+- **R9-CRM-111** · acessibilidade · O nome acessível do menu de perfil inclui as iniciais visíveis. · `cbbb0a3`
+- **R9-CRM-112** · acessibilidade · O carregamento da lista de clientes tem texto para leitores de tela e oculta o esqueleto decorativo. · `cbbb0a3`
+- **R9-CRM-113** · acessibilidade · O botão de tema usa o mesmo rótulo na tela e no leitor de tela. · `cbbb0a3`
+- **R9-CRM-114** · acessibilidade · As tabelas roláveis do CRM recebem nome e foco visível para navegação por teclado. · `cbbb0a3`
+- **R9-CRM-115** · acessibilidade · O título inicial de Distribuir contatos segue a hierarquia de cabeçalhos da página. · `cbbb0a3`
+- **R9-CRM-116** · acessibilidade · O cartão do funil agrupa seus controles e anuncia como abrir a ficha pelo teclado. · `cbbb0a3`
+- **R9-CRM-117** · conserto · O rodízio bloqueia Aplicar enquanto recalcula a sugestão. · `cbbb0a3`
+- **R9-CRM-118** · aviso · Após erro no rodízio, a tela limpa o resumo antigo e orienta a usar Recalcular. · `cbbb0a3`
+- **R9-CRM-119** · texto · O rodízio vazio informa que todos os contatos abertos têm responsável. · `cbbb0a3`
+- **R9-CRM-120** · acessibilidade · As iniciais brancas ganham contraste na paleta de cores de avatar. · `cbbb0a3`
+- **R9-CRM-121** · acessibilidade · O texto de Ctrl K usa a cor de texto principal para melhorar a leitura. · `cbbb0a3`
+- **R9-CRM-122** · conserto · A abertura de fichas pelo teclado respeita controles internos e ignora a repetição da tecla. · `d71c339`
+- **R9-CRM-123** · aviso · Distribuir contatos exibe um texto enquanto calcula o rodízio. · `d71c339`
+- **R9-CRM-124** · celular · As opções de cor do avatar têm alvo de toque de 44 px. · `d71c339`
+- **R9-CRM-125** · acessibilidade · Buscar tudo usa o texto visível como nome acessível e o atalho tem um atributo próprio. · `59b1ddf`
