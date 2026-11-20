@@ -56,3 +56,14 @@ test('arquivo de fonte que não existe: 404 da Casa (não cai na Agenda)', async
   assert.equal(r.status, 404);
   assert.match(r.headers.get('content-type'), /json/);
 });
+
+test('CSP: o CDN vale só no caminho da biblioteca do Supabase (o cdn.jsdelivr.net inteiro serve qualquer pacote e arquivo do GitHub)', async () => {
+  const csp = (await pega('/')).headers.get('content-security-policy');
+  const lib = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/';
+  assert.match(csp, new RegExp(`script-src 'self' ${lib.replace(/[.*+?^${}()|[\]\/]/g, '\$&')};`));
+  assert.ok(csp.includes(`wss://*.supabase.co ${lib};`), 'connect-src: o cache offline baixa a biblioteca');
+  assert.doesNotMatch(csp, /https:\/\/cdn\.jsdelivr\.net[;\s]/, 'nada do CDN inteiro');
+  const html = await (await pega('/')).text();
+  for (const m of html.matchAll(/<script src="(https:[^"]+)"/g)) assert.ok(m[1].startsWith(lib), 'script de fora dentro do caminho liberado: ' + m[1]);
+  assert.ok(readFileSync(new URL('../casa/sw.js', import.meta.url), 'utf8').includes(`'${lib}dist/umd/supabase.min.js'`), 'o service worker busca dentro do caminho liberado');
+});
