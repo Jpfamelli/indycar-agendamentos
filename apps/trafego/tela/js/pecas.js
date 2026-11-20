@@ -180,10 +180,12 @@ export async function copiarTexto(texto) {
 /** Botão "Copiar" que avisa no pé da tela. `texto` pode ser uma função (lê na hora do clique). */
 export function botaoCopiar(ctx, texto, { rotulo = 'Copiar', classe = 'botao', aviso = 'Copiado.' } = {}) {
   return h('button', { class: classe, type: 'button', on: { click: async (e) => {
+    // Guardado antes do await: depois dele o evento já acabou e e.currentTarget vira null (antes dava erro na página a cada cópia).
+    const botao = e.currentTarget;
     const valor = typeof texto === 'function' ? texto() : texto;
     const ok = await copiarTexto(String(valor == null ? '' : valor));
     ctx.avisar(ok ? aviso : 'Não deu para copiar sozinho. Selecione o texto e copie com o dedo ou com Ctrl+C.');
-    e.currentTarget.focus();
+    if (botao && botao.isConnected) botao.focus();
   } } }, icone('copiar'), rotulo);
 }
 

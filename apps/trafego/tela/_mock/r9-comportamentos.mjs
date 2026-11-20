@@ -118,6 +118,16 @@ export const CASOS = {
     conferir(resumo === '1 venda fora do prazo (só para conferir)', 'a fora do prazo fica a um toque: ' + resumo);
     conferir(!(await pagina.$eval('.devolucao-fora', (el) => el.open)), 'fechada de início');
   },
+
+  /* Copiar o texto (relatórios): o aviso aparece, o foco fica no botão e a página não dá erro (antes: e.currentTarget nulo depois do await). */
+  async 'copiar'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/ajustes?secao=relatorios', { waitUntil: 'networkidle0' });
+    await pagina.waitForSelector('.relatorio-botoes button');
+    await pagina.click('.relatorio-botoes button');
+    await pagina.waitForSelector('.toast');
+    conferir(/copiado|copiar sozinho/i.test(await texto(pagina, '.toast')), 'aviso da cópia');
+    conferir(await pagina.evaluate(() => document.activeElement && document.activeElement.textContent.trim() === 'Copiar o texto'), 'o foco fica no botão');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();
