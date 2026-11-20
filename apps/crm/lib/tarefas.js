@@ -22,7 +22,8 @@ function criarTarefas({ sb, agora = () => Date.now(), auditar = async () => null
 
   function lerVence(v) {
     if (v === null || v === '') return null;
-    const t = Date.parse(String(v));
+    if (typeof v !== 'string') throw falha(400, 'Prazo inválido.');
+    const t = Date.parse(v);
     if (!Number.isFinite(t)) throw falha(400, 'Prazo inválido.');
     if (t < agora() - 7 * 864e5 || t > agora() + 400 * 864e5) throw falha(400, 'Prazo fora do intervalo (até 1 ano).');
     return new Date(t).toISOString();
@@ -33,14 +34,21 @@ function criarTarefas({ sb, agora = () => Date.now(), auditar = async () => null
     if (!b || typeof b !== 'object' || Array.isArray(b)) throw falha(400, 'Tarefa inválida.');
     const out = {};
     if (!parcial || 'titulo' in b) {
+      if (typeof b.titulo !== 'string') throw falha(400, 'Escreva o título em texto.');
       const t = texto(b.titulo, 400).replace(/\s+/g, ' ').trim();
       if (!t) throw falha(400, 'Escreva o que precisa ser feito.');
       if (t.length > 200) throw falha(400, 'Título longo demais (máx. 200 caracteres).');
       out.titulo = t;
     }
-    if ('descricao' in b) { const d = texto(b.descricao, 4000).trim(); if (d.length > 2000) throw falha(400, 'Descrição longa demais (máx. 2000).'); out.descricao = d || null; }
+    if ('descricao' in b) {
+      if (b.descricao != null && typeof b.descricao !== 'string') throw falha(400, 'Escreva a descrição em texto.');
+      const d = texto(b.descricao, 4000).trim();
+      if (d.length > 2000) throw falha(400, 'Descrição longa demais (máx. 2000).');
+      out.descricao = d || null;
+    }
     if ('prioridade' in b) {
-      const p = Number(b.prioridade);
+      const v = b.prioridade;
+      const p = typeof v === 'string' && /^[123]$/.test(v.trim()) ? Number(v) : v;
       if (![1, 2, 3].includes(p)) throw falha(400, 'Prioridade vai de 1 (alta) a 3 (baixa).');
       out.prioridade = p;
     }
