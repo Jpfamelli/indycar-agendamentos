@@ -1,12 +1,12 @@
-﻿# Rodada 10 · Comunicar
+# Rodada 10 · Comunicar
 
-Entrega parcial. 33 de 100 melhorias registradas. Próximo número: R10-COM-034.
+Entrega parcial. 34 de 100 melhorias registradas. Próximo número: R10-COM-035.
 
 A suíte de referência passou 310/310 com isolamento padrão do Node. O modo sem isolamento fez os dublês dos testes compartilharem estado, por isso a conferência foi repetida com os subprocessos padrão.
 
 ## Para outra frente
 
-Faltam a cobertura dos comportamentos R9-COM-032 a R9-COM-100 ainda sem cobertura e 67 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
+Faltam a cobertura dos comportamentos R9-COM-032 a R9-COM-100 ainda sem cobertura e 66 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
 
 ## Para o João
 
@@ -46,3 +46,7 @@ O commit `c2b65f6` cobre R10-COM-004 a 008. Os cinco testes de perfil falharam a
 ## Janelas de prévia e aniversários
 
 O commit 73c64a1 adiciona um roteiro Chrome exclusivo do Comunicar para R9-COM-037, 039 e 040–042. A versão anterior a e5040f5 falhou na primeira asserção de carregamento. A versão atual passou nos quatro cenários de largura e tema. O roteiro confirma a identidade do mock local, desativa o service worker e bloqueia escritas e rede externa. A suíte Node continua em 343/343, em processos separados, e npm run check passou.
+
+## Triagem de mensagens
+
+O commit ba22840 impede cancelamento parcial quando a seleção contém tipos inválidos. O teste R10-COM-034 falhou com HTTP 200 antes da correção e passou depois. Suíte Node 344/344 e npm run check aprovados.

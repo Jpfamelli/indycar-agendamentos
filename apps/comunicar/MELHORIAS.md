@@ -1145,3 +1145,4 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-031** · conserto · Um ID inválido de agendamento bloqueia o registro de satisfação e informa qual vínculo corrigir (teste R10-COM-031 em testes-rodada7-api.mjs). · `6e9e897`
 - **R10-COM-032** · segurança · O nome de segmento precisa ser texto de 2 a 60 caracteres após normalizar os espaços (testes R10-COM-032 em testes-rodada7-api.mjs). · `6e9e897`
 - **R10-COM-033** · teste · Chrome cobre carregamento, nova tentativa e foco nas janelas de prévia e aniversários (navegador-janelas-r10.mjs). · `73c64a1`
+- **R10-COM-034** · segurança · A triagem rejeita toda a seleção se houver um tipo inválido, antes de cancelar mensagens (teste R10-COM-034 em testes-rodada7-api.mjs). · `ba22840`
