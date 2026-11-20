@@ -350,6 +350,12 @@ for (const [id, caminho, corpo, campo] of [
   ['038', '/api/aniversarios/gravar', { itens: [{ cliente_id: ID(10), nascimento: '20/11' }, { cliente_id: 'inválido' }] }, 'itens'],
   ['039', '/api/aniversarios/gravar', { itens: Array(3001).fill({ cliente_id: ID(10), nascimento: '20/11' }) }, 'itens'],
   ['040', '/api/pedir-gestor', { assunto: 'teste', detalhe: { texto: 'Ajuda' } }, 'detalhe'],
+  ['041', '/api/campanhas/previa', { corpo: ['Mensagem'] }, 'corpo'],
+  ['042', '/api/envios', { corpo: { texto: 'Mensagem' } }, 'corpo'],
+  ['043', '/api/envios/teste', { telefone: ['12999990000'] }, 'telefone'],
+  ['044', '/api/envios/teste', { telefone: '12999990000', corpo: ['Mensagem'] }, 'corpo'],
+  ['045', '/api/ia/resumo', { forcar: 'false' }, 'forcar'],
+  ['046', `/api/campanhas/${ID(10)}/recusar`, { motivo: ['Revisar'] }, 'motivo'],
 ]) {
   test(`R10-COM-${id}: valida ${campo} em ${caminho}`, async () => {
     const s = await subir({ livre: true });

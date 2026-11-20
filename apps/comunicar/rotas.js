@@ -423,7 +423,8 @@ export function criarApi(deps) {
 
   // ---- rodada 6: prévia EXATA da campanha (as mesmas linhas que seriam enfileiradas, sem gravar nada) ----
   rota('POST', '/api/campanhas/previa', async ({ res, usuario, body }) => {
-    const corpo = String(body.corpo ?? '').trim();
+    if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
+    const corpo = (body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');
     if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).');
     const destinos = await resolverDestinos(body);
@@ -516,7 +517,8 @@ export function criarApi(deps) {
   /* Avulsa (1 cliente, qualquer um da equipe), campanha (gestor: sai direto) ou
      proposta (atendente com 2+ clientes: espera o gestor aprovar). */
   rota('POST', '/api/envios', async ({ res, usuario, body }) => {
-    const corpo = String(body.corpo ?? '').trim();
+    if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
+    const corpo = (body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');
     if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).');
     const enviarEm = body.enviar_em ? new Date(body.enviar_em) : new Date(relogio());
@@ -655,6 +657,8 @@ export function criarApi(deps) {
 
   /* Teste real: manda AGORA para o telefone de teste, fora da fila e da janela. */
   rota('POST', '/api/envios/teste', async ({ res, usuario, body }) => {
+    if (body.telefone != null && typeof body.telefone !== 'string') return bad(res, 'Informe o telefone em texto.', { campo: 'telefone' });
+    if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
     const cfg = await dados.obterConfig();
     const telefone = dados.soDigitos(body.telefone || cfg.telefone_teste);
     if (telefone.length < 10) return bad(res, 'Informe um telefone de teste (em Réguas › Envio).');
@@ -705,7 +709,8 @@ export function criarApi(deps) {
   });
   rota('POST', `/api/campanhas/${U}/recusar`, async ({ res, usuario, url, body }) => {
     const id = idDe(url.pathname);
-    const motivo = String(body.motivo || '').trim().slice(0, 200) || null;
+    if (body.motivo != null && typeof body.motivo !== 'string') return bad(res, 'Escreva o motivo em texto.', { campo: 'motivo' });
+    const motivo = body.motivo?.trim().slice(0, 200) || null;
     const c = await dados.decidirCampanha(id, { status: 'recusada', decidido_por: usuario.id, decidido_por_nome: usuario.nome || usuario.email, decidido_em: new Date(relogio()).toISOString(), motivo_recusa: motivo });
     if (!c) return (await dados.obterCampanha(id)) ? send(res, 409, { erro: 'Essa campanha já foi decidida.' }) : naoAchou(res);
     await auto.avisarDecisaoDeCampanha({ campanha: c, loja: dados }).catch(() => null);
@@ -847,6 +852,7 @@ export function criarApi(deps) {
     return ok(res, { texto: cfg.ia_resumo, em: cfg.ia_resumo_em, valido: h !== null && h < 6 });
   });
   rota('POST', '/api/ia/resumo', async ({ res, usuario, body }) => {
+    if (body.forcar !== undefined && typeof body.forcar !== 'boolean') return bad(res, 'Confirme se deseja atualizar o resumo.', { campo: 'forcar' });
     const cfg = await dados.obterConfig();
     const h = idadeResumoH(cfg);
     if (!body.forcar && cfg.ia_resumo && h !== null && h < 6) return ok(res, { texto: cfg.ia_resumo, em: cfg.ia_resumo_em, valido: true, cache: true });
