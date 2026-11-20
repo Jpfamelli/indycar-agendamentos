@@ -1281,7 +1281,7 @@ export async function obterWaConfig() {
   return {
     ...c,
     ativo: bit(c.ativo),
-    verify_token: c.verify_token ?? 'indycar',
+    verify_token: c.verify_token ?? '',   // rodada 10: sem padrão (o antigo "indycar" era público)
     api_version: c.api_version ?? 'v21.0',
   };
 }
@@ -1292,7 +1292,7 @@ export async function salvarWaConfig(dados) {
     phone_number_id: dados.phone_number_id ?? null,
     access_token: dados.access_token ?? null,
     business_account_id: dados.business_account_id ?? null,
-    verify_token: dados.verify_token || 'indycar',
+    verify_token: dados.verify_token || '',
     api_version: dados.api_version || 'v21.0',
     numero_exibicao: dados.numero_exibicao ?? null,
   });

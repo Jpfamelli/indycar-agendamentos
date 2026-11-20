@@ -14,6 +14,7 @@ import {
   decidirAcesso, decidirNaoVeioNaEdicao, mudaDesfechoRegistrado, origemPermitida, mensagemSegura, ehGestor,
   presencaPodeMarcar, semConfirmacaoDoErro,
   urlDeWebhookSegura, validarServico, validarModelo, validarEmpresa,
+  igualSeguro, tokenDeVerificacaoValido, assinaturaDaMetaConfere, lerWebhookDaMeta, SITUACOES_DE_MENSAGEM,
 } from './regras.js';
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento, entradaDoChegou } from './patio.js';
@@ -33,8 +34,13 @@ const PUBLIC = join(__dirname, 'public');
 const PORT = process.env.PORT || 3000;
 let _ultimaImportacao = 0; // controle p/ importar ao abrir o painel (no máx 1x/min)
 
-// Token de verificação do webhook do WhatsApp Cloud API (configurável por env)
-const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'indycar';
+/* Token de verificação do webhook do WhatsApp Cloud API: o salvo em Configurações ou o do ambiente
+   (WHATSAPP_VERIFY_TOKEN). Rodada 10: acabou o padrão "indycar" (regras.js › tokenDeVerificacaoValido);
+   sem token de verdade a verificação responde 403. */
+function tokenDoWebhook(cfg) {
+  for (const t of [cfg?.verify_token, process.env.WHATSAPP_VERIFY_TOKEN]) if (tokenDeVerificacaoValido(t)) return t;
+  return null;
+}
 
 /* O WhatsApp DA EMPRESA — (12) 99683-0272, o número do site e do cartão.
    É por ele que sai aviso de falta e lembrete. Tem que ser o mesmo que o
@@ -138,7 +144,8 @@ function readBody(req) {
     req.on('end', () => {
       if (estourou) return;
       try {
-        const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(Buffer.concat(blocos, tamanho));
+        req.corpoBruto = Buffer.concat(blocos, tamanho);   // rodada 10: a assinatura do webhook da Meta é sobre os bytes crus
+        const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(req.corpoBruto);
         if (!raw) return resolve({});
         const j = JSON.parse(raw);
         if (!j || typeof j !== 'object' || Array.isArray(j)) {
@@ -2205,38 +2212,39 @@ async function api(req, res, url) {
 
   // marca status de uma mensagem (entregue/lido)
   if ((mm = pathname.match(new RegExp(`^/api/whatsapp/mensagens/${UUID}$`))) && m === 'PATCH') {
+    // rodada 10: só a lista conhecida (o texto livre ia para o banco e de lá para a tela do histórico)
+    if (!SITUACOES_DE_MENSAGEM.includes(body.status)) return bad(res, 'Situação inválida.');
     await dados.atualizarStatusMensagem(mm[1], body.status);
     return ok(res, { ok: true });
   }
 
   // WEBHOOK — verificação (GET) do WhatsApp Cloud API (Meta)
   if (pathname === '/api/whatsapp/webhook' && m === 'GET') {
-    const cfg = await getWaConfig();
-    const esperado = cfg.verify_token || WHATSAPP_VERIFY_TOKEN;
-    if (searchParams.get('hub.mode') === 'subscribe' &&
-        searchParams.get('hub.verify_token') === esperado) {
-      return send(res, 200, searchParams.get('hub.challenge') || '', { 'Content-Type': 'text/plain' });
+    const esperado = tokenDoWebhook(await getWaConfig());
+    if (esperado && searchParams.get('hub.mode') === 'subscribe' &&
+        igualSeguro(searchParams.get('hub.verify_token'), esperado)) {
+      return send(res, 200, texto1(searchParams.get('hub.challenge'), 200), { 'Content-Type': 'text/plain' });
     }
     return send(res, 403, 'forbidden', { 'Content-Type': 'text/plain' });
   }
   // WEBHOOK — recebimento (POST): mensagens de entrada e recibos de status
   if (pathname === '/api/whatsapp/webhook' && m === 'POST') {
     try {
-      const entry = body?.entry?.[0]?.changes?.[0]?.value;
-      const msg = entry?.messages?.[0];
-      if (msg) {
-        const texto = msg.text?.body || `[${msg.type}]`;
-        const nome = entry?.contacts?.[0]?.profile?.name || null;
+      /* Rodada 10: esta porta é pública (a Meta não faz login). Antes qualquer um gravava "mensagem recebida do
+         cliente" com um POST. Agora só grava (1) com a Cloud API ligada em Configurações, (2) com a assinatura da
+         Meta quando o segredo do app está no ambiente (WHATSAPP_APP_SECRET) e (3) o que passa em lerWebhookDaMeta. */
+      const cfg = await getWaConfig();
+      const ligada = !!(cfg.ativo && cfg.phone_number_id);
+      const segredo = process.env.WHATSAPP_APP_SECRET || '';
+      const assinada = !segredo || assinaturaDaMetaConfere(req.corpoBruto, req.headers['x-hub-signature-256'], segredo);
+      if (ligada && assinada) {
+        const { mensagem, recibo } = lerWebhookDaMeta(body);
         // await obrigatório: sem ele o webhook responderia 200 antes de gravar
-        await registrarEntrada(msg.from, nome, texto);
         // (sem auto-resposta: quem atende é a IA já cadastrada no WhatsApp)
-      }
-      // recibos de entrega/leitura atualizam a mensagem de saída pelo wamid
-      const st = entry?.statuses?.[0];
-      if (st?.id) {
-        const map = { sent:'enviado', delivered:'entregue', read:'lido', failed:'falhou' };
-        await dados.atualizarStatusPorWamid(st.id, map[st.status] || st.status);
-      }
+        if (mensagem) await registrarEntrada(mensagem.telefone, mensagem.nome, mensagem.texto);
+        // recibos de entrega/leitura atualizam a mensagem de saída pelo wamid
+        if (recibo) await dados.atualizarStatusPorWamid(recibo.wamid, recibo.status);
+      } else if (ligada) console.warn('Webhook WhatsApp: entrega sem a assinatura da Meta, ignorada.');
     } catch (e) {
       // o webhook da Meta precisa receber 200 mesmo se a gravação falhar,
       // mas o erro não pode sumir em silêncio

@@ -2449,7 +2449,7 @@ async function waConfig(box, cfg) {
         <div class="panel-body">
           <div class="field"><label for="cfg_webhook">URL do Webhook (cole na Meta)</label>
             <input id="cfg_webhook" value="${esc(webhook)}" readonly onclick="this.select()"></div>
-          <div class="field"><label for="cfg_verify">Token de verificação</label><input id="cfg_verify" spellcheck="false" value="${esc(cfg.verify_token||'indycar')}"></div>
+          <div class="field"><label for="cfg_verify">Token de verificação</label><input id="cfg_verify" spellcheck="false" value="${esc(cfg.verify_token||'')}" placeholder="Crie um com 12 letras ou mais, sem espaço"></div>
           <!-- Lembretes de agendamento saíram daqui (09/10): quem manda é o Comunicar,
                com a régua dele e o "aceita mensagens" de cada cliente. -->
           <div class="aviso-leitura" style="margin-top:4px">${svg(I.send)}
@@ -2470,7 +2470,7 @@ async function waConfig(box, cfg) {
   $('#cfg_save').addEventListener('click', async () => {
     const p = { ativo:$('#cfg_ativo').checked, phone_number_id:$('#cfg_pnid').value.trim(),
       access_token:$('#cfg_token').value.trim(), business_account_id:$('#cfg_waba').value.trim(),
-      api_version:$('#cfg_ver').value.trim()||'v21.0', verify_token:$('#cfg_verify').value.trim()||'indycar',
+      api_version:$('#cfg_ver').value.trim()||'v21.0', verify_token:$('#cfg_verify').value.trim(),
       numero_exibicao:$('#cfg_num').value.trim() };
     if (p.ativo && (!p.phone_number_id || (!p.access_token && !cfg.tem_token)))
       return toast('Para ativar a Cloud API, informe Phone Number ID e Access Token','err');
@@ -2522,7 +2522,7 @@ async function waMensagens(box) {
     <div class="panel"><div class="panel-head"><h2>Histórico de mensagens</h2><span class="date">${msgs.length} registros</span></div>
       <div class="panel-body" style="gap:0">
         ${msgs.length ? msgs.map(m => `
-          <div class="msg ${m.direcao}">
+          <div class="msg ${m.direcao==='saida'?'saida':'entrada'}">
             <div class="dir">${m.direcao==='saida'?'↗':'↙'}</div>
             <div class="c"><div class="who">${esc(m.nome||m.telefone)} <span class="muted">· ${m.direcao==='saida'?'saída':'entrada'}</span></div>
               <div class="txt">${esc(m.corpo)}</div>
@@ -2530,7 +2530,7 @@ async function waMensagens(box) {
           </div>`).join('') : '<div class="empty">Nenhuma mensagem ainda.</div>'}
       </div></div>`;
 }
-function statusMsg(s){ return {enviado:'enviado ✅',entregue:'entregue ✅✅',lido:'lido 👁️',recebido:'recebido',falhou:'falhou ❌',pendente:'pendente'}[s]||s; }
+function statusMsg(s){ return {enviado:'enviado ✅',entregue:'entregue ✅✅',lido:'lido 👁️',recebido:'recebido',falhou:'falhou ❌',pendente:'pendente'}[s]||esc(s); }
 async function waIA(box) {
   const cfg = await api('GET','/whatsapp/ia/config');
   box.innerHTML = `

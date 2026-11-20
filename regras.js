@@ -7,6 +7,8 @@
 // Acesso por app: admin sempre; os demais precisam de 'agenda' em perfis.apps.
 // -----------------------------------------------------------------------------
 
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
 export const APP = 'agenda';
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const casa = (padrao) => new RegExp(`^${padrao.replace(/:id/g, UUID)}$`);
@@ -280,4 +282,56 @@ export function validarEmpresa(corpo) {
   const tel = txt(c.telefone).replace(/\D/g, '');
   if (tel && (tel.length < 10 || tel.length > 13)) return { ok: false, erro: 'Telefone incompleto: use DDD + número, ex.: (12) 99999-9999.' };
   return { ok: true, campos: { nome, endereco: txt(c.endereco), slogan: txt(c.slogan), telefone: txt(c.telefone) } };
+}
+
+/* ---------------------------------------------------------------------------
+   RODADA 10: conexões, segurança e desempenho. Funções puras; quem chama é o server.js.
+   --------------------------------------------------------------------------- */
+
+/** Compara dois segredos sem entregar, pelo tempo de resposta, quantas letras bateram. Vazio nunca é igual. */
+export function igualSeguro(a, b) {
+  const x = Buffer.from(typeof a === 'string' ? a : ''), y = Buffer.from(typeof b === 'string' ? b : '');
+  return x.length > 0 && x.length === y.length && timingSafeEqual(x, y);
+}
+
+/** Token de verificação do webhook da Meta: 12 a 120 letras, sem espaço. O padrão antigo ("indycar") era o
+    mesmo em toda instalação e estava escrito no código: quem soubesse assinava o webhook no lugar da oficina. */
+export function tokenDeVerificacaoValido(t) {
+  return typeof t === 'string' && t.length >= 12 && t.length <= 120 && !/\s/.test(t) && t.toLowerCase() !== 'indycar';
+}
+
+/** A Meta assina cada entrega com o segredo do app (cabeçalho X-Hub-Signature-256: "sha256=<hmac do corpo cru>"). */
+export function assinaturaDaMetaConfere(bruto, cabecalho, segredo) {
+  if (!segredo || !Buffer.isBuffer(bruto)) return false;
+  const veio = /^sha256=([0-9a-f]{64})$/i.exec(String(cabecalho || '').trim());
+  if (!veio) return false;
+  return igualSeguro(veio[1].toLowerCase(), createHmac('sha256', String(segredo)).update(bruto).digest('hex'));
+}
+
+/** As situações que uma mensagem do histórico pode ter. Fora disso nada é gravado (o texto ia direto para a tela). */
+export const SITUACOES_DE_MENSAGEM = ['pendente', 'enviado', 'entregue', 'lido', 'falhou', 'recebido'];
+const RECIBO_DA_META = { sent: 'enviado', delivered: 'entregue', read: 'lido', failed: 'falhou' };
+
+/** Lê uma entrega do webhook da Meta e devolve só o que pode ir para o banco:
+    { mensagem: { telefone, nome, texto } | null, recibo: { wamid, status } | null }. */
+export function lerWebhookDaMeta(corpo) {
+  const valor = corpo?.entry?.[0]?.changes?.[0]?.value;
+  const saida = { mensagem: null, recibo: null };
+  if (!valor || typeof valor !== 'object') return saida;
+  const msg = Array.isArray(valor.messages) ? valor.messages[0] : null;
+  if (msg && typeof msg === 'object') {
+    const telefone = typeof msg.from === 'string' ? msg.from.replace(/\D/g, '') : '';
+    if (telefone.length >= 10 && telefone.length <= 15) {
+      const tipo = typeof msg.type === 'string' && /^[a-z_]{1,20}$/.test(msg.type) ? msg.type : 'mensagem';
+      const corpoTxt = typeof msg.text?.body === 'string' ? msg.text.body.trim() : '';
+      const nome = valor.contacts?.[0]?.profile?.name;
+      saida.mensagem = { telefone, nome: typeof nome === 'string' && nome.trim() ? nome.trim().slice(0, 120) : null,
+        texto: corpoTxt ? corpoTxt.slice(0, 4096) : `[${tipo}]` };
+    }
+  }
+  const st = Array.isArray(valor.statuses) ? valor.statuses[0] : null;
+  if (st && typeof st.id === 'string' && st.id.length > 0 && st.id.length <= 200 && RECIBO_DA_META[st.status]) {
+    saida.recibo = { wamid: st.id, status: RECIBO_DA_META[st.status] };
+  }
+  return saida;
 }
