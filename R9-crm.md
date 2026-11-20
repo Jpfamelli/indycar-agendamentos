@@ -1,4 +1,4 @@
-﻿# Rodada 9 · CRM
+# Rodada 9 · CRM
 
 Entrega parcial. Lote 8c60a72, 10 registros no MELHORIAS. Suíte 323/323 antes e depois do ajuste do diálogo. O Chrome confirmou Concluir em 375 e 1440 px, nos dois temas, com mock local e bloqueio de todas as escritas e de destinos externos. Capturas disponíveis em qa-out/r9/crm-concluir-*.png.
 
@@ -21,3 +21,14 @@ O menu Mais preserva as páginas secundárias. Uso por rota e decisão de corte 
 | Lead | Contato |
 
 Sem rodada adicional de Chrome neste lote.
+
+## Terceiro lote parcial
+
+O commit `9299314` leva o CRM a 19/125. Suíte local 323/323. Próxima entrada R9-CRM-020.
+
+| Antes | Depois |
+| --- | --- |
+| Filtrar leads | Filtrar contatos |
+| Buscar leads (leitor de tela) | Buscar contatos (leitor de tela) |
+
+Validação de leitor de tela e capturas deste lote ficam pendentes.

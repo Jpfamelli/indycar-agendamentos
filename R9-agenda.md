@@ -1,4 +1,4 @@
-﻿# Rodada 9 · Agenda
+# Rodada 9 · Agenda
 
 Entrega parcial. Lote 8c60a72, 10 registros no MELHORIAS. Suíte pós-lote 463/463. O Início concentra a lista do dia e a ação Chegou. Mais mantém as rotas secundárias acessíveis e a navegação respeita o modo somente presença. Uso por rota ainda indeterminado.
 
@@ -14,3 +14,7 @@ Para o Claude, faltam completar a matriz de navegador, axe-core, inventário e c
 ## Segundo lote parcial
 
 `faf90d1` acrescenta 3 melhorias, para 13/125 na Agenda. Suíte 463/463 com Supabase fictício em loopback e automações desativadas. A próxima entrada é R9-AGE-014. Sem rodada adicional de Chrome neste lote.
+
+## Terceiro lote parcial
+
+O commit `9299314` leva a Agenda a 16/125. Suíte local 463/463 com subprocessos Node e Supabase fictício. Próxima entrada R9-AGE-017. Conferência do teclado em celular fica pendente.

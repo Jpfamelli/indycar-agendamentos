@@ -1307,3 +1307,7 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-013** · texto · O formulário e a ficha usam Contato também no título do diálogo · `faf90d1`
 - **R9-CRM-014** · acessibilidade · A tabela principal tem o nome acessível Contatos · `faf90d1`
 - **R9-CRM-015** · acessibilidade · A paginação usa Contatos no nome anunciado · `faf90d1`
+- **R9-CRM-016** · texto · Busca principal usa Contatos no texto visível e no leitor de tela · `9299314`
+- **R9-CRM-017** · acessibilidade · Campo de tarefa na ficha identifica o contato pelo nome usado na tela · `9299314`
+- **R9-CRM-018** · acessibilidade · Busca no catálogo de serviços tem nome acessível · `9299314`
+- **R9-CRM-019** · acessibilidade · Seletor de mês no relatório de retorno tem nome acessível · `9299314`
