@@ -318,7 +318,7 @@
     const n = (x) => Number(x) || 0;
     if (v.patio && n(a.patio?.prontos) > 0) {
       const velho = (a.patio.lista || []).filter((o) => o.etapa === 'pronto' && agora - Date.parse(o.etapa_em) > 4 * 36e5).length;
-      out.push({ k: 'prontos', grav: velho ? 3 : 1, n: n(a.patio.prontos), texto: n(a.patio.prontos) === 1 ? '1 carro pronto esperando retirada' : `${a.patio.prontos} carros prontos esperando retirada`, extra: velho ? `${velho} há mais de 4 h` : '', app: 'patio', url: l.patioPainel() });
+      out.push({ k: 'prontos', grav: velho ? 3 : 1, n: n(a.patio.prontos), texto: n(a.patio.prontos) === 1 ? '1 carro pronto esperando retirada' : `${a.patio.prontos} carros prontos esperando retirada`, extra: velho ? (n(a.patio.prontos) === 1 ? 'esperando há mais de 4 horas' : n(velho) >= n(a.patio.prontos) ? 'todos há mais de 4 horas' : `${velho} deles há mais de 4 horas`) : '', app: 'patio', url: l.patioPainel() });
     }
     if (v.patio && n(a.patio?.extras_pendentes) > 0) {
       out.push({ k: 'extras', grav: 2, n: n(a.patio.extras_pendentes), texto: `${a.patio.extras_pendentes} ${n(a.patio.extras_pendentes) === 1 ? 'serviço extra esperando' : 'serviços extras esperando'} o cliente aprovar`, app: 'patio', url: l.patioPainel() });
@@ -361,9 +361,9 @@
         out.push({ k: 'etapa-' + e.etapa, grav: 3, texto: `${e.n} ${n(e.n) === 1 ? 'carro' : 'carros'} em "${rotuloEtapa(e.etapa)}"`, extra: `o mais antigo está parado há ${duracao(Number(e.horas_mais_antigo) * 36e5)}`, app: 'patio', url: l.patioPainel() });
       }
     }
-    if (n(g.pronto_parado_4h)) out.push({ k: 'pronto', grav: 2, texto: `${g.pronto_parado_4h} ${n(g.pronto_parado_4h) === 1 ? 'carro pronto' : 'carros prontos'} há mais de 4 h sem retirar`, extra: 'ligue para o cliente', app: 'patio', url: l.patioPainel() });
-    if (n(g.conversas_2h)) out.push({ k: 'conversas', grav: 3, texto: `${g.conversas_2h} ${n(g.conversas_2h) === 1 ? 'conversa' : 'conversas'} sem resposta há mais de 2 h`, extra: 'cliente esfria rápido', app: 'atendimento', url: l.conversa() });
-    if (n(g.orcamentos_24h)) out.push({ k: 'orcamentos', grav: 2, texto: `${g.orcamentos_24h} ${n(g.orcamentos_24h) === 1 ? 'orçamento enviado' : 'orçamentos enviados'} há mais de 24 h sem resposta`, extra: 'vale um lembrete', app: 'orcador', url: l.orcamentosLista() });
+    if (n(g.pronto_parado_4h)) out.push({ k: 'pronto', grav: 2, texto: `${g.pronto_parado_4h} ${n(g.pronto_parado_4h) === 1 ? 'carro pronto' : 'carros prontos'} há mais de 4 horas sem retirar`, extra: 'ligue para o cliente', app: 'patio', url: l.patioPainel() });
+    if (n(g.conversas_2h)) out.push({ k: 'conversas', grav: 3, texto: `${g.conversas_2h} ${n(g.conversas_2h) === 1 ? 'conversa' : 'conversas'} sem resposta há mais de 2 horas`, extra: 'cliente esfria rápido', app: 'atendimento', url: l.conversa() });
+    if (n(g.orcamentos_24h)) out.push({ k: 'orcamentos', grav: 2, texto: `${g.orcamentos_24h} ${n(g.orcamentos_24h) === 1 ? 'orçamento enviado' : 'orçamentos enviados'} há mais de 24 horas sem resposta`, extra: 'vale um lembrete', app: 'orcador', url: l.orcamentosLista() });
     if (n(g.leads_sem_dono)) out.push({ k: 'leads', grav: 2, texto: `${g.leads_sem_dono} ${n(g.leads_sem_dono) === 1 ? 'contato novo' : 'contatos novos'} sem responsável`, app: 'crm', url: l.crmLead() });
     if (n(g.horarios_sem_desfecho)) out.push({ k: 'desfecho', grav: 1, texto: `${g.horarios_sem_desfecho} ${n(g.horarios_sem_desfecho) === 1 ? 'horário passado' : 'horários passados'} sem desfecho`, extra: 'o faturamento só conta quem foi marcado "fechou"', app: 'agenda', url: l.agenda() });
     return out.sort((x, y) => y.grav - x.grav);
