@@ -19,3 +19,15 @@ for (const [id, campos] of [
     assert.equal(app.db.auditoria.length, 0);
   });
 }
+
+test('R10-CRM-031: salvar integração faz uma única consulta à configuração', async (t) => {
+  const app = await subirServidor({ tabelas: { integracoes_ads: [{ canal: 'meta', ativo: false }] } });
+  t.after(() => app.fechar());
+  const resposta = await app.req('admin', '/api/integracoes/meta', {
+    method: 'PATCH', body: { ativo: true },
+  });
+  assert.equal(resposta.status, 200);
+  assert.equal(app.db.integracoes_ads[0].ativo, true);
+  const operacoes = app.sb.chamadas.filter(c => c.tabela === 'integracoes_ads').map(c => c.modo);
+  assert.deepEqual(operacoes, ['upsert']);
+});
