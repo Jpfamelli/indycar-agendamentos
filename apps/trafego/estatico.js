@@ -31,7 +31,9 @@ const MIME = {
   '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
 };
 /* HTML sempre revalida (uma publicação nova aparece na hora); CSS e JS ficam 5 min no navegador. */
-const CACHE = { '.html': 'no-cache', '.css': 'public, max-age=300', '.js': 'public, max-age=300', '.mjs': 'public, max-age=300' };
+/* Rodada 10: fonte não muda (se mudar, muda de nome): 30 dias no navegador. Com 1 hora, cada abertura depois disso
+   voltava ao servidor para perguntar pelas 4 fontes. */
+const CACHE = { '.html': 'no-cache', '.css': 'public, max-age=300', '.js': 'public, max-age=300', '.mjs': 'public, max-age=300', '.woff2': 'public, max-age=2592000' };
 /* Service worker e manifest nunca ficam presos no navegador (senão a versão nova demora a chegar). */
 const SEMPRE_FRESCO = new Set(['sw.js', 'manifest.webmanifest', 'manifest.json']);
 const TEXTO_ANTIGO = new Set(['.html', '.js', '.css']);

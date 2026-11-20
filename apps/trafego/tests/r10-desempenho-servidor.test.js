@@ -103,3 +103,27 @@ test('porteiro: seis pedidos juntos da mesma sessão conferem o login uma vez s�
     assert.equal(idas, 6);
   } finally { globalThis.fetch = fetchOriginal; auth.esquecer(); }
 });
+
+test('fontes da tela ficam 30 dias no navegador (antes: 1 hora, e 4 idas ao servidor a cada abertura depois disso)', async () => {
+  const e = Estatico.criar({ dirTela: TELA, dirAntiga: path.join(__dirname, '..', 'public') });
+  const servidor = http.createServer((req, res) => e.servir(req, res, new URL(req.url, 'http://x').pathname));
+  await new Promise(ok => servidor.listen(0, '127.0.0.1', ok));
+  try {
+    const base = `http://127.0.0.1:${servidor.address().port}/`;
+    const fontes = casca().filter(f => f.endsWith('.woff2'));
+    assert.equal(fontes.length, 4);
+    for (const f of fontes) {
+      const r = await fetch(base + f); await r.arrayBuffer();
+      const idade = Number((/max-age=(\d+)/.exec(r.headers.get('cache-control') || '') || [])[1]);
+      assert.ok(idade >= 30 * 86400, f + ': ' + r.headers.get('cache-control'));
+      assert.ok(r.headers.get('etag'), 'a etiqueta continua: depois dos 30 dias a resposta é 304');
+    }
+    const html = await fetch(base); await html.arrayBuffer();
+    assert.equal(html.headers.get('cache-control'), 'no-cache', 'a página segue sempre conferida');
+    const js = await fetch(base + 'js/app.js'); await js.arrayBuffer();
+    assert.equal(js.headers.get('cache-control'), 'public, max-age=300', 'o código segue com 5 minutos (publicação nova chega logo)');
+  } finally {
+    servidor.closeAllConnections?.();
+    await new Promise(r => servidor.close(r));
+  }
+});
