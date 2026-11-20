@@ -196,12 +196,12 @@ semearRodada5();
 function semearRodada3() {
   const agora = Date.now();
   NOTIF = [
-    { id: U(201), tipo:'atraso', titulo:'Donizetti está 50 min atrasado', corpo:'Pastilha de freio — marque se veio ou não veio.', link:`/?agendamento=${AGENDA[3].id}`, app:'agenda', lida_em:null, created_at:new Date(agora - 5 * 60e3).toISOString() },
+    { id: U(201), tipo:'atraso', titulo:'Donizetti está 50 min atrasado', corpo:'Pastilha de freio às 10:00. Marque se veio ou não veio.', link:`/?agendamento=${AGENDA[3].id}`, app:'agenda', lida_em:null, created_at:new Date(agora - 5 * 60e3).toISOString() },
     { id: U(202), tipo:'tarefa', titulo:'Nova tarefa: Reagendar', corpo:'Diogo Barros não veio', link:null, app:'automacao', lida_em:null, created_at:new Date(agora - 40 * 60e3).toISOString() },
     { id: U(203), tipo:'conversa', titulo:'Conversa passada para você: <b>Maria</b>', corpo:'Quero remarcar', link:'/?conversa=abc', app:'atendimento', lida_em:new Date().toISOString(), created_at:new Date(agora - 26 * 3600e3).toISOString() },
   ];
   TAREFAS = [
-    { id: U(301), titulo:'Confirmar com o cliente', descricao:'Renata — Diagnóstico, amanhã às 08:30. O lembrete automático é do Comunicar.', origem:'automacao', prioridade:2, vence_em:new Date(agora + 3600e3).toISOString(), status:'aberta', agendamento_id: AGENDA[7].id },
+    { id: U(301), titulo:'Confirmar com o cliente', descricao:'Renata · Diagnóstico, amanhã às 08:30. O lembrete automático é do Comunicar.', origem:'automacao', prioridade:2, vence_em:new Date(agora + 3600e3).toISOString(), status:'aberta', agendamento_id: AGENDA[7].id },
     { id: U(302), titulo:'Reagendar', descricao:'Diogo Barros não veio (Alinhamento 3D).', origem:'automacao', prioridade:1, vence_em:new Date(agora - 3600e3).toISOString(), status:'aberta', agendamento_id: AGENDA[5].id },
   ];
 }
