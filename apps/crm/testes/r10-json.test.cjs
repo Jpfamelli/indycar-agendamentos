@@ -27,3 +27,24 @@ test('R10-CRM-001: cadastro preserva caracteres UTF-8 divididos entre blocos HTT
   assert.equal(resposta, 201);
   assert.equal(app.db.leads[0].nome, 'João');
 });
+
+test('R10-CRM-002: cadastro rejeita JSON com bytes UTF-8 inválidos', async (t) => {
+  const app = await subirServidor();
+  t.after(() => app.fechar());
+  const corpo = Buffer.concat([
+    Buffer.from('{"nome":"Jo'),
+    Buffer.from([0xff]),
+    Buffer.from('o","telefone":"12999990000"}'),
+  ]);
+  const resposta = await fetch(app.url + '/api/leads', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer tok-${PESSOAS.gestor.id}-r10`,
+      'Content-Type': 'application/json',
+    },
+    body: corpo,
+  });
+  await resposta.text();
+  assert.equal(resposta.status, 400);
+  assert.equal(app.db.leads.length, 0);
+});

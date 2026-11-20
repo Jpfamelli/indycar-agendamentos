@@ -244,3 +244,15 @@ test('R9 API: toda resposta com dado de cliente sai com no-store (planilhas tamb
   // arquivo da tela não é API: continua conferindo a versão a cada abertura
   assert.equal((await fetch(base + '/styles.css')).headers.get('cache-control'), 'no-cache, must-revalidate');
 });
+
+test('R10-AGE-003: configurações rejeitam JSON com bytes UTF-8 inválidos', async () => {
+  const anterior = gravado.empresa;
+  const resposta = await fetch(base + '/api/empresa', {
+    method: 'PUT',
+    headers: { Authorization: 'Bearer gestor', 'Content-Type': 'application/json' },
+    body: Buffer.concat([Buffer.from('{"nome":"Oficina '), Buffer.from([0xff]), Buffer.from('"}')]),
+  });
+  await resposta.text();
+  assert.equal(resposta.status, 400);
+  assert.equal(gravado.empresa, anterior);
+});

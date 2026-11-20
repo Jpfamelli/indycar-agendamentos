@@ -137,9 +137,9 @@ function readBody(req) {
     req.on('error', (e) => reject(new ErroHttp(400, 'Não consegui ler a requisição: ' + (e?.message || e))));
     req.on('end', () => {
       if (estourou) return;
-      const raw = Buffer.concat(blocos, tamanho).toString('utf8');
-      if (!raw.trim()) return resolve({});
       try {
+        const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(Buffer.concat(blocos, tamanho));
+        if (!raw.trim()) return resolve({});
         const j = JSON.parse(raw);
         if (!j || typeof j !== 'object' || Array.isArray(j)) {
           return reject(new ErroHttp(400, 'O corpo precisa ser um objeto JSON.'));

@@ -5,6 +5,7 @@
 'use strict';
 
 const http = require('node:http');
+const { TextDecoder } = require('node:util');
 const utils = require('./public/crm-utils');
 let statsCache = null;
 const statsEmCache = async () => { if (!statsCache || statsCache.expira < Date.now()) statsCache = { valor: await store.getStats(), expira: Date.now() + 60000 }; return statsCache.valor; };
@@ -100,9 +101,11 @@ function readBody(req) {
     req.on('end', () => {
       if (excedeu) return reject(Object.assign(new Error('Corpo maior que 64 KB.'), { status: 413 }));
       if (!bytes) return resolve({});
-      const raw = Buffer.concat(blocos, bytes).toString('utf8');
       let v;
-      try { v = JSON.parse(raw); } catch { return reject(Object.assign(new Error('JSON inválido'), {status:400})); }
+      try {
+        const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(Buffer.concat(blocos, bytes));
+        v = JSON.parse(raw);
+      } catch { return reject(Object.assign(new Error('JSON inválido'), {status:400})); }
       // sempre um objeto: lista, número ou texto soltos não chegam às rotas
       if (!v || typeof v !== 'object' || Array.isArray(v)) return reject(Object.assign(new Error('O corpo precisa ser um objeto JSON.'), { status: 400 }));
       resolve(v);
