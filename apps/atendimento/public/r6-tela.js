@@ -502,8 +502,10 @@
     const msgId = card?.dataset.msg, convId = card?.dataset.conv;
     if (acao === 'ns-abrir') { $('#r6NaoSairam')?.classList.remove('aberto'); return abrirConversa(convId); }
     if (acao === 'ns-resolvi') {
-      const nota = prompt('Como você resolveu? (ex.: liguei para o cliente)', 'liguei para o cliente');
-      if (nota === null) return;
+      const resp = await Acesso.perguntar({ titulo: 'Marcar como resolvida fora do WhatsApp?', botao: 'Marcar como resolvida', perigo: false,
+        campo: { rotulo: 'Como você resolveu? (ex.: liguei para o cliente)', valor: 'liguei para o cliente' } });
+      if (resp === false) return;
+      const nota = resp === true ? '' : resp;
       const r = await api('/api/r6/nao-sairam/resolver', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mensagemId: msgId, nota }) });
       if (!r.ok) return toast('⚠️ ' + (r.erro || 'Não consegui marcar.'));
       toast('✔ Marcada como resolvida fora do WhatsApp');
@@ -511,7 +513,7 @@
       if (typeof conversaAtual !== 'undefined' && conversaAtual?.id === convId) IndyCar.recarregarConversa();
     }
     if (acao === 'ns-reenviar') {
-      if (!confirm('Reenviar esta mensagem agora? Se o cliente já recebeu, ele receberá duas vezes.')) return;
+      if (!await Acesso.perguntar({ titulo: 'Reenviar esta mensagem agora?', texto: 'Se o cliente já recebeu, ele receberá duas vezes.', botao: 'Reenviar', perigo: false })) return;
       $('#r6NaoSairam')?.classList.remove('aberto');
       await abrirConversa(convId);
       await tentarDeNovo(msgId, { reenviar: true });
@@ -616,7 +618,7 @@
     abrirMenuAdiar(ev.currentTarget);
   });
   document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') { fecharMenuAdiar(); $('#r6NaoSairam')?.classList.remove('aberto'); }
+    if (ev.key === 'Escape') { fecharMenuAdiar(); if (!document.querySelector('#modalConfirmarBg.aberto')) $('#r6NaoSairam')?.classList.remove('aberto'); }
     if (ev.altKey && !ev.ctrlKey && !ev.metaKey && (ev.key === 'p' || ev.key === 'P' || ev.code === 'KeyP')) { ev.preventDefault(); irParaProxima(); return; }
     /* Alt+Shift+1…4 (Ctrl+Alt é o AltGr do teclado ABNT2 e digita ¹ ² ³ £) */
     const dig = /^Digit([1-4])$/.exec(ev.code || '');

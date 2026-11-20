@@ -1108,3 +1108,14 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-098** · aviso · A busca de satisfação distingue erro de consulta de resultado vazio. · `d6e492a`
 - **R9-COM-099** · acessibilidade · O registro incompleto leva o foco ao cliente ou à escolha de satisfação. · `d6e492a`
 - **R9-COM-100** · conserto · O retorno de um registro de satisfação preserva a tela aberta depois. · `d6e492a`
+
+## Rodada 10 (20/11/2026)
+
+- **R10-COM-001** ? seguran?a ? Roteiro compartilhado confirma a identidade dos dois mocks antes de abrir o Chrome (teste testes-r10-mock.mjs) ? `4cbe2d9`
+- **R10-COM-002** · conserto · O checklist mantém o aviso se o último teste de envio estiver datado no futuro (teste R10-COM-002 em testes-r10-prontidao.mjs) · `4debb38`
+- **R10-COM-003** · conserto · O checklist mantém o aviso se a última rodada do carteiro estiver datada no futuro (teste R10-COM-003 em testes-r10-prontidao.mjs) · `4debb38`
+- **R10-COM-004** · segurança · Nome do perfil recusa valores que não sejam texto (teste R10-COM-004 em testes-r10-perfil.mjs) · `c2b65f6`
+- **R10-COM-005** · segurança · Cargo do perfil recusa objetos e mantém a opção de limpar o campo (teste R10-COM-005 em testes-r10-perfil.mjs) · `c2b65f6`
+- **R10-COM-006** · segurança · Telefone do perfil recusa listas e preserva a normalização do DDD (teste R10-COM-006 em testes-r10-perfil.mjs) · `c2b65f6`
+- **R10-COM-007** · segurança · A cor do perfil exige texto hexadecimal ou campo limpo (teste R10-COM-007 em testes-r10-perfil.mjs) · `c2b65f6`
+- **R10-COM-008** · segurança · Preferências do perfil recusam listas em vez de tratá-las como configuração vazia (teste R10-COM-008 em testes-r10-perfil.mjs) · `c2b65f6`

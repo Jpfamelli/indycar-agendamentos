@@ -143,7 +143,12 @@
     const c = R7.conferirEscolha(dia, f.hora.value);
     if (c.livre) return;
     const motivo = c.motivo === 'domingo' ? 'A oficina não abre aos domingos.' : c.motivo === 'fechado' ? 'A oficina está fechada neste dia.' : `Este horário não aparece livre na Agenda${c.alternativas?.length ? ' (livres: ' + c.alternativas.join(', ') + ')' : ''}.`;
-    if (!confirm(motivo + ' Agendar mesmo assim, como encaixe?')) { ev.preventDefault(); ev.stopImmediatePropagation(); }
+    /* Rodada 10: a pergunta é a janela do app, que não segura o envio do formulário como o confirm() segurava.
+       Então o envio para aqui e, se a pessoa confirmar o encaixe, o formulário é enviado de novo (já liberado). */
+    if (f.dataset.encaixeOk === '1') { delete f.dataset.encaixeOk; return; }
+    ev.preventDefault(); ev.stopImmediatePropagation();
+    Acesso.perguntar({ titulo: 'Agendar como encaixe?', texto: motivo + ' Agendar mesmo assim, como encaixe?', botao: 'Agendar como encaixe', perigo: false })
+      .then((ok) => { if (ok) { f.dataset.encaixeOk = '1'; f.requestSubmit(); } });
   }, true);
   document.addEventListener('change', (ev) => { if (ev.target.id === 'agendarServico' || ev.target.id === 'agendarConsultor') horariosReais(); });
 
@@ -231,7 +236,7 @@
     if (rodando && !Z.timer) Z.timer = setInterval(() => { verRetomada(); if (Q('#r7Modal.aberto')) pintarRetomada(); }, 3000);
   }
   async function iniciarRetomada(btn) {
-    if (!confirm('Reenviar agora as mensagens da lista “Podem sair agora”, uma por vez?')) return;
+    if (!await Acesso.perguntar({ titulo: 'Reenviar agora?', texto: 'Saem as mensagens da lista “Podem sair agora”, uma por vez.', botao: 'Reenviar com calma', perigo: false })) return;
     btn.disabled = true;
     const r = await api('/api/r7/retomada/iniciar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     if (!r.ok) { toast('⚠️ ' + (r.erro || 'Não consegui iniciar.')); btn.disabled = false; return; }
@@ -300,7 +305,7 @@
       const x = Q('#r7Busca'); if (x) x.hidden = true;
     }
   }, true);
-  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { Q('#r7Modal')?.classList.remove('aberto'); const x = Q('#r7Busca'); if (x) x.hidden = true; } });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !document.querySelector('#modalConfirmarBg.aberto')) { Q('#r7Modal')?.classList.remove('aberto'); const x = Q('#r7Busca'); if (x) x.hidden = true; } });
 
   /* ======================= ARRANQUE ======================= */
   function iniciar() {

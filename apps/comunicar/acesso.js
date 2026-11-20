@@ -309,22 +309,28 @@ export function exigeSegundoFator(usuarioAuth, aalDoToken) {
 export function camposDoMeuPerfil(corpo = {}) {
   const c = {};
   if (corpo.nome !== undefined) {
-    const n = String(corpo.nome || '').trim().replace(/\s+/g, ' ');
+    const n = typeof corpo.nome === 'string' ? corpo.nome.trim().replace(/\s+/g, ' ') : '';
     if (n.length < 2 || n.length > 80) return { erro: 'Nome precisa ter de 2 a 80 letras.' };
     c.nome = n;
   }
-  if (corpo.cargo !== undefined) c.cargo = String(corpo.cargo || '').trim().slice(0, 60) || null;
+  if (corpo.cargo !== undefined) {
+    if (corpo.cargo !== null && typeof corpo.cargo !== 'string') return { erro: 'Cargo precisa ser texto.' };
+    c.cargo = corpo.cargo?.trim().slice(0, 60) || null;
+  }
   if (corpo.telefone !== undefined) {
-    const t = String(corpo.telefone || '').replace(/\D/g, '');
+    if (corpo.telefone !== null && typeof corpo.telefone !== 'string') return { erro: 'Telefone com DDD, só números.' };
+    const t = corpo.telefone?.replace(/\D/g, '') || '';
     if (t && (t.length < 10 || t.length > 13)) return { erro: 'Telefone com DDD, só números.' };
     c.telefone = t || null;
   }
   if (corpo.avatar_cor !== undefined) {
+    if (corpo.avatar_cor !== null && typeof corpo.avatar_cor !== 'string') return { erro: 'Cor inválida.' };
     if (corpo.avatar_cor && !/^#[0-9a-fA-F]{6}$/.test(corpo.avatar_cor)) return { erro: 'Cor inválida.' };
     c.avatar_cor = corpo.avatar_cor || null;
   }
   if (corpo.preferencias !== undefined) {
-    const p = corpo.preferencias && typeof corpo.preferencias === 'object' ? corpo.preferencias : {};
+    const p = corpo.preferencias;
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return { erro: 'Preferências inválidas.' };
     const notif = {};
     for (const k of TIPOS_NOTIFICACAO) if (typeof p.notificacoes?.[k] === 'boolean') notif[k] = p.notificacoes[k];
     c.preferencias = { notificacoes: notif };

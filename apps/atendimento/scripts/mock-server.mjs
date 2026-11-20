@@ -615,6 +615,10 @@ function filtrarAuditoria(sp) {
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
+  if (req.method === 'GET' && url.pathname === '/__qa/mock') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ mock: 'atendimento' }));
+  }
   // fora do prefixo? 404 (na Central, outro app responderia)
   if (PREFIXO !== '/' && !url.pathname.startsWith(PREFIXO) && url.pathname + '/' !== PREFIXO) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('fora do prefixo ' + PREFIXO); }
   const p = PREFIXO === '/' ? url.pathname : ('/' + url.pathname.slice(PREFIXO.length)).replace(/^\/{2,}/, '/') || '/';

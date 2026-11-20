@@ -7,6 +7,7 @@
    em listas. A IA só pode citar conversas que recebeu (id conferido).
    ============================================================ */
 'use strict';
+const { fraseDoBanco } = require('./seguranca.js');
 
 const crypto = require('node:crypto');
 const H = require('./horarios.js');
@@ -62,7 +63,7 @@ function criarResumoDoDia({ sb, criarIA, agora = () => new Date(), copiloto }) {
     const { data: conversas, error } = await sb.from('conversas')
       .select('id,nome,telefone,ultima_mensagem_em,aguardando_consultor,aguardando_desde,etapa_id,tipo,status')
       .gte('ultima_mensagem_em', desde).order('ultima_mensagem_em', { ascending: false }).limit(MAX_CONVERSAS);
-    if (error) return { ok: false, status: 503, erro: 'Não consegui ler as conversas do dia: ' + error.message };
+    if (error) return { ok: false, status: 503, erro: fraseDoBanco(error, 'ler as conversas do dia') };
     const lista = (conversas || []).filter(c => c.tipo !== 'disparo');
 
     const ultimas = new Map();

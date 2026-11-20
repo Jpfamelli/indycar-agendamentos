@@ -16,7 +16,7 @@ function comoLike(p) {
   return new RegExp('^' + re + '$', 'is');
 }
 
-function criarSbFalso(tabelas = {}, { falhas = {}, rpc = {}, relogio = null } = {}) {
+function criarSbFalso(tabelas = {}, { falhas = {}, rpc = {}, relogio = null, tetoLinhas = null } = {}) {
   const db = {};
   for (const [k, v] of Object.entries(tabelas)) db[k] = v.map(x => ({ ...x }));
   const log = [];
@@ -76,6 +76,8 @@ function criarSbFalso(tabelas = {}, { falhas = {}, rpc = {}, relogio = null } = 
       }
       const total = out.length;
       if (st.op === 'select' && st.faixa) out = out.slice(st.faixa[0], st.faixa[1] + 1);
+      // rodada 10: o Supabase de verdade entrega no máximo 1.000 linhas por pedido, com ou sem limit()
+      if (st.op === 'select' && tetoLinhas && out.length > tetoLinhas) out = out.slice(0, tetoLinhas);
       if (st.cabeca) return { data: null, error: null, count: total };
       out = out.map(x => ({ ...x }));
       if (st.unico) {

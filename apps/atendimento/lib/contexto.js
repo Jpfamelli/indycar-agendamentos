@@ -16,6 +16,8 @@
    para dar para testar com dublê.
    ============================================================ */
 'use strict';
+const { mensagemEhAviso } = require('./aviso-sistema.js');
+const { fraseDoBanco, avisoDeLeitura } = require('./seguranca.js');
 
 
 const COM = require('./comunicar.js');
@@ -43,9 +45,9 @@ function criarContexto({ sb, agora = () => new Date(), cacheMs = CACHE_MS, diasL
   const ler = async (rotulo, consulta, avisos) => {
     try {
       const { data, error } = await consulta;
-      if (error) { avisos.push(`${rotulo}: ${error.message}`); return null; }
+      if (error) { avisos.push(avisoDeLeitura(rotulo, error)); return null; }
       return data;
-    } catch (e) { avisos.push(`${rotulo}: ${e.message}`); return null; }
+    } catch (e) { avisos.push(avisoDeLeitura(rotulo, e)); return null; }
   };
 
   /** Catálogo, janelas, serviços, consultores, etapas, regras e empresa (cache 10 min). */
@@ -109,7 +111,7 @@ function criarContexto({ sb, agora = () => new Date(), cacheMs = CACHE_MS, diasL
     const { data: conversa, error } = await sb.from('conversas')
       .select('id,nome,telefone,telefone_e164,cliente_id,etapa_id,etapa_em,status,ia_ativa,aguardando_consultor,aguardando_desde,desfecho,atribuida_a,assumida_em,ultima_mensagem_em,created_at,tipo')
       .eq('id', conversaId).maybeSingle();
-    if (error) return { ok: false, status: 503, erro: 'Não consegui ler a conversa: ' + error.message };
+    if (error) return { ok: false, status: 503, erro: fraseDoBanco(error, 'ler a conversa') };
     if (!conversa) return { ok: false, status: 404, erro: 'Conversa não encontrada.' };
 
     let clienteId = conversa.cliente_id || null;
@@ -308,7 +310,8 @@ function horaDeBrasilia(iso) {
  * de novo em conversa já em andamento e não sabia se a espera era de horas ou dias.
  */
 function situacaoDaConversa(mensagens = [], agora = new Date()) {
-  const ms = (mensagens || []).filter(m => m && Number.isFinite(Date.parse(m.created_at || '')));
+  // rodada 10: as notas do sistema gravadas como "entrada" não entram na conta de quem falou por último
+  const ms = (mensagens || []).filter(m => m && Number.isFinite(Date.parse(m.created_at || '')) && !mensagemEhAviso(m));
   const ultima = ms[ms.length - 1] || null;
   const ultEntrada = [...ms].reverse().find(m => m.direcao === 'entrada') || null;
   const lojaJaFalou = ms.some(m => m.direcao === 'saida' && String(m.corpo || '').trim());

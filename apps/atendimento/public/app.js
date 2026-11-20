@@ -1346,8 +1346,12 @@ $('#mensagens').addEventListener('click', (ev) => {
   if (chegou) return marcarQueChegou(chegou.dataset.chegou);
   const reenviar = alvo.closest('[data-reenviar]');
   if (reenviar) {
-    if (reenviar.dataset.forcar && !confirm('Reenviar esta mensagem? Se a primeira tiver chegado, o cliente recebe duas.')) return;
-    return tentarDeNovo(reenviar.dataset.reenviar, { reenviar: !!reenviar.dataset.forcar });
+    if (reenviar.dataset.forcar) {
+      // rodada 10: pergunta na janela do app (antes era o confirm() do navegador)
+      return Acesso.perguntar({ titulo: 'Reenviar esta mensagem?', texto: 'Se a primeira tiver chegado, o cliente recebe duas.', botao: 'Reenviar', perigo: false })
+        .then(ok => { if (ok) tentarDeNovo(reenviar.dataset.reenviar, { reenviar: true }); });
+    }
+    return tentarDeNovo(reenviar.dataset.reenviar, { reenviar: false });
   }
   const acao = alvo.closest('[data-acao]')?.dataset.acao;
   if (acao === 'msgs-anteriores') return carregarMensagens({ anteriores: true });
@@ -1395,10 +1399,8 @@ $('#btnCancelarSelecao')?.addEventListener('click', () => alternarSelecao(false)
 $('#btnApagarMsgs')?.addEventListener('click', async () => {
   const ids = [...selecionadas];
   if (!ids.length) return;
-  if (!confirm(
-      `Apagar ${ids.length} mensagem(ns) do painel?\n\n`
-    + `Elas somem daqui e do histórico da oficina, sem desfazer.\n`
-    + `No celular do cliente as mensagens CONTINUAM: isso não apaga o WhatsApp dele.`)) return;
+  if (!await Acesso.perguntar({ titulo: `Apagar ${ids.length} ${ids.length === 1 ? 'mensagem' : 'mensagens'} do painel?`, botao: 'Apagar',
+    texto: 'Elas somem daqui e do histórico da oficina, sem desfazer.\nNo celular do cliente as mensagens continuam: isso não apaga o WhatsApp dele.' })) return;
 
   const b = $('#btnApagarMsgs');
   b.disabled = true;
@@ -1878,15 +1880,11 @@ $('#btnPainelCliente').addEventListener('click', () => {
 $('#btnExcluirConversa').addEventListener('click', async () => {
   if (!conversaAtual) return;
   const nome = conversaAtual.nome || conversaAtual.telefone;
-  const digitado = prompt(
-    `Excluir a conversa de ${nome}?\n\n`
-  + `Isso apaga TODAS as mensagens deste chat, sem desfazer.\n`
-  + `O cadastro do cliente e o lead do CRM continuam.\n\n`
-  + `Para confirmar, digite o nome: ${nome}`);
-  if (digitado === null) return;
-  if (digitado.trim().toLowerCase() !== String(nome).trim().toLowerCase()) {
-    return toast('Nome não confere: nada foi apagado.');
-  }
+  // rodada 10: janela do app; o botão Excluir só libera quando o nome digitado confere
+  const digitado = await Acesso.perguntar({ titulo: `Excluir a conversa de ${nome}?`, botao: 'Excluir conversa',
+    texto: 'Isso apaga todas as mensagens deste chat, sem desfazer.\nO cadastro do cliente e o lead do CRM continuam.',
+    campo: { rotulo: `Para confirmar, digite o nome: ${nome}`, exigir: String(nome) } });
+  if (!digitado) return;
 
   const btn = $('#btnExcluirConversa');
   btn.disabled = true;
@@ -2480,7 +2478,7 @@ $('#formLead')?.addEventListener('submit', async (ev) => {
 $('#btnApagarLead')?.addEventListener('click', async () => {
   if (!leadEmEdicao) return;
   const { conv, lead } = leadEmEdicao;
-  if (!confirm(`Apagar o registro "${lead.servico || 'sem serviço'}"?\n\nIsso sai do histórico do cliente e do CRM.`)) return;
+  if (!await Acesso.perguntar({ titulo: `Apagar o registro "${lead.servico || 'sem serviço'}"?`, texto: 'Isso sai do histórico do cliente e do CRM.', botao: 'Apagar' })) return;
   try {
     /* O RLS novo deixa só gestor/admin apagar e, quando recusa, devolve 0 linhas
        SEM erro — sem conferir, a tela diria 'apagado' sem ter apagado. */
@@ -3132,7 +3130,7 @@ $('#formAtalho').addEventListener('submit', async e => {
 });
 
 $('#btnExcluirAtalho').addEventListener('click', async () => {
-  if (!atalhoEditando || !confirm(`Excluir o atalho /${atalhoEditando.comando}?`)) return;
+  if (!atalhoEditando || !await Acesso.perguntar({ titulo: `Excluir o atalho /${atalhoEditando.comando}?`, botao: 'Excluir' })) return;
   try {
     const { error } = await sb.from('atalhos_mensagem').delete().eq('id', atalhoEditando.id);
     if (error) throw error;
@@ -3192,7 +3190,7 @@ async function assumirAtendimento(assumir, forcar = false) {
 
     // já é de outra pessoa: pergunta antes de tomar
     if (r.precisaConfirmar) {
-      if (confirm(`${r.erro}\n\nAssumir mesmo assim?`)) {
+      if (await Acesso.perguntar({ titulo: r.erro, texto: 'Quer assumir mesmo assim?', botao: 'Assumir mesmo assim', perigo: false })) {
         b.disabled = false; b.textContent = original;
         return assumirAtendimento(assumir, true);
       }
@@ -4115,10 +4113,9 @@ $('#btnExcluirEtapa').addEventListener('click', async () => {
     if (erroConta) throw erroConta;
 
     if (count > 0) {
-      const quer = confirm(
-        `Não dá para excluir "${alvo.nome}": ${count} ${count === 1 ? 'conversa está' : 'conversas estão'} `
-        + `nesta etapa e ${count === 1 ? 'ficaria' : 'ficariam'} sem plaquinha.\n\n`
-        + 'Quer DESATIVAR a etapa? Ela some do funil e dos menus, mas o histórico continua inteiro.');
+      const quer = await Acesso.perguntar({ titulo: `Não dá para excluir "${alvo.nome}"`, botao: 'Desativar etapa', perigo: false,
+        texto: `${count} ${count === 1 ? 'conversa está' : 'conversas estão'} nesta etapa e ${count === 1 ? 'ficaria' : 'ficariam'} sem plaquinha.\n`
+          + 'Quer desativar a etapa? Ela some do funil e dos menus, mas o histórico continua inteiro.' });
       if (quer) {
         $('#modalEtapaBg').classList.remove('aberto');
         await alternarEtapa({ ...alvo, ativa: true });   // força para inativa
@@ -4127,7 +4124,7 @@ $('#btnExcluirEtapa').addEventListener('click', async () => {
       return;
     }
 
-    if (!confirm(`Excluir a etapa "${alvo.nome}"? Isso não dá para desfazer.`)) return;
+    if (!await Acesso.perguntar({ titulo: `Excluir a etapa "${alvo.nome}"?`, texto: 'Isso não dá para desfazer.', botao: 'Excluir etapa' })) return;
     const { error } = await sb.from('etapas_funil').delete().eq('id', alvo.id);
     if (error) throw error;
 
@@ -4979,7 +4976,7 @@ $$('[data-fechar]').forEach(b => b.addEventListener('click', () =>
   el.addEventListener('click', e => { if (e.target === el) el.classList.remove('aberto'); });
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !menuAberto) {
+  if (e.key === 'Escape' && !menuAberto && !document.querySelector('#modalConfirmarBg.aberto')) {   // com pergunta aberta, o Esc fecha só a pergunta
     $('#modalAgendarBg').classList.remove('aberto');
     $('#modalAtalhoBg').classList.remove('aberto');
     $('#modalEtapaBg').classList.remove('aberto');
@@ -6452,7 +6449,8 @@ pintarFaixaOffline();
 
 /* ---------------- Modais: Esc, foco preso e foco de volta ---------------- */
 const FOCAVEIS = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
-const modalAberto = () => [...document.querySelectorAll('.modal-bg.aberto')].pop() || null;
+// rodada 10: a confirmação abre por cima das outras janelas; Esc e Tab valem para ela primeiro
+const modalAberto = () => document.querySelector('#modalConfirmarBg.aberto') || [...document.querySelectorAll('.modal-bg.aberto')].pop() || null;
 function abrirModal(id, focoSel) {
   const bg = document.getElementById(id);
   if (!bg) return;

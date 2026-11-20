@@ -667,7 +667,10 @@ const Acesso = (() => {
   }
 
   /* ---------------- Confirmação bonita (no lugar do confirm()) ---------------- */
-  function confirmar({ titulo, texto, botao = 'Confirmar', perigo = true, caixa = '', caixaMarcada = false }) {
+  /* Rodada 10: `campo` troca o prompt() do navegador ({ rotulo, valor, exigir }): devolve o texto digitado
+     (ou false). Com `exigir`, o botão só libera quando o texto confere. Ação que apaga (perigo) abre com o
+     foco em Cancelar: Enter por reflexo não apaga nada. `cancelar` muda o nome do botão de desistir. */
+  function confirmar({ titulo, texto, botao = 'Confirmar', perigo = true, caixa = '', caixaMarcada = false, campo = null, cancelar = 'Cancelar', origem = '' }) {
     return new Promise((resolve) => {
       $('#confirmarCaixaRotulo').hidden = !caixa;
       $('#confirmarCaixaTexto').textContent = caixa;
@@ -675,18 +678,41 @@ const Acesso = (() => {
       $('#confirmarTitulo').textContent = titulo;
       $('#confirmarTexto').textContent = texto || '';
       const ok = $('#btnConfirmarOk');
+      const nao = $('#btnConfirmarNao');
+      if (nao) nao.textContent = cancelar;
       ok.textContent = botao;
       ok.className = 'btn sm ' + (perigo ? 'btn-excluir' : 'btn-primary');
+      const entrada = $('#confirmarCampo');
+      const igual = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+      const confere = () => { ok.disabled = !!(campo && campo.exigir && !igual(entrada.value, campo.exigir)); };
+      $('#confirmarCampoRotulo').hidden = !campo;
+      if (campo) {
+        $('#confirmarCampoTexto').textContent = campo.rotulo || '';
+        entrada.value = campo.valor || '';
+        if (campo.exigir) entrada.dataset.exigir = campo.exigir; else delete entrada.dataset.exigir;
+      }
+      confere();
       const bg = $('#modalConfirmarBg');
+      if (origem) bg.dataset.pergunta = origem; else delete bg.dataset.pergunta;
       let decidiu = false;
-      const fim = (v) => { if (decidiu) return; decidiu = true; obs.disconnect(); ok.removeEventListener('click', sim); fecharModal('modalConfirmarBg'); resolve(v); };
-      const sim = () => fim(true);
+      const fim = (v) => {
+        if (decidiu) return; decidiu = true; obs.disconnect(); ok.removeEventListener('click', sim);
+        entrada.removeEventListener('input', confere); entrada.removeEventListener('keydown', tecla);
+        ok.disabled = false; delete bg.dataset.pergunta;
+        fecharModal('modalConfirmarBg'); resolve(v);
+      };
+      const sim = () => { if (!ok.disabled) fim(campo ? entrada.value.trim() || true : true); };
+      const tecla = (e) => { if (e.key === 'Enter') { e.preventDefault(); sim(); } };
       ok.addEventListener('click', sim);
+      entrada.addEventListener('input', confere);
+      entrada.addEventListener('keydown', tecla);
       const obs = new MutationObserver(() => { if (!bg.classList.contains('aberto')) fim(false); });
       obs.observe(bg, { attributes: true, attributeFilter: ['class'] });
-      abrirModal('modalConfirmarBg', '#btnConfirmarOk');
+      abrirModal('modalConfirmarBg', campo ? '#confirmarCampo' : (perigo ? '#btnConfirmarNao' : '#btnConfirmarOk'));
     });
   }
+  /** Pergunta do dia a dia (o que era confirm()/prompt() do navegador). A marca `data-pergunta` deixa os roteiros responderem. */
+  const perguntar = (opcoes) => confirmar({ ...opcoes, origem: 'pergunta' });
   async function copiar(texto, aviso = 'Copiado') {
     try { await navigator.clipboard.writeText(texto); toast('📋 ' + aviso, 'ok'); }
     catch { toast('Não consegui copiar sozinho: selecione e copie (Ctrl+C).'); }
@@ -797,7 +823,7 @@ const Acesso = (() => {
 
   return {
     preparar, portao, depoisDeEntrar, recuperacao, mostrarVista, traduzirErro, armazenamentoDaSessao,
-    pedirSair, sair, limparAparelho, confirmar, copiar, prefAviso, podeUsar, APPS,
+    pedirSair, sair, limparAparelho, confirmar, perguntar, copiar, prefAviso, podeUsar, APPS,
     get emRecuperacao() { return emRecuperacao; }, set emRecuperacao(v) { emRecuperacao = !!v; },
     saindoSozinho: false,
   };

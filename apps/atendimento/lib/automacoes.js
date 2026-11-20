@@ -15,6 +15,7 @@
    notificação (preferencias.notificacoes.espera / .resumo_dia).
    ============================================================ */
 'use strict';
+const { mensagemEhAviso, ehAvisoDoSistema } = require('./aviso-sistema.js');
 
 const R = require('./rodizio.js');
 const TAR = require('./tarefas.js');
@@ -53,7 +54,7 @@ function criarAutomacoes({ sb, rodizio = null, auditar = async () => ({ ok: true
   }
 
   /* ---------- 1) cliente esperando ---------- */
-  const mensagemDeSistema = (m) => /^\s*\[sistema\]/i.test(String(m.corpo || ''));
+  const mensagemDeSistema = mensagemEhAviso;   // rodada 10: as quatro notas do robô, não só "[sistema]"
 
   async function alertarEspera() {
     const t = agora();
@@ -245,7 +246,7 @@ function criarAutomacoes({ sb, rodizio = null, auditar = async () => ({ ok: true
     if (e2) return { erro: 'mensagens' };
     const ultima = {};
     for (const m of msgs || []) {
-      if (/^\s*\[sistema\]/i.test(String(m.corpo || ''))) continue;
+      if (ehAvisoDoSistema(String(m.corpo || ''))) continue;
       if (!ultima[m.conversa_id]) ultima[m.conversa_id] = m;
     }
     const sumiram = alvo.filter(c => ultima[c.id]?.direcao === 'saida');

@@ -37,7 +37,7 @@ const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 120_000 } = {}) {
   const emAndamento = new Map();   // mensagemId -> desde
 
-  async function entregar(dados, mensagemId) {
+  async function entregar(dados, mensagemId, { conferirTelefone = false } = {}) {
     if (!mensagemId) return { ...(await enviar(dados)), semId: true };
     if (!RE_UUID.test(String(mensagemId))) return { ok: false, status: 400, erro: 'Identificador da mensagem inválido.', codigo: 'mensagem_invalida' };
 
@@ -48,9 +48,16 @@ function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 12
     const sb = banco();
     let linha = null;
     if (sb) {
-      const { data } = await sb.from('whatsapp_mensagens').select('id,status,direcao,conversa_id,erro').eq('id', mensagemId).maybeSingle();
+      const { data } = await sb.from('whatsapp_mensagens').select('id,status,direcao,conversa_id,erro,telefone').eq('id', mensagemId).maybeSingle();
       linha = data || null;
       if (linha && linha.direcao !== 'saida') return { ok: false, status: 400, erro: 'Só mensagem de saída pode ser enviada.', codigo: 'mensagem_invalida' };
+      /* Rodada 10 (só quando o pedido vem da tela: conferirTelefone): o telefone do pedido tem de ser o da mensagem gravada. Sem isto, um pedido com o id
+         de uma mensagem e o número de outro cliente mandava o texto para o número errado e ainda
+         marcava a linha certa como "enviado". Compara os 8 últimos dígitos (com ou sem 55, com ou sem o 9). */
+      const fim8 = v => String(v ?? '').replace(/\D/g, '').slice(-8);
+      if (conferirTelefone && linha && fim8(linha.telefone).length === 8 && fim8(dados?.telefone).length === 8 && fim8(linha.telefone) !== fim8(dados.telefone)) {
+        return { ok: false, status: 400, codigo: 'telefone_diferente', erro: 'O telefone do pedido não é o desta mensagem. Abra a conversa de novo e tente outra vez.' };
+      }
       if (linha && JA_SAIU.has(linha.status)) return { ok: true, jaEnviada: true };
       // ficou sem confirmação: só sai de novo quando alguém clicar em "Reenviar" (nunca numa retomada automática)
       if (linha && linha.status === 'falhou' && ehSemConfirmacao(linha.erro) && dados?.reenviar !== true) {

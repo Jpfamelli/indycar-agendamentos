@@ -13,6 +13,7 @@ const puppeteer = require('C:/Users/USER/.claude/backups/indycar-ferramentas/nod
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { permiteRequisicao } = require('./barreira-navegador.cjs');
 
 const AXE = fs.readFileSync(process.env.AXE || 'C:/Users/USER/.claude/backups/indycar-ads/node_modules/axe-core/axe.min.js', 'utf8');
 const PORT = process.env.PORT || '3473';
@@ -27,8 +28,8 @@ async function novaPagina(browser, largura, tema, consulta = '') {
   await p.setViewport({ width: largura, height: largura < 500 ? 812 : 900 });
   await p.setRequestInterception(true);
   p.on('request', r => {
-    const u = new URL(r.url());
-    if (['localhost', '127.0.0.1'].includes(u.hostname) || u.protocol === 'data:' || u.protocol === 'blob:') r.continue(); else r.abort();
+    const origemMock = 'http://localhost:' + PORT;
+    if (permiteRequisicao(r.url(), origemMock)) r.continue(); else r.abort();
   });
   p.erros = [];
   p.on('pageerror', e => p.erros.push(e.message));

@@ -17,6 +17,7 @@ const PAT  = require('./lib/patio.js');
 const CTX  = require('./lib/contexto.js');
 const IA   = require('./lib/ia-copiloto.js');
 const FUN  = require('./lib/ia-funil.js');
+const { destinoDoCodeWords } = require('./lib/destino-codewords.js');
 const { criarPausaSincronia, ehRecusa } = require('./lib/pausa-sincronia.js');
 const pausaSincronia = criarPausaSincronia();
 const RD   = require('./lib/resumo-dia.js');
@@ -130,8 +131,12 @@ function readBodyGrande(req, limite = 21 * 1024 * 1024) {
       partes.push(c);
     });
     req.on('end', () => {
-      try { resolve(JSON.parse(Buffer.concat(partes).toString('utf8') || '{}')); }
-      catch { reject(new SEG.ErroHttp(400, 'JSON inválido no corpo da requisição.', 'json_invalido')); }
+      let v;
+      try { v = JSON.parse(Buffer.concat(partes).toString('utf8') || '{}'); }
+      catch { return reject(new SEG.ErroHttp(400, 'JSON inválido no corpo da requisição.', 'json_invalido')); }
+      // null, lista, número ou texto solto não são um envio de arquivo (antes viravam erro 500 mais adiante)
+      if (v === null || typeof v !== 'object' || Array.isArray(v)) return reject(new SEG.ErroHttp(400, 'O corpo precisa ser um objeto JSON.', 'json_invalido'));
+      resolve(v);
     });
     req.on('error', reject);
   });
@@ -480,8 +485,14 @@ Escreva APENAS a próxima mensagem do atendente, pronta para enviar. Sem aspas, 
              aviso: temPreco ? 'A sugestão cita valor — confira antes de enviar (a IA não deveria passar preço).' : undefined,
              truncado: msg.stop_reason === 'max_tokens' };
   } catch (err) {
-    return { ok: false, erro: err.status === 429 ? 'A IA está sobrecarregada agora. Tente em instantes.'
-                             : (err.message || 'falha ao falar com a Claude') };
+    /* Rodada 10: a resposta crua do provedor (tipo do erro, id do pedido, "invalid x-api-key") fica no log.
+       A tela recebe o que fazer. */
+    console.error('sugerir:', err?.status || '', err?.message || err);
+    const frase = err?.status === 429 || err?.status === 529 ? 'A IA está sobrecarregada agora. Tente em instantes.'
+      : err?.status === 401 || err?.status === 403 ? 'A chave da IA foi recusada. Avise o administrador (Configurações › IA).'
+      : /timeout|timed out|abort/i.test(String(err?.name) + String(err?.message)) ? 'A IA demorou demais para responder. Tente de novo.'
+      : 'A IA não respondeu agora. Tente de novo em instantes.';
+    return { ok: false, erro: frase };
   }
 }
 
@@ -676,10 +687,13 @@ async function pausarCarlos(sb, telefone, pausar) {
     if (!cfg?.api_key || !cfg?.service_id) {
       return { ok: false, erro: 'CodeWords não configurado' };
     }
-    const base = (cfg.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+    // rodada 10: a chave só vai para endereço https e público (lib/destino-codewords.js)
+    const dest = destinoDoCodeWords(cfg);
+    if (!dest.ok) return { ok: false, erro: dest.erro };
+    const base = dest.base;
     const rota = pausar ? 'stop-ai' : 'start-ai';
 
-    const r = await fetch(`${base}/run/${cfg.service_id}/${rota}`, {
+    const r = await fetch(`${base}/run/${dest.fluxo}/${rota}`, {
       method: 'POST',
       headers: { Authorization: cfg.api_key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: soDigitos(telefone) }),
@@ -719,6 +733,14 @@ async function receberDoCodeWords(req, body) {
   const enviado  = req.headers['x-codewords-token'] || req.headers['x-webhook-token'] || body.token;
   const esperado = typeof cfg?.token_webhook === 'string' ? cfg.token_webhook.trim() : '';
   if (erroCfg || !esperado || !segredosIguais(enviado, esperado)) {
+    /* Rodada 10: quem chuta o token não enche o banco. Do mesmo endereço, as 10 primeiras
+       tentativas erradas em 10 min ficam registradas; dali em diante é 429 sem gravar nada.
+       Quem manda o token certo passa sempre (a conferência do token vem antes). */
+    const ip = IP_DE(req);
+    if (LIMITE.contar(`webhook-token:${ip}`, 10 * 60_000) > 10) {
+      return { status: 429, espera: LIMITE.espera(`webhook-token:${ip}`),
+        corpo: { ok: false, codigo: 'muitas_tentativas', erro: 'Muitas tentativas com token inválido. Espere alguns minutos.' } };
+    }
     await registrarEvento(sb, { direcao:'entrada', sucesso:false,
       resumo: esperado ? 'token inválido' : 'webhook sem token configurado',
       erro: erroCfg ? 'não consegui ler a configuração'
@@ -743,6 +765,14 @@ async function receberDoCodeWords(req, body) {
     return { status: 400, corpo: { ok: false, codigo: 'faltou-campo',
              erro: `Faltou ${!telefone ? 'o telefone (campo telefone/phone/from)' : 'o texto (campo mensagem/message/text)'} na mensagem recebida.`,
              recebido: Object.keys(body).slice(0, 20) } };
+  }
+  /* Rodada 10: telefone de verdade tem de 10 a 15 dígitos. Texto solto ("abc"), número curto e
+     grupo (18 dígitos ou mais, "@g.us") não viram conversa nem lead. */
+  const digitosTel = soDigitos(telefone.replace(/@.*$/, ''));
+  if (digitosTel.length < 10 || digitosTel.length > 15 || /@g\.us/i.test(telefone)) {
+    await registrarEvento(sb, { direcao:'entrada', sucesso:false, resumo:'telefone inválido', payload: recortarPayload(body) });
+    return { status: 400, corpo: { ok: false, codigo: 'telefone-invalido',
+             erro: 'O telefone da mensagem recebida não é válido: mande DDD + número (10 a 15 dígitos).' } };
   }
 
   const { error } = await sb.from('whatsapp_mensagens').insert({
@@ -773,12 +803,18 @@ async function baseDoGerenciador() {
   if (!sb) return null;
   const { data: cfg } = await sb.from('codewords_config').select('*').maybeSingle();
   if (!cfg?.api_key) return null;
-  const base = (cfg.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  /* Rodada 10: endereço que não é https e público não recebe a chave nem as conversas.
+     Fica como "não configurado" e o motivo aparece em Integrações (ultimo_erro). */
+  const dest = destinoDoCodeWords(cfg);
+  if (!dest.ok) {
+    if (cfg.ultimo_erro !== dest.erro) await sb.from('codewords_config').update({ ultimo_erro: dest.erro }).eq('id', true);
+    return null;
+  }
   return {
-    url: `${base}/run/${cfg.servico_conexao || 'whatsapp_device_manager'}`,
+    url: `${dest.base}/run/${dest.servico}`,
     chave: cfg.api_key,
     telefone: cfg.numero_whatsapp || NUMERO_DO_ATENDIMENTO,
-    fluxo: cfg.service_id || null,
+    fluxo: dest.fluxo,
     sb,
   };
 }
@@ -857,6 +893,23 @@ async function estadoDoWhatsApp() {
     return { conectado: null, motivo: `Não deu para falar com o CodeWords: ${e.message}` };
   }
 }
+
+/* Rodada 10: a tela pergunta o estado ao entrar, a cada 2 min e toda vez que a aba volta a ficar
+   visível, para cada pessoa logada. Cada pergunta era uma ida ao CodeWords. Agora a resposta vale
+   por 20 s e quem pergunta enquanto a consulta está no ar espera a mesma (uma ida só).
+   Parear, religar e trocar a chave esquecem a resposta guardada. */
+const ESTADO_ZAP_VALE_MS = 20_000;
+let ESTADO_ZAP = { em: 0, valor: null, indo: null };
+function estadoDoWhatsAppLembrado() {
+  if (ESTADO_ZAP.valor && Date.now() - ESTADO_ZAP.em < ESTADO_ZAP_VALE_MS) return Promise.resolve(ESTADO_ZAP.valor);
+  if (ESTADO_ZAP.indo) return ESTADO_ZAP.indo;
+  const indo = estadoDoWhatsApp().then(
+    valor => { if (ESTADO_ZAP.indo === indo) ESTADO_ZAP = { em: Date.now(), valor, indo: null }; return valor; },
+    e => { if (ESTADO_ZAP.indo === indo) ESTADO_ZAP.indo = null; throw e; });
+  ESTADO_ZAP.indo = indo;
+  return indo;
+}
+const esquecerEstadoDoWhatsApp = () => { ESTADO_ZAP = { em: 0, valor: null, indo: null }; };
 
 /* Pede um código de pareamento e já deixa a reinscrição encaminhada. */
 async function gerarCodigoDePareamento() {
@@ -1260,7 +1313,13 @@ async function enviarPeloCodeWordsDeVerdade({ telefone, corpo, nome, conversaId 
      WhatsApp; para envio ele responde {"status":"skip","message":"Own message
      or empty"} com HTTP 200 — ou seja, o painel dizia "enviado" e a mensagem
      nunca chegava ao cliente. Fica só como alternativa manual. */
-  const base = (cfg.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  // rodada 10: a mensagem do cliente e a chave só saem para endereço https e público
+  const dest = destinoDoCodeWords(cfg);
+  if (!dest.ok) {
+    await sb.from('codewords_config').update({ ultimo_erro: dest.erro }).eq('id', true);
+    return { ok: false, erro: dest.erro, codigo: 'destino_invalido' };
+  }
+  const base = dest.base;
   const porDispositivo = cfg.modo_envio !== 'fluxo';
 
   if (porDispositivo && !cfg.device_id) {
@@ -1289,9 +1348,9 @@ async function enviarPeloCodeWordsDeVerdade({ telefone, corpo, nome, conversaId 
      O valor continua guardado na coluna device_id — o que mudou foi só
      como o CodeWords quer recebê-lo. */
   const destino = porDispositivo
-    ? `${base}/run/${cfg.servico_conexao || 'whatsapp_device_manager'}`
+    ? `${base}/run/${dest.servico}`
       + `/proxy/send/message?phone_id=${encodeURIComponent(cfg.device_id)}`
-    : (cfg.url_envio || (cfg.service_id ? `${base}/run/${cfg.service_id}` : null));
+    : (dest.urlEnvio || (dest.fluxo ? `${base}/run/${dest.fluxo}` : null));
 
   if (!destino) {
     return { ok:false, desligado:true,
@@ -2200,8 +2259,10 @@ async function testarChaveCodeWords(chave) {
   const k = String(chave || cfg?.api_key || '').trim();
   if (!k) return { ok: false, resultado: 'outro', mensagem: 'Nenhuma chave salva para testar.' };
 
-  const base = (cfg?.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
-  const servico = cfg?.servico_conexao || 'whatsapp_device_manager';
+  const dest = destinoDoCodeWords(cfg || {});
+  if (!dest.ok) return { ok: false, resultado: 'outro', mensagem: dest.erro, status: 0, mascara: COM.mascararChave(k), salva: !chave };
+  const base = dest.base;
+  const servico = dest.servico;
   let status = 0, txt = '';
   try {
     const r = await fetch(`${base}/run/${servico}/connections`, {
@@ -2258,6 +2319,7 @@ async function salvarChaveCodeWords(chave, { testar = true } = {}) {
   if (r2.error) avisos.push(`Gravou aqui, mas não na Agenda (agenda_ia_config): ${r2.error.message}`);
   SAUDE_CACHE = { em: 0, dados: null };   // a faixa de saúde deve reavaliar logo
   ZAP.limpar();                            // chave nova: a próxima mensagem tenta de verdade
+  esquecerEstadoDoWhatsApp();              // e o estado da conexão é perguntado de novo
   pausaSincronia.aceita();                 // e a sincronia volta na próxima rodada (40 s), sem esperar a pausa
   return { ok: true, mascara: COM.mascararChave(k), salvoEm: ['codewords_config', ...(r2.error ? [] : ['agenda_ia_config'])],
            teste, avisos };
@@ -2339,6 +2401,7 @@ const ROTAS_EQUIPE = criarRotasEquipe({
 
 const ENTREGADOR = criarEntregador({ banco: () => adminSupabase(), enviar: d => enviarPeloCodeWords(d) });
 
+let PRIMEIRO_ACESSO_FECHADO = false;   // rodada 10: vira true na primeira vez que o banco diz que já há alguém cadastrado
 /* Rotas que respondem sem login (o resto de /api/ passa pelo porteiro). */
 const ROTAS_PUBLICAS = new Set(['/api/config', '/api/primeiro-acesso', '/api/webhook/codewords', '/api/status', '/api/ia/funil/acordar']);
 /* Rotas que ainda respondem com a verificação em duas etapas pendente
@@ -2376,6 +2439,10 @@ const handler = async (req, res) => {
     }
 
     if (pathname.startsWith('/api/')) {
+      /* Rodada 10: "%" torto no endereço (ex.: /api/clientes/%E0%A4%A/ficha) fazia o
+         decodeURIComponent das rotas lançar e virava erro 500 com código para o suporte. */
+      try { decodeURIComponent(pathname); }
+      catch { return json(res, 400, { erro: 'Endereço inválido.', codigo: 'endereco_invalido' }); }
       // CORS só para os apps do ecossistema, em todas as rotas de API
       SEG.aplicarCabecalhos(res, SEG.cabecalhosCors(req.headers.origin));
       if (req.method === 'OPTIONS') {
@@ -2543,13 +2610,20 @@ const handler = async (req, res) => {
        verdade (o @indycartaubate.com era recusado). Aqui a conta já nasce
        valendo. */
     if (pathname === '/api/primeiro-acesso' && req.method === 'GET') {
+      /* Rodada 10: a tela de entrada pergunta isto toda vez que abre, sem login. Depois que existe
+         alguém cadastrado a resposta não muda mais: fica lembrada e não vai ao banco de novo. */
+      if (PRIMEIRO_ACESSO_FECHADO) return json(res, 200, { aberto: false });
       const sb = adminSupabase();
       if (!sb) return json(res, 503, { aberto: false, erro: 'Servidor sem a chave do banco.' });
-      const { count } = await sb.from('perfis').select('id', { count: 'exact', head: true });
-      return json(res, 200, { aberto: (count ?? 0) === 0 });
+      const { count, error } = await sb.from('perfis').select('id', { count: 'exact', head: true });
+      if (!error && (count ?? 0) > 0) PRIMEIRO_ACESSO_FECHADO = true;
+      return json(res, 200, { aberto: !error && (count ?? 0) === 0 });
     }
 
     if (pathname === '/api/primeiro-acesso' && req.method === 'POST') {
+      if (PRIMEIRO_ACESSO_FECHADO) {
+        return json(res, 403, { erro: 'O sistema já tem gente cadastrada. Peça ao administrador para criar seu acesso.' });
+      }
       const sb = adminSupabase();
       if (!sb) return json(res, 503, { erro: 'Servidor sem a chave do banco configurada.' });
 
@@ -2587,6 +2661,7 @@ const handler = async (req, res) => {
          porque uma corrida entre dois cadastros simultâneos poderia deixar
          o dono como atendente no próprio sistema. */
       await sb.from('perfis').update({ nome, papel: 'admin', ativo: true, apps: ACS.APPS, precisa_trocar_senha: false }).eq('id', data.user.id);
+      PRIMEIRO_ACESSO_FECHADO = true;
       await auditar({ perfil: data.user.id, acao: 'equipe.primeiro_acesso', tabela: 'perfis', registro: data.user.id, detalhes: { email } });
       return json(res, 201, { ok: true, email });
     }
@@ -2622,6 +2697,7 @@ const handler = async (req, res) => {
       }
       if (req.method === 'POST') {
         const r = await receberDoCodeWords(req, await readBody(req));
+        if (r.espera) res.setHeader('Retry-After', String(r.espera));
         return json(res, r.status, r.corpo);
       }
       return json(res, 405, { erro: 'use POST' });
@@ -2651,7 +2727,7 @@ const handler = async (req, res) => {
       }
       /* Com mensagemId (a linha já gravada em whatsapp_mensagens), repetir o
          pedido não manda duas vezes — ver lib/entrega.js. */
-      const r = await ENTREGADOR.entregar(dados, bruto.mensagemId ? texto1(bruto.mensagemId, 60) : null);
+      const r = await ENTREGADOR.entregar(dados, bruto.mensagemId ? texto1(bruto.mensagemId, 60) : null, { conferirTelefone: true });
       if (r.status === 400 || r.status === 409) return json(res, r.status, r);
       // "desligado" não é erro: a mensagem fica registrada aqui mesmo assim
       return json(res, r.ok || r.desligado ? 200 : 502, r);
@@ -2677,11 +2753,21 @@ const handler = async (req, res) => {
 
       const telefone   = texto1(bruto.telefone, 40);
       const nomeArq    = (texto1(bruto.nome_arquivo, 150) || 'documento').replace(/[\\/:*?"<>|]/g, '_');
-      const mime       = texto1(bruto.mime, 100) || 'application/octet-stream';
+      /* Rodada 10: o tipo vai para o cabeçalho do Storage e para o aparelho. Fora do formato
+         "tipo/subtipo" vira arquivo comum (antes um tipo torto fazia a cópia falhar calada). */
+      const mimeBruto  = texto1(bruto.mime, 100).trim().toLowerCase();
+      const mime       = /^[a-z0-9][a-z0-9.+-]{0,40}[/][a-z0-9][a-z0-9.+-]{0,60}$/.test(mimeBruto) ? mimeBruto : 'application/octet-stream';
       const legenda    = texto1(bruto.legenda, 1000);
       const conversaId = texto1(bruto.conversaId, 60) || null;
       const b64 = typeof bruto.base64 === 'string' ? bruto.base64 : '';
       if (!telefone || !b64) return json(res, 400, { erro: 'informe telefone e o arquivo' });
+      /* A conversa entra no caminho da cópia (anexos/<conversa>/…), gravada com a chave de serviço:
+         só id de verdade. "../outro-balde" escreveria fora da pasta dos anexos. */
+      if (conversaId && !ehUuid(conversaId)) return json(res, 400, { erro: 'Conversa inválida. Abra a conversa de novo e tente outra vez.', codigo: 'conversa_invalida' });
+      const digitosArq = COM.normalizarTelefone(telefone);
+      if (digitosArq.length < 10 || digitosArq.length > 11) {
+        return json(res, 400, { erro: 'Telefone inválido: precisa de DDD + número (10 ou 11 dígitos).' });
+      }
 
       let arquivo;
       try { arquivo = Buffer.from(b64, 'base64'); }
@@ -2698,7 +2784,9 @@ const handler = async (req, res) => {
         return json(res, 503, { erro: 'WhatsApp da empresa não conectado — veja Configurações › Conexão.' });
       }
 
-      const base = (cfg.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+      const dest = destinoDoCodeWords(cfg);
+      if (!dest.ok) return json(res, 503, { erro: dest.erro, codigo: 'destino_invalido' });
+      const base = dest.base;
       const ehImagem = /^image\//i.test(mime);
       /* Áudio vai por send/audio: assim chega como MENSAGEM DE VOZ no
          WhatsApp (com a onda e o play), não como arquivo para baixar. */
@@ -2713,7 +2801,7 @@ const handler = async (req, res) => {
 
       try {
         const resposta = await fetch(
-          `${base}/run/${cfg.servico_conexao || 'whatsapp_device_manager'}`
+          `${base}/run/${dest.servico}`
           + `/proxy/${rota}`
           + `?phone_id=${encodeURIComponent(cfg.device_id)}`,
           { method: 'POST', headers: { Authorization: cfg.api_key }, body: fd,
@@ -2729,7 +2817,7 @@ const handler = async (req, res) => {
           try {
             caminhoAnexo = `${conversaId || 'avulso'}/${Date.now()}-${nomeArq}`;
             const up = await fetch(
-              `${process.env.SUPABASE_URL}/storage/v1/object/anexos/${encodeURI(caminhoAnexo)}`,
+              `${process.env.SUPABASE_URL}/storage/v1/object/anexos/${caminhoAnexo.split('/').map(encodeURIComponent).join('/')}`,
               { method: 'POST',
                 headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
                            'Content-Type': mime, 'x-upsert': 'true' },
@@ -2750,11 +2838,16 @@ const handler = async (req, res) => {
           anexo: caminhoAnexo, anexo_mime: caminhoAnexo ? mime : null,
         });
 
-        if (!ok) return json(res, 502, { erro: `o aparelho recusou o envio: ${texto.slice(0, 200)}` });
+        if (!ok) {
+          console.error('enviar arquivo: o aparelho respondeu', resposta.status, texto.slice(0, 300));
+          return json(res, 502, { erro: 'O aparelho do WhatsApp não aceitou o arquivo. Confira a conexão em Configurações e tente de novo.', codigo: 'aparelho_recusou' });
+        }
         return json(res, 200, { ok: true, nome: nomeArq });
       } catch (e) {
+        if (e.name !== 'TimeoutError') console.error('enviar arquivo:', e.message, e.cause?.code || '');
         return json(res, 502, { erro: e.name === 'TimeoutError'
-          ? 'O envio demorou demais — arquivo muito grande ou conexão lenta.' : e.message });
+          ? 'O envio demorou demais: arquivo muito grande ou conexão lenta.'
+          : 'Não consegui falar com o aparelho do WhatsApp agora. Tente de novo em instantes.', codigo: 'aparelho_fora' });
       }
     }
 
@@ -2790,11 +2883,19 @@ const handler = async (req, res) => {
       if (erroConv) { console.error('excluir conversa:', erroConv.message); return json(res, 503, { erro: 'Não consegui ler a conversa agora; nada foi apagado.' }); }
       if (!conv) return json(res, 404, { erro: 'Essa conversa já não existe.' });
 
-      const { data: msgs, error: erroMsgs } = await sb.from('whatsapp_mensagens')
-        .select('corpo, direcao, created_at').eq('conversa_id', id)
-        .order('created_at').limit(2000);
-      if (erroMsgs) {
+      /* Rodada 10: o Supabase entrega no máximo 1.000 linhas por pedido, com ou sem limit(). Com o
+         limit(2000) antigo, conversa longa tinha só as 1.000 primeiras mensagens na cópia e era
+         apagada inteira. Agora lê de 1.000 em 1.000 até o fim; se a conta não fechar, nada é apagado. */
+      let msgs;
+      try {
+        msgs = await paginar(sb, 'whatsapp_mensagens', 'corpo, direcao, created_at', q => q.eq('conversa_id', id).order('created_at'));
+      } catch (e) {
+        console.error('excluir conversa (ler mensagens):', e.message);
         return json(res, 500, { erro: 'Não consegui ler as mensagens para a cópia; nada foi apagado.' });
+      }
+      const { count: totalMsgs } = await sb.from('whatsapp_mensagens').select('id', { count: 'exact', head: true }).eq('conversa_id', id);
+      if (Number.isFinite(totalMsgs) && totalMsgs > msgs.length) {
+        return json(res, 500, { erro: 'A cópia de segurança não pegou todas as mensagens desta conversa; nada foi apagado. Avise o suporte.', codigo: 'copia_incompleta' });
       }
 
       /* A cópia de segurança é gravada ANTES e o erro é lido.
@@ -2873,8 +2974,8 @@ const handler = async (req, res) => {
 
       /* A prévia e a data da conversa vinham da mensagem apagada. Sem
          recalcular, a lista mostraria texto de mensagem que já não existe. */
-      const conversaId = msgs[0].conversa_id;
-      if (conversaId) {
+      // rodada 10: de todas as conversas tocadas (antes só a da primeira mensagem da lista)
+      for (const conversaId of [...new Set(msgs.map(x => x.conversa_id).filter(Boolean))].slice(0, 50)) {
         const { data: ultima } = await sb.from('whatsapp_mensagens')
           .select('corpo, created_at').eq('conversa_id', conversaId)
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -2913,7 +3014,7 @@ const handler = async (req, res) => {
     if (pathname === '/api/whatsapp/status' && req.method === 'GET') {
       const quem = await usuarioLogado(req);
       if (!quem) return json(res, 401, { erro: 'Faça login.' });
-      const r = await estadoDoWhatsApp();
+      const r = await estadoDoWhatsAppLembrado();
       return json(res, 200, r);
     }
 
@@ -2933,6 +3034,7 @@ const handler = async (req, res) => {
         return json(res, 429, { erro: 'Espere alguns minutos antes de pedir outro código.' });
       }
       const r = await gerarCodigoDePareamento();
+      esquecerEstadoDoWhatsApp();
       await auditar({ perfil: quem.id, acao: 'whatsapp.parear', tabela: 'codewords_config', detalhes: { ok: !!r.ok } });
       return json(res, r.ok ? 200 : 502, r);
     }
@@ -2945,7 +3047,12 @@ const handler = async (req, res) => {
         return json(res, 403, { erro: 'Só o administrador pode religar a conexão.' });
       }
       await readBody(req);
+      // rodada 10: cada pedido é uma ida ao CodeWords que mexe na inscrição do aparelho
+      if (!dentroDoLimite(`reinscrever:${quem.id}`, 6, 300_000)) {
+        return json(res, 429, { erro: 'Muitas tentativas de religar seguidas. Espere alguns minutos.', codigo: 'muitas_tentativas' });
+      }
       const r = await reinscreverNoFluxo();
+      esquecerEstadoDoWhatsApp();
       await auditar({ perfil: quem.id, acao: 'whatsapp.reinscrever', tabela: 'codewords_config', detalhes: { ok: !!r.ok } });
       return json(res, r.ok ? 200 : 502, r);
     }
@@ -3040,6 +3147,10 @@ const handler = async (req, res) => {
         return json(res, 403, { erro: 'Só o administrador pode testar a conexão.' });
       }
       await readBody(req);   // consome o corpo; o número de destino é fixo de propósito
+      // rodada 10: cada teste é um WhatsApp de verdade no celular do dono e gasta cota
+      if (!dentroDoLimite(`testar-envio:${quem.id}`, 5, 600_000)) {
+        return json(res, 429, { erro: 'Muitos testes seguidos. Espere alguns minutos.', codigo: 'muitas_tentativas' });
+      }
       const r = await enviarPeloCodeWords({
         telefone: TELEFONE_DO_TESTE,
         corpo: '🏁 Teste de conexão do painel de atendimento da IndyCar.',
@@ -3065,7 +3176,8 @@ const handler = async (req, res) => {
 
       const hoje = partesLocais(new Date()).dia;
       const trintaDias = partesLocais(new Date(Date.now() - 29 * DIA_MS)).dia;
-      const dataValida = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+      // rodada 10: dia que não existe (31/02) não vale; antes o relatório contava de 03/03 sem avisar
+      const dataValida = v => !!SEG.dataISO(v);
 
       let de  = parametros.get('de')  || trintaDias;
       let ate = parametros.get('ate') || hoje;

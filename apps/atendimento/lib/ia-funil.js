@@ -26,6 +26,8 @@
    de mentira.
    ============================================================ */
 'use strict';
+const { mensagemEhAviso } = require('./aviso-sistema.js');
+const { fraseDoBanco } = require('./seguranca.js');
 
 const CTX = require('./contexto.js');
 const { avisarConversa } = require('./aviso-conversa');
@@ -102,7 +104,7 @@ function minutosEsperando(mensagens = [], agora = new Date()) {
   let primeira = null;
   for (let i = mensagens.length - 1; i >= 0; i--) {
     const m = mensagens[i];
-    if (!m) continue;
+    if (!m || mensagemEhAviso(m)) continue;     // rodada 10: nota do sistema não é o cliente esperando
     if (m.direcao === 'saida') break;
     if (m.direcao === 'entrada' && Number.isFinite(Date.parse(m.created_at || ''))) primeira = m;
   }
@@ -111,7 +113,7 @@ function minutosEsperando(mensagens = [], agora = new Date()) {
 /** Rodada 7: rajada de mensagens do cliente nos últimos minutos. */
 function emRajada(mensagens = [], agora = new Date(), { minimo = RAJADA_MENSAGENS, janelaMin = RAJADA_JANELA_MIN } = {}) {
   const limite = Number(agora) - janelaMin * 60_000;
-  return (mensagens || []).filter(m => m && m.direcao === 'entrada' && Date.parse(m.created_at || '') >= limite).length >= minimo;
+  return (mensagens || []).filter(m => m && m.direcao === 'entrada' && !mensagemEhAviso(m) && Date.parse(m.created_at || '') >= limite).length >= minimo;
 }
 
 /** Um atendente humano (não a IA) escreveu nos últimos `min` minutos? */
@@ -119,7 +121,7 @@ function humanoEscreveuRecentemente(mensagens = [], agora = new Date(), min = HU
   const limite = Number(agora) - min * 60_000;
   return (mensagens || []).some(m => m && m.direcao === 'saida' && !m.gerada_por_ia
     && Number.isFinite(Date.parse(m.created_at || '')) && Date.parse(m.created_at) >= limite
-    && !/^\s*\[sistema\]/i.test(String(m.corpo || '')));
+    && !mensagemEhAviso(m));
 }
 
 /** Cliente com horário futuro e conversa ainda na primeira etapa (ou sem etapa) → etapa "Agendado". */
@@ -447,7 +449,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
   async function estado() {
     const desde = copiloto.inicioDoDia();
     const { data, error } = await sb.from('at_ia_fila').select('id,status,conversa_id,created_at,concluido_em,motivo').gte('created_at', desde).limit(2000);
-    if (error) return { ok: false, erro: error.message };
+    if (error) return { ok: false, erro: fraseDoBanco(error, 'ler a fila da IA') };
     const por = { pendente: 0, processando: 0, feita: 0, pulada: 0, erro: 0 };
     for (const l of data || []) por[l.status] = (por[l.status] || 0) + 1;
     return { ok: true, hoje: por, processando: (data || []).filter(l => l.status === 'processando').map(l => l.conversa_id) };
@@ -459,7 +461,7 @@ function criarFunil({ sb, copiloto, contexto, agora = () => new Date(), log = co
     const { data, error } = await sb.from('ia_acoes')
       .select('id,tipo,status,resumo,conversa_id,cliente_id,perfil_id,created_at,executada_em,erro,saida,entrada')
       .eq('origem', 'atendimento').gte('created_at', desde).order('created_at', { ascending: false }).limit(limite);
-    if (error) return { ok: false, status: 503, erro: error.message };
+    if (error) return { ok: false, status: 503, erro: fraseDoBanco(error, 'ler o que a IA fez hoje') };
     const acoes = (data || []).filter(a => !['classificar', 'resumir', 'config', 'sugerir', 'classificar_etapa', 'resumo_do_dia'].includes(a.tipo));
     const ids = [...new Set(acoes.map(a => a.conversa_id).filter(Boolean))];
     let nomes = {};

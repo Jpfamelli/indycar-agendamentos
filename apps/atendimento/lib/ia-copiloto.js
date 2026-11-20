@@ -22,6 +22,7 @@
 
 const crypto = require('node:crypto');
 const COM = require('./comunicar.js');
+const { fraseDoBanco } = require('./seguranca.js');
 const H = require('./horarios.js');
 const CTX = require('./contexto.js');
 const TAR = require('./tarefas.js');
@@ -422,7 +423,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
     }
     if (!Object.keys(muda).length) return { ok: false, status: 400, erro: 'Nada para mudar.' };
     const { error } = await sb.from('ia_config').upsert({ id: true, ...muda, updated_at: agora().toISOString() });
-    if (error) return { ok: false, status: 503, erro: 'Não consegui gravar a configuração: ' + error.message };
+    if (error) return { ok: false, status: 503, erro: fraseDoBanco(error, 'gravar a configuração') };
     await registrar({ tipo: 'config', status: 'executada', perfil_id: perfil?.id || null, origem: 'sistema',
       resumo: `Configuração da IA alterada: ${Object.keys(muda).join(', ')}`, entrada: { antes: pick(atual, Object.keys(muda)), depois: muda },
       executada_em: agora().toISOString() });
@@ -444,7 +445,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
     if (!forcar && usoCache.dados && usoCache.desde === desde && Date.now() - usoCache.em < 10_000) return usoCache.dados;
     const { data, error } = await sb.from('ia_acoes').select('tipo,perfil_id,tokens_entrada,tokens_saida,status')
       .eq('origem', origem).gte('created_at', desde).limit(10000);
-    if (error) return { chamadas: 0, tokensEntrada: 0, tokensSaida: 0, porTipo: {}, porPerfil: {}, erro: error.message };
+    if (error) return { chamadas: 0, tokensEntrada: 0, tokensSaida: 0, porTipo: {}, porPerfil: {}, erro: fraseDoBanco(error) };
     const u = { chamadas: 0, tokensEntrada: 0, tokensSaida: 0, porTipo: {}, porPerfil: {}, executadas: 0, recusadas: 0, desde };
     for (const a of data || []) {
       u.porTipo[a.tipo] = (u.porTipo[a.tipo] || 0) + 1;
@@ -463,7 +464,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
 
   async function registrar(linha) {
     const { data, error } = await sb.from('ia_acoes').insert({ origem, ...linha }).select('id,created_at').single();
-    if (error) throw new Error('Não consegui registrar a ação da IA: ' + error.message);
+    if (error) throw Object.assign(new Error(fraseDoBanco(error, 'registrar a ação da IA')), { amigavel: true });
     if (usoCache.dados) {
       usoCache.dados.tokensEntrada += Number(linha.tokens_entrada) || 0;
       usoCache.dados.tokensSaida += Number(linha.tokens_saida) || 0;
@@ -938,7 +939,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
   async function lerAcao(id) {
     if (!COM.ehUuid(id)) return { erro: 'id de ação inválido', status: 400 };
     const { data, error } = await sb.from('ia_acoes').select('*').eq('id', id).maybeSingle();
-    if (error) return { erro: error.message, status: 503 };
+    if (error) return { erro: fraseDoBanco(error), status: 503 };
     if (!data) return { erro: 'Ação não encontrada.', status: 404 };
     if (data.origem !== origem) return { erro: 'Esta ação é de outro app.', status: 403 };
     return { acao: data };
@@ -966,7 +967,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
 
     let r;
     try { r = await efeito(acao, perfil); }
-    catch (e) { r = { ok: false, erro: e.message || 'falha ao executar' }; }
+    catch (e) { if (!e?.amigavel) console.error('[copiloto] executar:', e?.stack || e?.message || e); r = { ok: false, erro: e?.amigavel ? e.message : 'Não consegui executar essa ação agora. Tente de novo em instantes.' }; }
     if (!r.ok) {
       await sb.from('ia_acoes').update({ status: 'erro', erro: String(r.erro).slice(0, 300) }).eq('id', id);
       return { ok: false, status: r.status || 422, erro: r.erro };
@@ -998,7 +999,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
     if (!pego || !pego.length) return { ok: false, status: 409, erro: 'Outra pessoa já mexeu nesta ação.' };
     let r;
     try { r = await reverter(acao); }
-    catch (e) { r = { ok: false, erro: e.message }; }
+    catch (e) { if (!e?.amigavel) console.error('[copiloto] desfazer:', e?.stack || e?.message || e); r = { ok: false, erro: e?.amigavel ? e.message : 'Não consegui desfazer agora. Tente de novo em instantes.' }; }
     if (!r.ok) {
       await sb.from('ia_acoes').update({ status: 'executada', erro: `desfazer falhou: ${String(r.erro).slice(0, 200)}` }).eq('id', id);
       return { ok: false, status: 422, erro: r.erro };
@@ -1013,7 +1014,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
     const { data, error } = await sb.from('ia_acoes')
       .select('id,tipo,status,resumo,entrada,saida,erro,modelo,tokens_entrada,tokens_saida,duracao_ms,created_at,executada_em,perfil_id')
       .eq('conversa_id', conversaId).eq('origem', origem).order('created_at', { ascending: false }).limit(Math.min(100, limite));
-    if (error) return { ok: false, status: 503, erro: error.message };
+    if (error) return { ok: false, status: 503, erro: fraseDoBanco(error) };
     return { ok: true, acoes: (data || []).map(a => ({ ...a, entrada: publico(a.entrada), reversivel: REVERSIVEIS.has(a.tipo) && a.status === 'executada' })) };
   }
 
@@ -1067,7 +1068,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
         if (lead) {
           leadAntes = { status: lead.status, servico: lead.servico };
           const { error } = await sb.from('leads').update({ servico: p.servico, servico_id: p.servico_id || undefined }).eq('id', lead.id);
-          if (error) return { ok: false, erro: 'Lead: ' + error.message };
+          if (error) return { ok: false, erro: fraseDoBanco(error, 'gravar o lead') };
         } else {
           const { data, error } = await sb.from('leads').insert({
             nome, telefone, carro_modelo: p.veiculo || null, placa: p.placa || null, servico: p.servico,
@@ -1075,7 +1076,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
             responsavel_id: conv.atribuida_a || null,
             observacoes: p.observacoes || (pelaIA ? 'Agendado pela IA do atendimento (WhatsApp).' : 'Agendado pelo copiloto do atendimento.'),
           }).select('id,cliente_id').single();
-          if (error) return { ok: false, erro: 'Lead: ' + error.message };
+          if (error) return { ok: false, erro: fraseDoBanco(error, 'gravar o lead') };
           lead = data; leadCriado = true;
         }
         const clienteId = lead.cliente_id || ficha.cliente?.id || conv.cliente_id || null;
@@ -1107,7 +1108,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
           agendamentos: comDuracao(agenda, fixos.servicos), capacidade: Math.max(1, fixos.consultores.length) });
         if (!v.ok) return { ok: false, status: 409, erro: `Não deu para remarcar: ${v.motivo}` };
         const { error } = await sb.from('agendamentos').update({ data: v.data, hora: v.hora }).eq('id', ag.id);
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         return { ok: true, agendamento_id: ag.id, saida: { antes: { data: ag.data, hora: ag.hora }, depois: { data: v.data, hora: v.hora } },
           mensagem: `Remarcado para ${H.rotuloHorario(v.data, v.hora)}.` };
       }
@@ -1117,7 +1118,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
         if (!ag) return { ok: false, status: 409, erro: 'Esse horário não está mais ativo.' };
         const obs = [ag.observacoes, `Cancelado pelo atendimento (copiloto): ${p.motivo || 'pedido do cliente'}`].filter(Boolean).join(' · ').slice(0, 1000);
         const { error } = await sb.from('agendamentos').update({ status: 'cancelado', observacoes: obs }).eq('id', ag.id);
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         return { ok: true, agendamento_id: ag.id, saida: { antes: { status: ag.status, observacoes: ag.observacoes || null } }, mensagem: 'Horário cancelado.' };
       }
 
@@ -1127,7 +1128,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
         let q = sb.from('conversas').update({ etapa_id: p.etapa_id, etapa_por_ia: true }).eq('id', conversaId);
         q = atual ? q.eq('etapa_id', atual) : q.is('etapa_id', null);
         const { data, error } = await q.select('id');
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         if (!data?.length) return { ok: false, status: 409, erro: 'Alguém mudou a etapa agora mesmo.' };
         return { ok: true, saida: { antes: p.antes, depois: { etapa_id: p.etapa_id, etapa: p.etapa } }, mensagem: `Etapa: ${p.etapa}.` };
       }
@@ -1149,7 +1150,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
         }
         const antesReal = pick(ficha.cliente || {}, Object.keys(campos));
         const { error } = await sb.from('clientes').update(campos).eq('id', clienteId);
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         return { ok: true, cliente_id: clienteId, saida: { cliente_id: clienteId, antes: antesReal, depois: campos, cliente_criado: criado }, mensagem: 'Ficha atualizada.' };
       }
 
@@ -1162,7 +1163,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
           if (p.valor) muda.valor_orcado = p.valor;
           const antes = pick(lead, Object.keys(muda));
           const { error } = await sb.from('leads').update(muda).eq('id', lead.id);
-          if (error) return { ok: false, erro: error.message };
+          if (error) return { ok: false, erro: fraseDoBanco(error) };
           return { ok: true, lead_id: lead.id, saida: { lead_id: lead.id, antes, depois: muda, criado: false }, mensagem: 'Interesse registrado no lead aberto.' };
         }
         const { data, error } = await sb.from('leads').insert({
@@ -1171,14 +1172,14 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
           servico: p.servico, servico_id: p.servico_id || null, valor_orcado: p.valor || 0,
           origem: 'whatsapp', status: 'orcamento', observacoes: p.observacoes || 'Interesse registrado pelo copiloto do atendimento.',
         }).select('id,cliente_id').single();
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         if (!conv.cliente_id && data.cliente_id) await sb.from('conversas').update({ cliente_id: data.cliente_id }).eq('id', conversaId);
         return { ok: true, lead_id: data.id, cliente_id: data.cliente_id, saida: { lead_id: data.id, criado: true }, mensagem: 'Lead criado no CRM (orçamento).' };
       }
 
       case 'marcar_aguardando_consultor': {
         const { error } = await sb.from('conversas').update({ aguardando_consultor: true, aguardando_desde: agora().toISOString() }).eq('id', conversaId);
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         return { ok: true, saida: { antes: { aguardando_consultor: !!conv.aguardando_consultor, aguardando_desde: conv.aguardando_desde || null } }, mensagem: 'Marcado: aguardando consultor.' };
       }
 
@@ -1189,7 +1190,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
           tipo: 'avulsa', corpo: p.texto, enviar_em: p.enviar_em, status: 'pendente', criado_por: 'copiloto',
           chave_unica: `copiloto:${acao.id}`, conversa_id: conversaId, lead_id: ficha.leadAberto?.id || null,
         }).select('id').single();
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         return { ok: true, saida: { envio_id: data.id }, mensagem: `Retorno programado para ${H.rotuloHorario(p.data, p.hora)}.` };
       }
       case 'criar_tarefa': {
@@ -1216,7 +1217,7 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
     switch (acao.tipo) {
       case 'agendar': {
         const { error } = await sb.from('agendamentos').update({ status: 'cancelado', observacoes: 'Desfeito no copiloto do atendimento.' }).eq('id', s.agendamento_id);
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         if (s.lead_criado) {
           // lead nasceu desta ação e nada mais o usa: sai do CRM em vez de virar "perdido" falso
           const { data: outros } = await sb.from('agendamentos').select('id').eq('lead_id', s.lead_id).neq('id', s.agendamento_id).limit(1);
@@ -1229,41 +1230,41 @@ function criarCopiloto({ sb, contexto, criarIA, persona = '', agora = () => new 
       }
       case 'remarcar': {
         const { error } = await sb.from('agendamentos').update({ data: s.antes.data, hora: s.antes.hora }).eq('id', acao.agendamento_id || acao.entrada.agendamento_id);
-        return error ? { ok: false, erro: error.message } : { ok: true, mensagem: 'Voltou para o horário anterior.' };
+        return error ? { ok: false, erro: fraseDoBanco(error) } : { ok: true, mensagem: 'Voltou para o horário anterior.' };
       }
       case 'cancelar_agendamento': {
         const { error } = await sb.from('agendamentos').update({ status: s.antes.status, observacoes: s.antes.observacoes }).eq('id', acao.agendamento_id || acao.entrada.agendamento_id);
-        return error ? { ok: false, erro: error.message } : { ok: true, mensagem: 'Horário reativado.' };
+        return error ? { ok: false, erro: fraseDoBanco(error) } : { ok: true, mensagem: 'Horário reativado.' };
       }
       case 'mover_etapa': {
         const { error } = await sb.from('conversas').update({ etapa_id: s.antes?.etapa_id || null, etapa_por_ia: false }).eq('id', conversaId);
-        return error ? { ok: false, erro: error.message } : { ok: true, mensagem: `Etapa voltou para ${s.antes?.etapa || 'sem etapa'}.` };
+        return error ? { ok: false, erro: fraseDoBanco(error) } : { ok: true, mensagem: `Etapa voltou para ${s.antes?.etapa || 'sem etapa'}.` };
       }
       case 'atualizar_ficha': {
         const volta = { ...(s.antes || {}) };
         for (const k of Object.keys(s.depois || {})) if (!(k in volta)) volta[k] = null;
         if ('aceita_mensagens' in volta && volta.aceita_mensagens === null) volta.aceita_mensagens = true;
         const { error } = await sb.from('clientes').update(volta).eq('id', s.cliente_id);
-        return error ? { ok: false, erro: error.message } : { ok: true, mensagem: 'Ficha voltou como estava.' };
+        return error ? { ok: false, erro: fraseDoBanco(error) } : { ok: true, mensagem: 'Ficha voltou como estava.' };
       }
       case 'registrar_interesse': {
         if (s.criado) {
           const { data: ags } = await sb.from('agendamentos').select('id').eq('lead_id', s.lead_id).limit(1);
           if (ags?.length) return { ok: false, erro: 'O lead já tem horário marcado — desfaça pela Agenda/CRM.' };
           const { error } = await sb.from('leads').delete().eq('id', s.lead_id);
-          return error ? { ok: false, erro: error.message } : { ok: true, mensagem: 'Lead removido do CRM.' };
+          return error ? { ok: false, erro: fraseDoBanco(error) } : { ok: true, mensagem: 'Lead removido do CRM.' };
         }
         const { error } = await sb.from('leads').update(s.antes || {}).eq('id', s.lead_id);
-        return error ? { ok: false, erro: error.message } : { ok: true, mensagem: 'Lead voltou como estava.' };
+        return error ? { ok: false, erro: fraseDoBanco(error) } : { ok: true, mensagem: 'Lead voltou como estava.' };
       }
       case 'marcar_aguardando_consultor': {
         const { error } = await sb.from('conversas').update(s.antes || { aguardando_consultor: false, aguardando_desde: null }).eq('id', conversaId);
-        return error ? { ok: false, erro: error.message } : { ok: true, mensagem: 'Saiu de "aguardando consultor".' };
+        return error ? { ok: false, erro: fraseDoBanco(error) } : { ok: true, mensagem: 'Saiu de "aguardando consultor".' };
       }
       case 'agendar_retorno': {
         const { data, error } = await sb.from('posvenda_envios').update({ status: 'cancelado', motivo_pulado: 'desfeito no copiloto' })
           .eq('id', s.envio_id).eq('status', 'pendente').select('id');
-        if (error) return { ok: false, erro: error.message };
+        if (error) return { ok: false, erro: fraseDoBanco(error) };
         if (!data?.length) return { ok: false, erro: 'A mensagem já saiu (ou não está mais na fila).' };
         return { ok: true, mensagem: 'Retorno tirado da fila.' };
       }

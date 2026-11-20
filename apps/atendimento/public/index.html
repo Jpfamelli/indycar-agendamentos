@@ -1477,8 +1477,9 @@
     <h3 id="confirmarTitulo">Tem certeza?</h3>
     <p class="modal-sub" id="confirmarTexto"></p>
     <label class="caixinha caixinha-bloco" id="confirmarCaixaRotulo" hidden><input type="checkbox" id="confirmarCaixa" /> <span id="confirmarCaixaTexto"></span></label>
+    <label class="confirmar-campo" id="confirmarCampoRotulo" hidden><span id="confirmarCampoTexto"></span><input type="text" id="confirmarCampo" autocomplete="off" maxlength="200" /></label>
     <div class="modal-acoes">
-      <button type="button" class="btn btn-ghost sm" data-fechar="modalConfirmarBg">Cancelar</button>
+      <button type="button" class="btn btn-ghost sm" id="btnConfirmarNao" data-fechar="modalConfirmarBg">Cancelar</button>
       <button type="button" class="btn btn-excluir sm" id="btnConfirmarOk">Confirmar</button>
     </div>
   </div>

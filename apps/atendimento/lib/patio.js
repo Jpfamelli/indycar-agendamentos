@@ -14,6 +14,7 @@
    O banco é injetado (sb) para testar com dublê.
    ============================================================ */
 'use strict';
+const { avisoDeLeitura } = require('./seguranca.js');
 
 const PATIO_URL = 'https://indycar-patio.netlify.app';
 
@@ -152,7 +153,7 @@ function criarPatio({ sb, agora = () => new Date() } = {}) {
       else if (telefones.length) q = q.in('telefone', telefones);
       else return { ordem: null };
       const { data: ordens, error } = await q.order('created_at', { ascending: false }).limit(5);
-      if (error) { avisos.push('pátio: ' + error.message); return { ordem: null }; }
+      if (error) { avisos.push(avisoDeLeitura('pátio', error)); return { ordem: null }; }
       const os = escolherOrdem(ordens || [], agora());
       if (!os) return { ordem: null };
       const [{ data: extras }, base] = await Promise.all([
@@ -160,7 +161,7 @@ function criarPatio({ sb, agora = () => new Date() } = {}) {
         linkBase(),
       ]);
       return { ordem: resumoDaOs(os, extras || [], base, agora()), base };
-    } catch (e) { avisos.push('pátio: ' + e.message); return { ordem: null }; }
+    } catch (e) { avisos.push(avisoDeLeitura('pátio', e)); return { ordem: null }; }
   }
 
   /** Link novo da Área do Cliente (a rpc devolve o token UMA vez e guarda só o hash). */
