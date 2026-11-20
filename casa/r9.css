@@ -133,3 +133,8 @@ button.t-texto:hover { text-decoration: underline dotted; }
 @media (hover: none) and (pointer: coarse) {
   .busca-pe, .kbd-css, .acao-busca kbd, .busca-cmd kbd { display: none; }
 }
+
+/* aviso do pé: com "left: 50%" e "translateX(-50%)" ele só podia ter metade da largura da tela; no celular um aviso
+   comprido virava uma coluna de 188 px e 9 linhas por cima do "Entrar" e do "Esqueci a senha". Agora usa a largura
+   que tiver (até 560 px), centralizado, acima da barra do sistema no iPhone. */
+.toast { left: 16px; right: 16px; transform: none; width: fit-content; max-width: min(560px, calc(100vw - 32px)); margin: 0 auto; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
