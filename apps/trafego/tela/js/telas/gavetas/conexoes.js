@@ -40,9 +40,10 @@ export function montar(ctx, alvo) {
   let saiu = false;
   trocar(alvo, h('p', { class: 'suave', role: 'status' }, 'Carregando as conexões…'));
 
-  async function carregar() {
+  // fresco: depois de uma busca pedida na tela, o servidor não pode responder com a memória de 30 s de antes dela.
+  async function carregar({ fresco = false } = {}) {
     const ler = (c) => ctx.leitor.ler(c, { forcar: true }).then((r) => r.dados, (e) => ({ __erro: e }));
-    const [conexoes, situacao, integracoes, rastreio] = await Promise.all([ler('api/conexoes'), ler('api/coleta/situacao'), ler('api/integracoes'), ler('api/origem/rastreio')]);
+    const [conexoes, situacao, integracoes, rastreio] = await Promise.all([ler('api/conexoes' + (fresco ? '?fresco=1' : '')), ler('api/coleta/situacao'), ler('api/integracoes'), ler('api/origem/rastreio')]);
     if (saiu) return;
     if (conexoes.__erro) {
       trocar(alvo, h('p', { class: 'campo-erro', role: 'alert' }, fraseDoErro(conexoes.__erro)), h('button', { class: 'botao', type: 'button', on: { click: carregar } }, icone('atualizar'), 'Tentar de novo'));
@@ -241,6 +242,13 @@ function blocoDaColeta(ctx, situacao, temConta, recarregar) {
       ctx.leitor.esquecer('api/');
       trocar(resultado, h('p', { class: 'apoio' }, r.ja_estava_rodando ? 'Já havia uma busca rodando; este é o resultado dela.' : 'Busca feita agora.'), h('ul', { class: 'coleta-lista' }, resumoDaColeta(r)));
       ctx.avisar('Números atualizados.');
+      // Os cartões de cima ("Números buscados há 16 h", acesso vencendo) também mudam com a busca: antes ficavam velhos
+      // até sair e voltar. A gaveta é refeita e o foco volta para o botão.
+      if (recarregar) {
+        await recarregar({ fresco: true });
+        const novo = document.querySelector('.coleta .botao');
+        if (novo && novo !== botao) novo.focus();
+      }
     } catch (erro) {
       trocar(resultado, h('p', { class: erro && erro.status === 429 ? 'apoio' : 'campo-erro', role: 'alert' }, fraseDoErro(erro)));
     } finally {

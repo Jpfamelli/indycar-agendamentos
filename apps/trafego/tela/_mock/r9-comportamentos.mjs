@@ -153,6 +153,18 @@ export const CASOS = {
     await pagina.waitForFunction(() => document.querySelector('.relatorio-saida')?.getAttribute('aria-busy') === 'false');
     conferir(pedidos === 1, 'o toque pede o texto de novo (' + pedidos + ')');
   },
+
+  /* Conexões › Buscar os números agora: os cartões de cima são relidos (sem a memória do servidor) e o foco volta ao botão. */
+  async 'conexoes-buscar'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/ajustes?secao=conexoes', { waitUntil: 'networkidle0' });
+    const lidas = [];
+    pagina.on('request', (r) => { if (r.url().includes('api/conexoes')) lidas.push(r.url()); });
+    await pagina.click('.coleta .botao');
+    await pagina.waitForSelector('.toast');
+    await pagina.waitForFunction(() => document.activeElement && document.activeElement.matches('.coleta .botao'), { timeout: 8000 });
+    conferir(lidas.some((u) => u.includes('fresco=1')), 'releu as conexões sem memória: ' + lidas.join(', '));
+    conferir(/pedida na tela/.test(await texto(pagina, '.coleta-resultado')), 'a última busca é a pedida agora');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();
