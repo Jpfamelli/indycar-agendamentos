@@ -901,7 +901,13 @@ async function handler(req, res) {
         const bruto = await readBody(req);
         const nome  = texto1(bruto.nome, 80).trim();
         const email = texto1(bruto.email, 160).trim().toLowerCase();
-        const senha = texto1(bruto.senha, 200);
+        if (typeof bruto.senha !== 'string' || bruto.senha.length > 200) {
+          return json(res, 400, { erro: 'Informe uma senha de até 200 caracteres.' });
+        }
+        if (bruto.trocar_senha !== undefined && typeof bruto.trocar_senha !== 'boolean') {
+          return json(res, 400, { erro: 'Informe se a pessoa precisa trocar a senha.' });
+        }
+        const senha = bruto.senha;
         const papel = U.PAPEIS.includes(bruto.papel) ? bruto.papel : 'atendente'; // 'agenda' = so presenca
         if (bruto.apps !== undefined && (!Array.isArray(bruto.apps) || bruto.apps.some(a => !U.APPS.includes(a)))) return json(res, 400, { erro: `Apps válidos: ${U.APPS.join(', ')}.` });
         const apps = papel === 'agenda' ? ['agenda'] : (Array.isArray(bruto.apps) ? [...new Set(bruto.apps)] : U.APPS);
@@ -946,7 +952,8 @@ async function handler(req, res) {
 
         const bruto = await readBody(req);
         const id    = texto1(bruto.id, 60);
-        const papel = U.PAPEIS.includes(bruto.papel) ? bruto.papel : 'atendente'; // 'agenda' = so presenca
+        if (!U.PAPEIS.includes(bruto.papel)) return json(res, 400, { erro: 'Escolha uma função válida.' });
+        const papel = bruto.papel;
         if (!ehUuid(id)) return json(res, 400, { erro: 'Informe quem você quer alterar.' });
 
         const sb = adminSupabase();
@@ -988,6 +995,7 @@ async function handler(req, res) {
         if (!ehAdmin) return json(res, 403, { erro: 'Só o administrador faz isso.' });
 
         const bruto = await readBody(req);
+        if (typeof bruto.ativo !== 'boolean') return json(res, 400, { erro: 'Informe se o acesso ficará ativo.' });
         const id = texto1(bruto.id, 60);
         if (!ehUuid(id)) return json(res, 400, { erro: 'Informe quem você quer alterar.' });
         if (id === quem.id) {
