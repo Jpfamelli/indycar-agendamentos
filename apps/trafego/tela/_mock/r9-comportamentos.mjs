@@ -54,6 +54,26 @@ export const CASOS = {
     conferir(await pagina.$eval('.diario-item:nth-child(6)', (el) => document.activeElement === el), 'o foco vai para a primeira que estava escondida');
   },
 
+  /* Gestor › Para decidir: recusar pede o segundo toque, aceita o porquê e o diário mostra a nota. */
+  async 'gestor-recusar'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/gestor', { waitUntil: 'networkidle0' });
+    const recusar = await pagina.$('.proposta .proposta-botoes .botao-quieto');
+    await recusar.click();
+    conferir(await pagina.$eval('.proposta-recusa textarea', (el) => document.activeElement === el), 'o foco vai para o porquê');
+    await pagina.keyboard.press('Escape');
+    conferir(!(await pagina.$('.proposta-recusa')), 'Esc volta sem recusar');
+    conferir(await pagina.evaluate(() => document.activeElement && document.activeElement.textContent.trim() === 'Recusar'), 'o foco volta para Recusar');
+    const titulo = await texto(pagina, '.proposta .proposta-titulo');
+    await pagina.click('.proposta .proposta-botoes .botao-quieto');
+    await pagina.type('.proposta-recusa textarea', 'Freio dá mais margem que óleo');
+    await pagina.click('.proposta-recusa .botao-forte');
+    await pagina.waitForSelector('.toast');
+    conferir(/Recusada/.test(await texto(pagina, '.toast')), 'aviso de recusada');
+    const itens = await pagina.$$eval('.diario-item', (l) => l.map((li) => li.textContent.replace(/\s+/g, ' ')));
+    const doDiario = itens.find((t) => t.includes(titulo));
+    conferir(doDiario && doDiario.includes('Recusada') && doDiario.includes('Nota: Freio dá mais margem que óleo'), 'o diário mostra a recusa com a nota');
+  },
+
   /* Gestor › pergunta pronta: no celular o toque não cai na barra de baixo, e o foco vai para a resposta (não some). */
   async 'gestor-pergunta-pronta'(pagina, endereco) {
     await pagina.goto(endereco + '?cenario=cheio#/gestor', { waitUntil: 'networkidle0' });

@@ -260,6 +260,15 @@ ol.fala-lista {
   align-items: center;
   gap: var(--p-esp-3);
 }
+/* Recusar: o porquê (opcional) e a confirmação, no lugar dos botões. */
+.proposta-recusa {
+  display: grid;
+  gap: var(--p-esp-3);
+  max-width: var(--medida-texto);
+}
+.proposta-recusa textarea {
+  width: 100%;
+}
 
 /* ------------------------------ plano ------------------------------ */
 .gestor-plano {

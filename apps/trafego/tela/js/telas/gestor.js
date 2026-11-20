@@ -198,11 +198,11 @@ export function mostrar(ctxInicial) {
   }
 
   /* --- para decidir e diário --- */
-  async function decidir(a, decisao, botao) {
+  async function decidir(a, decisao, botao, nota) {
     const card = botao.closest('.proposta');
     for (const b of card.querySelectorAll('button')) b.disabled = true;
     try {
-      const r = await ctx.api.gravar('api/acoes-trafego/' + encodeURIComponent(a.id) + '/' + (decisao === 'feita' ? 'feita' : 'decidir'), decisao === 'feita' ? {} : { decisao });
+      const r = await ctx.api.gravar('api/acoes-trafego/' + encodeURIComponent(a.id) + '/' + (decisao === 'feita' ? 'feita' : 'decidir'), decisao === 'feita' ? {} : { decisao, ...(nota ? { nota } : {}) });
       const nova = r && (r.acao || r.registro || (r.id ? r : null));
       acoes = acoes.map((x) => (String(x.id) === a.id ? (nova || { ...x, status: decisao === 'aceitar' ? 'aceita' : decisao === 'recusar' ? 'recusada' : 'feita' }) : x));
       ctx.leitor.esquecer('api/acoes-trafego');
@@ -217,6 +217,27 @@ export function mostrar(ctxInicial) {
       // Já decidida por outra pessoa ou vencida: a lista do servidor é a verdade.
       if (erro && erro.status === 409) { ctx.leitor.esquecer('api/acoes-trafego'); carregarAcoes(); }
     }
+  }
+
+  /**
+   * Recusar pede um segundo toque (no celular, "Recusar" fica colado em "Aceitar") e deixa dizer por quê:
+   * o motivo vai para o diário e o Gestor lê nas próximas sugestões.
+   */
+  function pedirMotivo(a, botao) {
+    const card = botao.closest('.proposta');
+    const botoes = botao.closest('.proposta-botoes');
+    const id = 'recusa-' + a.id;
+    const campo = h('textarea', { id, rows: '2', maxlength: '300', placeholder: 'Ex.: freio é o serviço que mais dá margem' });
+    const voltar = () => { caixa.remove(); botoes.hidden = false; botao.focus(); };
+    const confirmar = h('button', { class: 'botao botao-forte', type: 'button', on: { click: (e) => decidir(a, 'recusar', e.currentTarget, campo.value.trim() || null) } }, icone('fechar'), 'Recusar a sugestão');
+    const caixa = h('div', { class: 'proposta-recusa', role: 'group', 'aria-label': 'Recusar: ' + a.titulo,
+      on: { keydown: (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); voltar(); } } } },
+      h('label', { class: 'campo', for: id }, h('span', null, 'Por que não? (opcional, fica no diário)'), campo),
+      h('div', { class: 'proposta-botoes' }, confirmar, h('button', { class: 'botao botao-quieto', type: 'button', on: { click: voltar } }, 'Voltar')));
+    botoes.hidden = true;
+    botoes.after(caixa);
+    campo.focus();
+    return card;
   }
 
   function cartao(a) {
@@ -242,7 +263,7 @@ export function mostrar(ctxInicial) {
       a.status === 'proposta'
         ? h('div', { class: 'proposta-botoes' },
           h('button', { class: 'botao ' + (alto ? '' : 'botao-forte'), type: 'button', on: { click: (e) => decidir(a, 'aceitar', e.currentTarget) } }, icone('certo'), alto ? 'Aceitar mesmo assim' : 'Aceitar'),
-          h('button', { class: 'botao botao-quieto', type: 'button', on: { click: (e) => decidir(a, 'recusar', e.currentTarget) } }, icone('fechar'), 'Recusar'))
+          h('button', { class: 'botao botao-quieto', type: 'button', on: { click: (e) => pedirMotivo(a, e.currentTarget) } }, icone('fechar'), 'Recusar'))
         : h('div', { class: 'proposta-botoes' },
           h('p', { class: 'apoio' }, 'Aceita' + (a.decididaPor ? ' por ' + a.decididaPor : '') + (a.decididaEm ? ' em ' + dataCurta(a.decididaEm) : '') + '. Falta fazer a mudança.'),
           h('button', { class: 'botao botao-forte', type: 'button', on: { click: (e) => decidir(a, 'feita', e.currentTarget) } }, icone('certo'), 'Já fiz')));
