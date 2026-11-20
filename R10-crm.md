@@ -31,6 +31,6 @@ Os commits 4d738e7 e a139891 cobrem data de cadastro, valores monetários e tipo
 | --- | ---: | ---: |
 | Operações na tabela de configuração ao salvar uma integração | 2 | 1 |
 
-O teste 4d81988 mediu a mudança no commit f40c469. O axe-core executou 56 verificações sem violações sérias ou críticas no Chrome, a 375 e 1440 px, em claro e escuro. A matriz usou somente leituras no mock local, com tráfego externo bloqueado. Log local em apps/crm/qa-out/r10-axe-matriz.log.
+O teste 4d81988 mediu a mudança no commit f40c469. O axe-core executou 60 verificações sem violações sérias ou críticas no Chrome, a 375 e 1440 px, em claro e escuro. A matriz usou somente leituras no mock local, com tráfego externo bloqueado. Log local em apps/crm/qa-out/r10-axe-matriz.log.
 
 Faltam 94 melhorias para a meta. Agenda e Atendimento ficam com Claude, na outra cópia. A decisão sobre os termos “Novo Lead” e “Leads novos” segue com João.
