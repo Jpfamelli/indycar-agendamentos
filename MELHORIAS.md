@@ -1361,3 +1361,19 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R9-AGE-108** · tela · Botões principais ("Novo agendamento", salvar, filtro ativo) em vermelho chapado, sem gradiente · `c3a42fe`
 - **R9-AGE-109** · acessibilidade · Botão verde: letra branca sobre verde claro dava 3,3; com o verde mais fechado passa de 4,5:1 · `c3a42fe`
 - **R9-AGE-110** · tela · Novo agendamento: o campo "Marcar rápido" segue o desenho dos outros campos (antes o campo cru do navegador) · `c3a42fe`
+
+- **R9-AGE-111** · segurança · Toda resposta da API (nome, telefone e placa de cliente, inclusive as planilhas) sai com "não guardar": não fica no cache do navegador nem de um proxy · `edd283e`
+- **R9-AGE-112** · texto · Tela de Serviços: "Carro:" no lugar de "Veículo:" · `edd283e`
+- **R9-AGE-113** · texto · Planilhas exportadas (clientes e agendamentos) e eventos do Google Agenda dizem "carro", não "veículo" · `edd283e`
+- **R9-AGE-114** · conserto · Lembrete para cliente sem nome no cadastro saía "Oi ! Lembrete..."; agora "Oi! Lembrete..." · `edd283e`
+- **R9-AGE-115** · conserto · Lembrete de um horário com data inválida saía "undefined (undefined/undefined)"; agora diz "no dia marcado" · `edd283e`
+- **R9-AGE-116** · conserto · Proposta de hora do pré-agendamento com data inválida saía "undefined /"; agora diz "no dia combinado" · `edd283e`
+- **R9-AGE-117** · conserto · "Buscar em tudo": a caixa de busca tinha 320 px de altura e empurrava os resultados para fora da janela; voltou a ter a altura de um campo · `edd283e`
+- **R9-AGE-118** · conserto · Data por extenso na recepção e na folha impressa: "20 de novembro de 2026" (antes "20 De Novembro De 2026") · `edd283e`
+- **R9-AGE-119** · conserto · Menu com "Mais" aberto: os itens encolhiam (ícone de 21 px virava 14) em vez de o menu rolar; agora rola e mantém o tamanho · `3d367b9`
+- **R9-AGE-120** · texto · Remarcar: "Horário atual: hoje às 10:00" no lugar de "Hoje marcado para Hoje às 10:00" · `3d367b9`
+- **R9-AGE-121** · celular · O X de fechar de todas as janelas passa de 13 x 22 px para 44 x 44 px no toque · `6934efc`
+- **R9-AGE-122** · celular · Dentro das janelas e dos recados: sugestões de horário e de valor, setas de dia do Remarcar, "Achar", ações do recado (Desfazer, Abrir no Pátio) e a chave de aceitar mensagens passam de 27 a 40 px para 44 px · `6934efc`
+- **R9-AGE-123** · celular · Login, sino e tarefas: "Esqueci a senha", "Voltar", "Marcar todas como lidas" (20 px), "Mostrar" a senha (32 px) e a caixinha de concluir tarefa (22 px) passam a ter 44 px de toque · `6934efc`
+- **R9-AGE-124** · acessibilidade · Tema escuro: texto secundário (hora do aviso, prazo da tarefa, título dos Apps) sobe de 3,43 para mais de 4,5:1 · `6934efc`
+- **R9-AGE-125** · teste · Medição no navegador de 20 janelas, popovers, telas de login e do modo presença em 375 e 1440 px, claro e escuro, com servidor de mentira: `scripts/qa-r9-modais.mjs` · `c3a42fe`
