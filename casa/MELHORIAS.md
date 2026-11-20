@@ -64,3 +64,18 @@ Uma linha por melhoria, com o commit onde ela está. Prova: `npm test` da raiz e
 - **R9-CASA-057** · texto · A busca fecha num botão "Fechar"; antes dizia "Esc", tecla que não existe no celular · `70c7165`
 - **R9-CASA-058** · celular · Em tela de toque some a cola de teclado: o "Ctrl K" do botão de busca e o pé "↑ ↓ escolher · Enter · Esc" da busca; no computador continuam · `886db15`
 - **R9-CASA-059** · texto · Pede atenção e gargalos com horas por extenso ("há mais de 4 horas"; o "4 h" partia em duas linhas no celular) e "1 deles há mais de 4 horas" no lugar de "1 há mais de 4 h" · `7e32bef`
+- **R9-CASA-060** · segurança · "Esqueci a senha" espera a resposta (botão desligado) e não pede de novo o mesmo e-mail no mesmo minuto: dois toques gastavam dois envios do limite por hora e o segundo voltava "Muitas tentativas" por cima do aviso de sucesso · `f568c21`
+- **R9-CASA-061** · celular · O aviso do pé usa a largura da tela: com "left 50%" ele só podia ter metade e, no celular, virava uma coluna de 188 px e 9 linhas por cima do "Entrar" e do "Esqueci a senha" · `baf4152`
+- **R9-CASA-062** · texto · Ficha do cliente: o orçamento diz "esperando resposta há 1 dia · Onix" (antes "esperando resposta · Onix · esperando há 1 dia") · `54e7c25`
+- **R9-CASA-063** · acessibilidade · Sinal de saúde ao lado do logo: o leitor de tela ouve qual sistema tem problema e o ponto de problema mostra "!" (era só um ponto colorido com title, que o celular não mostra) · `ce1b901`
+- **R9-CASA-064** · tela · Número de pendências de cada app no canto do cartão: em ATENDIMENTO e ORÇADOR descia sozinho para a linha de baixo · `6e72927`
+- **R9-CASA-065** · conserto · Busca que falhou avisa o leitor de tela e tem "tentar de novo"; antes só apagando e digitando de novo · `7716910`
+- **R9-CASA-066** · tela · Meta do mês num campo do próprio bloco (era uma janela do navegador): teclado de números no celular, erro dentro do campo sem perder o que foi digitado, Esc cancela e o foco volta ao botão · `052d45e`
+- **R9-CASA-067** · acessibilidade · Botão de recolher cartão diz "Mostrar/Esconder a lista de" e o nome atual do cartão; o mecânico ouvia "Carros no pátio" no cartão "Meus carros no pátio" · `c5153c3`
+- **R9-CASA-068** · acessibilidade · Tarefas não perdem o foco: depois de concluir, o foco vai para a tarefa seguinte (ou para o campo de nova tarefa); depois de adiar, fica na mesma (antes caía no começo da página) · `c74b258`
+- **R9-CASA-069** · texto · Botões de adiar tarefa dizem quanto: "adiar 1 dia" e "adiar 3 dias" (eram "adiar ›", que parecia abrir menu, e "+3 dias"), e o nome falado começa pelo que se vê · `521356d`
+- **R9-CASA-070** · acessibilidade · Erro na entrada aponta o campo (borda, foco e texto selecionado; o campo lê a mensagem) e diz qual falta, e-mail ou senha; vale também para o código de verificação e a senha nova · `0c50c96`
+- **R9-CASA-071** · segurança · Biblioteca do Supabase vinda do CDN com integrity sha384: conferido no Chrome que a verdadeira carrega e uma alterada é barrada · `90d7faa`
+- **R9-CASA-072** · segurança · CSP da Casa libera o CDN só no caminho da biblioteca do Supabase (antes o cdn.jsdelivr.net inteiro, que serve qualquer pacote do npm e arquivo do GitHub); conferido no Chrome · `ac0729a`
+- **R9-CASA-073** · tela · "dispensar por hoje" do Ontem e amanhã tem "Desfazer" (antes só voltava no dia seguinte), o foco vai para o conteúdo e as marcas de dias velhos saem do aparelho · `ce93429`
+- **R9-CASA-074** · acessibilidade · Sino pelo teclado: o ⏱ leva o foco às opções de adiar; adiar e marcar ✓ deixam o foco no aviso ou no vizinho (antes caía no começo da página) · `d862dbc`
