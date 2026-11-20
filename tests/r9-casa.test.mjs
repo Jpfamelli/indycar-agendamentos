@@ -363,3 +363,11 @@ test('ficha: orçamento diz "esperando resposta há 1 dia" (antes "esperando res
   assert.equal(N.situacaoDoOrc({ status: 'em aberto', esperandoHoras: 10 }), 'em aberto · esperando há ' + L.duracao(10 * 36e5));
   assert.doesNotMatch(semComentarios(ler('ficha.js')), /· esperando há/);
 });
+
+test('logo do topo: leitor de tela ouve o problema dos sistemas; o ponto de problema tem "!" (não só cor)', () => {
+  assert.equal(N.rotuloDoLogo({ tom: 'ok', texto: 'Todos os sistemas em ordem' }), 'IndyCar Central, início');
+  assert.equal(N.rotuloDoLogo({ tom: 'ruim', texto: 'WhatsApp com problema' }), 'IndyCar Central, início. WhatsApp com problema');
+  assert.equal(N.rotuloDoLogo({ tom: 'aviso', texto: 'Pátio pede atenção' }), 'IndyCar Central, início. Pátio pede atenção');
+  assert.match(semComentarios(ler('saude.js')), /topo\.setAttribute\('aria-label', N\.rotuloDoLogo\(r\)\)/);
+  assert.match(ler('r9.css'), /\.topo-marca\[data-saude="ruim"\]::after \{ content: '!';/);
+});
