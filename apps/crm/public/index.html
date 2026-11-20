@@ -140,7 +140,7 @@
     <div class="topbar-actions">
       <div class="search">
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-        <input aria-label="Buscar leads" id="search" type="search" placeholder="Filtrar leads (Ctrl+K busca tudo)…" />
+        <input aria-label="Buscar contatos" id="search" type="search" placeholder="Filtrar contatos (Ctrl+K busca tudo)…" />
       </div>
       <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Busca global: nome, telefone ou placa (Ctrl+K)" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd>Ctrl K</kbd></button>
       <button type="button" class="fila-chip" id="filaChip" hidden aria-live="polite"></button>
@@ -474,7 +474,7 @@
       <div class="barra-busca">
         <div class="busca-local">
           <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-          <input id="buscaServico" type="search" placeholder="Buscar serviço ou categoria…" />
+          <input id="buscaServico" type="search" aria-label="Buscar serviço ou categoria" placeholder="Buscar serviço ou categoria…" />
         </div>
         <div class="filters" style="margin:0" id="filtrosServico">
           <button type="button" class="filtro-pill ativo" data-faz="">Todos</button>
@@ -589,7 +589,7 @@
           <p class="card-sub">Digite quanto gastou no mês. O CRM cruza com o faturamento real
             dos leads e calcula o retorno — sem depender da API.</p>
         </div>
-        <input type="month" id="mesROI" class="int-month" />
+        <input type="month" id="mesROI" class="int-month" aria-label="Mês do relatório de retorno" />
       </div>
 
       <form class="int-invest" id="formMetrica">
@@ -786,7 +786,7 @@
       <div role="tabpanel" id="painelTl" aria-labelledby="abaTl" class="lf-painel"><ol class="linha-tempo" id="linhaTempo"></ol></div>
       <div role="tabpanel" id="painelLembretes" aria-labelledby="abaLembretes" class="lf-painel" hidden>
         <form class="tarefa-form" id="formTarefaLead">
-          <input id="tarefaLeadTexto" maxlength="200" placeholder="Ex.: retornar com o orçamento" aria-label="Nova tarefa para este lead" required />
+          <input id="tarefaLeadTexto" maxlength="200" placeholder="Ex.: retornar com o orçamento" aria-label="Nova tarefa para este contato" required />
           <input id="tarefaLeadData" type="date" aria-label="Dia" />
           <input id="tarefaLeadHora" type="time" aria-label="Hora" step="900" />
           <select id="tarefaLeadPara" aria-label="Para quem"></select>

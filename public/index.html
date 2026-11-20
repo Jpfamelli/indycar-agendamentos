@@ -238,7 +238,7 @@
       </label>
       <label>Senha
         <span class="campo-senha">
-          <input name="loginSenha" type="password" required autocomplete="current-password"
+          <input name="loginSenha" type="password" required autocomplete="current-password" enterkeyhint="go"
                  placeholder="••••••••" />
           <button type="button" class="ver-senha" data-ver-senha aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
         </span>
@@ -286,7 +286,7 @@
       <h1>Esqueci a senha</h1>
       <p class="login-sub">Digite o seu e-mail de acesso. Mandamos um link para criar uma senha nova.</p>
       <label>E-mail
-        <input id="es_email" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" />
+        <input id="es_email" type="email" required autocomplete="username" enterkeyhint="send" placeholder="voce@indycartaubate.com" />
       </label>
       <button type="submit" class="btn-entrar" id="btnEsqueciEnviar">ENVIAR LINK</button>
       <p class="login-erro" id="erroEsqueci" role="alert" hidden></p>
@@ -319,7 +319,7 @@
       <h1>Código de verificação</h1>
       <p class="login-sub">Abra o app autenticador do seu celular e digite o código de 6 números.</p>
       <label>Código
-        <input id="mfa_codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+        <input id="mfa_codigo" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="done" maxlength="6" placeholder="000000" />
       </label>
       <button type="submit" class="btn-entrar" id="btnMfa">CONFIRMAR</button>
       <p class="login-erro" id="erroMfa" role="alert" hidden></p>
