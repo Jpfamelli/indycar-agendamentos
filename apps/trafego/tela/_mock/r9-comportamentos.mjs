@@ -54,6 +54,22 @@ export const CASOS = {
     conferir(await pagina.$eval('.diario-item:nth-child(6)', (el) => document.activeElement === el), 'o foco vai para a primeira que estava escondida');
   },
 
+  /* Campanha aberta: 6 contatos à vista, sem "Anúncio da Meta" repetido; o resto a um toque, com o foco no sétimo. */
+  async 'campanha-contatos'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/campanhas?chave=120211450001&plataforma=meta', { waitUntil: 'networkidle0' });
+    const antes = await pagina.$$eval('.camp-contatos .torre-linha', (l) => l.length);
+    conferir(antes === 6, 'mostra 6 de início (mostrou ' + antes + ')');
+    const origens = await pagina.$$eval('.camp-contatos .jl-origem[role="cell"]', (l) => l.map((c) => c.textContent));
+    conferir(origens.every((t) => !t.includes('Anúncio da Meta')), 'a marca da origem não se repete: ' + origens[0]);
+    const rotulo = await texto(pagina, '.camp-contatos-mais');
+    conferir(rotulo.startsWith('Ver os outros ') && rotulo.endsWith(' contatos'), 'botão diz quantos faltam: ' + rotulo);
+    await pagina.click('.camp-contatos-mais');
+    const depois = await pagina.$$eval('.camp-contatos .torre-linha', (l) => l.length);
+    conferir(depois > 6, 'abre o resto');
+    conferir(await pagina.$eval('.camp-contatos .torre-linha:nth-child(8) .torre-abre', (el) => document.activeElement === el), 'o foco vai para o sétimo contato');
+    conferir(!(await pagina.$('.camp-contatos-mais')), 'o botão some depois de abrir');
+  },
+
   /* Ajustes › Devolver as vendas: o arquivo do Google diz quantas vendas levou; a Meta mostra primeiro as do prazo. */
   async 'devolucao'(pagina, endereco) {
     await pagina.goto(endereco + '?cenario=cheio#/ajustes?secao=devolucao', { waitUntil: 'networkidle0' });

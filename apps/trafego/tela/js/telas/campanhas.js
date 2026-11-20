@@ -336,13 +336,28 @@ function palavrasETermos(d) {
         h('span', { class: 'apoio' }, [ehNumero(t.cliques) ? contagem(t.cliques, 'clique', 'cliques') : null, ehNumero(t.gasto) ? dinheiro(t.gasto) : null].filter(Boolean).join(' · ')))))) : null);
 }
 
+const CONTATOS_A_VISTA = 6;
+
 function contatosDaCampanha(ctx, d) {
   const c = d.campanha || {};
   const itens = Array.isArray(d.contatos) ? d.contatos : [];
   const total = ehNumero(d.contatos_total) ? d.contatos_total : itens.length;
   const naJornada = ctx.hrefDaTela('jornada', c.ext ? { campanha: c.ext } : { paga: '1' });
+  // Os 6 mais recentes à vista; o resto a um toque (no celular, 15 contatos davam três telas antes dos links).
+  const caixa = h('div', { class: 'camp-contatos' });
+  const pintarTorre = (todos) => {
+    const mostra = todos ? itens : itens.slice(0, CONTATOS_A_VISTA);
+    const resto = itens.length - mostra.length;
+    trocar(caixa, torreDeContatos(ctx, mostra, { rotulo: 'Contatos da campanha ' + (c.nome || ''), campanha: c.nome }),
+      resto > 0 ? h('button', { class: 'botao botao-quieto camp-contatos-mais', type: 'button', on: { click: () => {
+        pintarTorre(true);
+        const proximo = caixa.querySelectorAll('.torre-abre')[CONTATOS_A_VISTA];
+        if (proximo) proximo.focus();
+      } } }, icone('mais'), resto === 1 ? 'Ver o outro contato' : 'Ver os outros ' + inteiro(resto) + ' contatos') : null);
+  };
+  if (itens.length) pintarTorre(false);
   return bloco('tContatosCampanha', 'Contatos desta campanha', total > itens.length ? 'Os ' + inteiro(itens.length) + ' mais recentes de ' + inteiro(total) + '.' : null,
-    itens.length ? torreDeContatos(ctx, itens, { rotulo: 'Contatos da campanha ' + (c.nome || ''), campanha: c.nome }) : h('p', { class: 'suave' }, 'Nenhum contato chegou por esta campanha no período.'),
+    itens.length ? caixa : h('p', { class: 'suave' }, 'Nenhum contato chegou por esta campanha no período.'),
     itens.length ? h('a', { class: 'ligacao', href: naJornada }, total > itens.length ? 'Ver todos os ' + inteiro(total) + ' na Jornada' : 'Ver na Jornada', icone('seta', 'icone-p')) : null);
 }
 
