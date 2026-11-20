@@ -491,3 +491,11 @@ test('atalho de app fora do ar diz "fora do ar" (antes só a borda tracejada mos
   assert.match(semComentarios(ler('comando.js')), /el\.title = fora\.has\(k\) \? 'Este app não está respondendo agora\. Clique só se precisar\.' : '';/);
   assert.match(readFileSync(join(RAIZ, 'tests', 'r9-casa-browser.mjs'), 'utf8'), /nome: 'foradoar', cenario: \{ papel: 'admin', foraDoAr: \['patio', 'orcador'\] \}/, 'o Chrome mede a tela com Pátio e Orçador fora');
 });
+
+test('ficha: erro ao montar e respostas dos links são faladas ao leitor de tela (antes só o "carregando" era)', () => {
+  const s = semComentarios(ler('ficha.js'));
+  assert.match(s, /<p class="vazio vazio-erro" role="alert">\$\{navigator\.onLine \? 'Não consegui montar a ficha agora\.'/);
+  assert.match(s, /<p class="vazio" role="status">\$\{d\.motivo === 'cliente_nao_encontrado'/);
+  assert.match(s, /<p class="vazio" role="status">Sem links para este cliente agora\.<\/p>/);
+  assert.doesNotMatch(s, /<p class="vazio">/, 'nenhuma mensagem da ficha sem papel de aviso');
+});

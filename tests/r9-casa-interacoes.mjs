@@ -353,6 +353,20 @@ try {
   conferir('dica do g (agenda): só Agenda e Pátio, sem app sem acesso', /a Agenda/.test(dicaAgenda) && /p Pátio/.test(dicaAgenda) && !/CRM|Tráfego|Orçador|Atendimento|Comunicar/.test(dicaAgenda), dicaAgenda);
   await m.page.close();
   });
+
+  // 23. ficha que não abriu: o leitor de tela ouve o erro e "tentar de novo" deixa o foco na janela
+  await passo("23. ficha com erro é anunciada", async () => {
+  const f = await abrir({ papel: 'admin', falhar: ['r6_cliente_360'] }, 1440);
+  await f.page.click('#bBusca'); await espera(150);
+  await f.page.type('#buscaInput', 'gabi'); await espera(900);
+  await f.page.click('#buscaLista [data-ficha]'); await espera(700);
+  const erro = await f.page.$eval('#fichaCorpo', (c) => ({ alerta: !!c.querySelector('[role="alert"] [data-ficha-de-novo]'), texto: c.innerText.slice(0, 50) }));
+  conferir('ficha com erro: aviso falado (role alert) com tentar de novo', erro.alerta, erro.texto);
+  await f.page.click('[data-ficha-de-novo]'); await espera(500);
+  const foco = await f.page.evaluate(() => document.activeElement && document.activeElement.id);
+  conferir('ficha: tentar de novo deixa o foco dentro da janela', foco === 'fichaFechar', foco);
+  await f.page.close();
+  });
 } finally {
   await browser.close();
 }
