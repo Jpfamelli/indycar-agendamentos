@@ -265,3 +265,18 @@ test('visão do dono vazia: gráfico de 7 dias explica o vazio e a projeção n�
   assert.match(p, /Ainda sem faturamento marcado neste mês/);
   assert.match(semComentarios(ler('r9.css')), /\.conv-linha b \{ white-space: nowrap; \}/);
 });
+
+test('sair: buscas recentes (nome e telefone de cliente) e avisos adiados saem do aparelho; tema e e-mail lembrado ficam', () => {
+  const s = semComentarios(ler('casa.js'));
+  const lista = s.match(/LS_DA_PESSOA = \[([^\]]*)\]/);
+  assert.ok(lista, 'lista do que é da pessoa');
+  assert.match(lista[1], /'indycar_central_buscas'/);
+  assert.match(lista[1], /'indycar_central_sino_adiados'/);
+  assert.doesNotMatch(lista[1], /indycar_tema|indycar_central_email/);
+  assert.match(ler('busca.js'), /LS_RECENTES = 'indycar_central_buscas'/, 'a chave da busca é a mesma');
+  assert.match(ler('sino.js'), /LS_ADIADOS = 'indycar_central_sino_adiados'/, 'a chave do sino é a mesma');
+  const sair = s.slice(s.indexOf('async function sair('), s.indexOf('async function depoisDoLogin('));
+  assert.match(sair, /esquecerPessoa\(\)/, 'o botão Sair esquece');
+  const saiuFora = s.slice(s.indexOf("evento === 'SIGNED_OUT'"), s.indexOf("evento === 'SIGNED_OUT'") + 200);
+  assert.match(saiuFora, /esquecerPessoa\(\)/, 'saiu em outra aba/app também esquece');
+});

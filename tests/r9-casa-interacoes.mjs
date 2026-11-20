@@ -180,6 +180,19 @@ try {
   conferir('tarefa: dois cliques em Criar com banco lento gravam uma vez só', criadas === 1, 'gravou ' + criadas);
   await lenta.page.close();
   });
+
+  // 13. Sair: o próximo no mesmo computador não vê as buscas (nome e telefone) nem os avisos adiados de quem saiu
+  await passo("13. Sair limpa as buscas recentes e os adiados; tema e e-mail lembrado ficam", async () => {
+  const s = await abrir({ papel: 'admin' });
+  await s.page.evaluate(() => { localStorage.setItem('indycar_central_buscas', JSON.stringify(['gabi', '12 99999-0000'])); localStorage.setItem('indycar_central_sino_adiados', JSON.stringify({ x: Date.now() + 3600000 })); localStorage.setItem('indycar_central_email', 'balcao@oficina.test'); });
+  await s.page.click('#bPerfil'); await espera(100);
+  await s.page.click('#menuPerfil [data-acao="sair"]');
+  await s.page.waitForSelector('#fLogin:not([hidden])', { timeout: 4000 });
+  const sobra = await s.page.evaluate(() => ['indycar_central_buscas', 'indycar_central_sino_adiados', 'indycar_tema', 'indycar_central_email'].map((k) => localStorage.getItem(k) !== null));
+  conferir('sair: buscas recentes e avisos adiados apagados do aparelho', !sobra[0] && !sobra[1], JSON.stringify(sobra));
+  conferir('sair: tema e e-mail lembrado continuam (são do aparelho)', sobra[2] && sobra[3], JSON.stringify(sobra));
+  await s.page.close();
+  });
 } finally {
   await browser.close();
 }
