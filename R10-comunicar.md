@@ -1,12 +1,12 @@
 # Rodada 10 · Comunicar
 
-Entrega parcial. 3 de 100 melhorias registradas.
+Entrega parcial. 8 de 100 melhorias registradas.
 
 A suíte de referência passou 310/310 com isolamento padrão do Node. O modo sem isolamento fez os dublês dos testes compartilharem estado, por isso a conferência foi repetida com os subprocessos padrão.
 
 ## Para outra frente
 
-Faltam a cobertura dos 69 comportamentos R9-COM-032 a R9-COM-100 e 97 melhorias para a meta do app.
+Faltam a cobertura dos 69 comportamentos R9-COM-032 a R9-COM-100 e 92 melhorias para a meta do app.
 
 ## Para o João
 
@@ -25,3 +25,7 @@ O roteiro compartilhado agora consulta uma rota exclusiva de cada mock, com time
 Commit `4debb38` cobre R10-COM-002 e 003. Os dois testes em `scripts/testes-r10-prontidao.mjs` falharam antes e passaram depois. A suíte com isolamento padrão passou de 311 para 313 testes, todos verdes. A execução com isolamento padrão exigiu permissão local para os subprocessos do Node.
 
 O checklist mantém o aviso quando a data do último teste de envio ou da rodada do carteiro ainda está no futuro. Nenhum nome de tela ou controle mudou. A cobertura dos 69 comportamentos da rodada 9 segue pendente. Não houve medição de desempenho neste lote.
+
+## Validação de perfil
+
+O commit `c2b65f6` cobre R10-COM-004 a 008. Os cinco testes de perfil falharam antes e passaram depois. A suíte completa passou de 313 para 318 testes com o isolamento padrão do Node. Cargo, telefone e cor aceitam limpar o campo. Nenhuma chamada a serviços externos foi necessária para estes testes.
