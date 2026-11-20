@@ -1,12 +1,12 @@
 # Rodada 10 · Comunicar
 
-Entrega parcial. 46 de 100 melhorias registradas. Próximo número: R10-COM-047.
+Entrega parcial. 52 de 100 melhorias registradas. Próximo número: R10-COM-053.
 
 A suíte de referência passou 310/310 com isolamento padrão do Node. O modo sem isolamento fez os dublês dos testes compartilharem estado, por isso a conferência foi repetida com os subprocessos padrão.
 
 ## Para outra frente
 
-Faltam a cobertura dos comportamentos R9-COM-032 a R9-COM-100 ainda sem cobertura e 54 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
+Faltam a cobertura dos comportamentos R9-COM-032 a R9-COM-100 ainda sem cobertura e 48 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
 
 ## Para o João
 
@@ -58,3 +58,7 @@ O commit 5524d71 cobre R10-COM-035 a 040. As seis regressões falharam antes da 
 ## Campanhas, envio de teste e resumo
 
 O commit f410f11 cobre R10-COM-041 a 046. As seis regressões falharam antes e passaram depois. Suíte completa 356/356 em processos separados e npm run check aprovado. Banco e WhatsApp simulados.
+
+## Importação, reagendamento, rodapé e IA
+
+O commit 66d554d cobre R10-COM-047 a 052. As seis regressões falharam antes e passaram depois. A suíte isolada passou de 356 para 362 testes. A importação pede que planilhas maiores sejam divididas e que linhas com formato inválido sejam corrigidas antes de gravar. Falta confirmar no navegador se a oficina recebe esses avisos de forma clara.

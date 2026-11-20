@@ -1158,3 +1158,9 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-044** · segurança · Envio de teste recusa listas no campo da mensagem. (teste R10-COM-044 em testes-rodada7-api.mjs) · `f410f11`
 - **R10-COM-045** · segurança · Atualização do resumo exige confirmação booleana quando informada. (teste R10-COM-045 em testes-rodada7-api.mjs) · `f410f11`
 - **R10-COM-046** · segurança · Recusa de campanha exige motivo em texto quando informado. (teste R10-COM-046 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-047** · segurança · A importação informa quando a planilha ultrapassa 2.000 linhas, antes de gravar (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-048** · segurança · A importação rejeita linhas que não são objetos antes de gravar (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-049** · segurança · O reagendamento de uma mensagem rejeita data enviada como lista (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-050** · segurança · O reagendamento do dia rejeita data enviada como lista (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-051** · segurança · O rodapé de saída exige texto com a palavra PARAR (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-052** · segurança · A escrita com IA exige um pedido em texto (teste testes-rodada7-api) · `66d554d`
