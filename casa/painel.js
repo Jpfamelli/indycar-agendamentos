@@ -266,6 +266,7 @@
       try { C.aoAgora && C.aoAgora(d); } catch { /* extras nunca derrubam o painel */ }
     } catch (e) {
       emFalha = true;
+      try { C.sessaoVenceu && C.sessaoVenceu(e); } catch { /* segue mostrando a falha */ }
       if (!silencioso || !dados) {
         const msg = navigator.onLine ? 'não deu para ler agora' : 'sem internet';
         for (const [id, ok] of [['#cPatio', V.patio], ['#cOrc', V.orcamentos], ['#cConversas', V.conversas], ['#cHoje', V.agenda], ['#cLeads', V.leads]]) {

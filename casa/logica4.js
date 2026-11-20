@@ -448,6 +448,17 @@
     if (!m || m === 'falhou' || /failed to fetch|networkerror|load failed|network request failed/i.test(m) || (e && e.name === 'TypeError')) return 'A Central não respondeu. Tente de novo em instantes.';
     return m.length > 140 ? m.slice(0, 139) + '…' : m;
   }
+  /** rodada 10: o banco recusou a leitura porque o login venceu (e não porque a rede caiu ou a permissão falta)? */
+  function erroDeSessao(e) {
+    if (!e) return false;
+    const c = String(e.code || ''), m = String(e.message || '');
+    return c === 'PGRST301' || c === 'PGRST303' || /jwt expired|jwt is expired|invalid jwt|token is expired|token has expired/i.test(m);
+  }
+  /** rodada 10: o erro é de rede (sem internet, servidor que não respondeu) e não uma resposta do servidor? */
+  function erroDeRede(e, online = true) {
+    if (!online) return true;
+    return /failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(String((e && e.message) || e || '')) || !!(e && e.name === 'AuthRetryableFetchError');
+  }
   /** Linha de contagem da busca. Antes, quando só achava pessoas, dizia "2 resultados em 0 sistema". */
   function dicaDaBusca(total, nPessoas, nSistemas) {
     const t = num(total), p = num(nPessoas), s = num(nSistemas);
@@ -492,6 +503,6 @@
     ORIGENS_TAREFA, TIPOS_ORC_TAREFA, infoDaTarefa, ehDoOrcador, contarReabordar, linkDaDescricao, descricaoLimpa,
     NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, FAIXA_VIGIA, faixaDoVigia, saudeSistemas, resumoDaSaude,
     resumoLigacoes, ROTULO_ACAO, fichaDe, OPCOES_ADIAR, ateQuando, quandoVolta, acaoDoAviso, appDoAviso, textoDoAviso, filtrarPorTexto,
-    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc, rotuloDoLogo, textoDaVariacao, avisoDeMudancas,
+    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, erroDeSessao, erroDeRede, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc, rotuloDoLogo, textoDaVariacao, avisoDeMudancas,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

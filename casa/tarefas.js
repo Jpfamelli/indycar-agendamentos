@@ -128,7 +128,7 @@
         .eq('status', 'aberta').order('prioridade', { ascending: true }).order('vence_em', { ascending: true, nullsFirst: false }).limit(120));
     } catch (e) { error = e; }
     if (!C) return;
-    if (error) { leitura = 'falhou'; desenhar(); return; }
+    if (error) { leitura = 'falhou'; desenhar(); C.sessaoVenceu && C.sessaoVenceu(error); return; }
     leitura = 'ok'; lidoEm = Date.now();
     {
       tarefas = data || []; desenhar(); C.painel && C.painel.redesenhar && C.painel.redesenhar();

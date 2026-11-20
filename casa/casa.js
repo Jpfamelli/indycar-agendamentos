@@ -23,6 +23,8 @@
   const ORDEM_APPS = ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador', 'ads'];
 
   let sb = null, sessao = null, perfil = null, emRecuperacao = false;
+  /* rodada 10: travas contra clique duplo (entrar, código de verificação, senha nova) e a conferência da sessão vencida */
+  let entrando = false, conferindoCodigo = false, gravandoSenha = false, conferindoSessao = false, sessaoEm = 0;
   let cfg = null, bases = L.bases(), links = L.links(bases);
   let montada = false;
   window.CasaModulos = window.CasaModulos || [];
@@ -144,6 +146,7 @@
       return erro('#lErro', `Muitas tentativas seguidas. Espere ${Math.ceil((espera * 1000 - (Date.now() - ultimo)) / 1000)} s.`);
     }
     const b = $('#lEntrar'); b.disabled = true; b.textContent = 'Entrando…';
+    entrando = true;
     try {
       const { error } = await sb.auth.signInWithPassword({ email, password: senha });
       if (error) throw error;
@@ -154,7 +157,7 @@
     } catch (e) {
       if (/invalid login/i.test(String(e?.message))) { gravar(LS_ERROS, String((Number(ler(LS_ERROS)) || 0) + 1)); gravar(LS_ERROS + '_em', String(Date.now())); apontar('#fLogin', '#lSenha'); }
       erro('#lErro', mensagemDeErro(e));
-    } finally { b.disabled = false; b.textContent = 'Entrar'; }
+    } finally { entrando = false; b.disabled = false; b.textContent = 'Entrar'; }
   }
 
   /* rodada 9: o envio do link é limitado a poucos por hora. Dois toques seguidos gastavam dois envios e o segundo
@@ -184,6 +187,11 @@
     const code = $('#mCodigo').value.replace(/\s/g, '');
     apontar('#fMfa', null);
     if (!/^\d{6}$/.test(code)) { apontar('#fMfa', '#mCodigo'); return erro('#mErro', 'O código tem 6 números.'); }
+    /* rodada 10: dois toques em "Confirmar" mandavam o mesmo código duas vezes; o segundo voltava "não confere" por cima
+       do primeiro, que tinha dado certo. E sem internet a tela dizia que o código estava errado. */
+    if (conferindoCodigo) return;
+    const b = $('#fMfa [type="submit"]');
+    conferindoCodigo = true; b.disabled = true; b.textContent = 'Conferindo…';
     try {
       const { data } = await sb.auth.mfa.listFactors();
       const f = (data?.totp || []).find((x) => x.status === 'verified');
@@ -192,7 +200,9 @@
       if (error) throw error;
       $('#mCodigo').value = '';
       await depoisDoLogin();
-    } catch { erro('#mErro', 'Código não confere. Confira o horário do celular e tente de novo.'); }
+    } catch (e) {
+      erro('#mErro', window.CasaLogica4.erroDeRede(e, navigator.onLine) ? 'Sem internet agora. O código pode estar certo: confira a conexão e tente de novo.' : 'Código não confere. Confira o horário do celular e tente de novo.');
+    } finally { conferindoCodigo = false; b.disabled = false; b.textContent = 'Confirmar'; }
   }
 
   async function gravarSenha(ev) {
@@ -204,6 +214,9 @@
     if (a !== b) { apontar('#fSenha', '#sRepete'); return erro('#sErro', 'As duas senhas não são iguais.'); }
     const email = sessao?.user?.email || '';
     if (email && a.toLowerCase() === email.toLowerCase()) { apontar('#fSenha', '#sNova'); return erro('#sErro', 'A senha não pode ser o seu e-mail.'); }
+    if (gravandoSenha) return;   // rodada 10: dois toques não trocam a senha duas vezes (a segunda voltava "precisa ser diferente da atual")
+    const botao = $('#fSenha [type="submit"]'), rotulo = botao.textContent;
+    gravandoSenha = true; botao.disabled = true; botao.textContent = 'Gravando…';
     try {
       const { error } = await sb.auth.updateUser({ password: a });
       if (error) throw error;
@@ -213,6 +226,7 @@
       toast('Senha gravada.');
       await depoisDoLogin();
     } catch (e) { erro('#sErro', mensagemDeErro(e)); }
+    finally { gravandoSenha = false; botao.disabled = false; botao.textContent = rotulo; }
   }
   function pedirSenha(motivo) {
     $('#sMotivo').textContent = motivo === 'recuperar' ? 'Você veio pelo link do e-mail: escolha a senha nova.'
@@ -235,6 +249,32 @@
     fecharMenus();
     mostrar('fLogin');
     if (global) toast('Você saiu de todos os aparelhos.');
+  }
+
+  /**
+   * rodada 10: o login vence (computador que dormiu, aba aberta desde ontem) e cada bloco passava a dizer "não consegui
+   * ler" para sempre, sem contar o motivo. Agora o bloco que recebe a recusa avisa aqui: a Casa tenta renovar a sessão uma
+   * vez (no máximo 1 vez por minuto); renovou, relê tudo; não renovou, volta para a tela de entrar dizendo o porquê.
+   */
+  function sessaoVenceu(e) {
+    if (!window.CasaLogica4.erroDeSessao(e)) return false;
+    if (conferindoSessao || !perfil || Date.now() - sessaoEm < 60_000) return true;
+    conferindoSessao = true; sessaoEm = Date.now();
+    (async () => {
+      let renovou = false;
+      try { const r = await sb.auth.refreshSession(); renovou = !r.error && !!(r.data && r.data.session); } catch { renovou = false; }
+      conferindoSessao = false;
+      if (!perfil) return;
+      if (renovou) {
+        try { Casa.painel && Casa.painel.atualizar(); Casa.sino && Casa.sino.carregar(); Casa.tarefas && Casa.tarefas.carregar(); } catch { /* o relógio de cada bloco cobre */ }
+        return;
+      }
+      desmontarModulos(); esquecerPessoa(); perfil = null; sessao = null; fecharMenus();
+      try { await sb.auth.signOut({ scope: 'local' }); } catch { /* a sessão já tinha ido */ }
+      mostrar('fLogin');
+      erro('#lErro', 'Sua sessão venceu. Entre de novo para continuar.');
+    })();
+    return true;
   }
 
   /* ---------------- depois do login ---------------- */
@@ -267,7 +307,7 @@
     get links() { return links; },
     get cfg() { return cfg; },
     L, esc, toast, abrirNaAba, podeUsar: (app) => podeUsar(perfil, app), visao: () => L.visao(perfil),
-    $: (s) => document.querySelector(s), irPara,
+    $: (s) => document.querySelector(s), irPara, sessaoVenceu,
   };
   /**
    * rodada 9: "ir para" (tecla t, comandos da busca, aviso do sino) rolava a página, mas o foco ficava lá em cima: quem
@@ -390,6 +430,17 @@
     sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
     sb.auth.onAuthStateChange((evento, s) => {
       if (evento === 'PASSWORD_RECOVERY') { sessao = s; emRecuperacao = true; return pedirSenha('recuperar'); }
+      if (evento === 'TOKEN_REFRESHED' && s) { sessao = s; return; }
+      /* rodada 10: a sessão é uma só neste endereço. Se OUTRA pessoa entra em outra aba (ou num app), esta Casa continuava
+         mostrando o painel, as tarefas e os avisos de quem estava antes: agora desmonta e monta para quem entrou. E a aba
+         que ficou parada na tela de entrar entra sozinha quando o login acontece em outra aba. O setTimeout é porque a
+         biblioteca não deixa chamar o Supabase de dentro deste aviso. */
+      if (evento === 'SIGNED_IN' && s && s.user) {
+        if (perfil && s.user.id !== perfil.id) { setTimeout(() => { desmontarModulos(); esquecerPessoa(); perfil = null; sessao = null; fecharMenus(); depoisDoLogin(); }, 0); return; }
+        if (perfil) { sessao = s; return; }
+        if (!entrando && !emRecuperacao && !$('#fLogin').hidden) setTimeout(() => { if (!perfil && !entrando) depoisDoLogin(); }, 0);
+        return;
+      }
       if (evento === 'SIGNED_OUT' && perfil) {      // saiu em outro app/aba (a sessão é uma só neste domínio)
         desmontarModulos();
         esquecerPessoa();

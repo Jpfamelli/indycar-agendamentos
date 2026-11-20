@@ -102,7 +102,7 @@
         .order('created_at', { ascending: false }).limit(limite));
     } catch (e) { error = e; }
     if (!C) return;   // saiu enquanto lia
-    if (error) { leitura = 'falhou'; desenhar(); return; }
+    if (error) { leitura = 'falhou'; desenhar(); C.sessaoVenceu && C.sessaoVenceu(error); return; }
     leitura = 'ok';
     const antes = new Set(notifs.map((n) => n.id));
     const adiados = lerAdiados();

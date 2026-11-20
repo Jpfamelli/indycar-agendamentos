@@ -130,6 +130,90 @@ prova('r10-tarefas-aba', async (abrir) => {
   conferir('r10-tarefas-aba: voltar à aba depois de mais de 1 minuto relê as tarefas', (await lidas(page, 'tarefas')) - t0 === 1, ((await lidas(page, 'tarefas')) - t0) + ' leituras');
 });
 
+/* ---------- lote 3: sessão vencida, duas abas, código de verificação e senha nova ---------- */
+prova('r10-sessao-vencida', async (abrir) => {
+  const vencido = { message: 'JWT expired', code: 'PGRST301' };
+  const { page } = await abrir({ papel: 'admin', semRenovar: true, erros: { r6_agora: vencido, tarefas: vencido, notificacoes: vencido } }, { esperar: 'body' });
+  await espera(900);
+  conferir('r10-sessao-vencida: login vencido e sem renovar volta para a tela de entrar', await visivel(page, '#fLogin') && !(await visivel(page, '#casa')));
+  conferir('r10-sessao-vencida: a tela diz o motivo', /Sua sessão venceu\. Entre de novo/.test(await texto(page, '#lErro')), await texto(page, '#lErro'));
+  conferir('r10-sessao-vencida: tentou renovar uma vez só', (await gravadas(page, 'auth', 'renovar')) === 1, (await gravadas(page, 'auth', 'renovar')) + ' tentativas');
+
+  // a sessão renova: a Casa continua aberta e relê
+  const b = await abrir({ papel: 'admin' });
+  const antes = await lidas(b.page, 'tarefas');
+  await b.page.evaluate((v) => { window.__R10.erros.r6_agora = v; window.Casa.painel.atualizar(); setTimeout(() => { delete window.__R10.erros.r6_agora; }, 30); }, vencido);
+  await espera(900);
+  conferir('r10-sessao-vencida: quando a sessão renova, a Casa fica aberta e relê as tarefas', await visivel(b.page, '#casa') && (await gravadas(b.page, 'auth', 'renovar')) === 1 && (await lidas(b.page, 'tarefas')) > antes);
+  await b.page.close();
+
+  // erro que não é de sessão (rede, banco fora) não mexe no login
+  const c = await abrir({ papel: 'admin', falhar: ['r6_agora'] });
+  conferir('r10-sessao-vencida: falha comum de leitura não tenta renovar nem tira ninguém da Casa', await visivel(c.page, '#casa') && (await gravadas(c.page, 'auth', 'renovar')) === 0);
+  await c.page.close();
+});
+
+prova('r10-entrou-em-outra-aba', async (abrir) => {
+  const { page } = await abrir({ papel: 'admin', sessao: false });
+  conferir('r10-entrou-em-outra-aba: começa na tela de entrar', await visivel(page, '#fLogin'));
+  await page.evaluate(() => window.__AUTH('SIGNED_IN', window.__NOVA_SESSAO()));
+  await espera(900);
+  conferir('r10-entrou-em-outra-aba: o login feito em outra aba abre a Casa nesta', await visivel(page, '#casa') && !(await visivel(page, '#fLogin')));
+});
+
+prova('r10-outra-pessoa', async (abrir) => {
+  const { page } = await abrir({ papel: 'admin', ls: { indycar_central_buscas: '["Ana Exemplo 12999900011"]' } });
+  conferir('r10-outra-pessoa: a Casa está com o dono', (await texto(page, '#nomeCurto')) === 'Paulo' && await visivel(page, '#seletorVisao'));
+  await page.evaluate(() => {
+    const outra = '00000000-0000-4000-8000-0000000000a7';
+    window.__DADOS.tabelas.perfis = [{ id: outra, nome: 'Rita Exemplo', email: 'rita@oficina.test', papel: 'atendente', apps: ['atendimento', 'agenda'], ativo: true, precisa_trocar_senha: false }];
+    window.__AUTH('SIGNED_IN', window.__NOVA_SESSAO({ id: outra, email: 'rita@oficina.test' }));
+  });
+  await espera(1000);
+  conferir('r10-outra-pessoa: outra pessoa entrou em outra aba e a Casa passa a ser a dela', (await texto(page, '#nomeCurto')) === 'Rita', await texto(page, '#nomeCurto'));
+  conferir('r10-outra-pessoa: a visão do dono some para a atendente', !(await visivel(page, '#seletorVisao')));
+  conferir('r10-outra-pessoa: as buscas de quem estava antes saem do aparelho', (await page.evaluate(() => localStorage.getItem('indycar_central_buscas'))) === null);
+  conferir('r10-outra-pessoa: a mesma pessoa de novo (aba que voltou) não desmonta nada', await page.evaluate(async () => {
+    const antes = window.__LIDO.length;
+    window.__AUTH('SIGNED_IN', window.__NOVA_SESSAO({ id: '00000000-0000-4000-8000-0000000000a7', email: 'rita@oficina.test' }));
+    await new Promise((r) => setTimeout(r, 400));
+    return window.__LIDO.filter((x, i) => i >= antes && x === 'perfis').length === 0;
+  }));
+});
+
+prova('r10-codigo', async (abrir) => {
+  const { page } = await abrir({ papel: 'admin', mfa: true, atraso: 300 });
+  await page.type('#mCodigo', '123456');
+  await page.evaluate(() => { const f = document.querySelector('#fMfa'); f.requestSubmit(); f.requestSubmit(); });
+  await espera(200);
+  conferir('r10-codigo: enquanto confere, o botão diz "Conferindo…" e fica travado', await page.evaluate(() => { const b = document.querySelector('#fMfa [type="submit"]'); return b.disabled && /Conferindo/.test(b.textContent); }));
+  await page.waitForSelector('#casa:not([hidden])', { timeout: 5000 });
+  conferir('r10-codigo: dois toques em "Confirmar" mandam o código uma vez só', (await gravadas(page, 'auth', 'codigo')) === 1, (await gravadas(page, 'auth', 'codigo')) + ' envios');
+
+  const b = await abrir({ papel: 'admin', mfa: true });
+  await b.page.evaluate(() => { window.__R10.semRede = true; });
+  await b.page.type('#mCodigo', '123456');
+  await b.page.evaluate(() => document.querySelector('#fMfa').requestSubmit());
+  await espera(400);
+  const msg = await texto(b.page, '#mErro');
+  conferir('r10-codigo-rede: sem internet a tela não diz que o código está errado', /Sem internet/.test(msg) && !/não confere/.test(msg), msg);
+  await b.page.evaluate(() => { window.__R10.semRede = false; document.querySelector('#mCodigo').value = '999999'; document.querySelector('#fMfa').requestSubmit(); });
+  await espera(400);
+  conferir('r10-codigo-rede: código errado de verdade continua dizendo que não confere', /Código não confere/.test(await texto(b.page, '#mErro')));
+  await b.page.close();
+});
+
+prova('r10-senha-dupla', async (abrir) => {
+  const { page } = await abrir({ papel: 'admin', atraso: 300 });
+  await page.evaluate(() => document.querySelector('[data-acao="trocar-senha"]').click());
+  await page.waitForSelector('#fSenha:not([hidden])', { timeout: 3000 });
+  await page.type('#sNova', 'senha-nova-123'); await page.type('#sRepete', 'senha-nova-123');
+  await page.evaluate(() => { const f = document.querySelector('#fSenha'); f.requestSubmit(); f.requestSubmit(); });
+  await espera(1100);
+  conferir('r10-senha-dupla: dois toques em gravar trocam a senha uma vez só', (await gravadas(page, 'auth', 'senha')) === 1, (await gravadas(page, 'auth', 'senha')) + ' trocas');
+  conferir('r10-senha-dupla: depois de gravar, volta para a Casa', await visivel(page, '#casa'));
+});
+
 // === FIM DAS PROVAS ===
 try {
   for (const [nome, fn] of PROVAS) {
