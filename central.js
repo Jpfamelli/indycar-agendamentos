@@ -170,14 +170,23 @@ const MIME = {
 };
 const CASA_DIR = join(__dirname, 'casa');
 const CASA = new Map();   // caminho público -> { tipo, buf, br, gz, etag }
+/* rodada 10 (desempenho): cada CSS e JS da Casa era conferido com o servidor em toda abertura (19 pedidos que voltavam
+   "304, não mudou"). Agora o endereço leva a marca do conteúdo (/casa/casa.js?v=<marca>) e, pedido com a marca certa,
+   o arquivo pode ficar guardado 1 ano no navegador: mudou o arquivo, muda a marca e o index (que nunca fica guardado)
+   aponta para o endereço novo. Pedido sem marca, ou com marca velha, continua conferindo como antes. */
+const marcaDe = (buf) => createHash('sha1').update(buf).digest('base64url').slice(0, 12);
 function prepararCasa() {
-  for (const f of readdirSync(CASA_DIR)) {
+  CASA.clear();
+  const nomes = readdirSync(CASA_DIR).filter((f) => MIME[extname(f)]);
+  const marcas = Object.fromEntries(nomes.map((f) => [f, marcaDe(readFileSync(join(CASA_DIR, f)))]));
+  for (const f of nomes) {
     const tipo = MIME[extname(f)];
-    if (!tipo) continue;
-    const buf = readFileSync(join(CASA_DIR, f));
+    let buf = readFileSync(join(CASA_DIR, f));
     const texto = !tipo.startsWith('image/') && !tipo.startsWith('font/');   // woff2 já vem comprimido
+    // rodada 10: o index sai com a marca do conteúdo de cada arquivo no "?v=" (ver marcaDe); o que foi escrito à mão é trocado
+    if (f === 'index.html') buf = Buffer.from(buf.toString('utf8').replace(/(\/casa\/([\w.-]+\.(?:css|js)))\?v=[\w-]+/g, (tudo, caminho, nome) => (marcas[nome] ? caminho + '?v=' + marcas[nome] : tudo)));
     const item = {
-      tipo, buf, etag: '"' + createHash('sha1').update(buf).digest('base64url').slice(0, 20) + '"',
+      tipo, buf, marca: marcas[f], etag: '"' + createHash('sha1').update(buf).digest('base64url').slice(0, 20) + '"',
       br: texto ? zlib.brotliCompressSync(buf) : null, gz: texto ? zlib.gzipSync(buf) : null,
     };
     // index.html na raiz; sw.js e manifest.json na raiz (escopo "/"); o resto em /casa/
@@ -191,16 +200,33 @@ function prepararCasa() {
    o cdn.jsdelivr.net inteiro, que serve qualquer pacote do npm e qualquer arquivo do GitHub: um script injetado podia
    puxar código de lá e passar pela CSP. */
 const LIB_SUPABASE = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/';
-const CSP_CASA = [
-  "default-src 'self'",
-  `script-src 'self' ${LIB_SUPABASE}`,
-  "style-src 'self'",
-  "font-src 'self'",
-  "img-src 'self' data:",
-  `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${LIB_SUPABASE}`,
-  "manifest-src 'self'", "worker-src 'self'",
-  "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'",
-].join('; ');
+/* rodada 10: a Casa só fala com o projeto do Supabase da oficina (antes qualquer *.supabase.co passava: um script
+   injetado podia mandar dado para o projeto de outra pessoa). Sem SUPABASE_URL válida, fica o curinga de antes.
+   E as imagens são só as da própria Casa: nenhuma tela usa imagem "data:", que saiu da lista. */
+export function cspDaCasa(env = process.env) {
+  let banco = 'https://*.supabase.co wss://*.supabase.co';
+  try {
+    const u = new URL(String(env.SUPABASE_URL || ''));
+    const local = ['localhost', '127.0.0.1'].includes(u.hostname);
+    if ((u.protocol === 'https:' || (u.protocol === 'http:' && local)) && !u.username && !u.password) banco = u.origin + ' ' + u.origin.replace(/^http/, 'ws');
+  } catch { /* fica o curinga */ }
+  return [
+    "default-src 'self'",
+    `script-src 'self' ${LIB_SUPABASE}`,
+    "style-src 'self'",
+    "font-src 'self'",
+    "img-src 'self'",
+    `connect-src 'self' ${banco} ${LIB_SUPABASE}`,
+    "manifest-src 'self'", "worker-src 'self'",
+    "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'",
+  ].join('; ');
+}
+let cspGuardada = { de: null, texto: '' };
+function cspAtual() {
+  const de = String(process.env.SUPABASE_URL || '');
+  if (cspGuardada.de !== de) cspGuardada = { de, texto: cspDaCasa() };
+  return cspGuardada.texto;
+}
 function cabecalhos(res, extra = {}) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -208,17 +234,18 @@ function cabecalhos(res, extra = {}) {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-  res.setHeader('Content-Security-Policy', CSP_CASA);
+  res.setHeader('Content-Security-Policy', cspAtual());
   res.setHeader('X-IndyCar-App', 'central');
   for (const [k, v] of Object.entries(extra)) res.setHeader(k, v);
 }
-function servirCasa(req, res, item, caminho) {
+function servirCasa(req, res, item, caminho, marcaPedida = '') {
   cabecalhos(res);
   res.setHeader('ETag', item.etag);
   res.setHeader('Vary', 'Accept-Encoding');
   // o HTML e o service worker sempre conferem com o servidor (304 barato); ícones podem ficar 1 dia
   // fontes não mudam: 30 dias (o service worker também guarda)
-  res.setHeader('Cache-Control', item.tipo.startsWith('font/') ? 'public, max-age=2592000' : item.tipo.startsWith('image/') ? 'public, max-age=86400' : 'no-cache');
+  const fixo = !!marcaPedida && marcaPedida === item.marca && /^text\/(css|javascript)/.test(item.tipo);
+  res.setHeader('Cache-Control', fixo ? 'public, max-age=31536000, immutable' : item.tipo.startsWith('font/') ? 'public, max-age=2592000' : item.tipo.startsWith('image/') ? 'public, max-age=86400' : 'no-cache');
   if (caminho === '/sw.js') res.setHeader('Service-Worker-Allowed', '/');
   const inm = String(req.headers['if-none-match'] || '').replace(/^W\//, '');
   if (inm && inm === item.etag) { res.writeHead(304); return res.end(); }
@@ -229,8 +256,8 @@ function servirCasa(req, res, item, caminho) {
   res.writeHead(200, { 'Content-Type': item.tipo, 'Content-Length': corpo.length });
   res.end(req.method === 'HEAD' ? undefined : corpo);
 }
-function json(res, status, obj) {
-  cabecalhos(res, { 'Cache-Control': 'no-store' });
+function json(res, status, obj, extra = {}) {
+  cabecalhos(res, { 'Cache-Control': 'no-store', ...extra });
   const corpo = JSON.stringify(obj);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(corpo) });
   res.end(corpo);
@@ -246,6 +273,13 @@ function redirecionar(res, para) {
    --------------------------------------------------------------------------- */
 const mb = (n) => Math.round(n / 1048576);
 const NOME_NA_FRASE = { trafego: 'Tráfego' };   // o nome técnico não tem acento; a frase é para gente
+const SO_LEITURA = { Allow: 'GET, HEAD' };
+
+/** rodada 10: no log de pedido lento, pedaço comprido do endereço (token do link do cliente, do feed da agenda) sai cortado. */
+export function caminhoParaLog(caminho) {
+  return String(caminho || '').split('/').map((p) => (/^[A-Za-z0-9_~-]{16,}$/.test(p) ? p.slice(0, 4) + '…' : p)).join('/').slice(0, 160);
+}
+
 
 function montar(nome, req, res, resto, busca) {
   const app = APPS[nome];
@@ -262,7 +296,7 @@ function montar(nome, req, res, resto, busca) {
 export async function handler(req, res) {
   let url;
   try { url = new URL(req.url, 'http://central.local'); }
-  catch { res.writeHead(400); return res.end(); }
+  catch { return json(res, 400, { erro: 'Endereço inválido.' }); }   // rodada 10: com os cabeçalhos de segurança, como toda resposta da Central
   const caminho = url.pathname;
   const busca = url.search || '';
   /* rodada 6: cada pedido tem um número (X-Request-Id) para achar a linha certa no log do Render; aceita o que o proxy já mandou se for curto e simples */
@@ -270,11 +304,15 @@ export async function handler(req, res) {
   const idPedido = /^[A-Za-z0-9._-]{6,64}$/.test(recebido) ? recebido : randomUUID();
   res.setHeader('X-Request-Id', idPedido);
   const inicio = Date.now();
-  res.on('finish', () => { const ms = Date.now() - inicio; if (ms > 3000) console.warn(`Central: pedido lento ${req.method} ${caminho} ${res.statusCode} ${ms} ms [${idPedido}]`); });
+  res.on('finish', () => { const ms = Date.now() - inicio; if (ms > 3000) console.warn(`Central: pedido lento ${req.method} ${caminhoParaLog(caminho)} ${res.statusCode} ${ms} ms [${idPedido}]`); });
   // "%" solto / UTF-8 inválido no caminho: 400 aqui, igual para todos (a Agenda respondia 500 por decodeURIComponent)
   try { decodeURIComponent(caminho); } catch { return json(res, 400, { erro: 'Endereço inválido.' }); }
 
   // 1) saúde e configuração da Central
+  const leitura = req.method === 'GET' || req.method === 'HEAD';
+  /* rodada 10: as rotas da própria Central só aceitam o método delas. Antes POST ou DELETE em /api/ping e /api/central/config
+     respondiam como se fosse leitura, e POST em /api/central/saude-apps ou numa rota /api/central/ que não existe caía na Agenda. */
+  if ((caminho === '/api/ping' || caminho === '/api/central/config' || caminho === '/api/central/saude-apps') && !leitura) return json(res, 405, { erro: 'Use GET.' }, SO_LEITURA);
   if (caminho === '/api/ping') {
     const m = process.memoryUsage();
     return json(res, 200, {
@@ -291,7 +329,7 @@ export async function handler(req, res) {
     });
   }
 
-  if (caminho === '/api/central/saude-apps' && (req.method === 'GET' || req.method === 'HEAD')) {
+  if (caminho === '/api/central/saude-apps') {
     // só "está respondendo?" de dois sites públicos — nada sensível; o cache de 40 s protege os sites de enxurrada
     const cf = String(req.headers['cf-connecting-ip'] || '').trim(); // Cloudflare troca este cabeçalho: não dá para forjar
     const ip = /^[0-9a-f.:]{3,45}$/i.test(cf) ? cf : String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '?').split(',')[0].trim().slice(0, 64);
@@ -302,8 +340,9 @@ export async function handler(req, res) {
   // 1a) rodada 7: links do cliente (Minha IndyCar, indique, acompanhar) para a ficha da Casa — só equipe logada
   if (caminho === '/api/central/links-cliente') {
     const r = await LINKS_CLIENTE.tratar(req);
-    return json(res, r.status, r.corpo);
+    return json(res, r.status, r.corpo, r.cabecalhos);
   }
+  if (caminho === '/api/central' || caminho.startsWith('/api/central/')) return json(res, 404, { erro: 'Essa rota da Central não existe.' });
 
   // 1b) rodada 6: /patio e /orcador moram em outro domínio (Netlify) — quem digita o atalho na Central cai no lugar certo
   for (const [nome, base] of [['patio', urlDeApp(process.env.PATIO_URL, PATIO_PADRAO)], ['orcador', urlDeApp(process.env.ORCADOR_URL, ORCADOR_PADRAO)]]) {
@@ -329,8 +368,10 @@ export async function handler(req, res) {
   if ((caminho === '/' || caminho === '/index.html') && busca && !url.searchParams.has('busca') && !url.searchParams.has('voltar')) return redirecionar(res, '/agenda/' + busca);
   if (req.method === 'GET' || req.method === 'HEAD') {
     const item = CASA.get(caminho);
-    if (item) return servirCasa(req, res, item, caminho);
+    if (item) return servirCasa(req, res, item, caminho, url.searchParams.get('v') || '');
   }
+  // rodada 10: arquivo da Casa só se lê (POST ou DELETE em /casa/… respondia "não encontrado", como se o arquivo não existisse)
+  else if (caminho.startsWith('/casa/') && CASA.has(caminho)) return json(res, 405, { erro: 'Use GET.' }, SO_LEITURA);
   // /casa/<arquivo que não existe>: 404 da Casa (antes caía na Agenda e devolvia a página dela no lugar do arquivo)
   if (caminho === '/casa' || caminho.startsWith('/casa/')) return json(res, 404, { erro: 'Arquivo da Casa não encontrado.' });
 

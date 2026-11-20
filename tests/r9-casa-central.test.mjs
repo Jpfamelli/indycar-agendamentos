@@ -43,7 +43,7 @@ test('CSP da Casa sem Google Fonts; o HTML não pede nada de fora além do supab
   assert.doesNotMatch(csp, /googleapis|gstatic/);
   const html = await r.text();
   assert.doesNotMatch(html, /googleapis|gstatic/);
-  assert.match(html, /<link rel="stylesheet" href="\/casa\/r9\.css\?v=\d+" \/>/);
+  assert.match(html, /<link rel="stylesheet" href="\/casa\/r9\.css\?v=[\w-]+" \/>/);   // rodada 10: a marca do conteúdo no lugar do número
   assert.match(html, /<link rel="preload" href="\/casa\/archivo-variavel\.woff2" as="font" type="font\/woff2" crossorigin \/>/);
   const css = await pega('/casa/r9.css', { headers: { 'Accept-Encoding': 'br' } });
   assert.equal(css.status, 200);
@@ -61,7 +61,7 @@ test('CSP: o CDN vale só no caminho da biblioteca do Supabase (o cdn.jsdelivr.n
   const csp = (await pega('/')).headers.get('content-security-policy');
   const lib = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/';
   assert.match(csp, new RegExp(`script-src 'self' ${lib.replace(/[.*+?^${}()|[\]\/]/g, '\$&')};`));
-  assert.ok(csp.includes(`wss://*.supabase.co ${lib};`), 'connect-src: o cache offline baixa a biblioteca');
+  assert.ok(csp.includes(`ws://127.0.0.1:9 ${lib};`), 'connect-src: o cache offline baixa a biblioteca (rodada 10: só o Supabase da oficina, sem curinga)');
   assert.doesNotMatch(csp, /https:\/\/cdn\.jsdelivr\.net[;\s]/, 'nada do CDN inteiro');
   const html = await (await pega('/')).text();
   for (const m of html.matchAll(/<script src="(https:[^"]+)"/g)) assert.ok(m[1].startsWith(lib), 'script de fora dentro do caminho liberado: ' + m[1]);
