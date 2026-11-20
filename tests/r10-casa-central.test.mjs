@@ -99,3 +99,75 @@ test('r10-log: pedido lento não escreve no log o token do link do cliente (peda
   assert.equal(c('/casa/barlow-condensed-800-italic.woff2'), '/casa/barlow-condensed-800-italic.woff2');
   assert.ok(c('/' + 'a/'.repeat(300)).length <= 160);
 });
+
+test('r10-app-fora: quem abre pelo navegador um app que não subiu vê uma página que explica (antes: JSON cru); a API continua em JSON', async () => {
+  const guardado = APPS.crm.handler;
+  APPS.crm.handler = null;
+  try {
+    const r = await pega('/crm/', { headers: { Accept: 'text/html,application/xhtml+xml' } });
+    assert.equal(r.status, 503);
+    assert.match(r.headers.get('content-type'), /text\/html/);
+    assert.equal(r.headers.get('retry-after'), '60');
+    assert.match(r.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+    const html = await r.text();
+    assert.match(html, /<h1[^>]*>O CRM não abriu agora<\/h1>/);
+    assert.match(html, /O resto da Central continua funcionando/);
+    assert.match(html, /<a class="btn btn-forte" href="\/crm\/">Tentar de novo<\/a>/);
+    assert.match(html, /<a class="btn-link" href="\/">Voltar para a Casa<\/a>/);
+    assert.doesNotMatch(html, /<script(?! src="\/casa\/tema\.js")|style=|—/, 'nada que a política de conteúdo barre, sem travessão');
+    const api = await pega('/crm/api/config', { headers: { Accept: 'text/html' } });
+    assert.equal(api.status, 503); assert.match(api.headers.get('content-type'), /json/);
+    const js = await pega('/crm/', { headers: { Accept: 'application/json' } });
+    assert.match(js.headers.get('content-type'), /json/);
+    assert.equal((await pega('/crm/', { method: 'POST', headers: { Accept: 'text/html' } })).headers.get('content-type').includes('json'), true);
+  } finally { APPS.crm.handler = guardado; }
+});
+
+test('r10-freio-saude: 600 endereços novos não soltam o endereço que já estava freado', () => {
+  const t = Date.now();
+  for (let i = 0; i < 40; i++) assert.equal(central.dentroDoFreioDaSaude('201.9.9.9', t), true);
+  assert.equal(central.dentroDoFreioDaSaude('201.9.9.9', t), false);
+  for (let i = 0; i < 600; i++) central.dentroDoFreioDaSaude('202.' + (i >> 8) + '.' + (i & 255) + '.1', t + 1);
+  assert.equal(central.dentroDoFreioDaSaude('201.9.9.9', t + 2), false, 'antes: o mapa era zerado e o freado voltava a perguntar');
+  assert.equal(central.dentroDoFreioDaSaude('201.9.9.9', t + 61_000), true, 'depois de 1 minuto, volta');
+});
+
+test('r10-sw-marcas: o service worker pede os mesmos endereços com marca que a página baixou (não baixa tudo de novo na primeira visita)', async () => {
+  const html = await (await pega('/')).text();
+  const doIndex = Object.fromEntries([...html.matchAll(/"(\/casa\/[\w.-]+\.(?:css|js))\?v=([\w-]+)"/g)].map((m) => [m[1], m[2]]));
+  const r = await pega('/sw.js');
+  assert.equal(r.headers.get('cache-control'), 'no-cache');
+  const fonte = await r.text();
+  const marcas = JSON.parse(/const MARCAS = (\{[^;]*\});/.exec(fonte)[1]);
+  for (const [caminho, marca] of Object.entries(doIndex)) assert.equal(marcas[caminho], marca, caminho + ': a mesma marca do index');
+  assert.ok(Object.keys(doIndex).length >= 20);
+
+  // roda a instalação do service worker servido, com rede e cache de mentira
+  const pedidos = [], guardados = [], ouvintes = {};
+  const cache = { put: async (chave, resp) => { guardados.push([chave, resp.url]); }, add: async () => {} };
+  const mundo = {
+    self: { addEventListener: (ev, fn) => { ouvintes[ev] = fn; }, skipWaiting: async () => {}, location: { origin: 'http://casa.local' }, clients: { claim: async () => {} } },
+    caches: { open: async () => cache, keys: async () => [], match: async () => null, delete: async () => true },
+    fetch: async (alvo) => { const url = typeof alvo === 'string' ? alvo : alvo.url; pedidos.push(url); return { ok: true, status: 200, type: 'basic', url, clone() { return this; } }; },
+    Request: class { constructor(url) { this.url = url; } }, Response: { error: () => ({ ok: false }) }, URL, Promise, Error,
+  };
+  new Function(...Object.keys(mundo), fonte)(...Object.values(mundo));
+  let espera = null;
+  ouvintes.install({ waitUntil: (p) => { espera = p; } });
+  await espera;
+  for (const [caminho, marca] of Object.entries(doIndex)) {
+    assert.ok(pedidos.includes(`${caminho}?v=${marca}`), 'pede com a marca: ' + caminho);
+    assert.ok(guardados.some(([chave, url]) => chave === caminho && url === `${caminho}?v=${marca}`), 'guarda pelo caminho sem a marca: ' + caminho);
+    assert.ok(!pedidos.includes(caminho), 'não pede de novo sem a marca: ' + caminho);
+  }
+  assert.ok(pedidos.includes('/'), 'a página inicial continua guardada para abrir sem internet');
+
+  // um arquivo que falha derruba a instalação (não fica um cache pela metade)
+  mundo.fetch = async (alvo) => ({ ok: !String(alvo).includes('painel.js'), status: 500, url: String(alvo) });
+  const ouvintes2 = {};
+  mundo.self.addEventListener = (ev, fn) => { ouvintes2[ev] = fn; };
+  new Function(...Object.keys(mundo), fonte)(...Object.values(mundo));
+  let espera2 = null;
+  ouvintes2.install({ waitUntil: (p) => { espera2 = p; } });
+  await assert.rejects(espera2, /falhou \/casa\/painel\.js/);
+});

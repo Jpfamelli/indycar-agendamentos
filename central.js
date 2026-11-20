@@ -26,7 +26,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import zlib from 'node:zlib';
-import { criarLinksCliente } from './casa-servidor.js';
+import { criarLinksCliente, podar } from './casa-servidor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -78,7 +78,8 @@ export function dentroDoFreioDaSaude(ip, agora = Date.now(), limite = 40) {
   const lista = (PERGUNTAS.get(ip) || []).filter((t) => agora - t < 60_000);
   if (lista.length >= limite) { PERGUNTAS.set(ip, lista); return false; }
   lista.push(agora); PERGUNTAS.set(ip, lista);
-  if (PERGUNTAS.size > 500) PERGUNTAS.clear();
+  // rodada 10: passou de 500 endereços, saem os parados e os que menos perguntaram (antes zerava tudo e soltava quem estava freado)
+  podar(PERGUNTAS, 500, (l) => l.some((t) => agora - t < 60_000), (l) => l.length);
   return true;
 }
 const LINKS_CLIENTE = criarLinksCliente();
@@ -185,6 +186,8 @@ function prepararCasa() {
     const texto = !tipo.startsWith('image/') && !tipo.startsWith('font/');   // woff2 já vem comprimido
     // rodada 10: o index sai com a marca do conteúdo de cada arquivo no "?v=" (ver marcaDe); o que foi escrito à mão é trocado
     if (f === 'index.html') buf = Buffer.from(buf.toString('utf8').replace(/(\/casa\/([\w.-]+\.(?:css|js)))\?v=[\w-]+/g, (tudo, caminho, nome) => (marcas[nome] ? caminho + '?v=' + marcas[nome] : tudo)));
+    // o service worker recebe as mesmas marcas, para pedir os endereços que a página já baixou (ver casa/sw.js)
+    if (f === 'sw.js') buf = Buffer.from(buf.toString('utf8').replace('const MARCAS = {};', () => 'const MARCAS = ' + JSON.stringify(Object.fromEntries(nomes.filter((n) => /\.(css|js)$/.test(n) && n !== 'sw.js').map((n) => ['/casa/' + n, marcas[n]]))) + ';'));
     const item = {
       tipo, buf, marca: marcas[f], etag: '"' + createHash('sha1').update(buf).digest('base64url').slice(0, 20) + '"',
       br: texto ? zlib.brotliCompressSync(buf) : null, gz: texto ? zlib.gzipSync(buf) : null,
@@ -273,6 +276,7 @@ function redirecionar(res, para) {
    --------------------------------------------------------------------------- */
 const mb = (n) => Math.round(n / 1048576);
 const NOME_NA_FRASE = { trafego: 'Tráfego' };   // o nome técnico não tem acento; a frase é para gente
+const NOME_NA_PAGINA = { agenda: 'A Agenda', crm: 'O CRM', comunicar: 'O Comunicar', atendimento: 'O Atendimento', trafego: 'O Tráfego' };
 const SO_LEITURA = { Allow: 'GET, HEAD' };
 
 /** rodada 10: no log de pedido lento, pedaço comprido do endereço (token do link do cliente, do feed da agenda) sai cortado. */
@@ -280,10 +284,20 @@ export function caminhoParaLog(caminho) {
   return String(caminho || '').split('/').map((p) => (/^[A-Za-z0-9_~-]{16,}$/.test(p) ? p.slice(0, 4) + '…' : p)).join('/').slice(0, 160);
 }
 
+/* rodada 10: quem abre um app que não subiu pelo navegador via um JSON cru na tela. Agora vê uma página que explica
+   e deixa tentar de novo ou voltar para a Casa. Chamadas de API continuam recebendo o JSON com o erro. */
+function paginaForaDoAr(res, nome, prefixo) {
+  const quem = NOME_NA_PAGINA[nome] || 'Este app';
+  const corpo = `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>${quem} não abriu · IndyCar Central</title><script src="/casa/tema.js"></script><link rel="stylesheet" href="/casa/casa.css" /></head><body><main class="entrada"><div class="cartao entrada-cartao"><h1 class="entrada-titulo">${quem} não abriu agora</h1><p class="entrada-sub">O resto da Central continua funcionando. Espere um minuto e tente de novo. Se continuar assim, avise o suporte.</p><a class="btn btn-forte" href="${prefixo}/">Tentar de novo</a> <a class="btn-link" href="/">Voltar para a Casa</a></div></main></body></html>`;
+  cabecalhos(res, { 'Cache-Control': 'no-store', 'Retry-After': '60' });
+  res.writeHead(503, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(corpo) });
+  res.end(corpo);
+}
 
 function montar(nome, req, res, resto, busca) {
   const app = APPS[nome];
   if (!app || !app.handler) {
+    if (req.method === 'GET' && /\btext\/html\b/.test(String(req.headers.accept || '')) && !/^\/api\//.test(String(resto || ''))) return paginaForaDoAr(res, nome, app?.prefixo || '/' + nome);
     res.setHeader('Retry-After', '60');
     return json(res, 503, { erro: `O ${NOME_NA_FRASE[nome] || nome} não subiu nesta Central. Avise o suporte (o resto continua no ar).`, app: nome });
   }
