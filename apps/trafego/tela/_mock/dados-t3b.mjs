@@ -182,16 +182,19 @@ export function responderCampanhas(m, q) {
   const gastoTotal = g ? (plataforma ? g[plataforma] : g.total) : null;
   const demo = Boolean(m.receita.demo);
   const sem = numerosDaOficina(semCampanha);
-  const comparacao = m.receita.contas && !demo ? {
-    linhas: ['meta', 'google'].map((plat) => {
+  const linhasDaComparacao = ['meta', 'google'].map((plat) => {
       const daPlat = campanhas.filter((c) => c.plataforma === plat);
       const gp = g ? g[plat] : null;
       const ct = daPlat.reduce((s, c) => s + c.contatos, 0), fe = daPlat.reduce((s, c) => s + c.fecharam, 0);
       const cpc = dividir(gp, ct), cps = dividir(gp, fe);
       return { plataforma: plat, custo_por_contato: cpc, custo_por_servico: cps, fecharam: fe,
         texto: (plat === 'meta' ? 'Meta' : 'Google') + ': ' + (cpc ? dinheiro(cpc) + ' por contato' : 'sem contato') + ' · ' + (cps ? dinheiro(cps) + ' por serviço fechado' : 'nenhum serviço fechado') };
-    }),
-    destaque: 'A Meta traz o serviço fechado mais barato neste período.',
+  });
+  // A mesma conta do servidor (motor/comparacao.js): só diz a mais barata com 3 serviços fechados em cada uma.
+  const comServico = linhasDaComparacao.filter((l) => l.custo_por_servico != null && l.fecharam >= 3).sort((a, b) => a.custo_por_servico - b.custo_por_servico);
+  const comparacao = m.receita.contas && !demo ? {
+    linhas: linhasDaComparacao,
+    destaque: comServico.length === 2 ? 'Pelos contatos da oficina, ' + (comServico[0].plataforma === 'meta' ? 'a Meta' : 'o Google') + ' trouxe serviço fechado mais barato no período.' : '',
   } : null;
   return {
     periodo: D.periodoPublico(p),
