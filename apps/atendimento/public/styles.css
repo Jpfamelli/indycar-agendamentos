@@ -2224,9 +2224,17 @@ button.app-chip:not(:disabled):hover{border-color:var(--vermelho);color:var(--te
 .filtros-extras:has(.chip.ativo) > summary {
   color:var(--vermelho-txt);
 }
-#aba-conversas :is(.chip,.seg,.btn-icone,.btn,.chat-voltar,.busca) {
-  min-height:44px;
-  min-width:44px;
+/* Rodada 9 (Claude): os 44 px valem para dedo (celular, tablet, tela de toque). No computador com
+   mouse a triagem volta a ser compacta: com tudo em 44 px a lista de conversas só começava em
+   658 px de uma tela de 768 e não sobrava altura para as mensagens. */
+@media (max-width:900px),(pointer:coarse){
+  #aba-conversas :is(.chip,.seg,.btn-icone,.btn,.chat-voltar,.busca) {
+    min-height:44px;
+    min-width:44px;
+  }
+}
+@media (min-width:901px) and (pointer:fine){
+  .filtros-extras > summary{min-height:32px;padding:6px 8px}
 }
 .app :is(button,a,input,select,textarea,summary):focus-visible {
   outline:2px solid var(--texto);
@@ -2236,3 +2244,103 @@ button.app-chip:not(:disabled):hover{border-color:var(--vermelho);color:var(--te
   background:var(--grafite);
   border-bottom:1px solid var(--linha);
 }
+
+/* ============================================================================
+   Rodada 9 (Claude, 20/11/2026): celular. Tudo que se toca passa a ter 44 px
+   de altura (e de largura, quando é só um ícone). O desenho no computador
+   não muda: as regras valem só até 900 px.
+   ============================================================================ */
+@media (max-width:900px){
+  /* barra de cima: telas, sino, tema e o seletor de sistemas */
+  .nav-item{min-width:44px;min-height:44px;justify-content:center}
+  .sino{width:44px;height:44px}
+  .tema-toggle{min-width:44px;min-height:44px;justify-content:center}
+  .eco-seletor{min-height:44px}
+  .eco-seletor select{min-height:44px}
+  /* faixa de aviso do WhatsApp parado: o botão que leva ao conserto */
+  .faixa-btn{min-height:44px;padding-inline:14px}
+  /* botões, filtros e alternadores de todas as telas */
+  .btn,.btn.sm,.config-pilula{min-height:44px}
+  .chip{min-height:44px;display:inline-flex;align-items:center}
+  .segmento{flex-wrap:wrap}
+  .seg{min-height:44px;padding-inline:12px}
+  .mini-select,.mini-busca,.periodo input[type="date"],#funilBusca,#chaveNova{min-height:44px}
+  .link:not(.sair){display:inline-flex;align-items:center;min-height:44px}
+  /* cabeçalho da conversa e a faixa do que o cliente tem nos outros sistemas */
+  .chat-topo .plaquinha,.chat-topo .dono{min-height:44px;padding-inline:12px}
+  /* balão que não saiu: Chegou e Reenviar */
+  .msg-reenviar{min-height:44px;min-width:64px;padding:4px 12px;font-size:.78rem}
+  /* ficha do cliente */
+  .col-ficha .ficha-fechar{width:44px;height:44px}
+  .ficha-links a,.ficha-links button,.ficha-link,.ficha-editar,.btn-editar-item,.btn-patio{min-height:44px}
+  .ficha-links a,.ficha-links button,.ficha-link{display:inline-flex;align-items:center}
+  .inline-valor{min-height:44px}
+  summary{min-height:44px;box-sizing:border-box;padding-block:11px;cursor:pointer}
+  /* tarefas, atalhos, funil e cores */
+  .tf-check{width:44px;height:44px}
+  .btn-icone,.tf-acoes .btn-icone,.lista-ferramentas .btn-icone,.busca-msg .btn-icone,.atalho-fav{width:44px;height:44px}
+  .fc-mover{min-height:44px}
+  .cor-op{width:44px;height:44px}
+  /* caixas de marcar: o quadradinho cresce para o dedo acertar */
+  input[type="checkbox"],input[type="radio"]{width:24px;height:24px;min-width:24px}
+  label:has(> input[type="checkbox"]),label:has(> input[type="radio"]){min-height:44px}
+}
+
+/* Rodada 9: conversa aberta no celular. Antes, com o WhatsApp parado, o cabeçalho, os três avisos
+   e as telas de cima ocupavam a tela inteira e não sobrava altura para ler as mensagens (0 px em
+   375 x 812). Agora a conversa ocupa a tela toda, como no WhatsApp: a seta volta para a lista. */
+@media (max-width:900px){
+  .app:has(#aba-conversas.ativa .conversas-layout.vendo-chat) > .sidebar{display:none}
+  /* o aviso do WhatsApp parado já aparece dentro da conversa (com o botão); a faixa de cima sai só aqui */
+  body:has(#aba-conversas.ativa .conversas-layout.vendo-chat #r6Zap.parado:not([hidden])) #faixaSaude.saude-codewords{display:none}
+  .chat-quem{align-items:flex-start;min-width:0}
+  .chat-quem > div{min-width:0}
+  #chatTelefone,#chatOrigem{display:inline;font-size:.78rem}
+  .chat-linha-tags{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .chat-linha-tags > *{flex:none}
+  /* uma linha só de ações: lupa, copiloto, assumir, agendar e o "mais" */
+  .chat-acoes{flex-wrap:nowrap}
+  .chat-acoes .btn.sm{flex:1 1 0;min-width:0;padding-inline:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #btnCopiarLink{display:none}
+  .mensagens-wrap{min-height:160px}
+  .app:has(#aba-conversas.ativa .conversas-layout.vendo-chat) .conversas-layout{height:calc(100vh - var(--topo-faixas,0px));height:calc(100dvh - var(--topo-faixas,0px))}
+}
+
+/* ============================================================================
+   Rodada 9: contraste (WCAG AA, 4,5:1) nos pontos que o axe-core reprovava.
+   ============================================================================ */
+/* tema claro: vermelho e verde de texto mais escuros (etiquetas, selos, Assumir) */
+:root[data-tema="claro"]{--vermelho-txt:#a30610;--verde-txt:#086b33;--verde-claro-txt:#0f6a31}
+:root[data-tema="claro"] .tag.niver{color:#9d174d}
+/* etiqueta de etapa e de responsável: a cor da etapa ou da pessoa fica na borda e no fundo;
+   a letra puxa para o tom do texto e passa a dar leitura nos dois temas */
+.plaquinha{color:color-mix(in srgb,var(--pl-cor,#8b8b96) 40%,var(--texto-forte))}
+.dono{color:color-mix(in srgb,var(--dn-cor,var(--cinza)) 40%,var(--texto-forte))}
+/* bolinha com as iniciais de quem enviou: letra escura sobre a cor clareada da pessoa */
+.msg-autor b{background:color-mix(in srgb,var(--autor,#3b82f6) 62%,#fff);color:#0b0f1a}
+/* conversa selecionada no tema claro: hora e carro mais escuros sobre o fundo rosado */
+:root[data-tema="claro"] .conversa.ativa :is(.conversa-hora,.conversa-carro){color:#4b4e57}
+
+/* Rodada 9: barra de telas e faixa de aviso no celular */
+@media (max-width:900px){
+  /* o nome da tela some da vista, mas continua existindo para o leitor de tela (antes era display:none
+     e os botões ficavam sem nome) */
+  .nav-item span{display:block;position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .nav-item{position:relative}
+  .nav-item .badge{position:absolute;top:2px;right:0;font-size:.62rem;padding:1px 5px;min-width:16px}
+}
+@media (max-width:600px){
+  /* logo menor e tema dentro do menu do perfil: sobram mais telas à vista na barra */
+  .logo-caixa{max-width:84px}
+  .fim-acoes .tema-toggle{display:none}
+  /* faixa do WhatsApp parado: texto e botão lado a lado, sem tomar um quinto da tela */
+  #faixaSaude.saude-codewords{font-size:.84rem;padding:8px 10px;flex-wrap:nowrap;align-items:center}
+  #faixaSaude.saude-codewords #faixaTexto{flex:1;min-width:0}
+  #faixaSaude.saude-codewords .faixa-btn{font-size:.8rem;white-space:nowrap}
+}
+/* selo de espera (há quanto tempo o cliente aguarda): a letra puxa para o tom do texto e passa no AA */
+.selo-espera{color:color-mix(in srgb,var(--espera-ok) 55%,var(--texto-forte))}
+.selo-espera.espera-medio{color:color-mix(in srgb,var(--espera-medio) 55%,var(--texto-forte))}
+.selo-espera.espera-alto{color:color-mix(in srgb,var(--espera-alto) 55%,var(--texto-forte))}
+/* tema claro: azul de texto mais escuro (etiqueta Novo hoje, revisão, Assumir) */
+:root[data-tema="claro"]{--azul-txt:#075985;--azul-claro-txt:#075985}

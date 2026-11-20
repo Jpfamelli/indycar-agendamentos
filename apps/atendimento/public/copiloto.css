@@ -126,3 +126,11 @@ button.cop-chip{cursor:pointer;font-family:inherit}
 .cop-proxima b{color:var(--cop-verm-txt)}
 .cop-rapidas .cop-chip{max-width:100%;text-align:left;white-space:normal}
 .cop-acao-resumo .cop-acao-det{display:block;margin-top:3px;white-space:pre-wrap}
+
+/* Rodada 9: no celular, os botões do copiloto têm 44 px de altura */
+@media (max-width:900px){
+  .cop-btn,.cop-chip{min-height:44px}
+}
+/* Rodada 9: o título "Copiloto" aparece inteiro; na ficha estreita os selos de uso descem para a linha de baixo
+   (antes o título virava reticências ao lado dos selos) */
+.cop-titulo{flex:1 0 auto;overflow:visible;text-overflow:clip}
