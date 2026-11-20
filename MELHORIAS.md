@@ -1285,3 +1285,50 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R9-AGE-034** · acessibilidade · A versão da API tem rótulo associado e dispensa corretor de palavras. · `af408bd`
 - **R9-AGE-035** · acessibilidade · O token de verificação tem rótulo associado e dispensa corretor de palavras. · `af408bd`
 - **R9-AGE-036** · acessibilidade · O endereço base do CodeWords tem rótulo associado e teclado para URL. · `af408bd`
+
+- **R9-AGE-037** · celular · Botões comuns das telas (Imprimir, Lista de espera, Salvar) passam de 34 a 40 px para 44 px de altura no toque · `75ebed2`
+- **R9-AGE-038** · celular · "Novo agendamento" do topo passa de 38 para 44 px de altura no celular · `75ebed2`
+- **R9-AGE-039** · celular · Filtros em pílula da Semana, da Espera, do Quadro e das Configurações passam de 34 a 40 px para 44 px · `75ebed2`
+- **R9-AGE-040** · celular · Abas da tela do WhatsApp passam de 38 para 44 px de altura · `75ebed2`
+- **R9-AGE-041** · celular · Botões só de ícone (imprimir, excluir, setas da Semana) passam de 30 e 36 px para 44 x 44 px · `75ebed2`
+- **R9-AGE-042** · celular · Ações dos cartões na Agenda, nas Pendências e no Follow-up (Veio e fechou, Não veio, remarcar) passam de 32 e 34 px para 44 px · `75ebed2`
+- **R9-AGE-043** · celular · Copiar telefone passa de 22 para 44 px, com o ícone maior · `75ebed2`
+- **R9-AGE-044** · celular · O telefone do cartão, da lista de clientes e da espera (toque para ligar) passa de 16 para 44 px de altura e não quebra no meio · `75ebed2`
+- **R9-AGE-045** · celular · Links das faixas de aviso do topo, do aviso do WhatsApp e dos blocos do Pátio e do Orçador passam de 17 para 44 px de altura · `75ebed2`
+- **R9-AGE-046** · celular · Selos que abrem o Pátio e o Orçador e o selo "na espera" da Semana passam de 20 a 23 px para 44 px de altura · `75ebed2`
+- **R9-AGE-047** · celular · Rodapé do menu (Apps, tema e conta) passa de 33 a 38 px para 44 px · `75ebed2`
+- **R9-AGE-048** · celular · Campos de busca: a área de toque do campo passa de 16 para 44 px dentro da caixa · `75ebed2`
+- **R9-AGE-049** · celular · Campos, listas e datas de formulário e de filtro (WhatsApp, Semana, Relatórios, Pendências, Quadro) passam de 31 a 40 px para 44 px · `75ebed2`
+- **R9-AGE-050** · celular · "Filtros" da Semana e as perguntas da Ajuda ganham 44 px de altura, sem perder a setinha · `75ebed2`
+- **R9-AGE-051** · celular · Dias do Quadro tinham 36 px de largura em 375 px: agora 44 px, com rolagem só dentro da fila de dias · `75ebed2`
+- **R9-AGE-052** · acessibilidade · Atalho "Pular para o conteúdo" passa de 40 para 44 px · `75ebed2`
+- **R9-AGE-053** · acessibilidade · Tema claro: texto verde dos selos, do valor e do "confirmado" sobe de 3,4 para mais de 4,5:1 · `75ebed2`
+- **R9-AGE-054** · acessibilidade · Tema claro: texto do botão de WhatsApp do Follow-up sobe de 4,05 para mais de 4,5:1 · `75ebed2`
+- **R9-AGE-055** · acessibilidade · Título da tela e da janela de WhatsApp deixa o verde fixo (1,73 no claro) e segue a cor do tema · `75ebed2`
+- **R9-AGE-056** · acessibilidade · Tema claro: texto laranja dos selos de "aguardando" sobe de 3,44 para mais de 4,5:1 · `75ebed2`
+- **R9-AGE-057** · acessibilidade · Botão "Chegou" da recepção: letra branca sobre verde dava 2,27; agora letra escura, acima de 4,5:1 nos dois temas · `75ebed2`
+- **R9-AGE-058** · acessibilidade · Semana: horário finalizado e dia que passou não esmaecem mais o texto (2,9 a 4,1); o estado fica na cor do texto e no fundo · `75ebed2`
+- **R9-AGE-059** · acessibilidade · Quadro: "hoje" em laranja fixo (1,78 no claro) e dia fechado a 50% (2,3) passam a ter contraste; dia fechado ganha borda tracejada · `75ebed2`
+- **R9-AGE-060** · acessibilidade · Quadro: cartões de quem não veio, cancelou ou já concluiu não ficam mais apagados (2,7 a 3,8); nome riscado ou em cinza legível · `75ebed2`
+- **R9-AGE-061** · acessibilidade · Relatórios: setas de melhora e piora usam o verde e o vermelho do tema (antes 3,44 e 4,04) · `75ebed2`
+- **R9-AGE-062** · acessibilidade · Tema escuro: selo cinza sobe de 4,36 para mais de 4,5:1 · `75ebed2`
+- **R9-AGE-063** · acessibilidade · Selo do Pátio no cartão: o nome falado passa a conter o texto que se vê (OS, etapa e extras) · `75ebed2`
+- **R9-AGE-064** · acessibilidade · Selo do Orçador no cartão: o nome falado contém número, situação e valor, e o desenho do recibo fica fora da leitura · `75ebed2`
+- **R9-AGE-065** · acessibilidade · Semana: o botão de cada horário é lido com hora, cliente, serviço e consultor (antes só "Abrir nome, hora") · `75ebed2`
+- **R9-AGE-066** · acessibilidade · Quadro: cada dia da fila é lido como "sex 20, 7 horários" ou "oficina fechada", igual ao que se vê · `75ebed2`
+- **R9-AGE-067** · acessibilidade · Botão da conta: as iniciais que aparecem entram no nome falado · `75ebed2`
+- **R9-AGE-068** · acessibilidade · Quadro: a grade ganha linhas de verdade para o leitor de tela (cabeçalho e cada horário), sem mudar o desenho · `75ebed2`
+- **R9-AGE-069** · acessibilidade · Tabelas que rolam de lado (Clientes, Equipe, Pendências, Histórico, Janelas, CRM e relatório da Semana) recebem foco pelo teclado e têm nome · `75ebed2`
+- **R9-AGE-070** · acessibilidade · WhatsApp: o campo "URL do Webhook" fica ligado ao rótulo dele · `75ebed2`
+- **R9-AGE-071** · acessibilidade · Janelas "Enviar WhatsApp" e "Novo modelo": o X de fechar passa a ter nome ("Fechar") · `75ebed2`
+- **R9-AGE-072** · celular · Início: os avisos do dia (sem telefone, sem valor, para fechar) viram uma fila que rola de lado; a lista de horários aparece na primeira tela · `75ebed2`
+- **R9-AGE-073** · celular · Menu do celular: rótulos de 8 para 9 px e "PENDÊNCIAS" deixa de quebrar em duas linhas · `75ebed2`
+- **R9-AGE-074** · tela · Quadro: cartões sem a faixa grossa colorida na lateral; a cor do estado vira uma marca pequena ao lado da hora · `75ebed2`
+- **R9-AGE-075** · tela · Quadro: resumo das confirmações e dos pré-agendamentos sem a faixa lateral, com a mesma marca pequena · `75ebed2`
+- **R9-AGE-076** · tela · Lista de espera: quem espera há muito ganha contorno fino no lugar da faixa lateral grossa · `75ebed2`
+- **R9-AGE-077** · tela · Quadro: o campo de data segue o desenho do app nos dois temas (antes o campo cru do navegador) · `75ebed2`
+- **R9-AGE-078** · texto · Endereço do topo sem travessão, inclusive quando o cadastro da oficina traz um · `75ebed2`
+- **R9-AGE-079** · conserto · A etiqueta do topo não mostra mais "DASHBOARD" enquanto a tela carrega; já nasce "INÍCIO" · `75ebed2`
+- **R9-AGE-080** · texto · Relatórios, ocupação por dia: o número solto vira "3 horários" ao lado das faltas · `75ebed2`
+- **R9-AGE-081** · conserto · Semana: horas de serviço com vírgula ("0,7 h"), não com ponto · `75ebed2`
+- **R9-AGE-082** · teste · Medição no navegador das 18 telas em 375 e 1440 px, claro e escuro (rolagem lateral, toque de 44 px, axe-core e travessão), com servidor de mentira: `scripts/qa-r9-agenda.mjs` · `75ebed2`
