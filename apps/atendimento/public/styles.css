@@ -120,7 +120,9 @@ svg{display:block}
   overflow:hidden;background:transparent}
 .logo-img{display:block;width:100%;height:100%;object-fit:cover;object-position:center;
   mix-blend-mode:screen}
-:root[data-tema="claro"] .logo-img{mix-blend-mode:multiply}
+/* Rodada 10: no tema claro o multiply deixava o fundo preto da arte como uma placa preta.
+   Agora entra a mesma arte com fundo transparente (logo-claro.png, gerada por scripts/gerar-logo-claro.cjs). */
+:root[data-tema="claro"] .logo-img{content:url("logo-claro.png");mix-blend-mode:normal}
 .marca-sub{display:block;font-family:var(--fonte-cond);font-weight:600;font-size:.58rem;
   letter-spacing:.34em;text-transform:uppercase;color:var(--cinza);margin-top:9px;padding-left:2px}
 .login-logo .logo-caixa{max-width:232px}
@@ -2329,3 +2331,13 @@ input[aria-invalid="true"]{border-color:var(--vermelho) !important}
 @media (max-width:600px){
   .funil-ferramentas input[type=search]{flex:1 1 100%}
 }
+
+/* Rodada 10: janela de confirmação do app no lugar do confirm()/prompt() do navegador */
+/* fica por cima das janelas criadas depois dela no HTML (mensagens que não saíram, retomada) */
+#modalConfirmarBg{z-index:130}
+#confirmarTexto{white-space:pre-line}
+.confirmar-campo{display:grid;gap:6px;margin:4px 0 14px;font-size:.88rem}
+.confirmar-campo[hidden]{display:none!important}
+.confirmar-campo input{width:100%;min-height:44px;padding:10px 12px;border-radius:10px;border:1px solid var(--linha);background:var(--campo-fundo);color:var(--texto-forte);font:inherit}
+.confirmar-campo input:focus-visible{outline:2px solid var(--vermelho,#e6192e);outline-offset:2px}
+#btnConfirmarOk:disabled{opacity:.5;cursor:not-allowed}

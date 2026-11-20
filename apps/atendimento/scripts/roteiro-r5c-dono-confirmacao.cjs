@@ -4,6 +4,7 @@
         BASE=http://localhost:3227 node scripts/roteiro-r5c-dono-confirmacao.cjs */
 const puppeteer = require('C:/Users/USER/.claude/backups/indycar-ferramentas/node_modules/puppeteer-core');
 const fs = require('fs');
+const { responderPerguntas, modoDasPerguntas, perguntasFeitas } = require('./pergunta-roteiro.cjs');
 const path = require('path');
 const BASE = process.env.BASE || 'http://localhost:3227';
 const OUT = path.join(__dirname, 'shots-tela', 'r5c-');
@@ -21,7 +22,7 @@ const ok = (nome, cond, extra = '') => { total++; if (cond) bons++; console.log(
       const erros = [];
       p.on('console', m => { if (m.type() === 'error' && !/favicon|Failed to load resource/.test(m.text())) erros.push(m.text()); });
       p.on('pageerror', e => erros.push('PAGEERROR ' + e.message));
-      let confirmou = 0; p.on('dialog', d => { confirmou++; d.dismiss(); });
+      await responderPerguntas(p, { aceitar: false });   // rodada 10: a pergunta é a janela do app; aqui o roteiro cancela
       await p.setViewport(largura < 600 ? { width: largura, height: 812, deviceScaleFactor: 1, isMobile: true, hasTouch: true } : { width: largura, height: 900 });
       await p.goto(`${BASE}/?papel=${papel}&saude=ok&conversa=${CAMILA}`, { waitUntil: 'networkidle0' });
       await espera(1200);
@@ -32,7 +33,8 @@ const ok = (nome, cond, extra = '') => { total++; if (cond) bons++; console.log(
       // mensagem sem confirmação
       const msg = await p.evaluate(() => { const b = document.querySelector('[data-chegou]'); const bolha = b?.closest('[data-msg], .msg, .bolha') || b?.parentElement; return { chegou: !!b, reenviar: !!document.querySelector('[data-reenviar][data-forcar]'), txt: bolha?.textContent || '' }; });
       ok(`${w} mensagem sem confirmação: "não sabemos se chegou — confira no WhatsApp" com Chegou e Reenviar`, msg.chegou && msg.reenviar && /não sabemos se chegou/.test(msg.txt), JSON.stringify(msg).slice(0, 200));
-      await p.evaluate(() => document.querySelector('[data-reenviar][data-forcar]').click()); await espera(300);
+      await p.evaluate(() => document.querySelector('[data-reenviar][data-forcar]').click()); await espera(500);
+      const confirmou = (await perguntasFeitas(p)).length;
       ok(`${w} "Reenviar" pede confirmação antes (cancelado: nada sai)`, confirmou === 1 && !!(await p.$('[data-chegou]')));
       await p.screenshot({ path: OUT + `${papel}-${largura}-conversa.png` });
       await p.evaluate(() => document.querySelector('[data-chegou]').click()); await espera(800);

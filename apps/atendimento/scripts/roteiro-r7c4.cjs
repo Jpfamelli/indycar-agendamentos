@@ -3,6 +3,7 @@
    Confere em 1440 e 375 px. */
 const puppeteer = require('C:/Users/USER/.claude/backups/indycar-ferramentas/node_modules/puppeteer-core');
 const fs = require('fs');
+const { responderPerguntas, modoDasPerguntas, perguntasFeitas } = require('./pergunta-roteiro.cjs');
 const path = require('path');
 
 const BASE = process.env.BASE || 'http://localhost:3470';
@@ -19,7 +20,7 @@ async function abrir(papel, largura = 1440, extra = '') {
   p.erros = [];
   p.on('console', m => { if (m.type() === 'error' && !/favicon|Failed to load resource/.test(m.text())) p.erros.push(m.text()); });
   p.on('pageerror', e => p.erros.push('PAGEERROR ' + e.message));
-  p.on('dialog', d => d.accept('ok'));
+  await responderPerguntas(p, { aceitar: true });   // rodada 10: a pergunta é a janela do app
   await p.setViewport(largura < 600 ? { width: largura, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { width: largura, height: 900 });
   await p.goto(`${BASE}/?papel=${papel}&saude=ok${extra}`, { waitUntil: 'networkidle0' });
   await espera(1000);
@@ -100,11 +101,10 @@ const foto = async (p, nome) => { try { await p.screenshot({ path: OUT + nome + 
       await p.evaluate(() => document.querySelector('#agendarHorariosLista .chip.horario').click());
       ok('[agendar] tocar num horário preenche data e hora do formulário', await p.evaluate(() => { const f = document.getElementById('formAgendar'); return !!f.data.value && /^\d\d:\d\d/.test(f.hora.value); }));
       // horário que a Agenda não mostra livre: pergunta antes de gravar (e cancelar não grava)
-      const perguntas = [];
-      p.removeAllListeners('dialog');
-      p.on('dialog', d => { perguntas.push(d.message()); d.dismiss(); });
+      await modoDasPerguntas(p, { aceitar: false });
       await p.evaluate(() => { const f = document.getElementById('formAgendar'); f.hora.value = '10:00'; window.__antes = document.getElementById('modalAgendarBg').classList.contains('aberto'); const sv = document.getElementById('agendarServico'); if (!sv.value && sv.options[1]) sv.value = sv.options[1].value; f.requestSubmit(); });
       await espera(700);
+      const perguntas = await perguntasFeitas(p);
       ok('[agendar] horário fora da Agenda pergunta antes de gravar e mostra os livres', perguntas.length === 1 && /não aparece livre na Agenda/.test(perguntas[0]) && /livres: \d\d:\d\d/.test(perguntas[0]), JSON.stringify(perguntas));
       ok('[agendar] ao cancelar, o modal continua aberto e nada foi gravado', await p.evaluate(() => document.getElementById('modalAgendarBg').classList.contains('aberto')));
       await foto(p, 'agendar-1440');

@@ -4,6 +4,7 @@
    LARG=375 só no celular · BASE=http://localhost:3221 · capturas em scripts/shots-tela/ (fora do git). */
 const puppeteer = require('C:/Users/USER/.claude/backups/indycar-ferramentas/node_modules/puppeteer-core');
 const fs = require('fs');
+const { responderPerguntas, modoDasPerguntas, perguntasFeitas } = require('./pergunta-roteiro.cjs');
 const OUT = __dirname + '/shots-tela/';
 fs.mkdirSync(OUT, { recursive: true });
 const BASE = process.env.BASE || 'http://localhost:3221';
@@ -23,7 +24,7 @@ async function abrir(papel, largura = 1440, extra = '', { limpo = true } = {}) {
   p.erros = [];
   p.on('console', m => { if (m.type() === 'error' && !/favicon|Failed to load resource: the server responded with a status of (40[134])/.test(m.text())) p.erros.push(m.text()); });
   p.on('pageerror', e => p.erros.push('PAGEERROR ' + e.message));
-  p.on('dialog', d => d.accept());
+  await responderPerguntas(p, { aceitar: true });   // rodada 10: a pergunta é a janela do app
   await p.setViewport(largura < 600 ? { width: largura, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { width: largura, height: 900 });
   await p.goto(`${BASE}/?papel=${papel}&saude=ok${extra}`, { waitUntil: 'networkidle0' });
   await espera(900);

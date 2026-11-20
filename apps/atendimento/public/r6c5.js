@@ -296,7 +296,7 @@
   async function marcarVisiveisComoLidas() {
     const lista = (typeof conversasFiltradas === 'function' ? conversasFiltradas() : []).filter((c) => c.nao_lidas > 0).slice(0, 100);
     if (!lista.length) return toast('Tudo lido por aqui. ✉');
-    if (!confirm(`Marcar ${lista.length} conversa${lista.length > 1 ? 's' : ''} como lida${lista.length > 1 ? 's' : ''}? As mensagens continuam lá; só some o contador.`)) return;
+    if (!await Acesso.perguntar({ titulo: `Marcar ${lista.length} conversa${lista.length > 1 ? 's' : ''} como lida${lista.length > 1 ? 's' : ''}?`, texto: 'As mensagens continuam lá; só some o contador.', botao: 'Marcar como lidas', perigo: false })) return;
     const ids = lista.map((c) => c.id);
     const { error } = await sb.from('conversas').update({ nao_lidas: 0 }).in('id', ids);
     if (error) return toast('⚠️ Não consegui marcar agora: ' + error.message);
