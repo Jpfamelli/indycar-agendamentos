@@ -306,6 +306,17 @@
   }
 
   /* ---------------- ficha rápida do cliente (r6_cliente_360) ---------------- */
+  /**
+   * Situação do orçamento na ficha do cliente. Antes: "esperando resposta · Onix · esperando há 1 dia" (o "esperando"
+   * duas vezes). Agora o tempo encosta no status: "esperando resposta há 1 dia". Com menos de 6 h, só o status.
+   */
+  function situacaoDoOrc(q) {
+    const st = String((q && q.status) || '');
+    const h = num(q && q.esperandoHoras);
+    if (h < 6) return st;
+    const quanto = L.duracao(h * 36e5);
+    return /^esperando/.test(st) ? `${st} há ${quanto}` : `${st} · esperando há ${quanto}`;
+  }
   const EXPLICA_LIGACOES = 'Solto é o que um sistema não acha no outro, como um horário sem cliente ligado.';
   const ROTULO_ACAO = { extra_pendente: 'Extra esperando o cliente', enviar_link_acompanhar: 'Mandar o link de acompanhar', cobrar_orcamento: 'Cobrar o orçamento', agendar_orcamento: 'Marcar horário do orçamento aprovado', responder: 'Responder a conversa', responder_avaliacao: 'Responder a avaliação', criar_orcamento: 'Criar orçamento', nao_mandar_mensagens: 'Não mandar mensagens (pediu para parar)' };
   /** Resumo da ficha: tudo já escapado na hora de desenhar; aqui só limites e links que a Casa sabe abrir. */
@@ -441,6 +452,6 @@
     ORIGENS_TAREFA, TIPOS_ORC_TAREFA, infoDaTarefa, ehDoOrcador, contarReabordar, linkDaDescricao, descricaoLimpa,
     NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, FAIXA_VIGIA, faixaDoVigia, saudeSistemas, resumoDaSaude,
     resumoLigacoes, ROTULO_ACAO, fichaDe, OPCOES_ADIAR, ateQuando, quandoVolta, acaoDoAviso, appDoAviso, textoDoAviso, filtrarPorTexto,
-    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES,
+    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -37,7 +37,7 @@
       return `<li class="ficha-acao" data-acao="${C.esc(a.codigo)}"><span class="a-txt"><b>${C.esc(a.titulo)}</b>${a.motivo ? `<small>${C.esc(a.motivo)}</small>` : ''}</span>${botao}</li>`;
     }).join('');
     const patio = f.patio.map((o) => `<li><span class="a-txt"><b>#${C.esc(o.numero)}</b> ${C.esc([o.veiculo, o.placa].filter(Boolean).join(' · ') || 'Carro')}<small>${C.esc(o.etapa)}${o.atrasado ? ' · parado além do normal' : ''}${o.extras ? ` · ${o.extras} extra${o.extras > 1 ? 's' : ''} esperando o cliente` : ''}</small></span>${app(o.link, 'patio', 'Abrir a OS')}</li>`).join('');
-    const orc = f.orcamentos.map((q) => `<li><span class="a-txt"><b>${C.esc(L.numeroOrc(q.numero))}</b> ${C.esc(L.brl(q.total))}<small>${C.esc(q.status)}${q.veiculo ? ' · ' + C.esc(q.veiculo) : ''}${q.esperandoHoras >= 6 ? ` · esperando há ${C.esc(L.duracao(q.esperandoHoras * 36e5))}` : ''}</small></span>${app(q.link, 'orcador', 'Abrir')}</li>`).join('');
+    const orc = f.orcamentos.map((q) => `<li><span class="a-txt"><b>${C.esc(L.numeroOrc(q.numero))}</b> ${C.esc(L.brl(q.total))}<small>${C.esc(N.situacaoDoOrc(q))}${q.veiculo ? ' · ' + C.esc(q.veiculo) : ''}</small></span>${app(q.link, 'orcador', 'Abrir')}</li>`).join('');
     const ag = f.agenda.map((a) => `<li><span class="a-txt"><b>${C.esc(dataCurta(a.data))} ${C.esc(a.hora)}</b> ${C.esc(a.servico || 'Horário')}<small>${C.esc(a.status)}</small></span>${app(a.link, 'agenda', 'Abrir')}</li>`).join('');
     const linha = f.linha.map((e) => `<li><span class="a-txt"><b>${C.esc(e.titulo)}</b>${e.detalhe ? `<small>${C.esc(e.detalhe)}</small>` : ''}</span><time>${C.esc(quandoCurto(e.quando))}</time></li>`).join('');
     $('#fichaCorpo').innerHTML =
