@@ -230,7 +230,7 @@
         </div>
         <form class="tarefa-form" id="formTarefaPainel">
           <input id="tarefaTexto" enterkeyhint="done" maxlength="200" placeholder="Ex.: ligar para o João" aria-label="Nova tarefa" required />
-          <input id="tarefaData" type="date" aria-label="Dia" />
+          <input id="tarefaData" type="date" aria-label="Data da tarefa" />
           <input id="tarefaHora" type="time" aria-label="Hora" step="900" />
           <select id="tarefaPrioridade" aria-label="Prioridade"><option value="2">Normal</option><option value="3">Urgente</option><option value="1">Baixa</option></select>
           <select id="tarefaPara" aria-label="Para quem" hidden></select>
@@ -259,7 +259,7 @@
       </div>
     </div>
     <div class="card">
-      <h3>Últimos leads</h3>
+      <h3>Contatos recentes</h3>
       <div class="table-wrap"><table class="table" id="tblRecent"></table></div>
     </div>
   </section>
@@ -349,7 +349,7 @@
   <!-- ---------- ORIGEM ---------- -->
   <section class="view" id="view-origem">
     <div class="card">
-      <h3>Performance por canal (últimos 7 dias)</h3>
+      <h3>Resultados por canal nos últimos 7 dias</h3>
       <p class="card-sub">De onde vieram os clientes e quanto cada canal realmente faturou.</p>
       <div class="table-wrap"><table class="table" id="tblOrigem"></table></div>
     </div>
@@ -390,7 +390,7 @@
       <p class="form-msg" id="eqMsg" role="status" hidden></p>
     </div>
     <div class="card">
-      <div class="card-topo"><h3>Funil por responsável</h3><span class="filter-count">leads de agora, por etapa</span></div>
+      <div class="card-topo"><h3>Funil por responsável</h3><span class="filter-count">Contatos em cada etapa neste momento</span></div>
       <div class="table-wrap"><table class="table" id="tblFunilResp"></table></div>
     </div>
   </section>
@@ -398,7 +398,7 @@
   <!-- ---------- DISTRIBUIR (gestor) — rodada 4 ---------- -->
   <section class="view" id="view-distribuir">
     <div class="card card-sem-dono" id="cardSemDono">
-      <div class="card-topo"><h3 id="sdTitulo">Leads sem dono</h3><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
+      <div class="card-topo"><h3 id="sdTitulo">Contatos sem responsável</h3><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
       <div class="sd-resumo" id="sdResumo"></div>
       <div class="sd-rodizio" id="sdRodizio"></div>
       <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="sdRecarregar">Recalcular</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="sdAplicar" disabled>Aplicar o rodízio sugerido</button></div>
@@ -406,7 +406,7 @@
     </div>
     <div class="dist-grade">
       <div class="card">
-        <div class="card-topo"><h3>1. Quais leads</h3><span class="filter-count" id="dsQtd" aria-live="polite"></span></div>
+        <div class="card-topo"><h3>1. Contatos a distribuir</h3><span class="filter-count" id="dsQtd" aria-live="polite"></span></div>
         <fieldset class="ds-grupo"><legend>Etapa</legend><div class="pilulas" id="dsStatus"></div></fieldset>
         <fieldset class="ds-grupo"><legend>Origem</legend><div class="pilulas" id="dsOrigem"></div></fieldset>
         <label class="ds-idade">Entrou há
@@ -454,11 +454,11 @@
     <p class="filter-count" id="relTxt" aria-live="polite"></p>
     <div class="kpis" id="relKpis"></div>
     <div class="grid-2">
-      <div class="card"><h3>Funil do período</h3><p class="card-sub">Leads que entraram no período e até onde chegaram.</p><div id="relFunil" class="funnel-mini"></div></div>
-      <div class="card"><h3>Motivos de perda</h3><p class="card-sub">Perdas fechadas no período.</p><div id="relMotivos"></div></div>
+      <div class="card"><h3>Funil do período</h3><p class="card-sub">Mostra os contatos que chegaram no período e a etapa de cada um.</p><div id="relFunil" class="funnel-mini"></div></div>
+      <div class="card"><h3>Motivos de perda</h3><p class="card-sub">Contatos marcados como perdidos no período.</p><div id="relMotivos"></div></div>
     </div>
     <div class="card"><h3>Conversão por origem</h3><div class="table-wrap"><table class="table" id="tblRelOrigem"></table></div></div>
-    <div class="card"><h3>Conversão e tempo de resposta por vendedor</h3><p class="card-sub">Tempo de resposta = mediana da primeira resposta no WhatsApp, nas conversas de cada pessoa.</p><div class="table-wrap"><table class="table" id="tblRelVendedor"></table></div></div>
+    <div class="card"><h3>Conversão e tempo de resposta por vendedor</h3><p class="card-sub">O tempo de resposta é a mediana do tempo até a primeira resposta no WhatsApp nas conversas de cada pessoa.</p><div class="table-wrap"><table class="table" id="tblRelVendedor"></table></div></div>
   </section>
 
   <!-- ---------- SERVIÇOS (catálogo que alimenta a IA) ---------- -->
@@ -771,7 +771,7 @@
 <div class="modal-bg gaveta-bg" id="modalBg">
   <div class="modal gaveta">
     <button class="modal-x" id="modalX" aria-label="Fechar lead" type="button">×</button>
-    <h3 id="modalTitle">Novo Lead</h3>
+    <h3 id="modalTitle">Novo contato</h3>
     <div id="leadFicha" hidden>
       <div class="lf-topo" id="lfTopo"></div>
       <div class="lf-resp" id="lfResp"></div>
@@ -787,7 +787,7 @@
       <div role="tabpanel" id="painelLembretes" aria-labelledby="abaLembretes" class="lf-painel" hidden>
         <form class="tarefa-form" id="formTarefaLead">
           <input id="tarefaLeadTexto" enterkeyhint="done" maxlength="200" placeholder="Ex.: retornar com o orçamento" aria-label="Nova tarefa para este contato" required />
-          <input id="tarefaLeadData" type="date" aria-label="Dia" />
+          <input id="tarefaLeadData" type="date" aria-label="Data da tarefa" />
           <input id="tarefaLeadHora" type="time" aria-label="Hora" step="900" />
           <select id="tarefaLeadPara" aria-label="Para quem"></select>
           <button class="btn btn-primary sm" type="submit">Criar tarefa</button>
@@ -809,7 +809,7 @@
         <label>Telefone *<input id="fTelefone" autocomplete="tel" type="tel" inputmode="tel" maxlength="20" required placeholder="(12) 9 9999-9999" aria-describedby="erro-fTelefone" /><small class="campo-erro" id="erro-fTelefone"></small></label>
       </div>
       <div class="row">
-        <label>Carro<input id="fCarro" maxlength="200" placeholder="Corolla 2018" /></label>
+        <label>Carro<input id="fCarro" autocapitalize="words" maxlength="200" placeholder="Corolla 2018" /></label>
         <label>Placa<input id="fPlaca" spellcheck="false" maxlength="8" placeholder="ABC1D23" autocapitalize="characters" aria-describedby="erro-fPlaca" /><small class="campo-erro" id="erro-fPlaca"></small></label>
       </div>
       <div class="row">
@@ -822,11 +822,11 @@
       </div>
       <div class="row">
         <label>Etapa<select id="fStatusForm"></select></label>
-        <label>Campanha (UTM)<input id="fCampanha" maxlength="200" placeholder="ex: trafego-cambio" /></label>
+        <label>Campanha (UTM)<input id="fCampanha" autocapitalize="none" maxlength="200" placeholder="Ex.: troca-de-oleo" /></label>
       </div>
       <div class="row">
-        <label>Fonte (utm_source)<input id="fUtmSource" maxlength="200" placeholder="ex: instagram, site, area_cliente" /></label>
-        <label>Mídia (utm_medium)<input id="fUtmMedium" maxlength="200" placeholder="ex: cpc, story, indicacao" /></label>
+        <label>Fonte (utm_source)<input id="fUtmSource" autocapitalize="none" maxlength="200" placeholder="ex: instagram, site, area_cliente" /></label>
+        <label>Mídia (utm_medium)<input id="fUtmMedium" autocapitalize="none" maxlength="200" placeholder="ex: cpc, story, indicacao" /></label>
       </div>
       <label>Observações<textarea id="fObs" maxlength="4000" rows="3" placeholder="Detalhes do atendimento…"></textarea></label>
       <div class="modal-actions">
@@ -908,7 +908,7 @@
 <!-- Rodada 5: busca global (Ctrl+K) -->
 <dialog class="dlg dlg-busca" id="dlgBusca" aria-labelledby="dlgBuscaT">
   <h3 id="dlgBuscaT" class="sr">Busca global</h3>
-  <div class="bg-campo"><span aria-hidden="true">⌕</span><input id="buscaGlobal" type="text" inputmode="search" enterkeyhint="go" autocomplete="off" placeholder="Nome, telefone ou placa…" aria-label="Buscar em contatos e clientes" aria-controls="buscaResultados" aria-expanded="true" role="combobox" /><kbd>Esc</kbd></div>
+  <div class="bg-campo"><span aria-hidden="true">⌕</span><input id="buscaGlobal" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Nome, telefone ou placa…" aria-label="Buscar em contatos e clientes" aria-controls="buscaResultados" aria-expanded="true" role="combobox" /><kbd>Esc</kbd></div>
   <div id="buscaResultados" class="bg-resultados" role="listbox" aria-label="Resultados"><p class="vazio-curto">Digite 2 letras do nome, 4 números do telefone ou a placa. <kbd>↑</kbd> <kbd>↓</kbd> escolhem, <kbd>Enter</kbd> abre.</p></div>
 </dialog>
 
@@ -926,8 +926,8 @@
   <form method="dialog" id="formCampanha">
     <h3 id="dlgCampanhaT">Campanha no Comunicar</h3>
     <p class="muted" id="campTxt"></p>
-    <label>Mensagem<textarea id="campCorpo" maxlength="2000" rows="4" required placeholder="Oi {nome}! Aqui é da IndyCar. …"></textarea><small>Use {nome}, {carro} e {placa}. Sem preço e sem "prezado/efetuar/comparecer/veículo".</small></label>
-    <div class="row"><label>Enviar a partir de<input id="campQuando" type="datetime-local" /></label><label>Detalhe interno<input id="campDetalhe" maxlength="200" placeholder="ex.: reativação de orçamentos de setembro" /></label></div>
+    <label>Mensagem<textarea id="campCorpo" aria-describedby="campAjuda" maxlength="2000" rows="4" required placeholder="Oi {nome}! Aqui é da IndyCar. …"></textarea><small id="campAjuda">Use {nome}, {carro} e {placa}. Deixe valores para a conversa com o cliente e escreva como você fala no atendimento.</small></label>
+    <div class="row"><label>Enviar a partir de<input id="campQuando" type="datetime-local" /></label><label>Nota interna<input id="campDetalhe" maxlength="200" placeholder="ex.: reativação de orçamentos de setembro" /></label></div>
     <p class="muted mini-nota">A campanha nasce como proposta: o gestor aprova no Comunicar antes de sair. Quem pediu para não receber mensagens fica de fora lá.</p>
     <p class="form-erro" id="campErro" role="alert"></p>
     <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button><div class="spacer"></div><button type="submit" class="btn btn-primary" id="campEnviar">Mandar para o Comunicar</button></div>
