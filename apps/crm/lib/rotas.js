@@ -39,6 +39,7 @@ async function rotasR3(c) {
     frear('atribuir', 120, 60_000);
     const b = await lerCorpo();
     if (!('responsavel_id' in b)) throw falha(400, 'Informe responsavel_id (ou null para tirar o dono).');
+    if (b.motivo != null && typeof b.motivo !== 'string') throw falha(400, 'Informe o motivo em texto.');
     const novo = b.responsavel_id === 'eu' ? quem.id : b.responsavel_id;
     json(res, 200, await eq.atribuir(mr[1], novo === '' ? null : novo, quem, { motivo: texto(b.motivo, 200) || null }));
     c.limparStats?.();
@@ -50,6 +51,9 @@ async function rotasR3(c) {
     frear('lote', 20, 60_000);
     const b = await lerCorpo();
     if (!('responsavel_id' in b)) throw falha(400, 'Informe responsavel_id (ou null).');
+    if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+      throw falha(400, 'Escolha somente leads v?lidos.');
+    }
     json(res, 200, await eq.atribuirLote(b.ids, b.responsavel_id === '' ? null : b.responsavel_id, quem));
     c.limparStats?.();
     return true;
@@ -61,6 +65,12 @@ async function rotasR3(c) {
     const b = await lerCorpo();
     if ('simular' in b && typeof b.simular !== 'boolean') throw falha(400, 'Informe se é uma simulação.');
     if ('todos' in b && typeof b.todos !== 'boolean') throw falha(400, 'Informe se o rodízio inclui todos os leads.');
+    if ('horas' in b && (!Number.isFinite(b.horas) || b.horas < 1 || b.horas > 8760)) {
+      throw falha(400, 'Informe um per?odo de 1 a 8760 horas.');
+    }
+    if ('limite' in b && (!Number.isInteger(b.limite) || b.limite < 1 || b.limite > 200)) {
+      throw falha(400, 'Informe um limite inteiro de 1 a 200 leads.');
+    }
     const r = await eq.rodizio({ executar: b.simular !== true, quem, horas: b.horas, todos: b.todos === true, limite: b.limite });
     json(res, 200, r);
     c.limparStats?.();
