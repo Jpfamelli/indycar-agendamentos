@@ -318,3 +318,9 @@ test('ligações entre sistemas: resumo diz "registros soltos para arrumar" (nã
   assert.doesNotMatch(s, /tipo\$\{/);
   assert.match(s, /N\.textoDasLigacoes\(r\)/);
 });
+
+test('visão do dono sem palavra difícil: nada de "ticket" nem "subestimado" na tela', () => {
+  const ruins = frasesDaTela().filter(([, t]) => /\bticket\b|subestimad/i.test(t));
+  assert.deepEqual(ruins, []);
+  assert.match(ler('painel.js'), /média de \$\{C\.esc\(L\.brl\(f\.ticket_semana\)\)\} por carro/);
+});
