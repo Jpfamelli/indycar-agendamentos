@@ -65,7 +65,19 @@
     const V = casa.visao();
     const sec = $('#manha');
     if (!sec || !W || !(V.agenda || V.dono || C.perfil.papel === 'agenda')) { if (sec) sec.hidden = true; return; }
-    $('#manhaFechar').onclick = () => { gravar(chave((ultimo && ultimo.hoje) || L.hojeSP()), '1'); sec.hidden = true; C.toast('Volta amanhã cedo.', 1500); };
+    /* rodada 9: "dispensar por hoje" não tinha volta (só no dia seguinte) e o foco caía no começo da página.
+       Agora o aviso tem "Desfazer" e o foco vai para o bloco de baixo; marcas de dias antigos são apagadas. */
+    $('#manhaFechar').onclick = () => {
+      const k = chave((ultimo && ultimo.hoje) || L.hojeSP());
+      gravar(k, '1'); sec.hidden = true;
+      try { for (const x of Object.keys(localStorage)) if (x.startsWith('indycar_manha_') && x !== k) localStorage.removeItem(x); } catch { /* sem armazenamento */ }
+      const alvo = $('#miolo'); if (alvo) alvo.focus({ preventScroll: true });
+      C.toast('Escondido até amanhã.', 6000, { rotulo: 'Desfazer', fazer: () => {
+        try { localStorage.removeItem(k); } catch { /* sem armazenamento */ }
+        if (ultimo) desenhar(ultimo);
+        const b = $('#manhaFechar'); if (b && !sec.hidden) b.focus();
+      } });
+    };
     carregar();
     clearInterval(timer);
     timer = setInterval(() => { if (!document.hidden) carregar(); }, 15 * 60_000);
