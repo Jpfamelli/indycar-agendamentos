@@ -1119,3 +1119,48 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-006** · segurança · Telefone do perfil recusa listas e preserva a normalização do DDD (teste R10-COM-006 em testes-r10-perfil.mjs) · `c2b65f6`
 - **R10-COM-007** · segurança · A cor do perfil exige texto hexadecimal ou campo limpo (teste R10-COM-007 em testes-r10-perfil.mjs) · `c2b65f6`
 - **R10-COM-008** · segurança · Preferências do perfil recusam listas em vez de tratá-las como configuração vazia (teste R10-COM-008 em testes-r10-perfil.mjs) · `c2b65f6`
+- **R10-COM-009** · segurança · A validação de perfil recusa corpo nulo ou de tipo incompatível (teste R10-COM-009 em testes-r10-perfil.mjs) · `3a4944f`
+- **R10-COM-010** · conserto · Cargo acima de 60 caracteres recebe aviso antes de salvar (teste R10-COM-010 em testes-r10-perfil.mjs) · `3a4944f`
+- **R10-COM-011** · conserto · Telefone com letras recebe aviso e a máscara comum continua aceita (teste R10-COM-011 em testes-r10-perfil.mjs) · `3a4944f`
+- **R10-COM-012** · conserto · Preferências de notificação inválidas recebem aviso antes de salvar (teste R10-COM-012 em testes-r10-perfil.mjs) · `3a4944f`
+- **R10-COM-013** · segurança · A API exige título de tarefa em texto (teste R10-COM-013 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-014** · segurança · A API recusa descrição de tarefa enviada como objeto (teste R10-COM-014 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-015** · conserto · Descrição de tarefa acima de 2.000 caracteres recebe aviso antes de salvar (teste R10-COM-015 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-016** · conserto · Prioridade de tarefa fora da escala recebe aviso antes de salvar (teste R10-COM-016 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-017** · conserto · Prazo de tarefa de tipo incompatível recebe aviso antes de salvar (teste R10-COM-017 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-018** · segurança · Atualização de consentimento exige valor booleano explícito (teste R10-COM-018 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-019** · segurança · A reabordagem rejeita listas no lugar do mapa de textos (teste R10-COM-019 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-020** · segurança · Cada mensagem de reabordagem exige texto (teste R10-COM-020 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-021** · conserto · Horário de envio recusa valores booleanos (teste R10-COM-021 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-022** · segurança · A reabordagem rejeita seleções inválidas de orçamentos antes de consultar o público (teste R10-COM-022 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-023** · segurança · O filtro de reabordagem só aceita motivos conhecidos (teste R10-COM-023 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-024** · segurança · O escopo da triagem exige valor booleano quando informado (teste R10-COM-024 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-025** · conserto · Resultados avançados recusam datas inexistentes antes de consultar o período (teste R10-COM-025 em testes-rodada7-api.mjs) · `c7fa7c2`
+- **R10-COM-026** · conserto · O relatório de uma régua recusa datas inválidas (teste R10-COM-026 em testes-rodada7-api.mjs) · `c7fa7c2`
+- **R10-COM-027** · conserto · A comparação entre réguas explica o formato esperado quando recebe data inválida (teste R10-COM-027 em testes-rodada7-api.mjs) · `c7fa7c2`
+
+- **R10-COM-028** · segurança · A nota de satisfação aceita somente valores de 1 a 5 (teste R10-COM-028 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-029** · segurança · A API recusa comentários acima de 1.000 caracteres antes de gravar (teste R10-COM-029 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-030** · conserto · Um ID inválido de envio bloqueia o registro de satisfação e informa qual vínculo corrigir (teste R10-COM-030 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-031** · conserto · Um ID inválido de agendamento bloqueia o registro de satisfação e informa qual vínculo corrigir (teste R10-COM-031 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-032** · segurança · O nome de segmento precisa ser texto de 2 a 60 caracteres após normalizar os espaços (testes R10-COM-032 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-033** · teste · Chrome cobre carregamento, nova tentativa e foco nas janelas de prévia e aniversários (navegador-janelas-r10.mjs). · `73c64a1`
+- **R10-COM-034** · segurança · A triagem rejeita toda a seleção se houver um tipo inválido, antes de cancelar mensagens (teste R10-COM-034 em testes-rodada7-api.mjs). · `ba22840`
+- **R10-COM-035** · segurança · Reagendar um dia recusa tipo desconhecido, evitando ampliar o reagendamento para todas as mensagens (teste R10-COM-035 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-036** · conserto · A data do reagendamento em lote exige texto em formato AAAA-MM-DD (teste R10-COM-036 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-037** · segurança · A análise de aniversários rejeita listas JSON no campo de texto (teste R10-COM-037 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-038** · conserto · Um aniversário inválido bloqueia a gravação parcial e indica qual seleção conferir (teste R10-COM-038 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-039** · segurança · A gravação recusa lotes com mais de 3.000 aniversários e informa o limite (teste R10-COM-039 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-040** · segurança · O detalhe do pedido ao gestor exige texto (teste R10-COM-040 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-041** · segurança · Prévia de campanha exige mensagem em texto. (teste R10-COM-041 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-042** · segurança · Envio de campanha recusa objetos no campo da mensagem. (teste R10-COM-042 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-043** · segurança · Envio de teste recusa listas no campo de telefone. (teste R10-COM-043 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-044** · segurança · Envio de teste recusa listas no campo da mensagem. (teste R10-COM-044 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-045** · segurança · Atualização do resumo exige confirmação booleana quando informada. (teste R10-COM-045 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-046** · segurança · Recusa de campanha exige motivo em texto quando informado. (teste R10-COM-046 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-047** · segurança · A importação informa quando a planilha ultrapassa 2.000 linhas, antes de gravar (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-048** · segurança · A importação rejeita linhas que não são objetos antes de gravar (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-049** · segurança · O reagendamento de uma mensagem rejeita data enviada como lista (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-050** · segurança · O reagendamento do dia rejeita data enviada como lista (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-051** · segurança · O rodapé de saída exige texto com a palavra PARAR (teste testes-rodada7-api) · `66d554d`
+- **R10-COM-052** · segurança · A escrita com IA exige um pedido em texto (teste testes-rodada7-api) · `66d554d`

@@ -307,6 +307,7 @@ export function exigeSegundoFator(usuarioAuth, aalDoToken) {
 
 /** Campos do perfil que a própria pessoa pode mudar pelo Comunicar. */
 export function camposDoMeuPerfil(corpo = {}) {
+  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return { erro: 'Perfil inválido.' };
   const c = {};
   if (corpo.nome !== undefined) {
     const n = typeof corpo.nome === 'string' ? corpo.nome.trim().replace(/\s+/g, ' ') : '';
@@ -315,10 +316,13 @@ export function camposDoMeuPerfil(corpo = {}) {
   }
   if (corpo.cargo !== undefined) {
     if (corpo.cargo !== null && typeof corpo.cargo !== 'string') return { erro: 'Cargo precisa ser texto.' };
-    c.cargo = corpo.cargo?.trim().slice(0, 60) || null;
+    const cargo = corpo.cargo?.trim() || '';
+    if (cargo.length > 60) return { erro: 'Cargo pode ter até 60 caracteres.' };
+    c.cargo = cargo || null;
   }
   if (corpo.telefone !== undefined) {
     if (corpo.telefone !== null && typeof corpo.telefone !== 'string') return { erro: 'Telefone com DDD, só números.' };
+    if (corpo.telefone && !/^\s*\+?[\d().\s-]+$/.test(corpo.telefone)) return { erro: 'Telefone com DDD, só números.' };
     const t = corpo.telefone?.replace(/\D/g, '') || '';
     if (t && (t.length < 10 || t.length > 13)) return { erro: 'Telefone com DDD, só números.' };
     c.telefone = t || null;
@@ -331,8 +335,16 @@ export function camposDoMeuPerfil(corpo = {}) {
   if (corpo.preferencias !== undefined) {
     const p = corpo.preferencias;
     if (!p || typeof p !== 'object' || Array.isArray(p)) return { erro: 'Preferências inválidas.' };
+    if (p.notificacoes !== undefined && (!p.notificacoes || typeof p.notificacoes !== 'object' || Array.isArray(p.notificacoes))) {
+      return { erro: 'Preferências de notificações inválidas.' };
+    }
     const notif = {};
-    for (const k of TIPOS_NOTIFICACAO) if (typeof p.notificacoes?.[k] === 'boolean') notif[k] = p.notificacoes[k];
+    for (const tipo of TIPOS_NOTIFICACAO) {
+      const valor = p.notificacoes?.[tipo];
+      if (valor === undefined) continue;
+      if (typeof valor !== 'boolean') return { erro: 'Preferências de notificações inválidas.' };
+      notif[tipo] = valor;
+    }
     c.preferencias = { notificacoes: notif };
   }
   return { campos: c };

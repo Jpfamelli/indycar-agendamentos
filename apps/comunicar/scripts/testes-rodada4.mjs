@@ -410,7 +410,10 @@ test('API: aniversários — analisar, gravar (lista só gestor; "substituir" s�
     assert.equal(neg.status, 403); assert.match(neg.json.erro, /gestor/);
     const um = await s.chamar('atendente', 'POST', '/api/aniversarios/gravar', { itens: lista.slice(0, 1), substituir: true });
     assert.equal(um.status, 200); assert.equal(s.d.gravados[0].substituir, false, 'atendente não substitui');
-    const g = await s.chamar('gestor', 'POST', '/api/aniversarios/gravar', { itens: [...lista, { cliente_id: 'lixo', nascimento: '1/1/2000' }, { cliente_id: ID(103), nascimento: '31/02' }], substituir: true });
+    const invalida = await s.chamar('gestor', 'POST', '/api/aniversarios/gravar', { itens: [...lista, { cliente_id: ID(103), nascimento: '31/02' }], substituir: true });
+    assert.equal(invalida.status, 400);
+    assert.equal(s.d.gravados.length, 1, 'lista inválida não grava parcialmente');
+    const g = await s.chamar('gestor', 'POST', '/api/aniversarios/gravar', { itens: lista, substituir: true });
     assert.equal(g.json.gravados, 2); assert.equal(s.d.gravados[1].substituir, true);
     assert.equal(s.d.gravados[1].itens[1].nascimento, '1981-02-02', 'data normalizada no servidor');
     assert.ok(s.d.auditoria.some((x) => x.acao === 'aniversarios_gravados'));

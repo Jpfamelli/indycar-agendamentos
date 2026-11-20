@@ -39,6 +39,71 @@ async function subir({ simular = null, livre = false } = {}) {
   return { base, api, deps, chamar, fechar: () => new Promise((ok) => srv.close(ok)) };
 }
 test.after(() => banco.restaurar());
+
+for (const [id, metodo, caminho, corpo, campo] of [
+  ['047', 'POST', '/api/clientes/importar', { linhas: Array(2001).fill(null) }, 'linhas'],
+  ['048', 'POST', '/api/clientes/importar', { linhas: [null] }, 'linhas'],
+  ['049', 'POST', `/api/envios/${ID(989)}/adiar`, { enviar_em: [new Date(Date.now() + 3600000).toISOString()] }, 'enviar_em'],
+  ['050', 'POST', '/api/agenda/adiar-dia', { dia: H, enviar_em: [new Date(Date.now() + 3600000).toISOString()] }, 'enviar_em'],
+  ['051', 'PUT', '/api/comunicar/config', { texto_rodape_parar: ['PARAR'] }, 'texto_rodape_parar'],
+  ['052', 'POST', '/api/ia/escrever', { pedido: { texto: 'Olá' } }, 'pedido'],
+]) {
+  test(`R10-COM-${id}: recusa ${campo} inválido em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', metodo, caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+
+for (const [id, caminho, corpo] of [
+  ['028', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, nota: true }],
+  ['029', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, comentario: 'a'.repeat(1001) }],
+  ['030', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, envio_id: 'inválido' }],
+  ['031', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, agendamento_id: 'inválido' }],
+  ['032', '/api/segmentos/salvos', { filtro: 'todos', nome: ['Clientes'] }],
+  ['032', '/api/segmentos/salvos', { filtro: 'todos', nome: 'a'.repeat(61) }],
+]) {
+  test(`R10-COM-${id}: recusa entrada inválida antes de gravar em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const tabela = caminho === '/api/satisfacao' ? 'posvenda_respostas' : 'comunicar_segmentos';
+      const antes = tabelas[tabela]?.length ?? 0;
+      const r = await s.chamar('gestor', 'POST', caminho, corpo);
+      assert.equal(r.status, 400, JSON.stringify(r.json));
+      assert.equal(tabelas[tabela]?.length ?? 0, antes);
+    } finally { await s.fechar(); }
+  });
+}
+
+const tarefaValida = { titulo: 'Confirmar horário com o cliente' };
+for (const [numero, campo, valor] of [
+  ['013', 'titulo', ['Confirmar']],
+  ['014', 'descricao', { texto: 'Ligar amanhã' }],
+  ['015', 'descricao', 'a'.repeat(2001)],
+  ['016', 'prioridade', 4],
+  ['017', 'vence_em', true],
+]) {
+  test(`R10-COM-${numero}: rejeita ${campo} inválido sem criar tarefa`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const total = tabelas.tarefas?.length ?? 0;
+      const r = await s.chamar('atendente', 'POST', '/api/tarefas', { ...tarefaValida, [campo]: valor });
+      assert.equal(r.status, 400);
+      assert.equal(tabelas.tarefas?.length ?? 0, total);
+    } finally { await s.fechar(); }
+  });
+}
+
+test('R10-COM-018: recusa valor não booleano no consentimento do cliente', async () => {
+  const s = await subir();
+  try {
+    const r = await s.chamar('atendente', 'PUT', `/api/clientes/${ID(991)}`, { aceita_mensagens: 'false' });
+    assert.equal(r.status, 400);
+  } finally { await s.fechar(); }
+});
 tabelas.comunicar_lotes = [];
 tabelas.clientes = [];
 const gestorCorpo = (extra = {}) => ({ corpo: 'Oi {primeiro_nome}, seu {carro} já pode passar aqui.', ...extra });
@@ -145,6 +210,24 @@ test('R7 API: "por que não saiu" explica celular ruim, campanha depois das 18h,
 const futuro = (min) => new Date(Date.now() + min * 60000).toISOString();
 const pend = (n, extra = {}) => ({ id: ID(n), status: 'pendente', tipo: 'campanha', nome: `P${n}`, telefone: `12991${String(100000 + n).slice(-6)}`, telefone_e164: `12991${String(100000 + n).slice(-6)}`, corpo: `texto ${n}`, enviar_em: futuro(120), expira_em: futuro(60 * 24 * 3), criado_por_id: ID(2), ...extra });
 
+for (const [id, caminho, corpo, campo] of [
+  ['019', '/api/reabordar/enviar', { textos: [] }, 'textos'],
+  ['020', '/api/reabordar/enviar', { textos: { preco: ['Oi {primeiro_nome}, quer conversar sobre o orçamento do seu carro?'] } }, 'preco'],
+  ['021', '/api/reabordar/enviar', { enviar_em: true }, 'enviar_em'],
+  ['022', '/api/reabordar/enviar', { orcamentos: 'invalid' }, 'orcamentos'],
+  ['023', '/api/reabordar/enviar', { motivos: ['inventado'] }, 'motivos'],
+  ['024', '/api/retomada/triagem', { tipos: ['lembrete'], so_perderam: 'false' }, 'so_perderam'],
+]) {
+  test(`R10-COM-${id}: ${caminho} recusa ${campo} inválido`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'POST', caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+
 test('R7 API: antecipar traz a mensagem para agora; recusa a que já foi pega, a vencida e o atendente em mensagem alheia', async () => {
   const s = await subir({ livre: true });
   try {
@@ -221,6 +304,21 @@ test('R7 API: triagem cancela só o que perdeu o sentido; encerrar a retomada é
   } finally { await s.fechar(); }
 });
 
+for (const [id, caminho, data] of [
+  ['025', '/api/resultados/avancados', 'de=2026-02-31'],
+  ['026', '/api/relatorio', 'ate=2026-13-01'],
+  ['027', '/api/relatorio/reguas', 'de=ontem'],
+]) {
+  test(`R10-COM-${id}: ${caminho} recusa data de calendário inválida`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'GET', `${caminho}?${data}`);
+      assert.equal(r.status, 400);
+      assert.match(r.json.erro, /AAAA-MM-DD/);
+    } finally { await s.fechar(); }
+  });
+}
+
 test('R7 API: adiar o dia só das campanhas deixa os outros tipos onde estão', async () => {
   const s = await subir({ livre: true });
   try {
@@ -248,3 +346,41 @@ test('R7 API: rotas caras têm limite por minuto (429) sem afetar outra pessoa',
     assert.equal((await s.chamar('atendente', 'GET', '/api/previa/exata')).status, 200);
   } finally { await s.fechar(); }
 });
+
+test('R10-COM-034: a triagem recusa seleção parcialmente inválida sem cancelar mensagens', async () => {
+  const s = await subir({ livre: true });
+  try {
+    const envio = pend(831, { tipo: 'lembrete', enviar_em: futuro(-1800), expira_em: futuro(1440) });
+    tabelas.posvenda_envios.push(envio);
+    for (const tipos of [['lembrete', 'inventado'], [['lembrete']]]) {
+      const r = await s.chamar('gestor', 'POST', '/api/retomada/triagem', { tipos });
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, 'tipos');
+      assert.equal(tabelas.posvenda_envios.find(e => e.id === envio.id).status, 'pendente');
+    }
+  } finally { await s.fechar(); }
+});
+
+for (const [id, caminho, corpo, campo] of [
+  ['035', '/api/agenda/adiar-dia', { dia: '2026-11-20', tipo: 'inventado' }, 'tipo'],
+  ['036', '/api/agenda/adiar-dia', { dia: ['2026-11-20'] }, 'dia'],
+  ['037', '/api/aniversarios/analisar', { texto: ['Maria,20/11'] }, 'texto'],
+  ['038', '/api/aniversarios/gravar', { itens: [{ cliente_id: ID(10), nascimento: '20/11' }, { cliente_id: 'inválido' }] }, 'itens'],
+  ['039', '/api/aniversarios/gravar', { itens: Array(3001).fill({ cliente_id: ID(10), nascimento: '20/11' }) }, 'itens'],
+  ['040', '/api/pedir-gestor', { assunto: 'teste', detalhe: { texto: 'Ajuda' } }, 'detalhe'],
+  ['041', '/api/campanhas/previa', { corpo: ['Mensagem'] }, 'corpo'],
+  ['042', '/api/envios', { corpo: { texto: 'Mensagem' } }, 'corpo'],
+  ['043', '/api/envios/teste', { telefone: ['12999990000'] }, 'telefone'],
+  ['044', '/api/envios/teste', { telefone: '12999990000', corpo: ['Mensagem'] }, 'corpo'],
+  ['045', '/api/ia/resumo', { forcar: 'false' }, 'forcar'],
+  ['046', `/api/campanhas/${ID(10)}/recusar`, { motivo: ['Revisar'] }, 'motivo'],
+]) {
+  test(`R10-COM-${id}: valida ${campo} em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'POST', caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}

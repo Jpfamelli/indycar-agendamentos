@@ -255,11 +255,19 @@ export function criarApi(deps) {
   });
   rota('GET', '/api/tarefas', async ({ res, usuario }) => ok(res, await dados.minhasTarefas(usuario.id)));
   rota('POST', '/api/tarefas', async ({ res, usuario, body }) => {
-    const titulo = String(body.titulo || '').trim();
+    const titulo = typeof body.titulo === 'string' ? body.titulo.trim() : '';
     if (titulo.length < 2) return bad(res, 'Escreva o que precisa ser feito.');
     if (titulo.length > 200) return bad(res, 'Título longo demais (até 200 letras).');
+    if (body.descricao != null && typeof body.descricao !== 'string') return bad(res, 'A descrição precisa ser texto.');
+    if (body.descricao?.length > 2000) return bad(res, 'Descrição longa demais (até 2.000 caracteres).');
+    if (body.prioridade != null && ![1, 2, 3, '1', '2', '3'].includes(body.prioridade)) return bad(res, 'Escolha uma prioridade de 1 a 3.');
     let vence = null;
-    if (body.vence_em) { const d = new Date(body.vence_em); if (Number.isNaN(d.getTime())) return bad(res, 'Prazo inválido.'); vence = d.toISOString(); }
+    if (body.vence_em != null && body.vence_em !== '') {
+      if (typeof body.vence_em !== 'string') return bad(res, 'Prazo inválido.');
+      const d = new Date(body.vence_em);
+      if (Number.isNaN(d.getTime())) return bad(res, 'Prazo inválido.');
+      vence = d.toISOString();
+    }
     for (const k of ['cliente_id', 'conversa_id', 'lead_id', 'agendamento_id', 'responsavel_id'])
       if (body[k] != null && body[k] !== '' && !dados.ehUuid(body[k])) return bad(res, 'Identificador inválido.');
     const t = await dados.criarTarefa({
@@ -320,7 +328,8 @@ export function criarApi(deps) {
   rota('GET', '/api/clientes', async ({ res, url }) => ok(res, await dados.listarClientes(String(url.searchParams.get('q') || '').slice(0, 80) || undefined)));
   rota('PUT', `/api/clientes/${U}`, async ({ res, usuario, body, url }) => {
     const id = idDe(url.pathname);
-    const mudaAceite = body.aceita_mensagens === true || body.aceita_mensagens === false;
+    const mudaAceite = body.aceita_mensagens !== undefined;
+    if (mudaAceite && typeof body.aceita_mensagens !== 'boolean') return bad(res, 'Informe se o cliente aceita mensagens.');
     if (body.aceita_mensagens === true && !A.pode(usuario, 'optout_religar')) return proibido(res, 'optout_religar');
     const antes = mudaAceite ? await dados.obterCliente(id) : null;
     const c = await dados.atualizarCliente(id, body, usuario.nome || usuario.email);
@@ -336,8 +345,12 @@ export function criarApi(deps) {
     return f ? ok(res, f) : naoAchou(res);
   });
   rota('POST', '/api/clientes/importar', async ({ res, usuario, body }) => {
-    const linhas = Array.isArray(body.linhas) ? body.linhas.slice(0, 2000) : [];
+    const linhas = Array.isArray(body.linhas) ? body.linhas : [];
     if (!linhas.length) return bad(res, 'Nenhuma linha para importar.');
+    if (linhas.length > 2000) return bad(res, 'Importe até 2.000 linhas por vez.', { campo: 'linhas' });
+    if (linhas.some((linha) => !linha || typeof linha !== 'object' || Array.isArray(linha))) {
+      return bad(res, 'Confira o formato das linhas antes de importar.', { campo: 'linhas' });
+    }
     const r = await dados.importarClientes(linhas);
     auditar(usuario, 'clientes_importados', 'clientes', null, { linhas: linhas.length, criados: r?.criados, atualizados: r?.atualizados, ignorados: r?.ignorados });
     return ok(res, r);
@@ -361,6 +374,8 @@ export function criarApi(deps) {
   rota('GET', '/api/segmentos/salvos', async ({ res }) => ok(res, await dados.listarSegmentosSalvos()));
   rota('POST', '/api/segmentos/salvos', async ({ res, usuario, body }) => {
     if (!segmentoValido(String(body.filtro || ''))) return bad(res, 'Segmento desconhecido.');
+    const nome = typeof body.nome === 'string' ? body.nome.trim().replace(/\s+/g, ' ') : '';
+    if (nome.length < 2 || nome.length > 60) return bad(res, 'Dê um nome ao segmento (2 a 60 caracteres).');
     try {
       const s = await dados.salvarSegmento({ nome: body.nome, filtro: String(body.filtro || ''), valor: body.valor, criado_por: usuario.id, criado_por_nome: usuario.nome || usuario.email });
       auditar(usuario, 'segmento_salvo', 'comunicar_segmentos', s?.id, { nome: s?.nome, filtro: s?.filtro, valor: s?.valor });
@@ -412,7 +427,8 @@ export function criarApi(deps) {
 
   // ---- rodada 6: prévia EXATA da campanha (as mesmas linhas que seriam enfileiradas, sem gravar nada) ----
   rota('POST', '/api/campanhas/previa', async ({ res, usuario, body }) => {
-    const corpo = String(body.corpo ?? '').trim();
+    if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
+    const corpo = (body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');
     if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).');
     const destinos = await resolverDestinos(body);
@@ -429,6 +445,7 @@ export function criarApi(deps) {
   rota('POST', `/api/envios/${U}/adiar`, async ({ res, usuario, body, url }) => {
     const id = idDe(url.pathname);
     if (!(await podeMexerNoEnvio(usuario, id))) return proibido(res, 'cancelar_qualquer');
+    if (typeof body.enviar_em !== 'string') return bad(res, 'Escolha uma data e hora válidas.', { campo: 'enviar_em' });
     const r = await dados.adiarManual(id, body.enviar_em);
     if (!r.ok) return send(res, r.status || 400, { erro: r.erro });
     esquecerCache('agenda', 'fila', 'resumo');
@@ -436,7 +453,13 @@ export function criarApi(deps) {
     return ok(res, r);
   });
   rota('POST', '/api/agenda/adiar-dia', async ({ res, usuario, body }) => {
-    const r = await dados.adiarDia(String(body.dia || ''), body.enviar_em, dados.TIPOS_ENVIO.includes(body.tipo) ? body.tipo : null);
+    const dia = typeof body.dia === 'string' && conexoes.diaValido(body.dia);
+    if (!dia) return bad(res, 'Informe o dia no formato AAAA-MM-DD.', { campo: 'dia' });
+    if (body.tipo != null && !dados.TIPOS_ENVIO.includes(body.tipo)) {
+      return bad(res, 'Escolha um tipo de mensagem válido.', { campo: 'tipo' });
+    }
+    if (typeof body.enviar_em !== 'string') return bad(res, 'Escolha uma data e hora válidas.', { campo: 'enviar_em' });
+    const r = await dados.adiarDia(dia, body.enviar_em, body.tipo ?? null);
     if (!r.ok) return bad(res, r.erro);
     esquecerCache('agenda', 'fila', 'resumo');
     auditar(usuario, 'dia_adiado', 'posvenda_envios', null, { dia: body.dia, para: r.quando, adiadas: r.adiadas, ficaram: r.ficaram });
@@ -500,7 +523,8 @@ export function criarApi(deps) {
   /* Avulsa (1 cliente, qualquer um da equipe), campanha (gestor: sai direto) ou
      proposta (atendente com 2+ clientes: espera o gestor aprovar). */
   rota('POST', '/api/envios', async ({ res, usuario, body }) => {
-    const corpo = String(body.corpo ?? '').trim();
+    if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
+    const corpo = (body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');
     if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).');
     const enviarEm = body.enviar_em ? new Date(body.enviar_em) : new Date(relogio());
@@ -639,6 +663,8 @@ export function criarApi(deps) {
 
   /* Teste real: manda AGORA para o telefone de teste, fora da fila e da janela. */
   rota('POST', '/api/envios/teste', async ({ res, usuario, body }) => {
+    if (body.telefone != null && typeof body.telefone !== 'string') return bad(res, 'Informe o telefone em texto.', { campo: 'telefone' });
+    if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
     const cfg = await dados.obterConfig();
     const telefone = dados.soDigitos(body.telefone || cfg.telefone_teste);
     if (telefone.length < 10) return bad(res, 'Informe um telefone de teste (em Réguas › Envio).');
@@ -689,7 +715,8 @@ export function criarApi(deps) {
   });
   rota('POST', `/api/campanhas/${U}/recusar`, async ({ res, usuario, url, body }) => {
     const id = idDe(url.pathname);
-    const motivo = String(body.motivo || '').trim().slice(0, 200) || null;
+    if (body.motivo != null && typeof body.motivo !== 'string') return bad(res, 'Escreva o motivo em texto.', { campo: 'motivo' });
+    const motivo = body.motivo?.trim().slice(0, 200) || null;
     const c = await dados.decidirCampanha(id, { status: 'recusada', decidido_por: usuario.id, decidido_por_nome: usuario.nome || usuario.email, decidido_em: new Date(relogio()).toISOString(), motivo_recusa: motivo });
     if (!c) return (await dados.obterCampanha(id)) ? send(res, 409, { erro: 'Essa campanha já foi decidida.' }) : naoAchou(res);
     await auto.avisarDecisaoDeCampanha({ campanha: c, loja: dados }).catch(() => null);
@@ -734,7 +761,10 @@ export function criarApi(deps) {
       const erro = r7.validarTextoR7(k, body[k]);
       if (erro) return bad(res, erro, { campo: k });
     }
-    if (body?.texto_rodape_parar !== undefined && !/parar/i.test(String(body.texto_rodape_parar))) return bad(res, 'O rodapé precisa dizer como sair: inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
+    if (body.texto_rodape_parar !== undefined &&
+        (typeof body.texto_rodape_parar !== 'string' || !/parar/i.test(body.texto_rodape_parar))) {
+      return bad(res, 'O rodapé precisa dizer como sair: inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
+    }
     const antes = await dados.obterConfig();
     const depois = await dados.salvarConfig(body);
     esquecerCache('resumo', 'pronto', 'projecao', 'carteiro');
@@ -779,14 +809,16 @@ export function criarApi(deps) {
   rota('GET', '/api/relatorio', async ({ res, url }) => {
     const regua = url.searchParams.get('regua');
     if (regua && regua !== 'todas' && !dados.TIPOS_ENVIO.includes(regua)) return bad(res, 'Régua desconhecida.');
-    const de = url.searchParams.get('de') || null, ate = url.searchParams.get('ate') || null;
-    if (de && ate && de > ate) return bad(res, 'O "de" precisa vir antes do "até".');
+    const { de, ate, invalido, invertido } = periodoDe(url);
+    if (invalido) return bad(res, 'Informe as datas no formato AAAA-MM-DD.');
+    if (invertido) return bad(res, 'O "de" precisa vir antes do "até".');
     return ok(res, await dados.relatorioRegua(regua || null, Math.min(Math.max(Number(url.searchParams.get('semanas')) || 8, 2), 26), { de, ate }));
   });
   /* Rodada 5: uma linha por régua no período — enviadas, responderam, agendaram depois, pediram para parar. */
   rota('GET', '/api/relatorio/reguas', async ({ res, url }) => {
-    const de = url.searchParams.get('de') || null, ate = url.searchParams.get('ate') || null;
-    if (de && ate && de > ate) return bad(res, 'O "de" precisa vir antes do "até".');
+    const { de, ate, invalido, invertido } = periodoDe(url);
+    if (invalido) return bad(res, 'Informe as datas no formato AAAA-MM-DD.');
+    if (invertido) return bad(res, 'O "de" precisa vir antes do "até".');
     return ok(res, await emCache(`rel-reguas:${de}:${ate}`, 60_000, () => dados.relatorioPorRegua({ de, ate })));
   });
   rota('GET', '/api/intencoes', async ({ res, url }) => ok(res, await dados.intencoesRecentes(Math.min(Math.max(Number(url.searchParams.get('dias')) || 7, 1), 60))));
@@ -799,6 +831,7 @@ export function criarApi(deps) {
     return ok(res, { ativo: cfg.ativo, temChave: !!chave, autonomia: cfg.autonomia, chamadasHoje: hojeN, limite: cfg.limite });
   });
   rota('POST', '/api/ia/escrever', async ({ res, usuario, body }) => {
+    if (body.pedido != null && typeof body.pedido !== 'string') return bad(res, 'Escreva o pedido em texto.', { campo: 'pedido' });
     const regua = String(body.regua || 'campanha');
     if (!ia?.VARIAVEIS_POR_REGUA?.[regua]) return bad(res, 'Régua desconhecida.');
     const pedido = String(body.pedido || '').slice(0, 500), texto = String(body.texto || '').slice(0, 1500);
@@ -829,6 +862,7 @@ export function criarApi(deps) {
     return ok(res, { texto: cfg.ia_resumo, em: cfg.ia_resumo_em, valido: h !== null && h < 6 });
   });
   rota('POST', '/api/ia/resumo', async ({ res, usuario, body }) => {
+    if (body.forcar !== undefined && typeof body.forcar !== 'boolean') return bad(res, 'Confirme se deseja atualizar o resumo.', { campo: 'forcar' });
     const cfg = await dados.obterConfig();
     const h = idadeResumoH(cfg);
     if (!body.forcar && cfg.ia_resumo && h !== null && h < 6) return ok(res, { texto: cfg.ia_resumo, em: cfg.ia_resumo_em, valido: true, cache: true });
@@ -851,6 +885,13 @@ export function criarApi(deps) {
   rota('POST', '/api/satisfacao', async ({ res, usuario, body }) => {
     if (!dados.ehUuid(body.cliente_id)) return bad(res, 'Escolha o cliente.');
     if (body.satisfeito !== true && body.satisfeito !== false) return bad(res, 'Diga se o cliente ficou satisfeito ou não.');
+    if (body.nota != null && (
+      !['number', 'string'].includes(typeof body.nota) || !/^[1-5]$/.test(String(body.nota))
+    )) return bad(res, 'Use uma nota de 1 a 5.');
+    if (body.comentario != null && (typeof body.comentario !== 'string' || body.comentario.length > 1000))
+      return bad(res, 'Use até 1.000 caracteres no comentário.');
+    if (body.envio_id != null && !dados.ehUuid(body.envio_id)) return bad(res, 'Envio inválido.');
+    if (body.agendamento_id != null && !dados.ehUuid(body.agendamento_id)) return bad(res, 'Agendamento inválido.');
     return ok(res, await dados.registrarResposta({ ...body, registrado_por: usuario.nome || usuario.email }));
   });
   rota('DELETE', `/api/satisfacao/${U}`, async ({ res, usuario, url }) => {
@@ -910,7 +951,8 @@ export function criarApi(deps) {
   });
 
   rota('POST', '/api/aniversarios/analisar', async ({ res, body }) => {
-    const texto = String(body.texto ?? '');
+    const texto = body.texto ?? '';
+    if (typeof texto !== 'string') return bad(res, 'Informe a lista em texto.', { campo: 'texto' });
     if (!texto.trim()) return bad(res, 'Cole a lista (ou escolha o arquivo) primeiro.');
     if (texto.length > 600_000) return bad(res, 'Lista grande demais: divida em partes de até 3.000 linhas.');
     const lido = aniv.lerLista(texto);
@@ -921,10 +963,17 @@ export function criarApi(deps) {
   });
 
   rota('POST', '/api/aniversarios/gravar', async ({ res, usuario, body }) => {
-    const brutos = Array.isArray(body.itens) ? body.itens.slice(0, 3000) : [];
-    const itens = brutos.filter((i) => i && dados.ehUuid(i.cliente_id) && aniv.lerData(i.nascimento))
-      .map((i) => ({ cliente_id: i.cliente_id, nascimento: aniv.lerData(i.nascimento) }));
-    if (!itens.length) return bad(res, 'Nada para gravar: escolha pelo menos um cliente com data válida.');
+    if (!Array.isArray(body.itens) || !body.itens.length || body.itens.length > 3000) {
+      return bad(res, 'Escolha de 1 a 3.000 aniversários por vez.', { campo: 'itens' });
+    }
+    const itens = [];
+    for (const item of body.itens) {
+      const nascimento = typeof item?.nascimento === 'string' ? aniv.lerData(item.nascimento) : null;
+      if (!dados.ehUuid(item?.cliente_id) || !nascimento) {
+        return bad(res, 'Confira o cliente e a data de cada aniversário selecionado.', { campo: 'itens' });
+      }
+      itens.push({ cliente_id: item.cliente_id, nascimento });
+    }
     if (itens.length > 1 && !A.pode(usuario, 'importar'))
       return send(res, 403, { erro: 'Gravar uma lista inteira é com o gestor. Peça a ele, ou cadastre um por vez na ficha.', codigo: 'sem_permissao' });
     const r = await dados.gravarNascimentos(itens, { substituir: body.substituir === true && A.pode(usuario, 'importar') });
@@ -950,8 +999,11 @@ export function criarApi(deps) {
     rodar: 'rodar o carteiro agora', optout: 'voltar a mandar para um cliente que saiu da lista', campanha: 'aprovar uma campanha', outro: 'uma ajuda no Comunicar',
   };
   rota('POST', '/api/pedir-gestor', async ({ res, usuario, body }) => {
-    const assunto = ASSUNTOS_PEDIDO[body.assunto] ? body.assunto : 'outro';
-    const detalhe = String(body.detalhe || '').trim().slice(0, 300) || null;
+    const assunto = typeof body.assunto === 'string' && Object.hasOwn(ASSUNTOS_PEDIDO, body.assunto) ? body.assunto : 'outro';
+    if (body.detalhe != null && typeof body.detalhe !== 'string') {
+      return bad(res, 'Escreva o detalhe do pedido em texto.', { campo: 'detalhe' });
+    }
+    const detalhe = body.detalhe?.trim().slice(0, 300) || null;
     const ids = (await dados.gestores().catch(() => [])).filter((id) => id !== usuario.id);
     if (!ids.length) return bad(res, 'Não achei um gestor para avisar. Fale com o administrador.');
     const dia = dados.hoje();
