@@ -120,8 +120,8 @@
   <label class="ecossistema">Ecossistema IndyCar<select id="ecossistema" aria-label="Abrir outro sistema"><option value="">CRM · atual</option></select></label>
   <div class="side-foot">
     <button class="tema-toggle" id="btnTema" type="button"
-            title="Alternar tema claro e escuro" aria-label="Alternar tema claro e escuro">
-      <span class="tema-ico" id="temaIco">🌙</span>
+            title="Alternar tema claro e escuro" aria-labelledby="temaTxt">
+      <span class="tema-ico" id="temaIco" aria-hidden="true">🌙</span>
       <span class="tema-txt" id="temaTxt">Tema escuro</span>
     </button>
     <button type="button" class="ajuda-btn" id="btnAjuda" aria-label="Ajuda: como faço, atalhos e tour" title="Ajuda (?)"><span aria-hidden="true">?</span><span class="ajuda-txt">Ajuda</span></button>
@@ -142,7 +142,7 @@
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
         <input aria-label="Buscar contatos" id="search" type="search" enterkeyhint="search" placeholder="Nome, telefone ou placa" />
       </div>
-      <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Busca global: nome, telefone ou placa (Ctrl+K)" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd>Ctrl K</kbd></button>
+      <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Buscar tudo: nome, telefone ou placa" aria-keyshortcuts="Control+K" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd aria-hidden="true">Ctrl K</kbd></button>
       <button type="button" class="fila-chip" id="filaChip" hidden aria-live="polite"></button>
       <button class="btn btn-primary" id="btnNovo">+ Novo contato</button>
       <div class="topo-icones">
@@ -251,7 +251,7 @@
     <div class="grid-2">
       <div class="card">
         <h3>Conversão por origem</h3>
-        <div class="table-wrap"><table class="table" id="tblOrigemPainel"></table></div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Conversão por origem no Painel"><table class="table" id="tblOrigemPainel"></table></div>
       </div>
       <div class="card">
         <h3>Motivos de perda</h3>
@@ -351,7 +351,7 @@
     <div class="card">
       <h3>Resultados por canal nos últimos 7 dias</h3>
       <p class="card-sub">De onde vieram os clientes e quanto cada canal realmente faturou.</p>
-      <div class="table-wrap"><table class="table" id="tblOrigem"></table></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Resultados por canal"><table class="table" id="tblOrigem"></table></div>
     </div>
     <div class="card">
       <h3>Como rastrear Meta e Google automaticamente</h3>
@@ -381,7 +381,7 @@
           <option value="agendados">Agendados</option><option value="leads">Leads</option><option value="tempo_resposta_min">Tempo de resposta</option>
         </select></label></div>
       <figure class="ranking" id="eqRanking" aria-labelledby="eqRankingT"><figcaption class="sr" id="eqRankingT">Ranking por faturamento</figcaption><div id="eqBarras"></div></figure>
-      <div class="table-wrap"><table class="table" id="tblDesempenho"></table></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Desempenho da equipe"><table class="table" id="tblDesempenho"></table></div>
     </div>
     <div class="card">
       <div class="card-topo"><h3>Metas por pessoa</h3><button type="button" class="btn btn-primary sm" id="eqSalvar">Salvar metas do mês</button></div>
@@ -391,14 +391,14 @@
     </div>
     <div class="card">
       <div class="card-topo"><h3>Funil por responsável</h3><span class="filter-count">Contatos em cada etapa neste momento</span></div>
-      <div class="table-wrap"><table class="table" id="tblFunilResp"></table></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Funil por responsável"><table class="table" id="tblFunilResp"></table></div>
     </div>
   </section>
 
   <!-- ---------- DISTRIBUIR (gestor) — rodada 4 ---------- -->
   <section class="view" id="view-distribuir">
     <div class="card card-sem-dono" id="cardSemDono">
-      <div class="card-topo"><h3 id="sdTitulo">Contatos sem responsável</h3><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
+      <div class="card-topo"><h2 id="sdTitulo">Contatos sem responsável</h2><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
       <div class="sd-resumo" id="sdResumo"></div>
       <div class="sd-rodizio" id="sdRodizio"></div>
       <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="sdRecarregar">Recalcular</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="sdAplicar" disabled>Aplicar o rodízio sugerido</button></div>
@@ -425,8 +425,8 @@
     </div>
     <div class="card" id="dsResultado" hidden>
       <div class="card-topo"><h3>3. Prévia</h3><span class="filter-count" id="dsPreviaTxt" aria-live="polite"></span></div>
-      <div class="table-wrap"><table class="table" id="tblDsResumo"></table></div>
-      <details class="ds-detalhe"><summary>Ver contato por contato</summary><div class="table-wrap"><table class="table" id="tblDsLeads"></table></div></details>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Prévia da distribuição por pessoa"><table class="table" id="tblDsResumo"></table></div>
+      <details class="ds-detalhe"><summary>Ver contato por contato</summary><div class="table-wrap" tabindex="0" role="region" aria-label="Contatos da prévia de distribuição"><table class="table" id="tblDsLeads"></table></div></details>
       <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="dsRefazer">Refazer</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="dsGravar">Gravar distribuição</button></div>
     </div>
     <div class="card">
@@ -457,8 +457,8 @@
       <div class="card"><h3>Funil do período</h3><p class="card-sub">Mostra os contatos que chegaram no período e a etapa de cada um.</p><div id="relFunil" class="funnel-mini"></div></div>
       <div class="card"><h3>Motivos de perda</h3><p class="card-sub">Contatos marcados como perdidos no período.</p><div id="relMotivos"></div></div>
     </div>
-    <div class="card"><h3 id="relOrigemTitulo">Conversão por origem</h3><div class="table-wrap"><table class="table" id="tblRelOrigem" aria-labelledby="relOrigemTitulo"></table></div></div>
-    <div class="card"><h3 id="relVendedorTitulo">Conversão e tempo de resposta por vendedor</h3><p class="card-sub">O tempo de resposta é a mediana do tempo até a primeira resposta no WhatsApp nas conversas de cada pessoa.</p><div class="table-wrap"><table class="table" id="tblRelVendedor" aria-labelledby="relVendedorTitulo"></table></div></div>
+    <div class="card"><h3 id="relOrigemTitulo">Conversão por origem</h3><div class="table-wrap" tabindex="0" role="region" aria-label="Conversão por origem"><table class="table" id="tblRelOrigem" aria-labelledby="relOrigemTitulo"></table></div></div>
+    <div class="card"><h3 id="relVendedorTitulo">Conversão e tempo de resposta por vendedor</h3><p class="card-sub">O tempo de resposta é a mediana do tempo até a primeira resposta no WhatsApp nas conversas de cada pessoa.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Conversão e tempo de resposta por vendedor"><table class="table" id="tblRelVendedor" aria-labelledby="relVendedorTitulo"></table></div></div>
   </section>
 
   <!-- ---------- SERVIÇOS (catálogo que alimenta a IA) ---------- -->
@@ -609,7 +609,7 @@
       </form>
 
       <div class="kpis" id="roiKpis" style="margin:20px 0"></div>
-      <div class="table-wrap"><table class="table" id="tblROI"></table></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Investimento e retorno por canal"><table class="table" id="tblROI"></table></div>
       <p class="muted" style="font-size:.8rem;margin-top:12px">
         Retorno = faturamento do canal ÷ investimento do mês. Não desconta peças nem mão de obra.
       </p>

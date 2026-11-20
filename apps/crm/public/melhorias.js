@@ -307,7 +307,7 @@ document.addEventListener('click', e => { if (!e.target.closest('.colunas-menu')
 const LIMITE_CARTOES = 40; const COLUNAS_ABERTAS = new Set();
 function cartaoKanban(l, agora) {
   const d = U.diasNaEtapa(l, agora), p = U.parado(l, agora), trava = travaLead(l);
-  return `<div class="kb-card${p ? ' parado' : ''}${trava ? ' travado' : ''}" data-id="${esc(l.id)}"${trava ? ' data-travado="1"' : ''} tabindex="0" role="button" aria-roledescription="cartão arrastável" aria-label="${esc(l.nome)}, ${esc(LABEL_STATUS[l.status] ?? l.status)}, ${esc(U.textoDias(d))} na etapa${p ? ', parado' : ''}">
+  return `<div class="kb-card${p ? ' parado' : ''}${trava ? ' travado' : ''}" data-id="${esc(l.id)}"${trava ? ' data-travado="1"' : ''} tabindex="0" role="group" aria-description="Pressione Enter para abrir o contato." aria-label="${esc(l.nome)}, ${esc(LABEL_STATUS[l.status] ?? l.status)}, ${esc(U.textoDias(d))} na etapa${p ? ', parado' : ''}">
     <span class="kb-alca" aria-hidden="true" title="Arraste para mudar de etapa">⠿</span>
     <div class="kb-nome">${esc(l.nome)}</div>
     <div class="kb-meta">${esc(l.carro_modelo) || '—'} · ${esc(l.servico) || 'serviço n/d'}</div>

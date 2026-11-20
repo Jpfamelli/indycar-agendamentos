@@ -720,7 +720,7 @@ async function carregarClientes() {
   const pedido = ++pedidoClientes;
   const atual = () => pedido === pedidoClientes && q === $('#buscaCliente').value.trim();
   alvo.setAttribute('aria-busy', 'true');
-  if (!CLIENTES.length) alvo.innerHTML = '<tbody><tr><td><div class="skeleton" aria-label="Carregando clientes"></div></td></tr></tbody>';
+  if (!CLIENTES.length) alvo.innerHTML = '<tbody><tr><td><div class="skeleton" aria-hidden="true"></div><span class="sr">Carregando clientes</span></td></tr></tbody>';
   try {
     const r = await api('/api/clientes' + (q ? `?q=${encodeURIComponent(q)}` : ''));
     if (!atual()) return;
