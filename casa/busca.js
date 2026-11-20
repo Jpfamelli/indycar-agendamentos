@@ -148,6 +148,9 @@
     document.body.classList.add('modal-aberto');
     const inp = $('#buscaInput');
     inp.value = texto || '';
+    /* rodada 9: a pesquisa da vez anterior ficava como "última busca"; com o campo vazio, setas + Enter na tela inicial
+       achavam que o texto tinha mudado e só redesenhavam a tela, sem abrir o item marcado */
+    ultimaBusca = '';
     if (inp.value) buscar(inp.value); else telaInicial();
     setTimeout(() => { inp.focus(); inp.select(); }, 20);
   }

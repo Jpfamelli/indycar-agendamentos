@@ -525,3 +525,10 @@ test('saúde: sistemas que mudam juntos viram um aviso só (antes um por sistema
   assert.match(s, /const aviso = N\.avisoDeMudancas\(antes, s\.itens\);/);
   assert.doesNotMatch(s, /for \(const i of s\.itens\) \{\s*if \(antes/);
 });
+
+test('busca reaberta: a pesquisa da vez anterior não trava o Enter da tela inicial', () => {
+  const s = semComentarios(ler('busca.js'));
+  const abrir = s.slice(s.indexOf('function abrir('), s.indexOf('function abrir(') + 600);
+  assert.match(abrir, /ultimaBusca = '';\s*if \(inp\.value\) buscar\(inp\.value\); else telaInicial\(\);/);
+  assert.match(readFileSync(join(RAIZ, 'tests', 'r9-casa-interacoes.mjs'), 'utf8'), /busca reaberta: setas até "Agenda" e Enter abrem a Agenda/);
+});

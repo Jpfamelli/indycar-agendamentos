@@ -367,6 +367,26 @@ try {
   conferir('ficha: tentar de novo deixa o foco dentro da janela', foco === 'fichaFechar', foco);
   await f.page.close();
   });
+
+  // 24. busca reaberta depois de uma pesquisa: setas + Enter na tela inicial abrem o item (antes só redesenhava a tela)
+  await passo("24. busca reaberta: Enter abre o item marcado", async () => {
+  const b = await abrir({ papel: 'admin' }, 1440);
+  await b.page.click('#bBusca'); await espera(150);
+  await b.page.type('#buscaInput', 'gabi'); await espera(900);
+  await b.page.keyboard.press('Escape'); await espera(150);
+  await b.page.evaluate(() => {
+    window.__CLIQUES = [];   // link com target abriria outra aba: aqui só anota para onde ia
+    document.addEventListener('click', (e) => { const a = e.target.closest && e.target.closest('a[target]'); if (a) { window.__CLIQUES.push(a.getAttribute('href')); e.preventDefault(); } }, true);
+    document.activeElement && document.activeElement.blur();
+  });
+  await b.page.keyboard.press('/'); await espera(200);
+  const ir = await b.page.evaluate(() => [...document.querySelectorAll('#buscaLista [data-linha]')].findIndex((el) => el.id === 'bl-ir-agenda'));
+  for (let i = 0; i <= ir; i++) await b.page.keyboard.press('ArrowDown');
+  await b.page.keyboard.press('Enter'); await espera(200);
+  const cliques = await b.page.evaluate(() => window.__CLIQUES.slice());
+  conferir('busca reaberta: setas até "Agenda" e Enter abrem a Agenda', cliques.includes('/agenda/'), JSON.stringify({ cliques, ir }));
+  await b.page.close();
+  });
 } finally {
   await browser.close();
 }
