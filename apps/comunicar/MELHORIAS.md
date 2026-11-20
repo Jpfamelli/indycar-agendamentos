@@ -1020,3 +1020,8 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-010** · celular · Navegação e botões da tela têm área mínima de 44 px. · `9301455`
 - **R9-COM-011** · acessibilidade · Controles exibem contorno visível ao navegar com teclado. · `9301455`
 - **R9-COM-012** · tela · Números dos indicadores mantêm largura uniforme. · `9301455`
+- **R9-COM-013** · conserto · Atualizar o Início mantém Mais ações e Mais indicadores abertos. · `9c68d71`
+- **R9-COM-014** · conserto · Uma abertura lenta do Início não substitui a tela para a qual a pessoa já navegou. · `9c68d71`
+- **R9-COM-015** · conserto · A resposta do WhatsApp atualiza apenas o cartão que iniciou a consulta. · `9c68d71`
+- **R9-COM-016** · acessibilidade · Requisições antigas não retiram o indicador de carregamento da tela atual. · `9c68d71`
+- **R9-COM-017** · teste · O Chrome verifica por clique e teclado os painéis dos dois apps com tráfego externo bloqueado. · `9c68d71`

@@ -13,8 +13,8 @@ A suíte completa executa 310 testes. Capturas antigas da rodada 1 estão em `ap
 
 Para João, confirmar na prévia se Campanhas deve voltar ao primeiro nível. Para Claude, atualizar o caminho das telas no manual ao integrar.
 
-Lote 1 em `9301455`. 12 melhorias registradas no MELHORIAS.
+Lote 1 em `9301455`. 12 melhorias no primeiro commit. Os cinco ajustes de `9c68d71` elevam a rodada a 17 melhorias no MELHORIAS.
 
 O levantamento da rodada 1 registrou zero lembretes criados ou enviados em 32 dias e identificou a chave recusada como bloqueio de envio.
 
-Chrome com mock e tráfego externo bloqueado: painel aberto pelo teclado, sem rolagem lateral a 375 e 1440 px. Capturas depois em `apps/comunicar/qa-out/r9/`. Faltam comparação antes/depois, matriz de temas, axe e jornadas completas.
+Chrome com mock e tráfego externo bloqueado: painel aberto por clique e teclado, sem rolagem lateral a 375 e 1440 px. Capturas depois em `apps/comunicar/qa-out/r9/`. Faltam comparação antes/depois, matriz de temas, axe e jornadas completas.
