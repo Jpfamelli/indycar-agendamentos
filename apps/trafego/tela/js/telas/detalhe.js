@@ -38,7 +38,7 @@ const semPendencia = (lista, id) => (lista || []).filter((p) => p !== id);
  * aoFechar(): a pessoa pediu para voltar à lista. aoPrever(item): o contato mudou na tela (antes de gravar).
  * aoMudar(): uma gravação chegou ao servidor (a lista precisa se atualizar).
  */
-export function abrir(obterCtx, alvo, id, { aoFechar, aoPrever = () => {}, aoMudar = () => {} }) {
+export function abrir(obterCtx, alvo, id, { aoFechar, aoPrever = () => {}, aoMudar = () => {}, rotuloDaVolta = 'Voltar para a lista' }) {
   let vivo = true;
   let dados = null;
   let modo = null;          // formulário aberto por escolha da pessoa: 'valor' | 'motivo' | 'origem'
@@ -48,7 +48,7 @@ export function abrir(obterCtx, alvo, id, { aoFechar, aoPrever = () => {}, aoMud
   const corpo = h('div', { class: 'detalhe-corpo' });
   trocar(alvo,
     h('div', { class: 'detalhe-barra' },
-      h('button', { class: 'ligacao detalhe-voltar', type: 'button', on: { click: aoFechar } }, icone('voltar'), 'Voltar para a lista'),
+      h('button', { class: 'ligacao detalhe-voltar', type: 'button', on: { click: aoFechar } }, icone('voltar'), rotuloDaVolta),
       h('button', { class: 'botao botao-quieto detalhe-fechar', type: 'button', on: { click: aoFechar } }, icone('fechar'), 'Fechar')),
     corpo);
 

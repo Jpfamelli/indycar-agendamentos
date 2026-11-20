@@ -220,6 +220,26 @@ export const CASOS = {
     conferir(lidos.some((t) => t === '1 contato'), 'a origem com um contato: ' + lidos.join(' | '));
     conferir(lidos.every((t) => !/^1 contatos$/.test(t)), 'nada de "1 contatos"');
   },
+
+  /* Fila › "Ver o contato inteiro": o detalhe diz "Voltar para a fila" e volta para ela (antes caía numa lista). */
+  async 'fila-ver-contato'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/jornada?pendencia=sem_origem', { waitUntil: 'networkidle0' });
+    const nome = await texto(pagina, '.fila-nome');
+    await pagina.click('.fila-apoio a.ligacao');
+    await pagina.waitForSelector('.detalhe-voltar');
+    conferir((await texto(pagina, '.detalhe-voltar')) === 'Voltar para a fila', 'o botão diz para onde volta: ' + await texto(pagina, '.detalhe-voltar'));
+    // No celular o botão é "Voltar para a fila"; na tela larga quem aparece é o "Fechar" (a mesma ação).
+    const visivel = await pagina.$eval('.detalhe-voltar', (b) => b.getClientRects().length > 0);
+    await pagina.click(visivel ? '.detalhe-voltar' : '.detalhe-fechar');
+    await pagina.waitForSelector('.fila-vez .fila-nome');
+    const hash = await pagina.evaluate(() => location.hash);
+    conferir(!/modo=|contato=|volta=/.test(hash), 'a fila de novo: ' + hash);
+    conferir((await texto(pagina, '.fila-nome')) === nome, 'o mesmo contato da vez');
+    await pagina.goto(endereco + '?cenario=cheio#/jornada', { waitUntil: 'networkidle0' });
+    await pagina.click('.torre-linha .torre-abre');
+    await pagina.waitForSelector('.detalhe-voltar');
+    conferir((await texto(pagina, '.detalhe-voltar')) === 'Voltar para a lista', 'aberto pela lista, volta para a lista');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();
