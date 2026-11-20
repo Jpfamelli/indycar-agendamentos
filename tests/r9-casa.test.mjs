@@ -393,3 +393,11 @@ test('meta do mês: campo no próprio bloco (sem window.prompt), com rótulo, aj
   assert.match(s, /e\.key === 'Escape' && editandoMeta/);
   assert.match(s, /const valor = erroMeta \? rascunhoMeta :/);
 });
+
+test('recolher cartão: o nome do botão diz a ação e o cartão de agora (mecânico ouvia "Carros no pátio", não "Meus carros")', () => {
+  const s = semComentarios(ler('comando.js'));
+  const f = s.slice(s.indexOf('function aplicarRecolhidos('), s.indexOf('function ligarRecolher('));
+  assert.match(f, /el\.querySelector\('\.agora-rotulo'\)\?\.textContent/);
+  assert.match(f, /\(fechado \? 'Mostrar a lista de ' : 'Esconder a lista de '\) \+ rot/);
+  assert.match(s, /C\.aoAgora = \(d\) => \{ pintarMeuDia\(d\); ligarRecolher\(\); \};/, 'refaz depois de cada desenho do painel');
+});
