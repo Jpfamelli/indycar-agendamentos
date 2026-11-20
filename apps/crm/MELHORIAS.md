@@ -1455,3 +1455,17 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-029** · conserto · Criação de tarefa mantém prioridade alta reservada à opção explícita (teste R10-CRM-029 em testes/r10-tarefas.test.cjs) · `a139891`
 - **R10-CRM-030** · conserto · Criação de tarefa rejeita listas no campo de prazo (teste R10-CRM-030 em testes/r10-tarefas.test.cjs) · `a139891`
 - **R10-CRM-031** · desempenho · Salvar integração passa de duas operações para uma na tabela de configuração (teste R10-CRM-031 em testes/r10-integracoes.test.cjs, commit do teste 4d81988) · `f40c469`
+- **R10-CRM-032** · conserto · Cadastro de equipe exige nome em texto (teste R10-CRM-032 em testes/r10-tipos-equipe.test.cjs) · `96474a4`
+- **R10-CRM-033** · conserto · Cadastro de equipe exige cargo em texto quando informado (teste R10-CRM-033 em testes/r10-tipos-equipe.test.cjs) · `96474a4`
+- **R10-CRM-034** · conserto · Meta de faturamento rejeita valores booleanos (teste R10-CRM-034 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-035** · conserto · Meta de vendas rejeita contagens fracionárias (teste R10-CRM-035 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-036** · segurança · Execução manual de automações rejeita regras fora da lista (teste R10-CRM-036 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-037** · segurança · Rodízio exige uma opção booleana para simulação antes de atribuir leads (teste R10-CRM-037 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-038** · conserto · Rodízio exige uma opção booleana para incluir todos os leads (teste R10-CRM-038 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-039** · conserto · Auditoria de exportação rejeita quantidade booleana (teste R10-CRM-039 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-040** · conserto · Triagem exige um número inteiro de dias (teste R10-CRM-040 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-041** · conserto · Triagem exige um limite inteiro de registros (teste R10-CRM-041 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-042** · conserto · Triagem exige uma opção booleana para usar IA (teste R10-CRM-042 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-043** · segurança · Criação de tarefas da triagem rejeita uma seleção com identificadores inválidos (teste R10-CRM-043 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-044** · segurança · Execução em lote da IA rejeita uma seleção com identificadores inválidos antes de executar ações (teste R10-CRM-044 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-045** · conserto · Recusa de ação da IA exige motivo em texto quando informado (teste R10-CRM-045 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
