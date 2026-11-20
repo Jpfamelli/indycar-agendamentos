@@ -123,6 +123,20 @@
     } catch { /* navegador sem suporte */ }
   }
 
+  /* rodada 9: a lista do sino é redesenhada a cada toque e o botão usado saía da página: o foco caía no começo dela e
+     quem usa teclado ou leitor de tela tinha de voltar até o sino. Estes ajudantes devolvem o foco para o lugar certo. */
+  const seguro = (id) => ((window.CSS && CSS.escape) ? CSS.escape(String(id)) : String(id).replace(/"/g, ''));
+  function vizinhoDe(id) {
+    const bs = [...document.querySelectorAll('#listaNotif [data-notif]')].filter((b) => b.dataset.notif === id || !b.closest('details:not([open])'));
+    const i = bs.findIndex((b) => b.dataset.notif === id);
+    const v = i < 0 ? null : (bs[i + 1] || bs[i - 1]);
+    return v ? v.dataset.notif : null;
+  }
+  function focarAviso(id, reserva) {
+    const achar = (x) => (x ? document.querySelector(`#listaNotif [data-notif="${seguro(x)}"]`) : null);
+    const el = achar(id) || achar(reserva) || document.querySelector('#painelSino button, #painelSino input');
+    if (el) el.focus();
+  }
   function marcar(ids) {
     const agora = new Date().toISOString();
     const alvo = notifs.filter((n) => ids.includes(n.id) && !n.lida_em);
@@ -195,17 +209,27 @@
       const ler = e.target.closest('[data-ler]');
       if (ler) {
         const tipo = ler.closest('[data-grupo-tipo]')?.dataset.grupoTipo;
-        marcar(ler.dataset.ler.split(','));
+        const ids = ler.dataset.ler.split(',');
+        const viz = ids.length === 1 ? vizinhoDe(ids[0]) : null;
+        marcar(ids);
+        if (ids.length === 1) { focarAviso(ids[0], viz); return; }   // rodada 9: o ✓ de um aviso deixa o foco nele (ou no vizinho)
         [...document.querySelectorAll('[data-grupo-tipo]')].find((el) => el.dataset.grupoTipo === tipo)?.querySelector('summary')?.focus();
         return;
       }
       const por = e.target.closest('[data-adiar-por]');
       if (por) {
+        const viz = vizinhoDe(por.dataset.adiarId);
         const o = lerAdiados(); o[por.dataset.adiarId] = N4().ateQuando(por.dataset.adiarPor, new Date()); gravarAdiados(o);
-        adiarAberto = null; desenhar(); C.toast('Aviso escondido: ' + N4().quandoVolta(o[por.dataset.adiarId]) + '.', 2400); return;
+        adiarAberto = null; desenhar(); focarAviso(null, viz); C.toast('Aviso escondido: ' + N4().quandoVolta(o[por.dataset.adiarId]) + '.', 2400); return;
       }
       const ad = e.target.closest('[data-adiar-sino]');
-      if (ad) { adiarAberto = adiarAberto === ad.dataset.adiarSino ? null : ad.dataset.adiarSino; desenhar(); return; }
+      if (ad) {
+        const id = ad.dataset.adiarSino;
+        adiarAberto = adiarAberto === id ? null : id; desenhar();
+        // rodada 9: abriu as opções → foco na primeira; fechou → volta ao ⏱
+        document.querySelector(adiarAberto ? `#listaNotif [data-adiar-id="${seguro(id)}"]` : `#listaNotif [data-adiar-sino="${seguro(id)}"]`)?.focus();
+        return;
+      }
       if (e.target.closest('[data-voltar-adiados]')) { gravarAdiados({}); desenhar(); return; }
       if (e.target.closest('[data-mais-avisos]')) { limite = Math.min(LIMITE_MAX, limite + 60); carregar(); return; }
       if (e.target.closest('[data-sino-de-novo]')) { leitura = 'carregando'; desenhar(); carregar(); return; }
