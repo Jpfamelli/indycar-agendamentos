@@ -999,7 +999,7 @@ function pintarInicio(d, opts = {}) {
         <span class="chips-gestor" id="chipsGestor"></span>
         <span class="chips-gestor" id="chipsEquipe"></span>
         <button class="btn" type="button" id="chipConversasSemHorario">Horários falados no WhatsApp</button>
-        ${opts.doCache ? '<small class="marca-cache" aria-live="polite">mostrando o último painel · atualizando…</small>' : ''}
+        ${opts.doCache ? '<small class="marca-cache" aria-live="polite">Atualizando os horários. A lista ainda pode mudar.</small>' : ''}
       </div>
       ${prox ? `<div class="hero-prox">
         <span class="h">${esc(prox.hora)}</span>
@@ -1024,11 +1024,11 @@ function pintarInicio(d, opts = {}) {
         </div>
         <div class="tabs tabs-hoje" id="tabsHoje" role="tablist" aria-label="Agenda de hoje">
           ${abas.map(([chave, rotulo, ico]) =>
-            `<button type="button" role="tab" class="tab ${state.hojeTab === chave ? 'active' : ''}" data-hoje-tab="${chave}"
+            `<button type="button" role="tab" class="tab ${state.hojeTab === chave ? 'active' : ''}" id="hoje-tab-${chave}" data-hoje-tab="${chave}"
                aria-selected="${state.hojeTab === chave}" aria-controls="agendaHoje" tabindex="${state.hojeTab === chave ? 0 : -1}">
                ${svg(ico)} ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`).join('')}
         </div>
-        <div class="panel-body lista" id="agendaHoje" data-saida="tudo" role="tabpanel"></div>
+        <div class="panel-body lista" id="agendaHoje" data-saida="tudo" role="tabpanel" tabindex="0"></div>
       </div>
       <div class="panel">
         <div class="panel-head">
@@ -1046,6 +1046,7 @@ function pintarInicio(d, opts = {}) {
     });
     const lista = grupos[state.hojeTab] || [];
     const box = $('#agendaHoje');
+    box.setAttribute('aria-labelledby', 'hoje-tab-' + state.hojeTab);
     pintarLista(box, lista.length ? lista.map(a => appointmentCard(a, { agora, comChegada: state.hojeTab === 'agendados' })).join('')
       : vazio(...VAZIO_HOJE[state.hojeTab]), animar);
     bindApptActions(box);
