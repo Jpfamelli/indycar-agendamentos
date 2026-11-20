@@ -1041,8 +1041,8 @@ async function renderCampanhas({ vez = state._vez } = {}) {
   $$('[data-cancelar-lote]', view).forEach(b => b.addEventListener('click', async () => {
     if (!confirm(`Cancelar as ${b.dataset.n} mensagens dessa campanha que ainda não saíram? As que já saíram não mudam.`)) return;
     b.disabled = true;
-    try { const r = await api('POST', `/lotes/${b.dataset.cancelarLote}/cancelar`, {}); toast(`${plural(r.cancelados, 'mensagem cancelada', 'mensagens canceladas')}.`); renderCampanhas(); }
-    catch (e) { toast(e.message || 'Não consegui cancelar agora.'); b.disabled = false; }
+    try { const r = await api('POST', `/lotes/${b.dataset.cancelarLote}/cancelar`, {}); toast(`${plural(r.cancelados, 'mensagem cancelada', 'mensagens canceladas')}.`); if (vez === state._vez) await route(null, { quieto: true }); }
+    catch (e) { toast(e.message || 'Não consegui cancelar agora.', 'err'); b.disabled = false; }
   }));
   pintarAprovacoes();
   window.R6?.pintarCampanhas();
@@ -1061,13 +1061,28 @@ async function carregarSegmentos() { if (!state.segmentos) state.segmentos = awa
 async function carregarModelos() { if (!state.modelos) state.modelos = await api('GET', '/modelos').catch(() => []); return state.modelos; }
 
 /* Modal "Nova campanha" em 3 passos: para quem → mensagem → quando. */
+let aberturaCampanha = 0;
 window.openCampanhaModal = async function (pre = {}) {
+  const abertura = ++aberturaCampanha;
+  const vez = state._vez;
+  const janelaAnterior = modal.firstElementChild;
+  const estavaAberta = modalAberto();
   const c = { passo:1, alvo: pre.cliente ? 'cliente' : 'segmento', filtro:'todos', valor:'', cliente: pre.cliente || null,
     previa:null, corpo: window.R4?.lerRascunho('campanha') || '', quando:'agora', enviar_em:'', sugestao:null, segSalvoId:null };
   window.R7?.aplicarRepetir(c, pre);
-  if (c.corpo) setTimeout(() => toast('Recuperei a mensagem que você estava escrevendo.'), 300);
+  const rascunho = c.corpo;
   // rodada 5: segmentos salvos chegam junto (em paralelo) com segmentos e modelos
-  const [segmentos, modelos, salvos] = await Promise.all([carregarSegmentos(), carregarModelos(), window.R5 ? window.R5.segmentosSalvos().catch(() => []) : Promise.resolve([])]);
+  const aberturaAtual = () => abertura === aberturaCampanha && vez === state._vez &&
+    janelaAnterior === modal.firstElementChild && estavaAberta === modalAberto();
+  let segmentos, modelos, salvos;
+  try {
+    [segmentos, modelos, salvos] = await Promise.all([carregarSegmentos(), carregarModelos(), window.R5 ? window.R5.segmentosSalvos().catch(() => []) : Promise.resolve([])]);
+  } catch (e) {
+    if (aberturaAtual()) toast(e.message || 'Não consegui abrir a campanha. Tente novamente.', 'err');
+    return;
+  }
+  if (!aberturaAtual()) return;
+  if (rascunho) toast('Recuperei a mensagem que você estava escrevendo.');
 
   openModal(`<div class="modal-head"><h3>${svg(I.megafone)} Nova campanha</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
     <div class="passos" aria-label="Passos">
@@ -1080,18 +1095,21 @@ window.openCampanhaModal = async function (pre = {}) {
       <button type="button" class="btn" data-fechar>Cancelar</button><button type="button" class="btn primary" id="campAvancar">Avançar ${svg(I.seta)}</button></div>`, { larga:true, classe:'com-passos' });
 
   const body = $('#campBody');
+  const campanhaAberta = () => body.isConnected && modalAberto();
+  let consultaSegmento = 0;
   const alvoResumo = () => c.alvo === 'cliente' ? (c.cliente ? c.cliente.nome : 'nenhum cliente escolhido')
     : `${c.previa?.total ?? '…'} cliente(s) · ${segmentos.find(s => s.id === c.filtro)?.rotulo || c.filtro}${c.valor ? ` (${c.valor})` : ''}`;
   const clienteDaPrevia = () => c.alvo === 'cliente' ? c.cliente : (c.previa?.amostra?.[0] || null);
   /* atendente: campanha para um grupo vai para o gestor aprovar; avulsa sai direto */
   const precisaAprovar = () => c.alvo === 'segmento' && !pode('campanha_aprovar');
 
-  const atualizarSegPrevia = debounce(async () => {
-    const box = $('#segPrevia'); if (!box) return;
-    box.innerHTML = `<div class="skel" style="height:54px"></div>`;
+  const buscarSegPrevia = debounce(async (box, consulta) => {
+    const atual = () => campanhaAberta() && box.isConnected && consulta === consultaSegmento;
+    if (!atual()) return;
     try {
       const seg = segmentos.find(s => s.id === c.filtro);
       const p = await api('GET', `/segmentos/previa?filtro=${encodeURIComponent(c.filtro)}&valor=${encodeURIComponent(seg?.valor !== undefined ? (c.valor || seg.valor) : '')}`);
+      if (!atual()) return;
       c.previa = p;
       box.innerHTML = `<div class="top"><span class="n">${p.total}</span><span class="t">${p.total === 1 ? 'cliente recebe' : 'clientes recebem'}</span>
           <button type="button" class="btn btn-mini" id="segSalvar" title="Guardar este segmento com um nome para usar de novo">${svg(I.plus)} Salvar segmento</button></div>
@@ -1100,10 +1118,23 @@ window.openCampanhaModal = async function (pre = {}) {
       $('#segSalvar')?.addEventListener('click', async () => {
         const seg = segmentos.find(s => s.id === c.filtro);
         const s = await window.R5?.salvarSegmento(c.filtro, seg?.valor !== undefined ? (c.valor || seg.valor) : null, `${seg?.rotulo || c.filtro}${c.valor ? ` ${c.valor}` : ''}`);
-        if (s) { c.segSalvoId = s.id; salvos.unshift(s); passo1(); }
+        if (s && atual()) { c.segSalvoId = s.id; salvos.unshift(s); passo1(); }
       });
-    } catch (e) { box.innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; }
+    } catch (e) {
+      if (!atual()) return;
+      box.innerHTML = `<p class="form-msg erro">${esc(e.message)}</p><button type="button" class="btn" data-repetir> Tentar novamente</button>`;
+      $('[data-repetir]', box).addEventListener('click', atualizarSegPrevia);
+    } finally {
+      if (atual()) box.removeAttribute('aria-busy');
+    }
   }, 350);
+  const atualizarSegPrevia = () => {
+    c.previa = null;
+    const box = $('#segPrevia', body);
+    box.setAttribute('aria-busy', 'true');
+    box.innerHTML = '<div class="skel" style="height:54px"></div>';
+    buscarSegPrevia(box, ++consultaSegmento);
+  };
 
   const passo1 = () => {
     const seg = segmentos.find(s => s.id === c.filtro);
@@ -1121,7 +1152,7 @@ window.openCampanhaModal = async function (pre = {}) {
           <div class="field curto" id="campValorBox" ${seg?.valor !== undefined ? '' : 'hidden'}><label for="campValor">${esc(seg?.unidade === 'texto' ? 'Palavra' : seg?.unidade || 'Valor')}</label>
             <input id="campValor" ${seg?.unidade === 'texto' ? 'type="text"' : 'type="number" inputmode="numeric" min="1"'} value="${esc(c.valor || seg?.valor || '')}"></div>
         </div>
-        <div class="seg-previa" id="segPrevia" style="margin-top:12px"></div>
+        <div class="seg-previa" id="segPrevia" aria-live="polite" style="margin-top:12px"></div>
       </div>
       <div id="alvoCli" ${c.alvo === 'cliente' ? '' : 'hidden'}>
         ${c.cliente ? `<div class="cli-escolhido"><span><b>${esc(c.cliente.nome)}</b><small>${esc(telBR(c.cliente.telefone))}${c.cliente.carro ? ` · ${esc(c.cliente.carro)}` : ''}</small></span><button type="button" class="btn btn-mini" id="trocarCli">Trocar</button></div>`
@@ -1133,14 +1164,23 @@ window.openCampanhaModal = async function (pre = {}) {
       $('#campIA').addEventListener('click', async (ev) => {
         const b = ev.currentTarget; b.disabled = true;
         $('#campIASug').innerHTML = '<div class="ia-pensando"><span class="ia-pontos"><i></i><i></i><i></i></span> olhando os números da oficina…</div>';
-        try { c.sugestao = await api('POST', '/ia/publico'); $('#campIASug').innerHTML = htmlSugestao(c.sugestao); ligarSugestao(); }
-        catch (err) { $('#campIASug').innerHTML = `<p class="form-msg erro">${esc(err.message)}</p>`; }
+        const box = $('#campIASug');
+        const atual = () => campanhaAberta() && box.isConnected;
+        try {
+          const sugestao = await api('POST', '/ia/publico');
+          if (!atual()) return;
+          c.sugestao = sugestao;
+          box.innerHTML = htmlSugestao(sugestao);
+          ligarSugestao();
+        } catch (err) {
+          if (atual()) box.innerHTML = `<p class="form-msg erro">${esc(err.message)}</p>`;
+        }
         finally { b.disabled = false; }
       });
       const ligarSugestao = () => {
         if (c.sugestao) pintarBolha($('#campIASug [data-sug-bolha]'), renderTemplate(c.sugestao.mensagem, { nome: c.sugestao.previa?.amostra?.[0]?.nome || EXEMPLO.nome, carro: c.sugestao.previa?.amostra?.[0]?.carro || EXEMPLO.carro }));
         $('#usarSug')?.addEventListener('click', () => {
-          c.filtro = c.sugestao.segmento; c.valor = c.sugestao.valor ?? ''; c.corpo = c.sugestao.mensagem || c.corpo; c.sugestao.usada = true;
+          c.filtro = c.sugestao.segmento; c.segSalvoId = null; c.valor = c.sugestao.valor ?? ''; c.corpo = c.sugestao.mensagem || c.corpo; c.sugestao.usada = true;
           toast('Sugestão aplicada: segmento escolhido e mensagem pronta no passo 2.'); passo1();
         });
       };
@@ -1152,15 +1192,27 @@ window.openCampanhaModal = async function (pre = {}) {
         const s = salvos.find(x => x.id === b.dataset.segUsar); if (!s) return;
         c.filtro = s.filtro; c.valor = s.valor ?? ''; c.segSalvoId = s.id; passo1();
       }));
-      $('#campValor')?.addEventListener('input', e => { c.valor = e.target.value; atualizarSegPrevia(); });
+      $('#campValor')?.addEventListener('input', e => { c.valor = e.target.value; c.segSalvoId = null; atualizarSegPrevia(); });
       atualizarSegPrevia();
     } else {
       $('#trocarCli')?.addEventListener('click', () => { c.cliente = null; passo1(); });
       const inp = $('#campBusca');
-      inp?.addEventListener('input', debounce(async () => {
-        const q = inp.value.trim(); const sug = $('#campSug');
-        if (q.length < 2) { sug.hidden = true; return; }
-        const r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`).catch(() => []);
+      const sug = $('#campSug', body);
+      let consultaCliente = 0;
+      const buscar = debounce(async (q, consulta) => {
+        const atual = () => campanhaAberta() && inp.isConnected && consulta === consultaCliente;
+        if (!atual()) return;
+        let r;
+        try {
+          r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`);
+        } catch {
+          if (atual()) {
+            sug.textContent = 'Não consegui buscar clientes. Altere a busca para tentar novamente.';
+            sug.hidden = false;
+          }
+          return;
+        }
+        if (!atual()) return;
         const comTel = r.filter(x => x.telefone).slice(0, 8);
         sug.innerHTML = comTel.length ? comTel.map(x => `<button type="button" class="sugestao" data-id="${esc(x.id)}"><b>${esc(x.nome)}${x.aceita_mensagens === false ? ' 🚫' : ''}</b><small>${esc(telBR(x.telefone))}${x.carro ? ` · ${esc(x.carro)}` : ''}</small></button>`).join('')
           : '<div class="dica" style="padding:8px">Ninguém com esse nome (e telefone).</div>';
@@ -1170,8 +1222,14 @@ window.openCampanhaModal = async function (pre = {}) {
           if (x?.aceita_mensagens === false) return toast('Esse cliente pediu para não receber mensagens.', 'err');
           c.cliente = x; passo1();
         }));
-      }, 250));
-      setTimeout(() => inp?.focus(), 30);
+      }, 250);
+      inp?.addEventListener('input', () => {
+        sug.hidden = true;
+        const consulta = ++consultaCliente;
+        const q = inp.value.trim();
+        if (q.length >= 2) buscar(q, consulta);
+      });
+      inp?.focus();
     }
   };
 
@@ -1206,11 +1264,17 @@ window.openCampanhaModal = async function (pre = {}) {
       exemplo: () => { const x = clienteDaPrevia(); return x ? { nome: x.nome, carro: x.carro, placa: x.placa } : null; } }));
     $('#campModelo').addEventListener('change', e => { const m = modelos.find(x => x.id === e.target.value); if (m) { ta.value = m.corpo; pintar(); ta.focus(); } });
     $('#campTesteMeu').addEventListener('click', (e) => window.R5?.testeMeu(ta.value, e.currentTarget));
-    $$('.var-chip', body).forEach(ch => ch.addEventListener('click', () => {
+    $$('[data-var]', body).forEach(ch => ch.addEventListener('click', () => {
       const ini = ta.selectionStart ?? ta.value.length, fim = ta.selectionEnd ?? ini, tok = `{${ch.dataset.var}}`;
-      ta.value = ta.value.slice(0, ini) + tok + ta.value.slice(fim); ta.focus(); ta.setSelectionRange(ini + tok.length, ini + tok.length); pintar();
+      if (ta.value.length - (fim - ini) + tok.length > ta.maxLength) {
+        toast('A mensagem chegou ao limite de 2.000 caracteres.', 'err');
+        return;
+      }
+      ta.setRangeText(tok, ini, fim, 'end');
+      ta.focus();
+      pintar();
     }));
-    setTimeout(() => ta.focus(), 30);
+    ta.focus();
   };
 
   const passo3 = () => {
@@ -1236,7 +1300,13 @@ window.openCampanhaModal = async function (pre = {}) {
 
   const ir = (n) => {
     c.passo = n;
-    $$('.passo', modal).forEach(p => { const k = Number(p.dataset.passo); p.classList.toggle('ativo', k === n); p.classList.toggle('feito', k < n); });
+    $$('.passo', modal).forEach(p => {
+      const k = Number(p.dataset.passo);
+      p.classList.toggle('ativo', k === n);
+      p.classList.toggle('feito', k < n);
+      if (k === n) p.setAttribute('aria-current', 'step');
+      else p.removeAttribute('aria-current');
+    });
     $('#campVoltar').hidden = n === 1;
     $('#campAvancar').innerHTML = n === 3 ? (precisaAprovar() ? `${svg(I.check)} Pedir aprovação` : `${svg(I.send)} Colocar na fila`) : `Avançar ${svg(I.seta)}`;
     [passo1, passo2, passo3][n - 1]();
@@ -1256,7 +1326,9 @@ window.openCampanhaModal = async function (pre = {}) {
     let enviar_em = null;
     if (c.quando === 'data') {
       if (!c.enviar_em) return toast('Escolha o dia e a hora.', 'err');
-      enviar_em = new Date(c.enviar_em).toISOString();
+      const horario = new Date(c.enviar_em);
+      if (!Number.isFinite(horario.getTime()) || horario <= new Date()) return toast('Escolha uma data e hora futuras.', 'err');
+      enviar_em = horario.toISOString();
     }
     const bloqueio = window.R6?.bloqueioDeEnvio(c); if (bloqueio) return toast(bloqueio, 'err', 6500);
     const quantos = c.alvo === 'cliente' ? 1 : c.previa.total;
@@ -1268,14 +1340,15 @@ window.openCampanhaModal = async function (pre = {}) {
         ? { tipo:'avulsa', corpo, enviar_em, destinos:[{ cliente_id:c.cliente.id, telefone:c.cliente.telefone, nome:c.cliente.nome, carro:c.cliente.carro, placa:c.cliente.placa }] }
         : { corpo, enviar_em, segmento:{ filtro:c.filtro, valor: c.valor || segmentos.find(s => s.id === c.filtro)?.valor }, segmento_salvo_id: c.segSalvoId || undefined };
       const r = await api('POST', '/envios', window.R7 ? window.R7.completarPedido(c, window.R6 ? window.R6.completarPedido(c, payload) : payload) : (window.R6 ? window.R6.completarPedido(c, payload) : payload));
-      window.R4?.guardarRascunho('campanha', '');
+      if (campanhaAberta()) window.R4?.guardarRascunho('campanha', '');
       if (r.aguardando) {
         toast('Campanha mandada para aprovação — o gestor foi avisado no sino.', 'ok', 5500);
-        closeModal(); state.route === 'campanhas' ? route(null, { quieto:true }) : route('campanhas');
+        if (campanhaAberta()) { closeModal(); state.route === 'campanhas' ? route(null, { quieto:true }) : route('campanhas'); }
         return;
       }
       toast(`${plural(r.enfileirados, 'mensagem', 'mensagens')} na fila${r.pulados ? ` · ${r.pulados} pulada(s) (pediu para parar ou recebeu outra há pouco)` : ''}${r.dias > 1 ? ` · escalonadas em ${r.dias} dias (limite de ${r.limitePorDia}/dia)` : ''}.`, 'ok', 6000);
-      closeModal(); refreshBadge();
+      if (campanhaAberta()) closeModal();
+      refreshBadge();
       if (state.route === 'campanhas' || state.route === 'mensagens') route(null, { quieto:true });
     } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
   });
