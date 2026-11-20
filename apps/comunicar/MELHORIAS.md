@@ -1146,3 +1146,9 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-032** · segurança · O nome de segmento precisa ser texto de 2 a 60 caracteres após normalizar os espaços (testes R10-COM-032 em testes-rodada7-api.mjs). · `6e9e897`
 - **R10-COM-033** · teste · Chrome cobre carregamento, nova tentativa e foco nas janelas de prévia e aniversários (navegador-janelas-r10.mjs). · `73c64a1`
 - **R10-COM-034** · segurança · A triagem rejeita toda a seleção se houver um tipo inválido, antes de cancelar mensagens (teste R10-COM-034 em testes-rodada7-api.mjs). · `ba22840`
+- **R10-COM-035** · segurança · Reagendar um dia recusa tipo desconhecido, evitando ampliar o reagendamento para todas as mensagens (teste R10-COM-035 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-036** · conserto · A data do reagendamento em lote exige texto em formato AAAA-MM-DD (teste R10-COM-036 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-037** · segurança · A análise de aniversários rejeita listas JSON no campo de texto (teste R10-COM-037 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-038** · conserto · Um aniversário inválido bloqueia a gravação parcial e indica qual seleção conferir (teste R10-COM-038 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-039** · segurança · A gravação recusa lotes com mais de 3.000 aniversários e informa o limite (teste R10-COM-039 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-040** · segurança · O detalhe do pedido ao gestor exige texto (teste R10-COM-040 em testes-rodada7-api.mjs). · `5524d71`
