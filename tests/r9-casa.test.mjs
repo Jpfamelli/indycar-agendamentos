@@ -439,3 +439,13 @@ test('"dispensar por hoje" do Ontem e amanhã: aviso com Desfazer, foco no conte
   assert.match(s, /const alvo = \$\('#miolo'\); if \(alvo\) alvo\.focus\(\{ preventScroll: true \}\);/);
   assert.match(ler('index.html'), /<main id="miolo" class="miolo" tabindex="-1">/);
 });
+
+test('sino pelo teclado: ⏱ leva às opções, adiar e ✓ deixam o foco na lista (antes caía no começo da página)', () => {
+  const s = semComentarios(ler('sino.js'));
+  assert.match(s, /function vizinhoDe\(id\)/);
+  assert.match(s, /function focarAviso\(id, reserva\)/);
+  assert.match(s, /if \(ids\.length === 1\) \{ focarAviso\(ids\[0\], viz\); return; \}/);
+  assert.match(s, /desenhar\(\); focarAviso\(null, viz\);/);
+  assert.match(s, /adiarAberto \? `#listaNotif \[data-adiar-id="\$\{seguro\(id\)\}"\]` : `#listaNotif \[data-adiar-sino="\$\{seguro\(id\)\}"\]`/);
+  assert.match(s, /!b\.closest\('details:not\(\[open\]\)'\)/, 'vizinho é um aviso que dá para alcançar (fora de grupo fechado)');
+});

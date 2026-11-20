@@ -293,6 +293,21 @@ try {
   await m.page.close();
   });
 
+  // 20. sino pelo teclado: ⏱ leva às opções; escolher uma ou marcar ✓ deixa o foco na lista (não no começo da página)
+  await passo("20. sino: o foco fica na lista depois de adiar e de marcar como lida", async () => {
+  const s = await abrir({ papel: 'admin' }, 1440);
+  await s.page.click('#bSino'); await espera(500);
+  const qual = () => s.page.evaluate(() => { const a = document.activeElement; return a ? (a.dataset.adiarPor ? 'opção' : a.dataset.notif ? 'aviso' : a.dataset.adiarSino ? 'adiar' : a.id || a.tagName) : ''; });
+  const focarVisivel = (sel) => s.page.evaluate((q) => { const b = [...document.querySelectorAll(q)].find((x) => !x.closest('details:not([open])')); if (b) b.focus(); return !!b; }, sel);
+  await focarVisivel('#listaNotif [data-adiar-sino]'); await s.page.keyboard.press('Enter'); await espera(150);
+  conferir('sino: Enter no ⏱ leva o foco para a 1ª opção de adiar', (await qual()) === 'opção', await qual());
+  await s.page.keyboard.press('Enter'); await espera(200);
+  conferir('sino: depois de adiar, o foco vai para o aviso vizinho', (await qual()) === 'aviso', await qual());
+  await focarVisivel('#listaNotif [data-ler]'); await s.page.keyboard.press('Enter'); await espera(200);
+  conferir('sino: depois do ✓, o foco fica no aviso (ou no vizinho)', (await qual()) === 'aviso', await qual());
+  await s.page.close();
+  });
+
   // 17. busca que falhou tem "tentar de novo" (antes só apagando e digitando de novo)
   await passo("17. busca com erro oferece tentar de novo", async () => {
   const b = await abrir({ papel: 'admin', falhar: ['r6_busca_global'] }, 1440);
