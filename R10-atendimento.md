@@ -1,6 +1,6 @@
-﻿# Rodada 10 · Atendimento
+# Rodada 10 · Atendimento
 
-Entrega parcial. 1 de 150 melhorias registradas.
+Entrega parcial. 2 de 150 melhorias registradas.
 
 | Melhoria | Antes | Depois |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Nenhum nome de botão, aba ou tela mudou. Sem medições de desempenho ou corre�
 
 ## Para outra frente
 
-Faltam 149 melhorias. O roteiro compartilhado `apps/comunicar/scripts/navegador-r9-b2.mjs`, as confirmações, a logo no tema claro e a revisão dos roteiros antigos seguem pendentes.
+Faltam 148 melhorias. O roteiro compartilhado `apps/comunicar/scripts/navegador-r9-b2.mjs`, as confirmações, a logo no tema claro e a revisão dos roteiros antigos seguem pendentes.
 
 ## Para o João
 
@@ -23,3 +23,7 @@ As evidências antes/depois deste ajuste vieram do teste automatizado de CSS. A 
 Com mock local e rede externa bloqueada, o roteiro compartilhado passou em 375 e 1440 px, nos dois temas. O seletor de Mais filtros continua no HTML e o timeout relatado não se reproduziu nessa execução.
 
 O roteiro próprio `roteiro-r9.cjs` passou 161/164. Três verificações da conversa em 375×812 falharam juntas: a área de mensagens mediu 0 px, a barra de telas ficou visível e o aviso de WhatsApp da conversa ficou oculto. Em 375×667 os três pontos passaram. Capturas posteriores em `apps/atendimento/qa-out/r9/`.
+
+## Continuação
+
+A barreira do roteiro R9 restringe a rede à origem exata do mock e permite imagens embutidas. O teste novo falhou antes da inclusão da barreira e passou com a implementação. Suíte do Atendimento: 443/443 com `node --test --test-isolation=none`. A barreira nova foi verificada pelo teste unitário. A reexecução do roteiro no Chrome e a investigação de 375×812 seguem pendentes.

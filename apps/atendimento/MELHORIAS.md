@@ -1472,3 +1472,4 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 ## Rodada 10 (20/11/2026)
 
 - **R10-ATD-001** · tela · Cartões de tarefa e cartões atrasados do funil usam borda lateral fina e mantêm a cor de estado (teste r10-cartoes) · `24b0935`
+- **R10-ATD-002** · teste · Isola o roteiro do Chrome na origem exata do mock, bloqueando Supabase, CodeWords e outras portas locais (teste r10-barreira) · `b0bf016`
