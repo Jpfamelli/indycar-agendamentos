@@ -205,6 +205,16 @@
   .torre-jornada .torre-linha:has(> .jl-valor:empty) > .jl-origem {
     grid-column: 1 / -1;
   }
+  /* A situação comprida ("Esperando resposta", "há 17 h 48 min") alargava a coluna da direita e cortava o carro e o
+     serviço em "Renegade 2019 · Troca d…"; agora quem e o carro usam a ficha inteira, com lugar guardado para a data,
+     e o serviço comprido desce para a linha de baixo em vez de sumir. */
+  .torre-jornada .torre-linha > .jl-contato {
+    grid-column: 1 / -1;
+    padding-right: 3.75rem;
+  }
+  .torre-jornada .jl-contato > .apoio {
+    white-space: normal;
+  }
 }
 .jl-origem {
   flex-wrap: wrap;
