@@ -136,7 +136,8 @@
     } catch (e) {
       if (minha !== seq) return;
       $('#buscaDica').textContent = '';
-      $('#buscaLista').innerHTML = `<p class="vazio vazio-erro">${navigator.onLine ? 'A busca não respondeu agora. Tente de novo em instantes.' : 'Sem internet.'}</p>`;
+      // rodada 9: antes não tinha como repetir (só apagando e digitando de novo)
+      $('#buscaLista').innerHTML = `<p class="vazio vazio-erro" role="alert">${navigator.onLine ? 'A busca não respondeu agora.' : 'Sem internet.'} <button type="button" class="btn-link" data-busca-de-novo>tentar de novo</button></p>`;
     }
   }
 
@@ -194,6 +195,7 @@
       if (e.target.closest('[data-guardar]')) { guardarRecente($('#buscaInput').value); setTimeout(fechar, 50); return; }
       const cmd = e.target.closest('[data-cmd]');
       if (cmd) { const id = cmd.dataset.cmd; fechar(); setTimeout(() => C.comandos.executar(id), 60); return; }
+      if (e.target.closest('[data-busca-de-novo]')) { buscar(inp.value); inp.focus(); return; }
       const rec = e.target.closest('[data-recente]');
       if (rec) { inp.value = rec.dataset.recente; buscar(inp.value); inp.focus(); return; }
       if (e.target.closest('#buscaLista a[data-linha]')) setTimeout(fechar, 50);
