@@ -83,6 +83,7 @@ test('folha do mês e modo apresentação: mesmas contas de /api/hoje e /api/cam
   assert.equal(folha.numeros[0].valor, 1240);
   assert.equal(folha.numeros.length, 4);
   assert.ok(Array.isArray(folha.campanhas) && folha.campanhas.every(c => !('serie' in c)));
+  assert.ok(folha.campanhas_total >= folha.campanhas.length && folha.campanhas.length <= 8, 'a folha leva até 8 e diz o total');
   assert.equal(typeof folha.texto, 'string');
   assert.ok(folha.horarios && 'pico' in folha.horarios);
   assert.throws(() => R.responderFolha({ q: q('mes=11-2026'), fonte }), e => e.status === 400);

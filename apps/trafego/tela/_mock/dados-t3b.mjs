@@ -904,7 +904,7 @@ export function relatorioFolha(m, q) {
   return { status: 200, corpo: {
     mes: { mes, de, ate, rotulo, fechado: mes !== '2026-11' }, periodo: { de, ate, rotulo, anterior: h.periodo.anterior }, estado: h.estado,
     titulo: 'IndyCar · Tráfego · ' + rotulo, frase, numeros: h.numeros, derivados: h.derivados, funil: h.funil, origens: h.origens,
-    campanhas: camps.campanhas.map(({ serie, ...c }) => c), sem_campanha: camps.sem_campanha,
+    campanhas: camps.campanhas.slice(0, 8).map(({ serie, ...c }) => c), sem_campanha: camps.sem_campanha, campanhas_total: camps.campanhas.length,
     horarios: { pico: camps.horarios.pico, leitura: camps.horarios.leitura }, texto: relatorioTexto(m, 'mensal').corpo.texto, gerado_em: '2026-11-19T13:30:00.000Z',
   } };
 }

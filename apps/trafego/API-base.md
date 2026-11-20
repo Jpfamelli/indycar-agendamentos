@@ -1221,6 +1221,7 @@ Tudo o que a folha A4 do mês mostra (padrão: o mês corrente). Mês que ainda 
     "faturado": 0,
     "texto": "Todo contato de anúncio está ligado a uma campanha."
   },
+  "campanhas_total": 2,
   "horarios": {
     "pico": "ter 10h",
     "leitura": "Ainda são poucos contatos (4) para apontar o melhor horário."

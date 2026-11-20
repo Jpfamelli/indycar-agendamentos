@@ -18,3 +18,12 @@ test('frases: a linha de acertos nunca começa com vírgula nem diz "null"', () 
   assert.equal(linhaDosAcertos({ acertos: null, ultimo_acerto_em: 'não é data' }), null);
   assert.equal(linhaDosAcertos({}), null);
 });
+
+import { maisCampanhas } from '../js/telas/folha.js';
+test('folha do mês: diz quantas campanhas ficaram de fora das 8 (singular e plural)', () => {
+  assert.equal(maisCampanhas(8, 8), null);
+  assert.equal(maisCampanhas(5, 5), null);
+  assert.equal(maisCampanhas(9, 8), 'Mais 1 campanha na tela Campanhas (aqui vão as 8 de maior gasto).');
+  assert.equal(maisCampanhas(12, 8), 'Mais 4 campanhas na tela Campanhas (aqui vão as 8 de maior gasto).');
+  assert.equal(maisCampanhas(undefined, 3), null);
+});
