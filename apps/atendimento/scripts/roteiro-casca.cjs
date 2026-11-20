@@ -8,6 +8,7 @@ const puppeteer = require('C:/Users/USER/.claude/backups/indycar-ferramentas/nod
 const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
+const { permiteRequisicao } = require('./barreira-navegador.cjs');
 
 const espera = ms => new Promise(r => setTimeout(r, ms));
 let total = 0, bons = 0;
@@ -15,7 +16,10 @@ const ok = (nome, cond, extra = '') => { total++; if (cond) bons++; console.log(
 let dormindo = false;
 
 const app = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-  env: { ...process.env, PORT: '3210', HOST: '127.0.0.1', SINCRONIA: '0', AUTOMACOES: '0' }, stdio: 'ignore' });
+  /* Rodada 10: o roteiro não depende mais do .env de verdade. A configuração pública é de MENTIRA (a tela só precisa
+     de um endereço para guardar e pré-conectar) e o servidor sobe SEM a chave do banco: nada é lido nem gravado. */
+  env: { ...process.env, PORT: '3210', HOST: '127.0.0.1', SINCRONIA: '0', AUTOMACOES: '0', IA_FUNIL: '0',
+    SUPABASE_URL: 'https://casca-de-mentira.supabase.co', SUPABASE_ANON_KEY: 'anon-de-mentira', SUPABASE_SERVICE_ROLE_KEY: '', ANTHROPIC_API_KEY: '' }, stdio: 'ignore' });
 const proxy = http.createServer((req, res) => {
   if (dormindo) { res.writeHead(503, { 'Content-Type': 'text/html', 'x-render-routing': 'hibernate-wake-error' }); return res.end('<h1>Service Unavailable</h1>'); }
   const p = http.request({ host: '127.0.0.1', port: 3210, path: req.url, method: req.method, headers: { ...req.headers, host: 'localhost:3230' } }, r => { res.writeHead(r.statusCode, r.headers); r.pipe(res); });
@@ -31,6 +35,9 @@ const proxy = http.createServer((req, res) => {
     const p = await browser.newPage();
     const erros = [];
     p.on('pageerror', e => erros.push(e.message));
+    // rodada 10: nada sai desta máquina (Supabase de mentira, fontes, CDN): só o servidor local
+    await p.setRequestInterception(true);
+    p.on('request', r => (permiteRequisicao(r.url(), 'http://localhost:3230') ? r.continue() : r.abort()));
     await p.goto('http://localhost:3230/', { waitUntil: 'networkidle0' });
     await p.evaluate(() => navigator.serviceWorker.ready);
     await p.reload({ waitUntil: 'networkidle0' });
