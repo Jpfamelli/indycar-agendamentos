@@ -1449,3 +1449,17 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - **R9-ATD-089** · texto · Painel do cliente (pátio, orçamentos, pedido de horário) e avisos de rede sem travessão · `a6169fe`
 - **R9-ATD-090** · teste · Suíte nova test/r9-regras.test.js: 8 testes (telefone, comando, placa, ficha do Sugerir, cerca e travessão em 11 arquivos de tela) · `902a163`
 - **R9-ATD-091** · teste · Roteiro no Chrome passa de 133 para 159 conferências: lista no celular, 15 janelas, telas de entrar e a janela Nova conversa · `902a163`
+- **R9-ATD-092** · enxugar · Sai do app a função que contava a carga da lista antiga da equipe: nenhuma tela chamava e ela pedia até 5.000 conversas ao banco · `01e9b34`
+- **R9-ATD-093** · enxugar · Saem do app dois ajudantes sem uso (tradução de erro de login antiga e data por extenso) e a lista escondida da equipe em Configurações · `01e9b34`
+- **R9-ATD-094** · enxugar · Saem 39 linhas de CSS da lista antiga da equipe, do filtro "meus" antigo e dos links externos da barra, que nenhuma tela usa mais · `01e9b34`
+- **R9-ATD-095** · tela · Barra do celular na cor da barra do app nos dois temas; abertura do app instalado e página "sem conexão" com o fundo atual (eram do preto antigo) · `01e9b34`
+- **R9-ATD-096** · conserto · Ícone da notificação de mensagem nova acompanha a pasta onde o app está montado (dentro da Central a notificação saía sem ícone) · `01e9b34`
+- **R9-ATD-097** · texto · Equipe e Auditoria: sete avisos de servidor antigo deixam de mostrar nome de rota ("POST /api/equipe") e dizem o que fazer · `ac12678`
+- **R9-ATD-098** · texto · Tarefas: o aviso da carga calculada na tela explica o limite em português simples, sem nome de rota · `ac12678`
+- **R9-ATD-099** · texto · Distribuir pelo rodízio: o aviso de servidor antigo diz o que fazer, sem nome de rota · `01e9b34`
+- **R9-ATD-100** · texto · Criar tarefa: vínculo quebrado avisa "Não reconheci a conversa ligada a esta tarefa" em vez de "conversa_id inválido." · `dc71550`
+- **R9-ATD-101** · conserto · Carga da equipe: se a leitura das conversas falha, o gestor recebe o aviso de falha em vez de "zero conversas" para todo mundo · `dc71550`
+- **R9-ATD-102** · segurança · Tarefas de uma pessoa: o limite de linhas pedido ao banco fica sempre entre 1 e 200 (texto ou número negativo chegavam crus ao banco) · `dc71550`
+- **R9-ATD-103** · teste · Suíte nova test/r9-tarefas.test.js: 3 testes com banco de mentira (aviso sem nome de coluna, leitura que falha, limite são) · `dc71550`
+- **R9-ATD-104** · teste · test/r9-tela.test.js ganha 4 testes: código morto fora, cores da barra, ícone da notificação e avisos sem nome de rota · `01e9b34`
+- **R9-ATD-105** · acessibilidade · Nova conversa: o motivo do telefone recusado aparece abaixo do campo, é lido pelo leitor de tela (role=alert, aria-invalid) e some quando a pessoa volta a digitar · `902a163`
