@@ -1164,3 +1164,6 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-050** · segurança · O reagendamento do dia rejeita data enviada como lista (teste testes-rodada7-api) · `66d554d`
 - **R10-COM-051** · segurança · O rodapé de saída exige texto com a palavra PARAR (teste testes-rodada7-api) · `66d554d`
 - **R10-COM-052** · segurança · A escrita com IA exige um pedido em texto (teste testes-rodada7-api) · `66d554d`
+
+- **R10-COM-053** · conserto · Reagendamento individual informa conflito quando o carteiro assume o envio antes da atualização (teste R10-COM-053 em testes-rodada7-api.mjs) · `058cbaf`
+- **R10-COM-054** · conserto · Reagendamento do dia só conta mensagens efetivamente atualizadas (teste R10-COM-054 em testes-rodada7-api.mjs) · `058cbaf`

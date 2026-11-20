@@ -62,3 +62,7 @@ O commit f410f11 cobre R10-COM-041 a 046. As seis regressões falharam antes e p
 ## Importação, reagendamento, rodapé e IA
 
 O commit 66d554d cobre R10-COM-047 a 052. As seis regressões falharam antes e passaram depois. A suíte isolada passou de 356 para 362 testes. A importação pede que planilhas maiores sejam divididas e que linhas com formato inválido sejam corrigidas antes de gravar. Falta confirmar no navegador se a oficina recebe esses avisos de forma clara.
+
+## Concorrência no reagendamento
+
+O commit `058cbaf` cobre R10-COM-053 e 054. A suíte completa passou de 362 para 364 testes em processos separados, com Supabase fictício, e npm run check passou. A atualização individual informa conflito e o lote exclui da contagem os envios assumidos pelo carteiro durante a operação.
