@@ -232,7 +232,7 @@
       }
       if (e.target.closest('[data-voltar-adiados]')) { gravarAdiados({}); desenhar(); return; }
       if (e.target.closest('[data-mais-avisos]')) { limite = Math.min(LIMITE_MAX, limite + 60); carregar(); return; }
-      if (e.target.closest('[data-sino-de-novo]')) { leitura = 'carregando'; desenhar(); carregar(); return; }
+      if (e.target.closest('[data-sino-de-novo]')) { leitura = 'carregando'; desenhar(); carregar(); $('#sinoBusca')?.focus(); return; }   // rodada 9: o foco fica no sino (o botão some ao redesenhar)
       const a = e.target.closest('[data-notif]');
       if (a) { alternar(false); abrir(a.dataset.notif); return; }
       if (e.target.closest('[data-aviso-sistema]')) {

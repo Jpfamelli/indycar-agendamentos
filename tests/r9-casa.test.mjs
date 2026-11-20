@@ -548,3 +548,8 @@ test('busca: "limpar" as recentes devolve o foco ao campo e avisa o leitor de te
   const s = semComentarios(ler('busca.js'));
   assert.match(s, /localStorage\.removeItem\(LS_RECENTES\);[^]*?telaInicial\(\);\s*\$\('#buscaInput'\)\.focus\(\);\s*const an = \$\('#buscaAnuncio'\); if \(an\) an\.textContent = 'Buscas recentes apagadas\.';/);
 });
+
+test('"tentar de novo" das tarefas e do sino deixa o foco perto da lista (antes o botão sumia e o foco ia para o corpo da página)', () => {
+  assert.match(semComentarios(ler('tarefas.js')), /\[data-tarefas-de-novo\]'\)\) \{ leitura = 'carregando'; desenhar\(\); carregar\(\); const h = \$\('#tTarefas'\); if \(h\) \{ h\.setAttribute\('tabindex', '-1'\); h\.focus\(\{ preventScroll: true \}\); \} \}/);
+  assert.match(semComentarios(ler('sino.js')), /\[data-sino-de-novo\]'\)\) \{ leitura = 'carregando'; desenhar\(\); carregar\(\); \$\('#sinoBusca'\)\?\.focus\(\); return; \}/);
+});

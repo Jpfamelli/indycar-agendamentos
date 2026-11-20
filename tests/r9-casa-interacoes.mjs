@@ -424,6 +424,21 @@ try {
   conferir('sino: Enter num filtro de app filtra e o foco fica nele', s.foco === alvo && s.aberto, JSON.stringify({ ...s, alvo }));
   await f.page.close();
   });
+
+  // 27. "tentar de novo" das tarefas e do sino: o foco fica perto da lista (antes caía no corpo da página)
+  await passo("27. tentar de novo mantém o foco", async () => {
+  const f = await abrir({ papel: 'admin', falhar: ['tarefas', 'notificacoes'] }, 1440);
+  await f.page.focus('[data-tarefas-de-novo]');
+  await f.page.keyboard.press('Enter'); await espera(300);
+  const t = await f.page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
+  conferir('tarefas: "tentar de novo" deixa o foco no título "Minhas tarefas"', t === 'tTarefas', t);
+  await f.page.click('#bSino'); await espera(500);
+  await f.page.focus('[data-sino-de-novo]');
+  await f.page.keyboard.press('Enter'); await espera(300);
+  const s = await f.page.evaluate(() => ({ foco: document.activeElement?.id || document.activeElement?.tagName, aberto: !document.querySelector('#painelSino').hidden }));
+  conferir('sino: "tentar de novo" deixa o foco dentro do sino', s.foco === 'sinoBusca' && s.aberto, JSON.stringify(s));
+  await f.page.close();
+  });
 } finally {
   await browser.close();
 }

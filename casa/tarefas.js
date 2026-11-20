@@ -223,7 +223,8 @@
       const a = e.target.closest('[data-adiar]'); if (a) { adiar(a.dataset.adiar); return; }
       const m = e.target.closest('[data-adiar-mais]'); if (m) { adiar(m.dataset.adiarMais, 3); return; }
       const ed = e.target.closest('[data-editar]'); if (ed) { editando = ed.dataset.editar; desenhar(); return; }
-      if (e.target.closest('[data-tarefas-de-novo]')) { leitura = 'carregando'; desenhar(); carregar(); }
+      // rodada 9: o botão some ao redesenhar; o foco ia para o corpo da página. Fica no título "Minhas tarefas", logo acima da lista
+      if (e.target.closest('[data-tarefas-de-novo]')) { leitura = 'carregando'; desenhar(); carregar(); const h = $('#tTarefas'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } }
     };
     /* o WhatsApp só "abriu de verdade" depois da guarda do PARAR (parar.js avisa): aí oferece concluir a tarefa */
     $('#listaTarefas').addEventListener('casa-wa-aberto', (e) => {
