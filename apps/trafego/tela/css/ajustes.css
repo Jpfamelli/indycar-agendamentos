@@ -681,6 +681,10 @@
 .chaves-lista-caixa {
   width: 100%;
 }
+/* Sem chave recém-criada, a caixa vazia não pode somar mais um espaço entre a explicação e "Chaves criadas". */
+.chave-nova-caixa:empty {
+  display: none;
+}
 .chave-nome {
   font-weight: var(--peso-forte);
   overflow-wrap: anywhere;
