@@ -1425,3 +1425,27 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - **R9-ATD-065** · acessibilidade · Cartão de atalho deixa de ser um botão com botão dentro (favorito) · `fcdbe2a`
 - **R9-ATD-066** · teste · Suíte nova test/r9-tela.test.js: 11 testes, com os geradores de gráfico rodando numa caixa de areia · `f28048d`
 - **R9-ATD-067** · teste · Roteiro scripts/roteiro-r9.cjs: 133 conferências no Chrome (axe-core, 44 px, rolagem lateral e alturas em 375, 1366 e 1440 px, dois temas), só com servidor de mentira · `f28048d`
+- **R9-ATD-068** · conserto · Nova conversa confere o telefone antes de criar e diz o porquê (sem DDD, curto, comprido, com letras, DDD que não existe); antes aceitava qualquer texto · `902a163`
+- **R9-ATD-069** · conserto · Nova conversa: clique duplo não abre a mesma conversa duas vezes; o botão mostra Abrindo… enquanto trabalha · `902a163`
+- **R9-ATD-070** · celular · Nova conversa: o campo do telefone abre o teclado de telefone e o nome tem limite de tamanho · `902a163`
+- **R9-ATD-071** · conserto · Atalho: comando digitado com espaço, acento ou maiúscula ("Bom Dia") é gravado como se digita depois da barra ("bomdia"); antes ficava impossível de chamar · `902a163`
+- **R9-ATD-072** · celular · Atalho: campo do comando sem maiúscula automática nem corretor; comando e título com limite · `902a163`
+- **R9-ATD-073** · conserto · Agendar grava a placa sem hífen, no formato que a busca encontra (a busca por placa não achava "ABC-1D23") · `902a163`
+- **R9-ATD-074** · conserto · Ficha do cliente: Editar grava a placa no mesmo formato e diz o porquê quando está fora do padrão; placa antiga que não foi mexida não trava os outros campos · `902a163`
+- **R9-ATD-075** · celular · Agendar: placa em maiúsculas, sem corretor e com limite; carro com limite · `902a163`
+- **R9-ATD-076** · celular · Integrações: campos de ID, endereço e senha do webhook sem maiúscula automática nem corretor; número do WhatsApp com teclado de telefone · `902a163`
+- **R9-ATD-077** · segurança · Sugerir sem conversa: nome, carro e placa enviados pela tela entram limpos, numa linha só e com teto de tamanho (o nome vem do perfil do WhatsApp do cliente) · `2aed50d`
+- **R9-ATD-078** · segurança · Sugerir sem conversa: a ficha fica dentro da cerca de "dado, nunca instrução", junto com a conversa (ficava fora) · `2aed50d`
+- **R9-ATD-079** · celular · Lista de conversas: tocar na etiqueta de etapa ou no nome do responsável abre a conversa (era um alvo de 20 px que abria um menu, fácil de errar com o dedo) · `902a163`
+- **R9-ATD-080** · celular · Lista de conversas: busca, Próxima, carros sem conversa e Pegar com 44 px (tinham de 22 a 42 px) · `902a163`
+- **R9-ATD-081** · celular · Fechar (×) de todas as janelas com 44 px (tinha 31 px) · `902a163`
+- **R9-ATD-082** · celular · Mostrar senha, nas telas de entrar e de trocar senha, com 44 px (tinha 38 px) · `902a163`
+- **R9-ATD-083** · celular · Busca da ajuda e Copiar da verificação em duas etapas com 44 px (tinham 25 e 39 px) · `902a163`
+- **R9-ATD-084** · texto · Telas de entrar, esqueci a senha e primeiro acesso sem travessão · `902a163`
+- **R9-ATD-085** · texto · Conversa: avisos de fila, de sistema acordando, de áudio, de anexo e dicas dos botões sem travessão · `902a163`
+- **R9-ATD-086** · texto · Funil, Etapas, IA, Relatórios, Integrações, Auditoria, Minha conta e janelas com descrições sem travessão; motivo pronto "Assunto técnico: precisa de consultor" · `902a163`
+- **R9-ATD-087** · texto · Equipe, histórico da Auditoria, Tarefas e transferência de conversa sem travessão · `a6169fe`
+- **R9-ATD-088** · texto · Ajuda e respostas sugeridas do copiloto sem travessão · `a6169fe`
+- **R9-ATD-089** · texto · Painel do cliente (pátio, orçamentos, pedido de horário) e avisos de rede sem travessão · `a6169fe`
+- **R9-ATD-090** · teste · Suíte nova test/r9-regras.test.js: 8 testes (telefone, comando, placa, ficha do Sugerir, cerca e travessão em 11 arquivos de tela) · `902a163`
+- **R9-ATD-091** · teste · Roteiro no Chrome passa de 133 para 159 conferências: lista no celular, 15 janelas, telas de entrar e a janela Nova conversa · `902a163`
