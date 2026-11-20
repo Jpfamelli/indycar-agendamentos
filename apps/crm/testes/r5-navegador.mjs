@@ -177,8 +177,8 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
     const status = await page.evaluate(async id => { try { await api('/api/leads/' + id, { method: 'PATCH', body: JSON.stringify({ observacoes: 'teste' }) }); return 200; } catch (e) { return e.status + ' ' + e.message; } }, ids.outro);
     if (papel === 'atendente') {
       ok(`${tag}: cartão de colega no funil com selo "de <nome>" e etapa travada`, kb && kb.travado && /^🔒 de \S+/.test(kb.selo) && kb.sel, JSON.stringify(kb));
-      ok(`${tag}: ficha de colega abre (vê), mas Dados/Salvar/etapas desativados com o aviso`, /de \S+/.test(f.selo) && /Este lead é do .+ Peça para ele ou para o gestor\./.test(f.aviso) && f.salvar && f.nome && f.etapas, JSON.stringify(f));
-      ok(`${tag}: servidor responde 403 com a mensagem ao editar lead de colega`, /^403 Este lead é do/.test(String(status)), String(status));
+      ok(`${tag}: ficha de colega abre (vê), mas Dados/Salvar/etapas desativados com o aviso`, /de \S+/.test(f.selo) && /.+ é responsável por este contato. Peça ajuda à pessoa responsável ou ao gestor\./.test(f.aviso) && f.salvar && f.nome && f.etapas, JSON.stringify(f));
+      ok(`${tag}: servidor responde 403 com a mensagem ao editar lead de colega`, /^403 .+ é responsável por este contato/.test(String(status)), String(status));
       await page.screenshot({ path: join(SAIDA, `${tag}-lead-de-colega.png`) });
       await semRolagem('lead de colega');
       for (const [rot, id] of [['dele', ids.meu], ['sem dono', ids.sem]]) {

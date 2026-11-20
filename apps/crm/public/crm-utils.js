@@ -15,7 +15,7 @@
     const termo = normalizar(q);
     if (!termo) return true;
     const tel = digitos(q), x = indiceBusca(l);
-    return x.campos.some(v => v.includes(termo)) || (tel.length >= 8 && x.tel8 === tel.slice(-8));
+    return x.campos.some(v => v.includes(termo)) || (tel.length >= 8 && /^[+\d().\s-]+$/.test(q) && x.tel8 === tel.slice(-8));
   }
   function validarLead(d, parcial = false) {
     if (!d || typeof d !== 'object' || Array.isArray(d)) return 'Informe um objeto JSON.';
@@ -196,6 +196,7 @@
     return d.length === 11 ? `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}` : `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
   }
   function paginar(lista, pagina, tamanho = 50) {
+    if (!Number.isSafeInteger(tamanho) || tamanho < 1) tamanho = 50;
     const total = lista.length, paginas = Math.max(1, Math.ceil(total / tamanho));
     const p = Math.min(Math.max(1, Math.floor(Number(pagina) || 1)), paginas);
     return {itens: lista.slice((p - 1) * tamanho, p * tamanho), pagina: p, paginas, total, de: total ? (p - 1) * tamanho + 1 : 0, ate: Math.min(p * tamanho, total)};
@@ -522,7 +523,7 @@
   /* Aviso de lead de colega (o servidor devolve o mesmo texto no 403). */
   function avisoLeadDeOutro(nome) {
     const n = String(nome || '').trim().split(/\s+/)[0];
-    return n ? `Este lead é do ${n}. Peça para ele ou para o gestor.` : 'Este lead é de um colega. Peça para ele ou para o gestor.';
+    return n ? `${n} é responsável por este contato. Peça ajuda à pessoa responsável ou ao gestor.` : 'Um colega é responsável por este contato. Peça ajuda à pessoa responsável ou ao gestor.';
   }
   function ordenarDesempenho(lista, criterio = 'faturamento') {
     const v = x => criterio === 'tempo_resposta_min' ? -(x[criterio] ?? Infinity) : num(x[criterio]);
