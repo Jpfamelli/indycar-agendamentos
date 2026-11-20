@@ -79,7 +79,13 @@ function criarLimitador() {
     b.n++;
     return b.n <= max ? { ok: true } : { ok: false, esperar: Math.ceil((b.inicio + janelaMs - agora) / 1000) };
   }
-  return { permitir, limpar: () => baldes.clear(), tamanho: () => baldes.size };
+  /** Só olha (não conta): quantas vezes a chave já bateu na janela e quanto falta para ela zerar. */
+  function espiar(chave, janelaMs, agora = Date.now()) {
+    const b = baldes.get(chave);
+    if (!b || agora - b.inicio >= janelaMs) return { n: 0, esperar: 0 };
+    return { n: b.n, esperar: Math.max(1, Math.ceil((b.inicio + janelaMs - agora) / 1000)) };
+  }
+  return { permitir, espiar, limpar: () => baldes.clear(), tamanho: () => baldes.size };
 }
 
 /* Rotas caras (IA, plataformas, WhatsApp, exportar): por usuário, em 10 min. */

@@ -1,4 +1,5 @@
 'use strict';
+process.env.TRAFEGO_TELA_ANTIGA = '1'; // rodada 10: estas rotas são da tela antiga e ficam fechadas sem esta chave
 /* Rodada 9: o que sai pelo WhatsApp do dono e o que mexe nos números de todos é só do administrador.
    O gestor com o Tráfego liberado continua vendo, simulando e propondo (a mesma regra do fechamento do mês). */
 process.env.ADS_CRON_TOKEN = 'chave-de-teste';

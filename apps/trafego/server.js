@@ -93,18 +93,24 @@ const json = (res, code, dados) => {
 
 function lerCorpo(req) {
   return new Promise((resolve, reject) => {
-    let bruto = '', excedeu = false;
+    /* Rodada 10: os pedaços ficam em bytes e só viram texto no fim. Somar texto pedaço a pedaço trocava por "�" a
+       letra acentuada que caísse na emenda de dois pacotes, e o teto contava letras (1,9 MB de "ã" passava). */
+    const partes = []; let total = 0, excedeu = false;
     req.on('data', c => {
       if (excedeu) return;
-      bruto += c;
-      if (bruto.length > LIMITE_CORPO) {
+      const pedaco = Buffer.isBuffer(c) ? c : Buffer.from(String(c));
+      total += pedaco.length;
+      if (total > LIMITE_CORPO) {
         excedeu = true;
         reject(new ErroHttp(413, 'corpo da requisição muito grande (máximo 1 MB)'));
-        req.destroy();
+        req.resume();   // o resto é jogado fora sem derrubar a conexão: a resposta 413 ainda chega a quem mandou
+        return;
       }
+      partes.push(pedaco);
     });
     req.on('end', () => {
       if (excedeu) return;
+      const bruto = Buffer.concat(partes).toString('utf8');
       if (!bruto.trim()) return resolve({});
       try {
         const o = JSON.parse(bruto);
@@ -167,16 +173,19 @@ function enviarCSV(res, nome, texto) {
    ------------------------------------------------------------ */
 function validarConfig(c) {
   const saida = {};
+  /* Rodada 10: só número (ou texto de número, com vírgula de centavos) e com teto. Antes true virava 1, [5] virava 5
+     e 1e12 seguia para o banco, que respondia com erro interno. */
   const numOuNulo = (campo, min = 0, max = Infinity) => {
     if (!(campo in c)) return;
     if (c[campo] === null || c[campo] === '') { saida[campo] = null; return; }
-    const v = Number(c[campo]);
+    const cru = c[campo];
+    const v = typeof cru === 'number' ? cru : typeof cru === 'string' && /^\s*[0-9]+([.,][0-9]+)?\s*$/.test(cru) ? Number(cru.trim().replace(',', '.')) : NaN;
     if (!Number.isFinite(v) || v < min || v > max) {
-      throw new ErroHttp(400, `${campo}: informe um número entre ${min} e ${max === Infinity ? 'infinito' : max}`);
+      throw new ErroHttp(400, `${campo}: informe um número entre ${min} e ${max === Infinity ? 'infinito' : max.toLocaleString('pt-BR')}`);
     }
     saida[campo] = v;
   };
-  numOuNulo('cpa_alvo'); numOuNulo('roas_alvo'); numOuNulo('orcamento_mensal'); numOuNulo('ticket_medio');
+  numOuNulo('cpa_alvo', 0, 100_000); numOuNulo('roas_alvo', 0, 1000); numOuNulo('orcamento_mensal', 0, 10_000_000); numOuNulo('ticket_medio', 0, 1_000_000);
   numOuNulo('margem_pct', 0, 100);
   if (saida.margem_pct === null) saida.margem_pct = 100;
 
@@ -219,6 +228,15 @@ const rota = (metodo, caminho, fn) => {
   if (!rotas.has(caminho)) rotas.set(caminho, {});
   rotas.get(caminho)[metodo] = fn;
 };
+/* Rodada 10: as rotas que só a tela antiga (public/) usava ficam fechadas enquanto ela está desligada. A tela nova
+   não chama nenhuma delas, e abertas elas deixavam qualquer pessoa com o app rodar coleta, radar, regras e relatório
+   por fora da tela. Religar: TRAFEGO_TELA_ANTIGA=1 (a mesma chave que religa /antiga/; lida a cada pedido).
+   Continuam abertas, porque a tela nova usa: /api/config, /api/integracoes e GET /api/eu. */
+const telaAntigaLigada = () => process.env.TRAFEGO_TELA_ANTIGA === '1';
+const rotaAntiga = (metodo, caminho, fn) => rota(metodo, caminho, (pedido) => {
+  if (!telaAntigaLigada()) throw new ErroHttp(404, 'Essa parte saiu junto com a tela antiga do Tráfego.', { codigo: 'tela_antiga' });
+  return fn(pedido);
+});
 /* Rodada 8: rotas SEM login (cada uma cuida da própria autenticação: chave de IA, chave de cron, ou nada).
    `alvo` é o caminho exato ou uma RegExp; `opcoes.corsLivre` deixa qualquer site chamar (ex.: script de rastreio). */
 const publicas = [];
@@ -236,7 +254,7 @@ function acharPublica(caminho) {
 }
 
 /* --- saúde do ecossistema (faixa no topo da tela) --- */
-rota('GET', '/api/saude', async () => {
+rotaAntiga('GET', '/api/saude', async () => {
   const v = await db.lerVigia();
   return {
     ok: !v?.problema,
@@ -268,11 +286,11 @@ const BUSCA = q => String(q.get('q') || '').replace(/[\u0000-\u001f\u007f]/g, ''
 const filtrosLeads = q => ({ canal: CANAL_LEAD(q), status: STATUS_LEAD(q), q: BUSCA(q), soPagos: q.get('pagos') === '1', semResponsavel: q.get('sem_responsavel') === '1',
   etapa: leads.ETAPAS_CICLO.includes(q.get('etapa')) ? q.get('etapa') : null,
   ordem: leads.ORDENS.includes(q.get('ordem')) ? q.get('ordem') : 'recentes' });
-rota('GET', '/api/leads', ({ q }) => leads.listar({ ...periodoDaQuery(q), ...filtrosLeads(q), limite: limiteDe(q, 300, 1000) }));
-rota('GET', '/api/leads/hoje', () => leads.hoje());
+rotaAntiga('GET', '/api/leads', ({ q }) => leads.listar({ ...periodoDaQuery(q), ...filtrosLeads(q), limite: limiteDe(q, 300, 1000) }));
+rotaAntiga('GET', '/api/leads/hoje', () => leads.hoje());
 /* Rodada 6: carros de anúncio na oficina e orçamentos esperando (cartão "Oficina agora" do Painel). Cache de 60 s. */
 let cacheOficina = { valor: null, em: 0 };
-rota('GET', '/api/oficina-agora', async ({ q }) => {
+rotaAntiga('GET', '/api/oficina-agora', async ({ q }) => {
   if (q.get('fresco') !== '1' && cacheOficina.valor && Date.now() - cacheOficina.em < 60_000) return cacheOficina.valor;
   const v = await require('./ciclo').agora();
   if (!v.indisponivel) cacheOficina = { valor: v, em: Date.now() };
@@ -280,7 +298,7 @@ rota('GET', '/api/oficina-agora', async ({ q }) => {
 });
 /* Rodada 7: "o que fazer agora" — fila de clientes de anúncio esperando o consultor, com atalhos (cache de 60 s). */
 let cacheAcoes = { valor: null, em: 0, chave: '' };
-rota('GET', '/api/acoes', async ({ q }) => {
+rotaAntiga('GET', '/api/acoes', async ({ q }) => {
   const dias = Math.min(90, Math.max(1, parseInt(q.get('dias') || '30', 10) || 30)), limite = limiteDe(q, 40, 100), chave = dias + ':' + limite;
   if (q.get('fresco') !== '1' && cacheAcoes.valor && cacheAcoes.chave === chave && Date.now() - cacheAcoes.em < 60_000) return cacheAcoes.valor;
   const [fila, alertas] = await Promise.all([require('./ciclo').acoes({ dias, limite }), db.listarAlertas({ limite: 40, naoLidos: true }).catch(() => [])]);
@@ -291,7 +309,7 @@ rota('GET', '/api/acoes', async ({ q }) => {
   if (!fila.indisponivel) cacheAcoes = { valor: v, em: Date.now(), chave };
   return v;
 });
-rota('GET', '/api/acoes.csv', async ({ q, res, usuario }) => {
+rotaAntiga('GET', '/api/acoes.csv', async ({ q, res, usuario }) => {
   const f = await require('./ciclo').acoes({ dias: Math.min(90, Math.max(1, parseInt(q.get('dias') || '30', 10) || 30)), limite: 100 });
   if (f.indisponivel) throw new ErroHttp(503, f.motivo);
   await equipe.banco().auditar(usuario, 'ads_exportou_csv', { detalhes: { arquivo: 'acoes', quantidade: f.itens.length } });
@@ -300,21 +318,21 @@ rota('GET', '/api/acoes.csv', async ({ q, res, usuario }) => {
 });
 /* Rodada 7: os orçamentos e as OS recentes estão ligados a um lead? (cache de 5 min) */
 let cacheLigacao = { valor: null, em: 0 };
-rota('GET', '/api/ligacao', async ({ q }) => {
+rotaAntiga('GET', '/api/ligacao', async ({ q }) => {
   if (q.get('fresco') !== '1' && cacheLigacao.valor && Date.now() - cacheLigacao.em < 300_000) return cacheLigacao.valor;
   const v = await require('./ciclo').ligacao();
   if (!v.indisponivel) cacheLigacao = { valor: v, em: Date.now() };
   return v;
 });
 /* Rodada 7: do teste ao real — em que modo o painel está e o que falta. */
-rota('GET', '/api/preparo', () => require('./preparo').ler());
+rotaAntiga('GET', '/api/preparo', () => require('./preparo').ler());
 /* Rodada 7: fechamento do mês para o dono (texto pronto + números); POST manda no WhatsApp pelo Comunicar. */
-rota('GET', '/api/fechamento', async ({ q }) => {
+rotaAntiga('GET', '/api/fechamento', async ({ q }) => {
   const r = await require('./fechamento').gerar({ mes: q.get('mes') || hojeBR().slice(0, 7), hojeISO: hojeBR() });
   if (!r.ok) throw new ErroHttp(400, r.erro);
   return r;
 });
-rota('GET', '/api/fechamento.csv', async ({ q, res, usuario }) => {
+rotaAntiga('GET', '/api/fechamento.csv', async ({ q, res, usuario }) => {
   const F = require('./fechamento');
   const r = await F.gerar({ mes: q.get('mes') || hojeBR().slice(0, 7), hojeISO: hojeBR() });
   if (!r.ok) throw new ErroHttp(400, r.erro);
@@ -327,7 +345,7 @@ rota('GET', '/api/fechamento.csv', async ({ q, res, usuario }) => {
 const soAdmin = (usuario, oQue) => {
   if (!equipe.ehAdmin(usuario)) throw new ErroHttp(403, `Só o administrador pode ${oQue}.`, { codigo: 'so_admin' });
 };
-rota('POST', '/api/fechamento/enviar', async ({ corpo, usuario }) => {
+rotaAntiga('POST', '/api/fechamento/enviar', async ({ corpo, usuario }) => {
   soAdmin(usuario, 'mandar o fechamento do mês pelo WhatsApp');
   const c = await corpo();
   const cfg = await db.lerConfig({ fresco: true });
@@ -339,7 +357,7 @@ rota('POST', '/api/fechamento/enviar', async ({ corpo, usuario }) => {
   const envio = await whatsapp.enviarParaTodos(cfg.whatsapp_destinos, r.texto, { chave: `ads:fechamento:${r.periodo.mes}:${r.periodo.ate}`, perfil_id: usuario.id });
   return { ok: envio.some(e => e.ok), envio, periodo: r.periodo };
 });
-rota('GET', '/api/leads.csv', async ({ q, res, usuario }) => {
+rotaAntiga('GET', '/api/leads.csv', async ({ q, res, usuario }) => {
   const p = periodoDaQuery(q);
   const filtros = filtrosLeads(q);
   await equipe.banco().auditar(usuario, 'ads_exportou_csv', { detalhes: { arquivo: 'leads', ...p, ...filtros } });
@@ -351,12 +369,12 @@ rota('GET', '/api/leads.csv', async ({ q, res, usuario }) => {
 
 /* ===================== MÓDULO 1 · PAINEL ===================== */
 
-rota('GET', '/api/painel', async ({ q }) => {
+rotaAntiga('GET', '/api/painel', async ({ q }) => {
   const { de, ate } = periodoDaQuery(q);
   return painel.resumo({ de, ate, plataforma: platDe(q) });
 });
 
-rota('GET', '/api/ranking', async ({ q }) => {
+rotaAntiga('GET', '/api/ranking', async ({ q }) => {
   const { de, ate } = periodoDaQuery(q);
   const ordenar = M.ROTULO[q.get('ordenar')] ? q.get('ordenar') : 'gasto';
   const nivel = nivelDe(q);
@@ -381,29 +399,29 @@ async function resultadosComCache(p) {
   return valor;
 }
 
-rota('GET', '/api/historico', async ({ q }) => {
+rotaAntiga('GET', '/api/historico', async ({ q }) => {
   const { de, ate } = periodoDaQuery(q);
   const entidade = q.get('entidade');
   if (!entidade) throw new ErroHttp(400, 'informe a entidade');
   return painel.historico({ entidade, nivel: nivelDe(q), de, ate });
 });
 
-rota('GET', '/api/mes', async () => {
+rotaAntiga('GET', '/api/mes', async () => {
   const m = await painel.ritmoDoMes();
   // Rodada 5: leads do mês (todos os canais) e custo por lead pago no cartão "Mês corrente". CRM fora não derruba o cartão.
   m.leads = await leads.resumoDoMes({ gastoMes: m.gasto }).catch(() => null);
   return m;
 });
 /* --- Resultados CRM: leads, agendamentos e vendas por canal/campanha --- */
-rota('GET', '/api/resultados', ({ q }) => resultados.resumo({ ...periodoDaQuery(q), plataforma: platDe(q) }));
-rota('GET', '/api/resultados.csv', async ({ q, res, usuario }) => {
+rotaAntiga('GET', '/api/resultados', ({ q }) => resultados.resumo({ ...periodoDaQuery(q), plataforma: platDe(q) }));
+rotaAntiga('GET', '/api/resultados.csv', async ({ q, res, usuario }) => {
   const p = periodoDaQuery(q);
   await equipe.banco().auditar(usuario, 'ads_exportou_csv', { detalhes: { arquivo: 'resultados', ...p, plataforma: platDe(q) } });
   enviarCSV(res, `resultados-crm-${platDe(q) || 'meta-google'}-${p.de}-a-${p.ate}.csv`, atribuicao.csv(await resultados.resumo({ ...p, plataforma: platDe(q) })));
 });
 
 /* Rodada 6: do anúncio ao carro entregue em CSV (mesmas contas da tela). Sem ciclo legível, devolve 503 com frase. */
-rota('GET', '/api/ciclo.csv', async ({ q, res, usuario }) => {
+rotaAntiga('GET', '/api/ciclo.csv', async ({ q, res, usuario }) => {
   const p = periodoDaQuery(q);
   const r = await resultados.resumo({ ...p, plataforma: platDe(q) });
   if (!r.ciclo || r.ciclo.indisponivel) throw new ErroHttp(503, r.ciclo?.motivo || 'Ciclo indisponível agora. Tente de novo em instantes.');
@@ -415,7 +433,7 @@ rota('GET', '/api/ciclo.csv', async ({ q, res, usuario }) => {
 const CAMPOS_RANKING = [['plataforma', 'Plataforma'], ['nome', 'Nome'], ['campanha_nome', 'Campanha'], ['dias_ativos', 'Dias ativos'],
   ['gasto', 'Investido'], ['impressoes', 'Impressões'], ['cliques', 'Cliques'], ['ctr', 'CTR (%)'], ['cpc', 'CPC'], ['cpm', 'CPM'],
   ['conversoes', 'Conversões'], ['cpa', 'CPA'], ['valor_conversao', 'Receita na plataforma'], ['roas', 'ROAS'], ['frequencia', 'Frequência']];
-rota('GET', '/api/ranking.csv', async ({ q, res, usuario }) => {
+rotaAntiga('GET', '/api/ranking.csv', async ({ q, res, usuario }) => {
   const { de, ate } = periodoDaQuery(q);
   const nivel = nivelDe(q);
   await equipe.banco().auditar(usuario, 'ads_exportou_csv', { detalhes: { arquivo: nivel === 'anuncio' ? 'criativos' : 'campanhas', de, ate, plataforma: platDe(q) } });
@@ -436,19 +454,19 @@ rota('GET', '/api/ranking.csv', async ({ q, res, usuario }) => {
 });
 
 /* --- IA: leitura da semana (sob demanda; registrada em ia_acoes) --- */
-rota('POST', '/api/ia/leitura', async ({ usuario }) => {
+rotaAntiga('POST', '/api/ia/leitura', async ({ usuario }) => {
   const r = await leitura.gerar({ usuario });
   if (!r.ok) throw new ErroHttp(503, r.erro);
   return r;
 });
-rota('GET', '/api/ia/leituras', () => leitura.ultimas(5));
+rotaAntiga('GET', '/api/ia/leituras', () => leitura.ultimas(5));
 
 /* --- colar e testar credenciais (nunca devolve token) --- */
 const canalDoCorpo = c => {
   if (c.canal !== 'meta' && c.canal !== 'google') throw new ErroHttp(400, 'canal deve ser meta ou google');
   return c.canal;
 };
-rota('POST', '/api/integracoes/testar', async ({ corpo }) => { const c = await corpo(); return conexoes.testar(canalDoCorpo(c), c); });
+rotaAntiga('POST', '/api/integracoes/testar', async ({ corpo }) => { const c = await corpo(); return conexoes.testar(canalDoCorpo(c), c); });
 rota('POST', '/api/integracoes', async ({ corpo, usuario }) => {
   soAdmin(usuario, 'trocar o acesso da Meta e do Google');
   const c = await corpo();
@@ -468,15 +486,15 @@ rota('GET', '/api/integracoes', async () => {
   return lista.map(db.mascararIntegracao);
 });
 
-rota('POST', '/api/sync', async ({ corpo }) => {
+rotaAntiga('POST', '/api/sync', async ({ corpo }) => {
   const c = await corpo();
   const dias = Math.min(90, Math.max(1, parseInt(c.dias, 10) || 7));
   return coletor.sincronizar({ dias });
 });
 
-rota('POST', '/api/testar-conexoes', () => coletor.testarConexoes());
+rotaAntiga('POST', '/api/testar-conexoes', () => coletor.testarConexoes());
 
-rota('POST', '/api/demo', async ({ corpo, usuario }) => {
+rotaAntiga('POST', '/api/demo', async ({ corpo, usuario }) => {
   // Rodada 9: pôr ou tirar a demonstração mexe na tabela de números que todos veem: só o administrador.
   soAdmin(usuario, 'pôr ou tirar os números de demonstração');
   const c = await corpo();
@@ -508,7 +526,7 @@ rota('POST', '/api/config', async ({ corpo, usuario }) => {
 
 /* --- metas de marketing da loja (tabela metas, perfil_id nulo) --- */
 const hojeBR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-rota('GET', '/api/metas', async ({ q }) => {
+rotaAntiga('GET', '/api/metas', async ({ q }) => {
   const hoje = hojeBR();
   const mes = q.get('mes') || hoje.slice(0, 7);
   let dia1;
@@ -530,7 +548,7 @@ rota('GET', '/api/metas', async ({ q }) => {
     } : null,
   };
 });
-rota('POST', '/api/metas', async ({ corpo, usuario }) => {
+rotaAntiga('POST', '/api/metas', async ({ corpo, usuario }) => {
   let v;
   try { v = equipe.validarMeta(await corpo()); } catch (e) { throw new ErroHttp(e.status || 400, e.message); }
   const salva = await equipe.banco().salvarMetaLoja(v);
@@ -539,18 +557,18 @@ rota('POST', '/api/metas', async ({ corpo, usuario }) => {
 });
 
 /* --- resumo semanal no sino (manual: só para quem clicou, sem trava) --- */
-rota('POST', '/api/semanal', ({ usuario }) => semanal.gerarENotificar({ hojeISO: hojeBR(), manualPara: usuario.id }));
+rotaAntiga('POST', '/api/semanal', ({ usuario }) => semanal.gerarENotificar({ hojeISO: hojeBR(), manualPara: usuario.id }));
 
 /* --- eu: perfil, preferências e troca de senha (sem exigir acesso ao app) --- */
 rota('GET', '/api/eu', ({ usuario }) => equipe.perfilPublico(usuario));
-rota('POST', '/api/eu', async ({ corpo, usuario }) => {
+rotaAntiga('POST', '/api/eu', async ({ corpo, usuario }) => {
   let v;
   try { v = equipe.validarPerfil(await corpo()); } catch (e) { throw new ErroHttp(e.status || 400, e.message); }
   await equipe.banco().salvarPerfil(usuario, v);
   auth.esquecer();
   return { ok: true };
 });
-rota('POST', '/api/eu/senha-trocada', async ({ usuario }) => {
+rotaAntiga('POST', '/api/eu/senha-trocada', async ({ usuario }) => {
   await equipe.banco().senhaTrocada(usuario);
   await equipe.banco().auditar(usuario, 'senha_trocada', { tabela: 'perfis', registro: usuario.id });
   auth.esquecer();
@@ -562,8 +580,8 @@ const SEM_EXIGIR_ACESSO = new Set(['/api/eu', '/api/eu/senha-trocada']);
 
 /* ===================== MÓDULO 2 · RADAR ===================== */
 
-rota('GET', '/api/regras', () => db.listarRegras());
-rota('POST', '/api/regras', async ({ corpo, usuario }) => {
+rotaAntiga('GET', '/api/regras', () => db.listarRegras());
+rotaAntiga('POST', '/api/regras', async ({ corpo, usuario }) => {
   const bruto = await corpo();
   if (bruto.id != null && !equipe.ehUuid(bruto.id)) throw new ErroHttp(400, 'id da regra inválido');
   const v = radar.validarRegra(bruto);
@@ -576,7 +594,7 @@ rota('POST', '/api/regras', async ({ corpo, usuario }) => {
   });
   return salva;
 });
-rota('DELETE', '/api/regras', async ({ q, usuario }) => {
+rotaAntiga('DELETE', '/api/regras', async ({ q, usuario }) => {
   const id = q.get('id');
   if (!id) throw new ErroHttp(400, 'informe o id');
   if (!equipe.ehUuid(id)) throw new ErroHttp(400, 'id da regra inválido');
@@ -586,7 +604,7 @@ rota('DELETE', '/api/regras', async ({ q, usuario }) => {
 });
 
 const SEVERIDADES = new Set(radar.SEVERIDADES);
-rota('GET', '/api/alertas', async ({ q }) => {
+rotaAntiga('GET', '/api/alertas', async ({ q }) => {
   const lista = await db.listarAlertas({ limite: limiteDe(q, 50, 200), naoLidos: q.get('nao_lidos') === '1' });
   // Rodada 5: filtro por severidade e por plataforma na própria rota (a tela só pinta).
   const sev = SEVERIDADES.has(q.get('severidade')) ? q.get('severidade') : null, plat = platDe(q);
@@ -595,7 +613,7 @@ rota('GET', '/api/alertas', async ({ q }) => {
 const CAMPOS_ALERTAS_CSV = [['criado_em', 'Quando'], ['severidade', 'Severidade'], ['plataforma', 'Plataforma'], ['regra_nome', 'Regra'],
   ['entidade_nome', 'Campanha/criativo'], ['metrica', 'Métrica'], ['valor_medido', 'Medido'], ['valor_limite', 'Limite'], ['mensagem', 'Mensagem'],
   ['enviado_em', 'Enviado em'], ['lido_em', 'Lido em']];
-rota('GET', '/api/alertas.csv', async ({ q, res, usuario }) => {
+rotaAntiga('GET', '/api/alertas.csv', async ({ q, res, usuario }) => {
   const sev = SEVERIDADES.has(q.get('severidade')) ? q.get('severidade') : null;
   const lista = (await db.listarAlertas({ limite: limiteDe(q, 500, 2000), naoLidos: q.get('nao_lidos') === '1' })).filter(a => !sev || a.severidade === sev);
   await equipe.banco().auditar(usuario, 'ads_exportou_csv', { detalhes: { arquivo: 'alertas', quantidade: lista.length } });
@@ -604,7 +622,7 @@ rota('GET', '/api/alertas.csv', async ({ q, res, usuario }) => {
     lista.map(a => ({ ...a, criado_em: fmt(a.criado_em), enviado_em: fmt(a.enviado_em), lido_em: fmt(a.lido_em) }))));
 });
 /* Liga/desliga uma regra sem abrir o modal (só o campo `ativa`). */
-rota('POST', '/api/regras/ativa', async ({ corpo, usuario }) => {
+rotaAntiga('POST', '/api/regras/ativa', async ({ corpo, usuario }) => {
   const c = await corpo();
   if (!equipe.ehUuid(c.id)) throw new ErroHttp(400, 'id da regra inválido');
   const regras = await db.listarRegras();
@@ -614,13 +632,13 @@ rota('POST', '/api/regras/ativa', async ({ corpo, usuario }) => {
   await equipe.banco().auditar(usuario, 'ads_regra_alterada', { tabela: 'ads_regras', registro: c.id, detalhes: { nome: atual.nome, ativa: c.ativa === true } });
   return salva;
 });
-rota('POST', '/api/alertas/lidos', async ({ corpo }) => {
+rotaAntiga('POST', '/api/alertas/lidos', async ({ corpo }) => {
   const { ids } = await corpo();
   await db.marcarAlertasLidos(Array.isArray(ids) ? ids.filter(equipe.ehUuid).slice(0, 500) : []);
   return { ok: true };
 });
 
-rota('POST', '/api/radar', async ({ corpo, usuario }) => {
+rotaAntiga('POST', '/api/radar', async ({ corpo, usuario }) => {
   const c = await corpo();
   // Simulação por padrão: quem clica "testar" não deve disparar WhatsApp
   // para o dono sem querer.
@@ -631,8 +649,8 @@ rota('POST', '/api/radar', async ({ corpo, usuario }) => {
   return { ...r, alertas: (r.alertas || []).map(a => ({ ...a, acao: require('./acoes').acaoDoAlerta(a) })) };
 });
 
-rota('GET', '/api/relatorios', () => db.listarRelatorios(30));
-rota('POST', '/api/relatorio', async ({ corpo, usuario }) => {
+rotaAntiga('GET', '/api/relatorios', () => db.listarRelatorios(30));
+rotaAntiga('POST', '/api/relatorio', async ({ corpo, usuario }) => {
   const c = await corpo();
   if (c.enviar === true) soAdmin(usuario, 'mandar o relatório pelo WhatsApp');
   if (c.enviar === true) await equipe.banco().auditar(usuario, 'ads_relatorio_enviado_manual', { tabela: 'ads_relatorios' });
@@ -645,8 +663,8 @@ rota('POST', '/api/relatorio', async ({ corpo, usuario }) => {
 });
 
 /* --- canal de WhatsApp (CodeWords + reserva Cloud API) --- */
-rota('GET', '/api/whatsapp/status', ({ q }) => whatsapp.status({ fresco: q.get('fresco') === '1' }));
-rota('POST', '/api/whatsapp/testar', async ({ usuario }) => {
+rotaAntiga('GET', '/api/whatsapp/status', ({ q }) => whatsapp.status({ fresco: q.get('fresco') === '1' }));
+rotaAntiga('POST', '/api/whatsapp/testar', async ({ usuario }) => {
   soAdmin(usuario, 'mandar a mensagem de teste pelo WhatsApp');
   await equipe.banco().auditar(usuario, 'ads_whatsapp_teste', {});
   const cfg = await db.lerConfig({ fresco: true });
@@ -658,7 +676,7 @@ rota('POST', '/api/whatsapp/testar', async ({ usuario }) => {
   return { ok: envio.some(e => e.ok), envio, via: 'fila' };
 });
 /* Fila do Comunicar: o que o Ads já colocou lá (últimos envios e contagens). */
-rota('GET', '/api/fila', ({ q }) => Fila.fila().situacao({ limite: limiteDe(q, 20, 100) }));
+rotaAntiga('GET', '/api/fila', ({ q }) => Fila.fila().situacao({ limite: limiteDe(q, 20, 100) }));
 
 /* ------------------------------------------------------------
    Rodada 8 — rotas em arquivos próprios (rotas/*.js)
@@ -681,8 +699,19 @@ function chaveDeCronOk(q, req) {
   const resumo = v => require('node:crypto').createHash('sha256').update(String(v)).digest();
   return require('node:crypto').timingSafeEqual(resumo(dada), resumo(CRON_TOKEN));
 }
-/* exigirCron(q, req): para rotas públicas de rotina (/api/cron/…). */
-const exigirCron = (q, req) => { if (!chaveDeCronOk(q, req)) throw new ErroHttp(401, 'chave inválida'); };
+/* exigirCron(q, req): para rotas públicas de rotina (/api/cron/…).
+   Rodada 10: dez chaves erradas do mesmo endereço em 10 minutos fecham a porta das rotinas para ele até a janela
+   acabar (nem a chave certa passa: senão o limite não seguraria quem está adivinhando). */
+const CRON_ERROS_MAX = 10, CRON_JANELA_MS = 10 * 60_000;
+function exigirCron(q, req) {
+  const chaveDoIp = `cron-erro|${seg.ipDe(req)}`;
+  const recusar = (esperar) => Object.assign(new ErroHttp(429, 'Muitas chaves erradas seguidas. Espere e confira a chave da rotina.', { codigo: 'limite' }), { esperar });
+  const visto = limitador.espiar(chaveDoIp, CRON_JANELA_MS);
+  if (visto.n >= CRON_ERROS_MAX) throw recusar(visto.esperar);
+  if (chaveDeCronOk(q, req)) return;
+  limitador.permitir(chaveDoIp, CRON_ERROS_MAX, CRON_JANELA_MS);
+  throw new ErroHttp(401, 'chave inválida');
+}
 /* Rodada 8: `registro` (log de uma linha em JSON, sem dado pessoal) e `enderecos` (apps da casa) também vão no encaixe.
    Toda rota recebe `pedido` nos argumentos: `pedido.id` e `pedido.medir(nome, fn)` para o tempo de cada etapa. */
 const ctxRotas = { rota, rotaPublica, exigirCron, json, ErroHttp, lerCorpo, db, auth, seg, equipe, limitador, periodoDaQuery, platDe, limiteDe, hojeBR, VERSAO, registro: Registro, enderecos };
@@ -787,8 +816,8 @@ async function atender(req, res) {
 
     /* --- cron externo: autentica por token, não por login --- */
     if (caminho.startsWith('/api/cron/')) {
-      if (!chaveDeCronOk(q, req)) throw new ErroHttp(401, 'chave inválida');
-      if (caminho === '/api/cron/sync')     return json(res, 200, await coletor.sincronizar({ dias: 7 }));
+      exigirCron(q, req);
+      if (caminho === '/api/cron/sync')    return json(res, 200, await coletor.sincronizar({ dias: 7 }));
       if (caminho === '/api/cron/radar')     return json(res, 200, await radar.rodar({ enviar: true }));
       if (caminho === '/api/cron/relatorio') return json(res, 200, resumoDoRelatorio(await relatorio.gerarEEnviar({ enviar: true })));
       if (caminho === '/api/cron/ciclo')     return json(res, 200, await require('./ciclo').avisarGestores({ hojeISO: hojeBR() }));
@@ -841,6 +870,11 @@ async function atender(req, res) {
     const saida = await fn({ req, res, q, usuario, m, corpo: () => lerCorpo(req), pedido });
     if (!res.writableEnded) json(res, 200, saida ?? { ok: true });
   } catch (e) {
+    /* Rodada 10: só erro nosso (marcado `publico`: ErroHttp, recusa de validação, erros do Gestor e do diário) escolhe
+       o status e a frase. Erro de biblioteca que traz "status" (um 401 da IA, um 403 de outra API) virava 401 na tela,
+       que mandava a pessoa fazer login de novo, com o texto interno junto. Agora é erro interno, só no log. */
+    if (e && e.status && e.status < 500 && !e.publico) { e.statusDeFora = e.status; e.status = 500; }
+    if (e && e.esperar && !res.headersSent) res.setHeader('Retry-After', String(e.esperar));
     const status = e.status || 500;
     // Erro interno (banco, rede) não vaza detalhe: o log recebe rota, etapa e tipo do erro (sem dado pessoal);
     // a tela recebe uma frase de gente e o número do pedido, para quem atende achar a linha certa.
