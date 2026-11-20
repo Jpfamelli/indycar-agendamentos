@@ -150,6 +150,9 @@ export function registrarRotas7(c) {
   // ---- resultados avançados e respostas sem atender ----
   rota('GET', '/api/resultados/avancados', async ({ res, url }) => {
     const de = url.searchParams.get('de') || null, ate = url.searchParams.get('ate') || null;
+    if ((de && !conexoes.diaValido(de)) || (ate && !conexoes.diaValido(ate))) {
+      return bad(res, 'Informe as datas no formato AAAA-MM-DD.');
+    }
     if (de && ate && de > ate) return bad(res, 'O "de" precisa vir antes do "até".');
     const tipo = url.searchParams.get('tipo') || null;
     if (tipo && tipo !== 'todas' && !dados.TIPOS_ENVIO.includes(tipo)) return bad(res, 'Tipo desconhecido.');

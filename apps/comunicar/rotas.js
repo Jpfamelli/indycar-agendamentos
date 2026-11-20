@@ -788,14 +788,16 @@ export function criarApi(deps) {
   rota('GET', '/api/relatorio', async ({ res, url }) => {
     const regua = url.searchParams.get('regua');
     if (regua && regua !== 'todas' && !dados.TIPOS_ENVIO.includes(regua)) return bad(res, 'Régua desconhecida.');
-    const de = url.searchParams.get('de') || null, ate = url.searchParams.get('ate') || null;
-    if (de && ate && de > ate) return bad(res, 'O "de" precisa vir antes do "até".');
+    const { de, ate, invalido, invertido } = periodoDe(url);
+    if (invalido) return bad(res, 'Informe as datas no formato AAAA-MM-DD.');
+    if (invertido) return bad(res, 'O "de" precisa vir antes do "até".');
     return ok(res, await dados.relatorioRegua(regua || null, Math.min(Math.max(Number(url.searchParams.get('semanas')) || 8, 2), 26), { de, ate }));
   });
   /* Rodada 5: uma linha por régua no período — enviadas, responderam, agendaram depois, pediram para parar. */
   rota('GET', '/api/relatorio/reguas', async ({ res, url }) => {
-    const de = url.searchParams.get('de') || null, ate = url.searchParams.get('ate') || null;
-    if (de && ate && de > ate) return bad(res, 'O "de" precisa vir antes do "até".');
+    const { de, ate, invalido, invertido } = periodoDe(url);
+    if (invalido) return bad(res, 'Informe as datas no formato AAAA-MM-DD.');
+    if (invertido) return bad(res, 'O "de" precisa vir antes do "até".');
     return ok(res, await emCache(`rel-reguas:${de}:${ate}`, 60_000, () => dados.relatorioPorRegua({ de, ate })));
   });
   rota('GET', '/api/intencoes', async ({ res, url }) => ok(res, await dados.intencoesRecentes(Math.min(Math.max(Number(url.searchParams.get('dias')) || 7, 1), 60))));

@@ -266,6 +266,21 @@ test('R7 API: triagem cancela só o que perdeu o sentido; encerrar a retomada é
   } finally { await s.fechar(); }
 });
 
+for (const [id, caminho, data] of [
+  ['025', '/api/resultados/avancados', 'de=2026-02-31'],
+  ['026', '/api/relatorio', 'ate=2026-13-01'],
+  ['027', '/api/relatorio/reguas', 'de=ontem'],
+]) {
+  test(`R10-COM-${id}: ${caminho} recusa data de calendário inválida`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'GET', `${caminho}?${data}`);
+      assert.equal(r.status, 400);
+      assert.match(r.json.erro, /AAAA-MM-DD/);
+    } finally { await s.fechar(); }
+  });
+}
+
 test('R7 API: adiar o dia só das campanhas deixa os outros tipos onde estão', async () => {
   const s = await subir({ livre: true });
   try {
