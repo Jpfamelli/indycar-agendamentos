@@ -98,9 +98,23 @@ function numeroDoCriterio(c, criterio) {
 
 /* ------------------------------ a classificação ------------------------------ */
 
+/** Só uma plataforma? (o "Ver campanhas" de um alerta do radar chega com ?plataforma=meta; antes era ignorado.) */
+const plataformaDoFiltro = (ctx) => (ctx.rota.params.plataforma === 'meta' || ctx.rota.params.plataforma === 'google' ? ctx.rota.params.plataforma : null);
+/** Os parâmetros da lista que valem ao trocar a ordem ou tirar o filtro. */
+const paramsDaLista = (ctx, extra = {}) => ({ ...(ctx.periodo !== 'mes' ? { periodo: ctx.periodo } : {}), ...extra });
+
 function lista(ctx) {
-  Estados.buscar(ctx, 'api/campanhas?periodo=' + ctx.periodo, { forma: 'jornada', pintar: (d, { primeira }) => pintarLista(ctx, d, primeira) });
+  const plataforma = plataformaDoFiltro(ctx);
+  Estados.buscar(ctx, 'api/campanhas?periodo=' + ctx.periodo + (plataforma ? '&plataforma=' + plataforma : ''), { forma: 'jornada', pintar: (d, { primeira }) => pintarLista(ctx, d, primeira) });
   return null;
+}
+
+function avisoDoFiltro(ctx) {
+  const plataforma = plataformaDoFiltro(ctx);
+  if (!plataforma) return null;
+  const ordem = ctx.rota.params.ordem ? { ordem: ctx.rota.params.ordem } : {};
+  return h('p', { class: 'camp-filtro' }, 'Só as campanhas ' + (plataforma === 'meta' ? 'da Meta' : 'do Google') + '. ',
+    h('a', { class: 'ligacao', href: ctx.hrefDaTela('campanhas', paramsDaLista(ctx, ordem)) }, 'Ver todas'));
 }
 
 function resumoDoTopo(d) {
@@ -130,7 +144,8 @@ function controlesDeOrdem(ctx, campanhas, criterio) {
   if (validos.length <= 1) {
     return h('p', { class: 'apoio camp-ordem-so' }, 'Em ordem de ' + criterio.rotulo.toLowerCase() + '. Sem gasto ligado não dá para ordenar por custo nem por retorno.');
   }
-  const aoEscolher = (id) => ctx.ir('campanhas', { ...(ctx.periodo !== 'mes' ? { periodo: ctx.periodo } : {}), ...(id !== 'retorno' ? { ordem: id } : {}) });
+  const plataforma = plataformaDoFiltro(ctx);
+  const aoEscolher = (id) => ctx.ir('campanhas', paramsDaLista(ctx, { ...(plataforma ? { plataforma } : {}), ...(id !== 'retorno' ? { ordem: id } : {}) }));
   const opcoes = validos.map((c) => ({ id: c.id, rotulo: c.rotulo }));
   return h('div', { class: 'camp-ordem' },
     h('span', { class: 'apoio camp-ordem-rotulo', 'aria-hidden': 'true' }, 'Ordenar por'),
@@ -218,7 +233,8 @@ function pintarLista(ctx, d, primeira) {
   trocar(ctx.miolo,
     h('header', { class: 'camp-topo' },
       h('h1', { class: 'titulo-tela' }, 'Campanhas'),
-      h('p', { class: 'camp-resumo' }, resumoDoTopo(d))),
+      h('p', { class: 'camp-resumo' }, resumoDoTopo(d)),
+      avisoDoFiltro(ctx)),
     avisoSemConta(ctx, d),
     h('section', { class: 'bloco camp-classificacao', 'aria-labelledby': 'tClassificacao' },
       h('div', { class: 'bloco-cab camp-cab' },

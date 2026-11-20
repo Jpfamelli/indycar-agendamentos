@@ -200,6 +200,18 @@ export const CASOS = {
     const comAcesso = await pagina.$$eval('.navbaixo a, .casca-nav a', (l) => l.filter((a) => a.getClientRects().length > 0).length);
     conferir(comAcesso >= 4, 'com acesso, a navegação aparece (' + comAcesso + ')');
   },
+
+  /* Campanhas › "Ver campanhas" de um alerta da Meta (?plataforma=meta): só as da Meta, com o aviso e o "Ver todas". */
+  async 'campanhas-plataforma'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/campanhas?plataforma=google', { waitUntil: 'networkidle0' });
+    const so = await pagina.$$eval('.camp-linha', (l) => l.map((li) => li.dataset.chave.split('|')[0]));
+    conferir(so.length > 0 && so.every((p) => p === 'google'), 'só campanhas do Google: ' + so.join(','));
+    conferir(/Só as campanhas do Google/.test(await texto(pagina, '.camp-filtro')), 'o aviso diz o filtro');
+    await pagina.click('.camp-filtro a');
+    await pagina.waitForFunction(() => !document.querySelector('.camp-filtro') && document.querySelectorAll('.camp-linha').length > 0);
+    const todas = await pagina.$$eval('.camp-linha', (l) => [...new Set(l.map((li) => li.dataset.chave.split('|')[0]))]);
+    conferir(todas.includes('meta') && todas.includes('google'), 'Ver todas volta às duas: ' + todas.join(','));
+  },
 };
 
 const puppeteer = await carregarPuppeteer();
