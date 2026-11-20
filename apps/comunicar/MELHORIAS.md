@@ -1112,3 +1112,5 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 ## Rodada 10 (20/11/2026)
 
 - **R10-COM-001** ? seguran?a ? Roteiro compartilhado confirma a identidade dos dois mocks antes de abrir o Chrome (teste testes-r10-mock.mjs) ? `4cbe2d9`
+- **R10-COM-002** · conserto · O checklist mantém o aviso se o último teste de envio estiver datado no futuro (teste R10-COM-002 em testes-r10-prontidao.mjs) · `4debb38`
+- **R10-COM-003** · conserto · O checklist mantém o aviso se a última rodada do carteiro estiver datada no futuro (teste R10-COM-003 em testes-r10-prontidao.mjs) · `4debb38`

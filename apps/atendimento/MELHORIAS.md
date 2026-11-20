@@ -1473,3 +1473,7 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 
 - **R10-ATD-001** · tela · Cartões de tarefa e cartões atrasados do funil usam borda lateral fina e mantêm a cor de estado (teste r10-cartoes) · `24b0935`
 - **R10-ATD-002** · teste · Isola o roteiro do Chrome na origem exata do mock, bloqueando Supabase, CodeWords e outras portas locais (teste r10-barreira) · `b0bf016`
+- **R10-ATD-003** · segurança · A auditoria omite objetos profundos antes que campos sensíveis escapem da limpeza (teste R10-ATD-003 em r10-validacao.test.js) · `eb742d1`
+- **R10-ATD-004** · segurança · Campos inteiros recusam booleanos, listas e texto em branco (teste R10-ATD-004 em r10-validacao.test.js) · `eb742d1`
+- **R10-ATD-005** · conserto · A validação de instantes rejeita dias inexistentes (teste R10-ATD-005 em r10-validacao.test.js) · `eb742d1`
+- **R10-ATD-006** · conserto · A espera informada pelo limitador volta a zero quando a janela vence (teste R10-ATD-006 em r10-validacao.test.js) · `eb742d1`

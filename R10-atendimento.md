@@ -1,6 +1,6 @@
 # Rodada 10 · Atendimento
 
-Entrega parcial. 2 de 150 melhorias registradas.
+Entrega parcial. 6 de 150 melhorias registradas.
 
 | Melhoria | Antes | Depois |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Nenhum nome de botão, aba ou tela mudou. Sem medições de desempenho ou corre�
 
 ## Para outra frente
 
-Faltam 148 melhorias. O roteiro compartilhado `apps/comunicar/scripts/navegador-r9-b2.mjs`, as confirmações, a logo no tema claro e a revisão dos roteiros antigos seguem pendentes.
+Faltam 144 melhorias. O roteiro compartilhado `apps/comunicar/scripts/navegador-r9-b2.mjs`, as confirmações, a logo no tema claro e a revisão dos roteiros antigos seguem pendentes.
 
 ## Para o João
 
@@ -27,3 +27,9 @@ O roteiro próprio `roteiro-r9.cjs` passou 161/164. Três verificações da conv
 ## Continuação
 
 A barreira do roteiro R9 restringe a rede à origem exata do mock e permite imagens embutidas. O teste novo falhou antes da inclusão da barreira e passou com a implementação. Suíte do Atendimento: 443/443 com `node --test --test-isolation=none`. A barreira nova foi verificada pelo teste unitário e o roteiro com mock passou 164/164 no Chrome. As sete verificações de 375×812 passaram. As três falhas anteriores ficam registradas acima e não se reproduziram nesta execução.
+
+## Lote retomado
+
+Commit `eb742d1` cobre R10-ATD-003 a 006. Os quatro testes em `test/r10-validacao.test.js` falharam antes e passaram depois. A suíte passou de 443 para 447 testes, todos verdes com `node --test --test-isolation=none`.
+
+A auditoria omite objetos além do limite de profundidade, campos inteiros recusam tipos indevidos, datas impossíveis são rejeitadas e o limitador para de recomendar espera após a janela expirar. Este lote foi verificado em testes locais. Nenhum nome de tela ou controle mudou. Faltam a conferência visual da logo, a migração das confirmações e a reexecução dos roteiros antigos. Não houve medição de desempenho.
