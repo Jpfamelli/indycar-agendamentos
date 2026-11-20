@@ -1468,3 +1468,7 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - **R9-ATD-108** · acessibilidade · O botão da tela aberta leva aria-current, e o leitor de tela diz onde a pessoa está · `011bd42`
 - **R9-ATD-109** · celular · Funil: o campo de filtrar ocupa a linha inteira (tinha 61 px e o texto aparecia cortado em "Filt") · `011bd42`
 - **R9-ATD-110** · teste · test/r9-tela.test.js ganha 3 testes (selo do CodeWords rodando numa caixa de areia, barra de telas, filtro do funil) e o roteiro no Chrome passa a 164 conferências · `011bd42`
+
+## Rodada 10 (20/11/2026)
+
+- **R10-ATD-001** · tela · Cartões de tarefa e cartões atrasados do funil usam borda lateral fina e mantêm a cor de estado (teste r10-cartoes) · `24b0935`
