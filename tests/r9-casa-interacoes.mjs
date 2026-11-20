@@ -24,11 +24,11 @@ const browser = await puppeteer.launch({ executablePath: 'C:/Program Files/Googl
 const resultados = [];
 const conferir = (nome, ok, detalhe = '') => { resultados.push({ nome, ok: !!ok, detalhe }); console.log(`${ok ? 'ok     ' : 'FALHOU '} ${nome}${detalhe ? '  (' + detalhe + ')' : ''}`); };
 
-async function abrir(cenario, largura = 1440) {
+async function abrir(cenario, largura = 1440, toque = false) {
   const page = await browser.newPage();
   const erros = [];
   page.on('pageerror', (e) => erros.push(String(e.message)));
-  await page.setViewport({ width: largura, height: 900 });
+  await page.setViewport({ width: largura, height: 900, hasTouch: toque, isMobile: toque });
   await page.setBypassServiceWorker(true);
   await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
   await page.evaluateOnNewDocument((c) => {
@@ -212,6 +212,24 @@ try {
   const txt = await m.page.$eval('#cPatio [data-lista]', (l) => l.innerText);
   conferir('mecânico sem carro: fala dos carros dele, sem "+ Nova entrada"', /passado para você/.test(txt) && !/Nova entrada/.test(txt), txt.slice(0, 80));
   await m.page.close();
+  });
+
+  // 15. celular de toque: sem cola de teclado; a busca fecha num botão "Fechar"
+  await passo("15. celular de toque: some Ctrl K e o pé de teclas da busca; botão Fechar", async () => {
+  const t = await abrir({ papel: 'admin' }, 375, true);
+  const ctrlK = await t.page.$$eval('.kbd-css, .acao-busca kbd', (ks) => ks.filter((k) => k.getClientRects().length).length);
+  conferir('toque: nenhum "Ctrl K" na tela', ctrlK === 0, String(ctrlK));
+  await t.page.tap('#bBusca'); await espera(200);
+  const pe = await t.page.$eval('.busca-pe', (p) => p.getClientRects().length);
+  const fechar = await t.page.$eval('#buscaFechar', (b) => b.textContent.trim());
+  conferir('toque: sem o pé "↑ ↓ · Enter · Esc" na busca; botão diz Fechar', pe === 0 && fechar === 'Fechar', `pe=${pe} botão=${fechar}`);
+  await t.page.tap('#buscaFechar'); await espera(150);
+  conferir('toque: Fechar fecha a busca', await t.page.$eval('#busca', (b) => b.hidden));
+  await t.page.close();
+  const d = await abrir({ papel: 'admin' }, 1440);
+  const kd = await d.page.$$eval('.kbd-css', (ks) => ks.filter((k) => k.getClientRects().length).length);
+  conferir('computador com mouse: o "Ctrl K" continua', kd > 0, String(kd));
+  await d.page.close();
   });
 } finally {
   await browser.close();

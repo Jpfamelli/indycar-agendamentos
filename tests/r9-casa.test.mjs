@@ -324,3 +324,10 @@ test('visão do dono sem palavra difícil: nada de "ticket" nem "subestimado" na
   assert.deepEqual(ruins, []);
   assert.match(ler('painel.js'), /média de \$\{C\.esc\(L\.brl\(f\.ticket_semana\)\)\} por carro/);
 });
+
+test('busca: botão de fechar diz "Fechar" (não "Esc"); no toque some a cola de teclado', () => {
+  assert.match(ler('index.html'), /<button id="buscaFechar" class="btn-link" type="button">Fechar<\/button>/);
+  const css = ler('r9.css');
+  const bloco = css.slice(css.indexOf('@media (hover: none) and (pointer: coarse)'));
+  assert.match(bloco, /\.busca-pe, \.kbd-css, \.acao-busca kbd, \.busca-cmd kbd \{ display: none; \}/);
+});
