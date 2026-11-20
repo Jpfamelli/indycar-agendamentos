@@ -194,7 +194,14 @@
       if (ct) { const n = L.formatarTelefone(ct.dataset.copiarTel); (navigator.clipboard ? navigator.clipboard.writeText(n) : Promise.reject()).then(() => C.toast('Telefone copiado.'), () => C.toast('Não consegui copiar neste navegador.')); return; }
       const fb = e.target.closest('[data-filtro-busca]');
       if (fb) { filtroBusca = fb.dataset.filtroBusca; if (ultimoRes) desenhar(ultimoRes, ultimoQ); $('#buscaInput').focus(); return; }
-      if (e.target.closest('[data-limpar-recentes]')) { try { localStorage.removeItem(LS_RECENTES); } catch { /* sem armazenamento */ } telaInicial(); return; }
+      if (e.target.closest('[data-limpar-recentes]')) {
+        try { localStorage.removeItem(LS_RECENTES); } catch { /* sem armazenamento */ }
+        telaInicial();
+        // rodada 9: o botão "limpar" some com a lista; o foco caía no corpo da página. Volta ao campo e o leitor de tela ouve o que houve
+        $('#buscaInput').focus();
+        const an = $('#buscaAnuncio'); if (an) an.textContent = 'Buscas recentes apagadas.';
+        return;
+      }
       if (e.target.closest('[data-guardar]')) { guardarRecente($('#buscaInput').value); setTimeout(fechar, 50); return; }
       const cmd = e.target.closest('[data-cmd]');
       if (cmd) { const id = cmd.dataset.cmd; fechar(); setTimeout(() => C.comandos.executar(id), 60); return; }

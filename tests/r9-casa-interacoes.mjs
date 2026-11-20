@@ -399,6 +399,13 @@ try {
   await b.page.keyboard.press('Enter'); await espera(900);
   const depois = await b.page.evaluate(() => ({ campo: document.querySelector('#buscaInput').value, achou: document.querySelectorAll('#buscaLista [data-linha]').length }));
   conferir('busca: Enter na recente busca de novo', depois.campo === 'HB20' && depois.achou > 0, JSON.stringify(depois));
+  // "limpar": a lista some, o foco volta ao campo e o leitor ouve que apagou
+  await b.page.evaluate(() => { const i = document.querySelector('#buscaInput'); i.value = ''; i.dispatchEvent(new Event('input')); });
+  await espera(500);
+  await b.page.focus('[data-limpar-recentes]');
+  await b.page.keyboard.press('Enter'); await espera(150);
+  const limpo = await b.page.evaluate(() => ({ foco: document.activeElement?.id || document.activeElement?.tagName, recentes: document.querySelectorAll('#buscaLista [data-recente]').length, ouve: document.querySelector('#buscaAnuncio')?.textContent || '' }));
+  conferir('busca: "limpar" as recentes devolve o foco ao campo e avisa', limpo.foco === 'buscaInput' && limpo.recentes === 0 && /apagadas/.test(limpo.ouve), JSON.stringify(limpo));
   await b.page.close();
   });
 

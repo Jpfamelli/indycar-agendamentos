@@ -543,3 +543,8 @@ test('filtros das tarefas e do sino: depois de filtrar, o foco fica no filtro es
   assert.match(semComentarios(ler('tarefas.js')), /filtro = b\.dataset\.filtroT; desenhar\(\); \[\.\.\.document\.querySelectorAll\('#tFiltros \[data-filtro-t\]'\)\]\.find\(\(x\) => x\.dataset\.filtroT === filtro\)\?\.focus\(\);/);
   assert.match(semComentarios(ler('sino.js')), /filtro = f\.dataset\.filtro; desenhar\(\); \[\.\.\.document\.querySelectorAll\('#sinoFiltros \[data-filtro\]'\)\]\.find\(\(x\) => x\.dataset\.filtro === filtro\)\?\.focus\(\); return;/);
 });
+
+test('busca: "limpar" as recentes devolve o foco ao campo e avisa o leitor de tela', () => {
+  const s = semComentarios(ler('busca.js'));
+  assert.match(s, /localStorage\.removeItem\(LS_RECENTES\);[^]*?telaInicial\(\);\s*\$\('#buscaInput'\)\.focus\(\);\s*const an = \$\('#buscaAnuncio'\); if \(an\) an\.textContent = 'Buscas recentes apagadas\.';/);
+});
