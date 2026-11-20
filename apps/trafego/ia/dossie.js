@@ -607,7 +607,8 @@ async function conversa(args, ctx) {
   const c = await ler(args.lead_id, ctx);
   if (!c) throw recusar('Contato não encontrado. Confira o "lead_id" na ferramenta contatos.');
   const todas = (c.mensagens || []).slice().sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
-    .map(m => ({ em: J.isoBR(m.created_at), de: m.direcao === 'entrada' ? 'cliente' : (m.gerada_por_ia ? 'automatica' : 'oficina'), status: m.status || null,
+    // aviso do sistema gravado como recebido (D1, item 6) não é o cliente: a IA não deve ler como pedido dele
+    .map(m => ({ em: J.isoBR(m.created_at), de: m.direcao === 'entrada' ? (O.ehAvisoDoSistema(m.corpo) ? 'sistema' : 'cliente') : (m.gerada_por_ia ? 'automatica' : 'oficina'), status: m.status || null,
       texto_do_cliente: textoDoCliente(m.corpo, { verPii: ctx.verPii, max: 1000 }) }));
   const pg = pagina(todas, { cursor: args.cursor, limite: args.limite || 100 });
   const doCliente = todas.filter(m => m.de === 'cliente').length;

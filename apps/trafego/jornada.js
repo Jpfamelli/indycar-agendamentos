@@ -124,6 +124,9 @@ const saidaSemConfirmacao = (saida, janelas) => janelas.some(j => (j.de == null 
  */
 function classificarResposta(pm, { janelas = [], respostas = true } = {}) {
   if (!respostas) return { tipo: 'desconhecida', entrada: null };
+  // A "primeira mensagem" é um aviso do sistema gravado como recebido (D1, item 6): o cliente pode nem ter escrito.
+  // Não dá para saber quando ele escreveu, então não vira "esperando resposta" nem tempo de resposta.
+  if (pm && O.ehAvisoDoSistema(pm.primeira_entrada_texto)) return { tipo: 'desconhecida', entrada: null };
   const entrada = tempo(pm && pm.primeira_entrada_em), saida = tempo(pm && pm.primeira_saida_em);
   if (entrada == null) return { tipo: 'sem_conversa', entrada: null };
   if (saida != null && saida >= entrada && !saidaSemConfirmacao(saida, janelas)) return { tipo: 'respondido', entrada, em: saida, minutos: Math.max(0, Math.round((saida - entrada) / MIN)) };
@@ -257,7 +260,7 @@ function montar(l, { lig = null, ags = [], pm = null, clienteDesde = null, prime
   };
   const interno = {
     nome: O.texto(l.nome, 120), telefone: telefoneInteiro(l.telefone_e164 || l.telefone), placa: placaLimpa(l.placa),
-    primeira_mensagem: O.texto(pm && pm.primeira_entrada_texto, 300), orcamento_id: orc ? orc.id : null,
+    primeira_mensagem: pm && !O.ehAvisoDoSistema(pm.primeira_entrada_texto) ? O.texto(pm.primeira_entrada_texto, 300) : null, orcamento_id: orc ? orc.id : null,
     os_id: osValidas.length ? (Ciclo.osPrincipal(osValidas) || {}).id || null : null,
   };
   return { item, interno };
@@ -547,11 +550,13 @@ async function lerConversas({ de, ate, sb, agora }) {
   if (!frases.ok) return { total: lidas.conversas.length, telefones, anuncio: null };
   const primeiras = await Dados.primeirasDasConversas(lidas.conversas, { sb });
   if (!primeiras.ok) return { total: lidas.conversas.length, telefones, anuncio: null };
-  const textos = [...primeiras.mapa.values()];
+  // conversa aberta por um aviso do sistema gravado como recebido não é cliente escrevendo (D1, item 6)
+  const avisos = [...primeiras.mapa.values()].filter(O.ehAvisoDoSistema).length;
+  const textos = [...primeiras.mapa.values()].filter(t => !O.ehAvisoDoSistema(t));
   const codigos = [...new Set(textos.map(O.codigoDaMensagem).filter(Boolean))];
   const rastreios = codigos.length ? await Dados.rastreiosPorCodigo(codigos, { sb }) : new Map();
   const anuncio = textos.filter(t => O.mensagemDeAnuncio(t, { frases: frases.frases, rastreios })).length;
-  return { total: lidas.conversas.length, telefones, anuncio };
+  return { total: lidas.conversas.length - avisos, telefones, anuncio };
 }
 const conversasDoPeriodo = ({ de, ate, sb = db.sb, agora = Date.now(), fresco = false }) =>
   lembrar(sb, `conversas|${de}|${ate}`, fresco, () => lerConversas({ de, ate, sb, agora }));
@@ -639,8 +644,9 @@ function linhaDoTempo({ l, item, lig, ags, mensagens, atividades }) {
   if (item.desfecho.tipo === 'nao_fechou') por(fixos, l.closed_at, 'mudanca', 'Não fechou', item.desfecho.motivo_rotulo || 'Falta dizer o motivo');
 
   for (const m of mensagens || []) {
-    const doCliente = m.direcao === 'entrada';
-    const titulo = doCliente ? 'Cliente escreveu' : (m.status === 'falhou' ? 'Resposta que não saiu' : (m.gerada_por_ia ? 'Resposta automática' : 'Oficina respondeu'));
+    const aviso = m.direcao === 'entrada' && O.ehAvisoDoSistema(m.corpo);   // gravado como recebido, mas é o sistema
+    const doCliente = m.direcao === 'entrada' && !aviso;
+    const titulo = aviso ? 'Aviso do sistema' : doCliente ? 'Cliente escreveu' : (m.status === 'falhou' ? 'Resposta que não saiu' : (m.gerada_por_ia ? 'Resposta automática' : 'Oficina respondeu'));
     por(conversa, m.created_at, doCliente ? 'mensagem_cliente' : 'mensagem_oficina', titulo, m.corpo);
   }
 
@@ -719,7 +725,7 @@ async function detalhe(leadId, { sb = db.sb, agora = Date.now() } = {}) {
   const [mensagens, atividades, agsDoCliente] = await Promise.all([
     Dados.mensagensDoContato(c.l, { sb }), Dados.atividadesDoContato(c.l.id, { sb }), Dados.agendamentosDoCliente(c.l.cliente_id, { sb }),
   ]);
-  const primeiraDoCliente = mensagens.find(m => m.direcao === 'entrada');
+  const primeiraDoCliente = mensagens.find(m => m.direcao === 'entrada' && !O.ehAvisoDoSistema(m.corpo));
   return {
     ...c.item,
     nome: c.interno.nome,
