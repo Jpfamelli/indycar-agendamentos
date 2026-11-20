@@ -128,6 +128,18 @@ export const CASOS = {
     conferir(/copiado|copiar sozinho/i.test(await texto(pagina, '.toast')), 'aviso da cópia');
     conferir(await pagina.evaluate(() => document.activeElement && document.activeElement.textContent.trim() === 'Copiar o texto'), 'o foco fica no botão');
   },
+
+  /* Relatórios: ao trocar de semana para dia, o texto antigo não pode ser copiado enquanto o novo chega. */
+  async 'relatorio-trocar'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio&lento=1200#/ajustes?secao=relatorios', { waitUntil: 'networkidle0' });
+    await pagina.waitForFunction(() => { const b = document.querySelector('.relatorio-botoes button'); return b && !b.disabled; });
+    await pagina.click('.relatorio-escolha input[value="diario"]');
+    conferir(await pagina.$eval('.relatorio-botoes button', (b) => b.disabled), 'o copiar fica desligado enquanto o dia chega');
+    conferir((await texto(pagina, '.relatorio-titulo')) === 'Buscando o relatório…', 'o título não diz mais "semana"');
+    await pagina.waitForFunction(() => document.querySelector('.relatorio-saida')?.getAttribute('aria-busy') === 'false', { timeout: 8000 });
+    conferir(!(await pagina.$eval('.relatorio-botoes button', (b) => b.disabled)), 'volta a copiar com o texto novo');
+    conferir(!/semana/i.test(await texto(pagina, '.relatorio-titulo')), 'o título é o do dia');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();

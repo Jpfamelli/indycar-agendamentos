@@ -43,6 +43,11 @@ export function montar(ctx, alvo) {
   async function carregar() {
     const minha = ++pedido;
     saida.setAttribute('aria-busy', 'true');
+    // Enquanto o texto novo não chega, o anterior não pode ser copiado: antes dava para trocar para "Dia"
+    // e copiar o da semana sem perceber (o título ainda dizia "semana").
+    for (const b of saida.querySelectorAll('button')) b.disabled = true;
+    const tituloAntigo = saida.querySelector('.relatorio-titulo');
+    if (tituloAntigo) tituloAntigo.textContent = 'Buscando o relatório…';
     let r;
     try {
       r = await ctx.api.ler('api/relatorios/texto?tipo=' + tipo + (tipo === 'mensal' ? '&mes=' + encodeURIComponent(mes) : ''));
