@@ -347,4 +347,10 @@ function padrao() {
   return _padrao;
 }
 
-module.exports = { criarFonte, padrao, FalhaDeLeitura, normalizarMetrica, semSegredo, tabelaAusente, TTL_MS, PAGINA };
+/** Quem grava chama isto: a leitura de 30 s das telas (Hoje, Campanhas, Conexões) não pode responder com o que
+ *  era verdade antes da gravação. Sem fonte criada, não há nada guardado. */
+function esquecerLeituras() {
+  if (_padrao) _padrao.esquecer();
+}
+
+module.exports = { criarFonte, padrao, esquecerLeituras, FalhaDeLeitura, normalizarMetrica, semSegredo, tabelaAusente, TTL_MS, PAGINA };
