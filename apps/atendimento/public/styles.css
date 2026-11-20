@@ -2344,3 +2344,22 @@ button.app-chip:not(:disabled):hover{border-color:var(--vermelho);color:var(--te
 .selo-espera.espera-alto{color:color-mix(in srgb,var(--espera-alto) 55%,var(--texto-forte))}
 /* tema claro: azul de texto mais escuro (etiqueta Novo hoje, revisão, Assumir) */
 :root[data-tema="claro"]{--azul-txt:#075985;--azul-claro-txt:#075985}
+
+/* Rodada 9: aviso de campo (o porquê de não aceitar), logo abaixo do campo */
+.campo-erro{display:block;margin-top:5px;font-family:var(--fonte);font-weight:500;font-size:.84rem;color:var(--vermelho-txt)}
+input[aria-invalid="true"]{border-color:var(--vermelho) !important}
+
+/* Rodada 9: celular, lista de conversas e janelas */
+@media (max-width:900px){
+  /* na lista, tocar na etiqueta de etapa ou no nome do responsável abre a conversa (antes abria um menu
+     num alvo de 20 px, fácil de errar com o dedo); Pegar continua sendo um botão, agora com 44 px */
+  .conversa .plaquinha,.conversa .dono:not(.pegar){pointer-events:none}
+  .conversa .dono.pegar{min-height:44px;padding-inline:12px}
+  #buscaConversa{min-height:44px}
+  .lista-topo .r6-proxima,.lista-topo .c5-carros-btn{min-height:44px}
+  /* janelas: fechar, mostrar senha, busca da ajuda */
+  .modal-x{width:44px;height:44px}
+  .olho{min-width:44px;min-height:44px}
+  .ajuda-busca{min-height:44px}
+  .link:not(.sair){min-width:44px;justify-content:center}
+}

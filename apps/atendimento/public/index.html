@@ -84,7 +84,7 @@
         <input id="esqueciEmail" type="email" placeholder="seu@email.com" autocomplete="username" inputmode="email" required />
       </label>
       <p class="aviso suave">O e-mail grátis do sistema é limitado (poucos por hora). Se não chegar em alguns minutos,
-        peça ao administrador uma <b>senha temporária</b> — sai na hora.</p>
+        peça ao administrador uma <b>senha temporária</b>: sai na hora.</p>
       <div id="esqueciMsg" class="alerta" hidden role="status"></div>
       <button type="submit" class="btn btn-primary full" id="btnEsqueciEnviar">Mandar o link</button>
       <button type="button" class="link link-centro" data-vista-login="entrar">← Voltar para entrar</button>
@@ -155,14 +155,14 @@
 
     <div class="login-rodape">
       <button type="button" class="link" id="btnCriarConta" hidden>Primeiro acesso? Criar minha conta</button>
-      <button type="button" class="link" id="btnVoltarLogin" hidden>Já tenho conta — entrar</button>
+      <button type="button" class="link" id="btnVoltarLogin" hidden>Já tenho conta: entrar</button>
     </div>
   </div>
 
   <aside class="login-lado">
     <div class="lado-conteudo">
       <h2>Central de<br><span class="vermelho">Atendimento</span></h2>
-      <p>Todas as conversas do WhatsApp num lugar só — já ligadas ao cadastro
+      <p>Todas as conversas do WhatsApp num lugar só: já ligadas ao cadastro
          do cliente, ao funil do CRM e à agenda da oficina.</p>
       <ul class="lado-lista">
         <li>Histórico completo de cada cliente</li>
@@ -352,7 +352,7 @@
             <button class="chip chip-r6" data-status="r7_suspeita" title="Mensagens que tentaram dar ordens à IA: ela não leu">Suspeitas</button>
             <button class="chip chip-r6" data-status="r7_nota_ruim" title="Cliente que deu nota baixa e ainda não teve resposta">Nota ruim</button>
             <button class="chip" data-status="agendada" title="Com horário marcado ou em serviço">Agendadas</button>
-            <button class="chip" data-status="fechou" title="Serviço concluído — cliente fechou">Fechadas</button>
+            <button class="chip" data-status="fechou" title="Serviço concluído: cliente fechou">Fechadas</button>
             <button class="chip" data-status="nao_fechou" title="Cliente que não fechou o serviço">Não fechadas</button>
             <!-- aniversário, promoção e afins: fora da fila de quem está sendo
                  atendido de verdade. Se o cliente perguntar algo, volta sozinho -->
@@ -438,7 +438,7 @@
               <button type="button" class="btn-icone btn-copiloto" id="btnCopiloto" title="Copiloto da IA (Alt+I)"
                       aria-label="Abrir o copiloto da IA">✨</button>
               <button class="btn btn-assumir sm" id="btnAssumir"
-                      title="Assumir este atendimento — o Carlos para de responder este cliente">
+                      title="Assumir este atendimento: o Carlos para de responder este cliente">
                 🙋 Assumir
               </button>
               <button class="btn btn-agendar sm" id="btnAgendar" title="Agendar este cliente">
@@ -570,7 +570,7 @@
       <header class="pagina-topo">
         <div>
           <h1>Funil de atendimento</h1>
-          <p>Cada coluna é uma etapa. Arraste o cartão para mudar a etapa do cliente —
+          <p>Cada coluna é uma etapa. Arraste o cartão para mudar a etapa do cliente:
              o CRM acompanha sozinho. No celular, segure o cartão e arraste; no teclado, ← →.</p>
         </div>
         <div class="funil-ferramentas">
@@ -593,7 +593,7 @@
         <div>
           <h1>Etapas do funil</h1>
           <p>As plaquinhas que aparecem em cada conversa. A <b>descrição</b> e os
-             <b>gatilhos</b> são exatamente o que a IA lê para decidir a etapa —
+             <b>gatilhos</b> são exatamente o que a IA lê para decidir a etapa:
              escreva pensando nela.</p>
         </div>
         <button class="btn btn-primary sm" id="btnNovaEtapa">+ Nova etapa</button>
@@ -666,7 +666,7 @@
             <li><b>Ela conhece o cliente.</b> Antes de escrever, consulta o que a pessoa
                 já gastou, os serviços feitos e se tem horário marcado.</li>
             <li><b>Ela conduz até onde você deixar.</b> Em "pedir um clique" ela prepara e avisa no sino;
-                em "fazer sozinha" ela responde, marca o horário e registra no CRM — tudo fica em <b>IA em ação</b>, com desfazer.</li>
+                em "fazer sozinha" ela responde, marca o horário e registra no CRM: tudo fica em <b>IA em ação</b>, com desfazer.</li>
             <li><b>Gente cuida de gente.</b> Preço, urgência, "quero falar com alguém" e reclamação param na IA e
                 vão para um consultor na hora.</li>
           </ol>
@@ -736,7 +736,7 @@
       <header class="pagina-topo">
         <div>
           <h1>Relatórios</h1>
-          <p>Leads, conversão e atendimento no período escolhido. Todo número vem do banco —
+          <p>Leads, conversão e atendimento no período escolhido. Todo número vem do banco:
              quando não houver dado, o gráfico avisa em vez de mostrar zero.</p>
         </div>
         <div class="periodo">
@@ -781,14 +781,14 @@
 
           <form id="formCodeWords" class="form-vertical">
             <label>Service ID do fluxo <small>o código que aparece no link do seu fluxo no CodeWords</small>
-              <input name="service_id" placeholder="ex.: 7f3a9c1b-…" autocomplete="off" />
+              <input name="service_id" placeholder="ex.: 7f3a9c1b-…" autocomplete="off" autocapitalize="none" spellcheck="false" />
             </label>
-            <label>URL de envio <small>deixe em branco — montamos sozinho:
+            <label>URL de envio <small>deixe em branco e montamos sozinho:
                 https://runtime.codewords.ai/run/&lt;service id&gt;</small>
-              <input name="url_envio" placeholder="(automático)" autocomplete="off" />
+              <input name="url_envio" type="url" inputmode="url" placeholder="(automático)" autocomplete="off" autocapitalize="none" spellcheck="false" />
             </label>
             <label>Token do webhook <small>segredo que o CodeWords manda de volta</small>
-              <input name="token_webhook" placeholder="invente uma senha qualquer" autocomplete="off" />
+              <input name="token_webhook" placeholder="invente uma senha qualquer" autocomplete="off" autocapitalize="none" spellcheck="false" />
             </label>
             <label class="switch"><input type="checkbox" name="ativo" />
               <span>Entregar mensagens pelo CodeWords</span></label>
@@ -836,7 +836,7 @@
             <p class="aviso" id="avisoWebhook">Precisa de <b>dois</b> cabeçalhos:
               <code>apikey</code> (a chave publicável, exigida pelo Supabase) e
               <code>x-codewords-token</code> (o token acima, que é quem autentica).
-              O botão Copiar leva tudo pronto. Este endereço fica no ar 24h —
+              O botão Copiar leva tudo pronto. Este endereço fica no ar 24h e
               não depende deste computador.</p>
           </div>
 
@@ -855,7 +855,7 @@
           <div class="ficha-linha"><span>Onde a chave fica</span><b>Só no servidor</b></div>
 
           <p class="aviso">A chave da Claude nunca passa pelo navegador. Ela é lida do arquivo
-            <code>.env</code> do servidor, no campo <code>ANTHROPIC_API_KEY</code> — e o modelo,
+            <code>.env</code> do servidor, no campo <code>ANTHROPIC_API_KEY</code>, e o modelo,
             em <code>MODELO_IA</code>. Para trocar qualquer um dos dois, edite o arquivo e
             reinicie o servidor. Por segurança, esta tela não pede nem aceita a chave.</p>
         </div>
@@ -926,7 +926,7 @@
       <header class="pagina-topo">
         <div>
           <h1>Auditoria</h1>
-          <p>Quem mudou o quê, e quando — papéis, acessos, valores, exclusões e configurações.</p>
+          <p>Quem mudou o quê, e quando: papéis, acessos, valores, exclusões e configurações.</p>
         </div>
         <button type="button" class="btn btn-ghost sm" id="btnAuditoriaCsv">⬇ Exportar CSV</button>
       </header>
@@ -1011,7 +1011,7 @@
 
           <div class="cartao" id="cartaoSenha">
             <h3>Trocar minha senha</h3>
-            <p class="cartao-sub">Escolha uma senha nova de pelo menos 8 caracteres. Vale só para o seu acesso — ninguém mais vê.</p>
+            <p class="cartao-sub">Escolha uma senha nova de pelo menos 8 caracteres. Vale só para o seu acesso: ninguém mais vê.</p>
             <form id="formSenha" class="form-vertical">
               <label>Nova senha
                 <input id="senhaNova" type="password" minlength="8" autocomplete="new-password"
@@ -1031,7 +1031,7 @@
 
           <div class="cartao">
             <h3>Avisos de mensagem nova</h3>
-            <p class="cartao-sub">Só quando o painel está em segundo plano ou em outra conversa — enquanto você
+            <p class="cartao-sub">Só quando o painel está em segundo plano ou em outra conversa, enquanto você
               atende, nada apita. Vale só para este navegador.</p>
             <label class="switch"><input type="checkbox" id="cfgNotificacao" /><span>Notificação na tela do computador</span></label>
             <label class="switch"><input type="checkbox" id="cfgSom" /><span>Som discreto</span></label>
@@ -1085,7 +1085,7 @@
         <div class="cartao" id="cartaoConexao">
           <h3>Conexão do WhatsApp</h3>
           <p class="cartao-sub">O celular da oficina precisa estar pareado. Se cair, nenhuma
-            mensagem entra nem sai — e o cliente fica falando sozinho.</p>
+            mensagem entra nem sai, e o cliente fica falando sozinho.</p>
 
           <div class="conexao-estado" id="conexaoEstado">
             <span class="conexao-bolinha" id="conexaoBolinha"></span>
@@ -1118,9 +1118,9 @@
           <p class="cartao-sub">Sem isso, as mensagens entram manualmente. Com isso, o envio
             e o recebimento acontecem de verdade pelo número da oficina.</p>
           <form id="formWhatsapp" class="form-vertical">
-            <label>Número exibido<input name="numero_exibicao" placeholder="+55 12 99683-0272" /></label>
-            <label>Phone Number ID<input name="phone_number_id" placeholder="ID do número na Meta" /></label>
-            <label>WABA ID<input name="business_account_id" placeholder="ID da conta comercial" /></label>
+            <label>Número exibido<input name="numero_exibicao" type="tel" inputmode="tel" autocomplete="off" placeholder="+55 12 99683-0272" /></label>
+            <label>Phone Number ID<input name="phone_number_id" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="ID do número na Meta" /></label>
+            <label>WABA ID<input name="business_account_id" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="ID da conta comercial" /></label>
             <label>Access Token
               <input name="access_token" type="password" placeholder="token permanente" data-secreto="1" />
               <small class="mascara" id="maskToken"></small>
@@ -1238,7 +1238,7 @@
           placeholder="Ex.: Cliente pediu preço e está esperando a resposta da oficina."></textarea>
       </label>
 
-      <label>Gatilhos <small>palavras separadas por vírgula — a IA usa como pista</small>
+      <label>Gatilhos <small>palavras separadas por vírgula: a IA usa como pista</small>
         <textarea name="gatilhos" rows="2"
           placeholder="quanto custa, qual o valor, preço, orçamento"></textarea>
       </label>
@@ -1271,10 +1271,11 @@
     <h3>Nova conversa</h3>
     <form id="formNovaConversa" class="form-vertical">
       <label>Telefone do cliente
-        <input id="novaTelefone" placeholder="(12) 99999-8888" required />
+        <input id="novaTelefone" type="tel" inputmode="tel" autocomplete="off" maxlength="20" placeholder="(12) 99999-8888" required aria-describedby="novaTelefoneErro" />
+        <span class="campo-erro" id="novaTelefoneErro" role="alert" hidden></span>
       </label>
       <label>Nome <small>opcional se o cliente já for cadastrado</small>
-        <input id="novaNome" placeholder="Nome do cliente" />
+        <input id="novaNome" placeholder="Nome do cliente" maxlength="120" autocomplete="off" />
       </label>
       <button type="submit" class="btn btn-primary full">Abrir conversa</button>
     </form>
@@ -1307,8 +1308,8 @@
         <label>Valor previsto (R$)<input type="number" name="valor" min="0" step="0.01" placeholder="0,00" /></label>
       </div>
       <div class="linha-2">
-        <label>Carro<input name="veiculo" placeholder="Ex.: Corolla 2020" /></label>
-        <label>Placa<input name="placa" placeholder="ABC-1D23" /></label>
+        <label>Carro<input name="veiculo" placeholder="Ex.: Corolla 2020" maxlength="60" autocomplete="off" /></label>
+        <label>Placa<input name="placa" placeholder="ABC-1D23" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" /></label>
       </div>
       <label>Como chegou até nós
         <select name="origem" id="agendarOrigem">
@@ -1339,7 +1340,7 @@
     <form id="formAtalho" class="form-vertical">
       <div class="linha-2">
         <label>Comando <small>sem a barra</small>
-          <input name="comando" placeholder="bomdia" required />
+          <input name="comando" placeholder="bomdia" required maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" />
         </label>
         <label>Categoria
           <select name="categoria">
@@ -1352,9 +1353,9 @@
         </label>
       </div>
       <label>Título <small>como aparece na lista</small>
-        <input name="titulo" placeholder="Bom dia" required />
+        <input name="titulo" placeholder="Bom dia" required maxlength="80" autocomplete="off" />
       </label>
-      <label>Consultor <small>opcional — para mensagens de alguém específico</small>
+      <label>Consultor <small>opcional, para mensagens de alguém específico</small>
         <select name="consultor_id" id="atalhoConsultor"><option value="">Qualquer um</option></select>
       </label>
       <label>Mensagem
@@ -1380,7 +1381,7 @@
     <h3>Enviar para o cliente</h3>
     <div class="anexo-previa" id="anexoPrevia"></div>
     <form id="formAnexo" class="form-vertical">
-      <label>Legenda <small>opcional — vai junto com o arquivo</small>
+      <label>Legenda <small>opcional: vai junto com o arquivo</small>
         <textarea id="anexoLegenda" rows="2" maxlength="1000" placeholder="Ex.: Segue o orçamento, qualquer dúvida é só chamar."></textarea>
       </label>
       <div class="int-acoes">
@@ -1646,12 +1647,12 @@
     <p class="modal-sub" id="transferirSub">—</p>
     <form id="formTransferir" class="form-vertical" novalidate>
       <div class="lista-colegas" id="transferirColegas" role="radiogroup" aria-label="Para quem"></div>
-      <label>Motivo <small>(obrigatório — a pessoa recebe junto com o aviso)</small>
+      <label>Motivo <small>(obrigatório: a pessoa recebe junto com o aviso)</small>
         <input name="motivo" id="transferirMotivo" maxlength="200" minlength="3" required placeholder="Ex.: fim do meu turno" autocomplete="off" />
       </label>
       <div class="chips-rapidos" id="transferirMotivos" role="group" aria-label="Motivos comuns">
         <button type="button" class="chip" data-motivo="Fim do meu turno">Fim do meu turno</button>
-        <button type="button" class="chip" data-motivo="Assunto técnico — precisa de consultor">Assunto técnico</button>
+        <button type="button" class="chip" data-motivo="Assunto técnico: precisa de consultor">Assunto técnico</button>
         <button type="button" class="chip" data-motivo="Cliente pediu para falar com você">Cliente pediu</button>
         <button type="button" class="chip" data-motivo="Orçamento para fechar">Orçamento para fechar</button>
       </div>
@@ -1670,6 +1671,7 @@
 <script src="apps.js"></script>
 <script src="r6-regras.js"></script>
 <script src="r7-regras.js"></script>
+<script src="r9-regras.js"></script>
 <script src="rede.js"></script>
 <script src="vendor/supabase.js"></script>
 <script>window.supabase || document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/dist/umd/supabase.js"><\/script>');</script>

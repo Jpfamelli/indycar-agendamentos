@@ -45,8 +45,9 @@ async function medir(w) {
     .map(v => `${v.id}: ${v.nodes.slice(0, 3).map(n => n.target.join(' ')).join(' | ')}`);
   const visivel = el => { const s = getComputedStyle(el); const b = el.getBoundingClientRect(); return s.display !== 'none' && s.visibility !== 'hidden' && b.width > 0 && b.height > 0 && el.offsetParent !== null; };
   const pequenos = [];
-  if (w < 500) for (const el of document.querySelectorAll('button, a[href], select, input:not([type=hidden]), [role=button], summary')) {
-    if (!visivel(el)) continue;
+  const raiz = document.querySelector('.modal-bg.aberto') || document;
+  if (w < 500) for (const el of raiz.querySelectorAll('button, a[href], select, input:not([type=hidden]), textarea, [role=button], summary')) {
+    if (!visivel(el) || getComputedStyle(el).pointerEvents === 'none') continue;   // etiqueta que não recebe toque não é alvo
     const b = el.getBoundingClientRect();
     if (el.type === 'checkbox' || el.type === 'radio') { const l = el.closest('label'); if (l && l.getBoundingClientRect().height >= 43.5) continue; }
     if (b.height < 43.5 || b.width < 43.5) pequenos.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${String(el.className).split(' ')[0]} ${Math.round(b.width)}x${Math.round(b.height)}`);
@@ -110,6 +111,50 @@ async function medir(w) {
       ok(`lista 375x${altura}: a faixa do WhatsApp parado ocupa no máximo 96 px`, volta.hFaixa <= 96, `${volta.hFaixa} px`);
       await p.screenshot({ path: path.join(SAIDA, `depois-lista-375x${altura}.png`) });
       await p.close();
+    }
+
+    /* Celular: a lista (sem conversa aberta), as janelas e as telas de entrar */
+    {
+      const p = await novaPagina(browser, 375, 'escuro');
+      await p.evaluate(AXE);
+      let r = await p.evaluate(medir, 375);
+      ok('lista 375px: tudo que se toca tem 44 px', r.pequenos.length === 0, r.pequenos.slice(0, 8).join(' | '));
+      ok('lista 375px: axe-core sem violação séria', r.serias.length === 0, r.serias.join(' || '));
+      const etiqueta = await p.evaluate(() => { const e = document.querySelector('.conversa .plaquinha'); return e ? getComputedStyle(e).pointerEvents : 'sem etiqueta'; });
+      ok('lista 375px: tocar na etiqueta de etapa abre a conversa (a etiqueta não é alvo próprio)', etiqueta === 'none', etiqueta);
+      const ids = await p.evaluate(() => [...document.querySelectorAll('.modal-bg')].map(b => b.id));
+      for (const id of ids) {
+        await p.evaluate(i => { document.querySelectorAll('.modal-bg.aberto').forEach(b => b.classList.remove('aberto')); document.getElementById(i).classList.add('aberto'); }, id);
+        await espera(300);
+        r = await p.evaluate(medir, 375);
+        ok('janela ' + id + ' 375px: tudo que se toca tem 44 px e sem violação séria', r.pequenos.length === 0 && r.serias.length === 0, r.pequenos.concat(r.serias).slice(0, 6).join(' | '));
+      }
+      await p.evaluate(() => document.querySelectorAll('.modal-bg.aberto').forEach(b => b.classList.remove('aberto')));
+
+      /* Nova conversa: telefone errado não cria nada e diz o porquê; o certo passa */
+      await p.evaluate(() => { window.__gravou = 0; const f0 = window.fetch; window.fetch = function (u, o) { if (o && o.method && o.method !== 'GET' && String(u).includes('conversas')) window.__gravou++; return f0.apply(this, arguments); }; });
+      await p.evaluate(() => document.getElementById('modalNovaBg').classList.add('aberto'));
+      const tipo = await p.evaluate(() => { const c = document.getElementById('novaTelefone'); return c.type + '/' + c.inputMode; });
+      ok('Nova conversa: o campo abre o teclado de telefone', tipo === 'tel/tel', tipo);
+      await p.type('#novaTelefone', '9999-8888');
+      await p.evaluate(() => document.getElementById('formNovaConversa').requestSubmit());
+      await espera(400);
+      const erro = await p.evaluate(() => { const e = document.getElementById('novaTelefoneErro'); return { visivel: !e.hidden, texto: e.textContent, invalido: document.getElementById('novaTelefone').getAttribute('aria-invalid'), aberto: document.getElementById('modalNovaBg').classList.contains('aberto') }; });
+      ok('Nova conversa: telefone sem DDD mostra o porquê e a janela continua aberta', erro.visivel && /DDD/.test(erro.texto) && erro.invalido === 'true' && erro.aberto, JSON.stringify(erro));
+      await p.type('#novaTelefone', '1');
+      const sumiu = await p.evaluate(() => document.getElementById('novaTelefoneErro').hidden);
+      ok('Nova conversa: o aviso some quando a pessoa volta a digitar', sumiu);
+      await p.close();
+
+      for (const papel of ['deslogado', 'trocarsenha', 'mfa', 'semapp', 'agenda']) {
+        const q = await novaPagina(browser, 375, 'escuro', '');
+        await q.goto('http://localhost:' + PORT + '/?papel=' + papel, { waitUntil: 'networkidle2' });
+        await espera(700);
+        await q.evaluate(AXE);
+        const x = await q.evaluate(medir, 375);
+        ok('tela de ' + papel + ' 375px: 44 px e sem violação séria', x.pequenos.length === 0 && x.serias.length === 0, x.pequenos.concat(x.serias).slice(0, 6).join(' | '));
+        await q.close();
+      }
     }
 
     /* Computador da recepção (1366 x 768) com o WhatsApp parado e proposta da IA: o pior caso */
