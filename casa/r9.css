@@ -138,3 +138,6 @@ button.t-texto:hover { text-decoration: underline dotted; }
    comprido virava uma coluna de 188 px e 9 linhas por cima do "Entrar" e do "Esqueci a senha". Agora usa a largura
    que tiver (até 560 px), centralizado, acima da barra do sistema no iPhone. */
 .toast { left: 16px; right: 16px; transform: none; width: fit-content; max-width: min(560px, calc(100vw - 32px)); margin: 0 auto; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+
+/* sinal de saúde ao lado do logo: "!" dentro do ponto quando há problema (antes só a cor separava problema de atenção) */
+.topo-marca[data-saude="ruim"]::after { content: '!'; width: 14px; height: 14px; display: grid; place-items: center; color: #fff; font: 800 10px/1 'Archivo', system-ui, sans-serif; }

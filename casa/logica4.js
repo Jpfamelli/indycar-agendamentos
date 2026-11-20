@@ -280,6 +280,12 @@
     return { tom: 'ok', texto: 'Todos os sistemas em ordem' };
   }
 
+  /** Nome falado do logo do topo: com problema ou atenção, o leitor de tela ouve qual (o ponto ao lado era só cor). */
+  function rotuloDoLogo(r) {
+    if (!r || r.tom === 'ok' || r.tom === 'neutro') return 'IndyCar Central, início';
+    return `IndyCar Central, início. ${r.texto}`;
+  }
+
   /* ---------------- ligações quebradas entre sistemas (r7_x3_ligacoes_quebradas) ---------------- */
   const PESO_GRAV = { alta: 3, media: 2, baixa: 1 };
   const APP_DA_LIGACAO = [[/^Agenda/, 'agenda'], [/^Pátio/, 'patio'], [/^Orçador/, 'orcador'], [/^CRM/, 'crm'], [/^Atendimento/, 'atendimento'], [/^Comunicar/, 'comunicar']];
@@ -452,6 +458,6 @@
     ORIGENS_TAREFA, TIPOS_ORC_TAREFA, infoDaTarefa, ehDoOrcador, contarReabordar, linkDaDescricao, descricaoLimpa,
     NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, FAIXA_VIGIA, faixaDoVigia, saudeSistemas, resumoDaSaude,
     resumoLigacoes, ROTULO_ACAO, fichaDe, OPCOES_ADIAR, ateQuando, quandoVolta, acaoDoAviso, appDoAviso, textoDoAviso, filtrarPorTexto,
-    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc,
+    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc, rotuloDoLogo,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -61,7 +61,8 @@
     $('#saudeBotao').setAttribute('aria-expanded', String(aberto));
     $('#saudePainel').hidden = !aberto;
     const topo = document.querySelector('.topo-marca');
-    if (topo) { topo.dataset.saude = r.tom; topo.title = r.tom === 'ok' ? '' : r.texto; }
+    // rodada 9: o ponto ao lado do logo era só cor e só "title" (que o leitor de tela não lê com aria-label e o celular não mostra)
+    if (topo) { topo.dataset.saude = r.tom; topo.title = r.tom === 'ok' || r.tom === 'neutro' ? '' : r.texto; topo.setAttribute('aria-label', N.rotuloDoLogo(r)); }
     $('#saudeLista').innerHTML = s.itens.map((i) => {
       const app = i.app && C.podeUsar(i.app) ? `<a class="saude-abrir" href="${C.esc(C.bases[i.app])}" target="${C.esc(L.nomeDaAba(i.app))}">Abrir ${C.esc(L.APPS[i.app].nome)} ↗</a>` : '';
       return `<li class="saude-item tom-${C.esc(i.tom)}" data-sistema="${C.esc(i.k)}">
