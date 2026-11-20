@@ -91,3 +91,44 @@ Uma linha por melhoria, com o commit onde ela está. Prova: `npm test` da raiz e
 - **R9-CASA-084** · acessibilidade · Filtros das tarefas e do sino deixam o foco no filtro escolhido (antes ia para o corpo da página; no Chrome, BODY antes e o filtro depois) · `489803b`
 - **R9-CASA-085** · acessibilidade · "limpar" as buscas recentes devolve o foco ao campo e avisa "Buscas recentes apagadas." (antes o foco caía no corpo da página) · `39af6ca`
 - **R9-CASA-086** · acessibilidade · "tentar de novo" das tarefas e do sino deixa o foco no título "Minhas tarefas" e na busca do sino (antes o botão sumia ao redesenhar e o foco caía no corpo da página) · `14b2755`
+
+## Rodada 10 (20/11/2026)
+
+Foco: segurança, conexões, desempenho medido e falha de rede. Cada linha tem uma prova que roda, falha no código de
+antes e passa no de agora: os testes `r10-…` de `tests/r10-casa-servidor.test.mjs`, `tests/r10-casa-central.test.mjs` e
+`tests/r10-casa.test.mjs` (entram no `npm test`) e as provas de tela `r10-…` de `node tests/r10-casa-browser.mjs`
+(Chrome com o Supabase de mentira de `tests/r10-casa-mock/`; `--antes <pasta>` roda as mesmas provas na Casa de um
+commit anterior). Medição de desempenho: `node tests/r10-casa-medir.mjs`.
+
+- **R10-CASA-001** · conserto · Links do cliente: pedido com corpo "null", número, texto ou lista derrubava a rota com erro 500; agora volta 400 "Pedido inválido" (teste r10-corpo) · `35f96b5`
+- **R10-CASA-002** · segurança · Links do cliente: o que não tem forma de token do Supabase é recusado sem a Central perguntar nada ao Supabase (antes cada lixo virava uma consulta) (teste r10-forma-do-token) · `35f96b5`
+- **R10-CASA-003** · segurança · Links do cliente: 10 logins recusados em 1 minuto do mesmo endereço e o seguinte espera (429), sem ir ao Supabase; outro endereço não é afetado (teste r10-freio-de-login) · `35f96b5`
+- **R10-CASA-004** · segurança · Links do cliente: os mapas do limite e do login guardado eram zerados inteiros ao encher, o que soltava quem estava no limite e apagava o login de quem estava trabalhando; agora saem só os vencidos e os de menor peso (teste r10-poda) · `35f96b5`
+- **R10-CASA-005** · segurança · Links do cliente: frase de erro do banco não vai mais para a tela ("permission denied for table…"); só código curto como cliente_nao_encontrado passa (teste r10-motivo) · `35f96b5`
+- **R10-CASA-006** · aviso · Links do cliente: limite e "não consegui conferir o acesso" dizem em quanto tempo tentar (Retry-After 60 e 30) e o método errado diz qual usar (Allow: POST) (teste r10-esperar) · `35f96b5`
+- **R10-CASA-007** · segurança · Rotas da Central (/api/ping, /api/central/config, /api/central/saude-apps) e arquivos da Casa só aceitam leitura: POST, PUT e DELETE respondem 405 com Allow (antes respondiam como leitura ou caíam na Agenda) (teste r10-metodos) · `98a180b`
+- **R10-CASA-008** · conserto · /api/central/<rota que não existe> responde 404 da própria Central; antes caía na Agenda, que respondia como se a rota fosse dela (teste r10-rota-desconhecida) · `98a180b`
+- **R10-CASA-009** · segurança · CSP da Casa: conexão só com o Supabase da oficina (antes qualquer *.supabase.co passava; um script injetado podia mandar dado para o projeto de outra pessoa) (teste r10-csp-banco) · `98a180b`
+- **R10-CASA-010** · segurança · CSP da Casa: imagem só da própria Casa, sem "data:" (nenhuma tela usa imagem embutida; o teste varre os arquivos) (teste r10-csp-imagens) · `98a180b`
+- **R10-CASA-011** · desempenho · CSS e JS da Casa levam a marca do conteúdo no endereço e ficam guardados 1 ano no navegador: na segunda abertura, de 23 pedidos ao servidor (20 deles "304, não mudou") para 3 (teste r10-marca; medição r10-casa-medir) · `98a180b`
+- **R10-CASA-012** · segurança · Log de pedido lento não escreve mais o token do link do cliente (/confirmar/<token>): pedaço comprido do endereço sai cortado (teste r10-log) · `98a180b`
+- **R10-CASA-013** · desempenho · O service worker pede os mesmos endereços com marca que a página já baixou: primeira visita de 52 pedidos para 32 e de 197,9 kB de CSS e JS para 99,1 kB (antes baixava os 20 arquivos duas vezes) (teste r10-sw-marcas; medição r10-casa-medir) · `04b3606`
+- **R10-CASA-014** · tela · App da Central que não subiu: quem abre /crm/ (ou outro) no navegador vê uma página que explica e deixa tentar de novo ou voltar para a Casa, no lugar de um JSON cru; a API continua em JSON (teste r10-app-fora) · `04b3606`
+- **R10-CASA-015** · segurança · Freio da saúde dos apps: uma enxurrada de 500 endereços zerava o mapa e soltava quem já estava freado; agora saem os parados e os que menos perguntaram (teste r10-freio-saude) · `04b3606`
+- **R10-CASA-016** · conserto · Tarefas: dois toques seguidos em "adiar 1 dia" adiavam dois dias e gravavam duas vezes; agora o segundo toque espera o primeiro terminar (prova r10-adiar-duplo) · `e19432f`
+- **R10-CASA-017** · desempenho · Tempo real em rajada: 8 mudanças juntas nas tarefas ou 8 avisos juntos no sino viravam 8 leituras da lista inteira cada; agora 1 leitura, 400 ms depois da última (prova r10-rajada) · `e19432f`
+- **R10-CASA-018** · conserto · Quando a internet volta, o sino e as tarefas releem na hora; antes só o painel relia e as tarefas ficavam em "não consegui ler" até alguém clicar (prova r10-rede-voltou) · `e19432f`
+- **R10-CASA-019** · conserto · Tarefas não tinham relógio nem volta: se o tempo real caísse, a lista ficava velha. Agora relê ao voltar para a aba depois de mais de 1 minuto (prova r10-tarefas-aba) · `e19432f`
+- **R10-CASA-020** · aviso · Login vencido: cada bloco dizia "não consegui ler" para sempre; agora a Casa tenta renovar uma vez e, se não der, volta para a tela de entrar dizendo "Sua sessão venceu. Entre de novo para continuar." (prova e teste r10-sessao-vencida) · `52a8fac`
+- **R10-CASA-021** · conserto · Duas abas: a aba parada na tela de entrar abre a Casa sozinha quando o login acontece em outra aba ou em outro app (prova r10-entrou-em-outra-aba) · `52a8fac`
+- **R10-CASA-022** · segurança · Duas abas: se outra pessoa entra em outra aba, esta Casa deixava na tela o painel, as tarefas e os avisos de quem estava antes; agora desmonta, apaga as buscas guardadas e monta para quem entrou (prova r10-outra-pessoa) · `52a8fac`
+- **R10-CASA-023** · conserto · Código de verificação: dois toques em "Confirmar" mandavam o código duas vezes e o segundo voltava "não confere" por cima do que deu certo; o botão trava e diz "Conferindo…" (prova r10-codigo) · `52a8fac`
+- **R10-CASA-024** · texto · Código de verificação sem internet dizia "Código não confere"; agora diz que está sem internet e que o código pode estar certo (prova e teste r10-codigo-rede) · `52a8fac`
+- **R10-CASA-025** · conserto · Senha nova: dois toques em gravar trocavam a senha duas vezes (a segunda podia voltar "precisa ser diferente da atual"); o botão trava e diz "Gravando…" (prova r10-senha-dupla) · `52a8fac`
+- **R10-CASA-026** · conserto · Painel: uma leitura que nunca voltava (rede que caiu no meio) deixava o painel sem atualizar até recarregar a página, nem pelo botão; passados 25 s a leitura velha é abandonada (prova r10-painel-pendurado) · `23e7898`
+- **R10-CASA-027** · desempenho · Voltar para a aba segundos depois de ler refazia 4 pedidos (painel, extras, sino e saúde dos apps); agora 0 se a leitura tem menos de 15 s (30 s na saúde) (prova r10-volta-da-aba) · `23e7898`
+- **R10-CASA-028** · aviso · Saúde do Pátio e do Orçador: quando a própria conferência falhava a Casa não dizia nada (parecia "tudo no ar"); na segunda falha seguida ela diz que não conseguiu conferir, com "verificar de novo" (prova r10-saude-sem-leitura) · `23e7898`
+- **R10-CASA-029** · aviso · Links do cliente na ficha: sem resposta ficava em "Gerando os links…" para sempre; em 15 s desiste, diz "A Central demorou demais para responder" e deixa tentar de novo (prova e teste r10-links-tempo) · `ab3b6f4`
+- **R10-CASA-030** · conserto · Configuração do login que falha na abertura: a tela mandava recarregar e nenhum botão funcionava; agora tem "Tentar de novo" e a Casa tenta sozinha quando a internet volta (prova r10-config-de-novo) · `ab3b6f4`
+- **R10-CASA-031** · conserto · Meta do mês: tirada em um aparelho, voltava para o banco por qualquer outro que ainda tivesse a meta antiga guardada; agora o aparelho sobe a meta que só existia nele uma vez e depois copia o banco (prova r10-meta) · `ab3b6f4`
+- **R10-CASA-032** · segurança · Ao sair, a meta do mês (dado do dono) não fica mais guardada no computador da oficina; o tema e o e-mail lembrado ficam (prova r10-meta-sair) · `ab3b6f4`
