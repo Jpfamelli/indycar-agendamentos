@@ -689,3 +689,46 @@ Frente R9-trafego (Claude), branch `claude/r9-trafego`. Cada linha tem o commit 
 - **R9-TRF-080** · conserto · Fila de pendências › Ver o contato inteiro: "Voltar para a lista" (ou Esc, ou Fechar) levava para a lista filtrada da Jornada, que a pessoa nunca tinha visto, e a fila se perdia; agora o botão diz "Voltar para a fila" e volta para ela, no mesmo contato (caso fila-ver-contato) · `68e3c0f`
 - **R9-TRF-081** · conserto · Campanhas: abrir uma campanha da lista filtrada ("Só as campanhas do Google") e tocar em "Voltar para a classificação" (ou Esc) voltava para a lista com todas; agora volta para a mesma lista filtrada, com o foco na campanha aberta (caso campanhas-plataforma) · `dcace3c`
 - **R9-TRF-082** · tela · Ajustes › lista das partes: o item Conexões não dizia nada sobre o estado (era preciso abrir para saber); agora mostra "Faltam 2 passos", "Pede atenção" (acesso vencendo, coleta parada, WhatsApp parado) ou "Tudo ligado" (teste em hoje-logica e caso ajustes-estado-conexoes) · `4a642ff`
+
+## Rodada 10 (20/11/2026)
+
+Frente R10-trafego (Claude), branch `claude/r9-trafego`. Foco: conexões, segurança e desempenho. Cada linha tem um teste que falhava antes e passa depois, e o commit que a prova. Suíte: 766 antes, 802 depois.
+
+- **R10-TRF-001** · segurança · Rotas da tela antiga (`/api/sync`, `/api/dashboard`, `/api/alertas`, fechamento por WhatsApp, `POST /api/eu` e as demais) respondiam com a tela antiga desligada; agora devolvem 404 `tela_antiga` e só abrem com `TRAFEGO_TELA_ANTIGA=1`, a mesma chave da tela (teste r10-servidor) · `2cb880c`
+- **R10-TRF-002** · conserto · Texto com acento que chegava partido entre dois pacotes da rede era gravado com um sinal estranho no lugar da letra; o servidor agora junta os pedaços antes de ler (teste r10-servidor) · `2cb880c`
+- **R10-TRF-003** · segurança · O teto de 1 MB por pedido contava letras, não bytes (texto com acento passava do teto), e o servidor seguia recebendo depois de recusar; agora conta bytes e para de ler (teste r10-servidor) · `2cb880c`
+- **R10-TRF-004** · segurança · Metas e verba aceitavam qualquer coisa no lugar do número (lista, texto, valor absurdo); agora só número, com teto por campo (custo por cliente até R$ 100 mil, verba do mês até R$ 10 milhões) e recusa com frase clara (teste r10-servidor) · `2cb880c`
+- **R10-TRF-005** · segurança · A chave das rotinas automáticas podia ser tentada sem limite; depois de 10 chaves erradas em 10 minutos do mesmo endereço, a resposta passa a ser 429 com o tempo de espera (teste r10-servidor) · `2cb880c`
+- **R10-TRF-006** · segurança · Erro de uma biblioteca que trazia "status" (401, 404) saía para fora com a mensagem interna e podia derrubar a sessão de quem estava logado; agora só erro do próprio app sai com a frase, o resto vira 500 genérico (teste r10-servidor) · `2cb880c`
+- **R10-TRF-007** · conserto · Gestor: endereço de conversa com "%" torto dava erro 500; agora responde 400 (teste r10-entradas) · `3ce0181`
+- **R10-TRF-008** · segurança · A regra do navegador liberava a página para falar com qualquer projeto `*.supabase.co` e por conexão `wss`, que a tela nova não usa; agora só o endereço do projeto configurado (o `wss` volta apenas com a tela antiga ligada) (teste r10-entradas) · `3ce0181`
+- **R10-TRF-009** · segurança · `package.json` e `package-lock.json` podiam ser baixados pelo endereço do app (mostravam as versões das bibliotecas); agora 404 (teste r10-entradas) · `3ce0181`
+- **R10-TRF-010** · segurança · Quem tem papel de gestor via os telefones de aviso inteiros ao abrir as metas; agora vê só o final ("•••1234"), e o administrador segue vendo tudo (teste r10-entradas) · `3ce0181`
+- **R10-TRF-011** · segurança · Salvar metas e criar ou listar chaves da IA não tinham limite de pedidos por pessoa; agora 30 gravações de metas, 10 chaves novas e 120 listagens por janela, com 429 depois disso (teste r10-entradas) · `3ce0181`
+- **R10-TRF-012** · desempenho · A memória dos arquivos da tela guardava 40 arquivos e a tela tem 58: a cada abertura 53 arquivos eram comprimidos de novo (cerca de 65 ms de processador e 53 leituras de disco); agora cabem 300 arquivos ou 32 MB e a segunda abertura comprime 0 (teste r10-desempenho-servidor) · `03c0020`
+- **R10-TRF-013** · conserto · Quando o Supabase respondia 5xx ou 429 ao conferir o login, o app tratava como "sessão inválida" e mandava a pessoa entrar de novo; agora responde "indisponível" e não guarda a recusa (teste r10-desempenho-servidor) · `03c0020`
+- **R10-TRF-014** · desempenho · Ao abrir uma tela, 6 pedidos juntos da mesma pessoa faziam 18 idas ao Supabase para conferir o mesmo login; agora os 6 esperam a mesma conferência: 3 idas (teste r10-desempenho-servidor) · `03c0020`
+- **R10-TRF-015** · segurança · A porta da IA de fora aceitava tentativas de chave sem limite, cada uma indo ao banco; depois de 20 chaves erradas em 10 minutos do mesmo endereço, responde 429 sem consultar o banco (teste r10-portas-publicas) · `6e9cf75`
+- **R10-TRF-016** · desempenho · Anúncio sem imagem: cada abertura da lista repetia a consulta e o pedido à plataforma (5 aberturas, 5 consultas); agora a falta fica guardada por 10 minutos (5 aberturas, 1 consulta) (teste r10-portas-publicas) · `6e9cf75`
+- **R10-TRF-017** · desempenho · O arquivo de rastreio que o site carrega em toda página vinha inteiro toda vez (3.765 bytes); agora tem etiqueta e, sem mudança, a resposta é 304 com 0 bytes (teste r10-portas-publicas) · `6e9cf75`
+- **R10-TRF-018** · desempenho · O mesmo arquivo de rastreio, na primeira visita, ia sem compressão: 3.765 bytes; agora vai comprimido: 1.905 bytes (teste r10-portas-publicas) · `6e9cf75`
+- **R10-TRF-019** · aviso · Gravação que estourava o tempo dizia só que estava sem conexão, e a pessoa tocava de novo sem saber se tinha gravado; agora diz "Demorou demais e não deu para saber se gravou. Atualize a tela e confira antes de tentar de novo." (teste r10-rede) · `90d92a8`
+- **R10-TRF-020** · conserto · Baixar arquivo (o do Google, a planilha) não tinha tempo limite: com a rede travada o botão ficava girando para sempre; agora desiste em 60 segundos com frase clara (teste r10-rede) · `90d92a8`
+- **R10-TRF-021** · desempenho · Ajustes: a lista das partes e a gaveta de Conexões pediam a mesma leitura ao mesmo tempo (7 pedidos para abrir); leituras iguais em curso agora são uma só (6 pedidos) (teste r10-rede) · `90d92a8`
+- **R10-TRF-022** · conserto · Uma leitura pedida antes de uma gravação podia chegar depois dela e voltar para a memória da tela com o número velho; agora a resposta de antes da gravação é descartada (teste r10-rede) · `90d92a8`
+- **R10-TRF-023** · conserto · Na abertura, a leitura da configuração do login não tinha tempo limite: com a rede travada a tela ficava em "Abrindo o Tráfego" para sempre; agora desiste em 15 segundos, avisa e tenta de novo (teste r10-rede) · `90d92a8`
+- **R10-TRF-024** · desempenho · As 4 fontes da tela valiam 1 hora no navegador, com 4 idas ao servidor a cada abertura depois disso; agora valem 30 dias: 0 idas (teste r10-desempenho-servidor) · `90d92a8`
+- **R10-TRF-025** · texto · As respostas da porta da IA mandavam para "Ajustes › Chaves da IA", nome que não existe na tela; agora dizem "Ajustes › Acesso da IA de fora" e, quando falta permissão, citam a opção como está no formulário da chave (teste r10-nomes) · `75387c4`
+- **R10-TRF-026** · texto · Guia CONECTAR.md mandava clicar em "Vendas para o Google" e "Vendas da Meta para marcar", nomes antigos; agora usa "Ajustes › Devolver as vendas às plataformas", "Baixar o arquivo do Google" e "Meta: vendas para marcar no WhatsApp Business", e o teste falha se a tela mudar um nome (teste r10-nomes) · `75387c4`
+- **R10-TRF-027** · texto · Guia MCP.md recomendava uma chave sem "ver dado pessoal", opção que não existe com esse nome; agora cita "Só ler os números" e "Ver nome e conversa completa dos clientes", como no formulário (teste r10-nomes) · `bb01c53`
+
+Nomes que mudaram (antes · depois):
+
+| Onde | Antes | Depois |
+| --- | --- | --- |
+| Respostas da porta da IA e da ponte | Ajustes › Chaves da IA | Ajustes › Acesso da IA de fora |
+| MCP.md | "ver dado pessoal" | "Ver nome e conversa completa dos clientes" |
+| CONECTAR.md | Vendas para o Google | Baixar o arquivo do Google |
+| CONECTAR.md | Vendas da Meta para marcar | Meta: vendas para marcar no WhatsApp Business |
+
+Paradas aqui: 27 linhas, não 100. O app já estava bem fechado e o que sobrou eram ajustes soltos que a regra da rodada não deixa contar. As 18 que faltaram na rodada 9 não foram somadas: não havia 18 de verdade.
