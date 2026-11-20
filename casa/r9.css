@@ -91,3 +91,27 @@ button.t-texto:hover { text-decoration: underline dotted; }
 :root[data-tema="claro"] .selo-ruim { background: rgba(194,15,34,.1); }
 /* faixa do Vigia só com "não deu para conferir" (nenhum grave): borda neutra, não vermelha */
 .avisos-vigia:not(:has(.vigia-selo)) { border-color: var(--borda-2); }
+
+/* cabeçalho do sino: o título vem primeiro (antes "só não lidas" aparecia acima de "Notificações") */
+.painel-topo { flex-wrap: wrap; gap: 4px 10px; }
+.painel-topo > strong { flex: 1 1 auto; }
+
+/* sino no celular: folha de altura inteira logo abaixo do topo (antes era uma caixa flutuante e a página
+   aparecia por baixo), filtros de app numa linha só que rola de lado (antes 3 linhas empurravam os avisos para baixo) */
+@media (max-width: 520px) {
+  .painel-sino { top: 66px; right: 0; bottom: 0; left: 0; width: 100%; max-height: none; border-radius: 0; border-width: 1px 0 0; overscroll-behavior: contain; }
+  .sino-filtros { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+  .sino-filtros::-webkit-scrollbar { display: none; }
+  .sino-filtros button { flex: 0 0 auto; }
+}
+
+/* sino: os botões ⏱ (adiar) e ✓ (lida) herdavam "width: 100%" da regra antiga dos botões da lista e cada aviso
+   virava 3 colunas iguais: o texto ficava espremido num terço da largura. Agora têm 44 px fixos. */
+.lista-notif li .notif-adiar, .lista-notif li .notif-ler { width: 44px; flex: 0 0 44px; display: grid; place-items: center; padding: 0; }
+.lista-notif li .notif-abrir { min-width: 0; }
+
+/* conversão: "sem dado" numa linha só (a coluna do número era de 44 px e quebrava em duas) */
+.conv-linha { grid-template-columns: minmax(0, 1fr) 90px minmax(44px, auto); }
+.conv-linha b { white-space: nowrap; }
+@media (max-width: 520px) { .conv-linha { grid-template-columns: minmax(0, 1fr) 60px minmax(40px, auto); } }
+#donoBarrasVazio { margin: 8px 0 0; }
