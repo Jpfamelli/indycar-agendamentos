@@ -52,7 +52,7 @@ async function abrir(cenario, largura = 1440, toque = false) {
     return req.respond({ status: 200, contentType: TIPOS[caminho.slice(caminho.lastIndexOf('.'))] || 'application/octet-stream', body: readFileSync(arq) });
   });
   await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#casa:not([hidden])', { timeout: 8000 });
+  await page.waitForSelector(cenario.sessao === false ? '#fLogin:not([hidden])' : '#casa:not([hidden])', { timeout: 8000 });
   await espera(900);
   return { page, erros };
 }
@@ -230,6 +230,23 @@ try {
   const kd = await d.page.$$eval('.kbd-css', (ks) => ks.filter((k) => k.getClientRects().length).length);
   conferir('computador com mouse: o "Ctrl K" continua', kd > 0, String(kd));
   await d.page.close();
+  });
+
+  // 16. Esqueci a senha: dois toques seguidos pedem um link só; pedir de novo no mesmo minuto só avisa
+  await passo("16. Esqueci a senha não gasta dois envios com dois toques", async () => {
+  const e = await abrir({ papel: 'admin', sessao: false, atraso: 600 }, 375);
+  await e.page.evaluate(() => { document.querySelector('#lEmail').value = 'balcao@oficina.test'; });
+  await e.page.click('#lEsqueci');
+  await e.page.click('#lEsqueci').catch(() => {});
+  await espera(900);
+  const pedidos = () => e.page.evaluate(() => window.__GRAVADO.filter((g) => g.acao === 'link-de-senha').length);
+  conferir('esqueci: dois toques seguidos pedem um link só', (await pedidos()) === 1, 'pedidos ' + (await pedidos()));
+  const caixa = await e.page.evaluate(() => { const t = document.querySelector('#toast').getBoundingClientRect(), b = document.querySelector('#lEsqueci').getBoundingClientRect(); return { larg: Math.round(t.width), cobre: t.top < b.bottom && t.bottom > b.top }; });
+  conferir('aviso no celular usa a largura da tela e não cobre o "Esqueci a senha"', caixa.larg >= 300 && !caixa.cobre, JSON.stringify(caixa));
+  await e.page.$eval('#lEsqueci', (b) => b.click()); await espera(800);   // (o aviso do 1º pedido fica por cima do botão no celular)
+  const aviso = await e.page.$eval('#toast', (t) => t.textContent);
+  conferir('esqueci: pedir de novo no mesmo minuto não envia e diz para olhar o spam', (await pedidos()) === 1 && /spam/.test(aviso), aviso.slice(0, 70));
+  await e.page.close();
   });
 } finally {
   await browser.close();

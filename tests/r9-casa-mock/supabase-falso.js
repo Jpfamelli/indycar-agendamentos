@@ -46,7 +46,10 @@
             sessao = { access_token: 'mentira', refresh_token: 'mentira', expires_at: 4102444800, user: usuario };
             return Promise.resolve({ data: { session: sessao }, error: null });
           },
-          resetPasswordForEmail: function () { return Promise.resolve({ data: {}, error: null }); },
+          resetPasswordForEmail: function (email) {
+            window.__GRAVADO.push({ tabela: 'auth', acao: 'link-de-senha', valor: email });
+            return new Promise(function (r) { setTimeout(r, Number(C.atraso) || 0); }).then(function () { return { data: {}, error: null }; });
+          },
           updateUser: function () { return Promise.resolve({ data: {}, error: null }); },
           mfa: {
             getAuthenticatorAssuranceLevel: function () { return Promise.resolve({ data: { currentLevel: 'aal1', nextLevel: 'aal1' }, error: null }); },

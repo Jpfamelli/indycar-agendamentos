@@ -344,3 +344,15 @@ test('pede atenção e gargalos: horas por extenso (o "4 h" partia em "4" e "h" 
   assert.equal(extra([{ etapa: 'pronto', etapa_em: velha }, { etapa: 'pronto', etapa_em: nova }]), '1 deles há mais de 4 horas');
   assert.equal(extra([{ etapa: 'pronto', etapa_em: velha }, { etapa: 'pronto', etapa_em: velha }]), 'todos há mais de 4 horas');
 });
+
+test('esqueci a senha: espera a resposta (botão desligado) e não pede de novo o mesmo e-mail no mesmo minuto', () => {
+  const s = semComentarios(ler('casa.js'));
+  const f = s.slice(s.indexOf('async function esqueci('), s.indexOf('async function confirmarMfa('));
+  assert.match(f, /if \(b\.disabled\) return;/);
+  assert.match(f, /resetPedido\.email === email && Date\.now\(\) - resetPedido\.em < 60_000/);
+  assert.match(f, /finally \{ b\.disabled = false;/);
+});
+
+test('aviso do pé: usa a largura da tela no celular (antes era metade, por causa do left 50%)', () => {
+  assert.match(ler('r9.css'), /\.toast \{ left: 16px; right: 16px; transform: none; width: fit-content; max-width: min\(560px, calc\(100vw - 32px\)\);/);
+});
