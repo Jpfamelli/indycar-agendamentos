@@ -282,6 +282,25 @@
     return { tom: 'ok', texto: 'Todos os sistemas em ordem' };
   }
 
+  /**
+   * Aviso único quando a saúde muda entre duas leituras (rodada 9: antes era um aviso por sistema, e como a Casa mostra
+   * um aviso de cada vez, com Pátio e Orçador caindo juntos só o último aparecia). Piorou vem primeiro.
+   * antes: { k: tom } da leitura anterior (null na primeira); itens: [{ k, nome, tom }]. Devolve o texto ou null.
+   */
+  function avisoDeMudancas(antes, itens) {
+    if (!antes) return null;
+    const lista = (v) => (v.length <= 1 ? v.join('') : v.slice(0, -1).join(', ') + ' e ' + v[v.length - 1]);
+    const piorou = [], voltou = [];
+    for (const i of itens || []) {
+      if (antes[i.k] && antes[i.k] !== 'ruim' && i.tom === 'ruim') piorou.push(i.nome);
+      else if (antes[i.k] === 'ruim' && i.tom === 'ok') voltou.push(i.nome);
+    }
+    const partes = [];
+    if (piorou.length) partes.push(`${lista(piorou)} ${piorou.length > 1 ? 'ficaram' : 'ficou'} com problema.`);
+    if (voltou.length) partes.push(`${lista(voltou)} ${voltou.length > 1 ? 'voltaram' : 'voltou'} ao normal.`);
+    return partes.length ? { texto: partes.join(' '), ruim: piorou.length > 0 } : null;
+  }
+
   /** Nome falado do logo do topo: com problema ou atenção, o leitor de tela ouve qual (o ponto ao lado era só cor). */
   function rotuloDoLogo(r) {
     if (!r || r.tom === 'ok' || r.tom === 'neutro') return 'IndyCar Central, início';
@@ -473,6 +492,6 @@
     ORIGENS_TAREFA, TIPOS_ORC_TAREFA, infoDaTarefa, ehDoOrcador, contarReabordar, linkDaDescricao, descricaoLimpa,
     NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, FAIXA_VIGIA, faixaDoVigia, saudeSistemas, resumoDaSaude,
     resumoLigacoes, ROTULO_ACAO, fichaDe, OPCOES_ADIAR, ateQuando, quandoVolta, acaoDoAviso, appDoAviso, textoDoAviso, filtrarPorTexto,
-    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc, rotuloDoLogo, textoDaVariacao,
+    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES, situacaoDoOrc, rotuloDoLogo, textoDaVariacao, avisoDeMudancas,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

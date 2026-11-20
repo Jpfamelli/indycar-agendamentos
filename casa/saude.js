@@ -78,12 +78,8 @@
   /** Avisa uma vez quando um sistema piora ou volta (comparando com a leitura anterior). */
   function avisarMudancas(s) {
     const agora = Object.fromEntries(s.itens.map((i) => [i.k, i.tom]));
-    if (antes) {
-      for (const i of s.itens) {
-        if (antes[i.k] && antes[i.k] !== 'ruim' && i.tom === 'ruim') C.toast(`${i.nome} ficou com problema.`, 5000);
-        else if (antes[i.k] === 'ruim' && i.tom === 'ok') C.toast(`${i.nome} voltou ao normal.`, 4000);
-      }
-    }
+    const aviso = N.avisoDeMudancas(antes, s.itens);
+    if (aviso) C.toast(aviso.texto, aviso.ruim ? 5000 : 4000);
     antes = agora;
   }
 

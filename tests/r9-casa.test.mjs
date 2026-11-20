@@ -512,3 +512,16 @@ test('faturamento da semana: a comparação diz "a mais" / "a menos" em palavras
   assert.doesNotMatch(p, /vs\. mesma altura|>novo</);
   assert.match(p, /comparado com a semana passada até este mesmo dia/);
 });
+
+test('saúde: sistemas que mudam juntos viram um aviso só (antes um por sistema, e só o último ficava na tela)', () => {
+  const itens = (tons) => Object.entries(tons).map(([k, tom]) => ({ k, nome: { patio: 'Pátio', orcador: 'Orçador', zap: 'WhatsApp', ia: 'IA' }[k], tom }));
+  assert.equal(N.avisoDeMudancas(null, itens({ patio: 'ruim' })), null, 'primeira leitura não avisa');
+  assert.deepEqual(N.avisoDeMudancas({ patio: 'ok', orcador: 'ok' }, itens({ patio: 'ruim', orcador: 'ruim' })), { texto: 'Pátio e Orçador ficaram com problema.', ruim: true });
+  assert.deepEqual(N.avisoDeMudancas({ patio: 'ruim' }, itens({ patio: 'ok' })), { texto: 'Pátio voltou ao normal.', ruim: false });
+  assert.equal(N.avisoDeMudancas({ patio: 'ok', orcador: 'aviso', zap: 'ok', ia: 'ruim' }, itens({ patio: 'ruim', orcador: 'ruim', zap: 'ruim', ia: 'ok' })).texto,
+    'Pátio, Orçador e WhatsApp ficaram com problema. IA voltou ao normal.');
+  assert.equal(N.avisoDeMudancas({ patio: 'ruim' }, itens({ patio: 'aviso' })), null, 'de problema para atenção não avisa');
+  const s = semComentarios(ler('saude.js'));
+  assert.match(s, /const aviso = N\.avisoDeMudancas\(antes, s\.itens\);/);
+  assert.doesNotMatch(s, /for \(const i of s\.itens\) \{\s*if \(antes/);
+});
