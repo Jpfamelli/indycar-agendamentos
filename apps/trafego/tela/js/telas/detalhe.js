@@ -130,7 +130,7 @@ export function abrir(obterCtx, alvo, id, { aoFechar, aoPrever = () => {}, aoMud
         filhos.push(h('p', { class: 'detalhe-pergunta' }, temValor ? 'Qual é o valor certo?' : 'Quanto foi o serviço? Sem o valor não dá para saber o retorno.'), campo.no, temValor ? cancelar : null);
       } else {
         const fonte = FONTES_DO_VALOR[d.valor_fonte];
-        if (fonte) filhos.push(h('p', { class: 'apoio' }, 'Valor: ' + fonte + '.'));
+        if (fonte) filhos.push(h('p', { class: 'apoio' }, fonte));
         if (!d.valor_fonte || d.valor_fonte === 'manual') filhos.push(h('button', { class: 'ligacao', type: 'button', on: { click: () => { modo = 'valor'; pintar({ foco: 'valor' }); } } }, 'Corrigir o valor'));
       }
     } else if (d.tipo === 'nao_fechou') {

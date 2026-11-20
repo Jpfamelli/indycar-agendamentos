@@ -32,7 +32,13 @@ export const MOTIVOS = [
 ];
 export const rotuloDoMotivo = (id) => MOTIVOS.find((m) => m.id === id)?.rotulo || null;
 
-export const FONTES_DO_VALOR = { patio: 'ordem de serviço do Pátio', orcamento: 'orçamento aprovado', agenda: 'valor da Agenda', manual: 'lançado à mão' };
+/** De onde veio o valor do serviço fechado, dito no detalhe. Só o lançado à mão se corrige aqui: o resto se corrige na origem. */
+export const FONTES_DO_VALOR = {
+  patio: 'O valor veio da ordem de serviço do Pátio: para corrigir, mude lá.',
+  orcamento: 'O valor veio do orçamento aprovado: para corrigir, mude o orçamento.',
+  agenda: 'O valor veio da Agenda: para corrigir, mude lá.',
+  manual: 'Valor lançado à mão.',
+};
 
 export const rotuloDaEtapa = (id) => ETAPAS.find((e) => e.id === id)?.rotulo || null;
 
@@ -100,14 +106,13 @@ export function situacao(item) {
   };
 }
 
-/** Frase para leitor de tela: "Chegou até Agendou, etapa 4 de 7. Em aberto, parado há 3 dias." */
+/** Frase do caminho (no detalhe e para leitor de tela): "Etapa 4 de 7: Agendou. Em aberto, parado há 3 dias." */
 export function descricaoDosSetores(item) {
   const tracos = miniSetores(item);
   const s = situacao(item);
   const i = s.tipo === 'fechou' ? ETAPAS.length - 1 : indiceAtual(item);
-  const partes = ['Chegou até ' + ETAPAS[i].rotulo + ', etapa ' + (i + 1) + ' de ' + ETAPAS.length + '.'];
-  if (s.tipo === 'fechou') partes.push('Serviço fechado.');
-  else if (s.tipo === 'nao_fechou') partes.push('Não fechou' + (s.detalhe ? ': ' + s.detalhe.toLowerCase() : '') + '.');
+  const partes = ['Etapa ' + (i + 1) + ' de ' + ETAPAS.length + ': ' + ETAPAS[i].rotulo + '.'];
+  if (s.tipo === 'fechou') { /* "Etapa 7 de 7: Fechou." já diz tudo */ } else if (s.tipo === 'nao_fechou') partes.push('Não fechou' + (s.detalhe ? ': ' + s.detalhe.toLowerCase() : '') + '.');
   else partes.push((s.tom === 'atencao' ? 'Esperando resposta' : 'Em aberto') + (s.detalhe ? ', ' + s.detalhe : '') + '.');
   const semRegistro = tracos.filter((t) => t.estado === 'pulou').map((t) => t.rotulo);
   if (semRegistro.length) partes.push('Sem registro de: ' + semRegistro.join(', ') + '.');
