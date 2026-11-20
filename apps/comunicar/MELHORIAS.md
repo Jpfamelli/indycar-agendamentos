@@ -1152,3 +1152,9 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-038** · conserto · Um aniversário inválido bloqueia a gravação parcial e indica qual seleção conferir (teste R10-COM-038 em testes-rodada7-api.mjs). · `5524d71`
 - **R10-COM-039** · segurança · A gravação recusa lotes com mais de 3.000 aniversários e informa o limite (teste R10-COM-039 em testes-rodada7-api.mjs). · `5524d71`
 - **R10-COM-040** · segurança · O detalhe do pedido ao gestor exige texto (teste R10-COM-040 em testes-rodada7-api.mjs). · `5524d71`
+- **R10-COM-041** · segurança · Prévia de campanha exige mensagem em texto. (teste R10-COM-041 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-042** · segurança · Envio de campanha recusa objetos no campo da mensagem. (teste R10-COM-042 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-043** · segurança · Envio de teste recusa listas no campo de telefone. (teste R10-COM-043 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-044** · segurança · Envio de teste recusa listas no campo da mensagem. (teste R10-COM-044 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-045** · segurança · Atualização do resumo exige confirmação booleana quando informada. (teste R10-COM-045 em testes-rodada7-api.mjs) · `f410f11`
+- **R10-COM-046** · segurança · Recusa de campanha exige motivo em texto quando informado. (teste R10-COM-046 em testes-rodada7-api.mjs) · `f410f11`
