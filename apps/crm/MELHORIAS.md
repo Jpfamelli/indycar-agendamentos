@@ -1448,3 +1448,10 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-022** · segurança · Alteração de integração exige booleano para ativar ou desativar o canal (teste R10-CRM-022 em testes/r10-integracoes.test.cjs) · `f40c469`
 - **R10-CRM-023** · segurança · Configuração de mídia recusa objetos, listas e números nos campos de texto (teste R10-CRM-023 em testes/r10-integracoes.test.cjs) · `f40c469`
 - **R10-CRM-024** · conserto · Configuração do Meta recusa datas de expiração inexistentes (teste R10-CRM-024 em testes/r10-integracoes.test.cjs) · `f40c469`
+- **R10-CRM-025** · conserto · Cadastro rejeita data fora do calendário antes de salvar o contato (teste R10-CRM-025 em testes/r10-json.test.cjs) · `4d738e7`
+- **R10-CRM-026** · conserto · Edição preserva o valor do orçamento quando a entrada monetária contém só espaços (teste R10-CRM-026 em testes/r10-json.test.cjs) · `4d738e7`
+- **R10-CRM-027** · segurança · Criação de tarefa exige que o título seja texto (teste R10-CRM-027 em testes/r10-tarefas.test.cjs) · `a139891`
+- **R10-CRM-028** · conserto · Criação de tarefa rejeita uma descrição em formato de objeto (teste R10-CRM-028 em testes/r10-tarefas.test.cjs) · `a139891`
+- **R10-CRM-029** · conserto · Criação de tarefa mantém prioridade alta reservada à opção explícita (teste R10-CRM-029 em testes/r10-tarefas.test.cjs) · `a139891`
+- **R10-CRM-030** · conserto · Criação de tarefa rejeita listas no campo de prazo (teste R10-CRM-030 em testes/r10-tarefas.test.cjs) · `a139891`
+- **R10-CRM-031** · desempenho · Salvar integração passa de duas operações para uma na tabela de configuração (teste R10-CRM-031 em testes/r10-integracoes.test.cjs, commit do teste 4d81988) · `f40c469`
