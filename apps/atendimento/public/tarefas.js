@@ -310,7 +310,7 @@ const Tarefas = (() => {
         tarefas_hoje: t.filter(x => grupoDe(x) === 'hoje').length, conversas_abertas: CONVERSAS.filter(c => c.atribuida_a === p.id).length, _local: true };
     });
     const max = Math.max(1, ...linhas.map(l => (l.tarefas_abertas || 0) + (l.conversas_abertas || 0)));
-    el.innerHTML = (CARGA === 'sem-rota' ? '<p class="aviso carga-aviso">🛠 Carga calculada aqui na tela (o servidor ainda não tem GET /api/tarefas/equipe): conversas contam só as carregadas.</p>' : '')
+    el.innerHTML = (CARGA === 'sem-rota' ? '<p class="aviso carga-aviso">🛠 Carga calculada aqui na tela, só com as conversas já carregadas. Para o número completo, peça a quem cuida do sistema para publicar a versão nova do servidor.</p>' : '')
       + linhas.sort((a, b) => (b.tarefas_atrasadas || 0) - (a.tarefas_atrasadas || 0) || (b.tarefas_abertas || 0) - (a.tarefas_abertas || 0)).map(l => {
         const id = l.perfil_id || l.id;
         const tot = (l.tarefas_abertas || 0) + (l.conversas_abertas || 0);

@@ -49,7 +49,7 @@ const Equipe = (() => {
     return j;
   }
   const avisoSemRota = (oque) => `<div class="estado-vazio aviso-rota"><span class="vazio-ico" aria-hidden="true">🛠</span>
-    <p><b>${esc(oque)} ainda não chegou no servidor.</b><br>A tela já está pronta, assim que o servidor for atualizado, aparece aqui sozinho.</p></div>`;
+    <p><b>${esc(oque)} ainda não está disponível.</b><br>O servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor. Depois disso aparece aqui sozinho.</p></div>`;
 
   /* ---------------- Início ---------------- */
   async function iniciar() {
@@ -247,7 +247,7 @@ const Equipe = (() => {
       + (pend ? ` · ${pend} ainda não entr${pend === 1 ? 'ou' : 'aram'}` : '')
       + (PESSOAS.length - ativos ? ` · ${PESSOAS.length - ativos} desativad${PESSOAS.length - ativos === 1 ? 'a' : 'as'}` : '');
     $('#btnConvidar').hidden = !ehAdmin() || semRotaEquipe;
-    $('#gradeEquipe').innerHTML = (semRotaEquipe ? avisoSemRota('A lista completa da equipe (GET /api/equipe)') : '')
+    $('#gradeEquipe').innerHTML = (semRotaEquipe ? avisoSemRota('A lista completa da equipe') : '')
       + AVISOS.map(a => `<p class="aviso faixa-leitura aviso-rota-linha">⚠️ ${esc(a)}</p>`).join('')
       + (lista.length ? lista.map(cartaoPessoa).join('')
         : `<div class="estado-vazio"><span class="vazio-ico" aria-hidden="true">🔍</span><p>Ninguém com esses filtros.</p></div>`);
@@ -354,7 +354,7 @@ const Equipe = (() => {
       recarregar();
       carregarNomesDaEquipe();
     } catch (err) {
-      falha(err instanceof SemRota ? 'O servidor ainda não tem o convite novo (POST /api/equipe). Fale com quem cuida do sistema.' : err.message);
+      falha(err instanceof SemRota ? 'Ainda não dá para convidar por aqui: o servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor.' : err.message);
     } finally { btn.disabled = false; if (convite.passo === 3) btn.textContent = 'Convidar'; }
   }
   function caixaSenha({ nome, email, senha, novo }) {
@@ -454,7 +454,7 @@ const Equipe = (() => {
       renderEquipe();
       carregarNomesDaEquipe();
     } catch (err) {
-      erro.textContent = err instanceof SemRota ? 'O servidor ainda não tem a edição da equipe (PATCH /api/equipe/:id).' : err.message;
+      erro.textContent = err instanceof SemRota ? 'Ainda não dá para editar a equipe por aqui: o servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor.' : err.message;
       erro.hidden = false;
     } finally { btn.disabled = false; }
   }
@@ -490,7 +490,7 @@ const Equipe = (() => {
       renderEquipe();
       carregarNomesDaEquipe();
     } catch (err) {
-      $('#pessoaErro').textContent = err instanceof SemRota ? 'O servidor ainda não tem a edição da equipe (PATCH /api/equipe/:id).' : err.message;
+      $('#pessoaErro').textContent = err instanceof SemRota ? 'Ainda não dá para editar a equipe por aqui: o servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor.' : err.message;
       $('#pessoaErro').hidden = false;
     }
   }
@@ -507,7 +507,7 @@ const Equipe = (() => {
       toast(`🛡 Verificação em duas etapas de ${primeiroNome(p.nome)} removida`, 'ok');
       renderEquipe();
     } catch (err) {
-      $('#pessoaErro').textContent = err instanceof SemRota ? 'O servidor ainda não remove a verificação (POST /api/equipe/:id/mfa/remover).' : err.message;
+      $('#pessoaErro').textContent = err instanceof SemRota ? 'Ainda não dá para remover a verificação em duas etapas por aqui: o servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor.' : err.message;
       $('#pessoaErro').hidden = false;
     }
   }
@@ -525,7 +525,7 @@ const Equipe = (() => {
       abrirModal('modalSenhaTempBg', '[data-copiar-senha]');
       renderEquipe();
     } catch (err) {
-      $('#pessoaErro').textContent = err instanceof SemRota ? 'O servidor ainda não gera senha temporária (POST /api/equipe/:id/senha-temporaria).' : err.message;
+      $('#pessoaErro').textContent = err instanceof SemRota ? 'Ainda não dá para gerar senha temporária por aqui: o servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor.' : err.message;
       $('#pessoaErro').hidden = false;
     }
   }
@@ -570,7 +570,7 @@ const Equipe = (() => {
     } catch (err) {
       if (g !== geracaoAud) return;
       $('#audPaginacao').hidden = true;
-      el.innerHTML = err instanceof SemRota ? avisoSemRota('A auditoria (GET /api/auditoria)')
+      el.innerHTML = err instanceof SemRota ? avisoSemRota('A auditoria')
         : `<div class="estado-vazio"><span class="vazio-ico" aria-hidden="true">⚠️</span><p>${esc(err.message)}</p>
            <button type="button" class="btn btn-ghost sm" data-de-novo="auditoria">Tentar de novo</button></div>`;
     }
@@ -588,7 +588,7 @@ const Equipe = (() => {
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       toast('⬇ Auditoria exportada (a exportação também fica registrada)', 'ok');
     } catch (err) {
-      toast(err instanceof SemRota ? '🛠 O servidor ainda não exporta a auditoria (GET /api/auditoria.csv).' : '⚠️ ' + err.message, err instanceof SemRota ? '' : 'erro');
+      toast(err instanceof SemRota ? '🛠 Ainda não dá para exportar a auditoria: o servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor.' : '⚠️ ' + err.message, err instanceof SemRota ? '' : 'erro');
     } finally { btn.disabled = false; btn.textContent = '⬇ Exportar CSV'; }
   }
 
