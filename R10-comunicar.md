@@ -18,4 +18,4 @@ O roteiro compartilhado passou em 375 e 1440 px, nos dois temas, com mocks e blo
 
 ## Identidade dos mocks
 
-O roteiro compartilhado agora consulta uma rota exclusiva de cada mock, com timeout e bloqueio de redirecionamento, antes de iniciar o Chrome. O teste novo falhou no c?digo anterior e passou no commit `4cbe2d9`. A su?te passou de 310/310 para 311/311. A execu??o do Chrome registrada acima ? anterior a esse commit.
+O roteiro compartilhado agora consulta uma rota exclusiva de cada mock, com timeout e bloqueio de redirecionamento, antes de iniciar o Chrome. O teste novo falhou no c?digo anterior e passou no commit `4cbe2d9`. A su?te passou de 310/310 para 311/311. O roteiro foi repetido ap?s o commit e passou nos oito cen?rios: 375 e 1440 px, tema claro e escuro, Atendimento e Comunicar. Os dois servidores eram mocks locais e a intercepta??o de rede ficou ativa.
