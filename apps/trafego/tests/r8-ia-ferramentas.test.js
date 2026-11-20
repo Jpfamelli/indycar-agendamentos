@@ -271,9 +271,9 @@ test('proposta_criar: aumento acima de 30% ou acima do teto mensal entra com ris
   const a = await rodar('proposta_criar', verba(50, 60), PROPOR);
   assert.equal(a.proposta.risco, 'normal');
   const b = await rodar('proposta_criar', verba(50, 70), PROPOR);
-  assert.equal(b.proposta.risco, 'alto'); assert.match(b.proposta.risco_motivo, /40%, acima de 30%/);
+  assert.equal(b.proposta.risco, 'alto'); assert.equal(b.proposta.risco_motivo, 'Risco alto: aumento de 40% de uma vez (o passo seguro é até 30%).');
   const c = await rodar('proposta_criar', verba(2800, 3200, 'mes'), PROPOR);
-  assert.equal(c.proposta.risco, 'alto'); assert.match(c.proposta.risco_motivo, /teto mensal de R\$\s3\.000/);
+  assert.equal(c.proposta.risco, 'alto'); assert.match(c.proposta.risco_motivo, /no mês daria R\$\s3\.200, acima da verba do mês \(R\$\s3\.000\)/);
   assert.equal(amb.sb.tabelas.trafego_acoes.at(-1).evidencias.risco, 'alto');
   await assert.rejects(rodar('proposta_criar', { ...PROPOSTA, tipo: 'aumentar_verba' }, PROPOR), e => /"verba"/.test(e.message));
   await assert.rejects(rodar('proposta_criar', verba(60, 50), PROPOR), e => /maior que a atual/.test(e.message));

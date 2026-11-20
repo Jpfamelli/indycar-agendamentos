@@ -15,7 +15,7 @@ import { dinheiro, inteiro, numero, dataCurta, haQuanto, ehNumero } from '../for
 import { selo, semDado, erroNoCampo } from '../pecas.js';
 import { lerFluxo, olhando } from '../fluxo.js';
 import { blocosDoTexto, montarBlocos } from '../formatacao.js';
-import { separar, lerAcao, quemFaz, antesEDepois, perguntasProntas, quemNoDiario, anotacao, ONDE_ANOTAR, NOME_DO_TIPO } from '../acoes-logica.js';
+import { separar, lerAcao, quemFaz, antesEDepois, perguntasProntas, quemNoDiario, anotacao, ONDE_ANOTAR, NOME_DO_TIPO, quandoMedeODepois } from '../acoes-logica.js';
 import { fraseDoErro } from './estados.js';
 
 const MAX_PERGUNTA = 2000;
@@ -272,8 +272,9 @@ export function mostrar(ctxInicial) {
         h('thead', null, h('tr', null,
           h('th', { scope: 'col' }, h('span', { class: 'so-leitor' }, 'Medida')),
           h('th', { scope: 'col' }, 'Antes', a.antes && a.antes.periodo ? h('span', { class: 'diario-periodo' }, a.antes.periodo) : null),
-          h('th', { scope: 'col' }, 'Depois', a.depois && a.depois.periodo ? h('span', { class: 'diario-periodo' }, a.depois.periodo) : null))),
-        h('tbody', null, linhas.map((m) => h('tr', null, h('th', { scope: 'row' }, m.rotulo), h('td', null, valorDaMedida(m, m.antes)), h('td', null, a.depois ? valorDaMedida(m, m.depois) : semDado('ainda não medido')))))) : null,
+          a.depois ? h('th', { scope: 'col' }, 'Depois', a.depois.periodo ? h('span', { class: 'diario-periodo' }, a.depois.periodo) : null) : null)),
+        h('tbody', null, linhas.map((m) => h('tr', null, h('th', { scope: 'row' }, m.rotulo), h('td', null, valorDaMedida(m, m.antes)), a.depois ? h('td', null, valorDaMedida(m, m.depois)) : null)))) : null,
+      linhas.length && !a.depois && quandoMedeODepois(a) ? h('p', { class: 'apoio' }, quandoMedeODepois(a)) : null,
       a.nota ? h('p', { class: 'diario-nota apoio' }, 'Nota: ' + a.nota) : null);
   }
 

@@ -37,3 +37,12 @@ test('detalheSemCampanha: na campanha aberta, a linha do contato não repete o n
   assert.equal(detalheSemCampanha('Taubaté › Vídeo', null), 'Taubaté › Vídeo');
   assert.equal(detalheSemCampanha('', 'X'), null);
 });
+
+import { quandoMedeODepois } from '../js/acoes-logica.js';
+test('diário: sem o depois, uma linha diz quando ele chega (nunca para recusada ou expirada)', () => {
+  assert.equal(quandoMedeODepois({ status: 'feita', medirEm: '2026-11-26' }), 'O depois sai em 26/11, quando o Tráfego mede.');
+  assert.equal(quandoMedeODepois({ status: 'feita', medirEm: null }), 'O depois ainda não foi medido.');
+  assert.equal(quandoMedeODepois({ status: 'aceita', medirEm: '2026-11-26' }), 'O depois é medido quando a mudança for feita.');
+  assert.equal(quandoMedeODepois({ status: 'recusada' }), null);
+  assert.equal(quandoMedeODepois({ status: 'expirada' }), null);
+});

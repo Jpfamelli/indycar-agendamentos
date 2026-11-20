@@ -666,7 +666,7 @@ function acoesBrutas(m) {
       alvo: { plataforma: 'google', nivel: 'campanha', ext: '20881330002', nome: 'Troca de óleo' },
       evidencias: [{ texto: 'R$ 319 de gasto e 0 serviço fechado de 01/11 a 19/11' }, { texto: 'Custo por contato de R$ 64, contra R$ 38 da média' }],
       medir_em: '2026-11-26', antes: null, depois: null, veredito: null, decidida_por: null, decidida_em: null, feita_em: null, nota: null },
-    { id: 'a-02', criada_em: '2026-11-19T07:00:00-03:00', origem: 'ia', autor: 'Gestor IA', tipo: 'aumentar_verba', status: 'proposta', risco: 'alto', risco_motivo: 'Risco alto: aumento de 40%, acima de 30%.', verba: { atual: 25, nova: 35, por: 'dia' },
+    { id: 'a-02', criada_em: '2026-11-19T07:00:00-03:00', origem: 'ia', autor: 'Gestor IA', tipo: 'aumentar_verba', status: 'proposta', risco: 'alto', risco_motivo: 'Risco alto: aumento de 40% de uma vez (o passo seguro é até 30%).', verba: { atual: 25, nova: 35, por: 'dia' },
       titulo: 'Aumentar a verba da "Troca de óleo R$ 169" de R$ 25 para R$ 35 por dia',
       porque: 'É a campanha que mais fecha serviço e a agenda da semana que vem tem vaga.',
       alvo: { plataforma: 'meta', nivel: 'campanha', ext: '120211450001', nome: 'Troca de óleo R$ 169' },

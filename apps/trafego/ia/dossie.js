@@ -800,9 +800,10 @@ function prepararProposta(args, { hoje, tetoMensal = null }) {
     if (args.tipo === 'aumentar_verba') {
       const motivos = [];
       const aumento = v.nova / v.atual - 1;
-      if (aumento > AUMENTO_SEM_RISCO) motivos.push(`aumento de ${Math.round(aumento * 100)}%, acima de ${Math.round(AUMENTO_SEM_RISCO * 100)}%`);
+      // rodada 9: diz o que o número quer dizer (antes: "aumento de 40%, acima de 30%", sem dizer que 30% é o passo seguro)
+      if (aumento > AUMENTO_SEM_RISCO) motivos.push(`aumento de ${Math.round(aumento * 100)}% de uma vez (o passo seguro é até ${Math.round(AUMENTO_SEM_RISCO * 100)}%)`);
       const noMes = por === 'mes' ? v.nova : v.nova * DIAS_NO_MES;
-      if (tetoMensal != null && noMes > tetoMensal) motivos.push(`passa do teto mensal de ${dinheiro(tetoMensal)}`);
+      if (tetoMensal != null && noMes > tetoMensal) motivos.push(`no mês daria ${dinheiro(noMes)}, acima da verba do mês (${dinheiro(tetoMensal)})`);
       if (motivos.length) { risco = 'alto'; riscoMotivo = `Risco alto: ${motivos.join(' e ')}.`; }
     }
   }

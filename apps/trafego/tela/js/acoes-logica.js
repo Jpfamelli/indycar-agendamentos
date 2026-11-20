@@ -180,3 +180,16 @@ export function anotacao({ tipo, titulo, onde, campanha, porque } = {}) {
   }
   return { ok: true, corpo };
 }
+
+/** "2026-11-26" → "26/11" (a data vem pronta do servidor; sem fuso no meio). */
+const ddmm = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] : null; };
+
+/**
+ * Sem o "depois" ainda, o diário mostra só a coluna "Antes" e diz numa linha quando o depois chega
+ * (antes repetia "ainda não medido" em cada linha da tabela). Recusada ou expirada nunca terá depois: null.
+ */
+export function quandoMedeODepois(a) {
+  if (!a || a.status === 'recusada' || a.status === 'expirada') return null;
+  if (a.status === 'feita') return ddmm(a.medirEm) ? 'O depois sai em ' + ddmm(a.medirEm) + ', quando o Tráfego mede.' : 'O depois ainda não foi medido.';
+  return 'O depois é medido quando a mudança for feita.';
+}
