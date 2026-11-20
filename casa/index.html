@@ -29,11 +29,11 @@
       <h1 class="entrada-titulo">Entrar na <em>Central</em></h1>
       <p class="entrada-sub">Um login só para Agenda, Atendimento, CRM, Comunicar, Tráfego, Pátio e Orçador.</p>
       <label class="campo"><span>E-mail</span>
-        <input id="lEmail" type="email" autocomplete="username" inputmode="email" required />
+        <input id="lEmail" type="email" autocomplete="username" inputmode="email" required aria-describedby="lErro" />
       </label>
       <label class="campo"><span>Senha</span>
         <span class="senha-linha">
-          <input id="lSenha" type="password" autocomplete="current-password" required />
+          <input id="lSenha" type="password" autocomplete="current-password" required aria-describedby="lErro lCaps" />
           <button type="button" class="btn-olho" data-olho="lSenha" aria-label="Mostrar senha">👁</button>
         </span>
       </label>
@@ -48,7 +48,7 @@
       <h1 class="entrada-titulo">Código de <em>verificação</em></h1>
       <p class="entrada-sub">Abra o app autenticador e digite os 6 números.</p>
       <label class="campo"><span>Código</span>
-        <input id="mCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required />
+        <input id="mCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required aria-describedby="mErro" />
       </label>
       <p id="mErro" class="erro" role="alert" hidden></p>
       <button class="btn btn-forte" type="submit">Confirmar</button>
@@ -60,12 +60,12 @@
       <p id="sMotivo" class="entrada-sub">Escolha uma senha nova para continuar.</p>
       <label class="campo"><span>Nova senha (mínimo 8)</span>
         <span class="senha-linha">
-          <input id="sNova" type="password" autocomplete="new-password" minlength="8" required />
+          <input id="sNova" type="password" autocomplete="new-password" minlength="8" required aria-describedby="sErro" />
           <button type="button" class="btn-olho" data-olho="sNova" aria-label="Mostrar senha">👁</button>
         </span>
       </label>
       <label class="campo"><span>Repita a senha</span>
-        <input id="sRepete" type="password" autocomplete="new-password" minlength="8" required />
+        <input id="sRepete" type="password" autocomplete="new-password" minlength="8" required aria-describedby="sErro" />
       </label>
       <p id="sErro" class="erro" role="alert" hidden></p>
       <button class="btn btn-forte" type="submit">Gravar senha</button>

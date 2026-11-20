@@ -157,3 +157,6 @@ button.t-texto:hover { text-decoration: underline dotted; }
 .meta-form .btn-meta { min-height: 44px; padding: 0 18px; }
 .meta-form .btn-link { min-height: 44px; }
 .meta-form small { color: var(--muted); }
+
+/* campo com erro nos formulários de entrada (o erro diz qual campo; antes só a frase embaixo) */
+.campo input[aria-invalid="true"] { border-color: var(--cor-grave); box-shadow: 0 0 0 1px var(--cor-grave); }

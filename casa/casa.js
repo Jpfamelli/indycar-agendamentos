@@ -55,6 +55,13 @@
     clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, ms);
   }
   function erro(el, msg) { const e = $(el); e.textContent = msg || ''; e.hidden = !msg; }
+  /* rodada 9: erro nos formulários de entrada aponta o campo: aria-invalid (borda de erro) no campo certo e o foco vai
+     para ele, com o texto selecionado; antes o erro aparecia embaixo e o foco ficava no botão. */
+  function apontar(form, sel) {
+    for (const i of $(form).querySelectorAll('input[aria-invalid]')) i.removeAttribute('aria-invalid');
+    if (!sel) return;
+    const i = $(sel); i.setAttribute('aria-invalid', 'true'); i.focus(); if (i.select) i.select();
+  }
   function mensagemDeErro(e) {
     const m = String(e?.message || e || '');
     if (/invalid login credentials/i.test(m)) return 'E-mail ou senha não conferem.';
@@ -129,7 +136,8 @@
     erro('#lErro', '');
     const email = $('#lEmail').value.trim().toLowerCase();
     const senha = $('#lSenha').value;
-    if (!email || !senha) return erro('#lErro', 'Preencha o e-mail e a senha.');
+    apontar('#fLogin', null);
+    if (!email || !senha) { apontar('#fLogin', !email ? '#lEmail' : '#lSenha'); return erro('#lErro', !email ? 'Preencha o e-mail.' : 'Preencha a senha.'); }
     const espera = esperaPorErros();
     const ultimo = Number(ler(LS_ERROS + '_em')) || 0;
     if (espera && Date.now() - ultimo < espera * 1000) {
@@ -144,7 +152,7 @@
       $('#lSenha').value = '';
       await depoisDoLogin();
     } catch (e) {
-      if (/invalid login/i.test(String(e?.message))) { gravar(LS_ERROS, String((Number(ler(LS_ERROS)) || 0) + 1)); gravar(LS_ERROS + '_em', String(Date.now())); }
+      if (/invalid login/i.test(String(e?.message))) { gravar(LS_ERROS, String((Number(ler(LS_ERROS)) || 0) + 1)); gravar(LS_ERROS + '_em', String(Date.now())); apontar('#fLogin', '#lSenha'); }
       erro('#lErro', mensagemDeErro(e));
     } finally { b.disabled = false; b.textContent = 'Entrar'; }
   }
@@ -174,7 +182,8 @@
     ev.preventDefault();
     erro('#mErro', '');
     const code = $('#mCodigo').value.replace(/\s/g, '');
-    if (!/^\d{6}$/.test(code)) return erro('#mErro', 'O código tem 6 números.');
+    apontar('#fMfa', null);
+    if (!/^\d{6}$/.test(code)) { apontar('#fMfa', '#mCodigo'); return erro('#mErro', 'O código tem 6 números.'); }
     try {
       const { data } = await sb.auth.mfa.listFactors();
       const f = (data?.totp || []).find((x) => x.status === 'verified');
@@ -190,10 +199,11 @@
     ev.preventDefault();
     erro('#sErro', '');
     const a = $('#sNova').value, b = $('#sRepete').value;
-    if (a.length < 8) return erro('#sErro', 'Use pelo menos 8 caracteres.');
-    if (a !== b) return erro('#sErro', 'As duas senhas não são iguais.');
+    apontar('#fSenha', null);
+    if (a.length < 8) { apontar('#fSenha', '#sNova'); return erro('#sErro', 'Use pelo menos 8 caracteres.'); }
+    if (a !== b) { apontar('#fSenha', '#sRepete'); return erro('#sErro', 'As duas senhas não são iguais.'); }
     const email = sessao?.user?.email || '';
-    if (email && a.toLowerCase() === email.toLowerCase()) return erro('#sErro', 'A senha não pode ser o seu e-mail.');
+    if (email && a.toLowerCase() === email.toLowerCase()) { apontar('#fSenha', '#sNova'); return erro('#sErro', 'A senha não pode ser o seu e-mail.'); }
     try {
       const { error } = await sb.auth.updateUser({ password: a });
       if (error) throw error;
@@ -299,6 +309,7 @@
   /* ---------------- ligações da tela ---------------- */
   function ligar() {
     $('#fLogin').addEventListener('submit', entrar);
+    for (const f of ['#fLogin', '#fMfa', '#fSenha']) $(f).addEventListener('input', (e) => { if (e.target.matches('input')) e.target.removeAttribute('aria-invalid'); });
     $('#lEsqueci').addEventListener('click', esqueci);
     $('#fMfa').addEventListener('submit', confirmarMfa);
     $('#fSenha').addEventListener('submit', gravarSenha);
