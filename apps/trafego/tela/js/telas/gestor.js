@@ -505,11 +505,22 @@ export function mostrar(ctxInicial) {
     } catch { temConta = false; }
     pintarProntas();
   }
+  /** Oficina sem nenhum contato nos últimos 30 dias: as perguntas prontas viram as de quem está começando
+   *  (antes "temContatos" nunca mudava e quem não tinha contato via "Por que tantos contatos estão sem origem?"). */
+  async function carregarContatos() {
+    try {
+      const d = (await ctx.leitor.ler('api/jornada?periodo=30d&tamanho=1')).dados;
+      if (saiu) return;
+      const total = d && d.pagina && ehNumero(d.pagina.total) ? d.pagina.total : null;
+      if (total === 0 && temContatos) { temContatos = false; pintarProntas(); }
+    } catch { /* sem a contagem, ficam as perguntas de quem já tem contatos */ }
+  }
 
   carregando(el.decidir); carregando(el.plano); carregando(el.conversas);
   pintarVazio();
   pintarProntas();
   carregarConexoes();
+  carregarContatos();
   carregarAcoes();
   carregarPlano();
   carregarConversas();

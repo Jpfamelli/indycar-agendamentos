@@ -165,6 +165,17 @@ export const CASOS = {
     conferir(lidas.some((u) => u.includes('fresco=1')), 'releu as conexões sem memória: ' + lidas.join(', '));
     conferir(/pedida na tela/.test(await texto(pagina, '.coleta-resultado')), 'a última busca é a pedida agora');
   },
+
+  /* Gestor sem nenhum contato: as perguntas prontas são as de quem está começando (antes nunca mudavam). */
+  async 'gestor-prontas-comeco'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=comeco#/gestor', { waitUntil: 'networkidle0' });
+    const comeco = await pagina.$$eval('.gestor-prontas .ficha', (l) => l.map((b) => b.textContent.trim()));
+    conferir(comeco.includes('O que preciso ligar para o Tráfego funcionar?'), 'pergunta de quem começa: ' + comeco.join(' | '));
+    conferir(!comeco.some((t) => /sem origem|esperando resposta/.test(t)), 'nada sobre contatos que não existem');
+    await pagina.goto(endereco + '?cenario=cheio#/gestor', { waitUntil: 'networkidle0' });
+    const cheio = await pagina.$$eval('.gestor-prontas .ficha', (l) => l.map((b) => b.textContent.trim()));
+    conferir(!cheio.includes('O que preciso ligar para o Tráfego funcionar?'), 'com contatos, as de sempre: ' + cheio.join(' | '));
+  },
 };
 
 const puppeteer = await carregarPuppeteer();
