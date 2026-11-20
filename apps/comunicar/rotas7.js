@@ -133,8 +133,10 @@ export function registrarRotas7(c) {
     if (body.so_perderam !== undefined && typeof body.so_perderam !== 'boolean') {
       return bad(res, 'Confirme se a triagem deve incluir só mensagens que perderam o sentido.', { campo: 'so_perderam' });
     }
-    const tipos = Array.isArray(body.tipos) ? body.tipos.map(String).filter((t) => dados.TIPOS_ENVIO.includes(t)) : [];
-    if (!tipos.length) return bad(res, 'Escolha pelo menos um tipo de mensagem.');
+    const { tipos } = body;
+    if (!Array.isArray(tipos) || !tipos.length || tipos.some((tipo) => !dados.TIPOS_ENVIO.includes(tipo))) {
+      return bad(res, 'Escolha apenas tipos de mensagem da lista.', { campo: 'tipos' });
+    }
     const r = await dados.aplicarTriagem({ tipos, soPerderam: body.so_perderam !== false });
     esquecerCache('agenda', 'fila', 'resumo', 'retomada');
     auditar(usuario, 'triagem_fila', 'posvenda_envios', null, { tipos, cancelados: r.cancelados, so_perderam: body.so_perderam !== false });

@@ -328,3 +328,17 @@ test('R7 API: rotas caras têm limite por minuto (429) sem afetar outra pessoa',
     assert.equal((await s.chamar('atendente', 'GET', '/api/previa/exata')).status, 200);
   } finally { await s.fechar(); }
 });
+
+test('R10-COM-034: a triagem recusa seleção parcialmente inválida sem cancelar mensagens', async () => {
+  const s = await subir({ livre: true });
+  try {
+    const envio = pend(831, { tipo: 'lembrete', enviar_em: futuro(-1800), expira_em: futuro(1440) });
+    tabelas.posvenda_envios.push(envio);
+    for (const tipos of [['lembrete', 'inventado'], [['lembrete']]]) {
+      const r = await s.chamar('gestor', 'POST', '/api/retomada/triagem', { tipos });
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, 'tipos');
+      assert.equal(tabelas.posvenda_envios.find(e => e.id === envio.id).status, 'pendente');
+    }
+  } finally { await s.fechar(); }
+});
