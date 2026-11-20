@@ -343,10 +343,88 @@ test('R10-AGE-024: o calendário (ICS) tem freio para quem tenta adivinhar o tok
 });
 
 /* ------------------------------------------------------------------ erros que vazavam detalhe ---- */
+test('R10-AGE-025: recusa do Supabase ao cadastrar alguém não vai crua para a tela', async () => {
+  const novo = { nome: 'Pessoa Nova', email: 'nova@indycar.teste', senha: 'senha-bem-comprida-1' };
+  falhas.cadastro = 'Database error saving new user: relation "public.perfis" violates check constraint "perfis_papel_check"';
+  const r = await chamar('admin', 'POST', '/api/equipe', novo);
+  assert.equal(r.status, 400); assert.doesNotMatch(r.j.erro, /Database|relation|constraint|perfis/);
+  assert.match(r.j.erro, /Não consegui criar o acesso/);
+  falhas.cadastro = 'Password should contain at least one character of each: abcdefghijklmnopqrstuvwxyz';
+  assert.match((await chamar('admin', 'POST', '/api/equipe', novo)).j.erro, /senha/i);
+  falhas.cadastro = 'A user with this email address has already been registered';
+  const rep = await chamar('admin', 'POST', '/api/equipe', novo);
+  assert.equal(rep.status, 409); assert.match(rep.j.erro, /Já existe alguém cadastrado/);
+});
+
+test('R10-AGE-026: falha da fila do Comunicar (lembrete e aviso de remarcação) não mostra o erro do banco', async () => {
+  falhas.lembrete = 'relation "posvenda_envios" does not exist (42P01)';
+  const l = await chamar('atendente', 'POST', `/api/agendamentos/${ID(11)}/lembrete`, {});
+  assert.equal(l.j.ok, false); assert.doesNotMatch(JSON.stringify(l.j), /relation|42P01|posvenda_envios/);
+  assert.match(l.j.motivo, /fila do Comunicar não aceitou/);
+  falhas.remarcacao = 'new row violates row-level security policy for table "posvenda_envios"';
+  const a = await chamar('atendente', 'POST', `/api/agendamentos/${ID(11)}/avisar-remarcacao`, {});
+  assert.equal(a.j.enfileirado, false); assert.doesNotMatch(JSON.stringify(a.j), /row-level|policy|posvenda_envios/);
+  assert.ok(a.j.whatsapp, 'o link com o texto pronto continua vindo');
+});
 
 /* ------------------------------------------------------------------ entradas que faltava conferir ---- */
+test('R10-AGE-027: editar um horário não grava motivo de falta fora da lista nem carimbo de aviso que não é data', async () => {
+  const put = (c) => chamar('atendente', 'PUT', `/api/agendamentos/${ID(11)}`, c);
+  for (const [c, recado] of [
+    [{ motivo_falta: '<img src=x onerror=alert(1)>' }, /Motivo inválido/], [{ motivo_falta: { a: 1 } }, /Motivo inválido/],
+    [{ no_show_notificado_em: 'ontem à tarde' }, /Data do aviso inválida/], [{ no_show_notificado_em: { a: 1 } }, /Data do aviso inválida/],
+    [{ origem: { a: 1 } }, /Campo inválido: origem/], [{ status: 'inventado' }, /Situação inválida/],
+  ]) {
+    const r = await put(c);
+    assert.equal(r.status, 400, JSON.stringify(c)); assert.match(r.j.erro, recado);
+  }
+  assert.equal(gravado.agendamento, undefined);
+  const ok = await put({ observacoes: 'Cliente pediu para ligar antes', no_show_notificado_em: '2026-11-20T12:00:00.000Z' });
+  assert.equal(ok.status, 200); assert.equal(gravado.agendamento.no_show_notificado_em, '2026-11-20T12:00:00.000Z');
+});
+
+test('R10-AGE-028: cadastro de cliente confere tipo e tamanho de cada campo (novo e edição)', async () => {
+  const bom = { nome: 'Maria Souza', telefone: '(12) 99111-0001', veiculo: 'HB20', placa: 'ABC1D23', email: 'maria@exemplo.com' };
+  for (const [c, recado] of [
+    [{ ...bom, nome: { a: 1 } }, /Informe o nome/], [{ ...bom, nome: 'N'.repeat(161) }, /Nome longo demais/],
+    [{ ...bom, veiculo: 'V'.repeat(121) }, /Carro longo demais/], [{ ...bom, placa: ['A'] }, /Campo inválido: placa/],
+    [{ ...bom, placa: 'P'.repeat(21) }, /Placa longa demais/], [{ ...bom, email: 'sem-arroba' }, /E-mail inválido/],
+    [{ ...bom, observacoes: 'o'.repeat(4001) }, /Observações longas demais/], [{ ...bom, modelo: { a: 1 } }, /Campo inválido: modelo/],
+  ]) {
+    const novo = await chamar('atendente', 'POST', '/api/clientes', c);
+    assert.equal(novo.status, 400, JSON.stringify(c).slice(0, 50)); assert.match(novo.j.erro, recado);
+    const { nome, ...resto } = c;
+    const edita = await chamar('atendente', 'PUT', `/api/clientes/${ID(601)}`, typeof nome === 'string' && nome.length <= 160 ? resto : c);
+    assert.equal(edita.status, 400, 'edição: ' + JSON.stringify(c).slice(0, 50));
+  }
+  assert.equal(gravado.cliente, undefined);
+  const ok = await chamar('atendente', 'POST', '/api/clientes', { ...bom, nome: '  Maria Souza  ', email: '' });
+  assert.equal(ok.status, 200); assert.equal(gravado.cliente.nome, 'Maria Souza');
+});
+
+test('R10-AGE-029: a página pública de confirmação recebe só o que mostra (sem id interno, telefone ou nome completo)', async () => {
+  _injetar({ dados: { ...falso, confirmacaoPorToken: async () => ({ token: 'a1b2c3d4e5f6a7b8c9d0e1f2', resposta: null, respondido_em: null, id: ID(801), agendamento_id: ID(11), criado_por: ID(902),
+    agendamento: { id: ID(11), primeiro_nome: 'Maria', cliente_nome: 'Maria Souza', telefone: '12991110001', placa: 'ABC1D23', servico: 'Troca de óleo', data: '2099-12-30', hora: '09:00', status: 'aguardando', veiculo: 'HB20', consultor: 'Leo', passou: false } }) } });
+  const r = await chamar(null, 'GET', '/api/publico/confirmacao?t=a1b2c3d4e5f6a7b8c9d0e1f2');
+  _injetar({ dados: falso });
+  assert.equal(r.status, 200);
+  assert.deepEqual(Object.keys(r.j).sort(), ['agendamento', 'oficina', 'respondido_em', 'resposta', 'token']);
+  assert.deepEqual(Object.keys(r.j.agendamento).sort(), ['consultor', 'data', 'hora', 'passou', 'primeiro_nome', 'servico', 'status', 'veiculo']);
+  assert.doesNotMatch(r.txt, /12991110001|Souza|ABC1D23|00000000-0000-4000/);
+});
 
 /* ------------------------------------------------------------------ desempenho medido ---- */
+test('R10-AGE-030: dados da oficina e janelas ficam 60 s na memória (5 aberturas: 5 consultas viram 1) e salvar limpa na hora', async () => {
+  for (let i = 0; i < 5; i++) { await chamar('atendente', 'GET', '/api/empresa'); await chamar('atendente', 'GET', '/api/janelas'); }
+  assert.deepEqual(consultas, { empresa: 1, janelas: 1 });
+  for (let i = 0; i < 3; i++) await chamar(null, 'GET', '/api/publico/confirmacao?t=naoexiste');
+  // salvar os dados da oficina troca a geração: a próxima leitura vai ao banco de novo
+  _injetar({ dados: { ...falso, salvarEmpresa: async (e) => e } });
+  await chamar('gestor', 'PUT', '/api/empresa', { nome: 'IndyCar Centro Automotivo' });
+  await chamar('atendente', 'GET', '/api/empresa');
+  _injetar({ dados: falso });
+  assert.equal(consultas.empresa, 2);
+});
 
 test('R10-AGE-031: endereço que não é arquivo devolve a casca comprimida e com ETag (21,8 kB viram menos de 7 kB; revalidar custa um 304 vazio)', async () => {
   const pedir = (cab) => new Promise((ok, falha) => {

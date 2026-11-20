@@ -1228,8 +1228,7 @@ export async function criarMembro({ nome, email, senha, papel = 'atendente', con
     }
   } catch (e) {
     return { id: usuario.id, nome, email, papel,
-      aviso: 'Criei o acesso, mas não consegui gravar nome e função: ' + (e?.message || e)
-           + ' Ajuste direto na lista da equipe.' };
+      aviso: 'Criei o acesso, mas não consegui gravar nome e função. Ajuste direto na lista da equipe.' };
   }
   return { id: usuario.id, nome, email, papel, aviso: null };
 }

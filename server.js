@@ -751,6 +751,21 @@ function conferirCamposDoAgendamento(body, { criando = false } = {}) {
     body[k] = String(body[k]).slice(0, max);
     if (k === 'cliente_nome' || k === 'servico') body[k] = body[k].trim();
   }
+  // rodada 10: origem só texto; na edição, situação, motivo da falta e carimbo do aviso só no formato certo
+  if (body.origem !== undefined && body.origem !== null) {
+    if (typeof body.origem === 'object') return 'Campo inválido: origem.';
+    body.origem = String(body.origem).slice(0, 60);
+  }
+  if (!criando) {
+    if (body.status !== undefined && !MAPA_STATUS[body.status]) return 'Situação inválida.';
+    if (body.motivo_falta !== undefined && body.motivo_falta !== null && body.motivo_falta !== '') {
+      if (typeof body.motivo_falta !== 'string' || !motivoDeFaltaValido(body.motivo_falta)) return 'Motivo inválido.';
+    }
+    if (body.no_show_notificado_em !== undefined && body.no_show_notificado_em !== null) {
+      const c = body.no_show_notificado_em;
+      if (typeof c !== 'string' || c.length > 40 || !/^\d{4}-\d{2}-\d{2}T/.test(c) || Number.isNaN(Date.parse(c))) return 'Data do aviso inválida.';
+    }
+  }
   if (criando || body.cliente_nome !== undefined) if (!body.cliente_nome) return 'Informe o nome do cliente.';
   if (criando || body.servico !== undefined) if (!body.servico) return 'Informe o serviço.';
   if (body.valor !== undefined && body.valor !== null && body.valor !== '') {
@@ -774,7 +789,17 @@ function recusaDeCadastro(e) {
       erro: 'Já existe alguém cadastrado com esse e-mail. Se a pessoa perdeu o acesso, '
           + 'devolva pela lista da equipe em vez de cadastrar de novo.' };
   }
-  return { status: 400, erro: msg };
+  // rodada 10: o texto do Supabase (em inglês, com nome de tabela e regra do banco) fica no log; a tela recebe o que fazer
+  console.warn('Cadastro recusado:', msg);
+  if (/password|senha/i.test(msg)) return { status: 400, erro: 'Essa senha não foi aceita. Use uma mais forte, com letras e números.' };
+  if (/email/i.test(msg) && /invalid|inválid/i.test(msg)) return { status: 400, erro: 'Esse e-mail não foi aceito. Confira e tente de novo.' };
+  return { status: 400, erro: 'Não consegui criar o acesso agora. Tente de novo em instantes.' };
+}
+/** Motivo de uma falha que pode ir para a tela: recado nosso (Error simples do dados.js) passa; erro do banco ou de rede vira o padrão. */
+function motivoSeguro(e, padrao) {
+  if (e && e.name === 'Error' && e.constructor === Error && !e.status && e.message) return String(e.message).slice(0, 200);
+  console.warn('Falha interna (motivo trocado pelo padrão):', e?.message || e);
+  return padrao;
 }
 
 /* ---------------------------------------------------------------------------
@@ -892,10 +917,16 @@ async function api(req, res, url) {
     const ip = ipDaRequisicao(req);
     if (!dentroDoLimite(`publico:${ip}`, 40, 600_000)) return send(res, 429, { erro: 'Muitas tentativas. Espere alguns minutos.' }, { 'Cache-Control': 'no-store' });
     if (m === 'GET') {
-      const c = await dados.confirmacaoPorToken(texto1(searchParams.get('t'), 80));
-      if (!c) return send(res, 404, { erro: 'Este link não vale mais. Fale com a oficina pelo WhatsApp.' }, { 'Cache-Control': 'no-store' });
-      // dados públicos da oficina para a página: como chegar e falar com a gente (nada de cliente)
-      const emp = await dados.obterEmpresa().catch(() => ({}));
+      const bruto = await dados.confirmacaoPorToken(texto1(searchParams.get('t'), 80));
+      if (!bruto) return send(res, 404, { erro: 'Este link não vale mais. Fale com a oficina pelo WhatsApp.' }, { 'Cache-Control': 'no-store' });
+      /* rodada 10: a resposta é montada campo a campo. Quem tem o link vê só o que a página mostra: nada de id
+         interno do horário, telefone, nome completo ou placa, mesmo que a camada de dados passe a trazer mais. */
+      const ag = bruto.agendamento || {};
+      const c = { token: bruto.token, resposta: bruto.resposta ?? null, respondido_em: bruto.respondido_em ?? null,
+        agendamento: { primeiro_nome: ag.primeiro_nome || '', servico: ag.servico ?? null, data: ag.data ?? null, hora: ag.hora ?? null,
+          status: ag.status ?? null, veiculo: ag.veiculo ?? null, consultor: ag.consultor ?? null, passou: !!ag.passou } };
+      // dados públicos da oficina para a página: como chegar e falar com a gente (nada de cliente); 60 s na memória
+      const emp = await lembrar('empresa', 60_000, () => dados.obterEmpresa()).catch(() => ({}));
       const endereco = String(emp?.endereco || '').trim();
       c.oficina = { nome: emp?.nome || 'IndyCar Centro Automotivo', endereco: endereco || null,
         mapa: endereco ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}` : null,
@@ -1018,8 +1049,8 @@ async function api(req, res, url) {
     return send(res, 200, await dados.obterSaude(), { 'Cache-Control': 'no-store' });
 
   // ---- empresa
-  if (pathname === '/api/empresa' && m === 'GET')
-    return ok(res, await dados.obterEmpresa());
+  if (pathname === '/api/empresa' && m === 'GET')   // rodada 10: 60 s na memória (toda tela aberta pedia isto; salvar troca a geração e limpa)
+    return ok(res, await lembrar('empresa', 60_000, () => dados.obterEmpresa()));
   if (pathname === '/api/empresa' && m === 'PUT') {
     const emp = validarEmpresa(body);
     if (!emp.ok) return bad(res, emp.erro);
@@ -1246,7 +1277,7 @@ async function api(req, res, url) {
 
   // ---- janelas de agendamento (leitura) — é o que a IA usa p/ oferecer horário
   if (pathname === '/api/janelas' && m === 'GET')
-    return ok(res, await dados.listarJanelas());
+    return ok(res, await lembrar('janelas', 60_000, () => dados.listarJanelas()));
 
   // ---- catálogo de serviços (leitura) — quem edita é o CRM
   if (pathname === '/api/catalogo' && m === 'GET')
@@ -1708,7 +1739,7 @@ async function api(req, res, url) {
     const primeiro = String(a.cliente_nome || '').trim().split(/\s+/)[0] || 'tudo bem';
     const texto = `Oi ${primeiro}! Aqui é da IndyCar 🏁 Seu horário de ${a.servico} foi remarcado para ${formatarDataBR(a.data)} às ${String(a.hora || '').slice(0, 5)}. Se não ficar bom pra você, é só responder por aqui que a gente ajusta. Quem conhece, Indyca!`;
     const whatsapp = linkWhatsApp(tel, texto);
-    const r = dados.enfileirarAvisoDeRemarcacao ? await dados.enfileirarAvisoDeRemarcacao(a, texto, usuario).catch((e) => ({ ok: false, motivo: e?.message })) : { ok: false, motivo: 'fila indisponível' };
+    const r = dados.enfileirarAvisoDeRemarcacao ? await dados.enfileirarAvisoDeRemarcacao(a, texto, usuario).catch((e) => ({ ok: false, motivo: motivoSeguro(e, null) })) : { ok: false, motivo: 'fila indisponível' };
     if (r.ok) await dados.auditar(usuario.id, 'avisou_remarcacao', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora, via: 'comunicar' });
     return send(res, 200, { enfileirado: !!r.ok, whatsapp, motivo: r.ok ? null : (r.motivo || 'A fila do Comunicar não aceitou agora. Abri o WhatsApp com o texto pronto.') }, { 'Cache-Control': 'no-store' });
   }
@@ -1724,7 +1755,7 @@ async function api(req, res, url) {
     if (m === 'GET') return send(res, 200, await dados.lembreteDoAgendamento(a), { 'Cache-Control': 'no-store' });
     if (m === 'POST') {
       if (!dentroDoLimite(`lembrete:${usuario.id}`, 40, 60_000)) return send(res, 429, { erro: 'Muitos lembretes seguidos. Espere um minuto.' });
-      const r = await dados.enfileirarLembrete(a, usuario, { reenviar: body.reenviar === true, hojeIso: hoje() }).catch((e) => ({ ok: false, motivo: e?.message || 'A fila do Comunicar não aceitou agora.' }));
+      const r = await dados.enfileirarLembrete(a, usuario, { reenviar: body.reenviar === true, hojeIso: hoje() }).catch((e) => ({ ok: false, motivo: motivoSeguro(e, 'A fila do Comunicar não aceitou agora.') }));
       if (r.ok && !r.repetido) await dados.auditar(usuario.id, r.reenvio ? 'reenviou_lembrete' : 'pediu_lembrete', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora });
       return send(res, r.jaEnviado ? 409 : 200, { ...r, ...(await dados.lembreteDoAgendamento(a).catch(() => ({}))) }, { 'Cache-Control': 'no-store' });
     }
@@ -1845,9 +1876,10 @@ async function api(req, res, url) {
   if (pathname === '/api/clientes' && m === 'GET')
     return ok(res, await dados.listarClientes(texto1(searchParams.get('q'), 80).trim() || undefined));
   if (pathname === '/api/clientes' && m === 'POST') {
-    if (!String(body.nome ?? '').trim()) return bad(res, 'Informe o nome.');
+    const vc = validarCliente(body);   // rodada 10: tipo e tamanho de cada campo
+    if (!vc.ok) return bad(res, vc.erro);
     if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
-    try { return ok(res, await dados.criarCliente(body)); }
+    try { return ok(res, await dados.criarCliente({ ...body, ...vc.campos })); }
     catch (e) { if (/Aniversário inválido/.test(e?.message)) return bad(res, e.message); throw e; }
   }
   // "Achar pelo nome": telefone de quem já conversou (conversas) ou já tem ficha (clientes)
@@ -1864,10 +1896,11 @@ async function api(req, res, url) {
   if ((mm = pathname.match(new RegExp(`^/api/clientes/${UUID}$`)))) {
     const id = mm[1];
     if (m === 'PUT') {
-      if (body.nome !== undefined && !String(body.nome ?? '').trim()) return bad(res, 'Informe o nome.');
+      const vc = validarCliente(body, { parcial: true });
+      if (!vc.ok) return bad(res, vc.erro);
       if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
       try {
-        const c = await dados.atualizarCliente(id, body);
+        const c = await dados.atualizarCliente(id, { ...body, ...vc.campos });
         if (body.nascimento !== undefined) dados.esquecerAniversarios?.();
         return c ? ok(res, c) : notFound(res);
       } catch (e) { if (/Aniversário inválido/.test(e?.message)) return bad(res, e.message); throw e; }
@@ -2643,6 +2676,6 @@ export function _injetar({ dados: d, usuarioLogado: u } = {}) {
   if (d) dados = d;
   if (u) usuarioLogado = u;
   esquecerLogins();
-  USO.clear(); USO_IP.clear();
+  USO.clear(); USO_IP.clear(); _memo.clear();
 }
 export { server, handler, iniciar, VERSAO };
