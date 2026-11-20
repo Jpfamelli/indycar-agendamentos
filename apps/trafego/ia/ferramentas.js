@@ -237,8 +237,12 @@ function permissoesDo(ctx = {}) {
 
 /** A ferramenta pode ser usada com estas permissões? { ok } ou { ok: false, falta: 'propor' | 'ver_pii', mensagem }. */
 function podeUsar(f, perm) {
-  if (!perm.escopos.includes(f.escopo)) return { ok: false, falta: f.escopo, mensagem: `Esta chave não pode "${f.escopo}". Peça ao administrador uma chave com o escopo "${f.escopo}" (Ajustes › Chaves da IA).` };
-  if (f.pii && !perm.ver_pii) return { ok: false, falta: 'ver_pii', mensagem: 'Esta ferramenta mostra dado pessoal (nome, telefone e mensagens). A chave precisa da permissão "ver dado pessoal" (Ajustes › Chaves da IA).' };
+  // Rodada 10: a frase usa os nomes que estão na tela (Ajustes › Acesso da IA de fora), para o administrador achar a opção.
+  if (!perm.escopos.includes(f.escopo)) {
+    const opcao = f.escopo === 'propor' ? 'Ler e deixar sugestões' : 'Só ler os números';
+    return { ok: false, falta: f.escopo, mensagem: `Esta chave não pode "${f.escopo}". Peça ao administrador uma chave do tipo "${opcao}" (Ajustes › Acesso da IA de fora).` };
+  }
+  if (f.pii && !perm.ver_pii) return { ok: false, falta: 'ver_pii', mensagem: 'Esta ferramenta mostra dado pessoal (nome, telefone e mensagens). A chave precisa ter sido criada com "Ver nome e conversa completa dos clientes" marcado (Ajustes › Acesso da IA de fora).' };
   return { ok: true };
 }
 
