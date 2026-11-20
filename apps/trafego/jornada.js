@@ -435,8 +435,13 @@ function conferirPeriodo(de, ate) {
 
 let geracao = 0;
 const memoria = new WeakMap();   // banco -> Map(chave -> { em, geracao, promessa })
-/** Esquece o que estava guardado (toda escrita chama; os testes também). */
-function esquecer() { geracao++; }
+/** Esquece o que estava guardado (toda escrita chama; os testes também). A fonte do Hoje e das Campanhas guarda a
+ *  lista por 30 s em cima desta: sem esquecer lá também, voltar ao Hoje logo depois de lançar os valores ainda
+ *  mostrava "4 serviços sem valor". */
+function esquecer() {
+  geracao++;
+  require('./motor/fonte').esquecerLeituras();
+}
 
 function lembrar(sb, chave, fresco, montarAgora) {
   let doBanco = memoria.get(sb);

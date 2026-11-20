@@ -73,3 +73,20 @@ test('POST /api/coleta/agora esquece a leitura das telas depois da busca (e não
     assert.deepEqual(ordem, ['buscou', 'esqueceu']);
   } finally { registrarColeta.dependencias = original; }
 });
+
+test('lançar valor, motivo ou origem (jornada.esquecer) faz o Hoje e as Campanhas lerem os contatos de novo', async () => {
+  const Jornada = require('../jornada');
+  let leituras = 0;
+  const jornada = { listarBruto: async () => { leituras++; return []; } };
+  const f = Fonte.padrao();
+  f.trocar({ sb: bancoContado(), jornada });
+  try {
+    const periodo = { de: '2026-11-01', ate: '2026-11-19' };
+    await f.contatos(periodo);
+    await f.contatos(periodo);
+    assert.equal(leituras, 1, 'dentro dos 30 s, da memória');
+    Jornada.esquecer();
+    await f.contatos(periodo);
+    assert.equal(leituras, 2, 'depois de gravar, lê de novo');
+  } finally { f.trocar({ sb: null, jornada: undefined }); }
+});
