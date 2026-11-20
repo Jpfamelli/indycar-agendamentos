@@ -1301,3 +1301,9 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-008** · acessibilidade · Navegação, filtros e ações de contato ganham contorno visível para teclado · `8c60a72`
 - **R9-CRM-009** · acessibilidade · Os controles da lista ganham altura mínima de 44 px · `8c60a72`
 - **R9-CRM-010** · acessibilidade · A área de contatos respeita a preferência por movimento reduzido · `8c60a72`
+
+- **R9-CRM-011** · conserto · O carregamento de Contatos deixa a contagem a cargo da renderização da lista · `faf90d1`
+- **R9-CRM-012** · texto · O filtro de etapa oferece Todas as etapas · `faf90d1`
+- **R9-CRM-013** · texto · O formulário e a ficha usam Contato também no título do diálogo · `faf90d1`
+- **R9-CRM-014** · acessibilidade · A tabela principal tem o nome acessível Contatos · `faf90d1`
+- **R9-CRM-015** · acessibilidade · A paginação usa Contatos no nome anunciado · `faf90d1`

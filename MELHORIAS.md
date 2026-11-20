@@ -1255,3 +1255,7 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R9-AGE-008** · acessibilidade · Navegação e cartões do dia destacam o foco de teclado · `8c60a72`
 - **R9-AGE-009** · acessibilidade · Os cartões e indicadores do dia respeitam movimento reduzido · `8c60a72`
 - **R9-AGE-010** · celular · Os quatro indicadores do dia ocupam duas colunas no celular · `8c60a72`
+
+- **R9-AGE-011** · acessibilidade · O painel dos horários é anunciado com o nome da aba selecionada · `faf90d1`
+- **R9-AGE-012** · acessibilidade · O painel dos horários pode receber foco por teclado · `faf90d1`
+- **R9-AGE-013** · aviso · O Início avisa que a lista pode mudar enquanto os horários são atualizados · `faf90d1`

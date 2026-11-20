@@ -9,3 +9,15 @@ Entrega parcial. Lote 8c60a72, 10 registros no MELHORIAS. Suíte 323/323 antes e
 | + Novo Lead | + Novo contato |
 
 O menu Mais preserva as páginas secundárias. Uso por rota e decisão de corte continuam por conferir. Para o Claude, faltam a matriz completa de jornadas e axe-core, as capturas comparativas, o inventário com evidência e os demais lotes. Para o João, confirmar a posição das telas secundárias depois da prévia.
+
+## Segundo lote parcial
+
+`faf90d1` acrescenta 5 melhorias, para 15/125 no CRM. Suíte 323/323. A próxima entrada é R9-CRM-016.
+
+| Antes | Depois |
+| --- | --- |
+| Todos os status | Todas as etapas |
+| Novo lead | Novo contato |
+| Lead | Contato |
+
+Sem rodada adicional de Chrome neste lote.
