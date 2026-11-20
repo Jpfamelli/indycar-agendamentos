@@ -1381,18 +1381,36 @@ window.openNascimentoModal = function (c) {
 };
 
 /* ---- FICHA do cliente (gaveta lateral) ---- */
+let consultaFicha = 0;
+let clienteDaFicha = null;
+
 async function abrirFicha(id, quieto = false) {
   const ov = $('#gavetaOverlay'), g = $('#gaveta');
+  if (quieto && (ov.hidden || id !== clienteDaFicha)) return;
+  const consulta = ++consultaFicha;
+  clienteDaFicha = id;
   if (!quieto) {
-    state._focoGaveta = document.activeElement;
+    if (ov.hidden) state._focoGaveta = document.activeElement;
     g.innerHTML = `<div class="gaveta-head"><div class="quem"><span class="av skel" style="border:none"></span><div><h3 id="gavetaTitulo">Carregando…</h3></div></div>
       <button type="button" class="modal-close" data-fechar-gaveta aria-label="Fechar ficha">×</button></div>
       <div class="gaveta-body"><div class="skel" style="height:80px"></div><div class="skel" style="height:120px"></div><div class="skel" style="height:160px"></div></div>`;
     ov.hidden = false; document.body.style.overflow = 'hidden';
+    $('[data-fechar-gaveta]', g).focus({ preventScroll:true });
   }
   let f;
   try { f = await api('GET', `/clientes/${id}/ficha`); }
-  catch (e) { $('.gaveta-body', g).innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
+  catch {
+    if (consulta !== consultaFicha) return;
+    if (quieto) {
+      toast('Não consegui atualizar a ficha. Abra novamente para tentar.', 'err');
+    } else {
+      $('.gaveta-body', g).innerHTML = '<p class="form-msg erro" role="alert">Não consegui abrir a ficha.</p><button type="button" class="btn" data-repetir-ficha>Tentar novamente</button>';
+      $('[data-repetir-ficha]', g).addEventListener('click', () => abrirFicha(id));
+    }
+    return;
+  }
+  if (consulta !== consultaFicha) return;
+  const focoAtual = g.contains(document.activeElement) ? document.activeElement : null;
   const c = f.cliente, r = f.resumo || {};
   const hoje = hojeSP();
   const rev = f.proximaRevisao;
@@ -1441,10 +1459,13 @@ async function abrirFicha(id, quieto = false) {
   $('#gNasc').addEventListener('click', () => openNascimentoModal(c));
   $('#gTarefa').addEventListener('click', () => window.Conta?.novaTarefa({ cliente_id: c.id, titulo: `Falar com ${c.nome}` }));
   $('#gMandar').addEventListener('click', () => { fecharGaveta(); openCampanhaModal({ cliente:c }); });
-  if (!quieto) setTimeout(() => $('[data-fechar-gaveta]', g)?.focus({ preventScroll:true }), 30);
+  const novoFoco = focoAtual?.id && document.getElementById(focoAtual.id);
+  if (focoAtual) (novoFoco && !novoFoco.disabled ? novoFoco : $('[data-fechar-gaveta]', g))?.focus({ preventScroll:true });
 }
 function fecharGaveta() {
   const ov = $('#gavetaOverlay'); if (ov.hidden) return;
+  consultaFicha++;
+  clienteDaFicha = null;
   ov.hidden = true; document.body.style.overflow = '';
   if (state._focoGaveta?.isConnected) state._focoGaveta.focus({ preventScroll:true });
   state._focoGaveta = null;

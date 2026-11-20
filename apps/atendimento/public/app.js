@@ -939,13 +939,25 @@ async function carregarOrigemDaConversa(conv) {
     : 'Não sei de onde veio';
 }
 
+let aberturaConversa = 0;
+
 async function abrirConversa(id, { focarCampo = false } = {}) {
   if (!id) return;
+  const abertura = ++aberturaConversa;
   let conv = CONVERSAS.find(c => c.id === id) || BUSCA_REMOTA.lista.find(c => c.id === id);
   // Veio do funil, de um link ou da busca no banco? A lista pode estar filtrada
   // ou paginada — nesse caso buscamos a conversa direto, em vez de o clique não fazer nada.
   if (!conv) {
-    const { data } = await sb.from('conversas').select('*').eq('id', id).maybeSingle();
+    let data;
+    try {
+      const resultado = await sb.from('conversas').select('*').eq('id', id).maybeSingle();
+      if (resultado.error) throw resultado.error;
+      data = resultado.data;
+    } catch {
+      if (abertura === aberturaConversa) toast('Não consegui abrir a conversa. Tente novamente.');
+      return;
+    }
+    if (abertura !== aberturaConversa) return;
     if (!data) return toast('⚠️ Não encontrei essa conversa.');
     conv = data;
   }
@@ -992,6 +1004,7 @@ async function abrirConversa(id, { focarCampo = false } = {}) {
   renderConversas();
   if (focarCampo) campo.focus();
   await Promise.all([carregarMensagens(), carregarFicha(conv)]);
+  if (abertura !== aberturaConversa) return;
 
   // abriu = leu (pinta na hora; o banco vem atrás)
   if (conv.nao_lidas > 0 && conversaAtual?.id === conv.id) {
@@ -1006,7 +1019,7 @@ async function abrirConversa(id, { focarCampo = false } = {}) {
      Puxa o que falta ao abrir o chat, senão o atendente vê as perguntas do
      cliente e nenhuma resposta, e acha que a IA está muda.
      Sem await de propósito: a conversa já abriu, isto completa depois. */
-  sincronizarConversaAberta(conv.id);
+  if (abertura === aberturaConversa) sincronizarConversaAberta(conv.id);
 
   /* Enquanto ESTA conversa estiver aberta, busca o que chegou a cada 15s —
      é o que deixa a resposta aparecer quase na hora, sem esperar o relógio
@@ -5632,6 +5645,7 @@ function avisarConversaAberta(conv) {
 
 /** Fecha a conversa (voltar para a lista, não lida, excluída). */
 function fecharConversa({ focarLista = false } = {}) {
+  aberturaConversa++;
   const tinha = conversaAtual;
   conversaAtual = null;
   conversaRenderizada = null;
