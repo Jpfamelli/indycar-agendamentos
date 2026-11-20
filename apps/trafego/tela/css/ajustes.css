@@ -60,6 +60,15 @@
   font-size: var(--tam-apoio);
   color: var(--cor-tinta-2);
 }
+.ajustes-item-estado {
+  grid-column: 1;
+}
+.ajustes-item-estado:empty {
+  display: none;
+}
+.ajustes-item:has(.ajustes-item-estado:not(:empty)) .ajustes-item-seta {
+  grid-row: 1 / span 3;
+}
 .ajustes-item-seta {
   grid-column: 2;
   grid-row: 1 / span 2;

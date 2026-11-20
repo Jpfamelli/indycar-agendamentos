@@ -39,3 +39,14 @@ test('textoDaPassagem: diz por que não há porcentagem, em vez de "passagem sem
   assert.equal(textoDaPassagem({ total: 3, passagem: null }, { total: null }, pct), 'sem dado da etapa anterior');
   for (const t of ['ninguém na etapa anterior', 'inclui quem pulou etapa', 'sem dado da etapa anterior']) assert.doesNotMatch(t, /passagem/);
 });
+
+import { seloDasConexoes } from '../js/hoje-logica.js';
+test('seloDasConexoes: o item "Conexões" dos Ajustes diz se falta passo, se algo pede atenção ou se está tudo ligado', () => {
+  const ok = { meta: { situacao: 'ok' }, google: { situacao: 'ok' }, site: { rastreio: true }, whatsapp: { situacao: 'ok' } };
+  assert.deepEqual(seloDasConexoes({ ...ok, faltam: 2 }), ['atencao', 'Faltam 2 passos']);
+  assert.deepEqual(seloDasConexoes({ ...ok, faltam: 1 }), ['atencao', 'Falta 1 passo']);
+  assert.deepEqual(seloDasConexoes({ ...ok, faltam: 0, google: { situacao: 'token_vencendo' } }), ['atencao', 'Pede atenção']);
+  assert.deepEqual(seloDasConexoes({ ...ok, faltam: 0 }), ['bom', 'Tudo ligado']);
+  assert.equal(seloDasConexoes(null), null);
+  assert.equal(seloDasConexoes({ ...ok }), null, 'sem a contagem de passos não afirma "Tudo ligado"');
+});

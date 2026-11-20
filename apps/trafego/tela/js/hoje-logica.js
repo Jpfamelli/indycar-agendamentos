@@ -40,3 +40,15 @@ export function textoDaPassagem(etapa, anterior, porcento) {
   return 'sem dado da etapa anterior';
 }
 
+/**
+ * O selo do item "Conexões" na lista dos Ajustes (GET api/conexoes): quem abre os Ajustes vê na hora se falta ligar
+ * alguma coisa ou se alguma conexão pede atenção (acesso vencendo, coleta parada, WhatsApp parado). null sem dado.
+ */
+export function seloDasConexoes(d) {
+  if (!d || typeof d !== 'object') return null;
+  const faltam = typeof d.faltam === 'number' && Number.isFinite(d.faltam) ? d.faltam : null;
+  if (faltam > 0) return ['atencao', faltam === 1 ? 'Falta 1 passo' : 'Faltam ' + faltam + ' passos'];
+  if (faltaLigar(d)) return ['atencao', 'Pede atenção'];
+  return faltam === 0 ? ['bom', 'Tudo ligado'] : null;
+}
+

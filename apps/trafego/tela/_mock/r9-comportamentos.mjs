@@ -249,6 +249,14 @@ export const CASOS = {
     await pagina.waitForSelector('.detalhe-voltar');
     conferir((await texto(pagina, '.detalhe-voltar')) === 'Voltar para a lista', 'aberto pela lista, volta para a lista');
   },
+
+  /* Ajustes: o item "Conexões" já diz o estado (sem conta: falta passo; tudo ligado com acesso vencendo: pede atenção). */
+  async 'ajustes-estado-conexoes'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=sem_conta#/ajustes', { waitUntil: 'networkidle0' });
+    conferir(/^Faltam? \d+ passos?$/.test(await texto(pagina, '.ajustes-item[data-id="conexoes"] .ajustes-item-estado')), 'sem conta: ' + await texto(pagina, '.ajustes-item[data-id="conexoes"] .ajustes-item-estado'));
+    await pagina.goto(endereco + '?cenario=cheio#/ajustes', { waitUntil: 'networkidle0' });
+    conferir((await texto(pagina, '.ajustes-item[data-id="conexoes"] .ajustes-item-estado')) === 'Pede atenção', 'com o acesso do Google vencendo, pede atenção');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();
