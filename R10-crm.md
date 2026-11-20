@@ -1,11 +1,7 @@
-﻿# Rodada 10 do CRM
+# Rodada 10 do CRM
 
-1 de 125 melhorias registradas. O commit 387f5ac corrige a leitura de UTF-8 nos cadastros. A regressão por HTTP com banco fictício gravava Jo��o antes e grava João depois. Suíte completa de 328/328 para 329/329 com npm.cmd --prefix apps/crm test.
+1 de 125 melhorias registrada em `apps/crm/MELHORIAS.md`. O commit `387f5ac` preserva acentos no cadastro de contatos quando o JSON chega em blocos HTTP (`apps/crm/testes/r10-json.test.cjs`).
 
-| Medição | Antes | Depois |
-| --- | --- | --- |
-| Nome gravado ao dividir o caractere acentuado | Jo��o | João |
+Pendências para a frente A: ampliar a cobertura da rodada 9 e repetir as jornadas de cortesia, cancelamento, fechamento em lote e perda de rede ao mover etapa. Comparativos visuais e medições de desempenho seguem pendentes.
 
-O comparativo é de comportamento. Ainda faltam métricas de desempenho e capturas. Nenhum rótulo de tela foi alterado.
-
-Para o Claude: 124 linhas da meta do CRM seguem pendentes, incluindo as provas de regressão da R9 e as medições de desempenho. Novo Lead e Leads novos aguardam decisão do João. Nenhum deploy, acesso ao Supabase real ou envio de WhatsApp foi executado.
+“Novo Lead” e “Leads novos” aguardam decisão do João. Nenhum rótulo de tela mudou neste commit.
