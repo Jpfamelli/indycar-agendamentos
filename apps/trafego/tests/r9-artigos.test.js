@@ -22,3 +22,14 @@ test('diário: pausar se mede na plataforma inteira, "a Meta inteira" e "o Googl
   const google = await diarioCom('google').decidir(ID, { decisao: 'aceitar' }, PESSOA);
   assert.equal(google.antes.base_rotulo, 'o Google inteiro');
 });
+
+const Radar = require('../radar');
+test('radar: "O investimento na Meta caiu", não "no Meta"', () => {
+  const dia = (n) => new Date(Date.parse('2026-11-18T12:00:00Z') - n * 86400000).toISOString().slice(0, 10);
+  const linha = (n, gasto, o = {}) => ({ data: dia(n), plataforma: 'meta', nivel: 'campanha', campanha_ext: 'c1', gasto, conversoes: 0, fonte: 'api', ...o });
+  const linhas = [];
+  for (let n = 0; n <= 7; n++) { linhas.push(linha(n, n === 0 ? 0 : 60)); linhas.push(linha(n, 300, { plataforma: 'google' })); }
+  const r = Radar.alertasDaConta(linhas, { ontem: dia(0), agora: Date.parse('2026-11-19T12:00:00Z') });
+  assert.deepEqual(r.novos.map((a) => a.plataforma), ['meta']);
+  assert.match(r.novos[0].mensagem, /^O investimento na Meta caiu de/);
+});
