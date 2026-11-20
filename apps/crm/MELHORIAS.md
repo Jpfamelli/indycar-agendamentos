@@ -1351,3 +1351,18 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-053** · celular · O campo Carro inicia cada palavra com maiúscula no teclado compatível. · `ab25d95`
 - **R9-CRM-054** · celular · O teclado deixa os identificadores de campanha, origem e mídia sem maiúsculas automáticas. · `ab25d95`
 - **R9-CRM-055** · acessibilidade · O leitor de tela anuncia as instruções do campo de mensagem. · `ab25d95`
+- **R9-CRM-056** · conserto · Uma busca que mistura texto e números não traz contatos apenas pelo final do telefone. · `2bb6191`
+- **R9-CRM-057** · conserto · A lista volta a paginar de 50 em 50 quando recebe um tamanho de página inválido. · `2bb6191`
+- **R9-CRM-058** · texto · O aviso de edição bloqueada identifica quem responde pelo contato e a quem pedir ajuda. · `2bb6191`
+- **R9-CRM-059** · texto · A busca em Clientes usa “1 cliente encontrado” quando há um resultado. · `bba7a4b`
+- **R9-CRM-060** · tela · O catálogo distingue base vazia de filtro sem resultados e indica como limpar o filtro. · `bba7a4b`
+- **R9-CRM-061** · acessibilidade · A seleção do filtro de disponibilidade dos serviços é anunciada ao leitor de tela. · `bba7a4b`
+- **R9-CRM-062** · acessibilidade · Minha conta e Equipe e sistema anunciam o painel selecionado. · `bba7a4b`
+- **R9-CRM-063** · acessibilidade · As telas do CRM respeitam a preferência de movimento reduzido. · `bba7a4b`
+- **R9-CRM-064** · texto · O título Distribuir contatos descreve a tarefa e a prévia antes de aplicar. · `bba7a4b`
+- **R9-CRM-065** · conserto · A busca de clientes descarta resultados e erros de pedidos anteriores. · `bba7a4b`
+- **R9-CRM-066** · acessibilidade · A tabela de clientes informa que está carregando ao leitor de tela. · `bba7a4b`
+- **R9-CRM-067** · aviso · Uma falha em Clientes limpa os controles do resultado anterior e oferece nova tentativa. · `bba7a4b`
+- **R9-CRM-068** · texto · O catálogo usa “carros” para indicar o escopo do serviço. · `bba7a4b`
+- **R9-CRM-069** · aviso · Uma falha no catálogo é anunciada e pode ser recuperada na própria tela. · `bba7a4b`
+- **R9-CRM-070** · acessibilidade · Trocar de página na lista mantém o foco nos controles de paginação. · `bba7a4b`
