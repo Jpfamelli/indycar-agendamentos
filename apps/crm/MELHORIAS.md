@@ -1334,3 +1334,20 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-037** · celular · O ID da conta do Google abre um teclado com dígitos e hífen. · `af408bd`
 - **R9-CRM-038** · celular · O ID da conta administradora do Google abre um teclado com dígitos e hífen. · `af408bd`
 - **R9-CRM-039** · acessibilidade · O filtro de idade da distribuição tem nome acessível que explica a data de referência. · `af408bd`
+
+- **R9-CRM-040** · texto · O Painel identifica a lista como Contatos recentes. · `ab25d95`
+- **R9-CRM-041** · texto · O funil da equipe informa que mostra a distribuição atual. · `ab25d95`
+- **R9-CRM-042** · texto · O painel de distribuição chama a fila de Contatos sem responsável. · `ab25d95`
+- **R9-CRM-043** · texto · O primeiro passo da distribuição explicita quais contatos entram na seleção. · `ab25d95`
+- **R9-CRM-044** · texto · O relatório de funil esclarece qual data define a inclusão no período. · `ab25d95`
+- **R9-CRM-045** · texto · O relatório de perdas explica o evento contado no período. · `ab25d95`
+- **R9-CRM-046** · texto · O painel de canais usa Resultados e mantém o intervalo explícito. · `ab25d95`
+- **R9-CRM-047** · texto · O relatório da equipe esclarece que a mediana se refere ao tempo de espera. · `ab25d95`
+- **R9-CRM-048** · texto · O cadastro mostra um exemplo de campanha ligado a um serviço. · `ab25d95`
+- **R9-CRM-049** · texto · O campo de campanha identifica a anotação como interna. · `ab25d95`
+- **R9-CRM-050** · texto · A ajuda de campanha orienta como escrever a mensagem em linguagem de oficina. · `ab25d95`
+- **R9-CRM-051** · acessibilidade · Os campos de data de tarefa anunciam a finalidade no leitor de tela. · `ab25d95`
+- **R9-CRM-052** · celular · A busca global mostra Buscar no teclado do celular. · `ab25d95`
+- **R9-CRM-053** · celular · O campo Carro inicia cada palavra com maiúscula no teclado compatível. · `ab25d95`
+- **R9-CRM-054** · celular · O teclado deixa os identificadores de campanha, origem e mídia sem maiúsculas automáticas. · `ab25d95`
+- **R9-CRM-055** · acessibilidade · O leitor de tela anuncia as instruções do campo de mensagem. · `ab25d95`

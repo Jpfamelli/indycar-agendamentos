@@ -47,3 +47,18 @@ O commit `254ecdc` adiciona 10 melhorias e leva o app a 29/125. Suíte local 323
 O commit `af408bd` leva o CRM a 39/125. Suíte CRM 323/323 com Supabase fictício. Próxima entrada R9-CRM-040. A validação de teclado virtual e leitor de tela segue pendente.
 
 A rodada 1 registrou 242 tarefas vencidas, 101 sem dono. Esse volume sustenta manter a fila e a atribuição. A evidência não identifica a ação ou tela de origem de cada tarefa.
+
+## Sexto lote
+
+16 melhorias registradas, total de 55/125. Código em `ab25d95`. Suíte local 323/323 com Supabase fictício. Próxima entrada R9-CRM-056.
+
+| Antes | Depois |
+| --- | --- |
+| Últimos leads | Contatos recentes |
+| Novo Lead (título inicial) | Novo contato |
+| Leads sem dono | Contatos sem responsável |
+| 1. Quais leads | 1. Contatos a distribuir |
+| Performance por canal (últimos 7 dias) | Resultados por canal nos últimos 7 dias |
+| Detalhe interno | Nota interna |
+
+As alterações deste lote ainda precisam de conferência de navegador. A prévia deve aferir se os títulos de distribuição e as instruções de campanha são suficientemente claros para a equipe.
