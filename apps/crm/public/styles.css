@@ -1335,7 +1335,7 @@ body{background:var(--black)}
   .topbar h1{font-size:2rem}
 }
 @media (prefers-reduced-motion:reduce){
-  :is(.nav,#view-leads,.topbar) *{transition:none!important;animation:none!important}
+  .view,.view *,:is(.nav,.topbar) *{transition:none!important;animation:none!important}
 }
 
 /* Mantém o fechamento acessível dentro da própria janela em telas estreitas. */

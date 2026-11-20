@@ -239,7 +239,18 @@ function renderPaginacao(nav, p, ir) {
   nav.innerHTML = `<button type="button" class="btn btn-ghost sm" data-pag="${p.pagina - 1}" ${p.pagina === 1 ? 'disabled' : ''} aria-label="Página anterior">‹</button>
     <span class="filter-count">${p.de}–${p.ate} de ${p.total} · página ${p.pagina} de ${p.paginas}</span>
     <button type="button" class="btn btn-ghost sm" data-pag="${p.pagina + 1}" ${p.pagina === p.paginas ? 'disabled' : ''} aria-label="Próxima página">›</button>`;
-  nav.onclick = e => { const b = e.target.closest('[data-pag]'); if (b && !b.disabled) ir(Number(b.dataset.pag)); };
+  nav.onclick = e => {
+    const botao = e.target.closest('[data-pag]');
+    if (!botao || botao.disabled) return;
+    const manterFoco = document.activeElement === botao;
+    const sentido = Math.sign(Number(botao.dataset.pag) - p.pagina);
+    const pagina = Number(botao.dataset.pag);
+    ir(pagina);
+    if (manterFoco) {
+      const seguinte = nav.querySelector(`[data-pag="${pagina + sentido}"]:enabled`);
+      (seguinte || nav.querySelector('[data-pag]:enabled'))?.focus({preventScroll: true});
+    }
+  };
 }
 // um único ouvinte por tabela (antes: um por linha a cada render)
 for (const sel of ['#tblLeads', '#tblRecent']) {

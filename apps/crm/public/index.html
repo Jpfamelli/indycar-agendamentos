@@ -477,9 +477,9 @@
           <input id="buscaServico" type="search" enterkeyhint="search" aria-label="Buscar serviço ou categoria" placeholder="Buscar serviço ou categoria…" />
         </div>
         <div class="filters" style="margin:0" id="filtrosServico">
-          <button type="button" class="filtro-pill ativo" data-faz="">Todos</button>
-          <button type="button" class="filtro-pill" data-faz="1">Fazemos</button>
-          <button type="button" class="filtro-pill" data-faz="0">Não fazemos</button>
+          <button type="button" class="filtro-pill ativo" data-faz="" aria-pressed="true">Todos</button>
+          <button type="button" class="filtro-pill" data-faz="1" aria-pressed="false">Fazemos</button>
+          <button type="button" class="filtro-pill" data-faz="0" aria-pressed="false">Não fazemos</button>
         </div>
         <span class="filter-count" id="srvCount"></span>
       </div>
@@ -634,8 +634,8 @@
   <!-- ---------- CONFIGURAÇÕES ---------- -->
   <section class="view" id="view-configuracoes">
     <div class="config-tabs" id="configTabs">
-      <button type="button" class="config-pilula ativo" data-secao="conta">Minha conta</button>
-      <button type="button" class="config-pilula" data-secao="sistema">Equipe e sistema</button>
+      <button type="button" class="config-pilula ativo" data-secao="conta" aria-pressed="true">Minha conta</button>
+      <button type="button" class="config-pilula" data-secao="sistema" aria-pressed="false">Equipe e sistema</button>
     </div>
 
     <!-- ---------- Minha conta ---------- -->

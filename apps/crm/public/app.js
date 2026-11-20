@@ -143,7 +143,7 @@ const TITULOS = {
   integracoes:   ['Integrações', 'Meta Ads, Google Ads e o ROI de cada canal'],
   ia:            ['IA', 'Pergunte ao CRM, triagem e o resumo da semana'],
   equipe:        ['Equipe e metas', 'Metas do mês, ranking e funil de cada vendedor'],
-  distribuir:    ['Leads sem dono', 'Quem está sem responsável, o rodízio sugerido e a distribuição manual, com prévia e desfazer'],
+  distribuir:    ['Distribuir contatos', 'Confira quem está sem responsável e revise a distribuição antes de aplicar.'],
   relatorios:    ['Relatórios', 'Funil, conversão, tempo de resposta e perdas do período, com exportação'],
   configuracoes: ['Configurações', 'Sua conta, sua senha e a equipe'],
 };
@@ -713,13 +713,17 @@ const iniciais = nome => String(nome ?? '?').trim().split(/\s+/)
 const modalCli = $('#modalCliBg');
 
 let CLIENTES = [], CLI_RESUMO = null, PAG_CLI = 1;
+let pedidoClientes = 0;
 async function carregarClientes() {
   const alvo = $('#tblClientes');
   const q = $('#buscaCliente').value.trim();
+  const pedido = ++pedidoClientes;
+  const atual = () => pedido === pedidoClientes && q === $('#buscaCliente').value.trim();
+  alvo.setAttribute('aria-busy', 'true');
   if (!CLIENTES.length) alvo.innerHTML = '<tbody><tr><td><div class="skeleton" aria-label="Carregando clientes"></div></td></tr></tbody>';
   try {
     const r = await api('/api/clientes' + (q ? `?q=${encodeURIComponent(q)}` : ''));
-    if (q !== $('#buscaCliente').value.trim()) return;   // resposta de uma busca antiga
+    if (!atual()) return;
     CLIENTES = r.clientes || []; CLI_RESUMO = r; PAG_CLI = 1;
 
     $('#cliKpis').innerHTML = `
@@ -738,8 +742,15 @@ async function carregarClientes() {
           ? 'de quem apareceu na busca' : 'da base inteira'}</span></div></div>`;
     renderClientes();
   } catch (err) {
+    if (!atual()) return;
+    $('#pagClientes').replaceChildren();
+    $('#cliCount').textContent = '';
     alvo.innerHTML = `<tbody><tr><td style="padding:26px" class="muted">
-      <div class="alert">Não consegui carregar os clientes: ${esc(err.message)}</div></td></tr></tbody>`;
+      <div class="alert" role="alert">Não consegui carregar os clientes: ${esc(err.message)}</div>
+      <button type="button" class="btn btn-ghost" id="clientesTentar">Tentar novamente</button></td></tr></tbody>`;
+    $('#clientesTentar').addEventListener('click', carregarClientes);
+  } finally {
+    if (atual()) alvo.setAttribute('aria-busy', 'false');
   }
 }
 function renderClientes() {
@@ -748,7 +759,8 @@ function renderClientes() {
     : ord === 'recente' ? String(b.ultimoContato).localeCompare(String(a.ultimoContato))
     : ord === 'sumido' ? String(a.ultimoContato || '9').localeCompare(String(b.ultimoContato || '9'))
     : b.gasto - a.gasto || String(b.ultimoContato).localeCompare(String(a.ultimoContato)));
-  $('#cliCount').textContent = `${lista.length.toLocaleString('pt-BR')} cliente${lista.length === 1 ? '' : 's'}` + (q ? ' encontrados' : '');
+  $('#cliCount').textContent = lista.length.toLocaleString('pt-BR') +
+    (lista.length === 1 ? (q ? ' cliente encontrado' : ' cliente') : (q ? ' clientes encontrados' : ' clientes'));
   if (!lista.length) {
     alvo.innerHTML = `<tbody><tr><td class="vazio-celula">${q ? 'Nenhum cliente com esse termo. Tente só o final do telefone ou a placa.' : 'A base de clientes ainda está vazia.'}</td></tr></tbody>`;
     $('#pagClientes').innerHTML = ''; return;
@@ -893,7 +905,7 @@ async function abrirFichaCliente(id, opcoes = {}) {
 /* ============================================================
    SERVIÇOS — o catálogo que alimenta a IA do WhatsApp
    ============================================================ */
-const LABEL_ESCOPO = { LEVES:'Veículos leves', TODOS:'Todos os veículos', ESPECIFICO:'Caso a caso' };
+const LABEL_ESCOPO = { LEVES:'Carros leves', TODOS:'Todos os carros', ESPECIFICO:'Caso a caso' };
 let filtroFaz = '';   // '' = todos | '1' = fazemos | '0' = não fazemos
 
 async function carregarCatalogo() {
@@ -908,7 +920,9 @@ async function carregarCatalogo() {
     $('#srvAviso').hidden = SOU_ADMIN;
     renderCatalogo();
   } catch (err) {
-    alvo.innerHTML = `<div class="alert">Não consegui carregar o catálogo: ${esc(err.message)}</div>`;
+    alvo.innerHTML = `<div class="alert" role="alert">Não consegui carregar o catálogo: ${esc(err.message)}</div>
+      <button type="button" class="btn btn-ghost" id="catalogoTentar">Tentar novamente</button>`;
+    $('#catalogoTentar').addEventListener('click', carregarCatalogo);
   }
 }
 
@@ -931,7 +945,9 @@ function renderCatalogo() {
     `${lista.length} de ${CATALOGO.length} · ${fazemos} que fazemos, ${CATALOGO.length - fazemos} que não`;
 
   if (!lista.length) {
-    alvo.innerHTML = '<div class="vazio">Nenhum serviço com esse filtro.</div>';
+    alvo.innerHTML = CATALOGO.length
+      ? '<div class="vazio">Nenhum serviço com esse filtro. Limpe a busca ou escolha Todos.</div>'
+      : '<div class="vazio">O catálogo ainda está vazio.</div>';
     return;
   }
 
@@ -993,7 +1009,10 @@ $('#buscaServico').addEventListener('input', () => {
 });
 $$('#filtrosServico .filtro-pill').forEach(b => b.addEventListener('click', () => {
   filtroFaz = b.dataset.faz;
-  $$('#filtrosServico .filtro-pill').forEach(x => x.classList.toggle('ativo', x === b));
+  $$('#filtrosServico .filtro-pill').forEach(x => {
+    x.classList.toggle('ativo', x === b);
+    x.setAttribute('aria-pressed', String(x === b));
+  });
   renderCatalogo();
 }));
 
@@ -1005,7 +1024,10 @@ const LABEL_PAPEL = CrmUtils.ROTULO_PAPEL;
 /* Seletor interno: "Minha conta" x "Equipe e sistema" */
 $$('#configTabs .config-pilula').forEach(b => b.addEventListener('click', () => {
   const secao = b.dataset.secao;
-  $$('#configTabs .config-pilula').forEach(x => x.classList.toggle('ativo', x === b));
+  $$('#configTabs .config-pilula').forEach(x => {
+    x.classList.toggle('ativo', x === b);
+    x.setAttribute('aria-pressed', String(x === b));
+  });
   $$('.config-secao').forEach(s => s.classList.toggle('ativa', s.id === `config-${secao}`));
 }));
 
