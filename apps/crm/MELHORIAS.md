@@ -1426,3 +1426,4 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 
 - **R10-CRM-001** · conserto · O cadastro de contatos preserva acentos quando o JSON chega em blocos HTTP (teste R10-CRM-001 em testes/r10-json.test.cjs) · `387f5ac`
 - **R10-CRM-002** · segurança · O CRM rejeita JSON com UTF-8 inválido antes de cadastrar o contato (teste R10-CRM-002 em testes/r10-json.test.cjs) · `77ce05a`
+- **R10-CRM-003** · segurança · O CRM exige codificação compatível para o corpo HTTP antes de cadastrar o contato (teste R10-CRM-003 em testes/r10-json.test.cjs) · `802154f`
