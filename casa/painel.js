@@ -300,6 +300,9 @@
     const hojeB = L.hojeSP();   /* rodada 9: barra sem degradê; a de hoje em vermelho e com a palavra "hoje" (não só a cor) */
     $('#donoBarras').innerHTML = bs.map((b) => `<div class="barra${b.dia === hojeB ? ' barra-hoje' : ''}" title="${C.esc(L.brl(b.valor))}"><span class="barra-v">${b.valor ? C.esc(L.brlCurto(b.valor)) : ''}</span><span class="barra-col"><span class="barra-fill" data-h="${b.pct}"></span></span><span class="barra-d">${b.dia === hojeB ? 'hoje' : C.esc(L.diaCurto(b.dia))}</span></div>`).join('');
     $('#donoBarras').setAttribute('aria-label', 'Faturamento por dia: ' + bs.map((b) => `${L.diaCurto(b.dia)} ${L.brl(b.valor)}`).join(', '));
+    /* rodada 9: sete barras vazias sem explicação pareciam gráfico quebrado; agora diz o que falta */
+    const vazio7 = $('#donoBarrasVazio');
+    if (vazio7) vazio7.hidden = bs.some((b) => b.valor > 0);
     const nota = $('#donoNota');
     nota.hidden = !(f.sem_valor_semana > 0);
     if (!nota.hidden) nota.innerHTML = `⚠ ${Number(f.sem_valor_semana)} fechamento${f.sem_valor_semana > 1 ? 's' : ''} desta semana sem valor informado: o faturamento está subestimado. ${linkA(links.agenda(), 'agenda', 'link', 'Abrir a Agenda')}`;
@@ -349,6 +352,8 @@
     const pm = M2.progressoDaMeta(f.mes, meta);
     box.innerHTML = '<h3 class="dono-h">Ritmo do mês</h3>' +
       (p.projecao === null ? '<p class="dono-nota">Sem dias úteis para projetar.</p>' :
+        /* rodada 9: com nada fechado ainda, "o mês fecha em R$ 0,00" assustava; diz quando a projeção aparece */
+        !(Number(f.mes) > 0) ? `<p class="meta-linha">Ainda sem faturamento marcado neste mês. A projeção aparece depois do primeiro "fechou" com valor na Agenda. <small>(${p.passados} de ${p.total} dias úteis passados)</small></p>` :
         `<p class="meta-linha">No ritmo de agora o mês fecha em <b>${C.esc(L.brl(p.projecao))}</b> <small>(${p.passados} de ${p.total} dias úteis passados)</small></p>`) +
       (pm ? `<div class="conv-linha"><span>Meta de ${C.esc(L.brl(meta))}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${pm.batida ? '' : 'ruim'}" data-w="${Math.min(100, pm.pct)}"></span></span><b>${pm.pct}%</b></div>
         <p class="dono-nota">${pm.batida ? 'Meta batida! 🏁' : 'Faltam ' + C.esc(L.brl(pm.falta)) + (p.faltam ? ' em ' + p.faltam + ' dias úteis (' + C.esc(L.brl(Math.ceil(pm.falta / p.faltam))) + ' por dia)' : '')}</p>` : '<p class="dono-nota">Defina uma meta para acompanhar a barra.</p>') +
