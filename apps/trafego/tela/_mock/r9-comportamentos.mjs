@@ -187,6 +187,17 @@ export const CASOS = {
     await pagina.goto(endereco + '?cenario=cheio#/hoje', { waitUntil: 'networkidle0' });
     conferir(await pagina.$('[aria-labelledby="tRitmo"] .colunas'), 'com contatos, o gráfico continua');
   },
+
+  /* Sem acesso ao app: a navegação (que não abriria nada) some; com acesso, continua. */
+  async 'sem-acesso-nav'(pagina, endereco) {
+    await pagina.goto(endereco + '?acesso=nao#/hoje', { waitUntil: 'networkidle0' });
+    await pagina.waitForFunction(() => /não tem acesso/i.test(document.querySelector('#miolo')?.textContent || ''));
+    const visiveis = await pagina.$$eval('.navbaixo a, .casca-nav a, .casca-acoes a[data-tela]', (l) => l.filter((a) => a.getClientRects().length > 0).length);
+    conferir(visiveis === 0, 'nenhum link de tela à vista (' + visiveis + ')');
+    await pagina.goto(endereco + '?cenario=cheio#/hoje', { waitUntil: 'networkidle0' });
+    const comAcesso = await pagina.$$eval('.navbaixo a, .casca-nav a', (l) => l.filter((a) => a.getClientRects().length > 0).length);
+    conferir(comAcesso >= 4, 'com acesso, a navegação aparece (' + comAcesso + ')');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();

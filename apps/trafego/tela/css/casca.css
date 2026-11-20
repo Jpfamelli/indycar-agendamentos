@@ -498,3 +498,10 @@ html {
     }
   }
 }
+
+/* Sem acesso ou sem sessão nenhuma tela abre: a navegação some em vez de ficar com links que não fazem nada. */
+[data-parado] .casca-nav,
+[data-parado] .navbaixo,
+[data-parado] .casca-acoes a[data-tela] {
+  display: none;
+}
