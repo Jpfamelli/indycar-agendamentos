@@ -15,6 +15,7 @@ import {
   presencaPodeMarcar, semConfirmacaoDoErro,
   urlDeWebhookSegura, validarServico, validarModelo, validarEmpresa,
   igualSeguro, tokenDeVerificacaoValido, assinaturaDaMetaConfere, lerWebhookDaMeta, SITUACOES_DE_MENSAGEM,
+  recadoDeRede, validarWaConfig, validarIaConfig, validarEnvioDeWhatsapp, idDeServicoValido,
 } from './regras.js';
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento, entradaDoChegou } from './patio.js';
@@ -191,11 +192,13 @@ const getWaConfig = () => dados.obterWaConfig();
 
 // Envia uma mensagem de texto pela WhatsApp Cloud API (Meta). Usa fetch nativo.
 async function enviarCloudAPI(cfg, telefone, texto) {
-  const ver = cfg.api_version || 'v21.0';
-  const url = `https://graph.facebook.com/${ver}/${cfg.phone_number_id}/messages`;
+  // rodada 10: versão e ID entram no endereço chamado com o token: só no formato exato (config antiga torta não é usada)
+  const alvo = enderecoDaCloud(cfg);
+  if (!alvo) return { ok: false, erro: 'A configuração da Cloud API está incompleta ou fora do formato. Confira em WhatsApp › Configuração.' };
+  const url = `${alvo}/messages`;
   try {
     const r = await fetch(url, {
-      method: 'POST',
+      method: 'POST', signal: AbortSignal.timeout(15000),
       headers: { Authorization: `Bearer ${cfg.access_token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
@@ -206,11 +209,24 @@ async function enviarCloudAPI(cfg, telefone, texto) {
     });
     const data = await r.json().catch(() => ({}));
     if (r.ok && data.messages?.[0]?.id) return { ok: true, wamid: data.messages[0].id };
-    return { ok: false, erro: data.error?.message || `HTTP ${r.status}` };
+    return { ok: false, erro: texto1(data.error?.message, 300) || `A Meta recusou o envio (HTTP ${r.status}).` };
   } catch (e) {
-    return { ok: false, erro: String(e?.message || e) };
+    console.warn('Envio pela Cloud API:', e?.message || e);   // o detalhe da rede fica só no log
+    return { ok: false, erro: recadoDeRede(e, 'a Meta', 15) };
   }
 }
+/** Endereço da Cloud API para este número, ou null se a versão ou o ID não estiverem no formato certo. */
+function enderecoDaCloud(cfg) {
+  const ver = cfg?.api_version || 'v21.0', id = String(cfg?.phone_number_id || '');
+  if (!/^v\d{1,2}\.\d{1,2}$/.test(ver) || !/^\d{5,25}$/.test(id)) return null;
+  return `https://graph.facebook.com/${ver}/${id}`;
+}
+/** Endereço base do CodeWords que o servidor pode chamar (https e público), ou null. */
+function baseDoCodeWords(valor) {
+  const u = urlDeWebhookSegura(valor || 'https://runtime.codewords.ai');
+  return u.ok ? u.url.replace(/\/+$/, '') : null;
+}
+const ERRO_BASE_CODEWORDS = 'O endereço do CodeWords salvo em Integração não é um endereço https público. Corrija em WhatsApp › Integração.';
 
 // Despacha uma mensagem (Cloud API se ativa, senão registra p/ link wa.me) e grava no banco.
 async function despacharMensagem({ agendamento_id = null, telefone, nome = null, corpo }) {
@@ -2034,14 +2050,19 @@ async function api(req, res, url) {
   if (pathname === '/api/whatsapp/config' && m === 'GET') {
     const c = await getWaConfig();
     const tok = c.access_token || '';
+    /* rodada 10: quem não é gestor só precisa saber se a Cloud API está ligada (a janela "Enviar WhatsApp" pergunta
+       isso). O token de verificação do webhook, o id da conta e o fim do token de acesso são só do gestor. */
+    if (!souGestor) return ok(res, { ativo: c.ativo, phone_number_id: c.phone_number_id || '', api_version: c.api_version, numero_exibicao: c.numero_exibicao ?? null, tem_token: !!tok });
     return ok(res, { ...c, access_token: undefined,
       tem_token: !!tok, token_mask: tok ? '••••••••' + tok.slice(-4) : '' });
   }
   if (pathname === '/api/whatsapp/config' && m === 'PUT') {
     const c = await getWaConfig();
-    // só atualiza o token se um novo for digitado (campo vazio mantém o atual)
-    const token = (body.access_token && body.access_token.trim()) ? body.access_token.trim() : c.access_token;
-    const nc = await dados.salvarWaConfig({ ...body, access_token: token ?? null });
+    const v = validarWaConfig(body);
+    if (!v.ok) return bad(res, v.erro);
+    // só atualiza o token se um novo for digitado (campo vazio mantém o atual); o que não veio no corpo fica como está
+    const token = v.campos.access_token || c.access_token;
+    const nc = await dados.salvarWaConfig({ ...c, ...v.campos, access_token: token ?? null });
     await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_whatsapp_config', null,
       { campos: Object.keys(body).map((k) => (k === 'access_token' ? 'access_token(•••)' : k)) });
     const t = nc.access_token || '';
@@ -2051,19 +2072,25 @@ async function api(req, res, url) {
   // testa a conexão com a Cloud API (aceita credenciais no corpo antes de salvar)
   if (pathname === '/api/whatsapp/testar' && m === 'POST') {
     const c = await getWaConfig();
-    const cfg = { ...c, ...body,
-      access_token: (body.access_token && body.access_token.trim()) ? body.access_token.trim() : c.access_token };
+    const v = validarWaConfig(body);
+    if (!v.ok) return bad(res, v.erro);
+    const cfg = { ...c, ...v.campos, access_token: v.campos.access_token || c.access_token };
     if (!cfg.phone_number_id || !cfg.access_token)
-      return bad(res, 'Informe o Phone Number ID e o Access Token.');
-    const ver = cfg.api_version || 'v21.0';
+      return bad(res, 'Informe o ID do número e o token de acesso.');
+    const alvo = enderecoDaCloud(cfg);
+    if (!alvo) return bad(res, 'ID do número ou versão da API fora do formato. Confira e tente de novo.');
     try {
-      const r = await fetch(`https://graph.facebook.com/${ver}/${cfg.phone_number_id}?fields=display_phone_number,verified_name,quality_rating`,
-        { headers: { Authorization: `Bearer ${cfg.access_token}` } });
+      // rodada 10: 10 s de teto (antes ficava esperando a Meta sem prazo) e o detalhe da rede só no log
+      const r = await fetch(`${alvo}?fields=display_phone_number,verified_name,quality_rating`,
+        { headers: { Authorization: `Bearer ${cfg.access_token}` }, signal: AbortSignal.timeout(10000) });
       const data = await r.json().catch(() => ({}));
-      if (r.ok) return ok(res, { ok: true, numero: data.display_phone_number,
-        nome: data.verified_name, qualidade: data.quality_rating });
-      return ok(res, { ok: false, erro: data.error?.message || `HTTP ${r.status}` });
-    } catch (e) { return ok(res, { ok: false, erro: String(e?.message || e) }); }
+      if (r.ok) return ok(res, { ok: true, numero: texto1(data.display_phone_number, 40),
+        nome: texto1(data.verified_name, 120), qualidade: texto1(data.quality_rating, 20) });
+      return ok(res, { ok: false, erro: texto1(data.error?.message, 300) || `A Meta recusou (HTTP ${r.status}).` });
+    } catch (e) {
+      console.warn('Teste da Cloud API:', e?.message || e);
+      return ok(res, { ok: false, erro: recadoDeRede(e, 'a Meta', 10) });
+    }
   }
 
   if (pathname === '/api/whatsapp/templates' && m === 'GET')
@@ -2097,20 +2124,26 @@ async function api(req, res, url) {
 
   // prepara a mensagem (renderiza template para um agendamento) sem enviar
   if (pathname === '/api/whatsapp/preparar' && m === 'POST') {
+    const ve = validarEnvioDeWhatsapp({ template_id: body.template_id, agendamento_id: body.agendamento_id, nome: body.nome }, { ehUuid: dados.ehUuid });
+    if (!ve.ok) return bad(res, ve.erro);
     const tpl = await dados.obterTemplate(body.template_id);
-    if (!tpl) return bad(res, 'Template não encontrado.');
-    let ctx = { nome: body.nome ?? '', servico: '', data: '', hora: '', veiculo: '', placa: '' };
+    if (!tpl) return bad(res, 'Modelo não encontrado.');
+    let ctx = { nome: ve.campos.nome ?? '', servico: '', data: '', hora: '', veiculo: '', placa: '' };
     if (body.agendamento_id) {
       const a = await dados.obterAgendamento(body.agendamento_id);
       if (a) ctx = { nome: a.cliente_nome, servico: a.servico, data: formatarDataBR(a.data),
                      hora: a.hora, veiculo: a.veiculo ?? '', placa: a.placa ?? '' };
     }
-    return ok(res, { corpo: renderTemplate(tpl.corpo, ctx), telefone: body.telefone ?? '' });
+    return ok(res, { corpo: renderTemplate(tpl.corpo, ctx), telefone: texto1(body.telefone, 24) });
   }
 
   // envia: registra a mensagem no banco e devolve o link wa.me (clique-para-conversar)
   if (pathname === '/api/whatsapp/enviar' && m === 'POST') {
-    let { agendamento_id, telefone, nome, corpo, template_id } = body;
+    // rodada 10: freio por pessoa (com a Cloud API ligada cada chamada é um WhatsApp de verdade) e entrada conferida
+    if (!dentroDoLimite(`wa-enviar:${usuario.id}`, 30, 60_000)) return send(res, 429, { erro: 'Muitas mensagens seguidas. Espere um minuto.' });
+    const ve = validarEnvioDeWhatsapp(body, { ehUuid: dados.ehUuid });
+    if (!ve.ok) return bad(res, ve.erro);
+    let { agendamento_id, telefone, nome, corpo, template_id } = ve.campos;
     if (template_id && !corpo) {
       const tpl = await dados.obterTemplate(template_id);
       if (tpl) {

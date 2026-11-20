@@ -335,3 +335,126 @@ export function lerWebhookDaMeta(corpo) {
   }
   return saida;
 }
+
+/** Texto simples de formulário: string ou número viram texto aparado; vazio vira ''; objeto, lista e booleano são null (inválido). */
+function textoDeCampo(v) {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'string' || typeof v === 'number') return String(v).trim();
+  return null;
+}
+
+/** Falha de rede ao chamar um serviço de fora: o detalhe (endereço, ECONNREFUSED…) fica no log; a tela recebe isto. */
+export function recadoDeRede(e, quem, segundos = null) {
+  const demorou = e?.name === 'TimeoutError' || e?.name === 'AbortError' || e?.cause?.name === 'TimeoutError';
+  const Quem = quem.charAt(0).toUpperCase() + quem.slice(1);
+  if (demorou) return segundos ? `${Quem} não respondeu em ${segundos} segundos. Tente de novo.` : `${Quem} não respondeu a tempo. Tente de novo.`;
+  return `Não consegui falar com ${quem} agora. Confira a internet do servidor e tente de novo.`;
+}
+
+/** Configuração da Cloud API (aba WhatsApp). A versão e o ID do número entram no endereço que o servidor chama
+    com o token de acesso: por isso só passam no formato exato. Devolve em `campos` só o que veio no corpo. */
+export function validarWaConfig(corpo) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const campos = {};
+  if (c.ativo !== undefined) campos.ativo = c.ativo === true || c.ativo === 1 || c.ativo === '1' || c.ativo === 'true';
+  for (const [k, recado] of [['phone_number_id', 'ID do número inválido: são só números.'], ['business_account_id', 'ID da conta do WhatsApp inválido: são só números.']]) {
+    if (c[k] === undefined) continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null || (v && !/^\d{5,25}$/.test(v))) return { ok: false, erro: recado };
+    campos[k] = v || null;
+  }
+  if (c.api_version !== undefined) {
+    const v = textoDeCampo(c.api_version);
+    if (v === null || (v && !/^v\d{1,2}\.\d{1,2}$/.test(v))) return { ok: false, erro: 'Versão da API inválida. Use o formato v21.0.' };
+    campos.api_version = v || 'v21.0';
+  }
+  if (c.verify_token !== undefined) {
+    const v = textoDeCampo(c.verify_token);
+    // "indycar" era o padrão antigo e pode estar salvo: vira "sem token" em vez de travar a tela
+    if (v === null || (v && v.toLowerCase() !== 'indycar' && !tokenDeVerificacaoValido(v))) return { ok: false, erro: 'Token de verificação fraco: crie um com 12 letras ou mais, sem espaço.' };
+    campos.verify_token = v && v.toLowerCase() !== 'indycar' ? v : '';
+  }
+  if (c.numero_exibicao !== undefined) {
+    const v = textoDeCampo(c.numero_exibicao);
+    if (v === null || v.length > 30 || !/^[\d\s()+-]*$/.test(v)) return { ok: false, erro: 'Número exibido inválido: use só números, espaço, parênteses, + e traço.' };
+    campos.numero_exibicao = v || null;
+  }
+  if (c.access_token !== undefined && c.access_token !== null && c.access_token !== '') {
+    const v = textoDeCampo(c.access_token);
+    if (v === null || /\s/.test(v) || v.length < 20 || v.length > 1000) return { ok: false, erro: 'Token de acesso inválido. Copie de novo do painel da Meta, sem espaço.' };
+    if (v) campos.access_token = v;
+  }
+  return { ok: true, campos };
+}
+
+/** Id de fluxo ou de serviço do CodeWords: entra no caminho do endereço chamado, então nada de barra, ponto de interrogação ou espaço. */
+export const idDeServicoValido = (v) => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(v) && !v.includes('..');
+
+/** Configuração da Integração (CodeWords). Devolve em `campos` só o que veio no corpo, já limpo. */
+export function validarIaConfig(corpo) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const campos = {};
+  if (c.ativo !== undefined) campos.ativo = c.ativo;
+  if (c.cw_base_url !== undefined && c.cw_base_url !== null && c.cw_base_url !== '') {
+    const u = urlDeWebhookSegura(c.cw_base_url);
+    if (!u.ok) return { ok: false, erro: 'Endereço base do CodeWords inválido: use o endereço https público, ex.: https://runtime.codewords.ai' };
+    campos.cw_base_url = u.url.replace(/\/+$/, '');
+  }
+  for (const k of ['cw_service_id', 'cw_db_service_id', 'cw_noshow_service_id', 'cw_connect_service_id']) {
+    if (c[k] === undefined) continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null || (v && !idDeServicoValido(v))) return { ok: false, erro: 'Service ID inválido: use só letras, números, ponto, traço e sublinhado (até 80).' };
+    campos[k] = v || null;
+  }
+  if (c.cw_device_id !== undefined) {
+    const v = textoDeCampo(c.cw_device_id);
+    if (v === null || v.length > 120 || /[\s/?#&]/.test(v)) return { ok: false, erro: 'Id do aparelho inválido (até 120 letras, sem espaço nem barra).' };
+    campos.cw_device_id = v || null;
+  }
+  for (const [k, max, nome] of [['persona', 4000, 'Texto da persona'], ['saudacao', 1000, 'Texto da saudação']]) {
+    if (c[k] === undefined) continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null || v.length > max) return { ok: false, erro: `${nome} longo demais (até ${max} letras).` };
+    campos[k] = v || null;
+  }
+  if (c.modelo !== undefined) {
+    const v = textoDeCampo(c.modelo);
+    if (v === null || (v && !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/.test(v))) return { ok: false, erro: 'Modelo inválido.' };
+    if (v) campos.modelo = v;
+  }
+  if (c.motor !== undefined) {
+    const v = textoDeCampo(c.motor);
+    if (v === null || (v && !/^[a-z][a-z0-9_-]{0,29}$/.test(v))) return { ok: false, erro: 'Motor inválido.' };
+    if (v) campos.motor = v;
+  }
+  for (const k of ['api_key', 'cw_api_key']) {
+    if (c[k] === undefined || c[k] === null || c[k] === '') continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null || /\s/.test(v) || v.length > 400) return { ok: false, erro: 'Chave inválida: cole de novo, sem espaço.' };
+    if (v) campos[k] = v;
+  }
+  return { ok: true, campos };
+}
+
+/** Mensagem avulsa ("Enviar WhatsApp"): telefone com DDD, texto de até 4.096 letras (o teto do WhatsApp) e ids de verdade. */
+export function validarEnvioDeWhatsapp(corpo, { ehUuid }) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  for (const [k, recado] of [['agendamento_id', 'Agendamento inválido.'], ['template_id', 'Modelo inválido.']]) {
+    if (c[k] !== undefined && c[k] !== null && c[k] !== '' && !ehUuid(c[k])) return { ok: false, erro: recado };
+  }
+  const nome = textoDeCampo(c.nome);
+  if (nome === null || nome.length > 160) return { ok: false, erro: 'Nome inválido.' };
+  let telefone = null;
+  if (c.telefone !== undefined && c.telefone !== null && c.telefone !== '') {
+    telefone = textoDeCampo(c.telefone);
+    const d = telefone === null ? '' : telefone.replace(/\D/g, '');
+    if (d.length < 10 || d.length > 13 || telefone.length > 24) return { ok: false, erro: 'Telefone incompleto: use DDD + número, ex.: (12) 99999-9999.' };
+  }
+  let texto = null;
+  if (c.corpo !== undefined && c.corpo !== null && c.corpo !== '') {
+    if (typeof c.corpo !== 'string') return { ok: false, erro: 'Informe telefone e mensagem.' };
+    texto = c.corpo.trim();
+    if (texto.length > 4096) return { ok: false, erro: 'Mensagem longa demais (o WhatsApp aceita até 4.096 letras).' };
+  }
+  return { ok: true, campos: { agendamento_id: c.agendamento_id || null, template_id: c.template_id || null, nome: nome || null, telefone, corpo: texto || null } };
+}

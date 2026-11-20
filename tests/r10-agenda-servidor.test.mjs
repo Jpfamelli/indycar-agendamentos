@@ -152,3 +152,87 @@ test('R10-AGE-010: mudar a situação de uma mensagem pela API só aceita a list
   const bom = await chamar('atendente', 'PATCH', `/api/whatsapp/mensagens/${ID(701)}`, { status: 'lido' });
   assert.equal(bom.status, 200); assert.deepEqual(gravado.statusMensagem, { id: ID(701), status: 'lido' });
 });
+
+/* ------------------------------------------------------------------ envio e configuração do WhatsApp ---- */
+test('R10-AGE-011: "Enviar WhatsApp" confere telefone, tamanho do texto e os identificadores antes de gravar', async () => {
+  const bom = { telefone: '(12) 99111-0001', nome: 'Maria', corpo: '  Oi Maria, tudo certo?  ' };
+  for (const [ruim, recado] of [
+    [{ ...bom, telefone: '123' }, /Telefone incompleto/],
+    [{ ...bom, telefone: { a: 1 } }, /Telefone incompleto|Informe telefone/],
+    [{ ...bom, corpo: { a: 1 } }, /Informe telefone e mensagem/],
+    [{ ...bom, corpo: 'a'.repeat(4097) }, /longa demais/],
+    [{ ...bom, agendamento_id: 'abc' }, /Agendamento inválido/],
+    [{ ...bom, template_id: '1 or 1=1' }, /Modelo inválido/],
+    [{ ...bom, nome: { a: 1 } }, /Nome inválido/],
+  ]) {
+    const r = await chamar('atendente', 'POST', '/api/whatsapp/enviar', ruim);
+    assert.equal(r.status, 400, JSON.stringify(ruim).slice(0, 60)); assert.match(r.j.erro, recado);
+  }
+  assert.equal(mensagens.length, 0, 'nada foi gravado');
+  const r = await chamar('atendente', 'POST', '/api/whatsapp/enviar', bom);
+  assert.equal(r.status, 200); assert.equal(mensagens[0].corpo, 'Oi Maria, tudo certo?'); assert.equal(mensagens[0].telefone, '(12) 99111-0001');
+  const preparar = await chamar('atendente', 'POST', '/api/whatsapp/preparar', { template_id: ID(401), agendamento_id: 'abc' });
+  assert.equal(preparar.status, 400); assert.match(preparar.j.erro, /Agendamento inválido/);
+});
+
+test('R10-AGE-012: "Enviar WhatsApp" tem freio de 30 por minuto por pessoa', async () => {
+  let ultimo;
+  for (let i = 0; i < 31; i++) ultimo = await chamar('atendente', 'POST', '/api/whatsapp/enviar', { telefone: '12991110001', corpo: 'Oi ' + i });
+  assert.equal(ultimo.status, 429); assert.match(ultimo.j.erro, /Muitas mensagens seguidas/);
+  assert.equal(mensagens.length, 30);
+  assert.equal((await chamar('gestor', 'POST', '/api/whatsapp/enviar', { telefone: '12991110001', corpo: 'Oi' })).status, 200, 'o freio é por pessoa');
+});
+
+test('R10-AGE-013: a configuração do WhatsApp só grava versão, ids e token no formato certo', async () => {
+  const bom = { ativo: true, phone_number_id: '123456789012345', business_account_id: '998877665544', api_version: 'v21.0', verify_token: 'um-token-comprido-de-verdade', numero_exibicao: '(12) 99683-0272' };
+  for (const [campo, valor, recado] of [
+    ['api_version', '../../me?fields=id', /Versão da API inválida/], ['api_version', { a: 1 }, /Versão da API inválida/],
+    ['phone_number_id', '123/../456', /ID do número inválido/], ['business_account_id', 'abc', /ID da conta do WhatsApp inválido/],
+    ['verify_token', 'curto', /Token de verificação fraco/], ['verify_token', 'tem espaço no meio do token', /Token de verificação fraco/],
+    ['numero_exibicao', '<b>12</b>', /Número exibido inválido/], ['access_token', 'tem espaço', /Token de acesso inválido/],
+  ]) {
+    const r = await chamar('gestor', 'PUT', '/api/whatsapp/config', { ...bom, [campo]: valor });
+    assert.equal(r.status, 400, campo + ' ' + JSON.stringify(valor)); assert.match(r.j.erro, recado);
+  }
+  assert.equal(gravado.wa, undefined);
+  const ok = await chamar('gestor', 'PUT', '/api/whatsapp/config', bom);
+  assert.equal(ok.status, 200); assert.equal(gravado.wa.api_version, 'v21.0'); assert.equal(gravado.wa.phone_number_id, '123456789012345');
+  // o padrão antigo que ficou salvo vira "sem token" em vez de travar a tela
+  const legado = await chamar('gestor', 'PUT', '/api/whatsapp/config', { ...bom, verify_token: 'indycar' });
+  assert.equal(legado.status, 200); assert.equal(gravado.wa.verify_token, '');
+  // e o teste de conexão não monta endereço com o que veio torto
+  const teste = await chamar('gestor', 'POST', '/api/whatsapp/testar', { phone_number_id: '123', access_token: 'EAAGtokendeteste1234567890', api_version: '../../me' });
+  assert.equal(teste.status, 400); assert.equal(chamadasFora.length, 0);
+});
+
+test('R10-AGE-014: "Testar conexão" tem teto de tempo e não mostra o detalhe da rede', async () => {
+  ligarCloud();
+  foraResponde = async () => { throw new TypeError('fetch failed: connect ECONNREFUSED 157.240.0.1:443'); };
+  const caiu = await chamar('gestor', 'POST', '/api/whatsapp/testar', {});
+  assert.equal(caiu.status, 200); assert.equal(caiu.j.ok, false);
+  assert.match(caiu.j.erro, /Não consegui falar com a Meta/); assert.doesNotMatch(caiu.j.erro, /ECONNREFUSED|157\.240|fetch failed/);
+  assert.ok(chamadasFora[0].opt.signal instanceof AbortSignal, 'o pedido tem teto de tempo');
+  foraResponde = async () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError'); };
+  assert.match((await chamar('gestor', 'POST', '/api/whatsapp/testar', {})).j.erro, /não respondeu em 10 segundos/);
+});
+
+test('R10-AGE-015: envio pela Cloud API tem teto de tempo e a falha de rede vira recado em português (na tela e no histórico)', async () => {
+  ligarCloud();
+  foraResponde = async () => { throw new TypeError('fetch failed: getaddrinfo ENOTFOUND graph.facebook.com'); };
+  const r = await chamar('atendente', 'POST', '/api/whatsapp/enviar', { telefone: '12991110001', corpo: 'Oi' });
+  assert.equal(r.status, 200); assert.equal(r.j.status, 'falhou');
+  assert.match(r.j.erro, /Não consegui falar com a Meta/); assert.doesNotMatch(r.j.erro + mensagens[0].erro, /ENOTFOUND|getaddrinfo|fetch failed/);
+  assert.ok(chamadasFora[0].opt.signal instanceof AbortSignal);
+  assert.match(chamadasFora[0].url, /^https:\/\/graph\.facebook\.com\/v21\.0\/123456789012345\/messages$/);
+});
+
+test('R10-AGE-016: quem não é gestor não recebe o token de verificação nem o id da conta do WhatsApp', async () => {
+  Object.assign(wa, { ativo: 1, phone_number_id: '123456789012345', access_token: 'tok-da-meta-abcd', verify_token: 'um-token-comprido-de-verdade', business_account_id: '998877' });
+  const at = await chamar('atendente', 'GET', '/api/whatsapp/config');
+  assert.equal(at.status, 200);
+  assert.equal(at.j.verify_token, undefined); assert.equal(at.j.business_account_id, undefined); assert.equal(at.j.access_token, undefined);
+  assert.equal(at.j.token_mask, undefined, 'nem o fim do token de acesso');
+  assert.equal(!!at.j.ativo, true); assert.equal(at.j.tem_token, true); assert.ok(at.j.phone_number_id, 'a janela de envio continua sabendo que a Cloud API está ligada');
+  const ge = await chamar('gestor', 'GET', '/api/whatsapp/config');
+  assert.equal(ge.j.verify_token, 'um-token-comprido-de-verdade'); assert.equal(ge.j.business_account_id, '998877'); assert.equal(ge.j.access_token, undefined);
+});
