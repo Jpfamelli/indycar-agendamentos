@@ -371,3 +371,9 @@ test('logo do topo: leitor de tela ouve o problema dos sistemas; o ponto de prob
   assert.match(semComentarios(ler('saude.js')), /topo\.setAttribute\('aria-label', N\.rotuloDoLogo\(r\)\)/);
   assert.match(ler('r9.css'), /\.topo-marca\[data-saude="ruim"\]::after \{ content: '!';/);
 });
+
+test('seus apps: número de pendências no canto do cartão (o nome comprido não desce de linha por causa dele)', () => {
+  const css = ler('r9.css');
+  assert.match(css, /\.app \.app-selo \{ position: absolute; top: 10px; right: 10px; margin: 0; \}/);
+  assert.match(css, /\.app \{ position: relative; \}/);
+});
