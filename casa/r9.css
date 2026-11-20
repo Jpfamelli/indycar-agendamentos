@@ -141,3 +141,9 @@ button.t-texto:hover { text-decoration: underline dotted; }
 
 /* sinal de saúde ao lado do logo: "!" dentro do ponto quando há problema (antes só a cor separava problema de atenção) */
 .topo-marca[data-saude="ruim"]::after { content: '!'; width: 14px; height: 14px; display: grid; place-items: center; color: #fff; font: 800 10px/1 'Archivo', system-ui, sans-serif; }
+
+/* "Seus apps": o número de pendências ia ao lado do nome e, em nome comprido (ATENDIMENTO), descia sozinho para a
+   linha de baixo. Agora fica no canto de cima do cartão, sempre no mesmo lugar, e o nome não quebra por causa dele. */
+.app { position: relative; }
+.app .app-selo { position: absolute; top: 10px; right: 10px; margin: 0; }
+.app:has(.app-selo:not([hidden])) .app-nome { padding-right: 26px; }
