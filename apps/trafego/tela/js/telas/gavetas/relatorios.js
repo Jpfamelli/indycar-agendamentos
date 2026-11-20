@@ -54,7 +54,9 @@ export function montar(ctx, alvo) {
     } catch (erro) {
       if (saiu || minha !== pedido) return;
       saida.setAttribute('aria-busy', 'false');
-      trocar(saida, h('p', { class: 'campo-erro' }, fraseDoErro(erro)));
+      // Antes ficava só a frase do erro: para tentar de novo era preciso trocar de relatório e voltar.
+      trocar(saida, h('p', { class: 'campo-erro' }, fraseDoErro(erro)),
+        h('div', { class: 'relatorio-botoes' }, h('button', { class: 'botao', type: 'button', on: { click: carregar } }, icone('atualizar'), 'Tentar de novo')));
       return;
     }
     if (saiu || minha !== pedido) return;

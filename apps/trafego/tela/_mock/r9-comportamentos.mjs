@@ -140,6 +140,19 @@ export const CASOS = {
     conferir(!(await pagina.$eval('.relatorio-botoes button', (b) => b.disabled)), 'volta a copiar com o texto novo');
     conferir(!/semana/i.test(await texto(pagina, '.relatorio-titulo')), 'o título é o do dia');
   },
+
+  /* Relatórios: se o texto não vem, há um "Tentar de novo" ali mesmo (antes era preciso trocar de relatório e voltar). */
+  async 'relatorio-falha'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio&falha=relatorio#/ajustes?secao=relatorios', { waitUntil: 'networkidle0' });
+    await pagina.waitForSelector('.relatorio-saida .campo-erro');
+    const botao = await pagina.$('.relatorio-saida .relatorio-botoes button');
+    conferir(botao && /Tentar de novo/.test(await botao.evaluate((b) => b.textContent)), 'tem o botão Tentar de novo');
+    let pedidos = 0;
+    pagina.on('request', (r) => { if (r.url().includes('api/relatorios/texto')) pedidos++; });
+    await botao.click();
+    await pagina.waitForFunction(() => document.querySelector('.relatorio-saida')?.getAttribute('aria-busy') === 'false');
+    conferir(pedidos === 1, 'o toque pede o texto de novo (' + pedidos + ')');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();
