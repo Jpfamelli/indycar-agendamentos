@@ -5,6 +5,7 @@
 'use strict';
 
 const http = require('node:http');
+const { TextDecoder } = require('node:util');
 const utils = require('./public/crm-utils');
 let statsCache = null;
 const statsEmCache = async () => { if (!statsCache || statsCache.expira < Date.now()) statsCache = { valor: await store.getStats(), expira: Date.now() + 60000 }; return statsCache.valor; };
@@ -90,17 +91,21 @@ function readBody(req) {
       req.resume();
       return reject(Object.assign(new Error('Envie o corpo como JSON (Content-Type: application/json).'), { status: 415 }));
     }
-    let raw = '', bytes = 0, excedeu = false;
+    const blocos = [];
+    let bytes = 0, excedeu = false;
     req.on('data', c => {
       bytes += c.length;
       if (bytes > 65536) { excedeu = true; return; }
-      raw += c;
+      blocos.push(c);
     });
     req.on('end', () => {
       if (excedeu) return reject(Object.assign(new Error('Corpo maior que 64 KB.'), { status: 413 }));
-      if (!raw) return resolve({});
+      if (!bytes) return resolve({});
       let v;
-      try { v = JSON.parse(raw); } catch { return reject(Object.assign(new Error('JSON inválido'), {status:400})); }
+      try {
+        const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(Buffer.concat(blocos, bytes));
+        v = JSON.parse(raw);
+      } catch { return reject(Object.assign(new Error('JSON inválido'), {status:400})); }
       // sempre um objeto: lista, número ou texto soltos não chegam às rotas
       if (!v || typeof v !== 'object' || Array.isArray(v)) return reject(Object.assign(new Error('O corpo precisa ser um objeto JSON.'), { status: 400 }));
       resolve(v);

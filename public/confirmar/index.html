@@ -10,10 +10,10 @@
   <style>
     /* Página que o CLIENTE abre pelo link do WhatsApp: uma pergunta, três botões grandes, nada de login.
        Caminhos relativos (../api) para funcionar sozinha ou sob a Central (/agenda/confirmar/). */
-    :root{color-scheme:dark;--bg:#070a14;--card:#0f1424;--txt:#e9ecf4;--muted:#8a92a7;--red:#e6192e;--green:#22c55e;--orange:#f59e0b;--line:rgba(255,255,255,.08)}
-    @media (prefers-color-scheme:light){:root{color-scheme:light;--bg:#eef0f4;--card:#fff;--txt:#191a20;--muted:#575b65;--line:rgba(0,0,0,.08)}}
+    :root{color-scheme:dark;--bg:#070a14;--card:#0f1424;--txt:#e9ecf4;--muted:#8a92a7;--red:#e6192e;--red-txt:#ff7480;--green:#22c55e;--sobre-verde:#04170b;--orange:#f59e0b;--line:rgba(255,255,255,.08)}
+    @media (prefers-color-scheme:light){:root{color-scheme:light;--bg:#eef0f4;--card:#ffffff;--txt:#191a20;--muted:#575b65;--red-txt:#b00d22;--line:rgba(0,0,0,.08)}}
     *{box-sizing:border-box}
-    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--txt);font:16px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--txt);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
     main{max-width:480px;margin:0 auto;padding:28px 16px 48px}
     .logo{display:flex;align-items:center;gap:10px;margin-bottom:18px}
     .logo img{width:44px;height:44px;border-radius:12px}
@@ -28,18 +28,20 @@
     .hora .s{color:var(--muted);font-size:14px}
     .botoes{display:grid;gap:10px}
     button{appearance:none;border:2px solid var(--line);background:transparent;color:var(--txt);font:inherit;font-weight:800;font-size:18px;min-height:60px;border-radius:14px;cursor:pointer;padding:0 16px;touch-action:manipulation}
-    button.ok{background:var(--green);border-color:var(--green);color:#fff}
-    button.nao{border-color:rgba(230,25,46,.6);color:#ff5d6c}
+    button.ok{background:var(--green);border-color:var(--green);color:var(--sobre-verde)}
+    button.nao{border-color:rgba(230,25,46,.6);color:var(--red-txt)}
     button:disabled{opacity:.6;cursor:progress}
     button:focus-visible{outline:3px solid var(--red);outline-offset:2px}
     .pronto{text-align:center;padding:10px 0 0}
     .pronto .ico{font-size:52px;line-height:1;margin-bottom:8px}
     .pronto b{font-size:20px}
     textarea{width:100%;min-height:72px;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--txt);font:inherit;padding:10px 12px;margin:8px 0 10px}
-    .erro{color:#ff5d6c;font-weight:700}
+    .erro{color:var(--red-txt);font-weight:700}
     .pe{margin-top:22px;text-align:center;color:var(--muted);font-size:13px}
-    .pe em{color:var(--red);font-style:italic;font-weight:700}
-    a.wa{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 16px;border-radius:12px;background:#25d366;color:#fff;text-decoration:none;font-weight:800;margin-top:8px}
+    .pe em{color:var(--red-txt);font-style:italic;font-weight:700}
+    a.wa{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 16px;border-radius:12px;background:#25d366;color:var(--sobre-verde);text-decoration:none;font-weight:800;margin-top:8px}
+    a.wa.cal{background:#1d4ed8;color:#fff} a.wa.mapa{background:#475569;color:#fff}
+    a.wa:focus-visible{outline:3px solid var(--red);outline-offset:2px}
     [hidden]{display:none!important}
     @media (prefers-reduced-motion:no-preference){.card{animation:entra .35s ease-out}@keyframes entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}}
   </style>
@@ -51,7 +53,7 @@
       <h1 id="titulo">Um instante…</h1>
       <p id="texto">Buscando o seu horário.</p>
     </div>
-    <p class="pe">Quem conhece, <em>Indyca!</em> 🏎 · seg–sáb, 8h às 17h30</p>
+    <p class="pe">Quem conhece, <em>Indyca!</em> 🏎 · segunda a sábado, 8h às 17h30</p>
   </main>
   <script>
     (function () {
@@ -68,8 +70,23 @@
         var sem = DIAS[d.getUTCDay()];
         return (n === 0 ? 'hoje' : n === 1 ? 'amanhã' : sem) + ', ' + dataBR(iso);
       }
-      function falha(msg) {
-        card.innerHTML = '<h1>Ops</h1><p class="erro">' + esc(msg) + '</p><p>Se precisar, é só chamar a oficina pelo WhatsApp.</p>';
+      // rodada 10: pedido com teto de 15 s (rede de celular que não responde não deixa a página presa) e recado em português
+      function pedir(url, opt) {
+        var corta = new AbortController(), relogio = setTimeout(function () { corta.abort(); }, 15000);
+        opt = opt || {}; opt.signal = corta.signal;
+        return fetch(url, opt).then(function (x) { clearTimeout(relogio); return x.json().catch(function () { return {}; }).then(function (j) { if (!x.ok) { var e = new Error(j.erro || 'Não consegui agora. Tente de novo.'); e.doServidor = true; e.status = x.status; throw e; } return j; }); },
+          function (e) { clearTimeout(relogio); throw e; });
+      }
+      function recado(e) {
+        if (e && e.doServidor) return e.message;
+        if (e && e.name === 'AbortError') return 'A internet está lenta e a resposta não chegou. Tente de novo.';
+        return 'Sem conexão agora. Confira a internet e tente de novo.';
+      }
+      function falha(msg, podeTentar) {
+        card.innerHTML = '<h1>Ops</h1><p class="erro">' + esc(msg) + '</p><p>Se precisar, é só chamar a oficina pelo WhatsApp.</p>' +
+          (podeTentar ? '<div class="botoes"><button type="button" id="de_novo">Tentar de novo</button></div>' : '');
+        var b = document.getElementById('de_novo');
+        if (b) b.addEventListener('click', function () { card.innerHTML = '<h1>Um instante…</h1><p>Buscando o seu horário.</p>'; abrir(); });
       }
       var oficina = {};
       // "Adicionar ao calendário": um .ics gerado aqui mesmo (sem servidor), 1 h de duração
@@ -77,7 +94,7 @@
         if (!ag.data || !ag.hora) return '';
         var d = ag.data.replace(/-/g, ''), h = ag.hora.replace(':', '');
         var fim = String(Number(ag.hora.slice(0, 2)) + 1).padStart(2, '0') + ag.hora.slice(3);
-        var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//IndyCar//Agenda//PT-BR', 'BEGIN:VEVENT', 'UID:indycar-' + ag.id + '@agenda',
+        var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//IndyCar//Agenda//PT-BR', 'BEGIN:VEVENT', 'UID:indycar-' + d + h + '@agenda',
           'DTSTART;TZID=America/Sao_Paulo:' + d + 'T' + h + '00', 'DTEND;TZID=America/Sao_Paulo:' + d + 'T' + fim.replace(':', '') + '00',
           'SUMMARY:IndyCar · ' + String(ag.servico || 'Serviço').replace(/[,;]/g, ' '), 'LOCATION:' + String(oficina.endereco || '').replace(/[,;]/g, ' '),
           'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
@@ -85,8 +102,8 @@
       }
       function extras(ag, comCalendario) {
         var h = '';
-        if (comCalendario && linkIcs(ag)) h += '<a class="wa" style="background:#3b82f6" href="' + linkIcs(ag) + '" download="indycar-horario.ics">📅 Adicionar ao calendário</a> ';
-        if (oficina.mapa) h += '<a class="wa" style="background:#64748b" href="' + esc(oficina.mapa) + '" target="_blank" rel="noopener">📍 Como chegar</a> ';
+        if (comCalendario && linkIcs(ag)) h += '<a class="wa cal" href="' + linkIcs(ag) + '" download="indycar-horario.ics">📅 Adicionar ao calendário</a> ';
+        if (oficina.mapa) h += '<a class="wa mapa" href="' + esc(oficina.mapa) + '" target="_blank" rel="noopener">📍 Como chegar</a> ';
         if (oficina.whatsapp) h += '<a class="wa" href="' + esc(oficina.whatsapp) + '" target="_blank" rel="noopener">💬 Falar com a oficina</a>';
         return h ? '<div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px">' + h + '</div>' : '';
       }
@@ -122,10 +139,10 @@
         var botoes = card.querySelectorAll('[data-r]');
         function enviar(resposta, observacao) {
           for (var i = 0; i < botoes.length; i++) botoes[i].disabled = true;
-          fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token, resposta: resposta, observacao: observacao || null }) })
-            .then(function (x) { return x.json().then(function (j) { if (!x.ok) throw new Error(j.erro || 'Não consegui registrar.'); return j; }); })
+          var envia = document.getElementById('obs_ok'); if (envia) envia.disabled = true;
+          pedir(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token, resposta: resposta, observacao: observacao || null }) })
             .then(function () { pronto(resposta, ag); })
-            .catch(function (e) { document.getElementById('erro').hidden = false; document.getElementById('erro').textContent = e.message; for (var i = 0; i < botoes.length; i++) botoes[i].disabled = false; });
+            .catch(function (e) { document.getElementById('erro').hidden = false; document.getElementById('erro').textContent = recado(e); if (envia) envia.disabled = false; for (var i = 0; i < botoes.length; i++) botoes[i].disabled = false; });
         }
         for (var i = 0; i < botoes.length; i++) botoes[i].addEventListener('click', function (ev) {
           var r = ev.currentTarget.getAttribute('data-r');
@@ -139,10 +156,12 @@
         document.getElementById('obs_volta').addEventListener('click', function () { document.getElementById('obs').hidden = true; document.querySelector('.botoes').hidden = false; });
       }
       if (!token) return falha('Este link está incompleto.');
-      fetch(API + '?t=' + encodeURIComponent(token))
-        .then(function (x) { return x.json().then(function (j) { if (!x.ok) throw new Error(j.erro || 'Este link não vale mais.'); return j; }); })
-        .then(tela)
-        .catch(function (e) { falha(e.message === 'Failed to fetch' ? 'Sem conexão agora. Tente de novo em instantes.' : e.message); });
+      // link que não vale (404) não ganha "Tentar de novo"; sem rede, lentidão ou servidor fora, ganha
+      function abrir() {
+        pedir(API + '?t=' + encodeURIComponent(token)).then(tela)
+          .catch(function (e) { falha(recado(e), !(e && e.doServidor && e.status < 500 && e.status !== 429)); });
+      }
+      abrir();
     })();
   </script>
 </body>

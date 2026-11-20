@@ -14,6 +14,9 @@ import {
   decidirAcesso, decidirNaoVeioNaEdicao, mudaDesfechoRegistrado, origemPermitida, mensagemSegura, ehGestor,
   presencaPodeMarcar, semConfirmacaoDoErro,
   urlDeWebhookSegura, validarServico, validarModelo, validarEmpresa,
+  igualSeguro, tokenDeVerificacaoValido, assinaturaDaMetaConfere, lerWebhookDaMeta, SITUACOES_DE_MENSAGEM,
+  recadoDeRede, validarWaConfig, validarIaConfig, validarEnvioDeWhatsapp, idDeServicoValido,
+  ORIGENS_DO_ECOSSISTEMA, validarCliente, politicaDeConteudo,
 } from './regras.js';
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento, entradaDoChegou } from './patio.js';
@@ -33,8 +36,13 @@ const PUBLIC = join(__dirname, 'public');
 const PORT = process.env.PORT || 3000;
 let _ultimaImportacao = 0; // controle p/ importar ao abrir o painel (no máx 1x/min)
 
-// Token de verificação do webhook do WhatsApp Cloud API (configurável por env)
-const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'indycar';
+/* Token de verificação do webhook do WhatsApp Cloud API: o salvo em Configurações ou o do ambiente
+   (WHATSAPP_VERIFY_TOKEN). Rodada 10: acabou o padrão "indycar" (regras.js › tokenDeVerificacaoValido);
+   sem token de verdade a verificação responde 403. */
+function tokenDoWebhook(cfg) {
+  for (const t of [cfg?.verify_token, process.env.WHATSAPP_VERIFY_TOKEN]) if (tokenDeVerificacaoValido(t)) return t;
+  return null;
+}
 
 /* O WhatsApp DA EMPRESA — (12) 99683-0272, o número do site e do cartão.
    É por ele que sai aviso de falta e lembrete. Tem que ser o mesmo que o
@@ -121,7 +129,8 @@ class ErroHttp extends Error {
 const LIMITE_CORPO = 64 * 1024;
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let raw = '', tamanho = 0, estourou = false;
+    const blocos = [];
+    let tamanho = 0, estourou = false;
     req.on('data', (c) => {
       if (estourou) return;
       tamanho += c.length;
@@ -131,16 +140,20 @@ function readBody(req) {
         reject(new ErroHttp(413, 'Corpo da requisição grande demais (limite de 64 KB).'));
         return;
       }
-      raw += c;
+      blocos.push(c);
     });
     req.on('error', (e) => reject(new ErroHttp(400, 'Não consegui ler a requisição: ' + (e?.message || e))));
     req.on('end', () => {
       if (estourou) return;
-      if (!raw.trim()) return resolve({});
       try {
+        req.corpoBruto = Buffer.concat(blocos, tamanho);   // rodada 10: a assinatura do webhook da Meta é sobre os bytes crus
+        const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(req.corpoBruto);
+        if (!raw) return resolve({});
         const j = JSON.parse(raw);
-        // array ou valor solto no lugar do objeto quebraria o `body.campo` lá na frente
-        resolve(j && typeof j === 'object' && !Array.isArray(j) ? j : {});
+        if (!j || typeof j !== 'object' || Array.isArray(j)) {
+          return reject(new ErroHttp(400, 'O corpo precisa ser um objeto JSON.'));
+        }
+        resolve(j);
       } catch { reject(new ErroHttp(400, 'Corpo inválido: envie JSON.')); }
     });
   });
@@ -180,11 +193,13 @@ const getWaConfig = () => dados.obterWaConfig();
 
 // Envia uma mensagem de texto pela WhatsApp Cloud API (Meta). Usa fetch nativo.
 async function enviarCloudAPI(cfg, telefone, texto) {
-  const ver = cfg.api_version || 'v21.0';
-  const url = `https://graph.facebook.com/${ver}/${cfg.phone_number_id}/messages`;
+  // rodada 10: versão e ID entram no endereço chamado com o token: só no formato exato (config antiga torta não é usada)
+  const alvo = enderecoDaCloud(cfg);
+  if (!alvo) return { ok: false, erro: 'A configuração da Cloud API está incompleta ou fora do formato. Confira em WhatsApp › Configuração.' };
+  const url = `${alvo}/messages`;
   try {
     const r = await fetch(url, {
-      method: 'POST',
+      method: 'POST', signal: AbortSignal.timeout(15000),
       headers: { Authorization: `Bearer ${cfg.access_token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messaging_product: 'whatsapp',
@@ -195,11 +210,24 @@ async function enviarCloudAPI(cfg, telefone, texto) {
     });
     const data = await r.json().catch(() => ({}));
     if (r.ok && data.messages?.[0]?.id) return { ok: true, wamid: data.messages[0].id };
-    return { ok: false, erro: data.error?.message || `HTTP ${r.status}` };
+    return { ok: false, erro: texto1(data.error?.message, 300) || `A Meta recusou o envio (HTTP ${r.status}).` };
   } catch (e) {
-    return { ok: false, erro: String(e?.message || e) };
+    console.warn('Envio pela Cloud API:', e?.message || e);   // o detalhe da rede fica só no log
+    return { ok: false, erro: recadoDeRede(e, 'a Meta', 15) };
   }
 }
+/** Endereço da Cloud API para este número, ou null se a versão ou o ID não estiverem no formato certo. */
+function enderecoDaCloud(cfg) {
+  const ver = cfg?.api_version || 'v21.0', id = String(cfg?.phone_number_id || '');
+  if (!/^v\d{1,2}\.\d{1,2}$/.test(ver) || !/^\d{5,25}$/.test(id)) return null;
+  return `https://graph.facebook.com/${ver}/${id}`;
+}
+/** Endereço base do CodeWords que o servidor pode chamar (https e público), ou null. */
+function baseDoCodeWords(valor) {
+  const u = urlDeWebhookSegura(valor || 'https://runtime.codewords.ai');
+  return u.ok ? u.url.replace(/\/+$/, '') : null;
+}
+const ERRO_BASE_CODEWORDS = 'O endereço do CodeWords salvo em Integração não é um endereço https público. Corrija em WhatsApp › Integração.';
 
 // Despacha uma mensagem (Cloud API se ativa, senão registra p/ link wa.me) e grava no banco.
 async function despacharMensagem({ agendamento_id = null, telefone, nome = null, corpo }) {
@@ -250,7 +278,9 @@ function erroCodeWords(status, detalhe) {
 // Contrato REST (do codewords-client): POST {base}/run/{service_id}/ com Authorization: <chave>
 // e os inputs como JSON; a resposta é a própria saída do workflow.
 async function chamarCodeWords({ base_url, api_key, service_id, path = '', method = 'POST', inputs, background = false }) {
-  const base = (base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  const base = baseDoCodeWords(base_url);
+  if (!base) return { ok: false, erro: ERRO_BASE_CODEWORDS };
+  if (!idDeServicoValido(String(service_id ?? ''))) return { ok: false, erro: 'Service ID inválido: use só letras, números, ponto, traço e sublinhado (até 80).' };
   const seg = (path || '').replace(/^\/+/, '');
   const url = `${base}/${background ? 'run_async' : 'run'}/${encodeURIComponent(service_id)}/${seg}`;
   try {
@@ -262,10 +292,13 @@ async function chamarCodeWords({ base_url, api_key, service_id, path = '', metho
     let data; try { data = JSON.parse(txt); } catch { data = txt; }
     if (!r.ok) {
       const detalhe = (data && (data.error || data.detail || data.message)) || (typeof data === 'string' && data.slice(0, 200)) || '';
-      return { ok: false, status: r.status, erro: erroCodeWords(r.status, detalhe) };
+      return { ok: false, status: r.status, erro: erroCodeWords(r.status, texto1(detalhe, 300)) };
     }
     return { ok: true, data };
-  } catch (e) { return { ok: false, erro: String(e?.message || e) }; }
+  } catch (e) {
+    console.warn('CodeWords:', e?.message || e);   // rodada 10: endereço e código de erro da rede ficam só no log
+    return { ok: false, erro: recadoDeRede(e, 'o CodeWords') };
+  }
 }
 
 // Extrai uma lista (array) de um retorno livre de workflow
@@ -430,7 +463,8 @@ async function enviarViaGowa(telefone, mensagem) {
     return { ok: false,
       erro: 'Nenhum WhatsApp conectado. Reconecte em Atendimento › Configurações › Conexão do WhatsApp.' };
   }
-  const base = (cfg.cw_base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  const base = baseDoCodeWords(cfg.cw_base_url);
+  if (!base || !idDeServicoValido(sid)) return { ok: false, erro: ERRO_BASE_CODEWORDS };
   /* `phone_id`, não `device_id`: o CodeWords renomeou o parâmetro quando
      trocou /devices por /connections. Com o nome antigo dá 404
      "No connection found" mesmo com o número conectado. */
@@ -449,7 +483,8 @@ async function enviarViaGowa(telefone, mensagem) {
     // 16/10: o pedido saiu e a resposta não voltou (timeout / conexão caída) — pode ter chegado ao cliente
     if (semConfirmacaoDoErro(e)) return { ok: false, semConfirmacao: true,
       erro: 'não sabemos se chegou: o WhatsApp não respondeu a tempo depois do pedido. Confira na conversa antes de mandar de novo' };
-    return { ok: false, erro: String(e?.message || e) };
+    console.warn('Envio pelo WhatsApp conectado:', e?.message || e);
+    return { ok: false, erro: recadoDeRede(e, 'o CodeWords') };
   }
 }
 
@@ -478,7 +513,8 @@ async function gerarICS() {
     dados.agendamentosParaICS(500),
     dados.duracoesDeServicos(),
   ]);
-  const escTxt = (t) => String(t || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  // rodada 10: o \r sai antes (sozinho ele abria linha nova em leitor de calendário mais frouxo: um nome de cliente criava evento)
+  const escTxt = (t) => String(t || '').replace(/\r\n?/g, '\n').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
   // hora chega normalizada em HH:MM da camada de dados
   const fmt = (d, hm) => d.replace(/-/g, '') + 'T' + String(hm).replace(/:/g, '').slice(0, 4) + '00';
   const linhas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//IndyCar Agendamentos//PT-BR',
@@ -647,11 +683,25 @@ const ROTAS_SEM_LOGIN = new Set([
 /* Endereço público desta Agenda, visto de fora (atrás do proxy do Render vem
    X-Forwarded-Proto). Com a Central, req.prefixo (ex.: '/agenda') entra no fim:
    é a base dos links que o servidor monta para o cliente (confirmação). */
+const HOSTS_DO_ECOSSISTEMA = new Set(ORIGENS_DO_ECOSSISTEMA.map((o) => new URL(o).host));
+const ENDERECO_DE_RESERVA = 'https://indycar-agendamentos.onrender.com';
+/* Rodada 10: o link de confirmação vai para o WhatsApp do cliente. Antes o domínio vinha do cabeçalho do pedido
+   (Host / X-Forwarded-Host), que quem chama escolhe: dava para a oficina mandar ao cliente um link de outro site.
+   Agora: AGENDA_URL_PUBLICA (se houver) → host do pedido SE for do ecossistema, do Render ou local → endereço oficial. */
+function hostConfiavel(h) {
+  return !!h && (HOSTS_DO_ECOSSISTEMA.has(h) || /^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/.test(h)
+    || (!!process.env.RENDER_EXTERNAL_HOSTNAME && h === process.env.RENDER_EXTERNAL_HOSTNAME));
+}
 function baseDaRequisicao(req) {
-  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || (req.socket?.encrypted ? 'https' : 'http');
-  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'localhost').split(',')[0].trim();
   const prefixo = String(req.prefixo || '').replace(/\/+$/, '');
-  return `${proto}://${host}${prefixo}`;
+  try {
+    const oficial = new URL(String(process.env.AGENDA_URL_PUBLICA || ''));
+    if (oficial.protocol === 'https:' || oficial.protocol === 'http:') return oficial.origin + prefixo;
+  } catch { /* sem endereço oficial no ambiente: decide pelo pedido */ }
+  const pedido = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+  const proto = pedido === 'https' || pedido === 'http' ? pedido : (req.socket?.encrypted ? 'https' : 'http');
+  const host = [req.headers['x-forwarded-host'], req.headers.host].map((h) => String(h || '').split(',')[0].trim().toLowerCase()).find(hostConfiavel);
+  return (host ? `${proto}://${host}` : ENDERECO_DE_RESERVA) + prefixo;
 }
 
 /* Rotas que custam caro (varrem a tabela, chamam serviço de fora): no máximo
@@ -701,6 +751,21 @@ function conferirCamposDoAgendamento(body, { criando = false } = {}) {
     body[k] = String(body[k]).slice(0, max);
     if (k === 'cliente_nome' || k === 'servico') body[k] = body[k].trim();
   }
+  // rodada 10: origem só texto; na edição, situação, motivo da falta e carimbo do aviso só no formato certo
+  if (body.origem !== undefined && body.origem !== null) {
+    if (typeof body.origem === 'object') return 'Campo inválido: origem.';
+    body.origem = String(body.origem).slice(0, 60);
+  }
+  if (!criando) {
+    if (body.status !== undefined && !MAPA_STATUS[body.status]) return 'Situação inválida.';
+    if (body.motivo_falta !== undefined && body.motivo_falta !== null && body.motivo_falta !== '') {
+      if (typeof body.motivo_falta !== 'string' || !motivoDeFaltaValido(body.motivo_falta)) return 'Motivo inválido.';
+    }
+    if (body.no_show_notificado_em !== undefined && body.no_show_notificado_em !== null) {
+      const c = body.no_show_notificado_em;
+      if (typeof c !== 'string' || c.length > 40 || !/^\d{4}-\d{2}-\d{2}T/.test(c) || Number.isNaN(Date.parse(c))) return 'Data do aviso inválida.';
+    }
+  }
   if (criando || body.cliente_nome !== undefined) if (!body.cliente_nome) return 'Informe o nome do cliente.';
   if (criando || body.servico !== undefined) if (!body.servico) return 'Informe o serviço.';
   if (body.valor !== undefined && body.valor !== null && body.valor !== '') {
@@ -724,7 +789,17 @@ function recusaDeCadastro(e) {
       erro: 'Já existe alguém cadastrado com esse e-mail. Se a pessoa perdeu o acesso, '
           + 'devolva pela lista da equipe em vez de cadastrar de novo.' };
   }
-  return { status: 400, erro: msg };
+  // rodada 10: o texto do Supabase (em inglês, com nome de tabela e regra do banco) fica no log; a tela recebe o que fazer
+  console.warn('Cadastro recusado:', msg);
+  if (/password|senha/i.test(msg)) return { status: 400, erro: 'Essa senha não foi aceita. Use uma mais forte, com letras e números.' };
+  if (/email/i.test(msg) && /invalid|inválid/i.test(msg)) return { status: 400, erro: 'Esse e-mail não foi aceito. Confira e tente de novo.' };
+  return { status: 400, erro: 'Não consegui criar o acesso agora. Tente de novo em instantes.' };
+}
+/** Motivo de uma falha que pode ir para a tela: recado nosso (Error simples do dados.js) passa; erro do banco ou de rede vira o padrão. */
+function motivoSeguro(e, padrao) {
+  if (e && e.name === 'Error' && e.constructor === Error && !e.status && e.message) return String(e.message).slice(0, 200);
+  console.warn('Falha interna (motivo trocado pelo padrão):', e?.message || e);
+  return padrao;
 }
 
 /* ---------------------------------------------------------------------------
@@ -842,10 +917,16 @@ async function api(req, res, url) {
     const ip = ipDaRequisicao(req);
     if (!dentroDoLimite(`publico:${ip}`, 40, 600_000)) return send(res, 429, { erro: 'Muitas tentativas. Espere alguns minutos.' }, { 'Cache-Control': 'no-store' });
     if (m === 'GET') {
-      const c = await dados.confirmacaoPorToken(texto1(searchParams.get('t'), 80));
-      if (!c) return send(res, 404, { erro: 'Este link não vale mais. Fale com a oficina pelo WhatsApp.' }, { 'Cache-Control': 'no-store' });
-      // dados públicos da oficina para a página: como chegar e falar com a gente (nada de cliente)
-      const emp = await dados.obterEmpresa().catch(() => ({}));
+      const bruto = await dados.confirmacaoPorToken(texto1(searchParams.get('t'), 80));
+      if (!bruto) return send(res, 404, { erro: 'Este link não vale mais. Fale com a oficina pelo WhatsApp.' }, { 'Cache-Control': 'no-store' });
+      /* rodada 10: a resposta é montada campo a campo. Quem tem o link vê só o que a página mostra: nada de id
+         interno do horário, telefone, nome completo ou placa, mesmo que a camada de dados passe a trazer mais. */
+      const ag = bruto.agendamento || {};
+      const c = { token: bruto.token, resposta: bruto.resposta ?? null, respondido_em: bruto.respondido_em ?? null,
+        agendamento: { primeiro_nome: ag.primeiro_nome || '', servico: ag.servico ?? null, data: ag.data ?? null, hora: ag.hora ?? null,
+          status: ag.status ?? null, veiculo: ag.veiculo ?? null, consultor: ag.consultor ?? null, passou: !!ag.passou } };
+      // dados públicos da oficina para a página: como chegar e falar com a gente (nada de cliente); 60 s na memória
+      const emp = await lembrar('empresa', 60_000, () => dados.obterEmpresa()).catch(() => ({}));
       const endereco = String(emp?.endereco || '').trim();
       c.oficina = { nome: emp?.nome || 'IndyCar Centro Automotivo', endereco: endereco || null,
         mapa: endereco ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}` : null,
@@ -968,8 +1049,8 @@ async function api(req, res, url) {
     return send(res, 200, await dados.obterSaude(), { 'Cache-Control': 'no-store' });
 
   // ---- empresa
-  if (pathname === '/api/empresa' && m === 'GET')
-    return ok(res, await dados.obterEmpresa());
+  if (pathname === '/api/empresa' && m === 'GET')   // rodada 10: 60 s na memória (toda tela aberta pedia isto; salvar troca a geração e limpa)
+    return ok(res, await lembrar('empresa', 60_000, () => dados.obterEmpresa()));
   if (pathname === '/api/empresa' && m === 'PUT') {
     const emp = validarEmpresa(body);
     if (!emp.ok) return bad(res, emp.erro);
@@ -1196,7 +1277,7 @@ async function api(req, res, url) {
 
   // ---- janelas de agendamento (leitura) — é o que a IA usa p/ oferecer horário
   if (pathname === '/api/janelas' && m === 'GET')
-    return ok(res, await dados.listarJanelas());
+    return ok(res, await lembrar('janelas', 60_000, () => dados.listarJanelas()));
 
   // ---- catálogo de serviços (leitura) — quem edita é o CRM
   if (pathname === '/api/catalogo' && m === 'GET')
@@ -1658,7 +1739,7 @@ async function api(req, res, url) {
     const primeiro = String(a.cliente_nome || '').trim().split(/\s+/)[0] || 'tudo bem';
     const texto = `Oi ${primeiro}! Aqui é da IndyCar 🏁 Seu horário de ${a.servico} foi remarcado para ${formatarDataBR(a.data)} às ${String(a.hora || '').slice(0, 5)}. Se não ficar bom pra você, é só responder por aqui que a gente ajusta. Quem conhece, Indyca!`;
     const whatsapp = linkWhatsApp(tel, texto);
-    const r = dados.enfileirarAvisoDeRemarcacao ? await dados.enfileirarAvisoDeRemarcacao(a, texto, usuario).catch((e) => ({ ok: false, motivo: e?.message })) : { ok: false, motivo: 'fila indisponível' };
+    const r = dados.enfileirarAvisoDeRemarcacao ? await dados.enfileirarAvisoDeRemarcacao(a, texto, usuario).catch((e) => ({ ok: false, motivo: motivoSeguro(e, null) })) : { ok: false, motivo: 'fila indisponível' };
     if (r.ok) await dados.auditar(usuario.id, 'avisou_remarcacao', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora, via: 'comunicar' });
     return send(res, 200, { enfileirado: !!r.ok, whatsapp, motivo: r.ok ? null : (r.motivo || 'A fila do Comunicar não aceitou agora. Abri o WhatsApp com o texto pronto.') }, { 'Cache-Control': 'no-store' });
   }
@@ -1674,7 +1755,7 @@ async function api(req, res, url) {
     if (m === 'GET') return send(res, 200, await dados.lembreteDoAgendamento(a), { 'Cache-Control': 'no-store' });
     if (m === 'POST') {
       if (!dentroDoLimite(`lembrete:${usuario.id}`, 40, 60_000)) return send(res, 429, { erro: 'Muitos lembretes seguidos. Espere um minuto.' });
-      const r = await dados.enfileirarLembrete(a, usuario, { reenviar: body.reenviar === true, hojeIso: hoje() }).catch((e) => ({ ok: false, motivo: e?.message || 'A fila do Comunicar não aceitou agora.' }));
+      const r = await dados.enfileirarLembrete(a, usuario, { reenviar: body.reenviar === true, hojeIso: hoje() }).catch((e) => ({ ok: false, motivo: motivoSeguro(e, 'A fila do Comunicar não aceitou agora.') }));
       if (r.ok && !r.repetido) await dados.auditar(usuario.id, r.reenvio ? 'reenviou_lembrete' : 'pediu_lembrete', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora });
       return send(res, r.jaEnviado ? 409 : 200, { ...r, ...(await dados.lembreteDoAgendamento(a).catch(() => ({}))) }, { 'Cache-Control': 'no-store' });
     }
@@ -1795,9 +1876,10 @@ async function api(req, res, url) {
   if (pathname === '/api/clientes' && m === 'GET')
     return ok(res, await dados.listarClientes(texto1(searchParams.get('q'), 80).trim() || undefined));
   if (pathname === '/api/clientes' && m === 'POST') {
-    if (!String(body.nome ?? '').trim()) return bad(res, 'Informe o nome.');
+    const vc = validarCliente(body);   // rodada 10: tipo e tamanho de cada campo
+    if (!vc.ok) return bad(res, vc.erro);
     if (!telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
-    try { return ok(res, await dados.criarCliente(body)); }
+    try { return ok(res, await dados.criarCliente({ ...body, ...vc.campos })); }
     catch (e) { if (/Aniversário inválido/.test(e?.message)) return bad(res, e.message); throw e; }
   }
   // "Achar pelo nome": telefone de quem já conversou (conversas) ou já tem ficha (clientes)
@@ -1814,10 +1896,11 @@ async function api(req, res, url) {
   if ((mm = pathname.match(new RegExp(`^/api/clientes/${UUID}$`)))) {
     const id = mm[1];
     if (m === 'PUT') {
-      if (body.nome !== undefined && !String(body.nome ?? '').trim()) return bad(res, 'Informe o nome.');
+      const vc = validarCliente(body, { parcial: true });
+      if (!vc.ok) return bad(res, vc.erro);
       if (body.telefone !== undefined && !telefoneParecValido(body.telefone)) return bad(res, ERRO_TELEFONE);
       try {
-        const c = await dados.atualizarCliente(id, body);
+        const c = await dados.atualizarCliente(id, { ...body, ...vc.campos });
         if (body.nascimento !== undefined) dados.esquecerAniversarios?.();
         return c ? ok(res, c) : notFound(res);
       } catch (e) { if (/Aniversário inválido/.test(e?.message)) return bad(res, e.message); throw e; }
@@ -1984,9 +2067,15 @@ async function api(req, res, url) {
     const t = searchParams.get('t');
     // sem token nem consulta o banco
     if (!t) return send(res, 403, 'forbidden', { 'Content-Type': 'text/plain' });
+    /* rodada 10: dez tokens errados do mesmo endereço em 10 min e ele para de ser atendido aqui (antes dava para
+       tentar adivinhar o token sem limite; o calendário leva nome, telefone e placa dos clientes). */
+    const chaveIcs = `ics:${ipDaRequisicao(req)}`, usoIcs = USO.get(chaveIcs);
+    if (usoIcs && usoIcs.qtd >= 10 && usoIcs.zeraEm > Date.now()) return send(res, 429, 'too many attempts', { 'Content-Type': 'text/plain', 'Retry-After': '600' });
     const cfg = await getIntegracoes(); // await obrigatório: sem ele a comparação viraria Promise
-    if (!cfg.ics_token || t !== cfg.ics_token)
+    if (!igualSeguro(t, cfg.ics_token)) {
+      dentroDoLimite(chaveIcs, 10, 600_000);
       return send(res, 403, 'forbidden', { 'Content-Type': 'text/plain' });
+    }
     return send(res, 200, await gerarICS(), { 'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': 'inline; filename="indycar-agendamentos.ics"' });
   }
@@ -2023,14 +2112,19 @@ async function api(req, res, url) {
   if (pathname === '/api/whatsapp/config' && m === 'GET') {
     const c = await getWaConfig();
     const tok = c.access_token || '';
+    /* rodada 10: quem não é gestor só precisa saber se a Cloud API está ligada (a janela "Enviar WhatsApp" pergunta
+       isso). O token de verificação do webhook, o id da conta e o fim do token de acesso são só do gestor. */
+    if (!souGestor) return ok(res, { ativo: c.ativo, phone_number_id: c.phone_number_id || '', api_version: c.api_version, numero_exibicao: c.numero_exibicao ?? null, tem_token: !!tok });
     return ok(res, { ...c, access_token: undefined,
       tem_token: !!tok, token_mask: tok ? '••••••••' + tok.slice(-4) : '' });
   }
   if (pathname === '/api/whatsapp/config' && m === 'PUT') {
     const c = await getWaConfig();
-    // só atualiza o token se um novo for digitado (campo vazio mantém o atual)
-    const token = (body.access_token && body.access_token.trim()) ? body.access_token.trim() : c.access_token;
-    const nc = await dados.salvarWaConfig({ ...body, access_token: token ?? null });
+    const v = validarWaConfig(body);
+    if (!v.ok) return bad(res, v.erro);
+    // só atualiza o token se um novo for digitado (campo vazio mantém o atual); o que não veio no corpo fica como está
+    const token = v.campos.access_token || c.access_token;
+    const nc = await dados.salvarWaConfig({ ...c, ...v.campos, access_token: token ?? null });
     await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_whatsapp_config', null,
       { campos: Object.keys(body).map((k) => (k === 'access_token' ? 'access_token(•••)' : k)) });
     const t = nc.access_token || '';
@@ -2040,19 +2134,25 @@ async function api(req, res, url) {
   // testa a conexão com a Cloud API (aceita credenciais no corpo antes de salvar)
   if (pathname === '/api/whatsapp/testar' && m === 'POST') {
     const c = await getWaConfig();
-    const cfg = { ...c, ...body,
-      access_token: (body.access_token && body.access_token.trim()) ? body.access_token.trim() : c.access_token };
+    const v = validarWaConfig(body);
+    if (!v.ok) return bad(res, v.erro);
+    const cfg = { ...c, ...v.campos, access_token: v.campos.access_token || c.access_token };
     if (!cfg.phone_number_id || !cfg.access_token)
-      return bad(res, 'Informe o Phone Number ID e o Access Token.');
-    const ver = cfg.api_version || 'v21.0';
+      return bad(res, 'Informe o ID do número e o token de acesso.');
+    const alvo = enderecoDaCloud(cfg);
+    if (!alvo) return bad(res, 'ID do número ou versão da API fora do formato. Confira e tente de novo.');
     try {
-      const r = await fetch(`https://graph.facebook.com/${ver}/${cfg.phone_number_id}?fields=display_phone_number,verified_name,quality_rating`,
-        { headers: { Authorization: `Bearer ${cfg.access_token}` } });
+      // rodada 10: 10 s de teto (antes ficava esperando a Meta sem prazo) e o detalhe da rede só no log
+      const r = await fetch(`${alvo}?fields=display_phone_number,verified_name,quality_rating`,
+        { headers: { Authorization: `Bearer ${cfg.access_token}` }, signal: AbortSignal.timeout(10000) });
       const data = await r.json().catch(() => ({}));
-      if (r.ok) return ok(res, { ok: true, numero: data.display_phone_number,
-        nome: data.verified_name, qualidade: data.quality_rating });
-      return ok(res, { ok: false, erro: data.error?.message || `HTTP ${r.status}` });
-    } catch (e) { return ok(res, { ok: false, erro: String(e?.message || e) }); }
+      if (r.ok) return ok(res, { ok: true, numero: texto1(data.display_phone_number, 40),
+        nome: texto1(data.verified_name, 120), qualidade: texto1(data.quality_rating, 20) });
+      return ok(res, { ok: false, erro: texto1(data.error?.message, 300) || `A Meta recusou (HTTP ${r.status}).` });
+    } catch (e) {
+      console.warn('Teste da Cloud API:', e?.message || e);
+      return ok(res, { ok: false, erro: recadoDeRede(e, 'a Meta', 10) });
+    }
   }
 
   if (pathname === '/api/whatsapp/templates' && m === 'GET')
@@ -2086,20 +2186,26 @@ async function api(req, res, url) {
 
   // prepara a mensagem (renderiza template para um agendamento) sem enviar
   if (pathname === '/api/whatsapp/preparar' && m === 'POST') {
+    const ve = validarEnvioDeWhatsapp({ template_id: body.template_id, agendamento_id: body.agendamento_id, nome: body.nome }, { ehUuid: dados.ehUuid });
+    if (!ve.ok) return bad(res, ve.erro);
     const tpl = await dados.obterTemplate(body.template_id);
-    if (!tpl) return bad(res, 'Template não encontrado.');
-    let ctx = { nome: body.nome ?? '', servico: '', data: '', hora: '', veiculo: '', placa: '' };
+    if (!tpl) return bad(res, 'Modelo não encontrado.');
+    let ctx = { nome: ve.campos.nome ?? '', servico: '', data: '', hora: '', veiculo: '', placa: '' };
     if (body.agendamento_id) {
       const a = await dados.obterAgendamento(body.agendamento_id);
       if (a) ctx = { nome: a.cliente_nome, servico: a.servico, data: formatarDataBR(a.data),
                      hora: a.hora, veiculo: a.veiculo ?? '', placa: a.placa ?? '' };
     }
-    return ok(res, { corpo: renderTemplate(tpl.corpo, ctx), telefone: body.telefone ?? '' });
+    return ok(res, { corpo: renderTemplate(tpl.corpo, ctx), telefone: texto1(body.telefone, 24) });
   }
 
   // envia: registra a mensagem no banco e devolve o link wa.me (clique-para-conversar)
   if (pathname === '/api/whatsapp/enviar' && m === 'POST') {
-    let { agendamento_id, telefone, nome, corpo, template_id } = body;
+    // rodada 10: freio por pessoa (com a Cloud API ligada cada chamada é um WhatsApp de verdade) e entrada conferida
+    if (!dentroDoLimite(`wa-enviar:${usuario.id}`, 30, 60_000)) return send(res, 429, { erro: 'Muitas mensagens seguidas. Espere um minuto.' });
+    const ve = validarEnvioDeWhatsapp(body, { ehUuid: dados.ehUuid });
+    if (!ve.ok) return bad(res, ve.erro);
+    let { agendamento_id, telefone, nome, corpo, template_id } = ve.campos;
     if (template_id && !corpo) {
       const tpl = await dados.obterTemplate(template_id);
       if (tpl) {
@@ -2123,12 +2229,16 @@ async function api(req, res, url) {
   if (pathname === '/api/whatsapp/ia/config' && m === 'GET') return ok(res, await iaConfigMascarada());
   if (pathname === '/api/whatsapp/ia/config' && m === 'PUT') {
     const c = await getIaConfig();
+    /* rodada 10: o endereço base recebe a chave do CodeWords no cabeçalho e os ids entram no caminho chamado.
+       Só passa endereço https público e id sem barra (regras.js › validarIaConfig). */
+    const vi = validarIaConfig(body);
+    if (!vi.ok) return bad(res, vi.erro);
     // merge: só altera o que veio no corpo; o resto mantém o valor atual
-    const pick = (k, def) => (body[k] !== undefined ? body[k] : (c[k] ?? def));
-    const key = (body.api_key && body.api_key.trim()) ? body.api_key.trim() : c.api_key;
-    const ckey = (body.cw_api_key && body.cw_api_key.trim()) ? body.cw_api_key.trim() : c.cw_api_key;
+    const pick = (k, def) => (vi.campos[k] !== undefined ? vi.campos[k] : (c[k] ?? def));
+    const key = vi.campos.api_key || c.api_key;
+    const ckey = vi.campos.cw_api_key || c.cw_api_key;
     await dados.salvarIaConfig({
-      ativo: body.ativo !== undefined ? body.ativo : c.ativo,
+      ativo: vi.campos.ativo !== undefined ? vi.campos.ativo : c.ativo,
       motor: pick('motor', 'anthropic'),
       api_key: key ?? null,
       modelo: pick('modelo', 'claude-opus-4-8'),
@@ -2149,11 +2259,24 @@ async function api(req, res, url) {
   // CodeWords: disparar um workflow qualquer. Usa a chave salva ou a do corpo.
   if (pathname === '/api/codewords/run' && m === 'POST') {
     const c = await getIaConfig();
-    const api_key = (body.api_key && body.api_key.trim()) ? body.api_key.trim() : c.cw_api_key;
-    const service_id = body.service_id || c.cw_service_id;
+    const chaveDoPedido = typeof body.api_key === 'string' && body.api_key.trim() ? body.api_key.trim().slice(0, 400) : '';
+    const api_key = chaveDoPedido || c.cw_api_key;
+    const service_id = texto1(body.service_id, 120).trim() || c.cw_service_id;
     if (!api_key || !service_id) return bad(res, 'Informe service_id e a chave do CodeWords (ou salve na config).');
-    return ok(res, await chamarCodeWords({ base_url: body.base_url || c.cw_base_url, api_key, service_id,
-      inputs: body.inputs ?? {}, background: !!body.in_background }));
+    if (!idDeServicoValido(String(service_id))) return bad(res, 'Service ID inválido: use só letras, números, ponto, traço e sublinhado (até 80).');
+    /* rodada 10: antes o endereço vinha do pedido e a chave GUARDADA ia junto: dava para mandar a chave da oficina
+       para qualquer servidor. Agora endereço do pedido só com a chave do pedido, e sempre https público. */
+    let base_url = c.cw_base_url;
+    if (body.base_url !== undefined && body.base_url !== null && body.base_url !== '') {
+      const pedido = baseDoCodeWords(typeof body.base_url === 'string' ? body.base_url : ' ');
+      if (!pedido) return bad(res, 'Endereço base do CodeWords inválido: use o endereço https público.');
+      if (!chaveDoPedido && pedido !== baseDoCodeWords(c.cw_base_url)) {
+        return bad(res, 'Para testar outro endereço, informe também a chave dele. A chave guardada só vai para o endereço salvo em Integração.');
+      }
+      base_url = pedido;
+    }
+    const inputs = body.inputs && typeof body.inputs === 'object' && !Array.isArray(body.inputs) ? body.inputs : {};
+    return ok(res, await chamarCodeWords({ base_url, api_key, service_id, inputs, background: body.in_background === true }));
   }
   // CodeWords: importar agendamentos pendentes do workflow "Banco de Agendamentos"
   if (pathname === '/api/codewords/importar' && m === 'POST')
@@ -2170,8 +2293,9 @@ async function api(req, res, url) {
     const cfg = await getIaConfig();
     if (!cfg.cw_api_key) return ok(res, { configurado: false, erro: 'Configure a chave do CodeWords (aba IA).' });
 
-    const base = (cfg.cw_base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+    const base = baseDoCodeWords(cfg.cw_base_url);
     const sid  = cfg.cw_connect_service_id || 'whatsapp_device_manager';
+    if (!base || !idDeServicoValido(sid)) return ok(res, { configurado: true, ok: false, erro: ERRO_BASE_CODEWORDS });
     const numeroEmpresa = '+' + String(NUMERO_DA_EMPRESA).replace(/\D/g, '');
 
     try {
@@ -2195,44 +2319,46 @@ async function api(req, res, url) {
         numero: numeroEmpresa,
         onde_reconectar: 'Atendimento › Configurações › Equipe e sistema › Conexão do WhatsApp' });
     } catch (e) {
-      return ok(res, { configurado: true, ok: false, erro: `Não deu para falar com o CodeWords: ${e.message}` });
+      console.warn('Conexão do WhatsApp:', e?.message || e);
+      return ok(res, { configurado: true, ok: false, erro: recadoDeRede(e, 'o CodeWords', 15) });
     }
   }
 
   // marca status de uma mensagem (entregue/lido)
   if ((mm = pathname.match(new RegExp(`^/api/whatsapp/mensagens/${UUID}$`))) && m === 'PATCH') {
+    // rodada 10: só a lista conhecida (o texto livre ia para o banco e de lá para a tela do histórico)
+    if (!SITUACOES_DE_MENSAGEM.includes(body.status)) return bad(res, 'Situação inválida.');
     await dados.atualizarStatusMensagem(mm[1], body.status);
     return ok(res, { ok: true });
   }
 
   // WEBHOOK — verificação (GET) do WhatsApp Cloud API (Meta)
   if (pathname === '/api/whatsapp/webhook' && m === 'GET') {
-    const cfg = await getWaConfig();
-    const esperado = cfg.verify_token || WHATSAPP_VERIFY_TOKEN;
-    if (searchParams.get('hub.mode') === 'subscribe' &&
-        searchParams.get('hub.verify_token') === esperado) {
-      return send(res, 200, searchParams.get('hub.challenge') || '', { 'Content-Type': 'text/plain' });
+    const esperado = tokenDoWebhook(await getWaConfig());
+    if (esperado && searchParams.get('hub.mode') === 'subscribe' &&
+        igualSeguro(searchParams.get('hub.verify_token'), esperado)) {
+      return send(res, 200, texto1(searchParams.get('hub.challenge'), 200), { 'Content-Type': 'text/plain' });
     }
     return send(res, 403, 'forbidden', { 'Content-Type': 'text/plain' });
   }
   // WEBHOOK — recebimento (POST): mensagens de entrada e recibos de status
   if (pathname === '/api/whatsapp/webhook' && m === 'POST') {
     try {
-      const entry = body?.entry?.[0]?.changes?.[0]?.value;
-      const msg = entry?.messages?.[0];
-      if (msg) {
-        const texto = msg.text?.body || `[${msg.type}]`;
-        const nome = entry?.contacts?.[0]?.profile?.name || null;
+      /* Rodada 10: esta porta é pública (a Meta não faz login). Antes qualquer um gravava "mensagem recebida do
+         cliente" com um POST. Agora só grava (1) com a Cloud API ligada em Configurações, (2) com a assinatura da
+         Meta quando o segredo do app está no ambiente (WHATSAPP_APP_SECRET) e (3) o que passa em lerWebhookDaMeta. */
+      const cfg = await getWaConfig();
+      const ligada = !!(cfg.ativo && cfg.phone_number_id);
+      const segredo = process.env.WHATSAPP_APP_SECRET || '';
+      const assinada = !segredo || assinaturaDaMetaConfere(req.corpoBruto, req.headers['x-hub-signature-256'], segredo);
+      if (ligada && assinada) {
+        const { mensagem, recibo } = lerWebhookDaMeta(body);
         // await obrigatório: sem ele o webhook responderia 200 antes de gravar
-        await registrarEntrada(msg.from, nome, texto);
         // (sem auto-resposta: quem atende é a IA já cadastrada no WhatsApp)
-      }
-      // recibos de entrega/leitura atualizam a mensagem de saída pelo wamid
-      const st = entry?.statuses?.[0];
-      if (st?.id) {
-        const map = { sent:'enviado', delivered:'entregue', read:'lido', failed:'falhou' };
-        await dados.atualizarStatusPorWamid(st.id, map[st.status] || st.status);
-      }
+        if (mensagem) await registrarEntrada(mensagem.telefone, mensagem.nome, mensagem.texto);
+        // recibos de entrega/leitura atualizam a mensagem de saída pelo wamid
+        if (recibo) await dados.atualizarStatusPorWamid(recibo.wamid, recibo.status);
+      } else if (ligada) console.warn('Webhook WhatsApp: entrega sem a assinatura da Meta, ignorada.');
     } catch (e) {
       // o webhook da Meta precisa receber 200 mesmo se a gravação falhar,
       // mas o erro não pode sumir em silêncio
@@ -2250,7 +2376,9 @@ async function api(req, res, url) {
 const _estaticos = new Map();   // caminho -> { chave, bruto, etag, comp:{br,gzip} }
 const TEXTUAIS = new Set(['.html', '.css', '.js', '.json', '.svg']);
 async function serveStatic(req, res, pathname) {
-  let rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+  let rel;
+  try { rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname); }
+  catch { return notFound(res); }   // rodada 10: "%E0%A4%A" (% quebrado) era erro 500
   const filePath = normalize(join(PUBLIC, rel));
   // anti path-traversal: compara COM o separador, senão uma pasta irmã
   // chamada "publicX" passaria no teste (e o %2e%2e escapa do new URL)
@@ -2268,11 +2396,10 @@ async function serveStatic(req, res, pathname) {
   } catch {
     /* rodada 6: arquivo com extensão que não existe (/rodada9.js, /foto.png) é 404 — antes devolvia o index.html com 200 e o navegador tentava rodar HTML como script */
     if (/\.(?:js|mjs|css|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|json|txt|xml)$/i.test(pathname)) return notFound(res);
-    // SPA fallback
+    // SPA fallback (rodada 10: pela mesma porta dos arquivos: comprimida, com ETag e 304; antes saía crua, 21,8 kB a cada vez)
     try {
-      const html = await readFile(join(PUBLIC, 'index.html'));
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
+      const casca = join(PUBLIC, 'index.html');
+      return servirArquivo(req, res, casca, await stat(casca));
     } catch { notFound(res); }
   }
 }
@@ -2313,18 +2440,9 @@ function servirArquivo(req, res, filePath, info) {
    o supabase-js do jsDelivr (as fontes são do próprio app desde a rodada 9); fala com o Supabase direto
    do navegador (login). frame-ancestors 'none' = ninguém embute a Agenda num
    iframe (clickjacking). */
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self'",
-  "img-src 'self' data: blob:",
-  // jsdelivr: o service worker guarda a biblioteca do login (versão fixa) para a casca abrir sem rede
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ');
+/* rodada 10: a tela só fala com o projeto do Supabase configurado (antes valia qualquer projeto do supabase.co, inclusive
+   o projeto de outra pessoa: um script injetado mandaria dados para lá). A regra está em regras.js › politicaDeConteudo. */
+const CSP = politicaDeConteudo(SUPA_URL);
 function cabecalhosDeSeguranca(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -2365,8 +2483,12 @@ function ipDentroDoLimite(ip, teto = 300, janelaMs = 60_000) {
    --------------------------------------------------------------------------- */
 async function handler(req, res) {
   const inicio = process.hrtime.bigint();
-  const url = new URL(req.url, `http://${req.headers.host}`);
   cabecalhosDeSeguranca(res);
+  /* rodada 10: endereço ou Host torto ("GET //", "Host: [") estourava AQUI, fora do try: o pedido ficava sem
+     resposta e a promessa sem tratamento derrubava o servidor rodando sozinho. Agora é 400 na hora. */
+  let url;
+  try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
+  catch { return send(res, 400, { erro: 'Endereço inválido.' }); }
   // Log só da API, com duração — sem a query string, que pode carregar o token do ICS.
   if (url.pathname.startsWith('/api/')) {
     // id curto por requisição: aparece no log e volta no cabeçalho X-Request-Id,
@@ -2545,6 +2667,6 @@ export function _injetar({ dados: d, usuarioLogado: u } = {}) {
   if (d) dados = d;
   if (u) usuarioLogado = u;
   esquecerLogins();
-  USO.clear(); USO_IP.clear();
+  USO.clear(); USO_IP.clear(); _memo.clear();
 }
 export { server, handler, iniciar, VERSAO };

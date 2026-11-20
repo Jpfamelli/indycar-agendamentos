@@ -1228,8 +1228,7 @@ export async function criarMembro({ nome, email, senha, papel = 'atendente', con
     }
   } catch (e) {
     return { id: usuario.id, nome, email, papel,
-      aviso: 'Criei o acesso, mas não consegui gravar nome e função: ' + (e?.message || e)
-           + ' Ajuste direto na lista da equipe.' };
+      aviso: 'Criei o acesso, mas não consegui gravar nome e função. Ajuste direto na lista da equipe.' };
   }
   return { id: usuario.id, nome, email, papel, aviso: null };
 }
@@ -1281,7 +1280,7 @@ export async function obterWaConfig() {
   return {
     ...c,
     ativo: bit(c.ativo),
-    verify_token: c.verify_token ?? 'indycar',
+    verify_token: c.verify_token ?? '',   // rodada 10: sem padrão (o antigo "indycar" era público)
     api_version: c.api_version ?? 'v21.0',
   };
 }
@@ -1292,7 +1291,7 @@ export async function salvarWaConfig(dados) {
     phone_number_id: dados.phone_number_id ?? null,
     access_token: dados.access_token ?? null,
     business_account_id: dados.business_account_id ?? null,
-    verify_token: dados.verify_token || 'indycar',
+    verify_token: dados.verify_token || '',
     api_version: dados.api_version || 'v21.0',
     numero_exibicao: dados.numero_exibicao ?? null,
   });
@@ -2245,13 +2244,17 @@ export async function preencherValor(id, valor) {
  * "Aguardando"/"Confirmado". Some do Início (que olha 7 dias) e prende o lead
  * do CRM. Só LISTA: quem resolve é a pessoa, pelos botões de sempre.
  */
+/* Rodada 10: avisos do próprio sistema que ficaram gravados como mensagem RECEBIDA ("[Sistema] …", "Agendamento: …",
+   "Lembrete 24h enviado", "3 no-shows hoje") não são o cliente pedindo horário. A mesma regra do Tráfego (origem.js). */
+const RE_AVISO_DO_SISTEMA = /^\s*(\[sistema\]|agendamento:\s|lembrete 24h enviado|\d+ no-shows hoje)/i;
+export const ehAvisoDoSistema = (texto) => RE_AVISO_DO_SISTEMA.test(String(texto ?? ''));
 const PEDIDO_HORARIO = /\b(?:agend\w*|(?:re)?marcar|encaixe|horarios?|que horas|[0-9]{1,2}h(?:[0-9]{2})?|[0-9]{1,2}:[0-9]{2})\b/;
 export function oportunidadesDeHorario(mensagens, agendamentos = []) {
   const excluidos = new Set(agendamentos.map(a => a.telefone_e164));
   const candidatos = [];
   for (const m of mensagens) {
     const telefone = m.telefone_e164;
-    if (!/^\d{10,11}$/.test(telefone || '') || excluidos.has(telefone) || !PEDIDO_HORARIO.test(semAcento(m.corpo))) continue;
+    if (!/^\d{10,11}$/.test(telefone || '') || excluidos.has(telefone) || ehAvisoDoSistema(m.corpo) || !PEDIDO_HORARIO.test(semAcento(m.corpo))) continue;
     candidatos.push({ telefone, nome: m.nome || '' });
     excluidos.add(telefone);
   }

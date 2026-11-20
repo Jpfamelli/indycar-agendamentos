@@ -7,6 +7,8 @@
 // Acesso por app: admin sempre; os demais precisam de 'agenda' em perfis.apps.
 // -----------------------------------------------------------------------------
 
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
 export const APP = 'agenda';
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const casa = (padrao) => new RegExp(`^${padrao.replace(/:id/g, UUID)}$`);
@@ -280,4 +282,226 @@ export function validarEmpresa(corpo) {
   const tel = txt(c.telefone).replace(/\D/g, '');
   if (tel && (tel.length < 10 || tel.length > 13)) return { ok: false, erro: 'Telefone incompleto: use DDD + número, ex.: (12) 99999-9999.' };
   return { ok: true, campos: { nome, endereco: txt(c.endereco), slogan: txt(c.slogan), telefone: txt(c.telefone) } };
+}
+
+/* ---------------------------------------------------------------------------
+   RODADA 10: conexões, segurança e desempenho. Funções puras; quem chama é o server.js.
+   --------------------------------------------------------------------------- */
+
+/** Compara dois segredos sem entregar, pelo tempo de resposta, quantas letras bateram. Vazio nunca é igual. */
+export function igualSeguro(a, b) {
+  const x = Buffer.from(typeof a === 'string' ? a : ''), y = Buffer.from(typeof b === 'string' ? b : '');
+  return x.length > 0 && x.length === y.length && timingSafeEqual(x, y);
+}
+
+/** Token de verificação do webhook da Meta: 12 a 120 letras, sem espaço. O padrão antigo ("indycar") era o
+    mesmo em toda instalação e estava escrito no código: quem soubesse assinava o webhook no lugar da oficina. */
+export function tokenDeVerificacaoValido(t) {
+  return typeof t === 'string' && t.length >= 12 && t.length <= 120 && !/\s/.test(t) && t.toLowerCase() !== 'indycar';
+}
+
+/** A Meta assina cada entrega com o segredo do app (cabeçalho X-Hub-Signature-256: "sha256=<hmac do corpo cru>"). */
+export function assinaturaDaMetaConfere(bruto, cabecalho, segredo) {
+  if (!segredo || !Buffer.isBuffer(bruto)) return false;
+  const veio = /^sha256=([0-9a-f]{64})$/i.exec(String(cabecalho || '').trim());
+  if (!veio) return false;
+  return igualSeguro(veio[1].toLowerCase(), createHmac('sha256', String(segredo)).update(bruto).digest('hex'));
+}
+
+/** As situações que uma mensagem do histórico pode ter. Fora disso nada é gravado (o texto ia direto para a tela). */
+export const SITUACOES_DE_MENSAGEM = ['pendente', 'enviado', 'entregue', 'lido', 'falhou', 'recebido'];
+const RECIBO_DA_META = { sent: 'enviado', delivered: 'entregue', read: 'lido', failed: 'falhou' };
+
+/** Lê uma entrega do webhook da Meta e devolve só o que pode ir para o banco:
+    { mensagem: { telefone, nome, texto } | null, recibo: { wamid, status } | null }. */
+export function lerWebhookDaMeta(corpo) {
+  const valor = corpo?.entry?.[0]?.changes?.[0]?.value;
+  const saida = { mensagem: null, recibo: null };
+  if (!valor || typeof valor !== 'object') return saida;
+  const msg = Array.isArray(valor.messages) ? valor.messages[0] : null;
+  if (msg && typeof msg === 'object') {
+    const telefone = typeof msg.from === 'string' ? msg.from.replace(/\D/g, '') : '';
+    if (telefone.length >= 10 && telefone.length <= 15) {
+      const tipo = typeof msg.type === 'string' && /^[a-z_]{1,20}$/.test(msg.type) ? msg.type : 'mensagem';
+      const corpoTxt = typeof msg.text?.body === 'string' ? msg.text.body.trim() : '';
+      const nome = valor.contacts?.[0]?.profile?.name;
+      saida.mensagem = { telefone, nome: typeof nome === 'string' && nome.trim() ? nome.trim().slice(0, 120) : null,
+        texto: corpoTxt ? corpoTxt.slice(0, 4096) : `[${tipo}]` };
+    }
+  }
+  const st = Array.isArray(valor.statuses) ? valor.statuses[0] : null;
+  if (st && typeof st.id === 'string' && st.id.length > 0 && st.id.length <= 200 && RECIBO_DA_META[st.status]) {
+    saida.recibo = { wamid: st.id, status: RECIBO_DA_META[st.status] };
+  }
+  return saida;
+}
+
+/** Texto simples de formulário: string ou número viram texto aparado; vazio vira ''; objeto, lista e booleano são null (inválido). */
+function textoDeCampo(v) {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'string' || typeof v === 'number') return String(v).trim();
+  return null;
+}
+
+/** Falha de rede ao chamar um serviço de fora: o detalhe (endereço, ECONNREFUSED…) fica no log; a tela recebe isto. */
+export function recadoDeRede(e, quem, segundos = null) {
+  const demorou = e?.name === 'TimeoutError' || e?.name === 'AbortError' || e?.cause?.name === 'TimeoutError';
+  const Quem = quem.charAt(0).toUpperCase() + quem.slice(1);
+  if (demorou) return segundos ? `${Quem} não respondeu em ${segundos} segundos. Tente de novo.` : `${Quem} não respondeu a tempo. Tente de novo.`;
+  return `Não consegui falar com ${quem} agora. Confira a internet do servidor e tente de novo.`;
+}
+
+/** Configuração da Cloud API (aba WhatsApp). A versão e o ID do número entram no endereço que o servidor chama
+    com o token de acesso: por isso só passam no formato exato. Devolve em `campos` só o que veio no corpo. */
+export function validarWaConfig(corpo) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const campos = {};
+  if (c.ativo !== undefined) campos.ativo = c.ativo === true || c.ativo === 1 || c.ativo === '1' || c.ativo === 'true';
+  for (const [k, recado] of [['phone_number_id', 'ID do número inválido: são só números.'], ['business_account_id', 'ID da conta do WhatsApp inválido: são só números.']]) {
+    if (c[k] === undefined) continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null || (v && !/^\d{5,25}$/.test(v))) return { ok: false, erro: recado };
+    campos[k] = v || null;
+  }
+  if (c.api_version !== undefined) {
+    const v = textoDeCampo(c.api_version);
+    if (v === null || (v && !/^v\d{1,2}\.\d{1,2}$/.test(v))) return { ok: false, erro: 'Versão da API inválida. Use o formato v21.0.' };
+    campos.api_version = v || 'v21.0';
+  }
+  if (c.verify_token !== undefined) {
+    const v = textoDeCampo(c.verify_token);
+    // "indycar" era o padrão antigo e pode estar salvo: vira "sem token" em vez de travar a tela
+    if (v === null || (v && v.toLowerCase() !== 'indycar' && !tokenDeVerificacaoValido(v))) return { ok: false, erro: 'Token de verificação fraco: crie um com 12 letras ou mais, sem espaço.' };
+    campos.verify_token = v && v.toLowerCase() !== 'indycar' ? v : '';
+  }
+  if (c.numero_exibicao !== undefined) {
+    const v = textoDeCampo(c.numero_exibicao);
+    if (v === null || v.length > 30 || !/^[\d\s()+-]*$/.test(v)) return { ok: false, erro: 'Número exibido inválido: use só números, espaço, parênteses, + e traço.' };
+    campos.numero_exibicao = v || null;
+  }
+  if (c.access_token !== undefined && c.access_token !== null && c.access_token !== '') {
+    const v = textoDeCampo(c.access_token);
+    if (v === null || /\s/.test(v) || v.length < 20 || v.length > 1000) return { ok: false, erro: 'Token de acesso inválido. Copie de novo do painel da Meta, sem espaço.' };
+    if (v) campos.access_token = v;
+  }
+  return { ok: true, campos };
+}
+
+/** Ficha do cliente (novo e edição): cada campo de texto com tipo e tamanho. `parcial` = edição (só confere o que veio). */
+export function validarCliente(corpo, { parcial = false } = {}) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const campos = {};
+  if (!parcial || c.nome !== undefined) {
+    const nome = typeof c.nome === 'string' ? c.nome.trim() : '';
+    if (!nome) return { ok: false, erro: 'Informe o nome.' };
+    if (nome.length > 160) return { ok: false, erro: 'Nome longo demais (até 160 letras).' };
+    campos.nome = nome;
+  }
+  for (const [k, max, longo] of [
+    ['veiculo', 120, 'Carro longo demais (até 120 letras).'], ['placa', 20, 'Placa longa demais (até 20 letras).'],
+    ['modelo', 60, 'Ano ou modelo longo demais (até 60 letras).'], ['observacoes', 4000, 'Observações longas demais (até 4.000 letras).'],
+    ['origem', 60, 'Origem longa demais (até 60 letras).'], ['aceita_mensagens_motivo', 200, 'Motivo longo demais (até 200 letras).'],
+    ['email', 160, 'E-mail inválido.'],
+  ]) {
+    if (c[k] === undefined || c[k] === null) continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null) return { ok: false, erro: `Campo inválido: ${k}.` };
+    if (v.length > max) return { ok: false, erro: longo };
+    if (k === 'email' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return { ok: false, erro: 'E-mail inválido.' };
+    campos[k] = v;
+  }
+  return { ok: true, campos };
+}
+
+/** Política de conteúdo (CSP) da Agenda. Com o Supabase configurado, a tela só fala com AQUELE projeto
+    (https para o login e wss para o sino ao vivo); sem configuração (instalação nova) vale o curinga de antes. */
+export function politicaDeConteudo(supabaseUrl) {
+  let projeto = null;
+  try { const u = new URL(String(supabaseUrl || '')); if (u.protocol === 'https:' && u.host) projeto = u.host; } catch { /* sem projeto */ }
+  const supabase = projeto ? `https://${projeto} wss://${projeto}` : 'https://*.supabase.co wss://*.supabase.co';
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
+    "img-src 'self' data: blob:",
+    // jsdelivr: o service worker guarda a biblioteca do login (versão fixa) para a casca abrir sem rede
+    `connect-src 'self' ${supabase} https://cdn.jsdelivr.net`,
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join('; ');
+}
+
+/** Id de fluxo ou de serviço do CodeWords: entra no caminho do endereço chamado, então nada de barra, ponto de interrogação ou espaço. */
+export const idDeServicoValido = (v) => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(v) && !v.includes('..');
+
+/** Configuração da Integração (CodeWords). Devolve em `campos` só o que veio no corpo, já limpo. */
+export function validarIaConfig(corpo) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const campos = {};
+  if (c.ativo !== undefined) campos.ativo = c.ativo;
+  if (c.cw_base_url !== undefined && c.cw_base_url !== null && c.cw_base_url !== '') {
+    const u = urlDeWebhookSegura(c.cw_base_url);
+    if (!u.ok) return { ok: false, erro: 'Endereço base do CodeWords inválido: use o endereço https público, ex.: https://runtime.codewords.ai' };
+    campos.cw_base_url = u.url.replace(/\/+$/, '');
+  }
+  for (const k of ['cw_service_id', 'cw_db_service_id', 'cw_noshow_service_id', 'cw_connect_service_id']) {
+    if (c[k] === undefined) continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null || (v && !idDeServicoValido(v))) return { ok: false, erro: 'Service ID inválido: use só letras, números, ponto, traço e sublinhado (até 80).' };
+    campos[k] = v || null;
+  }
+  if (c.cw_device_id !== undefined) {
+    const v = textoDeCampo(c.cw_device_id);
+    if (v === null || v.length > 120 || /[\s/?#&]/.test(v)) return { ok: false, erro: 'Id do aparelho inválido (até 120 letras, sem espaço nem barra).' };
+    campos.cw_device_id = v || null;
+  }
+  for (const [k, max, nome] of [['persona', 4000, 'Texto da persona'], ['saudacao', 1000, 'Texto da saudação']]) {
+    if (c[k] === undefined) continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null || v.length > max) return { ok: false, erro: `${nome} longo demais (até ${max} letras).` };
+    campos[k] = v || null;
+  }
+  if (c.modelo !== undefined) {
+    const v = textoDeCampo(c.modelo);
+    if (v === null || (v && !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/.test(v))) return { ok: false, erro: 'Modelo inválido.' };
+    if (v) campos.modelo = v;
+  }
+  if (c.motor !== undefined) {
+    const v = textoDeCampo(c.motor);
+    if (v === null || (v && !/^[a-z][a-z0-9_-]{0,29}$/.test(v))) return { ok: false, erro: 'Motor inválido.' };
+    if (v) campos.motor = v;
+  }
+  for (const k of ['api_key', 'cw_api_key']) {
+    if (c[k] === undefined || c[k] === null || c[k] === '') continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null || /\s/.test(v) || v.length > 400) return { ok: false, erro: 'Chave inválida: cole de novo, sem espaço.' };
+    if (v) campos[k] = v;
+  }
+  return { ok: true, campos };
+}
+
+/** Mensagem avulsa ("Enviar WhatsApp"): telefone com DDD, texto de até 4.096 letras (o teto do WhatsApp) e ids de verdade. */
+export function validarEnvioDeWhatsapp(corpo, { ehUuid }) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  for (const [k, recado] of [['agendamento_id', 'Agendamento inválido.'], ['template_id', 'Modelo inválido.']]) {
+    if (c[k] !== undefined && c[k] !== null && c[k] !== '' && !ehUuid(c[k])) return { ok: false, erro: recado };
+  }
+  const nome = textoDeCampo(c.nome);
+  if (nome === null || nome.length > 160) return { ok: false, erro: 'Nome inválido.' };
+  let telefone = null;
+  if (c.telefone !== undefined && c.telefone !== null && c.telefone !== '') {
+    telefone = textoDeCampo(c.telefone);
+    const d = telefone === null ? '' : telefone.replace(/\D/g, '');
+    if (d.length < 10 || d.length > 13 || telefone.length > 24) return { ok: false, erro: 'Telefone incompleto: use DDD + número, ex.: (12) 99999-9999.' };
+  }
+  let texto = null;
+  if (c.corpo !== undefined && c.corpo !== null && c.corpo !== '') {
+    if (typeof c.corpo !== 'string') return { ok: false, erro: 'Informe telefone e mensagem.' };
+    texto = c.corpo.trim();
+    if (texto.length > 4096) return { ok: false, erro: 'Mensagem longa demais (o WhatsApp aceita até 4.096 letras).' };
+  }
+  return { ok: true, campos: { agendamento_id: c.agendamento_id || null, template_id: c.template_id || null, nome: nome || null, telefone, corpo: texto || null } };
 }
