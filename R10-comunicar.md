@@ -1,12 +1,12 @@
 # Rodada 10 · Comunicar
 
-Entrega parcial. 24 de 100 melhorias registradas. Próximo número: R10-COM-025.
+Entrega parcial. 27 de 100 melhorias registradas. Próximo número: R10-COM-028.
 
 A suíte de referência passou 310/310 com isolamento padrão do Node. O modo sem isolamento fez os dublês dos testes compartilharem estado, por isso a conferência foi repetida com os subprocessos padrão.
 
 ## Para outra frente
 
-Faltam a cobertura dos 69 comportamentos R9-COM-032 a R9-COM-100 e 76 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
+Faltam a cobertura dos 69 comportamentos R9-COM-032 a R9-COM-100 e 73 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
 
 ## Para o João
 
@@ -31,6 +31,8 @@ O checklist mantém o aviso quando a data do último teste de envio ou da rodada
 O commit `c2b65f6` cobre R10-COM-004 a 008. Os cinco testes de perfil falharam antes e passaram depois. A suíte completa passou de 313 para 318 testes com o isolamento padrão do Node. Cargo, telefone e cor aceitam limpar o campo. Nenhuma chamada a serviços externos foi necessária para estes testes.
 
 ## Continuação
+
+- `c7fa7c2` cobre R10-COM-025 a 027. Resultados avançados, relatório de uma régua e comparação entre réguas agora recusam datas inválidas antes da consulta. Os três testes falharam antes e passaram depois. A suíte com o isolamento padrão passou com 337 testes, e `npm.cmd run check` passou.
 
 - `782301e` cobre R10-COM-019 a 024. A reabordagem valida o mapa e os textos individuais, a data de envio, os IDs de orçamento e os motivos. A triagem valida o tipo da opção que delimita o cancelamento. As seis regressões de API falharam antes da correção e passaram depois.
 - A suíte passou de 328 para 334 testes. Cada arquivo da suíte rodou em um processo próprio porque o ambiente devolveu `spawn EPERM` ao usar o isolamento automático. `npm.cmd run check` passou. Banco e WhatsApp simulados. Chrome e medições de desempenho pendentes neste lote.

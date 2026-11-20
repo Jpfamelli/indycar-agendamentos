@@ -1135,3 +1135,6 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-022** · segurança · A reabordagem rejeita seleções inválidas de orçamentos antes de consultar o público (teste R10-COM-022 em testes-rodada7-api.mjs) · `782301e`
 - **R10-COM-023** · segurança · O filtro de reabordagem só aceita motivos conhecidos (teste R10-COM-023 em testes-rodada7-api.mjs) · `782301e`
 - **R10-COM-024** · segurança · O escopo da triagem exige valor booleano quando informado (teste R10-COM-024 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-025** · conserto · Resultados avançados recusam datas inexistentes antes de consultar o período (teste R10-COM-025 em testes-rodada7-api.mjs) · `c7fa7c2`
+- **R10-COM-026** · conserto · O relatório de uma régua recusa datas inválidas (teste R10-COM-026 em testes-rodada7-api.mjs) · `c7fa7c2`
+- **R10-COM-027** · conserto · A comparação entre réguas explica o formato esperado quando recebe data inválida (teste R10-COM-027 em testes-rodada7-api.mjs) · `c7fa7c2`
