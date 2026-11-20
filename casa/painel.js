@@ -294,7 +294,7 @@
     const o = d.orcamentos || {};
     $('#donoTiles').innerHTML =
       tile('Faturamento hoje', C.esc(L.brl(f.hoje)), `${f.fechados_hoje || 0} fechado${f.fechados_hoje === 1 ? '' : 's'} · ontem ${C.esc(L.brl(f.ontem))}`) +
-      tile('Faturamento da semana', C.esc(L.brl(f.semana)), `${f.fechados_semana || 0} fechados · ticket ${C.esc(L.brl(f.ticket_semana))}`, seta(L.variacao(f.semana, f.semana_passada)) + '<small class="tile-peq">vs. mesma altura da semana passada</small>') +
+      tile('Faturamento da semana', C.esc(L.brl(f.semana)), `${f.fechados_semana || 0} fechados · média de ${C.esc(L.brl(f.ticket_semana))} por carro`, seta(L.variacao(f.semana, f.semana_passada)) + '<small class="tile-peq">vs. mesma altura da semana passada</small>') +
       tile('Faturamento do mês', C.esc(L.brl(f.mes)), 'só conta quem foi marcado "fechou" na Agenda') +
       tile('Orçamentos aprovados (30 dias)', C.esc(L.brl(o.valor_aprovado)), `${o.aprovados || 0} de ${o.enviados || 0} enviados${conv.orcAprovados === null ? '' : ' · ' + conv.orcAprovados + '%'}`);
     const bs = L.barras(d.serie7);
@@ -306,7 +306,7 @@
     if (vazio7) vazio7.hidden = bs.some((b) => b.valor > 0);
     const nota = $('#donoNota');
     nota.hidden = !(f.sem_valor_semana > 0);
-    if (!nota.hidden) nota.innerHTML = `⚠ ${Number(f.sem_valor_semana)} fechamento${f.sem_valor_semana > 1 ? 's' : ''} desta semana sem valor informado: o faturamento está subestimado. ${linkA(links.agenda(), 'agenda', 'link', 'Abrir a Agenda')}`;
+    if (!nota.hidden) nota.innerHTML = `⚠ ${Number(f.sem_valor_semana)} fechamento${f.sem_valor_semana > 1 ? 's' : ''} desta semana sem valor informado: o faturamento de verdade é maior que o mostrado. ${linkA(links.agenda(), 'agenda', 'link', 'Abrir a Agenda')}`;
     const barraConv = (rot, v, bom = true) => `<div class="conv-linha"><span>${C.esc(rot)}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${bom ? '' : 'ruim'}" data-w="${v === null ? 0 : Math.min(100, v)}"></span></span><b>${v === null ? 'sem dado' : v + '%'}</b></div>`;
     const cv = d.conversao || {};
     $('#donoConv').innerHTML =
