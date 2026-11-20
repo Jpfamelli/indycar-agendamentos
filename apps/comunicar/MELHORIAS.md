@@ -1138,3 +1138,9 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-025** · conserto · Resultados avançados recusam datas inexistentes antes de consultar o período (teste R10-COM-025 em testes-rodada7-api.mjs) · `c7fa7c2`
 - **R10-COM-026** · conserto · O relatório de uma régua recusa datas inválidas (teste R10-COM-026 em testes-rodada7-api.mjs) · `c7fa7c2`
 - **R10-COM-027** · conserto · A comparação entre réguas explica o formato esperado quando recebe data inválida (teste R10-COM-027 em testes-rodada7-api.mjs) · `c7fa7c2`
+
+- **R10-COM-028** · segurança · A nota de satisfação aceita somente valores de 1 a 5 (teste R10-COM-028 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-029** · segurança · A API recusa comentários acima de 1.000 caracteres antes de gravar (teste R10-COM-029 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-030** · conserto · Um ID inválido de envio bloqueia o registro de satisfação e informa qual vínculo corrigir (teste R10-COM-030 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-031** · conserto · Um ID inválido de agendamento bloqueia o registro de satisfação e informa qual vínculo corrigir (teste R10-COM-031 em testes-rodada7-api.mjs). · `6e9e897`
+- **R10-COM-032** · segurança · O nome de segmento precisa ser texto de 2 a 60 caracteres após normalizar os espaços (testes R10-COM-032 em testes-rodada7-api.mjs). · `6e9e897`
