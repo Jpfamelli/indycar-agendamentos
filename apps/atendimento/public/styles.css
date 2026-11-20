@@ -2324,3 +2324,8 @@ input[aria-invalid="true"]{border-color:var(--vermelho) !important}
   .ajuda-busca{min-height:44px}
   .link:not(.sair){min-width:44px;justify-content:center}
 }
+
+/* Rodada 9: funil no celular. O campo de filtrar ocupa a linha inteira (ficava com 61 px e o texto cortado em "Filt") */
+@media (max-width:600px){
+  .funil-ferramentas input[type=search]{flex:1 1 100%}
+}

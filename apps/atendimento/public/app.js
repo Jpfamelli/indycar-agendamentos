@@ -350,7 +350,13 @@ $$('.nav-item').forEach(b => b.addEventListener('click', () => {
   const aba = b.dataset.aba;
   // CRM e Agenda são links que abrem noutra janela: não têm aba para mostrar
   if (!aba) return;
-  $$('.nav-item').forEach(x => x.classList.toggle('ativo', x === b));
+  $$('.nav-item').forEach(x => {
+    x.classList.toggle('ativo', x === b);
+    // leitor de tela sabe qual tela está aberta
+    if (x === b) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current');
+  });
+  // celular: a barra de telas rola sozinha até a tela aberta (ela ficava escondida fora da vista)
+  if (window.matchMedia('(max-width:900px)').matches) b.scrollIntoView?.({ block: 'nearest', inline: 'center' });
   $$('.aba').forEach(s => s.classList.toggle('ativa', s.id === `aba-${aba}`));
   fecharMenuEtapas();
   // relatório é caro de montar: só busca quando o atendente entra na aba
@@ -4250,9 +4256,8 @@ async function carregarCodeWords() {
     f.ativo.checked        = !!data.ativo;
     f.responder_auto.checked = !!data.responder_auto;
 
-    const selo = $('#seloCW');
-    selo.textContent = data.ativo ? 'ligado' : 'desligado';
-    selo.className = 'selo ' + (data.ativo ? 'on' : '');
+    CW_ATIVO = !!data.ativo;
+    pintarSeloCodeWords();
 
     $('#cwStatus').className = 'cw-status' + (data.ultimo_erro ? ' erro' : '');
     $('#cwStatus').innerHTML = data.ultimo_erro
@@ -5108,6 +5113,20 @@ if (typeof ResizeObserver === 'function') {
    por uma hora — mas volta se o problema continuar.
    ============================================================ */
 var SAUDE_ATUAL = null;
+/* Rodada 9: o selo do cartão CodeWords não diz "ligado" enquanto a chave está recusada (a faixa de cima
+   dizia "o WhatsApp parou" e o cartão, logo abaixo, dizia que estava tudo ligado). */
+var CW_ATIVO = null;
+function textoDoSeloCodeWords(ativo, problema) {
+  if (ativo && /codewords/.test(problema || '')) return { texto: 'chave recusada', classe: 'selo off' };
+  return { texto: ativo ? 'ligado' : 'desligado', classe: 'selo ' + (ativo ? 'on' : '') };
+}
+function pintarSeloCodeWords() {
+  const selo = document.getElementById('seloCW');
+  if (!selo || CW_ATIVO === null) return;
+  const t = textoDoSeloCodeWords(CW_ATIVO, SAUDE_ATUAL?.problema);
+  selo.textContent = t.texto;
+  selo.className = t.classe;
+}
 const SAUDE_DISPENSA_KEY = 'indycar_saude_dispensada';
 function saudeDispensada(problema) {
   try {
@@ -5119,6 +5138,7 @@ function mostrarSaude(s) {
   const faixa = document.getElementById('faixaSaude');
   if (!faixa) return;
   SAUDE_ATUAL = s;
+  pintarSeloCodeWords();
   const temProblema = !!s?.problema;
   const chaveRecusada = /codewords/.test(s?.problema || '');
   faixa.classList.toggle('saude-codewords', chaveRecusada);

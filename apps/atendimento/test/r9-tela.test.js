@@ -173,3 +173,31 @@ test('R9 texto: avisos de servidor antigo sem nome de rota e com o que fazer', (
   assert.ok(pub('equipe.js').includes("avisoSemRota('A lista completa da equipe')"));
   assert.ok(tarefas.includes('Carga calculada aqui na tela, só com as conversas já carregadas.'));
 });
+
+/* ---------------- lote 4 ---------------- */
+test('R9: o selo do CodeWords não diz "ligado" com a chave recusada', () => {
+  const ini = app.indexOf('function textoDoSeloCodeWords(');
+  const fim = app.indexOf('function pintarSeloCodeWords()');
+  assert.ok(ini > 0 && fim > ini);
+  const caixa = {};
+  vm.createContext(caixa);
+  vm.runInContext(app.slice(ini, fim) + '\nthis.f = textoDoSeloCodeWords;', caixa);
+  assert.deepEqual({ ...caixa.f(true, 'codewords-fora') }, { texto: 'chave recusada', classe: 'selo off' });
+  assert.deepEqual({ ...caixa.f(true, null) }, { texto: 'ligado', classe: 'selo on' });
+  assert.deepEqual({ ...caixa.f(true, 'outro-problema') }, { texto: 'ligado', classe: 'selo on' });
+  assert.deepEqual({ ...caixa.f(false, 'codewords-fora') }, { texto: 'desligado', classe: 'selo ' });
+  // é repintado quando a configuração chega e quando a saúde muda
+  assert.equal(app.split('pintarSeloCodeWords();').length - 1, 2);
+  assert.ok(!app.includes("selo.textContent = data.ativo ? 'ligado' : 'desligado';"));
+});
+
+test('R9 celular: barra de telas rola até a tela aberta e marca aria-current', () => {
+  assert.ok(app.includes("if (x === b) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current');"));
+  assert.ok(app.includes("if (window.matchMedia('(max-width:900px)').matches) b.scrollIntoView?.({ block: 'nearest', inline: 'center' });"));
+  assert.ok(html.includes('<button class="nav-item ativo" data-aba="conversas" aria-current="page">'));
+  assert.equal((html.match(/aria-current="page"/g) || []).length, 1, 'só a tela que abre primeiro nasce marcada');
+});
+
+test('R9 celular: campo de filtrar do funil ocupa a linha inteira', () => {
+  assert.ok(blocosMedia(css, /max-width:\s*600px/).includes('.funil-ferramentas input[type=search]{flex:1 1 100%}'));
+});

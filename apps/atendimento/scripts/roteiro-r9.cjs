@@ -146,6 +146,32 @@ async function medir(w) {
       ok('Nova conversa: o aviso some quando a pessoa volta a digitar', sumiu);
       await p.close();
 
+      /* Barra de telas no celular, filtro do funil e selo do CodeWords */
+      {
+        const q = await novaPagina(browser, 375, 'escuro');
+        await q.evaluate(() => document.querySelector('[data-aba="auditoria"]').click());
+        await espera(700);
+        const nav = await q.evaluate(() => { const b = document.querySelector('[data-aba="auditoria"]'); const r = b.getBoundingClientRect(); const fim = document.querySelector('.sidebar-fim').getBoundingClientRect();
+          return { dentro: r.left >= 0 && r.right <= fim.left + 2, atual: b.getAttribute('aria-current'), outros: document.querySelectorAll('.nav-item[aria-current]').length }; });
+        ok('celular: a barra de telas rola sozinha até a tela aberta (Auditoria à vista)', nav.dentro, JSON.stringify(nav));
+        ok('celular: só a tela aberta tem aria-current', nav.atual === 'page' && nav.outros === 1, JSON.stringify(nav));
+        await q.evaluate(() => document.querySelector('[data-aba="funil"]').click());
+        await espera(700);
+        const filtro = await q.evaluate(() => Math.round(document.querySelector('#funilBusca').getBoundingClientRect().width));
+        ok('funil 375px: o campo de filtrar ocupa a linha (>= 300 px; tinha 61)', filtro >= 300, filtro + ' px');
+        await q.evaluate(() => document.querySelector('[data-aba="integracoes"]').click());
+        await espera(900);
+        const selo = await q.evaluate(() => { const e = document.querySelector('#seloCW'); return e.textContent + '|' + e.className; });
+        ok('Integrações: com a chave recusada o selo do CodeWords diz "chave recusada", não "ligado"', selo === 'chave recusada|selo off', selo);
+        await q.close();
+        const bom = await novaPagina(browser, 375, 'escuro', '&saude=ok');
+        await bom.evaluate(() => document.querySelector('[data-aba="integracoes"]').click());
+        await espera(900);
+        const seloBom = await bom.evaluate(() => document.querySelector('#seloCW').textContent);
+        ok('Integrações: sem problema de saúde o selo volta a dizer "ligado"', seloBom === 'ligado', seloBom);
+        await bom.close();
+      }
+
       for (const papel of ['deslogado', 'trocarsenha', 'mfa', 'semapp', 'agenda']) {
         const q = await novaPagina(browser, 375, 'escuro', '');
         await q.goto('http://localhost:' + PORT + '/?papel=' + papel, { waitUntil: 'networkidle2' });
