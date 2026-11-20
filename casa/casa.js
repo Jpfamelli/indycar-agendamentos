@@ -30,6 +30,11 @@
   /* ---------------- utilidades ---------------- */
   const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const gravar = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
+  /* rodada 9: o que é de quem usou sai do aparelho junto com a pessoa. As buscas recentes guardam nome e telefone
+     de cliente, e os avisos adiados escondiam do próximo (o dono, por exemplo) o que o anterior adiou. O e-mail
+     lembrado e o tema ficam: são escolha do aparelho, marcadas na tela de entrada. */
+  const LS_DA_PESSOA = ['indycar_central_buscas', 'indycar_central_sino_adiados'];
+  const esquecerPessoa = () => { for (const k of LS_DA_PESSOA) gravar(k, null); };
   /**
    * Aviso curto no pé da tela. `opcao`: o tempo em ms, ou 'ok' / 'err' (o erro fica 6 s, com a cor de problema).
    * `acao` ({ rotulo, fazer }) vira um botão no aviso, como o "Desfazer". Um relógio só para todos os avisos:
@@ -205,6 +210,7 @@
     desmontarModulos();
     // sem "scope" o supabase-js sai de TODOS os aparelhos (inclusive o celular do mecânico)
     try { await sb.auth.signOut({ scope: global ? 'global' : 'local' }); } catch { /* sessão já tinha ido */ }
+    esquecerPessoa();
     perfil = null; sessao = null;
     fecharMenus();
     mostrar('fLogin');
@@ -351,6 +357,7 @@
       if (evento === 'PASSWORD_RECOVERY') { sessao = s; emRecuperacao = true; return pedirSenha('recuperar'); }
       if (evento === 'SIGNED_OUT' && perfil) {      // saiu em outro app/aba (a sessão é uma só neste domínio)
         desmontarModulos();
+        esquecerPessoa();
         perfil = null; sessao = null; fecharMenus();
         mostrar('fLogin');
       }
