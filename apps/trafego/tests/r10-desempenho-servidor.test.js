@@ -25,7 +25,10 @@ function casca() {
 test('arquivos da tela: abrir o app pela segunda vez não comprime nenhum arquivo de novo', async () => {
   const arquivos = casca();
   assert.ok(arquivos.length > 55, 'a casca tem ' + arquivos.length + ' arquivos');
-  const vendor = { '/vendor/supabase.js': path.join(__dirname, '..', 'node_modules', '@supabase', 'supabase-js', 'dist', 'umd', 'supabase.js') };
+  // a biblioteca pode estar no node_modules do app ou no da Central (raiz), como o servidor procura
+  const doSupabase = ['..', path.join('..', '..', '..')].map(d => path.join(__dirname, d, 'node_modules', '@supabase', 'supabase-js', 'dist', 'umd', 'supabase.js')).find(p => fs.existsSync(p));
+  assert.ok(doSupabase, 'biblioteca do Supabase instalada');
+  const vendor = { '/vendor/supabase.js': doSupabase };
   const e = Estatico.criar({ dirTela: TELA, dirAntiga: path.join(__dirname, '..', 'public'), vendor });
   const servidor = http.createServer((req, res) => e.servir(req, res, new URL(req.url, 'http://x').pathname));
   await new Promise(ok => servidor.listen(0, '127.0.0.1', ok));
