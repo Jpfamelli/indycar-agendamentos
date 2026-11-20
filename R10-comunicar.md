@@ -66,3 +66,7 @@ O commit 66d554d cobre R10-COM-047 a 052. As seis regressões falharam antes e p
 ## Concorrência no reagendamento
 
 O commit `058cbaf` cobre R10-COM-053 e 054. A suíte completa passou de 362 para 364 testes em processos separados, com Supabase fictício, e npm run check passou. A atualização individual informa conflito e o lote exclui da contagem os envios assumidos pelo carteiro durante a operação.
+
+## Escopo da reabordagem
+
+Commit 482076c. As três regressões falharam antes da mudança e passaram depois. Suíte completa 367/367 com Supabase fictício. A seleção explícita vazia recebe erro e a seleção omitida preserva o padrão. Validar no Chrome como a equipe recebe cada mensagem de erro.

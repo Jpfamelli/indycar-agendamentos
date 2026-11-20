@@ -1167,3 +1167,7 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 
 - **R10-COM-053** · conserto · Reagendamento individual informa conflito quando o carteiro assume o envio antes da atualização (teste R10-COM-053 em testes-rodada7-api.mjs) · `058cbaf`
 - **R10-COM-054** · conserto · Reagendamento do dia só conta mensagens efetivamente atualizadas (teste R10-COM-054 em testes-rodada7-api.mjs) · `058cbaf`
+
+- **R10-COM-055** · segurança · Reabordagem exige período inteiro entre 1 e 180 dias (teste R10-COM-055 em testes-rodada7-api.mjs) · 482076c
+- **R10-COM-056** · segurança · Reabordagem recusa uma seleção explícita de motivos vazia (teste R10-COM-056 em testes-rodada7-api.mjs) · 482076c
+- **R10-COM-057** · conserto · Reabordagem sinaliza modelos enviados para motivos desconhecidos (teste R10-COM-057 em testes-rodada7-api.mjs) · 482076c
