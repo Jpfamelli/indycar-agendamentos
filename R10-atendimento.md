@@ -26,4 +26,4 @@ O roteiro próprio `roteiro-r9.cjs` passou 161/164. Três verificações da conv
 
 ## Continuação
 
-A barreira do roteiro R9 restringe a rede à origem exata do mock e permite imagens embutidas. O teste novo falhou antes da inclusão da barreira e passou com a implementação. Suíte do Atendimento: 443/443 com `node --test --test-isolation=none`. A barreira nova foi verificada pelo teste unitário. A reexecução do roteiro no Chrome e a investigação de 375×812 seguem pendentes.
+A barreira do roteiro R9 restringe a rede à origem exata do mock e permite imagens embutidas. O teste novo falhou antes da inclusão da barreira e passou com a implementação. Suíte do Atendimento: 443/443 com `node --test --test-isolation=none`. A barreira nova foi verificada pelo teste unitário e o roteiro com mock passou 164/164 no Chrome. As sete verificações de 375×812 passaram. As três falhas anteriores ficam registradas acima e não se reproduziram nesta execução.
