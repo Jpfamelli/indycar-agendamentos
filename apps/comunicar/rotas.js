@@ -255,11 +255,19 @@ export function criarApi(deps) {
   });
   rota('GET', '/api/tarefas', async ({ res, usuario }) => ok(res, await dados.minhasTarefas(usuario.id)));
   rota('POST', '/api/tarefas', async ({ res, usuario, body }) => {
-    const titulo = String(body.titulo || '').trim();
+    const titulo = typeof body.titulo === 'string' ? body.titulo.trim() : '';
     if (titulo.length < 2) return bad(res, 'Escreva o que precisa ser feito.');
     if (titulo.length > 200) return bad(res, 'Título longo demais (até 200 letras).');
+    if (body.descricao != null && typeof body.descricao !== 'string') return bad(res, 'A descrição precisa ser texto.');
+    if (body.descricao?.length > 2000) return bad(res, 'Descrição longa demais (até 2.000 caracteres).');
+    if (body.prioridade != null && ![1, 2, 3, '1', '2', '3'].includes(body.prioridade)) return bad(res, 'Escolha uma prioridade de 1 a 3.');
     let vence = null;
-    if (body.vence_em) { const d = new Date(body.vence_em); if (Number.isNaN(d.getTime())) return bad(res, 'Prazo inválido.'); vence = d.toISOString(); }
+    if (body.vence_em != null && body.vence_em !== '') {
+      if (typeof body.vence_em !== 'string') return bad(res, 'Prazo inválido.');
+      const d = new Date(body.vence_em);
+      if (Number.isNaN(d.getTime())) return bad(res, 'Prazo inválido.');
+      vence = d.toISOString();
+    }
     for (const k of ['cliente_id', 'conversa_id', 'lead_id', 'agendamento_id', 'responsavel_id'])
       if (body[k] != null && body[k] !== '' && !dados.ehUuid(body[k])) return bad(res, 'Identificador inválido.');
     const t = await dados.criarTarefa({
@@ -320,7 +328,8 @@ export function criarApi(deps) {
   rota('GET', '/api/clientes', async ({ res, url }) => ok(res, await dados.listarClientes(String(url.searchParams.get('q') || '').slice(0, 80) || undefined)));
   rota('PUT', `/api/clientes/${U}`, async ({ res, usuario, body, url }) => {
     const id = idDe(url.pathname);
-    const mudaAceite = body.aceita_mensagens === true || body.aceita_mensagens === false;
+    const mudaAceite = body.aceita_mensagens !== undefined;
+    if (mudaAceite && typeof body.aceita_mensagens !== 'boolean') return bad(res, 'Informe se o cliente aceita mensagens.');
     if (body.aceita_mensagens === true && !A.pode(usuario, 'optout_religar')) return proibido(res, 'optout_religar');
     const antes = mudaAceite ? await dados.obterCliente(id) : null;
     const c = await dados.atualizarCliente(id, body, usuario.nome || usuario.email);

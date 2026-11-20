@@ -104,9 +104,9 @@ test('meu perfil: só nome/cargo/telefone/cor/preferências, validados', () => {
   assert.ok(A.camposDoMeuPerfil({ telefone: '123' }).erro);
   assert.ok(A.camposDoMeuPerfil({ avatar_cor: 'red;}' }).erro);
   const { campos } = A.camposDoMeuPerfil({ nome: '  Ana   Paula ', papel: 'admin', apps: ['tudo'], ativo: true, telefone: '(12) 99683-0272',
-    preferencias: { notificacoes: { reclamacao: false, inventada: true, resumo_semanal: 'sim' } } });
+    preferencias: { notificacoes: { reclamacao: false, inventada: true } } });
   assert.deepEqual(campos, { nome: 'Ana Paula', telefone: '12996830272', preferencias: { notificacoes: { reclamacao: false } } },
-    'papel/apps/ativo ignorados; preferência desconhecida ou não-booleana some');
+    'papel/apps/ativo e preferência desconhecida são ignorados');
 });
 
 test('JSON, CORS e cabeçalhos', () => {

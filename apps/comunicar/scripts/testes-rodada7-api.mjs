@@ -39,6 +39,33 @@ async function subir({ simular = null, livre = false } = {}) {
   return { base, api, deps, chamar, fechar: () => new Promise((ok) => srv.close(ok)) };
 }
 test.after(() => banco.restaurar());
+
+const tarefaValida = { titulo: 'Confirmar horário com o cliente' };
+for (const [numero, campo, valor] of [
+  ['013', 'titulo', ['Confirmar']],
+  ['014', 'descricao', { texto: 'Ligar amanhã' }],
+  ['015', 'descricao', 'a'.repeat(2001)],
+  ['016', 'prioridade', 4],
+  ['017', 'vence_em', true],
+]) {
+  test(`R10-COM-${numero}: rejeita ${campo} inválido sem criar tarefa`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const total = tabelas.tarefas?.length ?? 0;
+      const r = await s.chamar('atendente', 'POST', '/api/tarefas', { ...tarefaValida, [campo]: valor });
+      assert.equal(r.status, 400);
+      assert.equal(tabelas.tarefas?.length ?? 0, total);
+    } finally { await s.fechar(); }
+  });
+}
+
+test('R10-COM-018: recusa valor não booleano no consentimento do cliente', async () => {
+  const s = await subir();
+  try {
+    const r = await s.chamar('atendente', 'PUT', `/api/clientes/${ID(991)}`, { aceita_mensagens: 'false' });
+    assert.equal(r.status, 400);
+  } finally { await s.fechar(); }
+});
 tabelas.comunicar_lotes = [];
 tabelas.clientes = [];
 const gestorCorpo = (extra = {}) => ({ corpo: 'Oi {primeiro_nome}, seu {carro} já pode passar aqui.', ...extra });
