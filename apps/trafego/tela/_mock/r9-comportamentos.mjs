@@ -176,6 +176,17 @@ export const CASOS = {
     const cheio = await pagina.$$eval('.gestor-prontas .ficha', (l) => l.map((b) => b.textContent.trim()));
     conferir(!cheio.includes('O que preciso ligar para o Tráfego funcionar?'), 'com contatos, as de sempre: ' + cheio.join(' | '));
   },
+
+  /* Hoje sem nenhum contato no mês: o ritmo diz isso numa frase, sem gráfico vazio nem legenda de nada. */
+  async 'hoje-ritmo-vazio'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=comeco#/hoje', { waitUntil: 'networkidle0' });
+    const bloco = await pagina.$('[aria-labelledby="tRitmo"]');
+    conferir(bloco, 'tem o bloco do ritmo');
+    conferir(!(await bloco.$('.colunas')) && !(await bloco.$('.legenda')), 'sem gráfico vazio e sem legenda');
+    conferir(/Nenhum contato neste mês ainda/.test(await bloco.evaluate((el) => el.textContent)), 'a frase diz que não chegou contato');
+    await pagina.goto(endereco + '?cenario=cheio#/hoje', { waitUntil: 'networkidle0' });
+    conferir(await pagina.$('[aria-labelledby="tRitmo"] .colunas'), 'com contatos, o gráfico continua');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();

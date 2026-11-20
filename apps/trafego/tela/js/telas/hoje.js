@@ -169,7 +169,11 @@ function ritmo(d) {
     partes.push(h('p', { class: 'suave' }, 'Gasto no período: ', h('strong', null, dinheiro(r.gasto_ate_hoje)), '.'));
   }
   if (ehNumero(r.meta_contatos)) partes.push(h('p', { class: 'suave' }, 'Meta de contatos no mês: ', h('strong', null, inteiro(r.meta_contatos)), '.'));
-  if (dias.length > 1) {
+  const algumContato = dias.some((x) => ehNumero(x.total) && x.total > 0);
+  if (dias.length > 1 && !algumContato) {
+    // Antes: um gráfico vazio (eixo de 1 a 19, legenda "de anúncio / outros contatos") sem nenhuma coluna.
+    partes.push(h('p', { class: 'suave' }, 'Nenhum contato ' + (doMes ? 'neste mês' : 'neste período') + ' ainda. Os contatos de cada dia aparecem aqui quando o primeiro chegar.'));
+  } else if (dias.length > 1) {
     const comNumero = dias.filter((x) => ehNumero(x.total));
     const temRecorde = comNumero.length >= 5 && comNumero.some((x) => x.total > 0);
     partes.push(
