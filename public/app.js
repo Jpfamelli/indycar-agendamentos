@@ -2682,7 +2682,7 @@ async function desenharSugestoes(box, { data, consultor_id, ignorar, aoEscolher 
     if (!box.isConnected) return;
     if (!r.sugestoes?.length) { box.innerHTML = '<span class="muted">Nenhum horário livre nos próximos 14 dias. Escolha à mão.</span>'; return; }
     box.innerHTML = r.sugestoes.map((s, i) => `<button type="button" class="chip-sugestao" data-i="${i}"
-        aria-label="Usar ${esc(dataBR(s.data))} às ${esc(s.hora)}">${esc(rotuloSugestao(s))}</button>`).join('')
+        title="Usar ${esc(dataBR(s.data))} às ${esc(s.hora)}"><span class="so-leitor">Remarcar para </span>${esc(rotuloSugestao(s))}<span class="so-leitor"> às ${esc(s.hora)}</span></button>`).join('')
       + `<small class="muted">seg–sáb, 8h–17h · ${r.capacidade} ${r.capacidade === 1 ? 'carro' : 'carros'} por meia hora</small>`;
     $$('.chip-sugestao', box).forEach(b => b.addEventListener('click', () => {
       $$('.chip-sugestao', box).forEach(x => x.classList.toggle('ativo', x === b));

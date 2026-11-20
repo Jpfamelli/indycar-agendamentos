@@ -275,3 +275,30 @@ test('R9 lote 8: login sem pulo de layout, erro do primeiro acesso anunciado e a
   assert.equal(man.description, /<meta name="description" content="([^"]+)"/.exec(html)[1].replace('Agenda da IndyCar Centro Automotivo', 'Agenda da IndyCar Centro Automotivo'));
   assert.doesNotMatch(man.description, /CRM|IA/);
 });
+
+test('R9 lote 8: janelas, recados, login e popovers com 44 px no toque', () => {
+  assert.match(regra(toque, '.modal-close'), /min-width:var\(--alvo\);min-height:var\(--alvo\)/);
+  assert.match(regra(toque, '.chip-sugestao'), /min-height:var\(--alvo\)/);
+  assert.match(regra(toque, '.modal .btn.mini,#f_achar'), /min-width:var\(--alvo\)/);
+  assert.match(regra(toque, '.toast .toast-acao'), /min-height:var\(--alvo\)/);
+  assert.match(regra(toque, '.switch'), /min-height:var\(--alvo\)/);
+  assert.match(regra(toque, '.login-link'), /min-height:var\(--alvo\)/);
+  assert.match(regra(toque, '.ver-senha'), /min-height:var\(--alvo\)/);
+  // a caixinha da tarefa: área de 44 px, quadradinho de 22 px desenhado por dentro
+  assert.match(regra(toque, '.tarefa-check'), /width:var\(--alvo\);height:var\(--alvo\)/);
+  assert.match(regra(toque, '.tarefa-check::before'), /width:22px;height:22px/);
+});
+
+test('R9 lote 8: texto secundário do tema escuro passa de 4,5:1 sobre painel e popover; o claro segue o dele', () => {
+  assert.ok(css9.includes(':root{--muted-2:#8189a0}'));
+  for (const fundo of ['#0f1626', '#0d1220', '#111829', '#070a14']) assert.ok(contraste('#8189a0', fundo) >= 4.5, fundo);
+  assert.ok(contraste('#646c80', '#0f1626') < 4.5, 'o valor antigo reprovava');
+  assert.match(ler('public/styles.css'), /:root\[data-tema="claro"\]\{--foco:#2357a9;--muted-2:#626874\}/);
+});
+
+test('R9 lote 8: sugestões do Remarcar com nome falado que contém o que se vê; primeiro acesso sem travessão', () => {
+  assert.ok(app.includes('<span class="so-leitor">Remarcar para </span>${esc(rotuloSugestao(s))}<span class="so-leitor"> às ${esc(s.hora)}</span>'));
+  assert.ok(!app.includes('aria-label="Usar ${esc(dataBR(s.data))}'));
+  assert.ok(html.includes('Crie a sua conta de administrador.'));
+  assert.doesNotMatch(semComentarios('public/index.html').join('\n'), /—/);
+});

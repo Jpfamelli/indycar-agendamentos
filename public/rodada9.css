@@ -163,3 +163,26 @@
 
 /* ---- menu: com "Mais" aberto os itens encolhiam (ícone de 21 px virava 14) em vez de o menu rolar ---- */
 .nav > *,.nav-mais-itens > *{flex-shrink:0}
+
+/* ---- janelas, recados, login e popovers: o que a medida das janelas achou (scripts/qa-r9-modais.mjs) ---- */
+@media (max-width:720px),(pointer:coarse){
+  /* X de fechar de todas as janelas: 13 x 22 px */
+  .modal-close{min-width:var(--alvo);min-height:var(--alvo);display:inline-flex;align-items:center;justify-content:center;margin:-10px -12px -10px 0}
+  /* sugestões de horário e de valor (40 px), setas de dia do Remarcar (27 px de largura) e "Achar" (40) */
+  .chip-sugestao{min-height:var(--alvo)}
+  .modal .btn.mini,#f_achar{min-width:var(--alvo);justify-content:center}
+  /* botões dentro do recado ("Desfazer", "Abrir no Pátio"): 40 px */
+  .toast .toast-acao{min-height:var(--alvo)}
+  /* chave de ligar e desligar (cliente aceita mensagens): 38 px */
+  .switch{min-height:var(--alvo)}
+  /* login e sino: "Esqueci a senha", "Voltar", "Marcar todas como lidas" (20 px) e "Mostrar" a senha (32 px) */
+  .login-link{min-height:var(--alvo)}
+  .ver-senha{min-height:var(--alvo);right:2px}
+  /* caixinha de concluir tarefa: 22 px; a área de toque cresce e o quadradinho fica do mesmo tamanho */
+  .tarefa-check{width:var(--alvo);height:var(--alvo);border:0;background:none;display:grid;place-items:center;margin:-10px 0 -10px -10px}
+  .tarefa-check::before{content:"";width:22px;height:22px;box-sizing:border-box;border-radius:7px;border:2px solid var(--border-2)}
+  .tarefa-check:hover{background:none}
+  .tarefa-check:hover::before{border-color:var(--green);background:var(--green-soft)}
+}
+/* texto secundário no escuro (hora do aviso, prazo da tarefa, título dos Apps): 3,43 sobre o popover; agora passa de 4,5 */
+:root{--muted-2:#8189a0}
