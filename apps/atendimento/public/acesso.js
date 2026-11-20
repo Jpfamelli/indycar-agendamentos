@@ -110,7 +110,7 @@ const Acesso = (() => {
         btn.textContent = `Aguarde ${falta} s`;
         btn.dataset.esperando = '1';
         $('#loginErro').hidden = false;
-        $('#loginErro').textContent = `${n} tentativas erradas seguidas. Por segurança, espere ${falta} s para tentar de novo — ou use "Esqueci a senha".`;
+        $('#loginErro').textContent = `${n} tentativas erradas seguidas. Por segurança, espere ${falta} s para tentar de novo, ou use "Esqueci a senha".`;
       } else if (btn.dataset.esperando) {
         delete btn.dataset.esperando;
         btn.disabled = false; btn.textContent = 'Entrar';
@@ -458,7 +458,7 @@ const Acesso = (() => {
       if (p && p.ativo === undefined) p.ativo = true;
       if (p && p.ativo === false) return sessaoMorreu('Seu acesso foi desativado. Fale com o administrador.');
       if (p && !podeUsar({ ...perfil, ...p })) { Object.assign(perfil, p); return tratarRecusa(403, { codigo: 'sem_acesso_app' }); }
-      if (p && p.papel !== perfil.papel) { toast('Seu papel mudou — recarregando para mostrar o que você pode fazer agora.'); setTimeout(() => location.reload(), 1800); }
+      if (p && p.papel !== perfil.papel) { toast('Seu papel mudou: recarregando para mostrar o que você pode fazer agora.'); setTimeout(() => location.reload(), 1800); }
     } catch { /* rede: tenta na próxima */ }
     gravarUltimoAcesso();
   }
@@ -689,7 +689,7 @@ const Acesso = (() => {
   }
   async function copiar(texto, aviso = 'Copiado') {
     try { await navigator.clipboard.writeText(texto); toast('📋 ' + aviso, 'ok'); }
-    catch { toast('Não consegui copiar sozinho — selecione e copie (Ctrl+C).'); }
+    catch { toast('Não consegui copiar sozinho: selecione e copie (Ctrl+C).'); }
   }
 
   /* ---------------- Sair ---------------- */
@@ -714,7 +714,7 @@ const Acesso = (() => {
   async function pedirSairDeTodos() {
     fecharMenuPerfil();
     const ok = await confirmar({ titulo: 'Sair de todos os aparelhos?', botao: 'Sair de todos',
-      texto: 'Todo computador e celular em que você entrou vai pedir a senha de novo — inclusive este.' });
+      texto: 'Todo computador e celular em que você entrou vai pedir a senha de novo: inclusive este.' });
     if (ok) sair({ limpar: false, global: true });
   }
   /** Apaga deste aparelho o que o app guardou. Devolve quantos rascunhos saíram. */

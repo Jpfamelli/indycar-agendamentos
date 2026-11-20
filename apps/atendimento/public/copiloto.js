@@ -49,7 +49,7 @@
   }
   async function noCampo(texto) {
     try { if (typeof API().inserirNoCampo === 'function' && API().inserirNoCampo(texto) !== false) return true; } catch { /* reserva */ }
-    try { await navigator.clipboard.writeText(texto); avisar('Texto copiado — cole no campo da mensagem.'); return true; }
+    try { await navigator.clipboard.writeText(texto); avisar('Texto copiado: cole no campo da mensagem.'); return true; }
     catch { avisar('Não consegui pôr o texto no campo.'); return false; }
   }
   const recarregar = async () => {
@@ -62,7 +62,7 @@
     let j = {};
     try { j = await r.json(); } catch { /* resposta sem JSON */ }
     if (!r.ok || j.ok === false) {
-      const e = new Error(j.erro || (r.status === 401 ? 'Sua sessão expirou — entre de novo.' : `Erro ${r.status}`));
+      const e = new Error(j.erro || (r.status === 401 ? 'Sua sessão expirou: entre de novo.' : `Erro ${r.status}`));
       e.status = r.status;
       throw e;
     }
@@ -72,12 +72,12 @@
   /* Rodada 5 — respostas rápidas por intenção: texto pronto da casa, sem IA e sem preço.
      {nome} vira o primeiro nome do cliente. */
   const RAPIDAS = {
-    agendar: ['Tenho {h1} ou {h2}. Qual fica melhor pra você? 🏎', 'Fechado! Deixo reservado no seu nome — qualquer imprevisto me avisa que a gente remarca numa boa 👍'],
-    orcamento: ['Valor certinho quem passa é o consultor depois de ver o carro. O diagnóstico digital é gratuito (uns 30 min, com foto de tudo) — quer trazer?', 'Já pedi para o consultor montar o orçamento. Assim que sair eu te mando aqui 👍'],
-    duvida: ['Boa pergunta! Deixa eu confirmar isso certinho com a equipe e já te falo.', 'A gente fica na Av. Bandeirantes, 875 — Parque Paduan. Seg a sáb, 8h às 17h30.'],
+    agendar: ['Tenho {h1} ou {h2}. Qual fica melhor pra você? 🏎', 'Fechado! Deixo reservado no seu nome: qualquer imprevisto me avisa que a gente remarca numa boa 👍'],
+    orcamento: ['Valor certinho quem passa é o consultor depois de ver o carro. O diagnóstico digital é gratuito (uns 30 min, com foto de tudo): quer trazer?', 'Já pedi para o consultor montar o orçamento. Assim que sair eu te mando aqui 👍'],
+    duvida: ['Boa pergunta! Deixa eu confirmar isso certinho com a equipe e já te falo.', 'A gente fica na Av. Bandeirantes, 875: Parque Paduan. Seg a sáb, 8h às 17h30.'],
     reclamacao: ['Poxa, {nome}, sinto muito por isso. Vou passar agora para um consultor olhar com atenção e te retornar hoje.', 'Garantia de 12 meses em peças e mão de obra: pode trazer que a gente resolve sem custo.'],
-    remarcar: ['Sem problema! Tenho {h1} ou {h2}. Qual prefere?', 'Remarcado ✅ Te espero então — qualquer coisa é só avisar.'],
-    cancelar: ['Tudo bem, {nome}. Cancelo aqui — quando quiser voltar é só chamar que eu encaixo você 🏎', 'Antes de cancelar: ajuda se eu mudar o dia ou o horário?'],
+    remarcar: ['Sem problema! Tenho {h1} ou {h2}. Qual prefere?', 'Remarcado ✅ Te espero então: qualquer coisa é só avisar.'],
+    cancelar: ['Tudo bem, {nome}. Cancelo aqui, quando quiser voltar é só chamar que eu encaixo você 🏎', 'Antes de cancelar: ajuda se eu mudar o dia ou o horário?'],
     retorno: ['Oi, {nome}! Está chegando a época da revisão. Tenho {h1} ou {h2}, qual fica melhor?'],
     pos_venda: ['Oi, {nome}! Como ficou o carro depois do serviço? Qualquer coisa estranha me conta que a gente vê na garantia.'],
     saudacao: ['Oi, {nome}! Aqui é o atendimento da IndyCar 🏎 Me conta: qual é o carro e o que ele está precisando?'],
@@ -262,7 +262,7 @@
             </div>` : ''}
           ${r.acoes?.length ? `<ul class="cop-acoes" aria-label="Ações propostas">${r.acoes.map(a => cartaoAcao(a)).join('')}</ul>`
             : (r.resposta_sugerida || r.resumo ? '' : '<p class="cop-vazio">Nada a propor agora.</p>')}
-        ` : (!S.carregando && !S.erro ? '<p class="cop-vazio">A IA lê a conversa, o CRM, a Agenda, os orçamentos e o Comunicar — e diz o que fazer.</p>' : '')}
+        ` : (!S.carregando && !S.erro ? '<p class="cop-vazio">A IA lê a conversa, o CRM, a Agenda, os orçamentos e o Comunicar, e diz o que fazer.</p>' : '')}
       </div>
       ${hist.length ? `
         <details class="cop-hist"${S.histAberto ? ' open' : ''}>

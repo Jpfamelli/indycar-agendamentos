@@ -30,7 +30,7 @@
   const abrirApp = (app, url) => {
     if (!url) return toast('⚠️ Não consegui montar o link.');
     const w = window.IndyCarApps ? window.IndyCarApps.abrir(app, url) : null;
-    if (!w && !(window.IndyCarApps && window.IndyCarApps.enderecoSeguro(url))) toast('⚠️ Esse endereço não é de um sistema da casa — não abri.');
+    if (!w && !(window.IndyCarApps && window.IndyCarApps.enderecoSeguro(url))) toast('⚠️ Esse endereço não é de um sistema da casa: não abri.');
   };
   /** Põe o texto no campo SEM apagar o que o atendente já estava escrevendo: com rascunho, entra embaixo, separado por linha em branco. */
   function inserirTexto(texto) {
@@ -105,12 +105,12 @@
     }
     if (x.manipulacao || (x.pedidos || []).includes('manipulacao')) partes.push('<span class="r6-chip r7-chip-manip" title="A mensagem tentou dar ordens à IA. Ela não leu e não respondeu. Atenda você.">🛡 IA não leu</span>');
     if (S.fixadas.has(c.id)) partes.push('<span class="r6-chip r6-fixada" title="Você fixou esta conversa no topo">📌</span>');
-    if (S.adiadas.has(c.id)) partes.push('<span class="r6-chip" title="Você adiou esta conversa — volta quando o cliente escrever">💤</span>');
+    if (S.adiadas.has(c.id)) partes.push('<span class="r6-chip" title="Você adiou esta conversa: volta quando o cliente escrever">💤</span>');
     if (x.patio) {
       const alerta = x.patio.extras_pendentes > 0;
-      partes.push(`<span class="r6-chip r6-patio r6-tom-${esc(x.patio.tom)}" title="Carro no pátio: ${esc(x.patio.etapa_rotulo)}${alerta ? ' — extra esperando o cliente' : ''}">🚗 ${esc(x.patio.etapa_rotulo.replace(/ do cliente$/, ''))}${alerta ? ' ⚠️' : ''}</span>`);
+      partes.push(`<span class="r6-chip r6-patio r6-tom-${esc(x.patio.tom)}" title="Carro no pátio: ${esc(x.patio.etapa_rotulo)}${alerta ? ', extra esperando o cliente' : ''}">🚗 ${esc(x.patio.etapa_rotulo.replace(/ do cliente$/, ''))}${alerta ? ' ⚠️' : ''}</span>`);
     }
-    if (x.pre && topoCod !== 'pre_agendamento') partes.push(`<span class="r6-chip r6-pre" title="O cliente pediu um horário pela página do orçamento — falta confirmar${x.pre.hora ? ' (' + esc(x.pre.hora) + ')' : ''}">📅 pediu horário</span>`);
+    if (x.pre && topoCod !== 'pre_agendamento') partes.push(`<span class="r6-chip r6-pre" title="O cliente pediu um horário pela página do orçamento: falta confirmar${x.pre.hora ? ' (' + esc(x.pre.hora) + ')' : ''}">📅 pediu horário</span>`);
     if (x.orc) partes.push(`<span class="r6-chip r6-orc r6-orc-${esc(x.orc.cod || x.orc.status)}" title="Orçamento nº ${esc(x.orc.numero ?? '—')}: ${esc(x.orc.rotulo)}">📄 ${esc(x.orc.rotulo)}</span>`);
     if (x.falhas && (x.falhas.nao_saiu + x.falhas.sem_confirmacao) > 0) {
       const n = x.falhas.nao_saiu + x.falhas.sem_confirmacao;
@@ -207,7 +207,7 @@
         const { error } = await sb.from('r6_c3_marcas').insert({ perfil_id: meuId(), tipo: 'adiar', conversa_id: conv.id, ate: ate.toISOString() });
         if (error) throw error;
         S.adiadas.set(conv.id, { ate: ate.toISOString(), desde: new Date().toISOString() });
-        toast('💤 Adiada — volta sozinha se o cliente escrever');
+        toast('💤 Adiada: volta sozinha se o cliente escrever');
       }
       fecharMenuAdiar(); pintarBotoesMarca(); pintarResumo(); renderConversas();
     } catch (e) { toast('⚠️ ' + (e.message || 'Não consegui adiar.')); }
@@ -259,7 +259,7 @@
         <b data-r6-etapa>${esc(p.etapa_rotulo)}</b>
         <small>${!entregue && p.minutos_na_etapa != null ? 'há ' + esc(R.rotuloMinutos(p.minutos_na_etapa)) + ' · ' : ''}OS nº ${esc(p.numero ?? '—')}${p.placa ? ' · ' + esc(p.placa) : ''}${p.atrasado ? ' · <span class="r6-atraso">acima do normal</span>' : ''}</small>
       </div>${trilhaDoPatio(p)}
-      ${!entregue && p.etapa !== 'pronto' ? `<div class="r6-linha"><span>Previsão</span><b>${prevTxt ? esc(prevTxt) : '<em>sem previsão — não prometa prazo</em>'}</b></div>` : ''}
+      ${!entregue && p.etapa !== 'pronto' ? `<div class="r6-linha"><span>Previsão</span><b>${prevTxt ? esc(prevTxt) : '<em>sem previsão: não prometa prazo</em>'}</b></div>` : ''}
       ${p.orcamento_numero ? `<div class="r6-linha"><span>Veio do orçamento</span><b>nº ${esc(p.orcamento_numero)}</b></div>` : ''}
       ${p.extras?.length ? `<div class="r6-extras">${p.extras.map(e => `<div class="r6-linha"><span>⏳ ${esc(e.descricao)}</span><b>${e.valor ? reais(e.valor) : '—'}</b></div>`).join('')}<small>esperando o cliente aprovar no link</small></div>` : ''}
       <div class="r6-botoes">
@@ -453,7 +453,7 @@
     const antes = S.zap.parado;
     S.zap = r;
     pintarZap();
-    if (antes && !r.parado) { toast(`✅ O WhatsApp voltou${r.nao_saiu + r.sem_confirmacao ? `. ${r.nao_saiu + r.sem_confirmacao} mensagem(ns) não saíram — revise e reenvie` : ''}`, 'ok'); }
+    if (antes && !r.parado) { toast(`✅ O WhatsApp voltou${r.nao_saiu + r.sem_confirmacao ? `. ${r.nao_saiu + r.sem_confirmacao} mensagem(ns) não saíram: revise e reenvie` : ''}`, 'ok'); }
   }
   function pintarZap() {
     const z = S.zap;
@@ -535,16 +535,16 @@
         if (!l) return toast('⚠️ Sem conversa nem telefone válido para abrir o Orçador.');
         return abrirApp('orcador', l);
       }
-      case 'link-patio': if (p?.patio?.texto_link && inserirTexto(p.patio.texto_link)) toast('🔗 Link de acompanhamento no campo — revise e envie'); return;
+      case 'link-patio': if (p?.patio?.texto_link && inserirTexto(p.patio.texto_link)) toast('🔗 Link de acompanhamento no campo: revise e envie'); return;
       case 'avisar-pronto': {
         const n = R.primeiroNome(p?.cliente?.nome); const c = p?.cliente?.carro ? `o ${p.cliente.carro}` : 'o carro';
-        if (inserirTexto(`${n ? n + ', ' : ''}${c} já está pronto! Pode retirar de segunda a sábado, das 8h às 17h30. Que horário você vem?`)) toast('🏁 Aviso no campo — revise e envie');
+        if (inserirTexto(`${n ? n + ', ' : ''}${c} já está pronto! Pode retirar de segunda a sábado, das 8h às 17h30. Que horário você vem?`)) toast('🏁 Aviso no campo: revise e envie');
         return;
       }
       case 'abrir-os': return abrirApp('patio', p?.patio?.abrir);
       case 'abrir-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); return abrirApp('orcador', o?.abrir); }
-      case 'link-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); if (o?.link_cliente && inserirTexto(`${R.primeiroNome(p.cliente.nome) ? R.primeiroNome(p.cliente.nome) + ', ' : ''}aqui está o seu orçamento nº ${o.numero ?? ''} para você ver com calma: ${o.link_cliente}`)) toast('📋 Link do orçamento no campo — revise e envie'); return; }
-      case 'cobrar-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); const n = R.primeiroNome(p?.cliente?.nome); if (o && inserirTexto(`${n ? n + ', ' : ''}conseguiu ver o orçamento nº ${o.numero ?? ''}? Se ficou alguma dúvida, eu te explico.`)) toast('💬 Retorno no campo — revise e envie'); return; }
+      case 'link-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); if (o?.link_cliente && inserirTexto(`${R.primeiroNome(p.cliente.nome) ? R.primeiroNome(p.cliente.nome) + ', ' : ''}aqui está o seu orçamento nº ${o.numero ?? ''} para você ver com calma: ${o.link_cliente}`)) toast('📋 Link do orçamento no campo: revise e envie'); return; }
+      case 'cobrar-orc': { const o = p?.orcamentos.find(x => x.id === alvo.dataset.id); const n = R.primeiroNome(p?.cliente?.nome); if (o && inserirTexto(`${n ? n + ', ' : ''}conseguiu ver o orçamento nº ${o.numero ?? ''}? Se ficou alguma dúvida, eu te explico.`)) toast('💬 Retorno no campo: revise e envie'); return; }
       case 'abrir-ag': { const a = [p?.agendamentos.proximo, ...(p?.agendamentos.futuros || []), ...(p?.agendamentos.recentes || [])].find(x => x && x.id === alvo.dataset.id); return abrirApp('agenda', a?.abrir); }
       case 'abrir-lead': return abrirApp('crm', p?.links?.crm_lead || p?.links?.crm_cliente || appUrl('crm', conv ? `/?tel=${R.soDigitos(conv.telefone_e164 || conv.telefone)}` : ''));
       case 'cadastrar': {

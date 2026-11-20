@@ -12,7 +12,7 @@ const Equipe = (() => {
     admin:     { nome: 'Administrador', ico: '👑', txt: 'Tudo: equipe, auditoria, configurações e todos os apps.' },
     gestor:    { nome: 'Gestor',        ico: '🧭', txt: 'Vê a equipe e os relatórios, distribui conversas e pode apagar registros.' },
     atendente: { nome: 'Atendente',     ico: '💬', txt: 'Conversas, funil, agenda e tarefas do dia a dia.' },
-    agenda:    { nome: 'Agenda',        ico: '📅', txt: 'Só a Agenda da oficina — não vê conversas nem CRM.' },
+    agenda:    { nome: 'Agenda',        ico: '📅', txt: 'Só a Agenda da oficina: não vê conversas nem CRM.' },
   };
   const APPS_PADRAO = {
     admin: ['atendimento', 'crm', 'agenda', 'comunicar', 'orcador', 'ads'],
@@ -49,7 +49,7 @@ const Equipe = (() => {
     return j;
   }
   const avisoSemRota = (oque) => `<div class="estado-vazio aviso-rota"><span class="vazio-ico" aria-hidden="true">🛠</span>
-    <p><b>${esc(oque)} ainda não chegou no servidor.</b><br>A tela já está pronta — assim que o servidor for atualizado, aparece aqui sozinho.</p></div>`;
+    <p><b>${esc(oque)} ainda não chegou no servidor.</b><br>A tela já está pronta, assim que o servidor for atualizado, aparece aqui sozinho.</p></div>`;
 
   /* ---------------- Início ---------------- */
   async function iniciar() {
@@ -365,7 +365,7 @@ const Equipe = (() => {
       <div class="st-senha"><code aria-label="Senha temporária">${esc(senha)}</code>
         <button type="button" class="btn btn-primary sm" data-copiar-senha="${esc(senha)}">📋 Copiar senha</button></div>
       <button type="button" class="link" data-copiar-senha="${esc(tudo)}" data-copiar-aviso="E-mail, senha e endereço copiados">Copiar e-mail + senha + endereço</button>
-      <p class="aviso st-aviso">🔒 <b>Esta senha aparece só agora.</b> Entregue pessoalmente (ou ditando) — não mande por WhatsApp nem por e-mail.
+      <p class="aviso st-aviso">🔒 <b>Esta senha aparece só agora.</b> Entregue pessoalmente (ou ditando): não mande por WhatsApp nem por e-mail.
         No primeiro acesso o sistema pede para ${esc(primeiroNome(nome))} criar uma senha só dela.</p>`;
   }
 
@@ -388,7 +388,7 @@ const Equipe = (() => {
     $('#pessoaNome').textContent = p.nome + (p.id === perfil.id ? ' (você)' : '');
     $('#pessoaSub').textContent = [p.email, ultimoAcesso(p) ? `último acesso ${quandoTexto(ultimoAcesso(p))}${p.ultimo_app && p.ultimo_acesso_em ? ' no ' + nomeApp(p.ultimo_app) : ''}` : 'ainda não entrou',
       p.mfa_ativo ? '🛡 duas etapas' : ''].filter(Boolean).join(' · ');
-    $('#pessoaTrava').textContent = semRotaEquipe ? 'O servidor ainda não tem a edição da equipe — só leitura por enquanto.' : trava;
+    $('#pessoaTrava').textContent = semRotaEquipe ? 'O servidor ainda não tem a edição da equipe: só leitura por enquanto.' : trava;
     $('#pessoaTrava').hidden = !(semRotaEquipe || trava);
     const f = $('#formPessoa');
     f.equipe_id.value = p.equipe_id || '';
@@ -486,7 +486,7 @@ const Equipe = (() => {
       const mov = j?.redistribuidas?.movidas;
       // o aviso do servidor (login não bloqueado no Supabase) é o que mais importa: fica por último
       toast(j?.aviso ? '⚠️ ' + j.aviso : ativar ? `↺ ${primeiroNome(p.nome)} voltou a ter acesso`
-        : `⛔ ${primeiroNome(p.nome)} foi desativado${mov ? ` — ${mov} conversa${mov > 1 ? 's voltaram' : ' voltou'} para o rodízio` : ''}`, j?.aviso ? 'erro' : ativar ? 'ok' : '');
+        : `⛔ ${primeiroNome(p.nome)} foi desativado${mov ? `: ${mov} conversa${mov > 1 ? 's voltaram' : ' voltou'} para o rodízio` : ''}`, j?.aviso ? 'erro' : ativar ? 'ok' : '');
       renderEquipe();
       carregarNomesDaEquipe();
     } catch (err) {
@@ -625,12 +625,12 @@ const Equipe = (() => {
     const nomeDe = (id) => (id && EQUIPE.get(id)?.nome) || '';
     switch (it.acao) {
       case 'equipe.convidar': return `${quem} convidou ${alvo ? A : b(x.email || 'alguém')} como ${esc(rotPapel(x.papel))}${Array.isArray(x.apps) && x.apps.length ? ` (${esc(x.apps.map(nomeApp).join(', '))})` : ''}`;
-      case 'equipe.desativar': return `${quem} desativou o acesso de ${A}${x.motivo ? ` — “${esc(x.motivo)}”` : ''}`;
+      case 'equipe.desativar': return `${quem} desativou o acesso de ${A}${x.motivo ? `: “${esc(x.motivo)}”` : ''}`;
       case 'equipe.reativar': return `${quem} reativou o acesso de ${A}`;
       case 'equipe.redefinir_senha': return `${quem} gerou uma senha temporária para ${A}`;
       case 'equipe.remover_mfa': return `${quem} tirou a verificação em duas etapas de ${A}`;
       case 'perfil.senha_trocada': return `${quem} trocou a senha temporária por uma própria`;
-      case 'conversa.transferir': return `${quem} passou ${alvo ? `a conversa de ${A}` : 'uma conversa'}${x.de ? ` de ${b(nomeDe(x.de) || 'outra pessoa')}` : ''} para ${b(nomeDe(x.para) || x.para_nome || 'um colega')}${x.motivo ? ` — “${esc(x.motivo)}”` : ''}`;
+      case 'conversa.transferir': return `${quem} passou ${alvo ? `a conversa de ${A}` : 'uma conversa'}${x.de ? ` de ${b(nomeDe(x.de) || 'outra pessoa')}` : ''} para ${b(nomeDe(x.para) || x.para_nome || 'um colega')}${x.motivo ? `: “${esc(x.motivo)}”` : ''}`;
       case 'conversa.distribuir': return `${quem === b('O sistema') ? 'O rodízio' : quem} deu dono ${alvo ? `à conversa de ${A}` : 'a uma conversa sem responsável'}${x.para ? ` (${b(nomeDe(x.para) || 'colega')})` : ''}`;
       case 'conversa.redistribuir': return `O sistema devolveu ao rodízio uma conversa de ${b(nomeDe(x.de || x.donoAnterior) || 'alguém sem acesso')}`;
       case 'auditoria.exportar': return `${quem} exportou a auditoria${x.linhas != null ? ` (${esc(String(x.linhas))} linhas)` : ''}`;
@@ -643,7 +643,7 @@ const Equipe = (() => {
     if (it.acao === 'equipe.editar') it.acao = 'update';
     if (it.acao === 'convidar') return `${quem} convidou ${A} como ${esc(rotPapel(x.papel))}${Array.isArray(x.apps) && x.apps.length ? ` (${esc(x.apps.map(nomeApp).join(', '))})` : ''}`;
     if (it.acao === 'senha_temporaria') return `${quem} gerou uma senha temporária para ${A}`;
-    if (it.acao === 'transferir_conversa') return `${quem} passou a conversa de ${A} ${x.de_nome ? `de ${b(x.de_nome)} ` : ''}para ${b(x.para_nome || 'um colega')}${x.motivo ? ` — “${esc(x.motivo)}”` : ''}`;
+    if (it.acao === 'transferir_conversa') return `${quem} passou a conversa de ${A} ${x.de_nome ? `de ${b(x.de_nome)} ` : ''}para ${b(x.para_nome || 'um colega')}${x.motivo ? `: “${esc(x.motivo)}”` : ''}`;
     if (it.acao === 'exportar_csv') return `${quem} exportou ${it.tabela === 'auditoria' ? 'a auditoria' : esc(it.tabela || 'dados')}${x.linhas != null ? ` (${esc(String(x.linhas))} linhas)` : ''}`;
     if (it.acao === 'ia_executar') return `${quem} executou a ação da IA “${esc(x.resumo || x.tipo || 'ação')}”${alvo ? ` em ${A}` : ''}`;
     if (it.acao === 'delete' || it.acao === 'excluir') {

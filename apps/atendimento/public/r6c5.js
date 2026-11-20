@@ -35,12 +35,12 @@
     const relativo = typeof url === 'string' && /^(\/(?![\/\\])|\?|#)/.test(url);
     const limpo = R.linkSeguroCasa(url) || (window.IndyCarApps && relativo ? window.IndyCarApps.link(app, url) : null);
     const ok = limpo && R.linkSeguroCasa(limpo);
-    if (!ok) return toast('⚠️ Esse endereço não é de um sistema da casa — não abri.');
+    if (!ok) return toast('⚠️ Esse endereço não é de um sistema da casa: não abri.');
     const w = window.IndyCarApps ? window.IndyCarApps.abrir(app, ok) : null;
     if (!w && !window.IndyCarApps) window.open(ok, 'indycar-' + app, 'noopener');
   }
   const inserir = (t) => {
-    if (R.textoTemPreco(t)) { toast('⚠️ Esse texto fala de valor — não coloquei no campo. Quem fala de valor é o consultor.'); return false; }
+    if (R.textoTemPreco(t)) { toast('⚠️ Esse texto fala de valor: não coloquei no campo. Quem fala de valor é o consultor.'); return false; }
     return window.R6Tela ? window.R6Tela.inserir(t) : inserirNoCampo(t);
   };
 
@@ -97,14 +97,14 @@
     }
     const p = principal();
     if (p && p.cod === 'recusado') {
-      out.push(`<div class="c5-faixa c5-recusou" role="status"><span>🙅 <b>Recusou o orçamento nº ${esc(p.numero ?? '—')}</b>${p.motivo_recusa ? ` — “${esc(p.motivo_recusa)}”` : ' — sem motivo escrito'}</span>
+      out.push(`<div class="c5-faixa c5-recusou" role="status"><span>🙅 <b>Recusou o orçamento nº ${esc(p.numero ?? '—')}</b>${p.motivo_recusa ? `, “${esc(p.motivo_recusa)}”` : ', sem motivo escrito'}</span>
         <button type="button" class="r6-btn r6-sec" data-c5="motivo" data-id="${esc(p.id)}">💬 Perguntar o motivo</button></div>`);
     } else if (p && ['visualizado', 'recente'].includes(p.cod)) {
       out.push(`<div class="c5-faixa c5-visto" role="status"><span>👀 <b>Abriu o orçamento nº ${esc(p.numero ?? '—')}</b> (${esc(p.visto || 'viu')}) e não respondeu</span>
         <button type="button" class="r6-btn r6-sec" data-c5="retorno" data-id="${esc(p.id)}">💬 Dar um retorno</button></div>`);
     }
     const nao = (d.acoes || []).find((a) => a.codigo === 'nao_mandar_mensagens');
-    if (nao) out.push(`<div class="c5-faixa c5-aviso" role="status"><span>🚫 <b>${esc(nao.titulo)}</b>${nao.motivo ? ' — ' + esc(nao.motivo) : ''}</span></div>`);
+    if (nao) out.push(`<div class="c5-faixa c5-aviso" role="status"><span>🚫 <b>${esc(nao.titulo)}</b>${nao.motivo ? ': ' + esc(nao.motivo) : ''}</span></div>`);
     return out.join('');
   }
 
@@ -359,21 +359,21 @@
       case 'abrir-orc': { const o = porId(alvo.dataset.id); return abrirSeguro('orcador', o?.abrir); }
       case 'link-orc': {
         const o = porId(alvo.dataset.id); const n = R.primeiroNome(nomeDe());
-        if (o?.link_cliente && inserir(`${n ? n + ', ' : ''}aqui está o seu orçamento nº ${o.numero ?? ''} para você ver com calma: ${o.link_cliente}`)) toast('📋 Link do orçamento no campo — revise e envie');
+        if (o?.link_cliente && inserir(`${n ? n + ', ' : ''}aqui está o seu orçamento nº ${o.numero ?? ''} para você ver com calma: ${o.link_cliente}`)) toast('📋 Link do orçamento no campo: revise e envie');
         return;
       }
-      case 'motivo': { const o = porId(alvo.dataset.id); if (inserir(textoPara('recusado', o))) toast('💬 Pergunta no campo — revise e envie'); return; }
-      case 'retorno': { const o = porId(alvo.dataset.id); if (inserir(textoPara(o?.cod || 'visualizado', o))) toast('💬 Retorno no campo — revise e envie'); return; }
+      case 'motivo': { const o = porId(alvo.dataset.id); if (inserir(textoPara('recusado', o))) toast('💬 Pergunta no campo: revise e envie'); return; }
+      case 'retorno': { const o = porId(alvo.dataset.id); if (inserir(textoPara(o?.cod || 'visualizado', o))) toast('💬 Retorno no campo: revise e envie'); return; }
       case 'refazer': return abrirSeguro('orcador', d?.link_novo_orcamento);
       case 'pre-agenda': { const p = (d?.pre_agendamentos || []).find((x) => x.id === alvo.dataset.id); return abrirSeguro('agenda', p?.abrir); }
       case 'pre-responder': {
         const p = (d?.pre_agendamentos || []).find((x) => x.id === alvo.dataset.id); if (!p) return;
         const quando = `${diaSemana(p.data)} ${dataCurta(p.data)}${p.hora ? ' às ' + p.hora : ''}`;
-        if (inserir(textoPara('pre_agendamento', null, { quando }))) toast('💬 Resposta no campo — revise e envie');
+        if (inserir(textoPara('pre_agendamento', null, { quando }))) toast('💬 Resposta no campo: revise e envie');
         return;
       }
       case 'acao-abrir': { const a = C.acoesVisiveis()[Number(alvo.dataset.i)]; return abrirSeguro(a?.app || 'central', a?.link); }
-      case 'acao-texto': { const a = C.acoesVisiveis()[Number(alvo.dataset.i)]; if (a?.texto && inserir(a.texto)) toast('📋 Texto no campo — revise e envie'); return; }
+      case 'acao-texto': { const a = C.acoesVisiveis()[Number(alvo.dataset.i)]; if (a?.texto && inserir(a.texto)) toast('📋 Texto no campo: revise e envie'); return; }
       case 'carros': return abrirCarros();
       case 'fechar-carros': return fecharCarros();
       case 'carros-recarregar': { carregarCarros({ forcar: true }).then(pintarCarros); return; }
