@@ -28,18 +28,14 @@
 const S = require('./seguranca.js');
 const A = require('./acesso.js');
 const AUD = require('./auditoria.js');
+const { enviarJson } = require('./resposta.js');
 
 const GESTAO = ['admin', 'gestor'];
 
 function criarRotasEquipe({ getSb, usuarioLogado, limitar, lerCorpo, equipe, auditoria, tarefas, rodizio, automacoes,
   esquecerPerfil = () => {}, log = console.error } = {}) {
 
-  const enviar = (res, code, data) => {
-    const corpo = JSON.stringify(data);
-    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(corpo), 'Cache-Control': 'no-store' });
-    res.end(corpo);
-    return true;
-  };
+  const enviar = (res, code, data) => enviarJson(res.req, res, code, data);   // rodada 10: com gzip acima de 2 kB (lib/resposta.js)
   const resultado = (res, r, ok = 200) => {
     if (!r) return enviar(res, 500, { ok: false, erro: 'Sem resposta.', codigo: 'erro_interno' });
     const { status, ...resto } = r;

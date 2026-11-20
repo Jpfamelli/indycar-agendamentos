@@ -51,8 +51,8 @@ function esquecerModulos() {
  * @param fn              async ({ base, pedir, sb, chamadas, logs, app }) => {}
  */
 async function comServidorR10(opcoes, fn) {
-  const { tabelas = tabelasBase(), rpc = {}, falhas = {}, rede = () => null, env = {} } = opcoes || {};
-  const sb = criarSbFalso(tabelas, { rpc: { registrar_auditoria: async (a, db) => { (db.auditoria = db.auditoria || []).push(a); return { data: null, error: null }; }, ...rpc }, falhas });
+  const { tabelas = tabelasBase(), rpc = {}, falhas = {}, rede = () => null, env = {}, tetoLinhas = null } = opcoes || {};
+  const sb = criarSbFalso(tabelas, { rpc: { registrar_auditoria: async (a, db) => { (db.auditoria = db.auditoria || []).push(a); return { data: null, error: null }; }, ...rpc }, falhas, tetoLinhas });
   sb.auth = { admin: criarAuthFalsa({ db: sb.db }).admin };
   const chamadas = [];                       // toda saída de rede que o servidor tentou
   const fetchReal = globalThis.fetch;

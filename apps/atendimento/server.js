@@ -894,6 +894,23 @@ async function estadoDoWhatsApp() {
   }
 }
 
+/* Rodada 10: a tela pergunta o estado ao entrar, a cada 2 min e toda vez que a aba volta a ficar
+   visível, para cada pessoa logada. Cada pergunta era uma ida ao CodeWords. Agora a resposta vale
+   por 20 s e quem pergunta enquanto a consulta está no ar espera a mesma (uma ida só).
+   Parear, religar e trocar a chave esquecem a resposta guardada. */
+const ESTADO_ZAP_VALE_MS = 20_000;
+let ESTADO_ZAP = { em: 0, valor: null, indo: null };
+function estadoDoWhatsAppLembrado() {
+  if (ESTADO_ZAP.valor && Date.now() - ESTADO_ZAP.em < ESTADO_ZAP_VALE_MS) return Promise.resolve(ESTADO_ZAP.valor);
+  if (ESTADO_ZAP.indo) return ESTADO_ZAP.indo;
+  const indo = estadoDoWhatsApp().then(
+    valor => { if (ESTADO_ZAP.indo === indo) ESTADO_ZAP = { em: Date.now(), valor, indo: null }; return valor; },
+    e => { if (ESTADO_ZAP.indo === indo) ESTADO_ZAP.indo = null; throw e; });
+  ESTADO_ZAP.indo = indo;
+  return indo;
+}
+const esquecerEstadoDoWhatsApp = () => { ESTADO_ZAP = { em: 0, valor: null, indo: null }; };
+
 /* Pede um código de pareamento e já deixa a reinscrição encaminhada. */
 async function gerarCodigoDePareamento() {
   const g = await baseDoGerenciador();
@@ -2302,6 +2319,7 @@ async function salvarChaveCodeWords(chave, { testar = true } = {}) {
   if (r2.error) avisos.push(`Gravou aqui, mas não na Agenda (agenda_ia_config): ${r2.error.message}`);
   SAUDE_CACHE = { em: 0, dados: null };   // a faixa de saúde deve reavaliar logo
   ZAP.limpar();                            // chave nova: a próxima mensagem tenta de verdade
+  esquecerEstadoDoWhatsApp();              // e o estado da conexão é perguntado de novo
   pausaSincronia.aceita();                 // e a sincronia volta na próxima rodada (40 s), sem esperar a pausa
   return { ok: true, mascara: COM.mascararChave(k), salvoEm: ['codewords_config', ...(r2.error ? [] : ['agenda_ia_config'])],
            teste, avisos };
@@ -2383,6 +2401,7 @@ const ROTAS_EQUIPE = criarRotasEquipe({
 
 const ENTREGADOR = criarEntregador({ banco: () => adminSupabase(), enviar: d => enviarPeloCodeWords(d) });
 
+let PRIMEIRO_ACESSO_FECHADO = false;   // rodada 10: vira true na primeira vez que o banco diz que já há alguém cadastrado
 /* Rotas que respondem sem login (o resto de /api/ passa pelo porteiro). */
 const ROTAS_PUBLICAS = new Set(['/api/config', '/api/primeiro-acesso', '/api/webhook/codewords', '/api/status', '/api/ia/funil/acordar']);
 /* Rotas que ainda respondem com a verificação em duas etapas pendente
@@ -2591,13 +2610,20 @@ const handler = async (req, res) => {
        verdade (o @indycartaubate.com era recusado). Aqui a conta já nasce
        valendo. */
     if (pathname === '/api/primeiro-acesso' && req.method === 'GET') {
+      /* Rodada 10: a tela de entrada pergunta isto toda vez que abre, sem login. Depois que existe
+         alguém cadastrado a resposta não muda mais: fica lembrada e não vai ao banco de novo. */
+      if (PRIMEIRO_ACESSO_FECHADO) return json(res, 200, { aberto: false });
       const sb = adminSupabase();
       if (!sb) return json(res, 503, { aberto: false, erro: 'Servidor sem a chave do banco.' });
-      const { count } = await sb.from('perfis').select('id', { count: 'exact', head: true });
-      return json(res, 200, { aberto: (count ?? 0) === 0 });
+      const { count, error } = await sb.from('perfis').select('id', { count: 'exact', head: true });
+      if (!error && (count ?? 0) > 0) PRIMEIRO_ACESSO_FECHADO = true;
+      return json(res, 200, { aberto: !error && (count ?? 0) === 0 });
     }
 
     if (pathname === '/api/primeiro-acesso' && req.method === 'POST') {
+      if (PRIMEIRO_ACESSO_FECHADO) {
+        return json(res, 403, { erro: 'O sistema já tem gente cadastrada. Peça ao administrador para criar seu acesso.' });
+      }
       const sb = adminSupabase();
       if (!sb) return json(res, 503, { erro: 'Servidor sem a chave do banco configurada.' });
 
@@ -2635,6 +2661,7 @@ const handler = async (req, res) => {
          porque uma corrida entre dois cadastros simultâneos poderia deixar
          o dono como atendente no próprio sistema. */
       await sb.from('perfis').update({ nome, papel: 'admin', ativo: true, apps: ACS.APPS, precisa_trocar_senha: false }).eq('id', data.user.id);
+      PRIMEIRO_ACESSO_FECHADO = true;
       await auditar({ perfil: data.user.id, acao: 'equipe.primeiro_acesso', tabela: 'perfis', registro: data.user.id, detalhes: { email } });
       return json(res, 201, { ok: true, email });
     }
@@ -2856,11 +2883,19 @@ const handler = async (req, res) => {
       if (erroConv) { console.error('excluir conversa:', erroConv.message); return json(res, 503, { erro: 'Não consegui ler a conversa agora; nada foi apagado.' }); }
       if (!conv) return json(res, 404, { erro: 'Essa conversa já não existe.' });
 
-      const { data: msgs, error: erroMsgs } = await sb.from('whatsapp_mensagens')
-        .select('corpo, direcao, created_at').eq('conversa_id', id)
-        .order('created_at').limit(2000);
-      if (erroMsgs) {
+      /* Rodada 10: o Supabase entrega no máximo 1.000 linhas por pedido, com ou sem limit(). Com o
+         limit(2000) antigo, conversa longa tinha só as 1.000 primeiras mensagens na cópia e era
+         apagada inteira. Agora lê de 1.000 em 1.000 até o fim; se a conta não fechar, nada é apagado. */
+      let msgs;
+      try {
+        msgs = await paginar(sb, 'whatsapp_mensagens', 'corpo, direcao, created_at', q => q.eq('conversa_id', id).order('created_at'));
+      } catch (e) {
+        console.error('excluir conversa (ler mensagens):', e.message);
         return json(res, 500, { erro: 'Não consegui ler as mensagens para a cópia; nada foi apagado.' });
+      }
+      const { count: totalMsgs } = await sb.from('whatsapp_mensagens').select('id', { count: 'exact', head: true }).eq('conversa_id', id);
+      if (Number.isFinite(totalMsgs) && totalMsgs > msgs.length) {
+        return json(res, 500, { erro: 'A cópia de segurança não pegou todas as mensagens desta conversa; nada foi apagado. Avise o suporte.', codigo: 'copia_incompleta' });
       }
 
       /* A cópia de segurança é gravada ANTES e o erro é lido.
@@ -2939,8 +2974,8 @@ const handler = async (req, res) => {
 
       /* A prévia e a data da conversa vinham da mensagem apagada. Sem
          recalcular, a lista mostraria texto de mensagem que já não existe. */
-      const conversaId = msgs[0].conversa_id;
-      if (conversaId) {
+      // rodada 10: de todas as conversas tocadas (antes só a da primeira mensagem da lista)
+      for (const conversaId of [...new Set(msgs.map(x => x.conversa_id).filter(Boolean))].slice(0, 50)) {
         const { data: ultima } = await sb.from('whatsapp_mensagens')
           .select('corpo, created_at').eq('conversa_id', conversaId)
           .order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -2979,7 +3014,7 @@ const handler = async (req, res) => {
     if (pathname === '/api/whatsapp/status' && req.method === 'GET') {
       const quem = await usuarioLogado(req);
       if (!quem) return json(res, 401, { erro: 'Faça login.' });
-      const r = await estadoDoWhatsApp();
+      const r = await estadoDoWhatsAppLembrado();
       return json(res, 200, r);
     }
 
@@ -2999,6 +3034,7 @@ const handler = async (req, res) => {
         return json(res, 429, { erro: 'Espere alguns minutos antes de pedir outro código.' });
       }
       const r = await gerarCodigoDePareamento();
+      esquecerEstadoDoWhatsApp();
       await auditar({ perfil: quem.id, acao: 'whatsapp.parear', tabela: 'codewords_config', detalhes: { ok: !!r.ok } });
       return json(res, r.ok ? 200 : 502, r);
     }
@@ -3016,6 +3052,7 @@ const handler = async (req, res) => {
         return json(res, 429, { erro: 'Muitas tentativas de religar seguidas. Espere alguns minutos.', codigo: 'muitas_tentativas' });
       }
       const r = await reinscreverNoFluxo();
+      esquecerEstadoDoWhatsApp();
       await auditar({ perfil: quem.id, acao: 'whatsapp.reinscrever', tabela: 'codewords_config', detalhes: { ok: !!r.ok } });
       return json(res, r.ok ? 200 : 502, r);
     }

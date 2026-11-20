@@ -24,6 +24,7 @@ const CTX = require('./contexto.js');
 /* Apps do ecossistema que podem chamar estas rotas pelo navegador (mesmo
    login do Supabase). A lista mora em lib/seguranca.js, junto com o resto. */
 const { ORIGENS_ECOSSISTEMA } = require('./seguranca.js');
+const { enviarJson } = require('./resposta.js');
 
 /** Variantes do telefone incluindo o 9º dígito (celular gravado com e sem o 9). */
 function variantesComNove(t) {
@@ -47,19 +48,7 @@ function segredosIguais(a, b) {
 
 function criarRotasIA({ getSb, usuarioLogado, dentroDoLimite, readBody, copiloto, resumoDoDia, contexto, auditar = async () => ({ ok: true }),
   funil = null, tokenWebhook = async () => null, ipDe = () => 'x' }) {
-  const enviar = (req, res, code, data) => {
-    const corpo = JSON.stringify(data);
-    const cab = { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(corpo),
-                  'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
-    const origem = req.headers.origin;
-    if (origem && ORIGENS_ECOSSISTEMA.has(origem)) {
-      cab['Access-Control-Allow-Origin'] = origem;
-      cab['Vary'] = 'Origin';
-    }
-    res.writeHead(code, cab);
-    res.end(corpo);
-    return true;
-  };
+  const enviar = enviarJson;   // rodada 10: resposta única, com gzip acima de 2 kB (lib/resposta.js)
 
   const exigirLogin = async (req, res, msg = 'Faça login para usar a IA.') => {
     const quem = await usuarioLogado(req);

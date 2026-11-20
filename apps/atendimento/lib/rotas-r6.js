@@ -20,20 +20,11 @@
 'use strict';
 
 const R6 = require('../public/r6-regras.js');
-const { ORIGENS_ECOSSISTEMA } = require('./seguranca.js');
+const { enviarJson } = require('./resposta.js');
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function criarRotasR6({ getSb, usuarioLogado, dentroDoLimite, readBody, dados, zap, funil = null, copiloto = null, contexto = null, c5 = null, tokenDe = () => null, auditar = async () => ({ ok: true }) }) {
-  const enviar = (req, res, code, data) => {
-    const corpo = JSON.stringify(data);
-    const cab = { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(corpo),
-      'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
-    const origem = req.headers.origin;
-    if (origem && ORIGENS_ECOSSISTEMA.has(origem)) { cab['Access-Control-Allow-Origin'] = origem; cab['Vary'] = 'Origin'; }
-    res.writeHead(code, cab);
-    res.end(corpo);
-    return true;
-  };
+  const enviar = enviarJson;   // rodada 10: resposta única, com gzip acima de 2 kB (lib/resposta.js)
   const exigir = async (req, res) => {
     const quem = await usuarioLogado(req);
     if (!quem) { enviar(req, res, 401, { ok: false, erro: 'Faça login.' }); return null; }
