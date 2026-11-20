@@ -842,7 +842,7 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
 
   view.innerHTML = `
     <div class="toolbar">
-      <div class="left"><h2>Mensagens</h2><span class="badge-pill bp-gray" id="qtdMsg">${plural(lista.length, 'na lista', 'na lista')}</span></div>
+      <div class="left"><h2>Mensagens</h2><span class="badge-pill bp-gray" id="qtdMsg" role="status">${plural(lista.length, 'na lista', 'na lista')}${state._msgFim ? '' : '+'}</span></div>
       <div class="right">
         <div class="search">${svg(I.search)}<input id="qMsg" placeholder="Buscar por nome, telefone ou texto…" value="${esc(f.q)}" aria-label="Buscar mensagens"></div>
         <select id="tipoMsg" class="inp" style="width:auto" aria-label="Filtrar por tipo">${tipos.map(t => `<option value="${t}" ${f.tipo === t ? 'selected' : ''}>${t === 'todos' ? 'Todos os tipos' : `${TIPO[t]?.emoji || ''} ${TIPO[t]?.rotulo || t}`}</option>`).join('')}</select>
@@ -866,24 +866,31 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
 
   $('#maisMsg').addEventListener('click', async (ev) => {
     const b = ev.currentTarget; b.disabled = true; b.textContent = 'Carregando…';
+    const consulta = state._vez;
     try {
       const q2 = new URLSearchParams(state._qMsg); q2.set('limite', '100'); q2.set('offset', String(state._msgLista.length));
       const mais = await api('GET', '/envios?' + q2);
+      if (consulta !== state._vez || !b.isConnected) return;
       state._msgLista.push(...mais); state._msgFim = mais.length < 100;
       $('#listaEnvios').insertAdjacentHTML('beforeend', mais.map(cartaoEnvio).join(''));
-      ligarAcoesEnvio($('#listaEnvios'));
       $('#qtdMsg').textContent = plural(state._msgLista.length, 'na lista', 'na lista') + (state._msgFim ? '' : '+');
       b.hidden = state._msgFim;
-    } catch (e) { toast(e.message, 'err'); }
+    } catch (e) { if (consulta === state._vez && b.isConnected) toast(e.message, 'err'); }
     finally { b.disabled = false; b.textContent = 'Carregar mais 100'; }
   });
   $$('.pilula', view).forEach(b => b.addEventListener('click', () => { state.msg.status = b.dataset.filtro; route(null, { quieto:true }); }));
   $('#tipoMsg').addEventListener('change', e => { state.msg.tipo = e.target.value; route(null, { quieto:true }); });
-  $('#qMsg').addEventListener('input', debounce(e => { state.msg.q = e.target.value.trim(); route(null, { quieto:true }); }, 300));
+  $('#qMsg').addEventListener('input', debounce(e => {
+    if (!e.target.isConnected) return;
+    state.msg.q = e.target.value.trim();
+    route(null, { quieto:true });
+  }, 300));
   const mudarPeriodo = () => {
-    state.msg.de = $('#deMsg').value; state.msg.ate = $('#ateMsg').value;
-    if (state.msg.de && state.msg.ate && state.msg.de > state.msg.ate) { toast('O "de" precisa vir antes do "até".', 'err'); return; }
-    $('#limparPeriodo').hidden = !(state.msg.de || state.msg.ate); route(null, { quieto:true });
+    const de = $('#deMsg').value, ate = $('#ateMsg').value;
+    $('#limparPeriodo').hidden = !(de || ate);
+    if (de && ate && de > ate) { toast('A data inicial precisa vir antes da final.', 'err'); return; }
+    state.msg.de = de; state.msg.ate = ate;
+    route(null, { quieto:true });
   };
   $('#deMsg').addEventListener('change', mudarPeriodo); $('#ateMsg').addEventListener('change', mudarPeriodo);
   $('#limparPeriodo').addEventListener('click', () => { $('#deMsg').value = ''; $('#ateMsg').value = ''; mudarPeriodo(); });
@@ -1286,10 +1293,22 @@ async function renderClientes({ vez = state._vez } = {}) {
     <div class="panel"><div class="panel-body lista lista-anim" id="cliLista">${linhasClientes(lista)}</div></div>`;
   ligarClientes($('#cliLista'), lista);
   const inp = $('#qCli');
+  let busca = 0;
   inp.addEventListener('input', debounce(async () => {
+    if (!inp.isConnected) return;
     state.cliQ = inp.value.trim();
-    const r = await api('GET', '/clientes' + (state.cliQ ? `?q=${encodeURIComponent(state.cliQ)}` : '')).catch(() => []);
-    if ($('#cliLista')) { $('#cliLista').innerHTML = linhasClientes(r); ligarClientes($('#cliLista'), r); }
+    const termo = state.cliQ;
+    const pesquisa = ++busca;
+    const atual = () => inp.isConnected && pesquisa === busca && inp.value.trim() === termo;
+    try {
+      const r = await api('GET', '/clientes' + (termo ? `?q=${encodeURIComponent(termo)}` : ''));
+      if (!atual()) return;
+      const resultados = $('#cliLista');
+      resultados.innerHTML = linhasClientes(r);
+      ligarClientes(resultados, r);
+    } catch {
+      if (atual()) toast('Não deu para buscar os clientes. Tente de novo.', 'err');
+    }
   }, 250));
   $('#btnImportar')?.addEventListener('click', () => openImportarModal());
   $('#btnAniv').addEventListener('click', () => window.R4?.abrirAniversarios());
