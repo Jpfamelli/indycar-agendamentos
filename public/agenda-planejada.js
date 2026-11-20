@@ -197,7 +197,7 @@ function pintarSemana() {
         </div>
         ${u.modo === 'dia' && !passado ? gradeDeHoras(d, itens, hoje, vagasPorJanela) : ''}
         ${itens.length ? `<ul class="sem-lista">${itens.map(a => itemSemana(a, u)).join('')}</ul>`
-          : `<p class="sem-vazio">${filtrado ? 'Nada com esses filtros' : passado ? 'Sem horários' : 'Livre — arraste um horário para cá'}</p>`}
+          : `<p class="sem-vazio">${filtrado ? 'Nada com esses filtros' : passado ? 'Sem horários' : 'Livre, arraste um horário para cá'}</p>`}
       </section>`;
     }).join('')}</div>`;
   }
@@ -268,8 +268,8 @@ function pintarSemana() {
       const hora = alvo.dataset.alvoHora ? alvo.dataset.hora : a?.hora;
       if (!a || (a.data === dia && a.hora === hora)) return;
       if (dia < agoraSP().data) return toast('Não dá para remarcar para um dia que já passou', 'err');
-      if (dia === agoraSP().data && pl.minutos(hora) !== null && pl.minutos(hora) < agoraSP().min) return toast('Essa hora já passou — escolha uma à frente', 'err');
-      if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) return toast('Domingo a oficina não abre — escolha outro dia', 'err');
+      if (dia === agoraSP().data && pl.minutos(hora) !== null && pl.minutos(hora) < agoraSP().min) return toast('Essa hora já passou, escolha uma à frente', 'err');
+      if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) return toast('Domingo a oficina não abre, escolha outro dia', 'err');
       const conf = pl.conflitos(u.lista, { ...a, data: dia, hora, status: 'aguardando' }, capacidadeRecepcao());
       // confirmação sempre (arrastar sem querer acontece): de → para, com o aviso de disputa
       if (!(await confirmarRemarcacao(a, dia, hora, conf))) return;

@@ -24,7 +24,7 @@
 .btn-topo{position:relative}
 body.portaria .btn-topo{display:grid!important}
 .badge-topo{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;
-  background:var(--red);color:#fff;font:800 11px/19px 'Inter',sans-serif;font-style:normal;text-align:center;
+  background:var(--red);color:#fff;font:800 11px/19px 'Archivo',sans-serif;font-style:normal;text-align:center;
   box-shadow:0 0 0 2px var(--bg)}
 button.avatar-bottom{cursor:pointer;font-family:inherit;transition:filter .15s,box-shadow .15s;color:#fff}
 button.avatar-bottom:hover{filter:brightness(1.1);box-shadow:0 0 0 3px var(--surface-2)}

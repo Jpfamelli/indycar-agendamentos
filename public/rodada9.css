@@ -142,3 +142,18 @@
 /* Quadro: o campo de data seguia o desenho cru do navegador */
 #qdData{background:var(--panel-3);border:1px solid var(--border-2);border-radius:10px;padding:8px 10px;color:var(--text);font:inherit;color-scheme:var(--scheme)}
 #qdData:focus-visible{outline:2px solid var(--foco);outline-offset:2px}
+
+/* ---- fontes do próprio app (as mesmas do guia visual: Archivo no texto, Barlow Condensed nos números) ---- */
+@font-face{font-family:'Archivo';font-style:normal;font-weight:100 900;font-stretch:62% 125%;font-display:swap;src:url('./fontes/archivo-variavel.woff2') format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url('./fontes/barlow-condensed-600.woff2') format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url('./fontes/barlow-condensed-700.woff2') format('woff2')}
+
+/* ---- botões principais chapados, sem gradiente (guia visual) ---- */
+.btn.primary,.btn-novo,.pilula.ativa{background:var(--red)}
+/* botão verde: branco sobre verde claro dava 3,3; verde mais fechado passa de 4,5 */
+.btn.green{background:#15803d}
+
+/* ---- "Marcar rápido": o campo seguia o desenho cru do navegador ---- */
+.r6c-rapido input{background:var(--panel-3);border:1px solid var(--border-2);border-radius:10px;padding:10px 12px;color:var(--text);font:inherit;font-size:14px}
+.r6c-rapido input:focus-visible{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.r6c-rapido input::placeholder{color:var(--muted-2)}

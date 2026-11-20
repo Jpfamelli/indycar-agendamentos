@@ -79,7 +79,7 @@ export function planejar({ agora = new Date(), agendamentos = [], tarefas = [], 
       const responsavel = quem(a) || gestor;
       saida.tarefas.push({
         titulo: TITULO_CONFIRMAR, origem: 'automacao', prioridade: 2,
-        descricao: `${a.cliente_nome} — ${a.servico}, ${dataBR(a.data)} às ${String(a.hora).slice(0, 5)}. O lembrete automático é do Comunicar; aqui é a confirmação da equipe.`,
+        descricao: `${a.cliente_nome} · ${a.servico}, ${dataBR(a.data)} às ${String(a.hora).slice(0, 5)}. O lembrete automático é do Comunicar; aqui é a confirmação da equipe.`,
         responsavel_id: responsavel, agendamento_id: a.id, cliente_id: a.cliente_id || null,
         vence_em: prazo(r.data, '17:30'),
       });
@@ -115,7 +115,7 @@ export function planejar({ agora = new Date(), agendamentos = [], tarefas = [], 
         saida.notificacoes.push({
           perfil_id, tipo: 'atraso', app: 'agenda', chave: `atraso:${a.id}`,
           titulo: `${a.cliente_nome} está ${atraso} min atrasado`,
-          corpo: `${a.servico} às ${String(a.hora).slice(0, 5)} — marque se veio ou não veio.`,
+          corpo: `${a.servico} às ${String(a.hora).slice(0, 5)}. Marque se veio ou não veio.`,
           link: `/?agendamento=${a.id}`,
         });
       }

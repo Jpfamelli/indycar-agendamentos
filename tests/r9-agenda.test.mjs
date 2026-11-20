@@ -135,3 +135,80 @@ test('R9 lote 6: textos (endereço sem travessão, etiqueta do Início, horário
   assert.ok(ler('public/rodada7r.js').includes("${escH(d.marcados)} ${d.marcados === 1 ? 'horário' : 'horários'}"));
   assert.ok(ler('public/agenda-planejada.js').includes('String(Math.round(oc.cargaMin / 6) / 10).replace(".", ",")} h de serviço'));
 });
+
+/* ============================ lote 7 ============================ */
+/** Devolve só o CÓDIGO de cada linha (sem comentário de bloco nem de linha), para procurar texto de tela. */
+function semComentarios(arquivo) {
+  const ehHtml = arquivo.endsWith('.html');
+  const [abre, fecha] = ehHtml ? ['<!--', '-->'] : ['/*', '*/'];
+  let bloco = false; const saida = [];
+  for (let l of ler(arquivo).split('\n')) {
+    let codigo = '';
+    for (;;) {
+      if (bloco) { const j = l.indexOf(fecha); if (j < 0) { l = ''; break; } bloco = false; l = l.slice(j + fecha.length); continue; }
+      const i = l.indexOf(abre); if (i < 0) { codigo += l; break; }
+      codigo += l.slice(0, i); l = l.slice(i + abre.length); bloco = true;
+    }
+    if (!ehHtml) { if (/^\s*\/\//.test(codigo)) codigo = ''; const m = /(^|[^:'"`\\])\/\/ /.exec(codigo); if (m) codigo = codigo.slice(0, m.index + m[1].length); }
+    saida.push(codigo);
+  }
+  return saida;
+}
+const TELAS = ['public/index.html', 'public/app.js', 'public/apps.js', 'public/conta.js', 'public/planejamento.js', 'public/agenda-planejada.js',
+  'public/rodada6.js', 'public/rodada6b.js', 'public/rodada6c.js', 'public/rodada6d.js', 'public/rodada7.js', 'public/rodada7r.js'];
+
+test('R9 lote 7: nenhum texto de tela com travessão no meio da frase (o traço sozinho de "sem dado" continua)', () => {
+  for (const f of TELAS) {
+    const ruins = semComentarios(f).map((c, i) => [i + 1, c]).filter(([, c]) => / — /.test(c));
+    assert.deepEqual(ruins.map(([n, c]) => `${f}:${n} ${c.trim().slice(0, 80)}`), [], f);
+  }
+});
+
+test('R9 lote 7: recados do servidor sem travessão (erros, motivos, tarefas e avisos automáticos, Google Agenda)', () => {
+  for (const f of ['server.js', 'dados.js', 'lembretes.js', 'automacoes.js', 'regras.js', 'faltas.js', 'preagenda.js', 'relatorios.js', 'horarios.js']) {
+    const ruins = semComentarios(f).map((c, i) => [i + 1, c]).filter(([, c]) => /['"`][^'"`]* — /.test(c) && !/console\.(warn|error|log)/.test(c));
+    assert.deepEqual(ruins.map(([n, c]) => `${f}:${n} ${c.trim().slice(0, 80)}`), [], f);
+  }
+});
+
+test('R9 lote 7: frases que ficaram em duas (não só trocaram o traço por vírgula)', () => {
+  assert.ok(app.includes("'Sem internet. Assim que a conexão voltar eu continuo de onde parou…'"));
+  assert.ok(app.includes('Entre de novo. O que você estava digitando ficou guardado.'));
+  assert.ok(app.includes('Follow-up: retornos pendentes</h2>'));
+  assert.ok(app.includes('${esc(j.inicio)} às ${esc(j.fim)}'));
+  assert.ok(app.includes('<option value="">sem login ligado</option>') && app.includes('<option value="">Mensagem livre</option>'));
+  assert.ok(html.includes('Sem internet. O que você marcar agora fica guardado no aparelho'));
+});
+
+test('R9 lote 7: sem o brilho de enfeite nos botões; a Ajuda cita o botão pelo nome que ele tem', () => {
+  const codigo = semComentarios('public/app.js').join('\n');
+  assert.ok(!codigo.includes('✨'), 'sobrou ✨ em texto de tela');
+  assert.ok(app.includes('>Horários livres</button>'));
+  assert.ok(app.includes('id="vf_usar" >Usar ${esc(P.reais(s.valor))}</button>'));
+  assert.ok(app.includes('aria-label="Sugerir valor para ${esc(a.cliente_nome)}">${svg(I.money)}</button>'));
+  assert.ok(app.includes('Use "Horários livres" para ver as vagas do dia e "Achar pelo nome" para o telefone.'));
+  assert.ok(!app.includes('Sugerir horário'));
+});
+
+test('R9 lote 7: fontes do próprio app (Archivo e Barlow Condensed), sem Inter e sem domínio de fora', () => {
+  assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(html));
+  for (const f of ['public/styles.css', 'public/conta.css', 'public/rodada4.css', 'public/planejamento.css', 'public/rodada5.css', 'public/rodada7.css']) assert.ok(!/['"]Inter['"]/.test(ler(f)), f);
+  assert.match(ler('public/styles.css'), /font-family:'Archivo',system-ui,sans-serif/);
+  for (const arq of ['archivo-variavel.woff2', 'barlow-condensed-600.woff2', 'barlow-condensed-700.woff2']) {
+    assert.ok(fs.statSync(new URL('../public/fontes/' + arq, import.meta.url)).size > 10_000, arq);
+    assert.ok(css9.includes(`url('./fontes/${arq}') format('woff2')`), arq);
+    assert.ok(ler('public/sw.js').includes(`'fontes/${arq}'`), arq + ' na casca guardada');
+  }
+  assert.ok(html.includes('<link rel="preload" href="./fontes/archivo-variavel.woff2" as="font" type="font/woff2" crossorigin />'));
+  const srv = ler('server.js');
+  assert.ok(srv.includes(`"font-src 'self'",`) && srv.includes(`"style-src 'self' 'unsafe-inline'",`));
+  assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(srv));
+});
+
+test('R9 lote 7: botões principais chapados; verde e campo do "Marcar rápido" com o desenho do app', () => {
+  assert.match(regra(css9, '.btn.primary,.btn-novo,.pilula.ativa'), /background:var\(--red\)\}/);
+  assert.ok(contraste('#ffffff', '#e6192e') >= 4.5);
+  assert.match(regra(css9, '.btn.green'), /background:#15803d/);
+  assert.ok(contraste('#ffffff', '#15803d') >= 4.5);
+  assert.match(regra(css9, '.r6c-rapido input'), /background:var\(--panel-3\);border:1px solid var\(--border-2\)/);
+});

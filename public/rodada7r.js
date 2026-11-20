@@ -108,7 +108,7 @@
       if (!/^\d{4}-\d{2}-\d{2}$/.test(de) || !/^\d{4}-\d{2}-\d{2}$/.test(ate)) return toast('Escolha as duas datas', 'err');
       gravarLS(LS, JSON.stringify({ inicio: de, fim: ate })); route('dono');
     });
-    $('[data-r7r-copiar]', view).addEventListener('click', async () => { toast((await copiarTexto(_ultimo.texto)) ? 'Resumo copiado — cole no WhatsApp' : 'Não consegui copiar', 'ok'); });
+    $('[data-r7r-copiar]', view).addEventListener('click', async () => { toast((await copiarTexto(_ultimo.texto)) ? 'Resumo copiado, cole no WhatsApp' : 'Não consegui copiar', 'ok'); });
     $('[data-r7r-csv]', view).addEventListener('click', () => {
       const blob = new Blob([String.fromCharCode(0xFEFF) + (_ultimo.csv || '')], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `relatorio-agenda-${_ultimo.periodo.inicio}-a-${_ultimo.periodo.fim}.csv`;

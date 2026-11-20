@@ -133,7 +133,7 @@ export function decidirNaoVeioNaEdicao(antes, corpo) {
    --------------------------------------------------------------------------- */
 export function presencaPodeMarcar(statusAntes, statusNovo) {
   if (['concluido', 'nao_fechou'].includes(statusAntes)) {
-    return 'Este cliente já tem o desfecho registrado pelo atendimento — só o painel principal pode mudar.';
+    return 'Este cliente já tem o desfecho registrado pelo atendimento. Só o painel principal pode mudar.';
   }
   // quem já chegou não vira "Não veio" por aqui: o aviso de falta sairia no WhatsApp de um cliente que está na oficina
   if (statusNovo === 'nao_veio' && ['compareceu', 'em_atendimento'].includes(statusAntes)) return 'Esse cliente já chegou. Para corrigir, use "Desfazer chegada" no cartão dele.';
@@ -198,4 +198,86 @@ export function semConfirmacaoDoErro(e) {
   const t = [e.code, e.message, e.cause?.code, e.cause?.message].filter(Boolean).join(' ');
   if (RE_ANTES_DE_ENVIAR.test(t)) return false;
   return RE_CAIU_NO_MEIO.test(t);
+}
+
+
+/* ---------------------------------------------------------------------------
+   RODADA 9: validações puras das telas de cadastro e do webhook de saída.
+   Tudo aqui devolve { ok:true, ... } ou { ok:false, erro } com o recado em português.
+   --------------------------------------------------------------------------- */
+
+/** Endereço de webhook que o SERVIDOR vai chamar: só https, com nome de domínio público.
+    Sem isso, quem salva o endereço fazia o servidor bater em máquina interna (localhost, 10.x, 169.254.x). */
+export function urlDeWebhookSegura(valor) {
+  const txt = typeof valor === 'string' ? valor.trim() : '';
+  if (!txt) return { ok: false, erro: 'Informe o endereço do webhook.' };
+  if (txt.length > 500) return { ok: false, erro: 'Endereço do webhook longo demais (até 500 letras).' };
+  let u;
+  try { u = new URL(txt); } catch { return { ok: false, erro: 'Endereço do webhook inválido. Ele começa com https://' }; }
+  if (u.protocol !== 'https:') return { ok: false, erro: 'O endereço do webhook precisa começar com https://' };
+  if (u.username || u.password) return { ok: false, erro: 'O endereço do webhook não pode levar usuário e senha.' };
+  const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  const interno = host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')
+    || !host.includes('.')                        // nome de máquina da rede, sem domínio
+    || /^\d+(\.\d+){3}$/.test(host)               // qualquer IP escrito em números (127.0.0.1, 10.x, 169.254.169.254…)
+    || host.includes(':');                        // IPv6 literal
+  if (interno) return { ok: false, erro: 'Use o endereço público do serviço (Zapier, Make, n8n). Endereço de rede interna não é aceito.' };
+  return { ok: true, url: u.toString() };
+}
+
+/** Serviço do catálogo: nome de verdade, preço que não é negativo e duração entre 5 min e 24 h.
+    `parcial` = edição (só confere o que veio). Devolve os campos já limpos em `campos`. */
+export function validarServico(corpo, { parcial = false } = {}) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const campos = {};
+  if (!parcial || c.nome !== undefined) {
+    const nome = typeof c.nome === 'string' ? c.nome.trim() : '';
+    if (!nome) return { ok: false, erro: 'Informe o nome do serviço.' };
+    if (nome.length > 120) return { ok: false, erro: 'Nome do serviço longo demais (até 120 letras).' };
+    campos.nome = nome;
+  }
+  if (c.preco !== undefined && c.preco !== null && c.preco !== '') {
+    const p = Number(c.preco);
+    if (!Number.isFinite(p) || p < 0 || p > 1_000_000) return { ok: false, erro: 'Preço inválido. Use um valor de 0 a 1.000.000.' };
+    campos.preco = p;
+  }
+  if (c.duracao_min !== undefined && c.duracao_min !== null && c.duracao_min !== '') {
+    const d = Number(c.duracao_min);
+    if (!Number.isInteger(d) || d < 5 || d > 1440) return { ok: false, erro: 'Duração inválida. Use de 5 a 1440 minutos.' };
+    campos.duracao_min = d;
+  }
+  if (c.descricao !== undefined && c.descricao !== null && String(c.descricao).length > 500) return { ok: false, erro: 'Descrição longa demais (até 500 letras).' };
+  return { ok: true, campos };
+}
+
+/** Modelo de mensagem do WhatsApp: nome e texto de verdade, com tamanho que o WhatsApp aceita. */
+export function validarModelo(corpo, { parcial = false } = {}) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const campos = {};
+  for (const [k, max, falta, longo] of [
+    ['nome', 80, 'Informe o nome do modelo.', 'Nome do modelo longo demais (até 80 letras).'],
+    ['corpo', 2000, 'Escreva o texto do modelo.', 'Texto do modelo longo demais (até 2000 letras).'],
+  ]) {
+    if (parcial && c[k] === undefined) continue;
+    const v = typeof c[k] === 'string' ? c[k].trim() : '';
+    if (!v) return { ok: false, erro: falta };
+    if (v.length > max) return { ok: false, erro: longo };
+    campos[k] = v;
+  }
+  if (c.gatilho !== undefined && !/^[a-z_]{1,40}$/.test(String(c.gatilho))) return { ok: false, erro: 'Gatilho inválido.' };
+  return { ok: true, campos };
+}
+
+/** Dados da oficina (Configurações): tamanhos que cabem no topo da tela e telefone com DDD. */
+export function validarEmpresa(corpo) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const txt = (v) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '');
+  const nome = txt(c.nome);
+  if (!nome) return { ok: false, erro: 'Informe o nome da oficina.' };
+  if (nome.length > 120) return { ok: false, erro: 'Nome da oficina longo demais (até 120 letras).' };
+  if (txt(c.endereco).length > 200) return { ok: false, erro: 'Endereço longo demais (até 200 letras).' };
+  if (txt(c.slogan).length > 120) return { ok: false, erro: 'Frase da oficina longa demais (até 120 letras).' };
+  const tel = txt(c.telefone).replace(/\D/g, '');
+  if (tel && (tel.length < 10 || tel.length > 13)) return { ok: false, erro: 'Telefone incompleto: use DDD + número, ex.: (12) 99999-9999.' };
+  return { ok: true, campos: { nome, endereco: txt(c.endereco), slogan: txt(c.slogan), telefone: txt(c.telefone) } };
 }

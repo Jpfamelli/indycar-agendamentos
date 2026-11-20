@@ -29,9 +29,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="IndyCar" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+  <!-- rodada 9: fontes servidas do próprio app (public/fontes), nenhum pedido a domínio de fora -->
+  <link rel="preload" href="./fontes/archivo-variavel.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./planejamento.css" />
   <link rel="stylesheet" href="./conta.css" />
@@ -169,7 +168,7 @@
            Só aparecem quando há algo errado; o texto vem do app.js. -->
       <div class="faixa faixa-saude" id="faixaSaude" role="status" aria-live="polite" hidden></div>
       <div class="faixa faixa-offline" id="faixaOffline" role="status" aria-live="polite" hidden>
-        Sem internet — o que você marcar agora fica guardado no aparelho e é enviado quando a conexão voltar.
+        Sem internet. O que você marcar agora fica guardado no aparelho e é enviado quando a conexão voltar.
       </div>
       <div class="faixa faixa-fila" id="faixaFila" role="status" aria-live="polite" hidden></div>
       <!-- servidor fora/acordando (Render): os pedidos de leitura tentam de novo sozinhos -->
@@ -244,7 +243,7 @@
           <button type="button" class="ver-senha" data-ver-senha aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
         </span>
       </label>
-      <p class="login-caps" hidden>Caps Lock ligado — a senha diferencia maiúsculas.</p>
+      <p class="login-caps" hidden>Caps Lock ligado, a senha diferencia maiúsculas.</p>
       <label class="login-lembrar"><input type="checkbox" id="lembrarEmail" /> Lembrar meu e-mail neste aparelho</label>
       <button type="submit" class="btn-entrar" id="btnEntrar">ENTRAR</button>
       <p class="login-erro" id="erroLogin" role="alert" hidden></p>
@@ -278,7 +277,7 @@
       </label>
       <button type="submit" class="btn-entrar" id="btnPrimeiro">CRIAR MINHA CONTA</button>
       <p class="login-erro" id="erroPrimeiro" hidden></p>
-      <button type="button" class="login-link" id="btnVoltarLogin">Já tenho conta — entrar</button>
+      <button type="button" class="login-link" id="btnVoltarLogin">Já tenho conta, entrar</button>
     </form>
 
     <!-- Esqueci a senha: o Supabase manda um link; ao voltar, a tela de nova senha abre sozinha -->

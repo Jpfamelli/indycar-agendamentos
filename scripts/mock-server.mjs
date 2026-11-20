@@ -33,7 +33,7 @@ import { esperaQueCabe, aniversariantes } from '../dados.js';
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3011);
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8',
-  '.json':'application/json', '.png':'image/png', '.svg':'image/svg+xml' };
+  '.json':'application/json', '.png':'image/png', '.svg':'image/svg+xml', '.woff2':'font/woff2' };
 
 const dia = (n) => { const d = new Date(`${hoje()}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const hm = (deslocMin) => {            // hora relativa a AGORA, para sempre haver "em 40 min", "atrasado"…

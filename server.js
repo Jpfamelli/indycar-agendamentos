@@ -13,6 +13,7 @@ import { conferirConfiguracao } from './supabase.js';
 import {
   decidirAcesso, decidirNaoVeioNaEdicao, mudaDesfechoRegistrado, origemPermitida, mensagemSegura, ehGestor,
   presencaPodeMarcar, semConfirmacaoDoErro,
+  urlDeWebhookSegura, validarServico, validarModelo, validarEmpresa,
 } from './regras.js';
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento, entradaDoChegou } from './patio.js';
@@ -70,6 +71,7 @@ const MIME = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',   // rodada 9: fontes do próprio app (public/fontes)
 };
 
 // ---------------------------------------------------------------------------
@@ -334,7 +336,7 @@ async function importarAgendamentosCW() {
       const suspeita = data < hoje();
       if (suspeita) {
         console.warn(`⚠️  Importação: "${nome}" veio com data ${data}, que já passou. `
-                   + 'Provável erro de data no fluxo do CodeWords — confira na agenda.');
+                   + 'Provável erro de data no fluxo do CodeWords. Confira na agenda.');
       }
 
       await dados.criarAgendamento({
@@ -342,8 +344,8 @@ async function importarAgendamentosCW() {
         servico: a.servico || a['serviço'] || 'Serviço', data, hora,
         origem: a.origem || 'WhatsApp', status: 'confirmado', confirmado: true,
         observacoes: suspeita
-          ? `⚠️ Data ${data.split('-').reverse().join('/')} veio do CodeWords e já passou — `
-          + 'confirme o dia com o cliente antes de contar com este horário.'
+          ? `⚠️ Data ${data.split('-').reverse().join('/')} veio do CodeWords e já passou. `
+          + 'Confirme o dia com o cliente antes de contar com este horário.'
           : null,
       });
       importados++;
@@ -459,8 +461,11 @@ const getIntegracoes = () => dados.obterIntegracoes();
 async function dispararWebhook(evento, payload) {
   const cfg = await getIntegracoes();
   if (!cfg.webhook_ativo || !cfg.webhook_url) return;
-  fetch(cfg.webhook_url, {
-    method: 'POST',
+  // rodada 9: endereço interno salvo antes da validação não é chamado; 8 s de teto e sem seguir redirecionamento
+  const alvo = urlDeWebhookSegura(cfg.webhook_url);
+  if (!alvo.ok) { console.warn('Webhook saída ignorado:', alvo.erro); return; }
+  fetch(alvo.url, {
+    method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(8000),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ evento, em: new Date().toISOString(), ...payload }),
   }).catch((e) => console.error('Webhook saída:', e.message));
@@ -477,7 +482,7 @@ async function gerarICS() {
   // hora chega normalizada em HH:MM da camada de dados
   const fmt = (d, hm) => d.replace(/-/g, '') + 'T' + String(hm).replace(/:/g, '').slice(0, 4) + '00';
   const linhas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//IndyCar Agendamentos//PT-BR',
-    'CALSCALE:GREGORIAN', `X-WR-CALNAME:${escTxt(emp.nome || 'IndyCar')} — Agendamentos`, 'X-WR-TIMEZONE:America/Sao_Paulo'];
+    'CALSCALE:GREGORIAN', `X-WR-CALNAME:${escTxt(emp.nome || 'IndyCar')}: Agendamentos`, 'X-WR-TIMEZONE:America/Sao_Paulo'];
   for (const a of ags) {
     if (!a.data || !a.hora) continue;
     // prioriza o servico_id (exato); só cai no nome quando não houver vínculo
@@ -495,7 +500,7 @@ async function gerarICS() {
     linhas.push('BEGIN:VEVENT', `UID:indycar-${a.id}@agendamentos`,
       `DTSTART;TZID=America/Sao_Paulo:${fmt(a.data, a.hora)}`,
       `DTEND;TZID=America/Sao_Paulo:${fimStr}`,
-      `SUMMARY:${escTxt('🔧 ' + a.cliente_nome + ' — ' + a.servico)}`,
+      `SUMMARY:${escTxt('🔧 ' + a.cliente_nome + ' · ' + a.servico)}`,
       `DESCRIPTION:${escTxt(desc)}`,
       `LOCATION:${escTxt(emp.endereco || '')}`,
       `STATUS:${a.status === 'nao_veio' ? 'CANCELLED' : 'CONFIRMED'}`, 'END:VEVENT');
@@ -875,7 +880,7 @@ async function api(req, res, url) {
             if (dono && dados.notificar) {
               await dados.notificar({ perfil_id: dono, tipo: 'confirmacao', app: 'agenda', chave: `confirmacao:${a.id}:${resposta}`,
                 titulo: `${a.cliente_nome} ${resposta === 'remarcar' ? 'quer remarcar' : 'avisou que não vem'}`,
-                corpo: `${a.servico} · ${formatarDataBR(a.data)} às ${String(a.hora).slice(0, 5)} — respondeu pelo link de confirmação.`,
+                corpo: `${a.servico} · ${formatarDataBR(a.data)} às ${String(a.hora).slice(0, 5)}. Respondeu pelo link de confirmação.`,
                 link: `/?agendamento=${a.id}` }).catch(() => null);
             }
           }
@@ -966,9 +971,10 @@ async function api(req, res, url) {
   if (pathname === '/api/empresa' && m === 'GET')
     return ok(res, await dados.obterEmpresa());
   if (pathname === '/api/empresa' && m === 'PUT') {
-    if (!String(body.nome ?? '').trim()) return bad(res, 'Informe o nome da oficina.');
-    await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_empresa', null, { campos: Object.keys(body) });
-    return ok(res, await dados.salvarEmpresa(body));
+    const emp = validarEmpresa(body);
+    if (!emp.ok) return bad(res, emp.erro);
+    await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_empresa', null, { campos: Object.keys(body).slice(0, 12) });
+    return ok(res, await dados.salvarEmpresa(emp.campos));
   }
 
   // ---- perfil de quem está logado (aba Configurações → Minha conta)
@@ -1626,7 +1632,7 @@ async function api(req, res, url) {
   if ((mm = pathname.match(new RegExp(`^/api/agendamentos/${UUID}/confirmacao$`))) && m === 'POST') {
     const a = await dados.obterAgendamento(mm[1]);
     if (!a) return notFound(res);
-    if (!['aguardando', 'confirmado'].includes(a.status)) return send(res, 409, { erro: 'Esse horário já teve desfecho — não há o que confirmar.' });
+    if (!['aguardando', 'confirmado'].includes(a.status)) return send(res, 409, { erro: 'Esse horário já teve desfecho. Não há o que confirmar.' });
     const c = await dados.criarConfirmacao({ agendamento_id: a.id, canal: texto1(body.canal, 20) || 'whatsapp', criado_por: usuario.id });
     if (!c) return notFound(res);
     await dados.auditar(usuario.id, 'pediu_confirmacao', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora, canal: c.canal });
@@ -1654,7 +1660,7 @@ async function api(req, res, url) {
     const whatsapp = linkWhatsApp(tel, texto);
     const r = dados.enfileirarAvisoDeRemarcacao ? await dados.enfileirarAvisoDeRemarcacao(a, texto, usuario).catch((e) => ({ ok: false, motivo: e?.message })) : { ok: false, motivo: 'fila indisponível' };
     if (r.ok) await dados.auditar(usuario.id, 'avisou_remarcacao', 'agendamentos', a.id, { cliente: a.cliente_nome, data: a.data, hora: a.hora, via: 'comunicar' });
-    return send(res, 200, { enfileirado: !!r.ok, whatsapp, motivo: r.ok ? null : (r.motivo || 'A fila do Comunicar não aceitou agora — abri o WhatsApp com o texto pronto.') }, { 'Cache-Control': 'no-store' });
+    return send(res, 200, { enfileirado: !!r.ok, whatsapp, motivo: r.ok ? null : (r.motivo || 'A fila do Comunicar não aceitou agora. Abri o WhatsApp com o texto pronto.') }, { 'Cache-Control': 'no-store' });
   }
 
   /* ---- RODADA 6 (C1b): LEMBRETES ligados ao Comunicar -------------------------------------------
@@ -1895,7 +1901,8 @@ async function api(req, res, url) {
       return c ? ok(res, c) : notFound(res);
     }
     if (m === 'DELETE') {
-      await dados.removerConsultor(id);
+      // rodada 9: apagar quem não existe é 404 e não entra na auditoria como se tivesse apagado
+      if (!(await dados.removerConsultor(id))) return notFound(res);
       dados.esquecerBaseDosHorarios?.();
       await dados.auditar(usuario.id, 'apagou_consultor', 'consultores', id, null);
       return ok(res, { ok: true });
@@ -1908,19 +1915,26 @@ async function api(req, res, url) {
     return ok(res, await lembrar('servicos:' + todos, 60_000, () => dados.listarServicos(todos)));
   }
   if (pathname === '/api/servicos' && m === 'POST') {
-    if (!body.nome) return bad(res, 'Informe o nome do serviço.');
-    const novo = await dados.criarServico(body);
+    const sv = validarServico(body);
+    if (!sv.ok) return bad(res, sv.erro);
+    const novo = await dados.criarServico({ ...body, ...sv.campos });
     dados.esquecerBaseDosHorarios?.();   // DEPOIS de gravar: esquecer antes deixava um pedido no meio guardar a base velha por 60 s
     return ok(res, novo);
   }
   if ((mm = pathname.match(new RegExp(`^/api/servicos/${UUID}$`)))) {
     const id = mm[1];
     if (m === 'PUT') {
-      const s = await dados.atualizarServico(id, body);
+      const sv = validarServico(body, { parcial: true });
+      if (!sv.ok) return bad(res, sv.erro);
+      const s = await dados.atualizarServico(id, { ...body, ...sv.campos });
       dados.esquecerBaseDosHorarios?.();
       return s ? ok(res, s) : notFound(res);
     }
-    if (m === 'DELETE') { await dados.removerServico(id); dados.esquecerBaseDosHorarios?.(); return ok(res, { ok: true }); }
+    if (m === 'DELETE') {
+      await dados.removerServico(id); dados.esquecerBaseDosHorarios?.();
+      await dados.auditar(usuario.id, 'apagou_servico', 'servicos', id, null);   // rodada 9: apagar serviço deixa rastro
+      return ok(res, { ok: true });
+    }
   }
 
   // ---- CRM (métricas)
@@ -1937,18 +1951,32 @@ async function api(req, res, url) {
     return ok(res, { ics_token: c.ics_token, webhook_url: c.webhook_url || '', webhook_ativo: !!c.webhook_ativo });
   }
   if (pathname === '/api/integracoes' && m === 'PUT') {
+    // rodada 9: o endereço que o servidor vai chamar tem de ser https e público (campo vazio desliga)
+    if (body.webhook_url !== undefined && body.webhook_url !== null && String(body.webhook_url).trim() !== '') {
+      const w = urlDeWebhookSegura(body.webhook_url);
+      if (!w.ok) return bad(res, w.erro);
+      body.webhook_url = w.url;
+    }
     await dados.salvarIntegracoes(body);
     await dados.auditar(usuario.id, 'mudou_configuracao', 'agenda_integracoes', null, { campos: Object.keys(body).filter((k) => k !== 'ics_token') });
     return ok(res, { ok: true });
   }
   if (pathname === '/api/integracoes/testar-webhook' && m === 'POST') {
-    const urlW = (body.webhook_url || (await getIntegracoes()).webhook_url || '').trim();
+    const urlW = texto1(body.webhook_url, 600).trim() || texto1((await getIntegracoes()).webhook_url, 600).trim();
     if (!urlW) return bad(res, 'Informe a URL do webhook.');
+    const w = urlDeWebhookSegura(urlW);
+    if (!w.ok) return bad(res, w.erro);
+    if (!dentroDoLimite('webhook-teste:' + usuario.id, 10, 60_000)) return send(res, 429, { erro: 'Muitos testes seguidos. Espere um minuto.' });
     try {
-      const r = await fetch(urlW, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const r = await fetch(w.url, { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(8000), headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ evento: 'teste', em: new Date().toISOString(), mensagem: 'Teste do IndyCar Agendamentos 🏁' }) });
       return ok(res, { ok: r.ok, status: r.status });
-    } catch (e) { return ok(res, { ok: false, erro: String(e?.message || e) }); }
+    } catch (e) {
+      // o detalhe da rede fica no log; a tela recebe um recado que dá para entender
+      console.warn('Teste de webhook:', e?.message || e);
+      const demorou = e?.name === 'TimeoutError' || e?.name === 'AbortError';
+      return ok(res, { ok: false, erro: demorou ? 'O endereço não respondeu em 8 segundos.' : 'Não consegui falar com esse endereço. Confira se ele está certo e no ar.' });
+    }
   }
 
   // ---- feed do Google Agenda (ICS) — protegido pelo token
@@ -2030,16 +2058,23 @@ async function api(req, res, url) {
   if (pathname === '/api/whatsapp/templates' && m === 'GET')
     return ok(res, await dados.listarTemplates());
   if (pathname === '/api/whatsapp/templates' && m === 'POST') {
-    if (!body.nome || !body.corpo) return bad(res, 'Informe o nome e o corpo do modelo.');
-    return ok(res, await dados.criarTemplate(body));
+    const md = validarModelo(body);
+    if (!md.ok) return bad(res, md.erro);
+    return ok(res, await dados.criarTemplate({ ...body, ...md.campos }));
   }
   if ((mm = pathname.match(new RegExp(`^/api/whatsapp/templates/${UUID}$`)))) {
     const id = mm[1];
     if (m === 'PUT') {
-      const t = await dados.atualizarTemplate(id, body);
+      const md = validarModelo(body, { parcial: true });
+      if (!md.ok) return bad(res, md.erro);
+      const t = await dados.atualizarTemplate(id, { ...body, ...md.campos });
       return t ? ok(res, t) : notFound(res);
     }
-    if (m === 'DELETE') { await dados.removerTemplate(id); return ok(res, { ok: true }); }
+    if (m === 'DELETE') {
+      await dados.removerTemplate(id);
+      await dados.auditar(usuario.id, 'apagou_modelo', 'agenda_templates', id, null);   // rodada 9: apagar modelo deixa rastro
+      return ok(res, { ok: true });
+    }
   }
 
   // histórico de mensagens
@@ -2252,7 +2287,7 @@ function servirArquivo(req, res, filePath, info) {
     }
     const cabecalho = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': ['.png', '.ico', '.svg'].includes(ext) ? 'public, max-age=86400' : 'no-cache, must-revalidate',
+      'Cache-Control': ['.png', '.ico', '.svg', '.woff2'].includes(ext) ? 'public, max-age=86400' : 'no-cache, must-revalidate',
       ETag: item.etag,
       Vary: 'Accept-Encoding',
     };
@@ -2275,14 +2310,14 @@ function servirArquivo(req, res, filePath, info) {
 
 /* Cabeçalhos de segurança em TODA resposta. A CSP é simples de propósito: a
    tela usa script/estilo inline (tema no <head>, onclick nos modais), carrega
-   o supabase-js do jsDelivr e as fontes do Google; fala com o Supabase direto
+   o supabase-js do jsDelivr (as fontes são do próprio app desde a rodada 9); fala com o Supabase direto
    do navegador (login). frame-ancestors 'none' = ninguém embute a Agenda num
    iframe (clickjacking). */
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
   "img-src 'self' data: blob:",
   // jsdelivr: o service worker guarda a biblioteca do login (versão fixa) para a casca abrir sem rede
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net",

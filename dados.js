@@ -2733,7 +2733,7 @@ export async function enfileirarAvisoDeRemarcacao(a, texto, usuario = null) {
   if (!nac || nac.length < 10) return { ok: false, motivo: 'Este horário não tem telefone.' };
   if (ehUuid(a.cliente_id)) {
     const c = await selecionarUm(T.clientes, `select=aceita_mensagens&id=eq.${a.cliente_id}`).catch(() => null);
-    if (c && c.aceita_mensagens === false) return { ok: false, motivo: 'O cliente pediu para não receber mensagem automática — abri o WhatsApp para você mandar à mão.' };
+    if (c && c.aceita_mensagens === false) return { ok: false, motivo: 'O cliente pediu para não receber mensagem automática. Abri o WhatsApp para você mandar à mão.' };
   }
   const prefixo = `agenda:remarcado:${a.id}:`;
   const chave = `${prefixo}${a.data}:${horaCurta(a.hora)}`;

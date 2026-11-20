@@ -91,7 +91,7 @@
     host.innerHTML = `<section class="r6-faixa r6b-lembretes" aria-label="Lembretes de ${esc(rotuloCurto(r.data))}">
       <header><h3>📨 Lembretes de ${esc(rotuloCurto(r.data))}</h3>
         <span class="muted">${esc(partes.join(' · '))}</span></header>
-      ${r.cfg?.ativo_lembrete === false ? '<p class="aviso-campo">O lembrete automático está desligado no Comunicar — mande daqui, um a um ou todos de uma vez.</p>' : ''}
+      ${r.cfg?.ativo_lembrete === false ? '<p class="aviso-campo">O lembrete automático está desligado no Comunicar. Mande daqui, um a um ou todos de uma vez.</p>' : ''}
       ${r.cfg?.pausa_geral ? '<p class="aviso-campo">O Comunicar está em pausa geral: nada sai até o gestor reativar.</p>' : ''}
       <div class="eco-links">
         ${faltam ? `<button type="button" class="btn primary mini" data-r6b-lote>📨 Lembrar ${faltam === 1 ? 'o que falta' : `os ${faltam} que faltam`}</button>` : '<span class="muted">Todo mundo que pode receber já foi lembrado. 🏁</span>'}
@@ -225,7 +225,7 @@
       <div class="qd-selos">${passou ? `<span class="badge-pill bp-orange" title="Já passou do horário e o cliente não chegou">atrasado ${atraso} min</span>` : ''}${typeof seloConfirmacao === 'function' ? seloConfirmacao(a) : ''}${ehPre(a) && a.status === 'aguardando' ? SELO_PRE : ''}${lemb}${!a.telefone ? '<span class="badge-pill bp-gray">sem telefone</span>' : ''}${orc ? window.R6.seloOrc(orc) : ''}${os ? seloPatioHtml(os) : ''}</div>
       ${a.status === 'nao_veio' && window.R7 ? R7.faltaHtml(a, R7.linkDeReagendar(a)) : ''}
       <div class="qd-acoes">
-        ${vivo ? `${ehPre(a) && a.status === 'aguardando' ? '<button type="button" class="btn mini primary" data-qd="confirmarpre" title="Confirmar o horário do pré-agendamento">Confirmar</button>' : ''}<button type="button" class="btn mini primary" data-qd="chegou" title="O cliente chegou — abre a OS no Pátio">Chegou</button>
+        ${vivo ? `${ehPre(a) && a.status === 'aguardando' ? '<button type="button" class="btn mini primary" data-qd="confirmarpre" title="Confirmar o horário do pré-agendamento">Confirmar</button>' : ''}<button type="button" class="btn mini primary" data-qd="chegou" title="O cliente chegou, abre a OS no Pátio">Chegou</button>
           <button type="button" class="btn mini" data-qd="mover" title="Mover para outro horário ou consultor">⇄ Mover</button>
           ${podeLembrar ? '<button type="button" class="btn mini" data-qd="lembrar" title="Mandar o lembrete agora pelo Comunicar">📨</button>' : ''}
           <button type="button" class="btn mini" data-qd="faltou" title="Não veio (manda o aviso de falta)">Faltou</button>` : ''}
@@ -350,7 +350,7 @@
   function limparAlvos() { $$('#qdCorpo .qd-cel').forEach((c) => c.classList.remove('alvo-ok', 'alvo-nao', 'sobre')); }
   async function iniciarMover(a) {
     _q.movendo = a.id; _q.livres = null;
-    $('#qdAviso').hidden = false; $('#qdAviso').querySelector('span').textContent = `Mover ${primeiro(a.cliente_nome)} (${String(a.hora).slice(0, 5)}): escolha uma célula livre — as verdes cabem.`;
+    $('#qdAviso').hidden = false; $('#qdAviso').querySelector('span').textContent = `Mover ${primeiro(a.cliente_nome)} (${String(a.hora).slice(0, 5)}): escolha uma célula livre, as verdes cabem.`;
     $$('#qdCorpo .qd-card').forEach((c) => c.classList.toggle('movendo', c.dataset.id === a.id));
     $('#qdCorpo .qd-grade')?.classList.add('modo-mover');
     _q.livres = await carregarLivresDe(a);
@@ -393,7 +393,7 @@
     } } : null;
     toast(`${primeiro(a.cliente_nome)}: ${outroDia ? rotuloCurto(dataFinal) + ' ' : ''}${hora}${nomeCons ? ' com ' + nomeCons : ''} ✅`, 'ok', { duracao: 10000, acoes: [avisar, { rotulo: 'Desfazer', fn: async () => {
       await api('POST', `/agendamentos/${a.id}/mover`, antes).catch((e) => toast(e.message, 'err'));
-      esquecerDias(); toast(`Desfeito — ${primeiro(a.cliente_nome)} voltou para ${antes.data !== _q.data ? rotuloCurto(antes.data) + ' ' : ''}${antes.hora}`); atualizar(true);
+      esquecerDias(); toast(`Desfeito · ${primeiro(a.cliente_nome)} voltou para ${antes.data !== _q.data ? rotuloCurto(antes.data) + ' ' : ''}${antes.hora}`); atualizar(true);
     } }] });
     await atualizar(true);
     if (window.R7 && !outroDia) window.R7.destacarCelula(slot, consultorId);
@@ -422,7 +422,7 @@
         const os = recadoDaOs(nome, r);
         toast(os.msg, 'ok', { duracao: 9000, acoes: [os.entrada, os.acao, (window.R6 && R6.linkNovoOrcamento(a) && (!window.R7 || R7.PURO.deveOferecerOrcar(r.entrada))) ? { rotulo: 'Orçar', fn: () => IndyCarApps.abrir(R6.linkNovoOrcamento(a)) } : null, { rotulo: 'Desfazer', fn: async () => {
           const des = await api('PATCH', `/agendamentos/${a.id}/status`, { status: ['aguardando', 'confirmado'].includes(antes) ? antes : 'aguardando' });
-          toast(`Desfeito — ${nome} voltou para "Agendados"${des?.patio_aberta ? `. A OS nº ${des.patio_aberta.numero ?? '?'} continua aberta no Pátio: se foi engano, cancele lá` : ''}`, 'ok');
+          toast(`Desfeito · ${nome} voltou para "Agendados"${des?.patio_aberta ? `. A OS nº ${des.patio_aberta.numero ?? '?'} continua aberta no Pátio: se foi engano, cancele lá` : ''}`, 'ok');
           atualizar(true);
         } }] });
         return atualizar(true);
