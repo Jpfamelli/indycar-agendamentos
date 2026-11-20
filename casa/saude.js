@@ -118,7 +118,7 @@
     box.dataset.ok = '1';
     const cab = '<h3 class="dono-h">Ligações entre sistemas</h3>';
     if (!r.itens.length) { box.innerHTML = cab + '<p class="vazio vazio-ensina"><b>Tudo ligado. 🔗</b><span>Pátio, Orçador, Agenda, CRM e Atendimento estão se enxergando: nenhum caso solto agora.</span></p>'; return; }
-    box.innerHTML = cab + `<p class="dono-nota">${r.total} caso${r.total === 1 ? '' : 's'} em ${r.tipos} tipo${r.tipos === 1 ? '' : 's'}${r.alta ? ` · ${r.alta} grave${r.alta === 1 ? '' : 's'}` : ''}</p><ul class="ligacoes">${r.itens.map((i) => {
+    box.innerHTML = cab + `<p class="dono-nota">${C.esc(N.textoDasLigacoes(r))}</p><p class="vazio-mini">${C.esc(N.EXPLICA_LIGACOES)}</p><ul class="ligacoes">${r.itens.map((i) => {
       const app = C.podeUsar(i.app) ? i.app : null;
       const alvo = i.link || (app ? C.bases[app] : '');
       const miolo = `<span class="a-num">${i.n}</span><span class="a-txt">${C.esc(i.texto)}<small>${C.esc(i.appNome)} · ${C.esc(i.como)}</small></span><span class="a-seta" aria-hidden="true">›</span>`;

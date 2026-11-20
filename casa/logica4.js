@@ -295,7 +295,18 @@
     return { total: itens.reduce((s, i) => s + i.n, 0), tipos: itens.length, itens: itens.slice(0, limite), alta: itens.filter((i) => i.grav === 'alta').length };
   }
 
+  /**
+   * Linha de resumo das ligações entre sistemas, em português de oficina. Antes: "3 casos em 1 tipo" (ninguém sabia
+   * o que era "tipo"). Agora diz o que é (registro solto, que um sistema não acha no outro) e quantos são graves.
+   */
+  function textoDasLigacoes(r) {
+    const n = num(r && r.total), g = num(r && r.alta);
+    if (!n) return 'Nenhum registro solto.';
+    return `${n} registro${n === 1 ? '' : 's'} solto${n === 1 ? '' : 's'} para arrumar` + (g ? ` · ${g} ${g === 1 ? 'assunto grave' : 'assuntos graves'}` : '');
+  }
+
   /* ---------------- ficha rápida do cliente (r6_cliente_360) ---------------- */
+  const EXPLICA_LIGACOES = 'Solto é o que um sistema não acha no outro, como um horário sem cliente ligado.';
   const ROTULO_ACAO = { extra_pendente: 'Extra esperando o cliente', enviar_link_acompanhar: 'Mandar o link de acompanhar', cobrar_orcamento: 'Cobrar o orçamento', agendar_orcamento: 'Marcar horário do orçamento aprovado', responder: 'Responder a conversa', responder_avaliacao: 'Responder a avaliação', criar_orcamento: 'Criar orçamento', nao_mandar_mensagens: 'Não mandar mensagens (pediu para parar)' };
   /** Resumo da ficha: tudo já escapado na hora de desenhar; aqui só limites e links que a Casa sabe abrir. */
   function fichaDe(c, bases, origem) {
@@ -430,6 +441,6 @@
     ORIGENS_TAREFA, TIPOS_ORC_TAREFA, infoDaTarefa, ehDoOrcador, contarReabordar, linkDaDescricao, descricaoLimpa,
     NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, FAIXA_VIGIA, faixaDoVigia, saudeSistemas, resumoDaSaude,
     resumoLigacoes, ROTULO_ACAO, fichaDe, OPCOES_ADIAR, ateQuando, quandoVolta, acaoDoAviso, appDoAviso, textoDoAviso, filtrarPorTexto,
-    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra,
+    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra, textoDasLigacoes, EXPLICA_LIGACOES,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
