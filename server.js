@@ -277,7 +277,9 @@ function erroCodeWords(status, detalhe) {
 // Contrato REST (do codewords-client): POST {base}/run/{service_id}/ com Authorization: <chave>
 // e os inputs como JSON; a resposta é a própria saída do workflow.
 async function chamarCodeWords({ base_url, api_key, service_id, path = '', method = 'POST', inputs, background = false }) {
-  const base = (base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  const base = baseDoCodeWords(base_url);
+  if (!base) return { ok: false, erro: ERRO_BASE_CODEWORDS };
+  if (!idDeServicoValido(String(service_id ?? ''))) return { ok: false, erro: 'Service ID inválido: use só letras, números, ponto, traço e sublinhado (até 80).' };
   const seg = (path || '').replace(/^\/+/, '');
   const url = `${base}/${background ? 'run_async' : 'run'}/${encodeURIComponent(service_id)}/${seg}`;
   try {
@@ -289,10 +291,13 @@ async function chamarCodeWords({ base_url, api_key, service_id, path = '', metho
     let data; try { data = JSON.parse(txt); } catch { data = txt; }
     if (!r.ok) {
       const detalhe = (data && (data.error || data.detail || data.message)) || (typeof data === 'string' && data.slice(0, 200)) || '';
-      return { ok: false, status: r.status, erro: erroCodeWords(r.status, detalhe) };
+      return { ok: false, status: r.status, erro: erroCodeWords(r.status, texto1(detalhe, 300)) };
     }
     return { ok: true, data };
-  } catch (e) { return { ok: false, erro: String(e?.message || e) }; }
+  } catch (e) {
+    console.warn('CodeWords:', e?.message || e);   // rodada 10: endereço e código de erro da rede ficam só no log
+    return { ok: false, erro: recadoDeRede(e, 'o CodeWords') };
+  }
 }
 
 // Extrai uma lista (array) de um retorno livre de workflow
@@ -457,7 +462,8 @@ async function enviarViaGowa(telefone, mensagem) {
     return { ok: false,
       erro: 'Nenhum WhatsApp conectado. Reconecte em Atendimento › Configurações › Conexão do WhatsApp.' };
   }
-  const base = (cfg.cw_base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  const base = baseDoCodeWords(cfg.cw_base_url);
+  if (!base || !idDeServicoValido(sid)) return { ok: false, erro: ERRO_BASE_CODEWORDS };
   /* `phone_id`, não `device_id`: o CodeWords renomeou o parâmetro quando
      trocou /devices por /connections. Com o nome antigo dá 404
      "No connection found" mesmo com o número conectado. */
@@ -476,7 +482,8 @@ async function enviarViaGowa(telefone, mensagem) {
     // 16/10: o pedido saiu e a resposta não voltou (timeout / conexão caída) — pode ter chegado ao cliente
     if (semConfirmacaoDoErro(e)) return { ok: false, semConfirmacao: true,
       erro: 'não sabemos se chegou: o WhatsApp não respondeu a tempo depois do pedido. Confira na conversa antes de mandar de novo' };
-    return { ok: false, erro: String(e?.message || e) };
+    console.warn('Envio pelo WhatsApp conectado:', e?.message || e);
+    return { ok: false, erro: recadoDeRede(e, 'o CodeWords') };
   }
 }
 
@@ -2167,12 +2174,16 @@ async function api(req, res, url) {
   if (pathname === '/api/whatsapp/ia/config' && m === 'GET') return ok(res, await iaConfigMascarada());
   if (pathname === '/api/whatsapp/ia/config' && m === 'PUT') {
     const c = await getIaConfig();
+    /* rodada 10: o endereço base recebe a chave do CodeWords no cabeçalho e os ids entram no caminho chamado.
+       Só passa endereço https público e id sem barra (regras.js › validarIaConfig). */
+    const vi = validarIaConfig(body);
+    if (!vi.ok) return bad(res, vi.erro);
     // merge: só altera o que veio no corpo; o resto mantém o valor atual
-    const pick = (k, def) => (body[k] !== undefined ? body[k] : (c[k] ?? def));
-    const key = (body.api_key && body.api_key.trim()) ? body.api_key.trim() : c.api_key;
-    const ckey = (body.cw_api_key && body.cw_api_key.trim()) ? body.cw_api_key.trim() : c.cw_api_key;
+    const pick = (k, def) => (vi.campos[k] !== undefined ? vi.campos[k] : (c[k] ?? def));
+    const key = vi.campos.api_key || c.api_key;
+    const ckey = vi.campos.cw_api_key || c.cw_api_key;
     await dados.salvarIaConfig({
-      ativo: body.ativo !== undefined ? body.ativo : c.ativo,
+      ativo: vi.campos.ativo !== undefined ? vi.campos.ativo : c.ativo,
       motor: pick('motor', 'anthropic'),
       api_key: key ?? null,
       modelo: pick('modelo', 'claude-opus-4-8'),
@@ -2193,11 +2204,24 @@ async function api(req, res, url) {
   // CodeWords: disparar um workflow qualquer. Usa a chave salva ou a do corpo.
   if (pathname === '/api/codewords/run' && m === 'POST') {
     const c = await getIaConfig();
-    const api_key = (body.api_key && body.api_key.trim()) ? body.api_key.trim() : c.cw_api_key;
-    const service_id = body.service_id || c.cw_service_id;
+    const chaveDoPedido = typeof body.api_key === 'string' && body.api_key.trim() ? body.api_key.trim().slice(0, 400) : '';
+    const api_key = chaveDoPedido || c.cw_api_key;
+    const service_id = texto1(body.service_id, 120).trim() || c.cw_service_id;
     if (!api_key || !service_id) return bad(res, 'Informe service_id e a chave do CodeWords (ou salve na config).');
-    return ok(res, await chamarCodeWords({ base_url: body.base_url || c.cw_base_url, api_key, service_id,
-      inputs: body.inputs ?? {}, background: !!body.in_background }));
+    if (!idDeServicoValido(String(service_id))) return bad(res, 'Service ID inválido: use só letras, números, ponto, traço e sublinhado (até 80).');
+    /* rodada 10: antes o endereço vinha do pedido e a chave GUARDADA ia junto: dava para mandar a chave da oficina
+       para qualquer servidor. Agora endereço do pedido só com a chave do pedido, e sempre https público. */
+    let base_url = c.cw_base_url;
+    if (body.base_url !== undefined && body.base_url !== null && body.base_url !== '') {
+      const pedido = baseDoCodeWords(typeof body.base_url === 'string' ? body.base_url : ' ');
+      if (!pedido) return bad(res, 'Endereço base do CodeWords inválido: use o endereço https público.');
+      if (!chaveDoPedido && pedido !== baseDoCodeWords(c.cw_base_url)) {
+        return bad(res, 'Para testar outro endereço, informe também a chave dele. A chave guardada só vai para o endereço salvo em Integração.');
+      }
+      base_url = pedido;
+    }
+    const inputs = body.inputs && typeof body.inputs === 'object' && !Array.isArray(body.inputs) ? body.inputs : {};
+    return ok(res, await chamarCodeWords({ base_url, api_key, service_id, inputs, background: body.in_background === true }));
   }
   // CodeWords: importar agendamentos pendentes do workflow "Banco de Agendamentos"
   if (pathname === '/api/codewords/importar' && m === 'POST')
@@ -2214,8 +2238,9 @@ async function api(req, res, url) {
     const cfg = await getIaConfig();
     if (!cfg.cw_api_key) return ok(res, { configurado: false, erro: 'Configure a chave do CodeWords (aba IA).' });
 
-    const base = (cfg.cw_base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+    const base = baseDoCodeWords(cfg.cw_base_url);
     const sid  = cfg.cw_connect_service_id || 'whatsapp_device_manager';
+    if (!base || !idDeServicoValido(sid)) return ok(res, { configurado: true, ok: false, erro: ERRO_BASE_CODEWORDS });
     const numeroEmpresa = '+' + String(NUMERO_DA_EMPRESA).replace(/\D/g, '');
 
     try {
@@ -2239,7 +2264,8 @@ async function api(req, res, url) {
         numero: numeroEmpresa,
         onde_reconectar: 'Atendimento › Configurações › Equipe e sistema › Conexão do WhatsApp' });
     } catch (e) {
-      return ok(res, { configurado: true, ok: false, erro: `Não deu para falar com o CodeWords: ${e.message}` });
+      console.warn('Conexão do WhatsApp:', e?.message || e);
+      return ok(res, { configurado: true, ok: false, erro: recadoDeRede(e, 'o CodeWords', 15) });
     }
   }
 

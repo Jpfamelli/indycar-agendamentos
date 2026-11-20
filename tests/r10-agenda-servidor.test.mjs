@@ -236,3 +236,59 @@ test('R10-AGE-016: quem não é gestor não recebe o token de verificação nem 
   const ge = await chamar('gestor', 'GET', '/api/whatsapp/config');
   assert.equal(ge.j.verify_token, 'um-token-comprido-de-verdade'); assert.equal(ge.j.business_account_id, '998877'); assert.equal(ge.j.access_token, undefined);
 });
+
+/* ------------------------------------------------------------------ CodeWords ---- */
+test('R10-AGE-017: o endereço do CodeWords salvo em Integração tem de ser https e público', async () => {
+  for (const ruim of ['http://runtime.codewords.ai', 'https://169.254.169.254/latest', 'https://localhost:8080', 'https://10.0.0.7', 'https://usuario:senha@exemplo.com', 'javascript:alert(1)', { a: 1 }]) {
+    const r = await chamar('gestor', 'PUT', '/api/whatsapp/ia/config', { cw_base_url: ruim });
+    assert.equal(r.status, 400, JSON.stringify(ruim)); assert.match(r.j.erro, /Endereço base do CodeWords/);
+  }
+  assert.equal(gravado.ia, undefined);
+  const bom = await chamar('gestor', 'PUT', '/api/whatsapp/ia/config', { cw_base_url: ' https://runtime.codewords.ai/ ' });
+  assert.equal(bom.status, 200); assert.equal(gravado.ia.cw_base_url, 'https://runtime.codewords.ai');
+  // endereço interno que já estava salvo não é chamado
+  ia.cw_base_url = 'https://169.254.169.254';
+  const r = await chamar('gestor', 'POST', '/api/codewords/run', { inputs: {} });
+  assert.equal(r.j.ok, false); assert.equal(chamadasFora.length, 0);
+});
+
+test('R10-AGE-018: "rodar fluxo" não manda a chave guardada para um endereço que veio no pedido', async () => {
+  const r = await chamar('gestor', 'POST', '/api/codewords/run', { base_url: 'https://coletor.exemplo.com', inputs: {} });
+  assert.equal(r.status, 400); assert.match(r.j.erro, /informe também a chave/);
+  assert.equal(chamadasFora.length, 0, 'a chave guardada não saiu');
+  const interno = await chamar('gestor', 'POST', '/api/codewords/run', { base_url: 'https://192.168.0.5', api_key: 'minha-chave-de-teste' });
+  assert.equal(interno.status, 400); assert.equal(chamadasFora.length, 0);
+  // com a chave junto (teste de outra conta), vai com a chave do pedido, nunca com a guardada
+  const outro = await chamar('gestor', 'POST', '/api/codewords/run', { base_url: 'https://outro.codewords.ai', api_key: 'minha-chave-de-teste', inputs: { a: 1 } });
+  assert.equal(outro.status, 200); assert.equal(chamadasFora.length, 1);
+  assert.equal(chamadasFora[0].opt.headers.Authorization, 'minha-chave-de-teste'); assert.match(chamadasFora[0].url, /^https:\/\/outro\.codewords\.ai\/run\/fluxo_principal\/$/);
+  // sem endereço no pedido: o guardado, com a chave guardada
+  await chamar('gestor', 'POST', '/api/codewords/run', { inputs: {} });
+  assert.equal(chamadasFora[1].opt.headers.Authorization, 'cw-chave-guardada-1234'); assert.match(chamadasFora[1].url, /^https:\/\/runtime\.codewords\.ai\/run\/fluxo_principal\/$/);
+});
+
+test('R10-AGE-019: Integração só grava ids de fluxo e de aparelho sem barra nem espaço, e textos com tamanho', async () => {
+  for (const [campo, valor, recado] of [
+    ['cw_service_id', 'fluxo/../outro', /Service ID/], ['cw_db_service_id', 'a b', /Service ID/], ['cw_connect_service_id', '?x=1', /Service ID/],
+    ['cw_noshow_service_id', { a: 1 }, /Service ID/], ['cw_device_id', 'a'.repeat(200), /aparelho/],
+    ['persona', 'p'.repeat(4001), /longo demais/], ['saudacao', 's'.repeat(1001), /longo demais/], ['modelo', 'x y z', /Modelo inválido/], ['motor', '<b>', /Motor inválido/],
+  ]) {
+    const r = await chamar('gestor', 'PUT', '/api/whatsapp/ia/config', { [campo]: valor });
+    assert.equal(r.status, 400, campo); assert.match(r.j.erro, recado);
+  }
+  assert.equal(gravado.ia, undefined);
+  const ok = await chamar('gestor', 'PUT', '/api/whatsapp/ia/config', { cw_service_id: ' indycar_atendimento-v2 ', cw_device_id: '5512996830272@s.whatsapp.net' });
+  assert.equal(ok.status, 200); assert.equal(gravado.ia.cw_service_id, 'indycar_atendimento-v2');
+  const run = await chamar('gestor', 'POST', '/api/codewords/run', { service_id: '../outro/caminho' });
+  assert.equal(run.status, 400); assert.equal(chamadasFora.length, 0);
+});
+
+test('R10-AGE-020: falha de rede com o CodeWords vira recado em português, sem endereço nem código de erro', async () => {
+  foraResponde = async () => { throw new TypeError('fetch failed: connect ECONNREFUSED 34.120.5.9:443'); };
+  const run = await chamar('gestor', 'POST', '/api/codewords/run', { inputs: {} });
+  assert.equal(run.j.ok, false); assert.match(run.j.erro, /Não consegui falar com o CodeWords/); assert.doesNotMatch(run.j.erro, /ECONNREFUSED|34\.120|fetch failed/);
+  const cx = await chamar('gestor', 'GET', '/api/whatsapp/conexao');
+  assert.equal(cx.j.ok, false); assert.match(cx.j.erro, /Não consegui falar com o CodeWords/); assert.doesNotMatch(cx.j.erro, /ECONNREFUSED|34\.120|fetch failed/);
+  foraResponde = async () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError'); };
+  assert.match((await chamar('gestor', 'POST', '/api/codewords/run', { inputs: {} })).j.erro, /não respondeu a tempo/);
+});
