@@ -9,6 +9,9 @@
   let C = null, L = null, V = null, links = null;
   let canal = null, timerPoll = null, timerRelogio = null, deb = null;
   let visao = 'operacao', ultima = 0, ultimaDono = 0, carregando = false, filtroHoje = 'todos', dados = null, dono = null, emFalha = false, online = true;
+  /* rodada 10: quando começou a leitura em andamento e qual é a vez dela (uma leitura pendurada não trava mais o painel) */
+  let carregandoDesde = 0, vezAgora = 0;
+  const TEMPO_PENDURADO_MS = 25_000;
 
   const $ = (s) => document.querySelector(s);
   const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -236,8 +239,12 @@
   }
 
   async function carregarAgora({ silencioso = false } = {}) {
-    if (carregando) return;
-    carregando = true;
+    /* rodada 10: se o banco nunca respondesse (rede que caiu no meio do pedido), "carregando" ficava ligado para sempre e
+       o painel não atualizava mais, nem pelo botão, até recarregar a página. Passados 25 s, a leitura velha é abandonada
+       e uma nova pode começar; se a velha responder depois, é descartada. */
+    if (carregando && Date.now() - carregandoDesde < TEMPO_PENDURADO_MS) return;
+    const vez = ++vezAgora;
+    carregando = true; carregandoDesde = Date.now();
     try {
       let d;
       if (V.soMeusCarros) {
@@ -261,10 +268,12 @@
         d = L.adaptarAgora(a.data, x.error ? {} : x.data);
       }
       if (V.recepcao) { try { d.chegadas = await carregarChegadas(); } catch { d.chegadas = null; } }
+      if (vez !== vezAgora) return;   // chegou atrasada: já há uma leitura mais nova
       dados = d; ultima = Date.now(); emFalha = false;
       desenharTudo(d);
       try { C.aoAgora && C.aoAgora(d); } catch { /* extras nunca derrubam o painel */ }
     } catch (e) {
+      if (vez !== vezAgora) return;
       emFalha = true;
       try { C.sessaoVenceu && C.sessaoVenceu(e); } catch { /* segue mostrando a falha */ }
       if (!silencioso || !dados) {
@@ -273,7 +282,7 @@
           if (ok && !dados) cartao(id, { num: 'sem dado', det: msg, linhas: '', erro: msg });
         }
       }
-    } finally { carregando = false; relogio(); }
+    } finally { if (vez === vezAgora) carregando = false; if (C) relogio(); }
   }
 
   /* ---------------- visão do dono ---------------- */
@@ -476,10 +485,12 @@
     if (online) carregarAgora({ silencioso: true });
     relogio();
   }
-  function aoVisivel() { if (!document.hidden && C && C.perfil) { carregarAgora({ silencioso: true }); if (visao === 'dono' && Date.now() - ultimaDono > 60_000) carregarDono(); } }
+  /* rodada 10: voltar para a aba relia tudo mesmo que a leitura fosse de segundos atrás (quem alterna entre a Casa e a Agenda
+     fazia o painel ir ao banco a cada troca). Com menos de 15 s da última leitura boa, fica o que está na tela. */
+  function aoVisivel() { if (!document.hidden && C && C.perfil) { if (Date.now() - ultima > 15_000) carregarAgora({ silencioso: true }); if (visao === 'dono' && Date.now() - ultimaDono > 60_000) carregarDono(); } }
 
   MOD.montar = function (casa) {
-    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; dono = null; ultima = 0; emFalha = false; filtroHoje = 'todos'; estadoFalado = 'ok';
+    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; dono = null; ultima = 0; emFalha = false; filtroHoje = 'todos'; estadoFalado = 'ok'; carregando = false; vezAgora++;
     V.recepcao = C.perfil.papel === 'agenda';
     online = navigator.onLine;
     for (const id of ['#cPatio', '#cOrc', '#cConversas', '#cHoje', '#cLeads']) $(id).hidden = true;

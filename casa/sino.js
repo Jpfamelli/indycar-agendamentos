@@ -9,7 +9,7 @@
   /* rodada 9: estado da leitura, para o sino dizer "carregando" e "não consegui ler" em vez de ficar em branco */
   let leitura = 'carregando';
   /* rodada 10: relógio que junta uma rajada de avisos do tempo real numa leitura só */
-  let debLeitura = null;
+  let debLeitura = null, lidoEm = 0;
   const LIMITE_MAX = 300;
   const LS_ADIADOS = 'indycar_central_sino_adiados';
   const M2 = () => window.CasaLogica2;
@@ -103,7 +103,7 @@
     } catch (e) { error = e; }
     if (!C) return;   // saiu enquanto lia
     if (error) { leitura = 'falhou'; desenhar(); C.sessaoVenceu && C.sessaoVenceu(error); return; }
-    leitura = 'ok';
+    leitura = 'ok'; lidoEm = Date.now();
     const antes = new Set(notifs.map((n) => n.id));
     const adiados = lerAdiados();
     const lista = (data || []).map((n) => (n.app ? n : { ...n, app: N4().appDoAviso(n) }));
@@ -255,10 +255,10 @@
   /* dez avisos chegando juntos (a rotina da manhã, um lote do Comunicar) viravam dez leituras da lista inteira: agora uma, 400 ms depois do último */
   function agendarLeitura() { clearTimeout(debLeitura); debLeitura = setTimeout(() => { if (C && C.perfil) carregar(); }, 400); }
   function aoVoltarARede() { if (C && C.perfil) carregar(); }
-  function onVisivel() { if (!document.hidden && C && C.perfil) carregar(); }
+  function onVisivel() { if (!document.hidden && C && C.perfil && Date.now() - lidoEm > 15_000) carregar(); }   // rodada 10: leitura de segundos atrás não se repete
   MOD.desmontar = function () {
     try { if (canal && C) C.sb.removeChannel(canal); } catch { /* segue */ }
-    canal = null; clearInterval(timerSync); clearTimeout(debLeitura); notifs = [];
+    canal = null; clearInterval(timerSync); clearTimeout(debLeitura); notifs = []; lidoEm = 0;
     document.removeEventListener('visibilitychange', onVisivel);
     window.removeEventListener('online', aoVoltarARede);
     document.title = 'IndyCar Central';

@@ -214,6 +214,50 @@ prova('r10-senha-dupla', async (abrir) => {
   conferir('r10-senha-dupla: depois de gravar, volta para a Casa', await visivel(page, '#casa'));
 });
 
+/* ---------- lote 4: resposta lenta, volta à aba e conferência que falha ---------- */
+prova('r10-painel-pendurado', async (abrir) => {
+  const { page } = await abrir({ papel: 'admin' });
+  const n0 = await lidas(page, 'r6_agora');
+  await page.evaluate(() => { window.__R10.pendurar.add('r6_agora'); window.Casa.painel.atualizar(); });   // esta leitura nunca volta
+  await espera(200);
+  await page.evaluate(() => { window.__R10.pendurar.clear(); window.Casa.painel.atualizar(); });
+  await espera(300);
+  conferir('r10-painel-pendurado: com uma leitura em andamento há pouco, não dispara outra', (await lidas(page, 'r6_agora')) - n0 === 1);
+  await adiantar(page, 26_000);
+  await page.evaluate(() => window.Casa.painel.atualizar());
+  await espera(600);
+  conferir('r10-painel-pendurado: leitura pendurada há mais de 25 s não trava o painel (uma nova leitura sai)', (await lidas(page, 'r6_agora')) - n0 === 2, ((await lidas(page, 'r6_agora')) - n0) + ' leituras');
+  conferir('r10-painel-pendurado: e o painel volta a dizer que está atualizado', /atualizado agora/.test(await texto(page, '#vivoTxt')), await texto(page, '#vivoTxt'));
+});
+
+prova('r10-volta-da-aba', async (abrir) => {
+  const { page, rede } = await abrir({ papel: 'admin' });
+  const contar = async () => ({ agora: await lidas(page, 'r6_agora'), extras: await lidas(page, 'r6_c1_agora_extras'), avisos: await lidas(page, 'notificacoes'), saude: rede.saude });
+  const a = await contar();
+  await voltarParaAAba(page);
+  await espera(500);
+  const b = await contar();
+  const feitos = (b.agora - a.agora) + (b.extras - a.extras) + (b.avisos - a.avisos) + (b.saude - a.saude);
+  conferir('r10-volta-da-aba: voltar para a aba segundos depois de ler não refaz nenhum pedido', feitos === 0, feitos + ' pedidos');
+  await adiantar(page, 31_000);
+  await voltarParaAAba(page);
+  await espera(600);
+  const c = await contar();
+  conferir('r10-volta-da-aba: passado o tempo, a volta relê o painel, o sino e a saúde dos apps', c.agora - b.agora === 1 && c.avisos - b.avisos === 1 && c.saude - b.saude === 1, JSON.stringify({ agora: c.agora - b.agora, avisos: c.avisos - b.avisos, saude: c.saude - b.saude }));
+});
+
+prova('r10-saude-sem-leitura', async (abrir) => {
+  const { page, rede } = await abrir({ papel: 'admin', saudeFalha: true });
+  conferir('r10-saude-sem-leitura: uma falha só não alarma', !(await visivel(page, '#avisoApps')));
+  await page.evaluate(() => window.Casa.verificarApps());
+  await espera(400);
+  conferir('r10-saude-sem-leitura: na segunda falha seguida a Casa diz que não conseguiu conferir', await visivel(page, '#avisoApps') && /Não consegui conferir se o Pátio e o Orçador estão no ar/.test(await texto(page, '#avisoApps')), await texto(page, '#avisoApps').then((x) => x.slice(0, 70)));
+  rede.saudeFalha = false;
+  await page.click('#avisoApps [data-verificar-apps]');
+  await espera(500);
+  conferir('r10-saude-sem-leitura: conferiu de novo com sucesso e o aviso some', !(await visivel(page, '#avisoApps')));
+});
+
 // === FIM DAS PROVAS ===
 try {
   for (const [nome, fn] of PROVAS) {
