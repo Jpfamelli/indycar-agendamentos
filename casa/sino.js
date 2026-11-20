@@ -159,7 +159,7 @@
   }
   function irParaTarefas(filtroT) {
     if (C.tarefas && C.tarefas.filtrar) C.tarefas.filtrar(filtroT);
-    document.querySelector('#tTarefas').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    C.irPara('#tTarefas');
   }
   function lerTodas() {
     // "todas" vale para o que está na tela: o filtro de app, a busca e sem os adiados (antes marcava também o que a busca escondia)

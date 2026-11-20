@@ -240,7 +240,7 @@
     };
     $('#listaTarefas').onfocusout = (e) => { const i = e.target.closest && e.target.closest('[data-edita]'); if (i && editando === i.dataset.edita) salvarTitulo(i.dataset.edita, i.value); };
     $('#tFiltros').onclick = (e) => { const b = e.target.closest('[data-filtro-t]'); if (b) { filtro = b.dataset.filtroT; desenhar(); } };
-    C.focarTarefa = () => { $('#tTitulo').scrollIntoView({ block: 'center', behavior: 'smooth' }); $('#tTitulo').focus(); };
+    C.focarTarefa = () => C.irPara('#tTitulo', { bloco: 'center' });
     C.tarefas = { carregar, prazoISO, lista: () => tarefas, ligas: () => ligas, filtrar: (f) => { filtro = f; desenhar(); } };
     carregar(); carregarNomes();
     try {

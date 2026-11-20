@@ -35,6 +35,8 @@ async function abrir(cenario, largura = 1440, toque = false) {
     window.__CENARIO = c; window.__ABAS = [];
     window.open = (url, nome) => { window.__ABAS.push([String(url), String(nome)]); return { focus() {} }; };
     window.prompt = () => window.__RESPOSTA_PROMPT ?? null;
+    // cada aba nova começa sem o que a rodada anterior deixou no perfil do Chrome (avisos adiados, bloco dispensado, buscas)
+    try { if (!sessionStorage.getItem('__aba_limpa')) { localStorage.clear(); sessionStorage.setItem('__aba_limpa', '1'); } } catch { /* segue */ }
     try { localStorage.setItem('indycar_tema', 'escuro'); localStorage.setItem('indycar_central_visao', 'operacao'); } catch { /* segue */ }
   }, cenario);
   await page.setRequestInterception(true);
@@ -306,6 +308,18 @@ try {
   await focarVisivel('#listaNotif [data-ler]'); await s.page.keyboard.press('Enter'); await espera(200);
   conferir('sino: depois do ✓, o foco fica no aviso (ou no vizinho)', (await qual()) === 'aviso', await qual());
   await s.page.close();
+  });
+
+  // 21. tecla t: vai para as tarefas COM o foco; sem animação para quem pediu menos movimento (o roteiro pede)
+  await passo("21. tecla t leva o foco às tarefas, sem animar com menos movimento", async () => {
+  const t = await abrir({ papel: 'admin' }, 1440);
+  await t.page.evaluate(() => { document.activeElement && document.activeElement.blur(); window.scrollTo(0, 0); });
+  await t.page.keyboard.press('t'); await espera(30);
+  const r = await t.page.evaluate(() => ({ foco: document.activeElement && document.activeElement.id, y: Math.round(window.scrollY) }));
+  await espera(700);
+  r.yDepois = await t.page.evaluate(() => Math.round(window.scrollY));
+  conferir('tecla t: o foco vai para "Minhas tarefas" e a página já está lá (sem rolar devagar)', r.foco === 'tTarefas' && r.y > 300 && r.y === r.yDepois, JSON.stringify(r));
+  await t.page.close();
   });
 
   // 17. busca que falhou tem "tentar de novo" (antes só apagando e digitando de novo)

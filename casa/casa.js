@@ -267,8 +267,22 @@
     get links() { return links; },
     get cfg() { return cfg; },
     L, esc, toast, abrirNaAba, podeUsar: (app) => podeUsar(perfil, app), visao: () => L.visao(perfil),
-    $: (s) => document.querySelector(s),
+    $: (s) => document.querySelector(s), irPara,
   };
+  /**
+   * rodada 9: "ir para" (tecla t, comandos da busca, aviso do sino) rolava a página, mas o foco ficava lá em cima: quem
+   * usa teclado ou leitor de tela continuava no topo. Agora o foco vai junto (o título vira alvo de foco) e a rolagem só
+   * é animada para quem não pediu menos movimento no aparelho.
+   */
+  function irPara(alvo, { bloco = 'start' } = {}) {
+    const el = typeof alvo === 'string' ? $(alvo) : alvo;
+    if (!el) return;
+    let calmo = false;
+    try { calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { /* sem matchMedia */ }
+    el.scrollIntoView({ block: bloco, behavior: calmo ? 'auto' : 'smooth' });
+    if (!el.matches('a[href], button, input, select, textarea, [tabindex]')) el.setAttribute('tabindex', '-1');
+    try { el.focus({ preventScroll: true }); } catch { el.focus(); }
+  }
 
   function desenharApps() {
     const meus = ORDEM_APPS.map((k) => L.APPS[k]).filter((a) => podeUsar(perfil, a.k));

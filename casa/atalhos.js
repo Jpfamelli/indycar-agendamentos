@@ -73,7 +73,7 @@
     }
     else if (k === 'h' || k === 'H') { if (C.saude) { e.preventDefault(); C.saude.abrir(); } }
     else if (k === 'e' || k === 'E') { if (C.recolherTodos) { e.preventDefault(); C.recolherTodos(); } }
-    else if (k === 't' || k === 'T') { const t = document.querySelector('#tTarefas'); if (t) { e.preventDefault(); t.scrollIntoView({ block: 'start', behavior: 'smooth' }); } }
+    else if (k === 't' || k === 'T') { if (document.querySelector('#tTarefas')) { e.preventDefault(); C.irPara('#tTarefas'); } }
     else if (k === 'n' || k === 'N') { e.preventDefault(); C.focarTarefa && C.focarTarefa(); }
     else if (k === 's' || k === 'S') { e.preventDefault(); C.alternarSino && C.alternarSino(); }
     else if (k === 'r' || k === 'R') { e.preventDefault(); C.painel && C.painel.atualizar(); C.toast('Atualizando…', 1200); }

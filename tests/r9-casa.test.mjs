@@ -459,3 +459,18 @@ test('janelas da busca e da ficha sem marco duplicado (o pé e o cabeçalho dela
   assert.match(busca, /<div class="busca-pe">/);
   assert.match(ficha, /<div class="ficha-cab">/);
 });
+
+test('"ir para" leva o foco junto e só anima a rolagem para quem não pediu menos movimento', () => {
+  const c = semComentarios(ler('casa.js'));
+  assert.match(c, /function irPara\(alvo, \{ bloco = 'start' \} = \{\}\)/);
+  assert.match(c, /matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches/);
+  assert.match(c, /behavior: calmo \? 'auto' : 'smooth'/);
+  assert.match(c, /el\.setAttribute\('tabindex', '-1'\)/);
+  assert.match(c, /el\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(c, /\$: \(s\) => document\.querySelector\(s\), irPara,/);
+  for (const f of ['atalhos.js', 'comando.js', 'sino.js']) assert.match(semComentarios(ler(f)), /C\.irPara\('#tTarefas'\)/, f + ' vai para as tarefas pelo irPara');
+  assert.match(semComentarios(ler('tarefas.js')), /C\.irPara\('#tTitulo', \{ bloco: 'center' \}\)/);
+  for (const f of readdirSync(CASA).filter((x) => x.endsWith('.js') && x !== 'casa.js')) {
+    assert.doesNotMatch(semComentarios(ler(f)), /behavior: 'smooth'/, f + ': rolagem animada fixa ignorava o "menos movimento"');
+  }
+});

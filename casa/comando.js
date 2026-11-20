@@ -158,10 +158,10 @@
       case 'marcar-lidas': return $('#bLerTodas').click();
       case 'atalhos': return $('#bAjuda').click();
       case 'saude': return C.saude && C.saude.abrir(true);
-      case 'tarefas-vencidas': C.tarefas && C.tarefas.filtrar('vencidas'); return document.querySelector('#tTarefas').scrollIntoView({ block: 'start', behavior: 'smooth' });
-      case 'tarefas-orcador': C.tarefas && C.tarefas.filtrar('orcador'); return document.querySelector('#tTarefas').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      case 'tarefas-vencidas': C.tarefas && C.tarefas.filtrar('vencidas'); return C.irPara('#tTarefas');
+      case 'tarefas-orcador': C.tarefas && C.tarefas.filtrar('orcador'); return C.irPara('#tTarefas');
       case 'recolher': return recolherTodos();
-      case 'ligacoes': C.painel && C.painel.trocarVisao('dono'); return setTimeout(() => { const b = document.querySelector('#donoLigacoes'); if (b) b.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 150);
+      case 'ligacoes': C.painel && C.painel.trocarVisao('dono'); return setTimeout(() => C.irPara('#donoLigacoes'), 150);
       case 'visao-dono': return C.painel && C.painel.trocarVisao('dono');
       case 'visao-operacao': return C.painel && C.painel.trocarVisao('operacao');
       case 'sair': return document.querySelector('[data-acao="sair"]').click();
