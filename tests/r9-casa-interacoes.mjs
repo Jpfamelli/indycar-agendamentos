@@ -202,6 +202,12 @@ try {
     conferir(`cartões vazios em ${larg} px: nenhum passa da largura`, !largos.length, largos.join(', '));
     await v.page.close();
   }
+  const cheio = await abrir({ papel: 'admin' }, 375);
+  const cortados = await cheio.page.evaluate(() => [...document.querySelectorAll('.agora-cartao')].filter((c) => !c.hidden && c.scrollWidth > c.clientWidth + 1).map((c) => c.id + ' ' + c.scrollWidth + '/' + c.clientWidth));
+  conferir('cartões com lista em 375 px: valor e tempo não saem do cartão', !cortados.length, cortados.join(', '));
+  const selo = await cheio.page.$$eval('#cOrc .pil-bom', (ss) => { const s = ss.find((x) => /aprovado/.test(x.textContent)); if (!s) return false; const r = s.getBoundingClientRect(), c = s.closest('.agora-cartao').getBoundingClientRect(), a = s.closest('.l-a').getBoundingClientRect(); return r.width > 60 && r.right <= Math.min(c.right, a.right) + 1; });
+  conferir('selo "aprovado · sem horário" aparece inteiro no celular', !!selo, String(selo));
+  await cheio.page.close();
   const m = await abrir({ papel: 'mecanico', vazio: true }, 375);
   const txt = await m.page.$eval('#cPatio [data-lista]', (l) => l.innerText);
   conferir('mecânico sem carro: fala dos carros dele, sem "+ Nova entrada"', /passado para você/.test(txt) && !/Nova entrada/.test(txt), txt.slice(0, 80));

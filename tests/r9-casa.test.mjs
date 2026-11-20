@@ -297,3 +297,9 @@ test('mecânico sem carro: texto dos carros dele (não o da oficina inteira, nem
   assert.match(p, /vazio: V\.soMeusCarros \? 'cPatioMeus' : 'cPatio'/);
   assert.match(p, /VAZIOS\[vazio \|\| el\.id\]/);
 });
+
+test('listas dos cartões: coluna minmax(0, 1fr) (valor e tempo não saem do cartão) e nome desce de linha no celular', () => {
+  const css = ler('r9.css');
+  assert.match(css, /\.agora-lista \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  assert.match(css, /@media \(max-width: 520px\) \{ \.agora-lista \.linha \.l-a \{ white-space: normal;/);
+});
