@@ -27,13 +27,13 @@
   const itemLi = (inner, wa) => (wa ? `<li class="com-acao">${inner}${wa}</li>` : `<li>${inner}</li>`);
   function pilula(texto, tom) { return `<span class="pil${tom ? ' pil-' + tom : ''}">${C.esc(texto)}</span>`; }
 
-  function cartao(id, { num, det, linhas, erro }) {
+  function cartao(id, { num, det, linhas, erro, vazio }) {
     const el = $(id);
     el.hidden = false;
     const n = el.querySelector('[data-num]'); if (n) { n.textContent = num; n.classList.toggle('num-texto', !/^\d/.test(String(num))); }
     const d = el.querySelector('[data-det]'); if (d) d.textContent = det;
     const l = el.querySelector('[data-lista]');
-    const ensina = window.CasaLogica2 && window.CasaLogica2.VAZIOS[el.id];
+    const ensina = window.CasaLogica2 && window.CasaLogica2.VAZIOS[vazio || el.id];
     if (l) l.innerHTML = erro ? `<li class="vazio vazio-erro">${C.esc(erro)} <button type="button" class="btn-link" data-recarregar>tentar de novo</button></li>` : (linhas || (ensina && Number(num) === 0 ? `<li class="vazio vazio-ensina"><b>${C.esc(ensina.texto)}</b><span>${C.esc(ensina.dica)}</span></li>` : ''));
     el.classList.toggle('carregou', !erro);
   }
@@ -61,7 +61,8 @@
     if (p.extras_pendentes) partes.push(`${p.extras_pendentes} extra${p.extras_pendentes > 1 ? 's' : ''} esperando aprovação`);
     cartao('#cPatio', {
       num: String(p.total || 0),
-      det: p.total ? 'dentro da oficina' + (partes.length ? ' · ' + partes.join(' · ') : '') : (V.soMeusCarros ? 'nenhum carro com você agora' : 'pátio vazio agora'),
+      det: p.total ? 'dentro da oficina' + (partes.length ? ' · ' + partes.join(' · ') : '') : (V.soMeusCarros ? 'sua lista está livre' : 'pátio vazio agora'),
+      vazio: V.soMeusCarros ? 'cPatioMeus' : 'cPatio',
       linhas: lista.map((o) => {
         const tom = L.tomDaEtapa(o.etapa, o.etapa_em, agora);
         const prev = L.previsao(o.previsao_entrega, o.etapa, agora);

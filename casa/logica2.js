@@ -278,6 +278,8 @@
   /** Estados vazios que ensinam: o que dizer e qual o próximo passo em cada cartão. */
   const VAZIOS = {
     cPatio: { texto: 'Nenhum carro dentro da oficina agora.', dica: 'Quando um cliente chega, toque em "Chegou" na Agenda ou em "+ Nova entrada": o carro aparece aqui com a etapa ao vivo.' },
+    /* rodada 9: o mecânico só vê os carros dele; o texto da oficina inteira (e o "+ Nova entrada", que ele não tem) não servia */
+    cPatioMeus: { texto: 'Nenhum carro passado para você.', dica: 'Quando o consultor passar um carro para você no Pátio, ele aparece aqui com a etapa ao vivo. Os outros carros da oficina estão em "Abrir o Pátio".' },
     cOrc: { texto: 'Nenhum orçamento esperando resposta.', dica: 'Orçamento enviado e ainda sem resposta aparece aqui, com o tempo de espera e se o cliente já abriu o link.' },
     cConversas: { texto: 'Ninguém esperando o consultor.', dica: 'Conversa em que o cliente escreveu por último e a equipe ainda não respondeu aparece aqui, da mais antiga para a mais nova.' },
     cHoje: { texto: 'Nenhum horário marcado para hoje.', dica: 'Use "+ Novo horário" ou peça ao Atendimento para oferecer horários livres ao cliente.' },
