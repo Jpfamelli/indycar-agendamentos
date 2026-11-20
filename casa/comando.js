@@ -72,7 +72,8 @@
     document.querySelectorAll('#agora .agora-cartao').forEach((el) => {
       const fechado = !!rec[el.id];
       el.classList.toggle('recolhido', fechado);
-      const b = el.querySelector('.recolher'); if (b) { b.setAttribute('aria-expanded', String(!fechado)); b.textContent = fechado ? '▸' : '▾'; b.title = fechado ? 'Mostrar a lista' : 'Esconder a lista'; }
+      // rodada 9: o nome do botão sai do rótulo de AGORA (o mecânico vê "Meus carros no pátio"; antes ficava o nome do HTML)
+      const b = el.querySelector('.recolher'); if (b) { const rot = el.querySelector('.agora-rotulo')?.textContent || 'o cartão'; b.setAttribute('aria-label', (fechado ? 'Mostrar a lista de ' : 'Esconder a lista de ') + rot); b.setAttribute('aria-expanded', String(!fechado)); b.textContent = fechado ? '▸' : '▾'; b.title = fechado ? 'Mostrar a lista' : 'Esconder a lista'; }
     });
   }
   function ligarRecolher() {
