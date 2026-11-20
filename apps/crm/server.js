@@ -87,6 +87,11 @@ function readBody(req) {
     // corpo com conteúdo tem de ser JSON (formulário de outro site não passa)
     const tipo = String(req.headers['content-type'] || '');
     const temCorpo = Number(req.headers['content-length'] || 0) > 0 || !!req.headers['transfer-encoding'];
+    const codificacao = String(req.headers['content-encoding'] || 'identity').trim().toLowerCase();
+    if (temCorpo && codificacao !== 'identity') {
+      req.resume();
+      return reject(Object.assign(new Error('Envie o corpo JSON sem compactação.'), { status: 415 }));
+    }
     if (temCorpo && !/^application\/json(\s*;|$)/i.test(tipo.trim())) {
       req.resume();
       return reject(Object.assign(new Error('Envie o corpo como JSON (Content-Type: application/json).'), { status: 415 }));
