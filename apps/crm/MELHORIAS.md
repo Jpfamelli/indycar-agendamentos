@@ -1445,3 +1445,6 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-019** · conserto · Registro de cliques recusa contagem fracionária (teste R10-CRM-019 em testes/r10-investimento.test.cjs) · `988ede8`
 - **R10-CRM-020** · conserto · Registro de impressões recusa booleanos (teste R10-CRM-020 em testes/r10-investimento.test.cjs) · `988ede8`
 - **R10-CRM-021** · conserto · Registro de conversões recusa contagem acima do intervalo aceito pelo banco (teste R10-CRM-021 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-022** · segurança · Alteração de integração exige booleano para ativar ou desativar o canal (teste R10-CRM-022 em testes/r10-integracoes.test.cjs) · `f40c469`
+- **R10-CRM-023** · segurança · Configuração de mídia recusa objetos, listas e números nos campos de texto (teste R10-CRM-023 em testes/r10-integracoes.test.cjs) · `f40c469`
+- **R10-CRM-024** · conserto · Configuração do Meta recusa datas de expiração inexistentes (teste R10-CRM-024 em testes/r10-integracoes.test.cjs) · `f40c469`

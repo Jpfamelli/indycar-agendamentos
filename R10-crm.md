@@ -1,6 +1,6 @@
 # Rodada 10 do CRM
 
-21 de 125 melhorias registradas em `apps/crm/MELHORIAS.md`. O commit `387f5ac` preserva acentos no cadastro de contatos quando o JSON chega em blocos HTTP (`apps/crm/testes/r10-json.test.cjs`).
+24 de 125 melhorias registradas em `apps/crm/MELHORIAS.md`. O commit `387f5ac` preserva acentos no cadastro de contatos quando o JSON chega em blocos HTTP (`apps/crm/testes/r10-json.test.cjs`).
 
 A regressão com banco fictício gravava `Jo��o` antes e grava `João` depois. A suíte completa passou de 328/328 para 329/329, patamar confirmado nesta retomada.
 
@@ -14,9 +14,13 @@ No commit `802154f`, R10-CRM-003 passou de HTTP 201 com gravação para HTTP 415
 
 O commit `4911a42` valida telefone com letras, valor booleano, placa em lista e motivo de perda em lista. As quatro regressões falharam antes e passaram depois. A suíte do CRM passou 335/335 com Supabase fictício.
 
-Agenda e Atendimento ficaram sob responsabilidade do Claude. A rodada 10 do CRM continua em R10-CRM-022.
+Agenda e Atendimento ficaram sob responsabilidade do Claude. A rodada 10 do CRM continua em R10-CRM-025.
 
 O commit `60fc802` valida quatro campos do perfil. Os testes retornavam HTTP 200 antes e passaram a exigir HTTP 400 preservando cada campo. Suíte isolada: 339/339. Chrome, axe-core e medições de desempenho seguem pendentes nesta rodada.
 O commit `e8f518b` rejeita papel desconhecido, alteração de acesso sem booleano, senha temporária acima do limite e opção de troca de senha com tipo inválido. As cinco regressões retornavam 200 ou 201 antes. Agora retornam 400, preservam os perfis da equipe e não geram auditoria de alteração. A suíte isolada passou de 339/339 para 344/344.
 
 No commit 988ede8, seis regressões de investimento falharam antes da validação. Depois, as seis rejeitaram os dados inválidos com HTTP 400, sem gravar métricas ou auditoria. Suíte isolada 350/350.
+
+No commit f40c469, as três regressões de integração passaram a retornar HTTP 400 e a preservar a configuração e a auditoria no Supabase fictício. Suíte completa 353/353.
+
+Chrome com mock local e interceptação de toda conexão externa: 12 verificações passaram em 375 e 1440 px, nos temas claro e escuro. Foram testados cadastro como perdido com motivo Outro e fechamento com valor pago ou pendente. Log local em apps/crm/qa-out/r10-jornadas.log. A cobertura dessas jornadas não inclui cancelamento do diálogo, fechamento em lote ou perda de rede ao mover a etapa.
