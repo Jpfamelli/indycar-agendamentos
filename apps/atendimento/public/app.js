@@ -1050,31 +1050,41 @@ function guardarMsgsEmMemoria(id, lista) {
 let limiteMsgs = PAGINA_MSGS;
 let temMsgsAnteriores = false;
 let geracaoMsgs = 0;
+let carregandoMsgsAnteriores = null;
 let marcaNaoLidas = { conv: null, n: 0 };     // "— 3 não lidas —" ao abrir
 
 async function carregarMensagens({ anteriores = false } = {}) {
   if (!conversaAtual) return;
-  const convId = conversaAtual.id, minha = ++geracaoMsgs;
-  if (anteriores) limiteMsgs += PAGINA_MSGS;
-  else if (conversaRenderizada !== convId) limiteMsgs = PAGINA_MSGS;
+  const convId = conversaAtual.id;
+  if (carregandoMsgsAnteriores?.convId !== convId) carregandoMsgsAnteriores = null;
+  if (anteriores && carregandoMsgsAnteriores?.convId === convId) return;
+  const minha = ++geracaoMsgs;
+  if (conversaRenderizada !== convId) limiteMsgs = PAGINA_MSGS;
+  const paginacao = anteriores ? { convId, limite: limiteMsgs + PAGINA_MSGS } : carregandoMsgsAnteriores;
+  const carregandoAnteriores = paginacao?.convId === convId;
+  if (anteriores) carregandoMsgsAnteriores = paginacao;
+  const limitePedido = carregandoAnteriores ? paginacao.limite : limiteMsgs;
   try {
     const { data, error } = await sb.from('whatsapp_mensagens')
       .select('*').eq('conversa_id', convId)
-      .order('created_at', { ascending: false }).limit(limiteMsgs);
+      .order('created_at', { ascending: false }).limit(limitePedido);
     if (error) throw error;
     if (minha !== geracaoMsgs || conversaAtual?.id !== convId) return;   // trocou de conversa no meio
+    limiteMsgs = limitePedido;
     temMsgsAnteriores = (data || []).length >= limiteMsgs;
     MENSAGENS = (data || []).slice().reverse();
     MENSAGENS.forEach(m => Recuperador.marcar(m));
     guardarMsgsEmMemoria(convId, MENSAGENS);
-    renderMensagens({ manterTopo: anteriores });
+    renderMensagens({ manterTopo: carregandoAnteriores });
   } catch (err) {
-    if (minha !== geracaoMsgs) return;
+    if (minha !== geracaoMsgs || conversaAtual?.id !== convId) return;
     if (!MENSAGENS.length) {
       $('#mensagens').innerHTML = `<div class="vazio">⚠️ Não consegui carregar as mensagens.<br>
         <small>${esc(erroLegivel(err.message))}</small><br><br>
         <button type="button" class="btn btn-ghost sm" data-acao="recarregar-msgs">Tentar de novo</button></div>`;
-    } else toast('⚠️ ' + err.message);
+    } else toast(carregandoAnteriores ? 'Não deu para carregar as mensagens anteriores. Tente de novo.' : '⚠️ ' + err.message);
+  } finally {
+    if (carregandoAnteriores && minha === geracaoMsgs && carregandoMsgsAnteriores === paginacao) carregandoMsgsAnteriores = null;
   }
 }
 
