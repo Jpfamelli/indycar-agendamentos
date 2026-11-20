@@ -1377,3 +1377,7 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R9-AGE-123** · celular · Login, sino e tarefas: "Esqueci a senha", "Voltar", "Marcar todas como lidas" (20 px), "Mostrar" a senha (32 px) e a caixinha de concluir tarefa (22 px) passam a ter 44 px de toque · `6934efc`
 - **R9-AGE-124** · acessibilidade · Tema escuro: texto secundário (hora do aviso, prazo da tarefa, título dos Apps) sobe de 3,43 para mais de 4,5:1 · `6934efc`
 - **R9-AGE-125** · teste · Medição no navegador de 20 janelas, popovers, telas de login e do modo presença em 375 e 1440 px, claro e escuro, com servidor de mentira: `scripts/qa-r9-modais.mjs` · `c3a42fe`
+
+## Rodada 10 (20/11/2026)
+
+- **R10-AGE-001** · segurança · A API da Agenda rejeita listas, números, texto e null em corpos JSON antes de gravar configurações (teste R10-AGE-001 em tests/r9-agenda-servidor.test.mjs) · `5c99a4b`

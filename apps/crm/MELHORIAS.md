@@ -1421,3 +1421,7 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-123** · aviso · Distribuir contatos exibe um texto enquanto calcula o rodízio. · `d71c339`
 - **R9-CRM-124** · celular · As opções de cor do avatar têm alvo de toque de 44 px. · `d71c339`
 - **R9-CRM-125** · acessibilidade · Buscar tudo usa o texto visível como nome acessível e o atalho tem um atributo próprio. · `59b1ddf`
+
+## Rodada 10 (20/11/2026)
+
+- **R10-CRM-001** · conserto · O cadastro de contatos preserva acentos quando o JSON chega em blocos HTTP (teste R10-CRM-001 em testes/r10-json.test.cjs) · `387f5ac`
