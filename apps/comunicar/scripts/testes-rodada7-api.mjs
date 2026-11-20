@@ -172,6 +172,24 @@ test('R7 API: "por que não saiu" explica celular ruim, campanha depois das 18h,
 const futuro = (min) => new Date(Date.now() + min * 60000).toISOString();
 const pend = (n, extra = {}) => ({ id: ID(n), status: 'pendente', tipo: 'campanha', nome: `P${n}`, telefone: `12991${String(100000 + n).slice(-6)}`, telefone_e164: `12991${String(100000 + n).slice(-6)}`, corpo: `texto ${n}`, enviar_em: futuro(120), expira_em: futuro(60 * 24 * 3), criado_por_id: ID(2), ...extra });
 
+for (const [id, caminho, corpo, campo] of [
+  ['019', '/api/reabordar/enviar', { textos: [] }, 'textos'],
+  ['020', '/api/reabordar/enviar', { textos: { preco: ['Oi {primeiro_nome}, quer conversar sobre o orçamento do seu carro?'] } }, 'preco'],
+  ['021', '/api/reabordar/enviar', { enviar_em: true }, 'enviar_em'],
+  ['022', '/api/reabordar/enviar', { orcamentos: 'invalid' }, 'orcamentos'],
+  ['023', '/api/reabordar/enviar', { motivos: ['inventado'] }, 'motivos'],
+  ['024', '/api/retomada/triagem', { tipos: ['lembrete'], so_perderam: 'false' }, 'so_perderam'],
+]) {
+  test(`R10-COM-${id}: ${caminho} recusa ${campo} inválido`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'POST', caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+
 test('R7 API: antecipar traz a mensagem para agora; recusa a que já foi pega, a vencida e o atendente em mensagem alheia', async () => {
   const s = await subir({ livre: true });
   try {

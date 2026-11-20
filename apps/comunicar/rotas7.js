@@ -33,9 +33,26 @@ export function registrarRotas7(c) {
   });
   rota('POST', '/api/reabordar/enviar', async ({ res, usuario, body }) => {
     const dias = Math.min(Math.max(Math.round(Number(body.dias)) || 30, 1), 180);
+    if (body.textos != null && (typeof body.textos !== 'object' || Array.isArray(body.textos))) {
+      return bad(res, 'Informe um texto por motivo.', { campo: 'textos' });
+    }
+    if (body.enviar_em != null && typeof body.enviar_em !== 'string') {
+      return bad(res, 'Informe a data de envio em texto.', { campo: 'enviar_em' });
+    }
+    const identificador = new RegExp(`^${U}$`);
+    if (body.orcamentos != null && (!Array.isArray(body.orcamentos) || body.orcamentos.length > LIMITE_RECUSADOS
+      || body.orcamentos.some((id) => typeof id !== 'string' || !identificador.test(id)))) {
+      return bad(res, 'Informe até 500 identificadores de orçamento válidos.', { campo: 'orcamentos' });
+    }
+    if (body.motivos != null && (!Array.isArray(body.motivos)
+      || body.motivos.some((m) => typeof m !== 'string' || !Object.hasOwn(r7.MODELOS_REABORDAR, m)))) {
+      return bad(res, 'Escolha motivos de recusa válidos.', { campo: 'motivos' });
+    }
     const textos = {};
     for (const m of Object.keys(r7.MODELOS_REABORDAR)) {
-      const t = String(body.textos?.[m] ?? r7.MODELOS_REABORDAR[m]).trim();
+      const texto = body.textos?.[m] ?? r7.MODELOS_REABORDAR[m];
+      if (typeof texto !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: m });
+      const t = texto.trim();
       const erro = r7.validarTextoReabordar(t);
       if (erro) return bad(res, `${r7.MOTIVOS_RECUSA[m] ? `Texto "${r7.MOTIVOS_RECUSA[m]}"` : 'Texto'}: ${erro}`, { campo: m });
       const fora = conexoes.linksForaDaCasa(t);
@@ -113,6 +130,9 @@ export function registrarRotas7(c) {
   // ---- retomada do WhatsApp ----
   rota('GET', '/api/retomada', async ({ res }) => ok(res, await emCache('retomada', 10_000, () => dados.planoRetomadaDados())));
   rota('POST', '/api/retomada/triagem', async ({ res, usuario, body }) => {
+    if (body.so_perderam !== undefined && typeof body.so_perderam !== 'boolean') {
+      return bad(res, 'Confirme se a triagem deve incluir só mensagens que perderam o sentido.', { campo: 'so_perderam' });
+    }
     const tipos = Array.isArray(body.tipos) ? body.tipos.map(String).filter((t) => dados.TIPOS_ENVIO.includes(t)) : [];
     if (!tipos.length) return bad(res, 'Escolha pelo menos um tipo de mensagem.');
     const r = await dados.aplicarTriagem({ tipos, soPerderam: body.so_perderam !== false });
