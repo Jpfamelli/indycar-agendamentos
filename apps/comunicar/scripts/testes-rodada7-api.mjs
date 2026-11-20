@@ -417,3 +417,18 @@ for (const [id, caminho, corpo, campo] of [
     } finally { await s.fechar(); }
   });
 }
+
+for (const [id, corpo, campo] of [
+  ['055', { dias: true }, 'dias'],
+  ['056', { motivos: [] }, 'motivos'],
+  ['057', { textos: { desconhecido: 'Mensagem para revisar' } }, 'textos'],
+]) {
+  test(`R10-COM-${id}: reabordagem recusa seleção inválida em ${campo}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'POST', '/api/reabordar/enviar', corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}

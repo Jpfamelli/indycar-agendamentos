@@ -32,9 +32,15 @@ export function registrarRotas7(c) {
     return ok(res, await emCache(`reabordar:${dias}`, 60_000, () => dados.reabordarRecusados({ dias, limite: LIMITE_RECUSADOS })));
   });
   rota('POST', '/api/reabordar/enviar', async ({ res, usuario, body }) => {
-    const dias = Math.min(Math.max(Math.round(Number(body.dias)) || 30, 1), 180);
+    const dias = body.dias ?? 30;
+    if (!Number.isInteger(dias) || dias < 1 || dias > 180) {
+      return bad(res, 'Informe um período de 1 a 180 dias.', { campo: 'dias' });
+    }
     if (body.textos != null && (typeof body.textos !== 'object' || Array.isArray(body.textos))) {
       return bad(res, 'Informe um texto por motivo.', { campo: 'textos' });
+    }
+    if (Object.keys(body.textos ?? {}).some((m) => !Object.hasOwn(r7.MODELOS_REABORDAR, m))) {
+      return bad(res, 'Informe textos apenas para motivos da lista.', { campo: 'textos' });
     }
     if (body.enviar_em != null && typeof body.enviar_em !== 'string') {
       return bad(res, 'Informe a data de envio em texto.', { campo: 'enviar_em' });
@@ -44,7 +50,7 @@ export function registrarRotas7(c) {
       || body.orcamentos.some((id) => typeof id !== 'string' || !identificador.test(id)))) {
       return bad(res, 'Informe até 500 identificadores de orçamento válidos.', { campo: 'orcamentos' });
     }
-    if (body.motivos != null && (!Array.isArray(body.motivos)
+    if (body.motivos != null && (!Array.isArray(body.motivos) || !body.motivos.length
       || body.motivos.some((m) => typeof m !== 'string' || !Object.hasOwn(r7.MODELOS_REABORDAR, m)))) {
       return bad(res, 'Escolha motivos de recusa válidos.', { campo: 'motivos' });
     }
