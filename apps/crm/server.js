@@ -587,6 +587,9 @@ async function handler(req, res) {
           }
           if (pathname === '/api/ia/triagem' && req.method === 'POST') {
             const b = await readBody(req);
+            if ('dias' in b && !Number.isInteger(b.dias)) return json(res, 400, { erro: 'Informe um n?mero inteiro de dias.' });
+            if ('limite' in b && !Number.isInteger(b.limite)) return json(res, 400, { erro: 'Informe um limite inteiro.' });
+            if ('usarIA' in b && typeof b.usarIA !== 'boolean') return json(res, 400, { erro: 'Informe se a triagem usa IA.' });
             return json(res, 200, await ia.triagem({ dias: b.dias, limite: b.limite, usarIA: b.usarIA !== false }, quem));
           }
           if (pathname === '/api/ia/perguntar' && req.method === 'POST') {
@@ -596,13 +599,19 @@ async function handler(req, res) {
           }
           if (pathname === '/api/ia/triagem/tarefas' && req.method === 'POST') {
             const b = await readBody(req);
+            if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+              return json(res, 400, { erro: 'Escolha somente registros v?lidos.' });
+            }
             const r = await ia.tarefasDaTriagem(b.ids, quem);
             if (r.criadas) await auditar(quem, 'ia_tarefas_triagem', { tabela: 'tarefas', detalhes: { criadas: r.criadas } });
             return json(res, 200, r);
           }
           if (pathname === '/api/ia/acoes/executar-lote' && req.method === 'POST') {
             const b = await readBody(req);
-            const ids = Array.isArray(b.ids) ? [...new Set(b.ids.filter(ehUuid))] : [];
+            if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+              return json(res, 400, { erro: 'Escolha somente registros v?lidos.' });
+            }
+            const ids = [...new Set(b.ids)];
             if (!ids.length || ids.length > 30) return json(res, 400, { erro: 'Escolha de 1 a 30 ações.' });
             const resultados = [];
             for (const id of ids) {           // em série: cada uma confere o lead de novo
@@ -622,7 +631,10 @@ async function handler(req, res) {
               await auditar(quem, 'ia_executar', { tabela: 'ia_acoes', registro: id, detalhes: { mudou: r.mudou, tarefa: r.tarefa?.id || null, confirmouFaturamento: b.confirmarFaturamento === true } });
               return json(res, 200, r);
             }
-            if (oque === 'recusar') return json(res, 200, await ia.recusar(id, quem, b.motivo));
+            if (oque === 'recusar') {
+              if ('motivo' in b && typeof b.motivo !== 'string') return json(res, 400, { erro: 'Informe o motivo em texto.' });
+              return json(res, 200, await ia.recusar(id, quem, b.motivo));
+            }
             // desfazer: quem executou, ou admin/gestor
             if (!ehGestor) {
               const dono = await ia.donoDaAcao(id);
