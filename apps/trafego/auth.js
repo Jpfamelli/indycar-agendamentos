@@ -47,6 +47,18 @@ async function identificar(req) {
   const lembrado = CACHE.get(token);
   if (lembrado && lembrado.expira > Date.now()) return lembrado.motivo ? { motivo: lembrado.motivo } : { usuario: lembrado.usuario };
 
+  /* Rodada 10: a tela abre com vários pedidos juntos (o Gestor faz cinco). Com a memória vazia, cada um conferia a
+     mesma sessão por conta própria: 3 idas ao Supabase por pedido. Agora quem chega enquanto a conferência está em
+     curso espera por ela. */
+  const emCurso = EM_CURSO.get(token);
+  if (emCurso) return emCurso;
+  const promessa = conferir(token, vence).finally(() => EM_CURSO.delete(token));
+  EM_CURSO.set(token, promessa);
+  return promessa;
+}
+
+const EM_CURSO = new Map();
+async function conferir(token, vence) {
   const guardar = valor => {
     if (CACHE.size > 500) CACHE.clear();
     CACHE.set(token, { ...valor, expira: Math.min(Date.now() + TTL, vence || Infinity) });
@@ -58,6 +70,9 @@ async function identificar(req) {
       headers: { apikey: ANON, Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(8000),
     });
+    // Rodada 10: 5xx, 429 e 408 são o Supabase fora do ar ou ocupado, não sessão ruim. Antes viravam "inválido" (e
+    // ficavam 30 s guardados): a tela mandava a pessoa fazer login de novo com a sessão perfeita.
+    if (!r.ok && (r.status >= 500 || r.status === 429 || r.status === 408)) return { motivo: 'indisponivel' };
     if (!r.ok) return guardar({ motivo: 'invalido' });
     const usuario = await r.json();
     if (!usuario?.id) return guardar({ motivo: 'invalido' });

@@ -35,7 +35,26 @@ function preparar(req, buf, tipo) {
 
 /* Memória dos arquivos estáticos: caminho → { mtime, cru, gz }. */
 const memoria = new Map();
-const LIMITE_MEMORIA = 40;
+/* Rodada 10: a casca da tela nova tem 61 arquivos e a memória guardava 40. Como o navegador pede sempre os mesmos
+   61, na mesma ordem, cada pedido expulsava justamente o arquivo que seria pedido em seguida: toda abertura do app
+   relia e recomprimia os 53 arquivos de texto (1,7 s de processador no servidor, medido). Agora cabem 300 arquivos,
+   com teto no total de bytes (o que protege a memória é o tamanho, não a quantidade). */
+const LIMITE_MEMORIA = 300;
+const LIMITE_BYTES = 32 * 1024 * 1024;
+let bytesNaMemoria = 0;
+const pesoDe = item => item.cru.length + (item.gz ? item.gz.length : 0);
+function guardar(arquivo, item) {
+  const velho = memoria.get(arquivo);
+  if (velho) { bytesNaMemoria -= pesoDe(velho); memoria.delete(arquivo); }
+  while (memoria.size && (memoria.size >= LIMITE_MEMORIA || bytesNaMemoria + pesoDe(item) > LIMITE_BYTES)) {
+    const k = memoria.keys().next().value;
+    bytesNaMemoria -= pesoDe(memoria.get(k));
+    memoria.delete(k);
+  }
+  memoria.set(arquivo, item);
+  bytesNaMemoria += pesoDe(item);
+}
+const situacaoDaMemoria = () => ({ arquivos: memoria.size, bytes: bytesNaMemoria });
 
 /** Lê o arquivo (da memória se não mudou) e devolve o cru e o comprimido. */
 function lerArquivo(arquivo, tipo, cb) {
@@ -46,11 +65,10 @@ function lerArquivo(arquivo, tipo, cb) {
     fs.readFile(arquivo, (err, cru) => {
       if (err) return cb(err);
       const item = { mtime: st.mtimeMs, cru, gz: valeComprimir(tipo, cru.length) ? zlib.gzipSync(cru, { level: 9 }) : null };
-      if (memoria.size >= LIMITE_MEMORIA) memoria.delete(memoria.keys().next().value);
-      memoria.set(arquivo, item);
+      guardar(arquivo, item);
       cb(null, item);
     });
   });
 }
 
-module.exports = { aceitaGzip, valeComprimir, preparar, lerArquivo, MINIMO };
+module.exports = { aceitaGzip, valeComprimir, preparar, lerArquivo, situacaoDaMemoria, MINIMO };
