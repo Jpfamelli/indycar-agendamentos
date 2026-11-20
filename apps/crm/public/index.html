@@ -414,7 +414,7 @@
         <p class="muted mini-nota">A distribuição inclui apenas contatos <strong>sem responsável</strong>.</p>
       </div>
       <div class="card">
-        <div class="card-topo"><h3>2. Quem recebe</h3><span class="filter-count" id="dsGenteQtd"></span></div>
+        <div class="card-topo"><h3>2. Quem recebe</h3><span class="filter-count" id="dsGenteQtd" aria-live="polite"></span></div>
         <div id="dsGente" class="ds-gente" role="group" aria-label="Pessoas que recebem"></div>
         <fieldset class="ds-grupo"><legend>Como dividir</legend>
           <label class="chk"><input type="radio" name="dsModo" value="igual" checked /> Partes iguais</label>
@@ -457,8 +457,8 @@
       <div class="card"><h3>Funil do período</h3><p class="card-sub">Mostra os contatos que chegaram no período e a etapa de cada um.</p><div id="relFunil" class="funnel-mini"></div></div>
       <div class="card"><h3>Motivos de perda</h3><p class="card-sub">Contatos marcados como perdidos no período.</p><div id="relMotivos"></div></div>
     </div>
-    <div class="card"><h3>Conversão por origem</h3><div class="table-wrap"><table class="table" id="tblRelOrigem"></table></div></div>
-    <div class="card"><h3>Conversão e tempo de resposta por vendedor</h3><p class="card-sub">O tempo de resposta é a mediana do tempo até a primeira resposta no WhatsApp nas conversas de cada pessoa.</p><div class="table-wrap"><table class="table" id="tblRelVendedor"></table></div></div>
+    <div class="card"><h3 id="relOrigemTitulo">Conversão por origem</h3><div class="table-wrap"><table class="table" id="tblRelOrigem" aria-labelledby="relOrigemTitulo"></table></div></div>
+    <div class="card"><h3 id="relVendedorTitulo">Conversão e tempo de resposta por vendedor</h3><p class="card-sub">O tempo de resposta é a mediana do tempo até a primeira resposta no WhatsApp nas conversas de cada pessoa.</p><div class="table-wrap"><table class="table" id="tblRelVendedor" aria-labelledby="relVendedorTitulo"></table></div></div>
   </section>
 
   <!-- ---------- SERVIÇOS (catálogo que alimenta a IA) ---------- -->
