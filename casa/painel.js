@@ -9,6 +9,9 @@
   let C = null, L = null, V = null, links = null;
   let canal = null, timerPoll = null, timerRelogio = null, deb = null;
   let visao = 'operacao', ultima = 0, ultimaDono = 0, carregando = false, filtroHoje = 'todos', dados = null, dono = null, emFalha = false, online = true;
+  /* rodada 10: quando começou a leitura em andamento e qual é a vez dela (uma leitura pendurada não trava mais o painel) */
+  let carregandoDesde = 0, vezAgora = 0;
+  const TEMPO_PENDURADO_MS = 25_000;
 
   const $ = (s) => document.querySelector(s);
   const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -236,8 +239,12 @@
   }
 
   async function carregarAgora({ silencioso = false } = {}) {
-    if (carregando) return;
-    carregando = true;
+    /* rodada 10: se o banco nunca respondesse (rede que caiu no meio do pedido), "carregando" ficava ligado para sempre e
+       o painel não atualizava mais, nem pelo botão, até recarregar a página. Passados 25 s, a leitura velha é abandonada
+       e uma nova pode começar; se a velha responder depois, é descartada. */
+    if (carregando && Date.now() - carregandoDesde < TEMPO_PENDURADO_MS) return;
+    const vez = ++vezAgora;
+    carregando = true; carregandoDesde = Date.now();
     try {
       let d;
       if (V.soMeusCarros) {
@@ -261,18 +268,21 @@
         d = L.adaptarAgora(a.data, x.error ? {} : x.data);
       }
       if (V.recepcao) { try { d.chegadas = await carregarChegadas(); } catch { d.chegadas = null; } }
+      if (vez !== vezAgora) return;   // chegou atrasada: já há uma leitura mais nova
       dados = d; ultima = Date.now(); emFalha = false;
       desenharTudo(d);
       try { C.aoAgora && C.aoAgora(d); } catch { /* extras nunca derrubam o painel */ }
     } catch (e) {
+      if (vez !== vezAgora) return;
       emFalha = true;
+      try { C.sessaoVenceu && C.sessaoVenceu(e); } catch { /* segue mostrando a falha */ }
       if (!silencioso || !dados) {
         const msg = navigator.onLine ? 'não deu para ler agora' : 'sem internet';
         for (const [id, ok] of [['#cPatio', V.patio], ['#cOrc', V.orcamentos], ['#cConversas', V.conversas], ['#cHoje', V.agenda], ['#cLeads', V.leads]]) {
           if (ok && !dados) cartao(id, { num: 'sem dado', det: msg, linhas: '', erro: msg });
         }
       }
-    } finally { carregando = false; relogio(); }
+    } finally { if (vez === vezAgora) carregando = false; if (C) relogio(); }
   }
 
   /* ---------------- visão do dono ---------------- */
@@ -322,6 +332,8 @@
   }
   /* meta do mês (guardada neste aparelho) + projeção pelo ritmo dos dias úteis */
   const LS_META = 'indycar_central_meta_mes';
+  /* rodada 10: mês em que este aparelho já acertou a meta com o banco (ver carregarMeta) */
+  const LS_META_SINC = 'indycar_central_meta_sinc';
   /* meta do mês compartilhada (casa_metas, só gestor/admin): vale em todo aparelho; o localStorage fica de reserva */
   let metaRemota;   // undefined = ainda não leu · null = não há meta no banco · número
   const mesChave = () => L.hojeSP().slice(0, 7);
@@ -331,6 +343,7 @@
     try {
       if (n) { const r = await C.sb.from('casa_metas').upsert({ mes: mesChave(), valor: n, atualizado_por: C.perfil.id, updated_at: new Date().toISOString() }, { onConflict: 'mes' }); if (r.error) throw r.error; metaRemota = n; }
       else { const r = await C.sb.from('casa_metas').delete().eq('mes', mesChave()); if (r.error) throw r.error; metaRemota = null; }
+      gravar(LS_META_SINC, mesChave());
       if (!silencioso) C.toast(n ? 'Meta guardada para todos os aparelhos.' : 'Meta tirada.', 'ok');
     } catch { if (!silencioso) C.toast('Guardei só neste aparelho: não consegui salvar a meta para todos.', 'err'); }
   }
@@ -340,7 +353,11 @@
       if (r.error) throw r.error;
       metaRemota = r.data ? Number(r.data.valor) : null;
       const local = Number(ler(LS_META)) || 0;
-      if (metaRemota === null && local > 0) await salvarMeta(local, true);   // meta que estava só neste aparelho sobe uma vez
+      /* rodada 10: "sobe uma vez" era toda vez. Se o dono tirasse a meta em um aparelho, qualquer outro aparelho que ainda
+         tivesse a meta antiga guardada mandava ela de volta para o banco ao abrir a Casa. Agora o aparelho sobe a meta que
+         só existia nele uma única vez por mês; depois disso ele copia o que está no banco (inclusive "sem meta"). */
+      if (metaRemota === null && local > 0 && ler(LS_META_SINC) !== mesChave()) await salvarMeta(local, true);
+      else { gravar(LS_META, metaRemota ? String(metaRemota) : ''); gravar(LS_META_SINC, mesChave()); }
     } catch { metaRemota = undefined; }
     if (dono) desenharMeta(dono.faturamento || {});
   }
@@ -475,10 +492,12 @@
     if (online) carregarAgora({ silencioso: true });
     relogio();
   }
-  function aoVisivel() { if (!document.hidden && C && C.perfil) { carregarAgora({ silencioso: true }); if (visao === 'dono' && Date.now() - ultimaDono > 60_000) carregarDono(); } }
+  /* rodada 10: voltar para a aba relia tudo mesmo que a leitura fosse de segundos atrás (quem alterna entre a Casa e a Agenda
+     fazia o painel ir ao banco a cada troca). Com menos de 15 s da última leitura boa, fica o que está na tela. */
+  function aoVisivel() { if (!document.hidden && C && C.perfil) { if (Date.now() - ultima > 15_000) carregarAgora({ silencioso: true }); if (visao === 'dono' && Date.now() - ultimaDono > 60_000) carregarDono(); } }
 
   MOD.montar = function (casa) {
-    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; dono = null; ultima = 0; emFalha = false; filtroHoje = 'todos'; estadoFalado = 'ok';
+    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; dono = null; ultima = 0; emFalha = false; filtroHoje = 'todos'; estadoFalado = 'ok'; carregando = false; vezAgora++;
     V.recepcao = C.perfil.papel === 'agenda';
     online = navigator.onLine;
     for (const id of ['#cPatio', '#cOrc', '#cConversas', '#cHoje', '#cLeads']) $(id).hidden = true;

@@ -127,7 +127,7 @@
     const minha = ++seq;
     $('#buscaDica').textContent = 'Buscando…';
     try {
-      const { data, error } = await C.sb.rpc('r6_busca_global', { p_termo: q, p_limite: 5 });
+      const { data, error } = await C.sb.rpc('r6_busca_global', { p_termo: q, p_limite: 5 }).abortSignal(AbortSignal.timeout(15000));   // rodada 10: "Buscando…" não fica para sempre
       if (minha !== seq) return;     // chegou uma busca mais nova: descarta esta
       if (error) throw error;
       desenhar(L.adaptarBusca(data), q);

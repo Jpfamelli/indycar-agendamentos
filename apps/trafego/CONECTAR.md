@@ -131,7 +131,7 @@ Por que: a plataforma que sabe **quem comprou** aprende a mostrar o anúncio par
 1. Uma vez só: Google Ads › **Metas** › **Conversões** › **Resumo** › **+ Nova ação de conversão** › **Importar** ›
    "CRMs, arquivos ou outras origens de dados" › conversões de **cliques**. Nome: `Venda na oficina` (igual ao app).
    Espere de 4 a 6 horas antes do primeiro envio.
-2. Toda semana: no app, baixe **Vendas para o Google** (arquivo `vendas-google-central-….csv`). Ele traz só as vendas
+2. Toda semana: no IndyCar Tráfego, em **Ajustes › Devolver as vendas às plataformas**, toque em **Baixar o arquivo do Google** (arquivo `vendas-google-central-….csv`). Ele traz só as vendas
    fechadas com valor cujo contato chegou com o código do clique do Google, até 90 dias.
 3. Google Ads › **Ferramentas** › **Gerenciador de dados** › **Importar** › arquivo (ou Planilhas Google) › escolha o
    arquivo › confira o mapeamento das colunas: `GCLID`, `GBRAID`, `WBRAID`, `Conversion action`,
@@ -143,7 +143,8 @@ Por que: a plataforma que sabe **quem comprou** aprende a mostrar o anúncio par
 ### Meta (no próprio WhatsApp Business, sem programação)
 1. Uma vez só: no app **WhatsApp Business** do celular da oficina › **Ferramentas** › **Atividade de clientes** ›
    ligue **Permitir que a Meta receba dados de eventos**.
-2. Toda vez que fechar serviço: no IndyCar Tráfego, a lista **Vendas da Meta para marcar** mostra nome, final do
+2. Toda vez que fechar serviço: no IndyCar Tráfego, em **Ajustes › Devolver as vendas às plataformas**, a parte
+   **Meta: vendas para marcar no WhatsApp Business** mostra nome, final do
    telefone e valor de quem veio de anúncio. Abra a conversa no WhatsApp Business e ponha na lista
    **Pedido concluído** (ou **Pago**). Vale até **7 dias** depois do contato.
 3. Com 10 vendas marcadas em 30 dias, a Meta libera otimizar a campanha para compras.
