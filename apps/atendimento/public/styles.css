@@ -742,7 +742,7 @@ select option:checked,select option:hover{
   transition:border-color .18s var(--ease),transform .18s var(--ease),opacity .18s var(--ease)}
 .funil-cartao:hover{border-color:var(--col-cor,var(--vermelho));transform:translateY(-2px)}
 .funil-cartao.arrastando{opacity:.4;transform:scale(.97)}
-.funil-cartao.atrasado{border-left:3px solid var(--amarelo)}
+.funil-cartao.atrasado{border-left-color:var(--amarelo)}
 .fc-topo{display:flex;align-items:center;justify-content:space-between;gap:7px}
 .fc-topo strong{font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fc-tel,.fc-carro{display:block;color:var(--cinza-2);font-size:.74rem;line-height:1.5}
@@ -1814,7 +1814,7 @@ button.app-chip:not(:disabled):hover{border-color:var(--vermelho);color:var(--te
 .tf-grupo h4 b{font-size:.72rem;padding:1px 8px;border-radius:999px;background:var(--superficie-2);color:var(--texto)}
 .g-atrasadas h4{color:var(--vermelho-txt)}
 .tarefa{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:13px;background:var(--carta);border:1px solid var(--linha);
-  border-left:3px solid var(--linha);transition:border-color .15s,background-color .15s,opacity .2s}
+  transition:border-color .15s,background-color .15s,opacity .2s}
 .tarefa:hover{border-color:var(--cinza-2)}
 .tarefa.prio-1{border-left-color:var(--perigo)}
 .tarefa.prio-2{border-left-color:var(--alerta)}
