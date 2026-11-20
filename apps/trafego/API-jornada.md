@@ -252,9 +252,10 @@ Situação do rastreio do site (últimos 30 dias) e a linha para colar no site d
 ```json
 { "ligado": true, "script": "<script src=\"https://indycar-agendamentos.onrender.com/trafego/rastreio.js\" async></script>",
   "instalado_no_site": true, "ultima_visita": "2026-11-18T13:26:55.126Z", "ultimo_clique": "2026-11-18T13:33:35.126Z",
-  "cliques_7d": 1, "visitas_7d": 2, "por_pagina": [ { "pagina": "/servicos/oleo", "n": 2 } ] }
+  "cliques_7d": 1, "visitas_7d": 2, "por_pagina": [ { "pagina": "/servicos/oleo", "n": 2, "cliques": 1 } ] }
 ```
-`instalado_no_site` é verdadeiro quando chegou alguma visita em 30 dias (do site da IndyCar ou de um site de fora:
+`por_pagina` usa os mesmos 7 dias de `visitas_7d`: `n` é quantas visitas a página recebeu e `cliques`, quantas delas
+tocaram no WhatsApp (as 10 páginas mais visitadas). `instalado_no_site` é verdadeiro quando chegou alguma visita em 30 dias (do site da IndyCar ou de um site de fora:
 os dois gravam na mesma tabela). O endereço do script vem de `TRAFEGO_URL` quando o ambiente define.
 
 ---

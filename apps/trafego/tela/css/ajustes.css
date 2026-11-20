@@ -576,6 +576,10 @@
   font-weight: var(--peso-texto);
   overflow-wrap: anywhere;
 }
+/* Páginas do site: número de visitas e de cliques, os dois alinhados à direita. */
+.rastreio-paginas thead th:not(:first-child) {
+  text-align: right;
+}
 
 /* Mensagem pronta: o texto, o link e o QR lado a lado no computador. */
 .mensagem-pronta {

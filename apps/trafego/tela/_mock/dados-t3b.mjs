@@ -541,7 +541,9 @@ export function responderRastreio(m) {
   }
   return { ligado: true, script: '<script src="https://indycar-agendamentos.onrender.com/trafego/rastreio.js" async></script>', instalado_no_site: true,
     ultima_visita: '2026-11-19T10:21:00-03:00', ultimo_clique: '2026-11-19T09:12:00-03:00', cliques_7d: m.receita.contas ? 61 : 23, visitas_7d: m.receita.contas ? 410 : 188,
-    por_pagina: [{ pagina: '/', n: 11 }, { pagina: '/servicos/troca-de-oleo', n: 7 }, { pagina: '/agendar', n: 5 }] };
+    por_pagina: m.receita.contas  // a soma das páginas bate com as visitas e os cliques dos 7 dias
+      ? [{ pagina: '/', n: 214, cliques: 22 }, { pagina: '/servicos/troca-de-oleo', n: 121, cliques: 26 }, { pagina: '/agendar', n: 75, cliques: 13 }]
+      : [{ pagina: '/', n: 98, cliques: 8 }, { pagina: '/servicos/troca-de-oleo', n: 56, cliques: 10 }, { pagina: '/agendar', n: 34, cliques: 5 }] };
 }
 
 /* ------------------------------ chaves da IA de fora ------------------------------ */

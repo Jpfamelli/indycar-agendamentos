@@ -609,7 +609,10 @@ async function situacaoDoRastreio({ sb = db.sb, script = null, agora = Date.now(
     if (recente) {
       visitas++;
       const p = texto(l.pagina, 120) || '/';
-      paginas.set(p, (paginas.get(p) || 0) + 1);
+      const conta = paginas.get(p) || { n: 0, cliques: 0 };
+      conta.n++;
+      if (l.evento === 'clique') conta.cliques++;
+      paginas.set(p, conta);
     }
   }
   return {
@@ -617,7 +620,8 @@ async function situacaoDoRastreio({ sb = db.sb, script = null, agora = Date.now(
     instalado_no_site: linhas.length > 0,
     ultima_visita: linhas[0] ? linhas[0].criado_em : null,
     ultimo_clique: ultimoClique, cliques_7d: cliques, visitas_7d: visitas,
-    por_pagina: [...paginas].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 10).map(([pagina, n]) => ({ pagina, n })),
+    // Por página, nos mesmos 7 dias: n = visitas (cada visitante conta uma vez), cliques = quantos deles tocaram no WhatsApp.
+    por_pagina: [...paginas].sort((a, b) => b[1].n - a[1].n || (a[0] < b[0] ? -1 : 1)).slice(0, 10).map(([pagina, c]) => ({ pagina, n: c.n, cliques: c.cliques })),
   };
 }
 

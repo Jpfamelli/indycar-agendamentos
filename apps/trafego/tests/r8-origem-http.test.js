@@ -237,7 +237,7 @@ test('GET /api/origem/rastreio: situação do site e a linha para colar', async 
   assert.equal(r.json.instalado_no_site, true);
   assert.equal(r.json.cliques_7d, 1);
   assert.equal(r.json.visitas_7d, 2);
-  assert.deepEqual(r.json.por_pagina, [{ pagina: '/servicos/oleo', n: 2 }]);
+  assert.deepEqual(r.json.por_pagina, [{ pagina: '/servicos/oleo', n: 2, cliques: 1 }], 'por página: visitas e, delas, quantas tocaram no WhatsApp (7 dias)');
   assert.ok(r.json.ultimo_clique);
 });
 
