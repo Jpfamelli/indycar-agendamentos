@@ -59,3 +59,12 @@ test('guias (CONECTAR.md e MCP.md): toda parte dos Ajustes e todo botão do app 
     assert.ok(gavetas.includes(botao), '"' + botao + '" está na tela');
   }
 });
+
+test('guia MCP.md: o aviso da chave gravada no computador cita as opções com o nome do formulário', () => {
+  const texto = ler('MCP.md');
+  assert.ok(!texto.includes('"ver dado pessoal"'), 'esse nome não existe na tela');
+  for (const opcao of ['Só ler os números', 'Ver nome e conversa completa dos clientes']) {
+    assert.ok(texto.includes('"' + opcao + '"'), 'o guia cita "' + opcao + '"');
+    assert.ok(gavetas.includes("'" + opcao + "'"), '"' + opcao + '" está no formulário da chave');
+  }
+});
