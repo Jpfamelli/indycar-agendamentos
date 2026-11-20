@@ -299,12 +299,26 @@
       if (acao === 'trocar-senha') { fecharMenus(); return pedirSenha('troca'); }
       const sino = e.target.closest('#bSino'), av = e.target.closest('#bPerfil');
       if (sino) { Casa.alternarSino ? Casa.alternarSino() : null; $('#menuPerfil').hidden = true; return; }
-      if (av) { const m = $('#menuPerfil'); m.hidden = !m.hidden; av.setAttribute('aria-expanded', String(!m.hidden)); $('#painelSino').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false'); return; }
+      if (av) {
+        const m = $('#menuPerfil'); m.hidden = !m.hidden; av.setAttribute('aria-expanded', String(!m.hidden)); $('#painelSino').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false');
+        // rodada 9: menu de verdade: ao abrir, o foco vai para a primeira opção (setas andam; ver keydown abaixo)
+        if (!m.hidden) { const primeiro = m.querySelector('[role="menuitem"]'); if (primeiro) primeiro.focus(); }
+        return;
+      }
       if (!e.target.closest('#painelSino, #menuPerfil')) fecharMenus();
     });
     document.addEventListener('keydown', (e) => {
       // Esc fecha o sino ou o menu e devolve o foco ao botão que abriu (antes o foco ficava num painel escondido)
       if (e.key === 'Escape' && (!$('#painelSino').hidden || !$('#menuPerfil').hidden)) fecharMenus(true);
+    });
+    // menu do perfil: setas, Home e End andam entre as opções; Tab sai e fecha (padrão de menu do leitor de tela)
+    $('#menuPerfil').addEventListener('keydown', (e) => {
+      const itens = [...$('#menuPerfil').querySelectorAll('[role="menuitem"]')];
+      const i = itens.indexOf(document.activeElement);
+      if (e.key === 'Tab') { fecharMenus(); return; }
+      const j = e.key === 'ArrowDown' ? (i + 1) % itens.length : e.key === 'ArrowUp' ? (i - 1 + itens.length) % itens.length : e.key === 'Home' ? 0 : e.key === 'End' ? itens.length - 1 : -1;
+      if (j < 0 || !itens.length) return;
+      e.preventDefault(); itens[j].focus();
     });
   }
 
