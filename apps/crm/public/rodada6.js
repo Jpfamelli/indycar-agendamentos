@@ -301,7 +301,9 @@ function renderHoje6() {
       <div class="cell-sub">${esc(it.texto)}${it.motivos.length > 1 ? ' · ' + esc(it.motivos.slice(1).map(m => m.texto).join(' · ')) : ''}</div>
       <details class="r6-script"><summary>Mensagem sugerida</summary><p>${esc(it.script)}</p><button type="button" class="link-btn" data-h6="copiar" data-txt="${esc(it.script)}">Copiar texto</button></details></div>
       <div class="r6-acoes">${tel ? `<a class="acao" href="https://wa.me/55${esc(tel)}?text=${encodeURIComponent(it.script)}" target="_blank" rel="noopener">🟢 WhatsApp</a>` : ''}<button type="button" class="acao" data-h6="contato" data-id="${esc(l.id)}">📞 Registrar</button><button type="button" class="acao" data-h6="adiar" data-id="${esc(l.id)}">⏰ Adiar</button><button type="button" class="acao" data-h6="abrir" data-id="${esc(l.id)}">Abrir</button>${linksHoje6(it)}</div></article>`;
-  }).join('') : '<p class="vazio-curto"><strong>Fila zerada. 🏁</strong><br>Nada urgente agora. Os retornos combinados aparecem aqui quando vencerem.</p>';
+  }).join('') : H6.motivo || (typeof R7 !== 'undefined' && (R7.hoje.q || R7.hoje.origem))
+    ? '<p class="vazio-curto">Nenhum contato nesta busca. Ajuste os filtros para ver o restante da fila.</p>'
+    : '<p class="vazio-curto"><strong>Fila zerada. 🏁</strong><br>Nada urgente agora. Os retornos combinados aparecem aqui quando vencerem.</p>';
 }
 function linksHoje6(it) {
   const s = it.sinais || {}, l = it.lead, tel = U.telE164(l.telefone) || '', out = [];

@@ -1136,7 +1136,7 @@ dialog.dlg .dv-cort{flex-direction:row;align-items:center;gap:6px;white-space:no
 /* distribuir */
 .dist-grade{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;margin-bottom:18px}
 .dist-grade .card{margin:0}
-.ds-grupo{border:none;padding:0;margin:0 0 14px}
+.ds-grupo{min-inline-size:0;border:none;padding:0;margin:0 0 14px}
 .ds-grupo legend{font:600 .78rem var(--font-cond);letter-spacing:.12em;text-transform:uppercase;color:var(--gray);margin-bottom:8px}
 .ds-grupo .filtro-pill small{opacity:.75;margin-left:3px}
 .ds-idade{display:flex;flex-direction:column;gap:6px;font-size:.88rem;color:var(--rotulo);max-width:260px;margin-bottom:10px}
@@ -1146,6 +1146,7 @@ dialog.dlg .dv-cort{flex-direction:row;align-items:center;gap:6px;white-space:no
 .ds-pessoa:has(input:checked){border-color:var(--red);background:color-mix(in srgb,var(--red) 7%,var(--card))}
 .ds-pessoa input{accent-color:var(--red);width:17px;height:17px}
 .ds-pessoa small{margin-left:auto;color:var(--gray);font-size:.78rem}
+.ds-pessoa{min-height:var(--alvo)}
 .ds-detalhe{margin:14px 0}
 .ds-detalhe summary{cursor:pointer;color:var(--azul-txt);font-size:.88rem}
 .ds-hist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}

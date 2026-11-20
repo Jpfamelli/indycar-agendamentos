@@ -712,7 +712,7 @@ const iniciais = nome => String(nome ?? '?').trim().split(/\s+/)
 
 const modalCli = $('#modalCliBg');
 
-let CLIENTES = [], CLI_RESUMO = null, PAG_CLI = 1;
+let CLIENTES = [], PAG_CLI = 1;
 let pedidoClientes = 0;
 async function carregarClientes() {
   const alvo = $('#tblClientes');
@@ -724,7 +724,7 @@ async function carregarClientes() {
   try {
     const r = await api('/api/clientes' + (q ? `?q=${encodeURIComponent(q)}` : ''));
     if (!atual()) return;
-    CLIENTES = r.clientes || []; CLI_RESUMO = r; PAG_CLI = 1;
+    CLIENTES = r.clientes || []; PAG_CLI = 1;
 
     $('#cliKpis').innerHTML = `
       <div class="kpi"><div class="kpi-label">${r.filtrado ? 'Clientes encontrados' : 'Clientes na base'}</div>
