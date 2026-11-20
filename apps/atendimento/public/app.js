@@ -3027,8 +3027,8 @@ function renderAtalhos() {
   }
   const maisUsado = Math.max(0, ...lista.map(a => a.usos || 0));
   el.innerHTML = lista.map(a => `
-    <div class="atalho-cartao ${a.ativo ? '' : 'inativo'}" data-id="${esc(a.id)}" tabindex="0" role="button"
-         aria-label="Editar o atalho /${esc(a.comando)}">
+    <div class="atalho-cartao ${a.ativo ? '' : 'inativo'}" data-id="${esc(a.id)}" tabindex="0" role="group"
+         aria-label="Atalho /${esc(a.comando)}. Enter abre para editar">
       <div class="ac-topo">
         <span class="ac-cmd">/${esc(a.comando)}</span>
         <span class="ac-cat">${esc(a.categoria || 'geral')}</span>
@@ -3803,7 +3803,7 @@ function cartaoHtml(c) {
   const carro = [c.clientes?.carro_modelo, c.clientes?.placa].filter(Boolean).join(' · ');
   const dono = c.atribuida_a ? EQUIPE.get(c.atribuida_a) : null;
   return `<article class="funil-cartao${atrasado ? ' atrasado' : ''}" draggable="true" data-id="${esc(c.id)}"
-    tabindex="0" role="button" aria-label="${esc(`${c.nome || c.telefone}, ${parado.texto}. Enter abre a conversa; setas para os lados mudam a etapa`)}">
+    tabindex="0" aria-label="${esc(`${c.nome || c.telefone}, ${parado.texto}. Enter abre a conversa; setas para os lados mudam a etapa`)}">
     <div class="fc-topo">
       <strong>${esc(c.nome || c.telefone)}</strong>
       ${c.etapa_por_ia ? '<i class="pl-ia" title="Etapa carimbada pela IA">✨</i>' : ''}
@@ -4534,8 +4534,9 @@ function graficoBarras({ rotulos, series, linha = null, altura = 300, unidadeBar
       + `font-size="12" fill="${COR_EIXO}">${esc(cortar(r, 16))}</text>`);
   });
 
-  return `<div class="grafico${n > 16 ? ' rolagem' : ''}">
-    <svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
+  const descB = descGrafico('Gráfico de barras', [series.map(s => `${s.nome}, total ${num(s.valores.reduce((t, v) => t + (Number(v) || 0), 0))}${unidadeBarra}`).join('; '), linha ? `linha de ${linha.nome}` : '', rotulos.length ? `de ${rotulos[0]} a ${rotulos[rotulos.length - 1]}` : '']);
+  return `<div class="grafico${n > 16 ? ' rolagem' : ''}" ${rolavel('Gráfico de barras')}>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${descB}" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
 }
 
 /* ---------- Linha simples (tempos médios por dia) ---------- */
@@ -4578,9 +4579,16 @@ function graficoLinha({ rotulos, valores, amostras = [], cor, nome, altura = 250
     p.push(`<text x="${x(i).toFixed(1)}" y="${H - MB + 20}" text-anchor="middle" font-size="12" fill="${COR_EIXO}">${esc(r)}</text>`);
   });
 
-  return `<div class="grafico${n > 16 ? ' rolagem' : ''}">
-    <svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
+  const comValor = limpos.filter(v => v !== null);
+  const descL = descGrafico('Gráfico de linha', [nome, comValor.length ? `de ${num(Math.min(...comValor))} a ${num(Math.max(...comValor))}` : 'sem dados no período', rotulos.length ? `de ${rotulos[0]} a ${rotulos[rotulos.length - 1]}` : '']);
+  return `<div class="grafico${n > 16 ? ' rolagem' : ''}" ${rolavel('Gráfico de linha')}>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${descL}" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
 }
+
+/* Rodada 9: todo gráfico leva um resumo em texto (leitor de tela) e, quando rola para o lado,
+   recebe foco pelo teclado. */
+const descGrafico = (tipo, partes) => esc(cortar(`${tipo}: ${partes.filter(Boolean).join("; ")}`, 260));
+const rolavel = rotulo => `tabindex="0" role="group" aria-label="${esc(rotulo)} (role para o lado com as setas)"`;
 
 /* ---------- Barras horizontais (etiquetas) ---------- */
 function graficoBarrasH({ itens, cor = COR.roxo }) {
@@ -4597,7 +4605,8 @@ function graficoBarrasH({ itens, cor = COR.roxo }) {
       + `<title>${esc(it.rotulo)}: ${esc(num(v))}</title></rect>`
       + `<text x="${(ME + Math.max(2, (v / max) * larg) + 9).toFixed(1)}" y="${y + 20}" font-size="13" fill="${COR_EIXO}">${esc(num(v))}</text>`;
   }).join('');
-  return `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${p}</svg></div>`;
+  const descH = descGrafico('Gráfico de barras', itens.slice(0, 8).map(it => `${it.rotulo} ${num(Number(it.valor) || 0)}`));
+  return `<div class="grafico" ${rolavel('Gráfico de barras')}><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${descH}" preserveAspectRatio="xMidYMid meet">${p}</svg></div>`;
 }
 
 /* ---------- Rosca (atendimentos por canal) ---------- */
@@ -4616,7 +4625,7 @@ function graficoRosca({ fatias }) {
   }).join('');
 
   return `<div class="rosca-linha">
-    <div class="grafico"><svg viewBox="0 0 200 200" role="img" preserveAspectRatio="xMidYMid meet">${arcos}
+    <div class="grafico"><svg viewBox="0 0 200 200" role="img" aria-label="${descGrafico('Gráfico de rosca', fatias.filter(f => Number(f.valor) > 0).map(f => `${f.rotulo} ${num(f.valor)}`).concat(`total ${num(total)}`))}" preserveAspectRatio="xMidYMid meet">${arcos}
       <text x="100" y="98" text-anchor="middle" font-size="34" font-weight="700" fill="${COR_TOTAL}">${esc(num(total))}</text>
       <text x="100" y="120" text-anchor="middle" font-size="12" fill="${COR_EIXO}">no período</text>
     </svg></div>
@@ -4644,12 +4653,15 @@ function mapaCalorSvg({ matriz }) {
         + `${v === 1 ? 'mensagem' : 'mensagens'}</title></rect>`);
     }
   }
-  return `<div class="grafico rolagem"><svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
+  let pico = { v: 0, s: 0, h: 0 };
+  matriz.forEach((dia, s) => dia.forEach((v, h) => { if (v > pico.v) pico = { v, s, h }; }));
+  const descM = descGrafico('Mapa de mensagens por dia da semana e hora', [pico.v ? `pico em ${DIA_SEMANA[pico.s]} às ${pico.h}h, com ${num(pico.v)} ${pico.v === 1 ? 'mensagem' : 'mensagens'}` : 'sem mensagens no período']);
+  return `<div class="grafico rolagem" ${rolavel('Mapa de mensagens')}><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${descM}" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
 }
 
 /* ---------- Tabelas e CSV ---------- */
 function tabelaHtml({ colunas, linhas, rodape = null }) {
-  return `<div class="tabela-caixa"><table class="tabela">
+  return `<div class="tabela-caixa" ${rolavel(`Tabela: ${colunas.slice(0, 4).join(', ')}`)}><table class="tabela">
     <thead><tr>${colunas.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${linhas.map(l => `<tr>${l.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
     ${rodape ? `<tfoot><tr>${rodape.map(c => `<td>${esc(c)}</td>`).join('')}</tr></tfoot>` : ''}

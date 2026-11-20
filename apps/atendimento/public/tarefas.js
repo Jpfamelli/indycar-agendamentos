@@ -581,7 +581,7 @@ const Tarefas = (() => {
     el.hidden = false;
     el.classList.toggle('digitando', !!digitando.length);
     el.title = `Com esta conversa aberta agora: ${outros.map(o => o.nome).join(', ')} — combine quem responde para o cliente não receber duas respostas.`;
-    el.innerHTML = `<span class="pr-avatares">${outros.slice(0, 3).map(o => `<span class="avatar mini" style="background:${/^#[0-9a-f]{6}$/i.test(o.cor || '') ? o.cor : corDoDono(o.id || '')}">${esc(iniciais(o.nome))}</span>`).join('')}</span>
+    el.innerHTML = `<span class="pr-avatares">${outros.slice(0, 3).map(o => `<span class="avatar mini" aria-hidden="true" style="background:color-mix(in srgb, ${/^#[0-9a-f]{6}$/i.test(o.cor || '') ? o.cor : corDoDono(o.id || '')} 62%, #fff);color:#0b0f1a">${esc(iniciais(o.nome))}</span>`).join('')}</span>
       <span class="pr-txt">👀 ${esc(txt)}</span>`;
   }
   function avisarDigitando() {
