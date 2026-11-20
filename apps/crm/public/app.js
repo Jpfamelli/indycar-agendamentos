@@ -134,8 +134,8 @@ let CATALOGO = [];              // os 138 serviços, como vieram do banco
 
 /* ---------------- Navegação ---------------- */
 const TITULOS = {
-  dashboard:     ['Dashboard', 'Visão geral da operação comercial'],
-  leads:         ['Leads', 'Todos os contatos, carros e serviços'],
+  dashboard:     ['Painel', 'Visão geral da operação comercial'],
+  leads:         ['Contatos', ''],
   clientes:      ['Clientes', 'A base compartilhada com a agenda e o atendimento'],
   pipeline:      ['Funil de Vendas', 'Acompanhe cada lead até o fechamento'],
   origem:        ['Origem dos Leads', 'De onde vem cada cliente — e quanto rende'],
@@ -160,7 +160,10 @@ function irPara(v) {
   $$('.view').forEach(x => x.classList.remove('active'));
   $(`#view-${v}`)?.classList.add('active');
   $('#viewTitle').textContent = TITULOS[v][0];
+  const abaAtiva = $('.nav-item.active')?.closest('details');
+  if (abaAtiva) abaAtiva.open = true;
   $('#viewSub').textContent = TITULOS[v][1];
+  $('#viewSub').hidden = !TITULOS[v][1];
   $('.search').style.display = ABAS_COM_BUSCA.has(v) ? '' : 'none';
   $('#btnNovo').style.display = ABAS_SEM_NOVO.has(v) ? 'none' : '';
   if (v === 'integracoes')   carregarIntegracoes();
@@ -266,7 +269,8 @@ async function carregar() {
     renderHowto();
     if (primeira) {
       let aba = null; try { aba = sessionStorage.getItem('indycar_crm_aba'); } catch { /* ignora */ }
-      if (aba && aba !== 'dashboard' && !$(`.nav-item[data-view="${aba}"]`)?.hidden) irPara(aba);
+      const atalho = Object.hasOwn(TITULOS, aba) && [...document.querySelectorAll('.nav-item')].find(item => item.dataset.view === aba);
+      irPara(atalho && !atalho.hidden ? aba : 'leads');
       abrirPorLink();
     }
   } catch (err) {
@@ -291,7 +295,6 @@ async function carregarLeads() {
   refiltrar(); salvarFiltros();
   renderTabelaLeads();
   renderKanban();               // sempre sobre TODOS
-  $('#leadCount').textContent = `${LEADS.length} registro${LEADS.length === 1 ? '' : 's'}`;
 }
 
 function preencherSelects() {
@@ -300,7 +303,7 @@ function preencherSelects() {
   // preserva o que o usuário escolheu — antes, salvar um lead zerava o filtro
   const stAtual = $('#fStatus').value, ogAtual = $('#fOrigem').value;
 
-  $('#fStatus').innerHTML = '<option value="">Todos os status</option>' +
+  $('#fStatus').innerHTML = '<option value="">Todas as etapas</option>' +
     STATUSES.map(s => opt(s, LABEL_STATUS[s] ?? s)).join('');
   $('#fOrigem').innerHTML = '<option value="">Todas as origens</option>' +
     ORIGENS.map(o => opt(o, o === 'indicacao' ? 'Indicação (inclui as da Área do Cliente)' : LABEL_ORIGEM[o] ?? o)).join('') +
@@ -376,7 +379,7 @@ async function abrirModal(id, pre = {}) {
   }
   editId = l ? l.id : null;
   LEAD_ABERTO = l ? l.id : null;
-  $('#modalTitle').textContent = l ? 'Lead' : 'Novo lead';
+  $('#modalTitle').textContent = l ? 'Contato' : 'Novo contato';
   $('#modalTitle').classList.toggle('sr', !!l);
   $('#btnExcluir').style.display = l && SOU_GESTOR ? 'inline-flex' : 'none';   // só gestor/admin apaga (o banco também barra)
   $('#leadFicha').hidden = !l;
@@ -385,7 +388,7 @@ async function abrirModal(id, pre = {}) {
   if (l) { renderFichaLead(l); mostrarAba('abaTl'); renderTarefas(); carregarLinhaTempo(l); }
   else $('#painelDados').hidden = false;
   modal.classList.add('open'); ativarDialogo(modal, l ? null : '#modalTitle');
-  if (l) modal.firstElementChild.setAttribute('aria-label', 'Lead ' + l.nome); else modal.firstElementChild.removeAttribute('aria-label');
+  if (l) modal.firstElementChild.setAttribute('aria-label', 'Contato ' + l.nome); else modal.firstElementChild.removeAttribute('aria-label');
   if (!l) $('#fNome').focus();
   document.body.style.overflow = 'hidden';
   emitirLead(l);

@@ -42,8 +42,7 @@
   }
   function seloOrc(o) {
     const valor = o.total > 0 ? ' · ' + reais(o.total) : '';
-    return `<a class="badge-pill ${esc(o.tom)} selo-orc" href="${esc(o.abrir)}" title="Orçamento ${esc(o.numero_rotulo)} no Orçador — toque para abrir"
-      aria-label="Orçamento ${esc(o.numero_rotulo)}, ${esc(o.status_rotulo)}. Abrir no Orçador">🧾 ${esc(o.numero_rotulo)} · ${esc(o.status_rotulo)}${esc(valor)}${o.visto && o.status === 'enviado' ? ' · visto' : ''}</a>`;
+    return `<a class="badge-pill ${esc(o.tom)} selo-orc" href="${esc(o.abrir)}" title="Orçamento ${esc(o.numero_rotulo)} no Orçador, toque para abrir"><span aria-hidden="true">🧾 </span><span class="so-leitor">Orçamento </span>${esc(o.numero_rotulo)} · ${esc(o.status_rotulo)}${esc(valor)}${o.visto && o.status === 'enviado' ? ' · visto' : ''}<span class="so-leitor">. Abrir no Orçador</span></a>`;
   }
   async function decorarOrcamentos(root) {
     if (!root || semAcessoDeEquipe()) return;
@@ -120,7 +119,7 @@
     if (!itens.length) return '';
     return `<section class="r6-faixa" aria-label="Orçamentos aprovados esperando horário">
       <header><h3>🧾 Aprovados esperando horário <em class="tab-num">${itens.length}</em></h3>
-        <span class="muted">o cliente já disse sim — falta marcar</span>
+        <span class="muted">o cliente já disse sim, falta marcar</span>
         <a href="${esc(IndyCarApps.url('orcador', '#/historico'))}" class="r6-mais">Abrir o Orçador ↗</a></header>
       <ul>${itens.map((x, i) => `<li class="r6-linha r6-linha-acao">
           <span class="r6-a"><b>${esc(x.numero_rotulo)}</b> ${esc(x.cliente_nome || 'Cliente')}${x.veiculo ? ' · ' + esc(x.veiculo) : ''}</span>

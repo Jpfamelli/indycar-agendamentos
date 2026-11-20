@@ -15,6 +15,8 @@ const somaDias = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCD
 export function quandoRelativo(dataIso, hora, hojeIso) {
   const h = String(hora || '').slice(0, 5);
   const as = h ? ` às ${h}` : '';
+  // rodada 9: sem data de verdade o recado não pode sair com "undefined (undefined/undefined)"
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dataIso || '')) || Number.isNaN(Date.parse(`${dataIso}T12:00:00Z`))) return `no dia marcado${as}`;
   if (dataIso === hojeIso) return `hoje${as}`;
   if (dataIso === somaDias(hojeIso, 1)) return `amanhã${as}`;
   const d = new Date(`${dataIso}T12:00:00Z`);
@@ -30,7 +32,7 @@ export function textoDoLembrete(modelo, a, hojeIso) {
     servico: a?.servico || 'o atendimento', quando: quandoRelativo(a?.data, a?.hora, hojeIso),
   };
   const base = modelo && String(modelo).trim() ? modelo : 'Oi {primeiro_nome}! Lembrete da IndyCar: seu horário para {servico} é {quando}. Posso confirmar? Se precisar remarcar, é só responder por aqui. 🏁';
-  return String(base).replace(/\{(\w+)\}/g, (_, k) => mapa[k] ?? '').replace(/[ \t]{2,}/g, ' ').trim();
+  return String(base).replace(/\{(\w+)\}/g, (_, k) => mapa[k] ?? '').replace(/[ \t]{2,}/g, ' ').replace(/ +([!,.?;:])/g, '$1').trim();   // nome vazio: "Oi !" vira "Oi!"
 }
 
 const ENVIADOS = new Set(['enviado', 'entregue', 'lido', 'respondido']);
@@ -62,12 +64,12 @@ export function situacaoDoLembrete({ a, envio = null, cfg = {}, cliente = null, 
   if (r === 'parar') return { ...base, codigo: 'parar', rotulo: 'cliente pediu para não receber mensagens', tom: 'ruim', motivo: 'O cliente pediu para parar.' };
 
   const tel = telefoneNacional(soDigitos(a.telefone));
-  if (!tel || tel.length < 10) return { ...base, codigo: 'sem_telefone', rotulo: 'sem telefone — não recebe lembrete', tom: 'aviso', motivo: 'Este horário não tem telefone.' };
+  if (!tel || tel.length < 10) return { ...base, codigo: 'sem_telefone', rotulo: 'sem telefone, não recebe lembrete', tom: 'aviso', motivo: 'Este horário não tem telefone.' };
   if (cliente && cliente.aceita_mensagens === false) return { ...base, codigo: 'nao_aceita', rotulo: 'cliente não aceita mensagens automáticas', tom: 'ruim', motivo: 'O cliente pediu para não receber mensagem automática.' };
 
   if (envio && ENVIADOS.has(envio.status)) return { ...base, codigo: 'enviado', rotulo: 'lembrete enviado, sem resposta ainda', tom: 'bom', motivo: 'O lembrete já foi enviado.', podeMandar: false, reenviavel: true };
   if (envio && NA_FILA.has(envio.status)) return { ...base, codigo: 'na_fila', rotulo: 'lembrete na fila do Comunicar', tom: 'neutro', motivo: 'Já está na fila.', podeMandar: false };
-  if (cfg.pausa_geral) return { ...base, codigo: 'pausa_geral', rotulo: 'Comunicar em pausa geral', tom: 'aviso', motivo: 'O Comunicar está em pausa geral — nada sai agora.' };
+  if (cfg.pausa_geral) return { ...base, codigo: 'pausa_geral', rotulo: 'Comunicar em pausa geral', tom: 'aviso', motivo: 'O Comunicar está em pausa geral. Nada sai agora.' };
   if (envio && envio.status === 'falhou') return { ...base, codigo: 'falhou', rotulo: 'o último lembrete falhou', tom: 'ruim', motivo: envio.erro || 'Falha no envio.', podeMandar: true };
   if (envio && ['pulado', 'cancelado'].includes(envio.status)) return { ...base, codigo: 'pulado', rotulo: 'lembrete não saiu' + (envio.motivo_pulado ? ` (${envio.motivo_pulado})` : ''), tom: 'aviso', motivo: envio.motivo_pulado || null, podeMandar: true };
 

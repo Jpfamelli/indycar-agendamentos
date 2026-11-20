@@ -72,7 +72,9 @@ const DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 export const rotuloDoDia = (iso, hoje) => {
   if (hoje && iso === hoje) return 'hoje';
   if (hoje && iso === maisDias(hoje, 1)) return 'amanhã';
-  const d = new Date(`${iso}T12:00:00Z`); return `${DOW[d.getUTCDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const d = new Date(`${iso}T12:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || '')) || Number.isNaN(d.getTime())) return 'no dia combinado';   // rodada 9: nada de "undefined /" no recado
+  return `${DOW[d.getUTCDay()]} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 };
 
 /** Recado de WhatsApp que propõe a hora de verdade para o pedido feito na página do orçamento. */

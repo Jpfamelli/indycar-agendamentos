@@ -317,7 +317,7 @@
   function definirEntradaAuto(v) { gravarLS(LS_AUTO, v ? '1' : '0'); $$('[data-r7-auto]').forEach((c) => { c.checked = !!v; }); }
   function abrirEntrada(link) {
     const seguro = linkDeEntradaSeguro(link, root.IndyCarApps && root.IndyCarApps.appDoLink);
-    if (!seguro) { if (typeof toast === 'function') toast('O link da entrada não parece do Pátio — abra pelo botão do Pátio.', 'err'); return false; }
+    if (!seguro) { if (typeof toast === 'function') toast('O link da entrada não parece do Pátio, abra pelo botão do Pátio.', 'err'); return false; }
     const ok = root.IndyCarApps ? root.IndyCarApps.abrir(seguro) : !!root.open(seguro, 'indycar-patio');
     if (!ok && typeof toast === 'function') toast('O navegador bloqueou a nova aba. Libere pop-ups para esta página.', 'err');
     return ok;
@@ -433,7 +433,7 @@
     const dias = botoesDeDias(pm.proximos, a.data);
     const hoje = (typeof agoraSP === 'function' && agoraSP().data) || a.data;
     const nomeCons = a.consultor_nome ? primeiroNome(a.consultor_nome) : '';
-    const vazio = info && info.aberto === false ? `A oficina não abre ${pm.dia === a.data ? 'neste dia' : 'em ' + rotuloDia(pm.dia)}.` : 'Nenhum horário livre aqui — tente outro dia ou desligue o filtro do consultor.';
+    const vazio = info && info.aberto === false ? `A oficina não abre ${pm.dia === a.data ? 'neste dia' : 'em ' + rotuloDia(pm.dia)}.` : 'Nenhum horário livre aqui, tente outro dia ou desligue o filtro do consultor.';
     el.innerHTML = `<div class="qdm-topo"><b>Horários livres para ${escH(primeiroNome(a.cliente_nome) || 'o cliente')}</b>
         <span class="muted">toque para mover · hoje ele está às ${escH(String(a.hora).slice(0, 5))}</span>
         ${a.consultor_id ? `<label class="qd-opt"><input type="checkbox" data-qdm-mesmo ${pm.soMesmo ? 'checked' : ''}> só com ${escH(nomeCons || 'o mesmo consultor')}</label>` : ''}
@@ -531,7 +531,7 @@
     fecharMotivo();
     const f = document.createElement('div'); f.id = 'r7Motivo'; f.className = 'r7-motivo'; f.setAttribute('role', 'group'); f.setAttribute('aria-label', 'Por que não veio?');
     const p = primeiroNome(nome);
-    f.innerHTML = `<div class="r7m-topo"><b>Por que ${p ? escH(p) + ' ' : ''}não veio?</b><span class="muted">um toque — ajuda o relatório de faltas</span><button type="button" class="btn mini" data-r7m-fechar>Depois</button></div>
+    f.innerHTML = `<div class="r7m-topo"><b>Por que ${p ? escH(p) + ' ' : ''}não veio?</b><span class="muted">um toque, ajuda o relatório de faltas</span><button type="button" class="btn mini" data-r7m-fechar>Depois</button></div>
       <div class="r7m-chips">${MOTIVOS.map((m) => `<button type="button" class="btn r7m-chip" data-r7m="${escH(m.id)}">${escH(m.rotulo)}</button>`).join('')}</div>`;
     document.body.appendChild(f);
     $('[data-r7m-fechar]', f).addEventListener('click', fecharMotivo);
@@ -812,7 +812,7 @@
     const r = resumoDaEspera(itens.map((e) => ({ dias: Number(e.dataset.dias) })));
     if (!barra) { barra = document.createElement('div'); barra.id = 'r7EsperaResumo'; barra.className = 'r7-esp-resumo'; box.parentNode.insertBefore(barra, box); }
     const antigas = lerLS(LS_ESP_ORD) === '1';
-    barra.innerHTML = `<span>${r.urgentes ? `<b class="r7-esp-urg">${r.urgentes} esperando há 7 dias ou mais</b> (a mais antiga, ${r.maisAntiga} d) — ligue para elas primeiro` : r.avisos ? `${r.avisos} esperando há 3 dias ou mais` : 'Todas entraram nos últimos dias'}</span>
+    barra.innerHTML = `<span>${r.urgentes ? `<b class="r7-esp-urg">${r.urgentes} esperando há 7 dias ou mais</b> (a mais antiga, ${r.maisAntiga} d), ligue para elas primeiro` : r.avisos ? `${r.avisos} esperando há 3 dias ou mais` : 'Todas entraram nos últimos dias'}</span>
       <button type="button" class="btn mini ${antigas ? 'primary' : ''}" data-r7-esp-ord aria-pressed="${antigas}">Mais antigas primeiro</button>`;
     $('[data-r7-esp-ord]', barra).addEventListener('click', () => { gravarLS(LS_ESP_ORD, antigas ? '0' : '1'); if (antigas) route(); else decorarEspera(box); });
     if (antigas) {

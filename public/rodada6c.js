@@ -62,7 +62,7 @@
     const vivos = (lista || []).filter((a) => a.status !== 'cancelado').sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
     const [, m, d] = data.split('-');
     const dow = DOW_LONGO[new Date(data + 'T12:00:00Z').getUTCDay()];
-    const linhas = [`*${nomeOficina} — agenda de ${dow}, ${d}/${m}*`, `${vivos.length} horário${vivos.length === 1 ? '' : 's'}`];
+    const linhas = [`*${nomeOficina}, agenda de ${dow}, ${d}/${m}*`, `${vivos.length} horário${vivos.length === 1 ? '' : 's'}`];
     if (!vivos.length) return linhas.concat('Nenhum horário marcado.').join('\n');
     const grupos = new Map();
     for (const x of vivos) { const k = x.consultor_nome || 'Sem consultor'; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(x); }
@@ -71,7 +71,7 @@
       for (const x of itens) {
         const dur = duracaoLabel(duracoes[x.id]);
         const marca = x.status === 'nao_veio' ? ' ✖ não veio' : ['compareceu', 'em_atendimento', 'concluido', 'nao_fechou'].includes(x.status) ? ' ✔' : '';
-        linhas.push(`${String(x.hora).slice(0, 5)} ${x.cliente_nome} — ${x.servico || ''}${x.veiculo || x.placa ? ' (' + [x.veiculo, x.placa].filter(Boolean).join(' ') + ')' : ''}${dur ? ' · ' + dur : ''}${marca}`);
+        linhas.push(`${String(x.hora).slice(0, 5)} ${x.cliente_nome} · ${x.servico || ''}${x.veiculo || x.placa ? ' (' + [x.veiculo, x.placa].filter(Boolean).join(' ') + ')' : ''}${dur ? ' · ' + dur : ''}${marca}`);
       }
     }
     return linhas.join('\n');
@@ -214,7 +214,7 @@
     const d = Q().dados; if (!d) return toast('Espere o quadro carregar.', 'err');
     const nome = (typeof state !== 'undefined' && state.empresa && state.empresa.nome) || 'IndyCar';
     const txt = textoDoDia(d.lista, d.data, { duracoes: d.duracoes || {}, nomeOficina: nome.split(' ')[0] });
-    try { await navigator.clipboard.writeText(txt); toast('Agenda do dia copiada — é só colar no WhatsApp ✅'); }
+    try { await navigator.clipboard.writeText(txt); toast('Agenda do dia copiada, é só colar no WhatsApp ✅'); }
     catch { window.prompt('Copie o texto (Ctrl+C):', txt); }
   }
 
@@ -252,9 +252,8 @@
     }
     if (!box.isConnected) return;
     const hoje = agoraSP().data;
-    box.innerHTML = dias.map((x) => `<button type="button" class="qd-dia${x.data === dataAtual ? ' atual' : ''}${x.data === hoje ? ' hoje' : ''}${x.aberto ? '' : ' fechado'}" data-qd-dia="${esc(x.data)}" aria-pressed="${x.data === dataAtual}"
-        aria-label="${esc(rotuloDiaCurto(x.data))}: ${x.aberto ? x.total + ' horários' : 'oficina fechada'}" title="${x.aberto ? x.vivos + ' ainda por vir' + (x.faltaram ? ' · ' + x.faltaram + ' não vieram' : '') : 'A oficina não abre'}">
-        <span class="qd-dia-n">${esc(rotuloDiaCurto(x.data))}</span><b>${x.aberto ? x.total : '–'}</b>
+    box.innerHTML = dias.map((x) => `<button type="button" class="qd-dia${x.data === dataAtual ? ' atual' : ''}${x.data === hoje ? ' hoje' : ''}${x.aberto ? '' : ' fechado'}" data-qd-dia="${esc(x.data)}" aria-pressed="${x.data === dataAtual}" title="${x.aberto ? x.vivos + ' ainda por vir' + (x.faltaram ? ' · ' + x.faltaram + ' não vieram' : '') : 'A oficina não abre'}">
+        <span class="qd-dia-n">${esc(rotuloDiaCurto(x.data))}</span>${x.aberto ? `<b>${x.total}<span class="so-leitor"> ${x.total === 1 ? 'horário' : 'horários'}</span></b>` : '<b aria-hidden="true">–</b><span class="so-leitor">oficina fechada</span>'}
         ${x.lotacao !== null ? `<span class="qd-lot" aria-hidden="true"><i data-lot="${x.lotacao}"></i></span>` : ''}</button>`).join('');
     $$('[data-lot]', box).forEach((i) => { i.style.width = Math.max(4, Number(i.dataset.lot)) + '%'; });
     $$('[data-qd-dia]', box).forEach((b) => b.addEventListener('click', () => {
@@ -324,7 +323,7 @@
         preencher('f_veic', r.veiculo); preencher('f_serv', r.servico); preencher('f_data', r.data); preencher('f_hora', r.hora);
         const falta = faltaNoRapido(r);
         const dica = document.getElementById('f_rapido_dica');
-        dica.textContent = falta.length ? `Preenchi o que entendi. Falta: ${falta.join(', ')}.` : 'Tudo preenchido — confira e salve.';
+        dica.textContent = falta.length ? `Preenchi o que entendi. Falta: ${falta.join(', ')}.` : 'Tudo preenchido, confira e salve.';
         if (falta.length) document.getElementById(CAMPO_DE[falta[0]])?.focus(); else document.getElementById('f_save')?.focus();
       };
       document.getElementById('f_rapido_ok').addEventListener('click', aplicar);

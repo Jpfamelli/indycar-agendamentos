@@ -1242,3 +1242,138 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - Movere continua sem acesso real (`orc_carga_movere` vazia): a Casa mostra como neutro.
 - Pátio e Orçador ainda sem o cabeçalho COOP pedido (a janela aberta por `window.open` não perde o vínculo hoje; o pedido continua aberto).
 - Nada foi publicado (sem Netlify, Render ou Edge Function), conforme a regra da rodada.
+
+## Rodada 9 (19-20/11/2026)
+
+- **R9-AGE-001** · tela · A lista do Início permite registrar Chegou pelo cartão, ao lado dos desfechos · `8c60a72`
+- **R9-AGE-002** · enxugar · Mais recolhe telas secundárias e abre quando uma delas é acessada por atalho · `8c60a72`
+- **R9-AGE-003** · tela · A abertura mostra a data e dá destaque aos horários sem desfecho · `8c60a72`
+- **R9-AGE-004** · texto · O rótulo do Início acompanha o nome da aba em português · `8c60a72`
+- **R9-AGE-005** · texto · Os indicadores do dia usam Chegaram hoje e Vieram e não fecharam · `8c60a72`
+- **R9-AGE-006** · celular · Os horários do dia ganham mais espaço que o histórico recente no desktop e ocupam toda a coluna no celular · `8c60a72`
+- **R9-AGE-007** · acessibilidade · As ações da lista e a impressão ganham alvo de toque de 44 px · `8c60a72`
+- **R9-AGE-008** · acessibilidade · Navegação e cartões do dia destacam o foco de teclado · `8c60a72`
+- **R9-AGE-009** · acessibilidade · Os cartões e indicadores do dia respeitam movimento reduzido · `8c60a72`
+- **R9-AGE-010** · celular · Os quatro indicadores do dia ocupam duas colunas no celular · `8c60a72`
+
+- **R9-AGE-011** · acessibilidade · O painel dos horários é anunciado com o nome da aba selecionada · `faf90d1`
+- **R9-AGE-012** · acessibilidade · O painel dos horários pode receber foco por teclado · `faf90d1`
+- **R9-AGE-013** · aviso · O Início avisa que a lista pode mudar enquanto os horários são atualizados · `faf90d1`
+- **R9-AGE-014** · celular · Teclado do código de verificação indica a conclusão · `9299314`
+- **R9-AGE-015** · celular · Teclado da senha de login indica a entrada no app · `9299314`
+- **R9-AGE-016** · celular · Teclado do e-mail de recuperação indica o envio · `9299314`
+
+- **R9-AGE-017** · celular · A busca de agendamentos usa um campo de pesquisa e uma dica curta. · `254ecdc`
+- **R9-AGE-018** · celular · A busca de clientes usa o teclado de pesquisa. · `254ecdc`
+- **R9-AGE-019** · acessibilidade · A busca do catálogo tem nome persistente para o leitor de tela. · `254ecdc`
+- **R9-AGE-020** · acessibilidade · O nome da oficina tem rótulo associado. · `254ecdc`
+- **R9-AGE-021** · acessibilidade · O endereço do webhook tem rótulo associado e teclado para URL. · `254ecdc`
+- **R9-AGE-022** · acessibilidade · A configuração do ID do número tem rótulo associado e teclado numérico. · `254ecdc`
+- **R9-AGE-023** · acessibilidade · O número exibido tem rótulo associado e teclado de telefone. · `254ecdc`
+- **R9-AGE-024** · celular · A placa no agendamento usa maiúsculas e dispensa correções de palavras. · `254ecdc`
+- **R9-AGE-025** · acessibilidade · O cadastro da equipe identifica o campo como nome. · `254ecdc`
+- **R9-AGE-026** · texto · A busca global informa que aceita números de telefone e de placa desde o segundo caractere. · `254ecdc`
+
+
+- **R9-AGE-027** · celular · A busca de agendamentos oferece a tecla Buscar no celular. · `af408bd`
+- **R9-AGE-028** · celular · A busca de clientes oferece a tecla Buscar no celular. · `af408bd`
+- **R9-AGE-029** · celular · A busca global oferece a tecla Buscar no celular. · `af408bd`
+- **R9-AGE-030** · celular · A placa no cadastro de cliente usa maiúsculas e desativa a correção de palavras. · `af408bd`
+- **R9-AGE-031** · celular · O telefone da oficina usa teclado de telefone e preenchimento compatível. · `af408bd`
+- **R9-AGE-032** · acessibilidade · O link iCal tem nome persistente para o leitor de tela. · `af408bd`
+- **R9-AGE-033** · acessibilidade · O ID da conta do WhatsApp tem rótulo associado em português e teclado numérico. · `af408bd`
+- **R9-AGE-034** · acessibilidade · A versão da API tem rótulo associado e dispensa corretor de palavras. · `af408bd`
+- **R9-AGE-035** · acessibilidade · O token de verificação tem rótulo associado e dispensa corretor de palavras. · `af408bd`
+- **R9-AGE-036** · acessibilidade · O endereço base do CodeWords tem rótulo associado e teclado para URL. · `af408bd`
+
+- **R9-AGE-037** · celular · Botões comuns das telas (Imprimir, Lista de espera, Salvar) passam de 34 a 40 px para 44 px de altura no toque · `75ebed2`
+- **R9-AGE-038** · celular · "Novo agendamento" do topo passa de 38 para 44 px de altura no celular · `75ebed2`
+- **R9-AGE-039** · celular · Filtros em pílula da Semana, da Espera, do Quadro e das Configurações passam de 34 a 40 px para 44 px · `75ebed2`
+- **R9-AGE-040** · celular · Abas da tela do WhatsApp passam de 38 para 44 px de altura · `75ebed2`
+- **R9-AGE-041** · celular · Botões só de ícone (imprimir, excluir, setas da Semana) passam de 30 e 36 px para 44 x 44 px · `75ebed2`
+- **R9-AGE-042** · celular · Ações dos cartões na Agenda, nas Pendências e no Follow-up (Veio e fechou, Não veio, remarcar) passam de 32 e 34 px para 44 px · `75ebed2`
+- **R9-AGE-043** · celular · Copiar telefone passa de 22 para 44 px, com o ícone maior · `75ebed2`
+- **R9-AGE-044** · celular · O telefone do cartão, da lista de clientes e da espera (toque para ligar) passa de 16 para 44 px de altura e não quebra no meio · `75ebed2`
+- **R9-AGE-045** · celular · Links das faixas de aviso do topo, do aviso do WhatsApp e dos blocos do Pátio e do Orçador passam de 17 para 44 px de altura · `75ebed2`
+- **R9-AGE-046** · celular · Selos que abrem o Pátio e o Orçador e o selo "na espera" da Semana passam de 20 a 23 px para 44 px de altura · `75ebed2`
+- **R9-AGE-047** · celular · Rodapé do menu (Apps, tema e conta) passa de 33 a 38 px para 44 px · `75ebed2`
+- **R9-AGE-048** · celular · Campos de busca: a área de toque do campo passa de 16 para 44 px dentro da caixa · `75ebed2`
+- **R9-AGE-049** · celular · Campos, listas e datas de formulário e de filtro (WhatsApp, Semana, Relatórios, Pendências, Quadro) passam de 31 a 40 px para 44 px · `75ebed2`
+- **R9-AGE-050** · celular · "Filtros" da Semana e as perguntas da Ajuda ganham 44 px de altura, sem perder a setinha · `75ebed2`
+- **R9-AGE-051** · celular · Dias do Quadro tinham 36 px de largura em 375 px: agora 44 px, com rolagem só dentro da fila de dias · `75ebed2`
+- **R9-AGE-052** · acessibilidade · Atalho "Pular para o conteúdo" passa de 40 para 44 px · `75ebed2`
+- **R9-AGE-053** · acessibilidade · Tema claro: texto verde dos selos, do valor e do "confirmado" sobe de 3,4 para mais de 4,5:1 · `75ebed2`
+- **R9-AGE-054** · acessibilidade · Tema claro: texto do botão de WhatsApp do Follow-up sobe de 4,05 para mais de 4,5:1 · `75ebed2`
+- **R9-AGE-055** · acessibilidade · Título da tela e da janela de WhatsApp deixa o verde fixo (1,73 no claro) e segue a cor do tema · `75ebed2`
+- **R9-AGE-056** · acessibilidade · Tema claro: texto laranja dos selos de "aguardando" sobe de 3,44 para mais de 4,5:1 · `75ebed2`
+- **R9-AGE-057** · acessibilidade · Botão "Chegou" da recepção: letra branca sobre verde dava 2,27; agora letra escura, acima de 4,5:1 nos dois temas · `75ebed2`
+- **R9-AGE-058** · acessibilidade · Semana: horário finalizado e dia que passou não esmaecem mais o texto (2,9 a 4,1); o estado fica na cor do texto e no fundo · `75ebed2`
+- **R9-AGE-059** · acessibilidade · Quadro: "hoje" em laranja fixo (1,78 no claro) e dia fechado a 50% (2,3) passam a ter contraste; dia fechado ganha borda tracejada · `75ebed2`
+- **R9-AGE-060** · acessibilidade · Quadro: cartões de quem não veio, cancelou ou já concluiu não ficam mais apagados (2,7 a 3,8); nome riscado ou em cinza legível · `75ebed2`
+- **R9-AGE-061** · acessibilidade · Relatórios: setas de melhora e piora usam o verde e o vermelho do tema (antes 3,44 e 4,04) · `75ebed2`
+- **R9-AGE-062** · acessibilidade · Tema escuro: selo cinza sobe de 4,36 para mais de 4,5:1 · `75ebed2`
+- **R9-AGE-063** · acessibilidade · Selo do Pátio no cartão: o nome falado passa a conter o texto que se vê (OS, etapa e extras) · `75ebed2`
+- **R9-AGE-064** · acessibilidade · Selo do Orçador no cartão: o nome falado contém número, situação e valor, e o desenho do recibo fica fora da leitura · `75ebed2`
+- **R9-AGE-065** · acessibilidade · Semana: o botão de cada horário é lido com hora, cliente, serviço e consultor (antes só "Abrir nome, hora") · `75ebed2`
+- **R9-AGE-066** · acessibilidade · Quadro: cada dia da fila é lido como "sex 20, 7 horários" ou "oficina fechada", igual ao que se vê · `75ebed2`
+- **R9-AGE-067** · acessibilidade · Botão da conta: as iniciais que aparecem entram no nome falado · `75ebed2`
+- **R9-AGE-068** · acessibilidade · Quadro: a grade ganha linhas de verdade para o leitor de tela (cabeçalho e cada horário), sem mudar o desenho · `75ebed2`
+- **R9-AGE-069** · acessibilidade · Tabelas que rolam de lado (Clientes, Equipe, Pendências, Histórico, Janelas, CRM e relatório da Semana) recebem foco pelo teclado e têm nome · `75ebed2`
+- **R9-AGE-070** · acessibilidade · WhatsApp: o campo "URL do Webhook" fica ligado ao rótulo dele · `75ebed2`
+- **R9-AGE-071** · acessibilidade · Janela "Veio e fechou": o botão da sugestão mostra e fala a mesma coisa ("Usar R$ 1.890,00"); antes o nome falado era diferente do texto · `c3a42fe`
+- **R9-AGE-072** · celular · Início: os avisos do dia (sem telefone, sem valor, para fechar) viram uma fila que rola de lado; a lista de horários aparece na primeira tela · `75ebed2`
+- **R9-AGE-073** · celular · Menu do celular: rótulos de 8 para 9 px e "PENDÊNCIAS" deixa de quebrar em duas linhas · `75ebed2`
+- **R9-AGE-074** · tela · Quadro: cartões sem a faixa grossa colorida na lateral; a cor do estado vira uma marca pequena ao lado da hora · `75ebed2`
+- **R9-AGE-075** · tela · Quadro: resumo das confirmações e dos pré-agendamentos sem a faixa lateral, com a mesma marca pequena · `75ebed2`
+- **R9-AGE-076** · tela · Lista de espera: quem espera há muito ganha contorno fino no lugar da faixa lateral grossa · `75ebed2`
+- **R9-AGE-077** · tela · Quadro: o campo de data segue o desenho do app nos dois temas (antes o campo cru do navegador) · `75ebed2`
+- **R9-AGE-078** · texto · Endereço do topo sem travessão, inclusive quando o cadastro da oficina traz um · `75ebed2`
+- **R9-AGE-079** · conserto · A etiqueta do topo não mostra mais "DASHBOARD" enquanto a tela carrega; já nasce "INÍCIO" · `75ebed2`
+- **R9-AGE-080** · texto · Relatórios, ocupação por dia: o número solto vira "3 horários" ao lado das faltas · `75ebed2`
+- **R9-AGE-081** · conserto · Semana: horas de serviço com vírgula ("0,7 h"), não com ponto · `75ebed2`
+- **R9-AGE-082** · teste · Medição no navegador das 18 telas em 375 e 1440 px, claro e escuro (rolagem lateral, toque de 44 px, axe-core e travessão), com servidor de mentira: `scripts/qa-r9-agenda.mjs` · `75ebed2`
+
+- **R9-AGE-083** · segurança · Conectores: salvar o webhook recusa endereço sem https ou de rede interna (localhost, IP, nome de máquina) e diz o porquê · `c3a42fe`
+- **R9-AGE-084** · segurança · Conectores: o botão de testar o webhook não faz o servidor chamar endereço interno nem seguir redirecionamento · `c3a42fe`
+- **R9-AGE-085** · aviso · Conectores: o teste do webhook espera no máximo 8 s e responde em português ("não respondeu em 8 segundos"), sem mostrar o erro cru da rede · `c3a42fe`
+- **R9-AGE-086** · segurança · Conectores: o teste do webhook tem freio de 10 por minuto por pessoa · `c3a42fe`
+- **R9-AGE-087** · segurança · Webhook de saída: endereço interno que já estava salvo deixa de ser chamado; a chamada tem teto de 8 s e não segue redirecionamento · `c3a42fe`
+- **R9-AGE-088** · conserto · Serviços: o servidor recusa nome em branco, preço negativo e duração fora de 5 a 1440 min, ao criar e ao editar (antes gravava) · `c3a42fe`
+- **R9-AGE-089** · conserto · Modelos do WhatsApp: nome e texto obrigatórios e com limite; editar não deixa mais o modelo em branco · `c3a42fe`
+- **R9-AGE-090** · segurança · Apagar um serviço passa a ficar registrado na auditoria (quem e quando) · `c3a42fe`
+- **R9-AGE-091** · segurança · Apagar um modelo do WhatsApp passa a ficar registrado na auditoria · `c3a42fe`
+- **R9-AGE-092** · conserto · Apagar um consultor que não existe devolve "não encontrado" e não grava um "apagou" falso na auditoria · `c3a42fe`
+- **R9-AGE-093** · conserto · Dados da oficina: tamanho do nome, do endereço e da frase e o telefone são conferidos; só esses quatro campos vão para o banco · `c3a42fe`
+- **R9-AGE-094** · texto · Recados de desfecho, de desfazer e de copiar (Veio e fechou, Não veio, Chegou, telefone copiado) sem travessão · `c3a42fe`
+- **R9-AGE-095** · texto · Login e sessão (sessão expirada, muitas tentativas, Caps Lock, "Já tenho conta, entrar") em frases curtas, sem travessão · `c3a42fe`
+- **R9-AGE-096** · texto · Faixas e recados de conexão ("Sem internet. O que você marcar agora fica guardado...", "O sistema voltou") em frases separadas · `c3a42fe`
+- **R9-AGE-097** · texto · Títulos sem travessão: "Follow-up: retornos pendentes", subtítulo das Pendências e cabeçalho da folha impressa do dia · `c3a42fe`
+- **R9-AGE-098** · texto · Ajuda e tour: respostas reescritas sem travessão (Remarcar, Ver tudo de um cliente, Não veio) · `c3a42fe`
+- **R9-AGE-099** · texto · Configurações, Equipe, Serviços e WhatsApp: notas sem travessão e a janela de atendimento lida como "08:00 às 12:00" · `c3a42fe`
+- **R9-AGE-100** · texto · Quadro e Semana: avisos de mover e de arrastar, lembrete desligado e o texto do dia que se copia para o WhatsApp sem travessão · `c3a42fe`
+- **R9-AGE-101** · texto · Listas de escolha: "sem login ligado" e "Mensagem livre" sem os traços em volta · `c3a42fe`
+- **R9-AGE-102** · texto · Recados que vêm do servidor (horário que já teve desfecho, fila do Comunicar, tarefas e avisos automáticos, nome do calendário no Google Agenda) sem travessão · `c3a42fe`
+- **R9-AGE-103** · tela · Sai o brilho de enfeite dos botões "Horários livres", da linha "Próximos dias" e do botão de sugerir valor das Pendências (que ganha o ícone de dinheiro) · `c3a42fe`
+- **R9-AGE-104** · conserto · A Ajuda citava um botão "Sugerir horário" que não existe com esse nome; agora cita "Horários livres" e "Achar pelo nome" · `c3a42fe`
+- **R9-AGE-105** · tela · Texto em Archivo, a fonte do guia visual do ecossistema, no lugar da Inter · `c3a42fe`
+- **R9-AGE-106** · desempenho · Fontes servidas do próprio app: três conexões e uma folha de estilo de fora a menos na abertura, um dia de cache e a fonte dentro da casca que abre sem internet · `c3a42fe`
+- **R9-AGE-107** · segurança · A política de conteúdo da Agenda não libera mais os domínios de fonte de fora (estilo e fonte só do próprio app) · `c3a42fe`
+- **R9-AGE-108** · tela · Botões principais ("Novo agendamento", salvar, filtro ativo) em vermelho chapado, sem gradiente · `c3a42fe`
+- **R9-AGE-109** · acessibilidade · Botão verde: letra branca sobre verde claro dava 3,3; com o verde mais fechado passa de 4,5:1 · `c3a42fe`
+- **R9-AGE-110** · tela · Novo agendamento: o campo "Marcar rápido" segue o desenho dos outros campos (antes o campo cru do navegador) · `c3a42fe`
+
+- **R9-AGE-111** · segurança · Toda resposta da API (nome, telefone e placa de cliente, inclusive as planilhas) sai com "não guardar": não fica no cache do navegador nem de um proxy · `edd283e`
+- **R9-AGE-112** · texto · Tela de Serviços: "Carro:" no lugar de "Veículo:" · `edd283e`
+- **R9-AGE-113** · texto · Planilhas exportadas (clientes e agendamentos) e eventos do Google Agenda dizem "carro", não "veículo" · `edd283e`
+- **R9-AGE-114** · conserto · Lembrete para cliente sem nome no cadastro saía "Oi ! Lembrete..."; agora "Oi! Lembrete..." · `edd283e`
+- **R9-AGE-115** · conserto · Lembrete de um horário com data inválida saía "undefined (undefined/undefined)"; agora diz "no dia marcado" · `edd283e`
+- **R9-AGE-116** · conserto · Proposta de hora do pré-agendamento com data inválida saía "undefined /"; agora diz "no dia combinado" · `edd283e`
+- **R9-AGE-117** · conserto · "Buscar em tudo": a caixa de busca tinha 320 px de altura e empurrava os resultados para fora da janela; voltou a ter a altura de um campo · `edd283e`
+- **R9-AGE-118** · conserto · Data por extenso na recepção e na folha impressa: "20 de novembro de 2026" (antes "20 De Novembro De 2026") · `edd283e`
+- **R9-AGE-119** · conserto · Menu com "Mais" aberto: os itens encolhiam (ícone de 21 px virava 14) em vez de o menu rolar; agora rola e mantém o tamanho · `3d367b9`
+- **R9-AGE-120** · texto · Remarcar: "Horário atual: hoje às 10:00" no lugar de "Hoje marcado para Hoje às 10:00" · `3d367b9`
+- **R9-AGE-121** · celular · O X de fechar de todas as janelas passa de 13 x 22 px para 44 x 44 px no toque · `6934efc`
+- **R9-AGE-122** · celular · Dentro das janelas e dos recados: sugestões de horário e de valor, setas de dia do Remarcar, "Achar", ações do recado (Desfazer, Abrir no Pátio) e a chave de aceitar mensagens passam de 27 a 40 px para 44 px · `6934efc`
+- **R9-AGE-123** · celular · Login, sino e tarefas: "Esqueci a senha", "Voltar", "Marcar todas como lidas" (20 px), "Mostrar" a senha (32 px) e a caixinha de concluir tarefa (22 px) passam a ter 44 px de toque · `6934efc`
+- **R9-AGE-124** · acessibilidade · Tema escuro: texto secundário (hora do aviso, prazo da tarefa, título dos Apps) sobe de 3,43 para mais de 4,5:1 · `6934efc`
+- **R9-AGE-125** · teste · Medição no navegador de 20 janelas, popovers, telas de login e do modo presença em 375 e 1440 px, claro e escuro, com servidor de mentira: `scripts/qa-r9-modais.mjs` · `c3a42fe`

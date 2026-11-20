@@ -54,21 +54,16 @@
   <div class="brand">
     <span class="brand-mark"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
     <span class="brand-sub">CRM · CENTRO AUTOMOTIVO</span>
-    <span class="brand-slogan">Quem conhece, Indyca! 🏎</span>
   </div>
 
-  <nav class="nav">
-    <button class="nav-item active" data-view="dashboard">
-      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="currentColor"/></svg>
-      <span>Dashboard</span>
+  <nav class="nav" aria-label="CRM">
+    <button class="nav-item" data-view="leads">
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/></svg>
+      <span>Contatos</span>
     </button>
     <button class="nav-item" data-view="hoje">
       <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm0 16H5V9h14v10zM7 11h5v5H7z" fill="currentColor"/></svg>
       <span>Hoje</span>
-    </button>
-    <button class="nav-item" data-view="leads">
-      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="currentColor"/></svg>
-      <span>Leads</span>
     </button>
     <button class="nav-item" data-view="clientes">
       <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2zM9 7a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm4.5 10h-9v-.75c0-1.5 3-2.32 4.5-2.32s4.5.82 4.5 2.32V17zM19 15h-3v-2h3v2zm0-4h-4V9h4v2z" fill="currentColor"/></svg>
@@ -78,6 +73,11 @@
       <svg viewBox="0 0 24 24"><path d="M3 5h18v3H3V5zm2 5h14v3H5v-3zm2 5h10v3H7v-3z" fill="currentColor"/></svg>
       <span>Funil</span>
     </button>
+    <button class="nav-item active" data-view="dashboard">
+      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="currentColor"/></svg>
+      <span>Painel</span>
+    </button>
+    <details class="nav-mais"><summary>Mais</summary><div class="nav-mais-itens">
     <button class="nav-item" data-view="origem">
       <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 17.93V16h-2v3.93A8.01 8.01 0 014.07 13H8v-2H4.07A8.01 8.01 0 0111 4.07V8h2V4.07A8.01 8.01 0 0119.93 11H16v2h3.93A8.01 8.01 0 0113 19.93z" fill="currentColor"/></svg>
       <span>Origem dos Leads</span>
@@ -114,6 +114,7 @@
       <svg viewBox="0 0 24 24"><path d="M19.4 13a7.8 7.8 0 000-2l2.1-1.6a.5.5 0 00.1-.6l-2-3.4a.5.5 0 00-.6-.2l-2.5 1a7.3 7.3 0 00-1.7-1l-.4-2.6a.5.5 0 00-.5-.4h-4a.5.5 0 00-.5.4l-.4 2.6a7.3 7.3 0 00-1.7 1l-2.5-1a.5.5 0 00-.6.2l-2 3.4a.5.5 0 00.1.6L4.6 11a7.8 7.8 0 000 2l-2.1 1.6a.5.5 0 00-.1.6l2 3.4a.5.5 0 00.6.2l2.5-1a7.3 7.3 0 001.7 1l.4 2.6a.5.5 0 00.5.4h4a.5.5 0 00.5-.4l.4-2.6a7.3 7.3 0 001.7-1l2.5 1a.5.5 0 00.6-.2l2-3.4a.5.5 0 00-.1-.6L19.4 13zM12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z" fill="currentColor"/></svg>
       <span>Configurações</span>
     </button>
+    </div></details>
   </nav>
 
   <label class="ecossistema">Ecossistema IndyCar<select id="ecossistema" aria-label="Abrir outro sistema"><option value="">CRM · atual</option></select></label>
@@ -133,17 +134,17 @@
 <main id="conteudo" class="main">
   <header class="topbar">
     <div>
-      <h1 id="viewTitle">Dashboard</h1>
+      <h1 id="viewTitle">Painel</h1>
       <p id="viewSub">Visão geral da operação comercial</p>
     </div>
     <div class="topbar-actions">
       <div class="search">
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-        <input aria-label="Buscar leads" id="search" type="search" placeholder="Filtrar leads (Ctrl+K busca tudo)…" />
+        <input aria-label="Buscar contatos" id="search" type="search" enterkeyhint="search" placeholder="Nome, telefone ou placa" />
       </div>
       <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Busca global: nome, telefone ou placa (Ctrl+K)" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd>Ctrl K</kbd></button>
       <button type="button" class="fila-chip" id="filaChip" hidden aria-live="polite"></button>
-      <button class="btn btn-primary" id="btnNovo">+ Novo Lead</button>
+      <button class="btn btn-primary" id="btnNovo">+ Novo contato</button>
       <div class="topo-icones">
         <div class="ancora">
           <button type="button" class="icone-btn" id="btnSino" aria-label="Notificações" aria-expanded="false" aria-controls="painelSino">
@@ -228,7 +229,7 @@
             <button type="button" class="btn btn-ghost sm" id="btnImportarNao">Agora não</button></div>
         </div>
         <form class="tarefa-form" id="formTarefaPainel">
-          <input id="tarefaTexto" maxlength="200" placeholder="Ex.: ligar para o João" aria-label="Nova tarefa" required />
+          <input id="tarefaTexto" enterkeyhint="done" maxlength="200" placeholder="Ex.: ligar para o João" aria-label="Nova tarefa" required />
           <input id="tarefaData" type="date" aria-label="Dia" />
           <input id="tarefaHora" type="time" aria-label="Hora" step="900" />
           <select id="tarefaPrioridade" aria-label="Prioridade"><option value="2">Normal</option><option value="3">Urgente</option><option value="1">Baixa</option></select>
@@ -266,18 +267,24 @@
   <!-- ---------- LEADS ---------- -->
   <section class="view" id="view-leads">
     <div class="filters">
-      <select id="fStatus" aria-label="Filtrar por etapa"><option value="">Todos os status</option></select>
+      <select id="fStatus" aria-label="Filtrar por etapa"><option value="">Todas as etapas</option></select>
       <select id="fOrigem" aria-label="Filtrar por origem"><option value="">Todas as origens</option></select>
+      <button class="btn btn-ghost sm" id="limparFiltros" type="button">Limpar filtros</button>
+      <details class="filtros-mais">
+        <summary>Mais filtros e opções</summary>
+        <div class="filtros-mais-itens">
       <select id="fResp" class="f-resp" aria-label="Filtrar por responsável"><option value="">Todos os responsáveis</option></select>
       <label>Ordenar <select id="ordemLeads"><option value="recente">Mais recentes</option><option value="nome">Nome A–Z</option><option value="valor">Maior valor</option><option value="antigo">Mais antigos</option><option value="parado">Mais tempo parado</option></select></label>
       <label class="chk-pill"><input type="checkbox" id="soParados" /> Só parados</label>
       <label class="chk-pill"><input type="checkbox" id="soSemValor" /> Concluídos sem valor</label>
       <label class="filtros-salvos">Filtros salvos <select id="filtrosSalvos" aria-label="Aplicar um filtro salvo"><option value="">—</option></select></label><button class="btn btn-ghost sm" id="btnSalvarFiltro" type="button" title="Guardar os filtros de agora com um nome">Salvar filtro</button>
-      <button class="btn btn-ghost sm" id="limparFiltros" type="button">Limpar filtros</button><button class="btn btn-ghost sm" id="exportarLeads" type="button" title="Exporta só o que está filtrado">Exportar CSV</button>
+      <button class="btn btn-ghost sm" id="exportarLeads" type="button" title="Exporta só o que está filtrado">Exportar CSV</button>
       <div class="colunas-menu">
         <button class="btn btn-ghost sm" id="btnColunas" type="button" aria-expanded="false" aria-controls="painelColunas">Colunas</button>
         <div id="painelColunas" class="pop" role="group" aria-label="Colunas visíveis" hidden></div>
       </div>
+        </div>
+      </details>
       <span class="filter-count" id="leadCount" aria-live="polite"></span>
     </div>
     <div class="lote" id="barraLote" role="region" aria-label="Ações nos leads selecionados" hidden>
@@ -290,8 +297,8 @@
       <button class="btn btn-ghost sm" id="loteLimpar" type="button">Limpar seleção</button>
       <small class="lote-nota" id="loteNota" hidden>Passar em lote e distribuir é do gestor.</small>
     </div>
-    <div class="card"><div class="table-wrap"><table class="table" id="tblLeads"></table></div>
-      <nav class="paginacao" id="pagLeads" aria-label="Páginas de leads"></nav></div>
+    <div class="card"><div class="table-wrap"><table class="table" id="tblLeads" aria-label="Contatos"></table></div>
+      <nav class="paginacao" id="pagLeads" aria-label="Páginas de contatos"></nav></div>
   </section>
 
   <!-- ---------- CLIENTES ---------- -->
@@ -303,7 +310,7 @@
       <div class="barra-busca">
         <div class="busca-local">
           <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-          <input id="buscaCliente" type="search" aria-label="Buscar cliente" placeholder="Buscar por nome, telefone, placa ou carro…" />
+          <input id="buscaCliente" type="search" enterkeyhint="search" aria-label="Buscar cliente" placeholder="Buscar por nome, telefone, placa ou carro…" />
         </div>
         <label class="ordem-cli">Ordenar <select id="ordemClientes"><option value="gasto">Quem mais gastou</option><option value="recente">Contato recente</option><option value="sumido">Sumidos há mais tempo</option><option value="nome">Nome A–Z</option></select></label>
         <span class="filter-count" id="cliCount" aria-live="polite"></span>
@@ -403,7 +410,7 @@
         <fieldset class="ds-grupo"><legend>Etapa</legend><div class="pilulas" id="dsStatus"></div></fieldset>
         <fieldset class="ds-grupo"><legend>Origem</legend><div class="pilulas" id="dsOrigem"></div></fieldset>
         <label class="ds-idade">Entrou há
-          <select id="dsIdade"><option value="">qualquer tempo</option><option value="0-7">até 7 dias</option><option value="7-30">7 a 30 dias</option><option value="30-90">30 a 90 dias</option><option value="7">mais de 7 dias</option><option value="30">mais de 30 dias</option><option value="90">mais de 90 dias</option></select></label>
+          <select id="dsIdade" aria-label="Tempo desde a abertura do contato"><option value="">qualquer tempo</option><option value="0-7">até 7 dias</option><option value="7-30">7 a 30 dias</option><option value="30-90">30 a 90 dias</option><option value="7">mais de 7 dias</option><option value="30">mais de 30 dias</option><option value="90">mais de 90 dias</option></select></label>
         <p class="muted mini-nota">Só entram leads <strong>sem responsável</strong>. Quem já tem dono continua com ele.</p>
       </div>
       <div class="card">
@@ -411,7 +418,7 @@
         <div id="dsGente" class="ds-gente" role="group" aria-label="Pessoas que recebem"></div>
         <fieldset class="ds-grupo"><legend>Como dividir</legend>
           <label class="chk"><input type="radio" name="dsModo" value="igual" checked /> Partes iguais</label>
-          <label class="chk"><input type="radio" name="dsModo" value="carga" /> Igualar a carga (quem tem menos leads abertos recebe mais)</label>
+          <label class="chk"><input type="radio" name="dsModo" value="carga" /> Igualar a carga (quem tem menos contatos abertos recebe mais)</label>
         </fieldset>
         <button type="button" class="btn btn-primary" id="dsPrevia">Ver prévia</button>
       </div>
@@ -467,7 +474,7 @@
       <div class="barra-busca">
         <div class="busca-local">
           <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-          <input id="buscaServico" type="search" placeholder="Buscar serviço ou categoria…" />
+          <input id="buscaServico" type="search" enterkeyhint="search" aria-label="Buscar serviço ou categoria" placeholder="Buscar serviço ou categoria…" />
         </div>
         <div class="filters" style="margin:0" id="filtrosServico">
           <button type="button" class="filtro-pill ativo" data-faz="">Todos</button>
@@ -509,7 +516,7 @@
           </label>
           <div class="row">
             <label>ID do Pixel
-              <input name="meta_pixel_id" placeholder="998877665544" autocomplete="off" />
+              <input name="meta_pixel_id" inputmode="numeric" placeholder="998877665544" autocomplete="off" />
             </label>
             <label>Token expira em
               <input name="meta_token_expira_em" type="date" />
@@ -541,10 +548,10 @@
           </label>
           <div class="row">
             <label>Customer ID *
-              <input name="google_customer_id" placeholder="123-456-7890" autocomplete="off" />
+              <input name="google_customer_id" inputmode="tel" placeholder="123-456-7890" autocomplete="off" />
             </label>
             <label>Login Customer ID
-              <input name="google_login_customer_id" placeholder="MCC (opcional)" autocomplete="off" />
+              <input name="google_login_customer_id" inputmode="tel" placeholder="MCC (opcional)" autocomplete="off" />
             </label>
           </div>
           <label>Developer Token *
@@ -582,7 +589,7 @@
           <p class="card-sub">Digite quanto gastou no mês. O CRM cruza com o faturamento real
             dos leads e calcula o retorno — sem depender da API.</p>
         </div>
-        <input type="month" id="mesROI" class="int-month" />
+        <input type="month" id="mesROI" class="int-month" aria-label="Mês do relatório de retorno" />
       </div>
 
       <form class="int-invest" id="formMetrica">
@@ -664,7 +671,7 @@
                      placeholder="pelo menos 8 caracteres" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
             </label>
             <label>Repetir a nova senha
-              <span class="senha-campo"><input id="senhaNova2" type="password" minlength="8" autocomplete="new-password"
+              <span class="senha-campo"><input id="senhaNova2" type="password" enterkeyhint="done" minlength="8" autocomplete="new-password"
                      placeholder="digite a mesma senha" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
             </label>
             <div class="int-actions">
@@ -779,7 +786,7 @@
       <div role="tabpanel" id="painelTl" aria-labelledby="abaTl" class="lf-painel"><ol class="linha-tempo" id="linhaTempo"></ol></div>
       <div role="tabpanel" id="painelLembretes" aria-labelledby="abaLembretes" class="lf-painel" hidden>
         <form class="tarefa-form" id="formTarefaLead">
-          <input id="tarefaLeadTexto" maxlength="200" placeholder="Ex.: retornar com o orçamento" aria-label="Nova tarefa para este lead" required />
+          <input id="tarefaLeadTexto" enterkeyhint="done" maxlength="200" placeholder="Ex.: retornar com o orçamento" aria-label="Nova tarefa para este contato" required />
           <input id="tarefaLeadData" type="date" aria-label="Dia" />
           <input id="tarefaLeadHora" type="time" aria-label="Hora" step="900" />
           <select id="tarefaLeadPara" aria-label="Para quem"></select>
@@ -799,11 +806,11 @@
       <input type="hidden" id="fId" />
       <div class="row">
         <label>Nome *<input id="fNome" maxlength="120" autocomplete="name" required placeholder="João da Silva" aria-describedby="erro-fNome" /><small class="campo-erro" id="erro-fNome"></small></label>
-        <label>Telefone *<input id="fTelefone" type="tel" inputmode="tel" maxlength="20" required placeholder="(12) 9 9999-9999" aria-describedby="erro-fTelefone" /><small class="campo-erro" id="erro-fTelefone"></small></label>
+        <label>Telefone *<input id="fTelefone" autocomplete="tel" type="tel" inputmode="tel" maxlength="20" required placeholder="(12) 9 9999-9999" aria-describedby="erro-fTelefone" /><small class="campo-erro" id="erro-fTelefone"></small></label>
       </div>
       <div class="row">
         <label>Carro<input id="fCarro" maxlength="200" placeholder="Corolla 2018" /></label>
-        <label>Placa<input id="fPlaca" maxlength="8" placeholder="ABC1D23" autocapitalize="characters" aria-describedby="erro-fPlaca" /><small class="campo-erro" id="erro-fPlaca"></small></label>
+        <label>Placa<input id="fPlaca" spellcheck="false" maxlength="8" placeholder="ABC1D23" autocapitalize="characters" aria-describedby="erro-fPlaca" /><small class="campo-erro" id="erro-fPlaca"></small></label>
       </div>
       <div class="row">
         <label>Serviço<select id="fServico"></select></label>
@@ -814,7 +821,7 @@
         <label>Valor pago (R$)<input id="fPago" type="number" step="0.01" min="0" max="10000000" inputmode="decimal" placeholder="0,00" aria-describedby="erro-fPago" /><small class="campo-erro" id="erro-fPago"></small></label>
       </div>
       <div class="row">
-        <label>Status<select id="fStatusForm"></select></label>
+        <label>Etapa<select id="fStatusForm"></select></label>
         <label>Campanha (UTM)<input id="fCampanha" maxlength="200" placeholder="ex: trafego-cambio" /></label>
       </div>
       <div class="row">
@@ -901,7 +908,7 @@
 <!-- Rodada 5: busca global (Ctrl+K) -->
 <dialog class="dlg dlg-busca" id="dlgBusca" aria-labelledby="dlgBuscaT">
   <h3 id="dlgBuscaT" class="sr">Busca global</h3>
-  <div class="bg-campo"><span aria-hidden="true">⌕</span><input id="buscaGlobal" type="text" inputmode="search" enterkeyhint="go" autocomplete="off" placeholder="Nome, telefone ou placa…" aria-label="Buscar em leads e clientes" aria-controls="buscaResultados" aria-expanded="true" role="combobox" /><kbd>Esc</kbd></div>
+  <div class="bg-campo"><span aria-hidden="true">⌕</span><input id="buscaGlobal" type="text" inputmode="search" enterkeyhint="go" autocomplete="off" placeholder="Nome, telefone ou placa…" aria-label="Buscar em contatos e clientes" aria-controls="buscaResultados" aria-expanded="true" role="combobox" /><kbd>Esc</kbd></div>
   <div id="buscaResultados" class="bg-resultados" role="listbox" aria-label="Resultados"><p class="vazio-curto">Digite 2 letras do nome, 4 números do telefone ou a placa. <kbd>↑</kbd> <kbd>↓</kbd> escolhem, <kbd>Enter</kbd> abre.</p></div>
 </dialog>
 
@@ -909,7 +916,7 @@
   <form method="dialog" id="formFiltro">
     <h3 id="dlgFiltroT">Salvar este filtro</h3>
     <p class="muted" id="dlgFiltroResumo"></p>
-    <label>Nome do filtro<input id="filtroNome" maxlength="40" required placeholder="ex.: Orçamentos parados do Google" /></label>
+    <label>Nome do filtro<input id="filtroNome" enterkeyhint="done" maxlength="40" required placeholder="ex.: Orçamentos parados do Google" /></label>
     <p class="form-erro" id="filtroErro" role="alert"></p>
     <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button><div class="spacer"></div><button type="submit" class="btn btn-primary">Salvar</button></div>
   </form>
@@ -965,7 +972,7 @@
       <input name="loginEmail" id="loginEmail" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" />
     </label>
     <label>Senha
-      <span class="senha-campo"><input name="loginSenha" id="loginSenha" type="password" required autocomplete="current-password" placeholder="••••••••" aria-describedby="capsLogin" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
+      <span class="senha-campo"><input name="loginSenha" id="loginSenha" enterkeyhint="go" type="password" required autocomplete="current-password" placeholder="••••••••" aria-describedby="capsLogin" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
     </label>
     <p class="caps-aviso" id="capsLogin" role="status" hidden>⇪ Caps Lock está ligado</p>
     <label class="chk login-lembrar"><input type="checkbox" id="lembrarEmail" /> Lembrar meu e-mail neste aparelho</label>
@@ -981,7 +988,7 @@
     <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
     <h1 class="login-titulo-2">Esqueci a senha</h1>
     <p class="login-sub">Digite o seu e-mail. Mandamos um link para você criar uma senha nova.</p>
-    <label>E-mail<input id="esqEmail" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" /></label>
+    <label>E-mail<input id="esqEmail" enterkeyhint="send" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" /></label>
     <button type="submit" class="btn-entrar" id="btnEsqEnviar">ENVIAR LINK</button>
     <p class="login-erro" id="esqErro" role="alert" hidden></p>
     <p class="login-ok" id="esqOk" role="status" hidden></p>
@@ -1008,7 +1015,7 @@
     <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
     <h1 class="login-titulo-2">Código de verificação</h1>
     <p class="login-sub">Abra o app autenticador do celular e digite o código de 6 números da IndyCar.</p>
-    <label>Código<input id="mfaCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required placeholder="000 000" class="codigo-mfa" /></label>
+    <label>Código<input id="mfaCodigo" enterkeyhint="done" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required placeholder="000 000" class="codigo-mfa" /></label>
     <button type="submit" class="btn-entrar" id="btnMfaEntrar">CONFIRMAR</button>
     <p class="login-erro" id="mfaErro" role="alert" hidden></p>
     <button type="button" class="login-link" data-sair-login>Entrar com outra conta</button>

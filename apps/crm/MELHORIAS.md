@@ -1288,3 +1288,49 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - Contagem de números de orçamento e ordem do banco real pode ter avançado por causa do bloco SQL revertido.
 - Os eventos ao vivo foram provados com bloco SQL revertido e dublê; falta ver com orçamento e ordem de verdade.
 - Cópias SQL das migrações em `indycar-ferramentas/sql/` (fora do repositório). Nada foi publicado.
+
+## Rodada 9 (19-20/11/2026)
+
+- **R9-CRM-001** · conserto · A janela de pagamento mantém Concluir dentro do rodapé em 375 e 1440 px · `8c60a72`
+- **R9-CRM-002** · tela · A primeira visita abre Contatos e preserva a aba da sessão nas visitas seguintes · `8c60a72`
+- **R9-CRM-003** · enxugar · Mais agrupa as telas secundárias com abertura automática ao navegar para uma delas · `8c60a72`
+- **R9-CRM-004** · enxugar · Mais filtros e opções recolhe filtros avançados e deixa Limpar filtros à vista · `8c60a72`
+- **R9-CRM-005** · texto · Painel substitui Dashboard no título e na navegação · `8c60a72`
+- **R9-CRM-006** · texto · Contatos dá nome à lista e à ação Novo contato · `8c60a72`
+- **R9-CRM-007** · celular · A navegação quebra em linhas e mostra os nomes das seções no celular · `8c60a72`
+- **R9-CRM-008** · acessibilidade · Navegação, filtros e ações de contato ganham contorno visível para teclado · `8c60a72`
+- **R9-CRM-009** · acessibilidade · Os controles da lista ganham altura mínima de 44 px · `8c60a72`
+- **R9-CRM-010** · acessibilidade · A área de contatos respeita a preferência por movimento reduzido · `8c60a72`
+
+- **R9-CRM-011** · conserto · O carregamento de Contatos deixa a contagem a cargo da renderização da lista · `faf90d1`
+- **R9-CRM-012** · texto · O filtro de etapa oferece Todas as etapas · `faf90d1`
+- **R9-CRM-013** · texto · O formulário e a ficha usam Contato também no título do diálogo · `faf90d1`
+- **R9-CRM-014** · acessibilidade · A tabela principal tem o nome acessível Contatos · `faf90d1`
+- **R9-CRM-015** · acessibilidade · A paginação usa Contatos no nome anunciado · `faf90d1`
+- **R9-CRM-016** · texto · Busca principal usa Contatos no texto visível e no leitor de tela · `9299314`
+- **R9-CRM-017** · acessibilidade · Campo de tarefa na ficha identifica o contato pelo nome usado na tela · `9299314`
+- **R9-CRM-018** · acessibilidade · Busca no catálogo de serviços tem nome acessível · `9299314`
+- **R9-CRM-019** · acessibilidade · Seletor de mês no relatório de retorno tem nome acessível · `9299314`
+
+- **R9-CRM-020** · acessibilidade · O telefone no cadastro de contato aceita preenchimento automático. · `254ecdc`
+- **R9-CRM-021** · celular · O teclado deixa de sugerir correções para a placa do contato. · `254ecdc`
+- **R9-CRM-022** · texto · O cadastro chama a posição no funil de Etapa. · `254ecdc`
+- **R9-CRM-023** · texto · A busca da lista mostra exemplos de termos pesquisáveis. · `254ecdc`
+- **R9-CRM-024** · celular · O teclado indica a conclusão ao nomear um filtro salvo. · `254ecdc`
+- **R9-CRM-025** · celular · O teclado indica a entrada na tela de login. · `254ecdc`
+- **R9-CRM-026** · celular · O teclado indica o envio na recuperação de senha. · `254ecdc`
+- **R9-CRM-027** · celular · O teclado indica a conclusão do código de verificação. · `254ecdc`
+- **R9-CRM-028** · acessibilidade · A busca global anuncia Contatos e Clientes conforme a navegação. · `254ecdc`
+- **R9-CRM-029** · texto · A distribuição da equipe explica o critério usando Contatos. · `254ecdc`
+
+
+- **R9-CRM-030** · celular · A busca da lista de contatos oferece a tecla Buscar no celular. · `af408bd`
+- **R9-CRM-031** · celular · A busca na tela de clientes oferece a tecla Buscar no celular. · `af408bd`
+- **R9-CRM-032** · celular · A busca do catálogo de serviços oferece a tecla Buscar no celular. · `af408bd`
+- **R9-CRM-033** · celular · O campo de nova tarefa da fila mostra Concluir no teclado. · `af408bd`
+- **R9-CRM-034** · celular · O campo de tarefa do contato mostra Concluir no teclado. · `af408bd`
+- **R9-CRM-035** · celular · A confirmação da nova senha mostra Concluir no teclado. · `af408bd`
+- **R9-CRM-036** · celular · O campo do pixel da Meta abre o teclado numérico. · `af408bd`
+- **R9-CRM-037** · celular · O ID da conta do Google abre um teclado com dígitos e hífen. · `af408bd`
+- **R9-CRM-038** · celular · O ID da conta administradora do Google abre um teclado com dígitos e hífen. · `af408bd`
+- **R9-CRM-039** · acessibilidade · O filtro de idade da distribuição tem nome acessível que explica a data de referência. · `af408bd`

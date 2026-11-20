@@ -70,7 +70,7 @@
 .ajuda-item p{margin:0;padding:0 14px 12px;color:var(--muted);line-height:1.5}
 .atalhos td{padding:8px 10px}
 kbd{display:inline-block;min-width:26px;padding:3px 8px;border-radius:7px;border:1px solid var(--border-2);border-bottom-width:2px;
-  background:var(--surface);font:700 12px/1.3 'Inter',system-ui,sans-serif;text-align:center;color:var(--text-forte)}
+  background:var(--surface);font:700 12px/1.3 'Archivo',system-ui,sans-serif;text-align:center;color:var(--text-forte)}
 
 /* ---- Tour de boas-vindas ---- */
 .tour{position:fixed;z-index:120;width:340px;max-width:calc(100vw - 24px);padding:16px 16px 14px;border-radius:16px;

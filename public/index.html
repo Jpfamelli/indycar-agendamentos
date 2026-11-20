@@ -29,9 +29,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="IndyCar" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet" />
+  <!-- rodada 9: fontes servidas do próprio app (public/fontes), nenhum pedido a domínio de fora -->
+  <link rel="preload" href="./fontes/archivo-variavel.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./planejamento.css" />
   <link rel="stylesheet" href="./conta.css" />
@@ -41,6 +40,7 @@
   <link rel="stylesheet" href="./rodada6b.css" />
   <link rel="stylesheet" href="./rodada6c.css" />
   <link rel="stylesheet" href="./rodada7.css" />
+  <link rel="stylesheet" href="./rodada9.css" />
 </head>
 <body>
   <!-- teclado/leitor de tela: pula o menu e vai direto ao conteúdo -->
@@ -53,9 +53,7 @@
       </div>
       <!-- Menu em três grupos: o que se faz no dia (OPERAÇÃO), o que fala com o
            cliente (RELACIONAMENTO) e o que se ajusta de vez em quando (SISTEMA). -->
-      <nav class="nav" id="nav">
-        <div class="nav-grupo">
-          <p class="nav-rotulo">Operação</p>
+      <nav class="nav" id="nav" aria-label="Agenda">
           <a class="nav-item active" data-route="inicio" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/></svg>
             <span>INÍCIO</span>
@@ -68,14 +66,24 @@
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 14h2M14 14h2M8 18h2"/></svg>
             <span>SEMANA</span>
           </a>
-          <a class="nav-item" data-route="quadro" tabindex="0" role="button" title="Quadro: o dia por consultor, arraste para remarcar (tecla Q)">
-            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16M3 10h18"/></svg>
-            <span>QUADRO</span>
-          </a>
           <a class="nav-item" data-route="espera" tabindex="0" role="button" title="Lista de espera: quem quer um horário e ainda não achou (tecla E)">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M3 3l3 3M21 3l-3 3"/></svg>
             <span>ESPERA</span>
             <em class="badge" id="badgeEspera">0</em>
+          </a>
+          <a class="nav-item so-gestor" data-route="pendencias" tabindex="0" role="button" title="Concluídos sem valor e horários antigos sem desfecho">
+            <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>PENDÊNCIAS</span>
+            <em class="badge" id="badgePendencias">0</em>
+          </a>
+          <a class="nav-item" data-route="ajuda" tabindex="0" role="button" title="Ajuda, atalhos e o tour de novo (tecla ?)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg>
+            <span>AJUDA</span>
+          </a>
+        <details class="nav-mais"><summary>Mais</summary><div class="nav-mais-itens">
+          <a class="nav-item" data-route="quadro" tabindex="0" role="button" title="Quadro: o dia por consultor, arraste para remarcar (tecla Q)">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16M3 10h18"/></svg>
+            <span>QUADRO</span>
           </a>
           <a class="nav-item" data-route="clientes" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
@@ -85,10 +93,6 @@
             <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 1 5.4-5.4l-2.6 2.6"/></svg>
             <span>SERVIÇOS</span>
           </a>
-        </div>
-
-        <div class="nav-grupo">
-          <p class="nav-rotulo">Relacionamento</p>
           <a class="nav-item" data-route="whatsapp" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.2-5.6A8.4 8.4 0 1 1 21 11.5z"/></svg>
             <span>WHATSAPP</span>
@@ -106,19 +110,10 @@
             <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
             <span>RELATÓRIOS</span>
           </a>
-          <a class="nav-item so-gestor" data-route="pendencias" tabindex="0" role="button" title="Concluídos sem valor e horários antigos sem desfecho">
-            <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            <span>PENDÊNCIAS</span>
-            <em class="badge" id="badgePendencias">0</em>
-          </a>
           <a class="nav-item" data-route="historico" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
             <span>HISTÓRICO</span>
           </a>
-        </div>
-
-        <div class="nav-grupo">
-          <p class="nav-rotulo">Sistema</p>
           <a class="nav-item" data-route="equipe" tabindex="0" role="button">
             <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>EQUIPE</span>
@@ -131,11 +126,7 @@
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
             <span>CONFIG.</span>
           </a>
-          <a class="nav-item" data-route="ajuda" tabindex="0" role="button" title="Ajuda, atalhos e o tour de novo (tecla ?)">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg>
-            <span>AJUDA</span>
-          </a>
-        </div>
+        </div></details>
       </nav>
 
       <div class="rodape-lateral">
@@ -156,7 +147,7 @@
         </button>
         <!-- Menu do perfil: Meu perfil, senha, duas etapas, notificações, tema, sair (conta.js) -->
         <button type="button" class="avatar-bottom" id="avatarPerfil" title="Sua conta"
-                aria-label="Abrir o menu da sua conta" aria-haspopup="true" aria-expanded="false" aria-controls="popPerfil">IC</button>
+                aria-label="IC, sua conta. Abrir o menu" aria-haspopup="true" aria-expanded="false" aria-controls="popPerfil">IC</button>
       </div>
     </aside>
     <div class="eco-pop" id="ecoPop" role="menu" aria-label="Ecossistema IndyCar" hidden></div>
@@ -177,7 +168,7 @@
            Só aparecem quando há algo errado; o texto vem do app.js. -->
       <div class="faixa faixa-saude" id="faixaSaude" role="status" aria-live="polite" hidden></div>
       <div class="faixa faixa-offline" id="faixaOffline" role="status" aria-live="polite" hidden>
-        Sem internet — o que você marcar agora fica guardado no aparelho e é enviado quando a conexão voltar.
+        Sem internet. O que você marcar agora fica guardado no aparelho e é enviado quando a conexão voltar.
       </div>
       <div class="faixa faixa-fila" id="faixaFila" role="status" aria-live="polite" hidden></div>
       <!-- servidor fora/acordando (Render): os pedidos de leitura tentam de novo sozinhos -->
@@ -190,10 +181,10 @@
           <div>
             <div class="company-title">
               <h1 id="empresaNome">IndyCar Centro Automotivo</h1>
-              <span class="tag-dashboard" id="pageTag">DASHBOARD</span>
+              <span class="tag-dashboard" id="pageTag">INÍCIO</span>
             </div>
             <div class="company-sub">
-              <span id="empresaEndereco">Av. Bandeirantes, 875 — Taubaté/SP</span>
+              <span id="empresaEndereco">Av. Bandeirantes, 875, Taubaté/SP</span>
               <em id="empresaSlogan">Quem conhece, indica!</em>
             </div>
           </div>
@@ -238,7 +229,7 @@
        Publicada na internet, tudo passa por aqui primeiro. -->
   <div id="telaLogin" class="login-capa">
     <form id="formLogin" class="login-caixa" autocomplete="on">
-      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" width="170" height="170" />
       <h1>Agenda</h1>
       <p class="login-sub">Entre com o mesmo e-mail e senha do atendimento.</p>
       <label>E-mail
@@ -247,12 +238,12 @@
       </label>
       <label>Senha
         <span class="campo-senha">
-          <input name="loginSenha" type="password" required autocomplete="current-password"
+          <input name="loginSenha" type="password" required autocomplete="current-password" enterkeyhint="go"
                  placeholder="••••••••" />
           <button type="button" class="ver-senha" data-ver-senha aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
         </span>
       </label>
-      <p class="login-caps" hidden>Caps Lock ligado — a senha diferencia maiúsculas.</p>
+      <p class="login-caps" hidden>Caps Lock ligado, a senha diferencia maiúsculas.</p>
       <label class="login-lembrar"><input type="checkbox" id="lembrarEmail" /> Lembrar meu e-mail neste aparelho</label>
       <button type="submit" class="btn-entrar" id="btnEntrar">ENTRAR</button>
       <p class="login-erro" id="erroLogin" role="alert" hidden></p>
@@ -265,10 +256,10 @@
          Quem criar esta conta vira o administrador e passa a cadastrar os
          outros em Configurações › Equipe e acessos. -->
     <form id="formPrimeiro" class="login-caixa" autocomplete="on" novalidate hidden>
-      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" width="170" height="170" />
       <h1>Vamos começar!</h1>
-      <p class="login-sub">Ninguém foi cadastrado ainda. Crie a sua conta de administrador —
-        ela vale também no CRM e no Atendimento.</p>
+      <p class="login-sub">Ninguém foi cadastrado ainda. Crie a sua conta de administrador.
+        Ela vale também no CRM e no Atendimento.</p>
       <label>Seu nome
         <input id="pa_nome" maxlength="80" required autocomplete="name" placeholder="Ex.: João Pedro" />
       </label>
@@ -285,17 +276,17 @@
                placeholder="digite a mesma senha" />
       </label>
       <button type="submit" class="btn-entrar" id="btnPrimeiro">CRIAR MINHA CONTA</button>
-      <p class="login-erro" id="erroPrimeiro" hidden></p>
-      <button type="button" class="login-link" id="btnVoltarLogin">Já tenho conta — entrar</button>
+      <p class="login-erro" id="erroPrimeiro" role="alert" hidden></p>
+      <button type="button" class="login-link" id="btnVoltarLogin">Já tenho conta, entrar</button>
     </form>
 
     <!-- Esqueci a senha: o Supabase manda um link; ao voltar, a tela de nova senha abre sozinha -->
     <form id="formEsqueci" class="login-caixa" novalidate hidden>
-      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" width="170" height="170" />
       <h1>Esqueci a senha</h1>
       <p class="login-sub">Digite o seu e-mail de acesso. Mandamos um link para criar uma senha nova.</p>
       <label>E-mail
-        <input id="es_email" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" />
+        <input id="es_email" type="email" required autocomplete="username" enterkeyhint="send" placeholder="voce@indycartaubate.com" />
       </label>
       <button type="submit" class="btn-entrar" id="btnEsqueciEnviar">ENVIAR LINK</button>
       <p class="login-erro" id="erroEsqueci" role="alert" hidden></p>
@@ -305,7 +296,7 @@
 
     <!-- Nova senha: volta do link de recuperação ou troca obrigatória no primeiro login -->
     <form id="formNovaSenha" class="login-caixa" novalidate hidden>
-      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" width="170" height="170" />
       <h1 id="ns_titulo">Senha nova</h1>
       <p class="login-sub" id="ns_texto"></p>
       <label>Senha nova
@@ -324,11 +315,11 @@
 
     <!-- Verificação em duas etapas: código do app autenticador depois da senha -->
     <form id="formMfa" class="login-caixa" novalidate hidden>
-      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" width="170" height="170" />
       <h1>Código de verificação</h1>
       <p class="login-sub">Abra o app autenticador do seu celular e digite o código de 6 números.</p>
       <label>Código
-        <input id="mfa_codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+        <input id="mfa_codigo" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="done" maxlength="6" placeholder="000000" />
       </label>
       <button type="submit" class="btn-entrar" id="btnMfa">CONFIRMAR</button>
       <p class="login-erro" id="erroMfa" role="alert" hidden></p>
@@ -337,7 +328,7 @@
 
     <!-- Sem acesso a ESTE app: mostra os que a pessoa pode usar -->
     <div id="caixaSemAcesso" class="login-caixa" hidden>
-      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" />
+      <img src="./logo.png" alt="IndyCar Centro Automotivo" class="login-logo" width="170" height="170" />
       <h1>Você não tem acesso à Agenda</h1>
       <p class="login-sub">Seu login vale nestes apps. Se precisar da Agenda, peça ao administrador para liberar.</p>
       <div class="sem-acesso-apps" id="semAcessoApps"></div>

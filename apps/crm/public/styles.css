@@ -1297,3 +1297,60 @@ dialog.dlg-busca{width:min(640px,calc(100vw - 32px));padding:14px;margin-top:8vh
 .aviso-dono{margin:0 0 12px;padding:10px 12px;border-radius:10px;border:1px solid rgba(245,158,11,.35);background:rgba(245,158,11,.1);color:var(--amarelo-txt);font-size:13px;line-height:1.4}
 #leadForm :disabled{cursor:not-allowed}
 .etapa-btn:disabled{opacity:.55;cursor:not-allowed}
+
+/* Cronometragem · lista de contatos */
+:root{--red:#e6192e;--red-dark:#ba1526;--raio-controle:6px;--alvo:44px;--foco:#a7c9ff;--sombra-card:none}
+:root:not([data-tema="claro"]){--black:#070a14;--graphite:#111829;--card:#0d1220;--card-2:#111829;--sidebar:#0d1220;--line:#2a3348;--gray-2:#a1a9b9}
+:root[data-tema="claro"]{--foco:#2357a9;--sombra-card:none}
+body{background:var(--black)}
+.topbar h1{font-size:2.75rem;text-transform:uppercase}
+.nav-item,.nav-mais summary,.filtros-mais summary{min-height:var(--alvo);border-radius:var(--raio-controle)}
+.nav-item.active{background:var(--superficie-2);box-shadow:inset 2px 0 var(--red)}
+.nav-mais{min-width:0}
+.nav-mais summary,.filtros-mais summary{width:fit-content;padding:12px;cursor:pointer;color:var(--texto)}
+.nav-mais-itens{display:grid;gap:4px;margin-top:4px}
+.btn-primary{background:var(--red)}
+.btn-primary:hover{background:var(--red-dark);box-shadow:none;transform:none}
+#view-leads .filters{padding:12px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+#view-leads .filters :is(select,button,.chk-pill){min-height:var(--alvo)}
+#view-leads .filters select{max-width:100%;border-radius:var(--raio-controle)}
+#view-leads .filter-count{margin-inline-start:auto}
+#view-leads .card{border-radius:10px;box-shadow:none}
+#tblLeads :is(th.num,td.num){font-variant-numeric:tabular-nums}
+#tblLeads tbody tr:nth-child(even){background:var(--superficie)}
+#tblLeads :is(button,a){min-height:var(--alvo)}
+.filtros-mais{max-width:100%}
+.filtros-mais[open]{flex-basis:100%}
+.filtros-mais-itens{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-block:8px}
+.filtros-mais-itens>*{max-width:100%}
+:is(.nav,#view-leads,.topbar) :focus-visible{outline:2px solid var(--foco);outline-offset:2px}
+@media (max-width:860px){
+  .nav{flex-wrap:wrap;flex-basis:100%;order:3;overflow:visible}
+  .nav-item{padding:8px;gap:4px;font-size:.92rem}
+  .nav-item span{display:block}
+  .nav-item svg{display:none}
+  .nav-item.active{box-shadow:inset 0 -2px var(--red)}
+  .nav-mais[open]{flex-basis:100%}
+  .nav-mais-itens{display:flex;flex-wrap:wrap}
+  .topbar h1{font-size:2rem}
+}
+@media (prefers-reduced-motion:reduce){
+  :is(.nav,#view-leads,.topbar) *{transition:none!important;animation:none!important}
+}
+
+/* Mantém o fechamento acessível dentro da própria janela em telas estreitas. */
+#formPago .modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#formPago .modal-actions .spacer { display: none; }
+#formPago .modal-actions .btn {
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+}
+#formPago .modal-actions [type="submit"] { margin-inline-start: auto; }
+@media (max-width: 480px) {
+  #formPago .modal-actions [type="submit"] { flex-basis: 100%; }
+}

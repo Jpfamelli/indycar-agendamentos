@@ -1,0 +1,201 @@
+/* ============================== RODADA 9 (20/11/2026) ==============================
+   Medido no navegador em 375 e 1440 px, claro e escuro (scripts/qa-r9-agenda.mjs):
+   alvo de toque de 44 px, contraste AA e regiões com rolagem alcançáveis por teclado.
+   Cada bloco diz o que media antes. Nada aqui muda nome de botão ou de tela. */
+[hidden]{display:none!important}
+
+/* ---- alvo de toque (dedo): só em tela estreita ou aparelho de toque ---- */
+@media (max-width:720px),(pointer:coarse){
+  /* botões comuns: 34 a 40 px de altura */
+  .btn,.btn.mini{min-height:var(--alvo)}
+  /* "Novo agendamento" do topo: 38 px */
+  .btn-novo{min-height:var(--alvo)}
+  /* filtros em pílula (Semana, Espera, Configurações): 34 a 36 px */
+  .pilula{min-height:var(--alvo)}
+  /* abas (WhatsApp): 38 px */
+  .tab{min-height:var(--alvo)}
+  /* botões só de ícone (imprimir, excluir, setas da semana): 30 e 36 px */
+  .icon-btn{width:var(--alvo);height:var(--alvo)}
+  /* ações dos cartões (Veio e fechou, Não veio, remarcar): 32 e 34 px */
+  .act{min-height:var(--alvo)}
+  .act.ico{min-width:var(--alvo);justify-content:center}
+  /* copiar telefone: 22 px */
+  .copiar{width:var(--alvo);height:var(--alvo)}
+  .copiar svg{width:16px;height:16px}
+  /* telefone do cartão e da lista (toque para ligar): 16 px de altura */
+  .tel a{display:inline-flex;align-items:center;min-height:var(--alvo)}
+  /* links das faixas de aviso e dos blocos do Pátio e do Orçador: 17 px */
+  .faixa-link,.r6-mais{display:inline-flex;align-items:center;min-height:var(--alvo)}
+  /* selos que abrem o Pátio e o Orçador: 23 px */
+  a.badge-pill{display:inline-flex;align-items:center;min-height:var(--alvo)}
+  /* rodapé do menu (Apps, tema, conta): 33 a 38 px */
+  .tema-toggle{min-height:var(--alvo);justify-content:center}
+  .avatar-bottom{width:var(--alvo);height:var(--alvo)}
+  /* campos de busca: o campo tinha 16 px dentro da caixa */
+  .search input{min-height:var(--alvo)}
+  .search{padding-top:0;padding-bottom:0}
+  /* campos, listas e datas de formulário e de filtro: 31 a 40 px */
+  .field input:not([type=checkbox]):not([type=radio]),.field select,.inp,select,input[type=date],input[inputmode=decimal]{min-height:var(--alvo)}
+  /* "Filtros" da Semana e as perguntas da Ajuda: 16 px */
+  summary{min-height:var(--alvo);box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+  /* dias do Quadro: 36 px de largura; a fila rola de lado dentro dela mesma */
+  .qd-semana{grid-template-columns:repeat(7,minmax(var(--alvo),1fr));overflow-x:auto}
+}
+/* atalho "Pular para o conteúdo": 40 px */
+.pular-conteudo{min-height:var(--alvo);display:inline-flex;align-items:center}
+
+/* ---- contraste (AA 4,5:1), medido pelo axe-core ---- */
+/* verde sobre tinta verde no claro: 3,4 a 3,8 (selos, valor, "confirmado") */
+:root[data-tema="claro"]{--green-txt:#0a6b33}
+/* botão de WhatsApp no claro: 4,05 */
+:root[data-tema="claro"]{--wa-txt:#0a6b33}
+/* laranja sobre tinta laranja no claro: 3,44 (selo "aguardando" da Semana) */
+:root[data-tema="claro"]{--orange-txt:#7a4303}
+/* "Chegou" da recepção: branco sobre verde dava 2,27 */
+.rec-chegou{color:#04170b}
+/* Semana: cartão já finalizado e dia que passou esmaeciam o texto para 2,9 a 4,1 */
+.sem-item.finalizado,.sem-dia.passado{opacity:1}
+.sem-item.finalizado .sem-hora,.sem-item.finalizado .sem-txt b{color:var(--muted)}
+.sem-dia.passado{background:var(--panel-3)}
+/* Quadro: dia de hoje em laranja fixo (1,78 no claro) e dia fechado a 50% (2,3) */
+.qd-dia.hoje .qd-dia-n{color:var(--orange-txt)}
+.qd-dia.fechado{opacity:1;border-style:dashed;background:transparent}
+.qd-dia.fechado b{color:var(--muted)}
+/* Quadro: cartão de quem não veio ou cancelou ficava a 60% (2,7 a 3,8) */
+.qd-card.s-nao_veio,.qd-card.s-cancelado,.qd-card.s-nao_fechou{opacity:1;background:var(--panel-3)}
+.qd-card.s-nao_veio .qd-nome,.qd-card.s-cancelado .qd-nome,.qd-card.s-nao_fechou .qd-nome{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+.qd-serv{opacity:1;color:var(--muted)}
+/* Relatórios do dono: verde e vermelho fixos (3,44 e 4,04) passam a seguir o tema */
+.r7r-delta.bom{color:var(--green-txt)}
+.r7r-delta.ruim,.r7r-ruim{color:var(--red-txt)}
+/* WhatsApp: título em verde vivo sobre fundo claro (1,73) */
+.titulo-wa{color:var(--wa-txt)}
+
+/* ---- Quadro: linhas de verdade para o leitor de tela, sem mudar o desenho ---- */
+.qd-linha{display:contents}
+
+/* ---- regiões que rolam de lado ganham foco visível (teclado) ---- */
+.tabela-rolagem:focus-visible,.tabela-rola:focus-visible,.sem-tabela:focus-visible{outline:2px solid var(--foco);outline-offset:2px}
+
+/* ---- o que sobrou na segunda medida (regras mais específicas que as de cima) ---- */
+@media (max-width:720px),(pointer:coarse){
+  .sem-nav .icon-btn{width:var(--alvo);height:var(--alvo)}
+  .sem-filtros summary{min-width:var(--alvo)}
+  .sem-filtros-corpo :is(select,input){min-height:var(--alvo)}
+  /* "2 na espera" do dia, na Semana: selo que é botão, 20 px */
+  button.badge-pill{min-height:var(--alvo);display:inline-flex;align-items:center}
+  /* telefone da Lista de espera e o link do aviso do WhatsApp: 16 px */
+  .view small a[href^="tel:"],.aviso-leitura a{display:inline-flex;align-items:center;min-height:var(--alvo)}
+  /* Quadro: setas de dia com 34 px de largura, data com 36 e filtros de consultor com 40 */
+  .qd-ferr .btn.mini{min-width:var(--alvo);justify-content:center}
+  .qd-ferr input[type=date]{min-height:var(--alvo)}
+  .qd-chips .pilula{min-height:var(--alvo)}
+  .tel .copiar{flex:0 0 var(--alvo)}
+}
+/* Quadro: cartão concluído a 75% (3,6) e selo cinza no escuro (4,36) */
+.qd-card.s-concluido{opacity:1;background:var(--panel-3)}
+.qd-card.s-concluido .qd-nome{color:var(--muted)}
+:root:not([data-tema="claro"]) .bp-gray{color:#a3abbe}
+
+/* ---- Início: os avisos do dia numa fila só ---- */
+.hero-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.hero-chips .chips-gestor{display:contents}
+.hero-chips :is(.chip-aviso,.btn){margin-top:0}
+@media (max-width:640px){
+  /* no celular os avisos empilhavam e tomavam a primeira tela inteira antes da lista do dia:
+     agora ficam numa fila que rola de lado, e os horários aparecem sem rolar */
+  .hero-chips{flex-wrap:nowrap;overflow-x:auto;margin:10px -16px 0;padding:2px 16px 6px;scrollbar-width:thin}
+  .hero-chips :is(.chip-aviso,.btn,.chip-gestor,button,a){flex:0 0 auto;white-space:nowrap}
+  /* menu do celular: o rótulo tinha 8 px e "PENDÊNCIAS" quebrava em duas linhas */
+  .sidebar{width:74px}
+  .nav-item,.nav-rotulo,.tema-toggle{width:66px}
+  .nav-item span{font-size:9px;overflow-wrap:normal;white-space:nowrap}
+}
+/* a fila de avisos não pode alargar a página: a coluna do título encolhe até a tela */
+.hero-dia > div:first-child{min-width:0;max-width:100%}
+@media (max-width:720px),(pointer:coarse){
+  .icon-btn{flex:0 0 auto;min-width:var(--alvo)}
+  #qdAnt,#qdProx{min-width:var(--alvo);justify-content:center}
+  #qdData{min-height:var(--alvo)}
+  .tel a{white-space:nowrap}
+}
+
+/* ---- sem faixa grossa colorida na lateral do cartão (guia visual do ecossistema) ---- */
+/* Quadro: a cor do estado vira uma marca pequena ao lado da hora; o selo continua dizendo o estado */
+.qd-card{--st:#5b8cff;border-left:1px solid var(--border)}
+.qd-card.s-confirmado{--st:#35c486}
+.qd-card.s-compareceu,.qd-card.s-em_atendimento{--st:#4aa8ff}
+.qd-card.s-concluido{--st:#9b7bff}
+.qd-card.s-nao_veio,.qd-card.s-cancelado,.qd-card.s-nao_fechou{--st:#ff6b6b}
+.qd-topo{justify-content:flex-start}
+.qd-topo::before{content:"";flex:0 0 8px;height:8px;border-radius:2px;background:var(--st)}
+.qd-topo .badge-pill{margin-left:auto}
+/* Quadro: resumo das confirmações e dos pré-agendamentos, marca pequena no lugar da faixa */
+.r7c-cab.pend,.r7c-cab.ok,.r7p-cab,.r7p-cab.urg{border-left:0}
+.r7c-cab::before,.r7p-cab::before{content:"";flex:0 0 8px;height:8px;border-radius:2px;background:#8a63d2;margin-right:4px}
+.r7c-cab.pend::before{background:#e8892b}
+.r7c-cab.ok::before{background:#2e9d5b}
+.r7p-cab.urg::before{background:#d64545}
+/* Lista de espera: quem espera há muito ganha contorno fino, sem faixa */
+.espera-item.r7-esp-aviso{border:1px solid #e8892b}
+.espera-item.r7-esp-ruim{border:1px solid #d64545}
+/* Quadro: o campo de data seguia o desenho cru do navegador */
+#qdData{background:var(--panel-3);border:1px solid var(--border-2);border-radius:10px;padding:8px 10px;color:var(--text);font:inherit;color-scheme:var(--scheme)}
+#qdData:focus-visible{outline:2px solid var(--foco);outline-offset:2px}
+
+/* ---- fontes do próprio app (as mesmas do guia visual: Archivo no texto, Barlow Condensed nos números) ---- */
+@font-face{font-family:'Archivo';font-style:normal;font-weight:100 900;font-stretch:62% 125%;font-display:swap;src:url('./fontes/archivo-variavel.woff2') format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url('./fontes/barlow-condensed-600.woff2') format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url('./fontes/barlow-condensed-700.woff2') format('woff2')}
+
+/* ---- botões principais chapados, sem gradiente (guia visual) ---- */
+.btn.primary,.btn-novo,.pilula.ativa{background:var(--red)}
+/* botão verde: branco sobre verde claro dava 3,3; verde mais fechado passa de 4,5 */
+.btn.green{background:#15803d}
+
+/* ---- "Marcar rápido": o campo seguia o desenho cru do navegador ---- */
+.r6c-rapido input{background:var(--panel-3);border:1px solid var(--border-2);border-radius:10px;padding:10px 12px;color:var(--text);font:inherit;font-size:14px}
+.r6c-rapido input:focus-visible{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.r6c-rapido input::placeholder{color:var(--muted-2)}
+
+/* ---- "Buscar em tudo": a caixa de busca tomava 320 px de ALTURA (a base de largura valia como altura na janela em coluna) ---- */
+.modal-body > .search.larga{flex:0 0 auto}
+
+/* ---- menu: com "Mais" aberto os itens encolhiam (ícone de 21 px virava 14) em vez de o menu rolar ---- */
+.nav > *,.nav-mais-itens > *{flex-shrink:0}
+
+/* ---- janelas, recados, login e popovers: o que a medida das janelas achou (scripts/qa-r9-modais.mjs) ---- */
+@media (max-width:720px),(pointer:coarse){
+  /* X de fechar de todas as janelas: 13 x 22 px */
+  .modal-close{min-width:var(--alvo);min-height:var(--alvo);display:inline-flex;align-items:center;justify-content:center;margin:-10px -12px -10px 0}
+  /* sugestões de horário e de valor (40 px), setas de dia do Remarcar (27 px de largura) e "Achar" (40) */
+  .chip-sugestao{min-height:var(--alvo)}
+  .modal .btn.mini,#f_achar{min-width:var(--alvo);justify-content:center}
+  /* botões dentro do recado ("Desfazer", "Abrir no Pátio"): 40 px */
+  .toast .toast-acao{min-height:var(--alvo)}
+  /* chave de ligar e desligar (cliente aceita mensagens): 38 px */
+  .switch{min-height:var(--alvo)}
+  /* login e sino: "Esqueci a senha", "Voltar", "Marcar todas como lidas" (20 px) e "Mostrar" a senha (32 px) */
+  .login-link{min-height:var(--alvo)}
+  .ver-senha{min-height:var(--alvo);right:2px}
+  /* caixinha de concluir tarefa: 22 px; a área de toque cresce e o quadradinho fica do mesmo tamanho */
+  .tarefa-check{width:var(--alvo);height:var(--alvo);border:0;background:none;display:grid;place-items:center;margin:-10px 0 -10px -10px}
+  .tarefa-check::before{content:"";width:22px;height:22px;box-sizing:border-box;border-radius:7px;border:2px solid var(--border-2)}
+  .tarefa-check:hover{background:none}
+  .tarefa-check:hover::before{border-color:var(--green);background:var(--green-soft)}
+}
+/* texto secundário no escuro (hora do aviso, prazo da tarefa, título dos Apps): 3,43 sobre o popover; agora passa de 4,5 */
+:root{--muted-2:#8189a0}
+
+/* ---- última medida: sobras ---- */
+@media (max-width:720px),(pointer:coarse){
+  /* Quadro em 375 px: com os botões de 44 px a fila de data passava da tela; agora quebra de linha */
+  .qd-bar .left,.qd-nav{flex-wrap:wrap;min-width:0;max-width:100%}
+  .qd-nav{display:flex}
+  #qdData{flex:1 1 130px;min-width:0}
+  /* horário na Semana: 42 px; "Ver" dos Relatórios: 43 px de largura */
+  .sem-abrir{min-height:var(--alvo)}
+  .btn.mini{min-width:var(--alvo);justify-content:center}
+}
+/* histórico na ficha do cliente (toque para abrir o agendamento): 22 px de altura */
+@media (max-width:720px),(pointer:coarse){ .ctx-item{min-height:var(--alvo)} }

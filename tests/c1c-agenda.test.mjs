@@ -49,9 +49,9 @@ test('texto do dia: agrupa por consultor, mostra duração e marca quem chegou o
     { id: 'c', hora: '10:00', cliente_nome: 'Caio', servico: 'Freios', consultor_nome: 'Gabriel', status: 'nao_veio' },
     { id: 'd', hora: '11:00', cliente_nome: 'Cancelado', servico: 'x', status: 'cancelado' }];
   const t = P.textoDoDia(l, '2026-10-21', { duracoes: { a: 90 }, nomeOficina: 'IndyCar' });
-  assert.match(t, /^\*IndyCar — agenda de quarta, 21\/10\*\n3 horários/);
-  assert.match(t, /\*Gabriel\* \(2\)\n09:00 Ana — Revisão \(Onix ABC1D23\) · 1h30\n10:00 Caio — Freios ✖ não veio/);
-  assert.match(t, /\*Sem consultor\* \(1\)\n08:30 Beto — Óleo ✔/);
+  assert.match(t, /^\*IndyCar, agenda de quarta, 21\/10\*\n3 horários/);
+  assert.match(t, /\*Gabriel\* \(2\)\n09:00 Ana · Revisão \(Onix ABC1D23\) · 1h30\n10:00 Caio · Freios ✖ não veio/);
+  assert.match(t, /\*Sem consultor\* \(1\)\n08:30 Beto · Óleo ✔/);
   assert.doesNotMatch(t, /Cancelado/);
   assert.match(P.textoDoDia([], '2026-10-22'), /Nenhum horário marcado\./);
 });

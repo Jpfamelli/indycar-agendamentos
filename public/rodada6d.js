@@ -140,7 +140,7 @@
     if (typeof openAgendamentoModal !== 'function') return;
     const origens = typeof ORIGENS !== 'undefined' ? ORIGENS : [];
     openAgendamentoModal(null, paraRepetir(a, origens));
-    if (typeof toast === 'function') toast('Novo horário para ' + (primeiroNome(a.cliente_nome) || 'o cliente') + ' — escolha o dia e a hora.', 'ok');
+    if (typeof toast === 'function') toast('Novo horário para ' + (primeiroNome(a.cliente_nome) || 'o cliente') + ', escolha o dia e a hora.', 'ok');
   }
   async function avisarProntos(d) {
     if (typeof patioDe !== 'function') return;

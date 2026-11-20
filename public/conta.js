@@ -205,7 +205,7 @@ function contaPrepararLogin() {
     try {
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: contaRaiz() });
       if (error) throw error;
-      contaErro('erroEsqueci', 'Pronto. Se o e-mail estiver cadastrado, o link chega em alguns minutos — olhe também o spam. '
+      contaErro('erroEsqueci', 'Pronto. Se o e-mail estiver cadastrado, o link chega em alguns minutos, olhe também o spam. '
         + 'Não chegou? Peça ao administrador uma senha temporária.', true);
     } catch (e) {
       contaErro('erroEsqueci', /rate|429|too many/i.test(String(e?.message))
@@ -301,7 +301,7 @@ async function contaPortaoDoPerfil(perfil) {
   if (perfil.pode_agenda === false) { contaTelaSemAcesso(perfil); return false; }
   if (perfil.precisa_trocar_senha) {
     await contaTelaNovaSenha({ titulo: 'Crie a sua senha',
-      texto: 'Você entrou com uma senha provisória. Escolha a sua (mínimo 8 caracteres) — ela vale em todos os apps da IndyCar.',
+      texto: 'Você entrou com uma senha provisória. Escolha a sua (mínimo 8 caracteres), ela vale em todos os apps da IndyCar.',
       email: perfil.email });
     try { await api('POST', '/perfil/senha-trocada'); perfil.precisa_trocar_senha = false; } catch { /* tenta de novo no próximo login */ }
     if (typeof esconderLogin === 'function') esconderLogin();
@@ -530,7 +530,7 @@ function contaModalPerfil() {
       <div class="field"><span class="rotulo-campo">Cor do avatar</span><div class="cores" role="radiogroup" aria-label="Cor do avatar">
         ${CONTA_CORES.map((c) => `<button type="button" class="cor${c === p.avatar_cor ? ' ativa' : ''}" role="radio" aria-checked="${c === p.avatar_cor}"
           aria-label="Cor ${c}" data-cor="${c}" style="background:${c}"></button>`).join('')}</div></div>
-      <p class="info-campo">Função: <b>${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}</b>${p.consultor_nome ? ` · consultor na agenda: <b>${esc(p.consultor_nome)}</b>` : ''} — quem muda é o administrador.</p>
+      <p class="info-campo">Função: <b>${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}</b>${p.consultor_nome ? ` · consultor na agenda: <b>${esc(p.consultor_nome)}</b>` : ''}, quem muda é o administrador.</p>
       <p class="form-msg" id="mp_msg" hidden></p>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
