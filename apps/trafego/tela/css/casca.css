@@ -246,6 +246,10 @@
 body {
   padding-bottom: calc(var(--navbaixo-altura) + env(safe-area-inset-bottom, 0rem));
 }
+/* Quem anda pelo Tab (ou um link que rola até um campo) nunca para escondido atrás da barra de baixo. */
+html {
+  scroll-padding-bottom: calc(var(--navbaixo-altura) + env(safe-area-inset-bottom, 0rem) + var(--p-esp-3));
+}
 
 /* ------------------------------ período e "atualizado há X" ------------------------------ */
 .sessao {
@@ -338,6 +342,9 @@ body {
   }
   body {
     padding-bottom: 0;
+  }
+  html {
+    scroll-padding-bottom: 0;
   }
   #avisos {
     --toast-acima: 0rem;

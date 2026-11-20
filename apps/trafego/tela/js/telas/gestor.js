@@ -123,6 +123,10 @@ export function mostrar(ctxInicial) {
     const pessoa = falaDaPessoa(pergunta);
     const gestor = falaDoGestor('');
     el.fala.append(pessoa, gestor.no);
+    // Pergunta pronta ou "Perguntar" ficam desligados enquanto ele responde: o foco iria parar no nada (fim da página).
+    // Vai para a resposta, que não abre o teclado do celular; dali o Tab segue para os links dela.
+    const comFoco = document.activeElement;
+    if (comFoco && (el.prontas.contains(comFoco) || comFoco === el.enviar)) { gestor.no.tabIndex = -1; gestor.no.focus({ preventScroll: true }); }
     el.pergunta.value = '';
     el.contagem.textContent = '';
     novaConversa.hidden = false;

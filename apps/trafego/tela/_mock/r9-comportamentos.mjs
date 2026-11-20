@@ -54,6 +54,19 @@ export const CASOS = {
     conferir(await pagina.$eval('.diario-item:nth-child(6)', (el) => document.activeElement === el), 'o foco vai para a primeira que estava escondida');
   },
 
+  /* Gestor › pergunta pronta: no celular o toque não cai na barra de baixo, e o foco vai para a resposta (não some). */
+  async 'gestor-pergunta-pronta'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/gestor', { waitUntil: 'networkidle0' });
+    const fichas = await pagina.$$('.gestor-prontas .ficha');
+    conferir(fichas.length === 4, 'quatro perguntas prontas');
+    await fichas[1].click();
+    await esperar(300);
+    conferir((await pagina.evaluate(() => location.hash)).startsWith('#/gestor'), 'continua no Gestor (o toque não caiu na barra de baixo)');
+    conferir(await pagina.evaluate(() => document.activeElement && document.activeElement.classList.contains('fala-gestor')), 'o foco vai para a resposta');
+    await pagina.waitForFunction(() => document.querySelector('.gestor-fala')?.getAttribute('aria-busy') === 'false', { timeout: 15000 });
+    conferir(await pagina.evaluate(() => document.activeElement !== document.body), 'depois da resposta o foco continua num lugar que existe');
+  },
+
   /* Campanha aberta: 6 contatos à vista, sem "Anúncio da Meta" repetido; o resto a um toque, com o foco no sétimo. */
   async 'campanha-contatos'(pagina, endereco) {
     await pagina.goto(endereco + '?cenario=cheio#/campanhas?chave=120211450001&plataforma=meta', { waitUntil: 'networkidle0' });
