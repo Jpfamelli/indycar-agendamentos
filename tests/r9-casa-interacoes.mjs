@@ -278,6 +278,21 @@ try {
   await t.page.close();
   });
 
+  // 19. "dispensar por hoje" tem Desfazer e o foco não cai no começo da página
+  await passo("19. Ontem e amanhã: dispensar tem Desfazer", async () => {
+  const m = await abrir({ papel: 'admin' }, 1440);
+  await m.page.evaluate(() => { localStorage.setItem('indycar_manha_2020-01-01', '1'); });
+  const visivel = await m.page.$eval('#manha', (s) => !s.hidden);
+  if (!visivel) { conferir('Ontem e amanhã aparece para o dono', false); await m.page.close(); return; }
+  await m.page.click('#manhaFechar'); await espera(200);
+  const depois = await m.page.evaluate(() => ({ escondido: document.querySelector('#manha').hidden, foco: document.activeElement && document.activeElement.id, botao: (document.querySelector('#toast .toast-btn') || {}).textContent, velha: localStorage.getItem('indycar_manha_2020-01-01') }));
+  conferir('dispensar: some, o foco vai para o conteúdo e o aviso tem Desfazer; marca de dia velho apagada', depois.escondido && depois.foco === 'miolo' && depois.botao === 'Desfazer' && depois.velha === null, JSON.stringify(depois));
+  await m.page.click('#toast .toast-btn'); await espera(200);
+  const voltou = await m.page.evaluate(() => ({ visivel: !document.querySelector('#manha').hidden, foco: document.activeElement && document.activeElement.id, marcas: Object.keys(localStorage).filter((k) => k.startsWith('indycar_manha_')).length }));
+  conferir('Desfazer: o bloco volta, o foco volta ao botão e nada fica marcado', voltou.visivel && voltou.foco === 'manhaFechar' && voltou.marcas === 0, JSON.stringify(voltou));
+  await m.page.close();
+  });
+
   // 17. busca que falhou tem "tentar de novo" (antes só apagando e digitando de novo)
   await passo("17. busca com erro oferece tentar de novo", async () => {
   const b = await abrir({ papel: 'admin', falhar: ['r6_busca_global'] }, 1440);

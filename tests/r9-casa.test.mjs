@@ -431,3 +431,11 @@ test('biblioteca do Supabase (CDN) com integrity sha384: arquivo trocado no CDN 
   assert.match(tag[0], /crossorigin="anonymous"/);
   for (const f of ['r9-casa-browser.mjs', 'r9-casa-interacoes.mjs']) assert.match(readFileSync(join(RAIZ, 'tests', f), 'utf8'), /replace\(\/ integrity="\[\^"\]\*"\/g, ''\)/, f + ': o teste tira o integrity só para usar o Supabase de mentira');
 });
+
+test('"dispensar por hoje" do Ontem e amanhã: aviso com Desfazer, foco no conteúdo e marcas de dias velhos apagadas', () => {
+  const s = semComentarios(ler('manha.js'));
+  assert.match(s, /C\.toast\('Escondido até amanhã\.', 6000, \{ rotulo: 'Desfazer', fazer:/);
+  assert.match(s, /x\.startsWith\('indycar_manha_'\) && x !== k\) localStorage\.removeItem\(x\)/);
+  assert.match(s, /const alvo = \$\('#miolo'\); if \(alvo\) alvo\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(ler('index.html'), /<main id="miolo" class="miolo" tabindex="-1">/);
+});
