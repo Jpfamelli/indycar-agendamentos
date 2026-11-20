@@ -27,3 +27,12 @@ test('folha do mês: diz quantas campanhas ficaram de fora das 8 (singular e plu
   assert.equal(maisCampanhas(12, 8), 'Mais 4 campanhas na tela Campanhas (aqui vão as 8 de maior gasto).');
   assert.equal(maisCampanhas(undefined, 3), null);
 });
+
+import { marcaDaApresentacao } from '../js/relatorios-logica.js';
+test('apresentação: a linha de cima não repete o título e diz as datas do período', () => {
+  const p = { de: '2026-11-01', ate: '2026-11-19', rotulo: 'Este mês' };
+  assert.equal(marcaDaApresentacao(p, 'Este mês'), 'IndyCar Tráfego · 01/11 a 19/11');
+  assert.equal(marcaDaApresentacao(p, 'Os números'), 'IndyCar Tráfego · Este mês, 01/11 a 19/11');
+  assert.equal(marcaDaApresentacao({ de: '2026-11-18', ate: '2026-11-18', rotulo: 'Ontem' }, 'Os números'), 'IndyCar Tráfego · Ontem, 18/11');
+  assert.equal(marcaDaApresentacao(null, 'Os números'), 'IndyCar Tráfego');
+});

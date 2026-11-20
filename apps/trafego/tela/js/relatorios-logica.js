@@ -59,3 +59,18 @@ export function motivoDoVazio(numero, estado) {
   if (estado && estado.gasto === 'sem_conta' && numero.formato === 'dinheiro') return 'Conta de anúncios não ligada';
   return 'sem dado';
 }
+
+/** "01/11" de "2026-11-01" (sem depender de fuso: a data vem pronta do servidor). */
+const ddmm = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] : null; };
+
+/**
+ * A linha de cima de cada tela da apresentação: "IndyCar Tráfego · Este mês, 01/11 a 19/11".
+ * Na tela cujo título já é o nome do período, a linha leva só as datas (antes repetia "Este mês" duas vezes).
+ */
+export function marcaDaApresentacao(periodo, titulo) {
+  const p = periodo || {};
+  const de = ddmm(p.de), ate = ddmm(p.ate);
+  const datas = de && ate ? (de === ate ? de : de + ' a ' + ate) : '';
+  const rotulo = p.rotulo && p.rotulo !== titulo ? p.rotulo : '';
+  return 'IndyCar Tráfego' + (rotulo || datas ? ' · ' + [rotulo, datas].filter(Boolean).join(', ') : '');
+}
