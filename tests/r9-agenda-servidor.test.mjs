@@ -52,6 +52,27 @@ async function chamar(quem, metodo, rota, corpo) {
   return { status: r.status, j: await r.json().catch(() => null) };
 }
 
+test('R10-AGE-002: Configurações preserva acentos divididos entre blocos HTTP', async () => {
+  const { request } = await import('node:http');
+  const corpo = Buffer.from(JSON.stringify({ nome: 'Oficina São José' }));
+  const corte = corpo.indexOf(Buffer.from('ã')) + 1;
+  const status = await new Promise((resolve, reject) => {
+    const pedido = request(base + '/api/empresa', {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer gestor', 'Content-Type': 'application/json' },
+    }, (res) => {
+      res.on('error', reject);
+      res.on('end', () => resolve(res.statusCode));
+      res.resume();
+    });
+    pedido.on('error', reject);
+    pedido.write(corpo.subarray(0, corte));
+    pedido.end(corpo.subarray(corte));
+  });
+  assert.equal(status, 200);
+  assert.equal(gravado.empresa.nome, 'Oficina São José');
+});
+
 test('R10-AGE-001: Configurações rejeita JSON que não é objeto', async () => {
   for (const corpo of [[], 42, 'texto', null]) {
     const r = await fetch(base + '/api/integracoes', {

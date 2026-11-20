@@ -121,7 +121,8 @@ class ErroHttp extends Error {
 const LIMITE_CORPO = 64 * 1024;
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let raw = '', tamanho = 0, estourou = false;
+    const blocos = [];
+    let tamanho = 0, estourou = false;
     req.on('data', (c) => {
       if (estourou) return;
       tamanho += c.length;
@@ -131,11 +132,12 @@ function readBody(req) {
         reject(new ErroHttp(413, 'Corpo da requisição grande demais (limite de 64 KB).'));
         return;
       }
-      raw += c;
+      blocos.push(c);
     });
     req.on('error', (e) => reject(new ErroHttp(400, 'Não consegui ler a requisição: ' + (e?.message || e))));
     req.on('end', () => {
       if (estourou) return;
+      const raw = Buffer.concat(blocos, tamanho).toString('utf8');
       if (!raw.trim()) return resolve({});
       try {
         const j = JSON.parse(raw);
