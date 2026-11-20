@@ -836,15 +836,24 @@ async function handler(req, res) {
       if (pathname === '/api/perfil' && req.method === 'PATCH') {
         const b = await readBody(req);
         const patch = {};
-        if ('nome' in b || !Object.keys(b).length) { const nome = texto1(b.nome, 80).trim(); if (!nome) return json(res, 400, { erro: 'Informe o seu nome.' }); patch.nome = nome; }
-        if ('cargo' in b) patch.cargo = texto1(b.cargo, 60).trim() || null;
+        if ('nome' in b || !Object.keys(b).length) {
+          if (typeof b.nome !== 'string' || !b.nome.trim()) return json(res, 400, { erro: 'Informe o seu nome.' });
+          patch.nome = texto1(b.nome.trim(), 80);
+        }
+        if ('cargo' in b) {
+          if (b.cargo !== null && typeof b.cargo !== 'string') return json(res, 400, { erro: 'Informe o cargo em texto.' });
+          patch.cargo = texto1(b.cargo, 60).trim() || null;
+        }
         if ('telefone' in b) {
+          if (b.telefone !== null && (typeof b.telefone !== 'string' || !/^[0-9+(). -]*$/.test(b.telefone))) {
+            return json(res, 400, { erro: 'Telefone com DDD, por favor.' });
+          }
           const t = texto1(b.telefone, 30).replace(/\D/g, '');
           if (t && (t.length < 10 || t.length > 13)) return json(res, 400, { erro: 'Telefone com DDD, por favor.' });
           patch.telefone = t || null;
         }
         if ('avatar_cor' in b) {
-          if (b.avatar_cor !== null && !/^#[0-9a-f]{6}$/i.test(String(b.avatar_cor))) return json(res, 400, { erro: 'Cor inválida (use #RRGGBB).' });
+          if (b.avatar_cor !== null && (typeof b.avatar_cor !== 'string' || !/^#[0-9a-f]{6}$/i.test(b.avatar_cor))) return json(res, 400, { erro: 'Cor inválida (use #RRGGBB).' });
           patch.avatar_cor = b.avatar_cor;
         }
         if ('preferencias' in b) {
