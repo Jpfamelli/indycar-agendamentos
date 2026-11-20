@@ -1370,3 +1370,8 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - **R9-ATD-010** · aviso · A faixa explica a interrupção e aponta para Integrações. · `9301455`
 - **R9-ATD-011** · conserto · A faixa reserva espaço depois de atualizar o texto. · `9301455`
 - **R9-ATD-012** · conserto · O filtro adicional selecionado por link abre o painel automaticamente. · `9301455`
+- **R9-ATD-013** · conserto · Cliques repetidos em mensagens anteriores durante a carga pedem só uma página. · `a3d3634`
+- **R9-ATD-014** · conserto · Uma falha ao carregar o histórico permite repetir a mesma página e exibe o que fazer. · `a3d3634`
+- **R9-ATD-015** · conserto · Uma atualização em tempo real mantém a página de histórico solicitada e preserva a posição da leitura. · `a3d3634`
+- **R9-ATD-016** · conserto · Uma falha de outra conversa não substitui o histórico da conversa aberta. · `a3d3634`
+- **R9-ATD-017** · teste · A suíte verifica cliques repetidos, nova tentativa após falha e atualização concorrente do histórico. · `a3d3634`

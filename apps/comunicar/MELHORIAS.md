@@ -1025,3 +1025,17 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-015** · conserto · A resposta do WhatsApp atualiza apenas o cartão que iniciou a consulta. · `9c68d71`
 - **R9-COM-016** · acessibilidade · Requisições antigas não retiram o indicador de carregamento da tela atual. · `9c68d71`
 - **R9-COM-017** · teste · O Chrome verifica por clique e teclado os painéis dos dois apps com tráfego externo bloqueado. · `9c68d71`
+- **R9-COM-018** · conserto · Respostas atrasadas de Réguas, Mensagens, Campanhas, Clientes e Satisfação deixam a aba atual intacta. · `e6bc7ed`
+- **R9-COM-019** · conserto · Uma atualização em segundo plano deixa a navegação em andamento terminar. · `e6bc7ed`
+- **R9-COM-020** · aviso · Falha ao atualizar em segundo plano mantém a tela visível e dá um aviso. · `e6bc7ed`
+- **R9-COM-021** · texto · A contagem inicial de Mensagens indica quando a lista continua em outra página. · `290e36a`
+- **R9-COM-022** · acessibilidade · O leitor de tela recebe a contagem atualizada de mensagens. · `290e36a`
+- **R9-COM-023** · conserto · Carregar mais descarta a página atrasada de um filtro que já mudou. · `290e36a`
+- **R9-COM-024** · conserto · Carregar mais mantém um único manipulador para ações da lista. · `290e36a`
+- **R9-COM-025** · conserto · A busca de mensagens pendente é descartada quando a pessoa sai da lista. · `290e36a`
+- **R9-COM-026** · conserto · Um período invertido preserva o filtro válido e deixa a opção de limpar visível. · `290e36a`
+- **R9-COM-027** · conserto · A busca de clientes mostra apenas resultados do texto atual. · `290e36a`
+- **R9-COM-028** · aviso · Falha ao buscar clientes mostra um aviso e preserva os resultados anteriores. · `290e36a`
+- **R9-COM-029** · teste · O roteiro protegido confere e captura os painéis nos temas claro e escuro. · `8e5b653`
+- **R9-COM-030** · teste · O Chrome reproduz a navegação durante consulta atrasada e uma atualização que falha. · `8e5b653`
+- **R9-COM-031** · teste · O roteiro verifica que um período invertido preserva o filtro e pode ser limpo. · `8e5b653`

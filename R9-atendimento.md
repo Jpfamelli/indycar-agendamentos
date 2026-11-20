@@ -16,4 +16,8 @@ Lote 1 em `9301455`. 12 melhorias registradas no MELHORIAS.
 
 A rodada 1 mediu 440 conversas em 30 dias, 259 sem lead vinculado pelo telefone.
 
-Chrome com mock e tráfego externo bloqueado: painel aberto por clique e teclado, sem rolagem lateral a 375 e 1440 px. Capturas depois em `apps/atendimento/qa-out/r9/`. Faltam comparação antes/depois, matriz de temas, axe e jornadas completas.
+Chrome com mock e tráfego externo bloqueado. O painel abre por clique e teclado e cabe em 375 e 1440 px nos temas claro e escuro. As capturas depois estão em `apps/atendimento/qa-out/r9/`. Faltam comparação antes/depois, axe e jornadas completas.
+
+A segunda passagem registrou mais cinco melhorias no histórico de conversas em `a3d3634`, totalizando **17/150**. A suíte passou de 411 para 412 testes, todos verdes. Retomar em R9-ATD-018.
+
+A evidência disponível ainda permite classificar o uso de conversas, mas o uso de cada botão, ajuste e relatório permanece indeterminado. Validar os filtros mais usados na prévia antes de remover controles. O histórico preserva os nomes de botões e telas.
