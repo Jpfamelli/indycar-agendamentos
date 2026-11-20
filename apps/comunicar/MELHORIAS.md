@@ -1108,3 +1108,7 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-098** · aviso · A busca de satisfação distingue erro de consulta de resultado vazio. · `d6e492a`
 - **R9-COM-099** · acessibilidade · O registro incompleto leva o foco ao cliente ou à escolha de satisfação. · `d6e492a`
 - **R9-COM-100** · conserto · O retorno de um registro de satisfação preserva a tela aberta depois. · `d6e492a`
+
+## Rodada 10 (20/11/2026)
+
+- **R10-COM-001** ? seguran?a ? Roteiro compartilhado confirma a identidade dos dois mocks antes de abrir o Chrome (teste testes-r10-mock.mjs) ? `4cbe2d9`
