@@ -295,7 +295,7 @@ async function route(r, opts = {}) {
     if (vez === state._vez) view.innerHTML = vazio(I.alerta, 'Não deu para abrir esta tela', esc(e.message) + (e.status === 0 || e.status >= 500 ? '<br><button type="button" class="btn btn-mini" data-tentar-tela>Tentar de novo</button>' : ''));
     $('[data-tentar-tela]', view)?.addEventListener('click', () => route(state.route));
   } finally {
-    view.removeAttribute('aria-busy');
+    if (vez === state._vez) view.removeAttribute('aria-busy');
   }
   /* acessibilidade (rodada 4): título da aba, aviso para leitor de tela e foco no título da tela nova */
   const nomeTela = NOMES_TELA[state.route] || 'Início';
@@ -322,11 +322,15 @@ async function refreshBadge(pendentes) {
 // ============================================================================
 // INÍCIO
 // ============================================================================
-async function renderInicio() {
+async function renderInicio({ quieto } = {}) {
+  const vez = state._vez;
   /* O status do WhatsApp consulta o CodeWords (pode levar segundos): a tela
      pinta primeiro com "verificando…" e o item é preenchido quando chegar. */
   const waPromise = api('GET', '/whatsapp/status').catch(() => ({ ok:false, erro:'sem resposta' }));
   const [r, saude] = await Promise.all([api('GET', '/resumo'), api('GET', '/saude').catch(() => null)]);
+  if (vez !== state._vez) return;
+  const detalhesAbertos = quieto && $('.inicio-detalhes', view)?.open;
+  const acoesAbertas = quieto && $('.inicio-mais-acoes', view)?.open;
   const s = r.satisfacao || {};
   const hoje = new Date();
 
@@ -371,7 +375,7 @@ async function renderInicio() {
       <div><h2 class="hero-titulo">${titulo}</h2></div>
       <div class="hero-acoes">
         <button type="button" class="btn primary" id="btnPrevia">Prévia de hoje</button>
-        <details class="inicio-mais-acoes">
+        <details class="inicio-mais-acoes"${acoesAbertas ? ' open' : ''}>
           <summary>Mais ações</summary>
         <button type="button" class="btn" id="btnMes">${svg(I.calendar)} Próximos 30 dias</button>
         ${pode('rodar') ? `<button type="button" class="btn" id="btnRodar">${svg(I.play)} Rodar agora</button>` : ''}
@@ -398,7 +402,7 @@ async function renderInicio() {
       ${statCard('wa', s.pct === null || s.pct === undefined ? '—' : s.pct, 'Satisfação', I.smile, { sufixo:'%', sub: s.notaMedia ? `nota média ${String(s.notaMedia).replace('.', ',')} · ${s.total} respostas` : `${s.total || 0} respostas` })}
     </div>
 
-    <details class="inicio-detalhes">
+    <details class="inicio-detalhes"${detalhesAbertos ? ' open' : ''}>
       <summary>Mais indicadores</summary>
     <div class="cols ia-cols" id="iaLinha">
       <div class="panel ia-panel-resumo"><div class="panel-head"><h2><span class="ia-selo">✨ IA</span> Resumo da semana</h2><span class="panel-sub">cache de 6 h</span></div>
@@ -439,7 +443,10 @@ async function renderInicio() {
   animarNumeros(view);
   carregarLinhaIA();
   $('#btnRelatorio')?.addEventListener('click', () => abrirRelatorio('todas'));
-  waPromise.then(wa => { const el = $('#waItem'); if (el) el.innerHTML = htmlWhatsapp(wa); });
+  const waItem = $('#waItem', view);
+  waPromise.then(wa => {
+    if (waItem?.isConnected) waItem.innerHTML = htmlWhatsapp(wa);
+  });
   $('#btnRodar')?.addEventListener('click', rodarAgora);
   $('#btnPrevia').addEventListener('click', () => abrirPrevia());
   $('#btnMes').addEventListener('click', () => window.R4?.abrirMes());

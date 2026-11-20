@@ -13,3 +13,7 @@ A suíte completa executa 411 testes. Capturas antigas da rodada 1 estão em `ap
 Para João, confirmar na prévia quais filtros devem voltar à primeira linha. Para Claude, conferir a navegação da Central ao integrar.
 
 Lote 1 em `9301455`. 12 melhorias registradas no MELHORIAS.
+
+A rodada 1 mediu 440 conversas em 30 dias, 259 sem lead vinculado pelo telefone.
+
+Chrome com mock e tráfego externo bloqueado: painel aberto pelo teclado, sem rolagem lateral a 375 e 1440 px. Capturas depois em `apps/atendimento/qa-out/r9/`. Faltam comparação antes/depois, matriz de temas, axe e jornadas completas.

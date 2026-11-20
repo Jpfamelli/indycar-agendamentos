@@ -28,14 +28,21 @@ try {
         });
         await page.setViewport({ width: largura, height: 900 });
         await page.goto(`${origem}/?papel=admin`, { waitUntil: 'networkidle0' });
+        const pularTour = await page.$('button[data-tour="pular"], button[data-t="pular"]');
+        if (pularTour) await pularTour.click();
         const seletor = app === 'atendimento' ? '#filtrosExtras' : '.inicio-detalhes';
         await page.waitForSelector(`${seletor} > summary`, { visible: true });
         assert.equal(await page.$eval(seletor, el => el.open), false);
         await page.screenshot({ path: fileURLToPath(new URL(`depois-${largura}.png`, dir)) });
-        await page.focus(`${seletor} > summary`);
+        const summary = `${seletor} > summary`;
+        await page.$eval(summary, el => el.scrollIntoView({ block:'center' }));
+        await page.click(summary);
+        await page.waitForSelector(`${seletor}[open]`);
+        await page.focus(summary);
+        await page.keyboard.press('Enter');
+        await page.waitForSelector(`${seletor}:not([open])`);
         await page.keyboard.press('Enter');
         await page.waitForSelector(`${seletor}[open]`);
-        assert.equal(await page.$eval(seletor, el => el.open), true);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true,
           `${app} tem rolagem lateral em ${largura}px`);
         console.log(`${app} ${largura}px: painel abre e cabe na tela`);
