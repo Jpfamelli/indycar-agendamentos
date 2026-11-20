@@ -392,9 +392,12 @@
   function vencimentoDe(data, hora) {
     if (!data) return null;
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(data); if (!m) throw new Error('Data inválida.');
-    const h = /^(\d{2}):(\d{2})$/.exec(hora || '17:30'); if (!h) throw new Error('Hora inválida.');
-    const d = new Date(+m[1], m[2] - 1, +m[3], +h[1], +h[2]);
-    if (!Number.isFinite(+d) || d.getDate() !== +m[3]) throw new Error('Data inválida.');
+    const h = /^(\d{2}):(\d{2})$/.exec(hora || '17:30');
+    if (!h || +h[1] > 23 || +h[2] > 59) throw new Error('Hora inválida.');
+    const d = new Date(0);
+    d.setHours(+h[1], +h[2], 0, 0);
+    d.setFullYear(+m[1], +m[2] - 1, +m[3]);
+    if (+m[1] < 1 || d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) throw new Error('Data inválida.');
     return d.toISOString();
   }
   function situacaoTarefaDb(t, agora = new Date()) {
@@ -428,8 +431,8 @@
     if (titulo.length > 200) throw new Error('Tarefa com até 200 caracteres.');
     const descricao = String(d.descricao || '').trim();
     if (descricao.length > 2000) throw new Error('Descrição com até 2.000 caracteres.');
-    const prioridade = Math.round(num(d.prioridade) || 2);
-    if (prioridade < 1 || prioridade > 3) throw new Error('Prioridade de 1 a 3.');
+    const prioridade = d.prioridade == null || d.prioridade === '' ? 2 : Number(d.prioridade);
+    if (![1, 2, 3].includes(prioridade)) throw new Error('Prioridade de 1 a 3.');
     const row = {titulo, prioridade, origem: 'crm', status: 'aberta'};
     if (descricao) row.descricao = descricao;
     if (d.vence_em) { if (!Number.isFinite(ms(d.vence_em))) throw new Error('Data inválida.'); row.vence_em = new Date(d.vence_em).toISOString(); }

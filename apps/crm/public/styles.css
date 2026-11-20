@@ -782,7 +782,7 @@ kbd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78em;padding:2p
 .tarefa-txt{flex:1;font-size:.88rem;min-width:0;overflow-wrap:anywhere}
 .tarefa-data{font-size:.75rem;color:var(--gray);white-space:nowrap}
 .tarefa.atrasada .tarefa-data b{color:var(--vermelho-txt)} .tarefa.hoje .tarefa-data b{color:var(--amarelo-txt)}
-.tarefa-x{border:none;background:none;color:var(--gray);font-size:1.15rem;cursor:pointer;width:28px;height:28px;border-radius:50%}
+.tarefa-x{border:none;background:none;color:var(--gray);font-size:1.15rem;cursor:pointer;width:var(--alvo);height:var(--alvo);border-radius:50%}
 .tarefa-x:hover{background:var(--superficie-2);color:var(--vermelho-txt)}
 .tarefa-lead{border:none;background:none;color:var(--azul-txt);text-decoration:underline;cursor:pointer;font-size:.8rem;padding:0}
 

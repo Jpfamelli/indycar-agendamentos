@@ -16,3 +16,22 @@ test('a paginação mantém o intervalo legível quando o tamanho salvo é invá
     });
   }
 });
+
+test('o vencimento da tarefa não normaliza hora ou minuto inválido', () => {
+  assert.throws(() => U.vencimentoDe('2026-11-20', '24:00'), /Hora inválida/);
+  assert.throws(() => U.vencimentoDe('2026-11-20', '09:60'), /Hora inválida/);
+});
+
+test('o vencimento da tarefa valida mês, dia e ano do calendário', () => {
+  assert.throws(() => U.vencimentoDe('2026-13-20'), /Data inválida/);
+  assert.throws(() => U.vencimentoDe('0000-01-01'), /Data inválida/);
+  assert.equal(new Date(U.vencimentoDe('0099-11-20')).getFullYear(), 99);
+});
+
+test('prioridade vazia usa Normal e valores fora das opções são rejeitados', () => {
+  assert.equal(U.validarTarefa({titulo: 'Ligar'}).prioridade, 2);
+  assert.equal(U.validarTarefa({titulo: 'Ligar', prioridade: '3'}).prioridade, 3);
+  for (const prioridade of [0, 1.5, 'urgente']) {
+    assert.throws(() => U.validarTarefa({titulo: 'Ligar', prioridade}), /Prioridade de 1 a 3/);
+  }
+});
