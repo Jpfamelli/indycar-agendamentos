@@ -156,7 +156,9 @@ function controlesDeOrdem(ctx, campanhas, criterio) {
 function linhaDaClassificacao(ctx, estado, { campanha: c, posicao, distancia: dist }, criterio) {
   const num = numeroDoCriterio(c, criterio);
   const situacao = SITUACAO[c.situacao];
-  const href = ctx.hrefDaTela('campanhas', { plataforma: c.plataforma, chave: c.chave });
+  // Lista filtrada por plataforma: o detalhe guarda o filtro em "so" para voltar para a mesma lista.
+  const filtro = plataformaDoFiltro(ctx);
+  const href = ctx.hrefDaTela('campanhas', { plataforma: c.plataforma, chave: c.chave, ...(filtro ? { so: filtro } : {}) });
   return h('li', { class: 'camp-linha', data: { chave: c.plataforma + '|' + c.chave, lider: dist.tipo === 'lider' ? '1' : null } },
     h('span', { class: 'camp-pos', 'aria-hidden': posicao ? null : 'true' }, posicao ? [h('span', { class: 'so-leitor' }, 'Posição '), String(posicao)] : ''),
     h('div', { class: 'camp-nome' },
@@ -254,7 +256,10 @@ function pintarLista(ctx, d, primeira) {
 /* ------------------------------ uma campanha aberta ------------------------------ */
 
 function detalhe(ctx, plataforma, chave) {
-  const voltar = () => ctx.ir('campanhas', { ...(ctx.periodo !== 'mes' ? { periodo: ctx.periodo } : {}), ...(ctx.rota.params.ordem ? { ordem: ctx.rota.params.ordem } : {}) });
+  const so = ctx.rota.params.so === 'meta' || ctx.rota.params.so === 'google' ? ctx.rota.params.so : null;
+  const destino = () => paramsDaLista(ctx, { ...(so ? { plataforma: so } : {}), ...(ctx.rota.params.ordem ? { ordem: ctx.rota.params.ordem } : {}) });
+  const voltar = () => ctx.ir('campanhas', destino());
+  voltar.href = () => ctx.hrefDaTela('campanhas', destino());
   ultimaAberta = plataforma + '|' + chave;
   const aoTeclar = (e) => {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
@@ -387,7 +392,7 @@ function pintarDetalhe(ctx, d, voltar) {
   trocar(ctx.miolo,
     h('header', { class: 'camp-det-topo' },
       h('nav', { class: 'camp-volta', 'aria-label': 'Caminho' },
-        h('a', { class: 'ligacao', href: ctx.hrefDaTela('campanhas', ctx.rota.params.ordem ? { ordem: ctx.rota.params.ordem } : {}), on: { click: (e) => { e.preventDefault(); voltar(); } } },
+        h('a', { class: 'ligacao', href: voltar.href(), on: { click: (e) => { e.preventDefault(); voltar(); } } },
           icone('voltar', 'icone-p'), 'Voltar para a classificação')),
       titulo,
       h('p', { class: 'camp-sobre' }, marcaDaPlataforma(c.plataforma), situacao ? h('span', { class: 'apoio' }, situacao) : null,

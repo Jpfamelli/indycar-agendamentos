@@ -211,6 +211,15 @@ export const CASOS = {
     await pagina.waitForFunction(() => !document.querySelector('.camp-filtro') && document.querySelectorAll('.camp-linha').length > 0);
     const todas = await pagina.$$eval('.camp-linha', (l) => [...new Set(l.map((li) => li.dataset.chave.split('|')[0]))]);
     conferir(todas.includes('meta') && todas.includes('google'), 'Ver todas volta às duas: ' + todas.join(','));
+    // Abrir uma campanha da lista filtrada e voltar: a lista continua só do Google, com o foco na linha aberta.
+    await pagina.goto(endereco + '?cenario=cheio#/campanhas?plataforma=google', { waitUntil: 'networkidle0' });
+    const chave = await pagina.$eval('.camp-linha', (li) => li.dataset.chave);
+    await pagina.click('.camp-linha .camp-abre');
+    await pagina.waitForFunction(() => /chave=/.test(location.hash) && document.querySelector('#miolo a.ligacao'));
+    await pagina.evaluate(() => [...document.querySelectorAll('#miolo a.ligacao')].find((a) => /Voltar para a classificação/.test(a.textContent)).click());
+    await pagina.waitForFunction(() => !/chave=/.test(location.hash) && document.querySelector('.camp-filtro'));
+    conferir(/plataforma=google/.test(await pagina.evaluate(() => location.hash)), 'voltou para a lista do Google');
+    conferir(await pagina.evaluate((c) => document.activeElement && document.activeElement.closest('.camp-linha')?.dataset.chave === c, chave), 'o foco volta para a campanha aberta');
   },
 
   /* Hoje › De onde vieram: o leitor de tela ouve "1 contato", não "1 contatos". */
