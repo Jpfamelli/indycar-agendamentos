@@ -26,6 +26,11 @@
     if (t && !t.hidden && t.querySelector('.toast-btn')) return;
     C.toast(texto, 1300);
   }
+  /* rodada 9: a dica listava apps que a pessoa não pode abrir (e o atalho respondia "sem acesso"); agora só os dela */
+  function dicaDoG() {
+    const meus = Object.entries(L.ATALHOS_G).filter(([, app]) => C.podeUsar(app)).map(([t, app]) => `${t} ${L.APPS[app].nome}`);
+    return meus.length ? 'g…  ' + meus.join(' · ') : 'Nenhum app liberado para o seu usuário.';
+  }
 
   function teclado(e) {
     if (!C || !C.perfil) return;
@@ -56,7 +61,7 @@
     }
     if (k === '/') { e.preventDefault(); C.busca && C.busca.abrir(); }
     else if (k === '?') { e.preventDefault(); abrirAjuda(); }
-    else if (k === 'g' || k === 'G') { esperandoG = true; dica('g…  a Agenda · t Atendimento · c CRM · m Comunicar · p Pátio · o Orçador'); clearTimeout(timerG); timerG = setTimeout(() => { esperandoG = false; }, 1500); }
+    else if (k === 'g' || k === 'G') { esperandoG = true; dica(dicaDoG()); clearTimeout(timerG); timerG = setTimeout(() => { esperandoG = false; }, 1500); }
     else if (/^[1-7]$/.test(k)) {
       const app = window.CasaLogica2.ATALHOS_NUMERO[k];
       e.preventDefault();

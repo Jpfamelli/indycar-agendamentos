@@ -334,6 +334,25 @@ try {
   conferir('tentar de novo busca outra vez e o foco volta ao campo', depois[0] === 'buscaInput' && depois[1], JSON.stringify(depois));
   await b.page.close();
   });
+
+  // 22. "g": a dica só lista os apps da pessoa; "g f" abre o Tráfego (antes só o 7)
+  await passo("22. g mostra só os apps da pessoa; g f abre o Tráfego", async () => {
+  const g = await abrir({ papel: 'admin' }, 1440);
+  await g.page.evaluate(() => { document.activeElement && document.activeElement.blur(); window.__ABAS.length = 0; });
+  await g.page.keyboard.press('g'); await espera(60);
+  const dicaAdmin = await g.page.$eval('#toast', (t) => t.textContent);
+  await g.page.keyboard.press('f'); await espera(100);
+  const abas = await g.page.evaluate(() => window.__ABAS.slice());
+  conferir('g f abre o Tráfego na aba indycar-ads', abas.length === 1 && abas[0][0] === '/trafego/' && abas[0][1] === 'indycar-ads', JSON.stringify(abas));
+  conferir('dica do g (dono): tem o Tráfego', /f Tráfego/.test(dicaAdmin), dicaAdmin);
+  await g.page.close();
+  const m = await abrir({ papel: 'agenda' }, 1440);
+  await m.page.evaluate(() => { document.activeElement && document.activeElement.blur(); });
+  await m.page.keyboard.press('g'); await espera(60);
+  const dicaAgenda = await m.page.$eval('#toast', (t) => t.textContent);
+  conferir('dica do g (agenda): só Agenda e Pátio, sem app sem acesso', /a Agenda/.test(dicaAgenda) && /p Pátio/.test(dicaAgenda) && !/CRM|Tráfego|Orçador|Atendimento|Comunicar/.test(dicaAgenda), dicaAgenda);
+  await m.page.close();
+  });
 } finally {
   await browser.close();
 }

@@ -526,7 +526,8 @@
   }
 
   /* ---------------- atalhos de teclado ---------------- */
-  const ATALHOS_G = { a: 'agenda', c: 'crm', t: 'atendimento', m: 'comunicar', p: 'patio', o: 'orcador' };
+  /* rodada 9: o Tráfego só abria pelo 7; agora também pelo "g depois f" (a ordem aqui é a da dica que aparece no canto) */
+  const ATALHOS_G = { a: 'agenda', t: 'atendimento', c: 'crm', m: 'comunicar', p: 'patio', o: 'orcador', f: 'ads' };
   const AJUDA_ATALHOS = [
     ['Ctrl+K  ou  /', 'Buscar por telefone, nome ou placa em tudo'],
     ['g  depois  a', 'Abrir a Agenda'],
@@ -535,6 +536,7 @@
     ['g  depois  m', 'Abrir o Comunicar'],
     ['g  depois  p', 'Abrir o Pátio'],
     ['g  depois  o', 'Abrir o Orçador'],
+    ['g  depois  f', 'Abrir o Tráfego (anúncios)'],
     ['1 … 7', 'Abrir o app da posição (1 Agenda, 2 Atendimento, 3 CRM, 4 Comunicar, 5 Pátio, 6 Orçador, 7 Tráfego)'],
     ['>', 'Na busca: comandos (novo horário, nova entrada, tema…)'],
     ['j  ou  k', 'Descer / subir na lista “Pede atenção agora” (Enter abre)'],

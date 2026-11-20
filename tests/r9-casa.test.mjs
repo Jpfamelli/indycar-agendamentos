@@ -474,3 +474,14 @@ test('"ir para" leva o foco junto e só anima a rolagem para quem não pediu men
     assert.doesNotMatch(semComentarios(ler(f)), /behavior: 'smooth'/, f + ': rolagem animada fixa ignorava o "menos movimento"');
   }
 });
+
+test('"g depois f" abre o Tráfego e a dica do g só lista os apps que a pessoa pode abrir', () => {
+  assert.equal(L.ATALHOS_G.f, 'ads');
+  assert.deepEqual(Object.keys(L.ATALHOS_G), ['a', 't', 'c', 'm', 'p', 'o', 'f'], 'ordem da dica igual à da ajuda');
+  assert.ok(L.AJUDA_ATALHOS.some(([k, d]) => k === 'g  depois  f' && /Tráfego/.test(d)));
+  for (const app of Object.values(L.ATALHOS_G)) assert.ok(L.APPS[app], app + ' existe na lista de apps');
+  const s = semComentarios(ler('atalhos.js'));
+  assert.match(s, /Object\.entries\(L\.ATALHOS_G\)\.filter\(\(\[, app\]\) => C\.podeUsar\(app\)\)/);
+  assert.match(s, /dica\(dicaDoG\(\)\)/);
+  assert.doesNotMatch(s, /g…  a Agenda · t Atendimento/, 'dica fixa com todos os apps saiu');
+});
