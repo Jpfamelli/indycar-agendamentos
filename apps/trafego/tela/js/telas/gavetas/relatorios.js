@@ -43,13 +43,20 @@ export function montar(ctx, alvo) {
   async function carregar() {
     const minha = ++pedido;
     saida.setAttribute('aria-busy', 'true');
+    // Enquanto o texto novo não chega, o anterior não pode ser copiado: antes dava para trocar para "Dia"
+    // e copiar o da semana sem perceber (o título ainda dizia "semana").
+    for (const b of saida.querySelectorAll('button')) b.disabled = true;
+    const tituloAntigo = saida.querySelector('.relatorio-titulo');
+    if (tituloAntigo) tituloAntigo.textContent = 'Buscando o relatório…';
     let r;
     try {
       r = await ctx.api.ler('api/relatorios/texto?tipo=' + tipo + (tipo === 'mensal' ? '&mes=' + encodeURIComponent(mes) : ''));
     } catch (erro) {
       if (saiu || minha !== pedido) return;
       saida.setAttribute('aria-busy', 'false');
-      trocar(saida, h('p', { class: 'campo-erro' }, fraseDoErro(erro)));
+      // Antes ficava só a frase do erro: para tentar de novo era preciso trocar de relatório e voltar.
+      trocar(saida, h('p', { class: 'campo-erro' }, fraseDoErro(erro)),
+        h('div', { class: 'relatorio-botoes' }, h('button', { class: 'botao', type: 'button', on: { click: carregar } }, icone('atualizar'), 'Tentar de novo')));
       return;
     }
     if (saiu || minha !== pedido) return;

@@ -12,13 +12,14 @@
 
 import { h, icone, trocar, focar, menosMovimento } from '../dom.js';
 import { dinheiro, inteiro, numero, dataCurta, haQuanto, ehNumero } from '../formato.js';
-import { selo, semDado } from '../pecas.js';
+import { selo, semDado, erroNoCampo } from '../pecas.js';
 import { lerFluxo, olhando } from '../fluxo.js';
 import { blocosDoTexto, montarBlocos } from '../formatacao.js';
-import { separar, lerAcao, quemFaz, antesEDepois, perguntasProntas } from '../acoes-logica.js';
+import { separar, lerAcao, quemFaz, antesEDepois, perguntasProntas, quemNoDiario, anotacao, ONDE_ANOTAR, NOME_DO_TIPO, quandoMedeODepois } from '../acoes-logica.js';
 import { fraseDoErro } from './estados.js';
 
 const MAX_PERGUNTA = 2000;
+const DIARIO_CURTO = 5;
 
 export function mostrar(ctxInicial) {
   let ctx = ctxInicial;
@@ -27,6 +28,7 @@ export function mostrar(ctxInicial) {
   let saiu = false;
   let acoes = [];              // linhas cruas de trafego_acoes (a última lista lida)
   let temConta = false, temContatos = true;
+  let diarioAberto = false;   // "Ver as outras decisões" já tocado
 
   /* --- moldura --- */
   const el = {
@@ -41,6 +43,7 @@ export function mostrar(ctxInicial) {
     diario: h('div', { class: 'gestor-diario' }),
     conversas: h('div', { class: 'gestor-conversas' }),
   };
+  el.anotar = formularioDeAnotar();
   const parar = h('button', { class: 'botao botao-quieto', type: 'button', on: { click: () => pararResposta() } }, icone('parar'), 'Parar');
   const novaConversa = h('button', { class: 'botao botao-quieto', type: 'button', hidden: true, on: { click: () => comecarDeNovo() } }, icone('mais'), 'Conversa nova');
   const formulario = h('form', { class: 'campo gestor-perguntar', on: { submit: (e) => { e.preventDefault(); perguntar(el.pergunta.value); } } },
@@ -71,7 +74,7 @@ export function mostrar(ctxInicial) {
       h('div', { class: 'gestor-lado' },
         secao('tDecidir', 'Para decidir', null, el.decidir),
         secao('tPlano', 'Plano da semana', null, el.plano),
-        secao('tDiario', 'Diário de decisões', h('p', null, 'O que foi sugerido, o que você decidiu e como ficou.'), el.diario),
+        secao('tDiario', 'Diário de decisões', h('p', null, 'O que foi sugerido, o que você decidiu e como ficou.'), el.diario, el.anotar),
         secao('tConversas', 'Conversas anteriores', null, el.conversas))));
 
   /* --- a conversa --- */
@@ -120,6 +123,10 @@ export function mostrar(ctxInicial) {
     const pessoa = falaDaPessoa(pergunta);
     const gestor = falaDoGestor('');
     el.fala.append(pessoa, gestor.no);
+    // Pergunta pronta ou "Perguntar" ficam desligados enquanto ele responde: o foco iria parar no nada (fim da página).
+    // Vai para a resposta, que não abre o teclado do celular; dali o Tab segue para os links dela.
+    const comFoco = document.activeElement;
+    if (comFoco && (el.prontas.contains(comFoco) || comFoco === el.enviar)) { gestor.no.tabIndex = -1; gestor.no.focus({ preventScroll: true }); }
     el.pergunta.value = '';
     el.contagem.textContent = '';
     novaConversa.hidden = false;
@@ -191,11 +198,11 @@ export function mostrar(ctxInicial) {
   }
 
   /* --- para decidir e diário --- */
-  async function decidir(a, decisao, botao) {
+  async function decidir(a, decisao, botao, nota) {
     const card = botao.closest('.proposta');
     for (const b of card.querySelectorAll('button')) b.disabled = true;
     try {
-      const r = await ctx.api.gravar('api/acoes-trafego/' + encodeURIComponent(a.id) + '/' + (decisao === 'feita' ? 'feita' : 'decidir'), decisao === 'feita' ? {} : { decisao });
+      const r = await ctx.api.gravar('api/acoes-trafego/' + encodeURIComponent(a.id) + '/' + (decisao === 'feita' ? 'feita' : 'decidir'), decisao === 'feita' ? {} : { decisao, ...(nota ? { nota } : {}) });
       const nova = r && (r.acao || r.registro || (r.id ? r : null));
       acoes = acoes.map((x) => (String(x.id) === a.id ? (nova || { ...x, status: decisao === 'aceitar' ? 'aceita' : decisao === 'recusar' ? 'recusada' : 'feita' }) : x));
       ctx.leitor.esquecer('api/acoes-trafego');
@@ -210,6 +217,27 @@ export function mostrar(ctxInicial) {
       // Já decidida por outra pessoa ou vencida: a lista do servidor é a verdade.
       if (erro && erro.status === 409) { ctx.leitor.esquecer('api/acoes-trafego'); carregarAcoes(); }
     }
+  }
+
+  /**
+   * Recusar pede um segundo toque (no celular, "Recusar" fica colado em "Aceitar") e deixa dizer por quê:
+   * o motivo vai para o diário e o Gestor lê nas próximas sugestões.
+   */
+  function pedirMotivo(a, botao) {
+    const card = botao.closest('.proposta');
+    const botoes = botao.closest('.proposta-botoes');
+    const id = 'recusa-' + a.id;
+    const campo = h('textarea', { id, rows: '2', maxlength: '300', placeholder: 'Ex.: freio é o serviço que mais dá margem' });
+    const voltar = () => { caixa.remove(); botoes.hidden = false; botao.focus(); };
+    const confirmar = h('button', { class: 'botao botao-forte', type: 'button', on: { click: (e) => decidir(a, 'recusar', e.currentTarget, campo.value.trim() || null) } }, icone('fechar'), 'Recusar a sugestão');
+    const caixa = h('div', { class: 'proposta-recusa', role: 'group', 'aria-label': 'Recusar: ' + a.titulo,
+      on: { keydown: (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); voltar(); } } } },
+      h('label', { class: 'campo', for: id }, h('span', null, 'Por que não? (opcional, fica no diário)'), campo),
+      h('div', { class: 'proposta-botoes' }, confirmar, h('button', { class: 'botao botao-quieto', type: 'button', on: { click: voltar } }, 'Voltar')));
+    botoes.hidden = true;
+    botoes.after(caixa);
+    campo.focus();
+    return card;
   }
 
   function cartao(a) {
@@ -235,7 +263,7 @@ export function mostrar(ctxInicial) {
       a.status === 'proposta'
         ? h('div', { class: 'proposta-botoes' },
           h('button', { class: 'botao ' + (alto ? '' : 'botao-forte'), type: 'button', on: { click: (e) => decidir(a, 'aceitar', e.currentTarget) } }, icone('certo'), alto ? 'Aceitar mesmo assim' : 'Aceitar'),
-          h('button', { class: 'botao botao-quieto', type: 'button', on: { click: (e) => decidir(a, 'recusar', e.currentTarget) } }, icone('fechar'), 'Recusar'))
+          h('button', { class: 'botao botao-quieto', type: 'button', on: { click: (e) => pedirMotivo(a, e.currentTarget) } }, icone('fechar'), 'Recusar'))
         : h('div', { class: 'proposta-botoes' },
           h('p', { class: 'apoio' }, 'Aceita' + (a.decididaPor ? ' por ' + a.decididaPor : '') + (a.decididaEm ? ' em ' + dataCurta(a.decididaEm) : '') + '. Falta fazer a mudança.'),
           h('button', { class: 'botao botao-forte', type: 'button', on: { click: (e) => decidir(a, 'feita', e.currentTarget) } }, icone('certo'), 'Já fiz')));
@@ -257,7 +285,7 @@ export function mostrar(ctxInicial) {
     else if (a.status === 'feita' && a.medirEm) resultado = selo('espera', 'Medir em ' + dataCurta(a.medirEm));
     return h('li', { class: 'diario-item' },
       h('div', { class: 'diario-cab' },
-        h('p', { class: 'diario-quando apoio' }, (quando ? dataCurta(quando) + ' · ' : '') + a.autor + ' sugeriu' + (a.decididaPor ? ' · ' + a.decididaPor + ' decidiu' : '')),
+        h('p', { class: 'diario-quando apoio' }, (quando ? dataCurta(quando) + ' · ' : '') + quemNoDiario(a)),
         selo(a.statusTexto.tom, a.statusTexto.texto)),
       h('p', { class: 'diario-titulo' }, a.titulo),
       resultado ? h('p', { class: 'diario-resultado' }, h('span', { class: 'apoio' }, 'Resultado: '), resultado) : null,
@@ -269,8 +297,9 @@ export function mostrar(ctxInicial) {
         h('thead', null, h('tr', null,
           h('th', { scope: 'col' }, h('span', { class: 'so-leitor' }, 'Medida')),
           h('th', { scope: 'col' }, 'Antes', a.antes && a.antes.periodo ? h('span', { class: 'diario-periodo' }, a.antes.periodo) : null),
-          h('th', { scope: 'col' }, 'Depois', a.depois && a.depois.periodo ? h('span', { class: 'diario-periodo' }, a.depois.periodo) : null))),
-        h('tbody', null, linhas.map((m) => h('tr', null, h('th', { scope: 'row' }, m.rotulo), h('td', null, valorDaMedida(m, m.antes)), h('td', null, a.depois ? valorDaMedida(m, m.depois) : semDado('ainda não medido')))))) : null,
+          a.depois ? h('th', { scope: 'col' }, 'Depois', a.depois.periodo ? h('span', { class: 'diario-periodo' }, a.depois.periodo) : null) : null)),
+        h('tbody', null, linhas.map((m) => h('tr', null, h('th', { scope: 'row' }, m.rotulo), h('td', null, valorDaMedida(m, m.antes)), a.depois ? h('td', null, valorDaMedida(m, m.depois)) : null)))) : null,
+      linhas.length && !a.depois && quandoMedeODepois(a) ? h('p', { class: 'apoio' }, quandoMedeODepois(a)) : null,
       a.nota ? h('p', { class: 'diario-nota apoio' }, 'Nota: ' + a.nota) : null);
   }
 
@@ -279,9 +308,63 @@ export function mostrar(ctxInicial) {
     trocar(el.decidir, abertas.length
       ? abertas.map(cartao)
       : h('p', { class: 'suave' }, 'Nada esperando decisão. Quando o Gestor sugerir uma mudança, ela aparece aqui para você aceitar ou recusar.'));
+    // As 5 mais novas aparecem; o resto fica a um toque (no celular o diário inteiro passava de 3 telas).
+    const lista = h('ol', { class: 'diario' }, diario.slice(0, diarioAberto ? diario.length : DIARIO_CURTO).map(itemDoDiario));
+    const resto = diario.length - DIARIO_CURTO;
     trocar(el.diario, diario.length
-      ? h('ol', { class: 'diario' }, diario.map(itemDoDiario))
+      ? [lista, !diarioAberto && resto > 0 ? h('button', { class: 'botao botao-quieto diario-mais', type: 'button', on: { click: () => {
+        diarioAberto = true;
+        pintarAcoes();
+        const proximo = el.diario.querySelectorAll('.diario-item')[DIARIO_CURTO];
+        if (proximo) { proximo.setAttribute('tabindex', '-1'); proximo.focus(); }
+      } } }, icone('mais'), resto === 1 ? 'Ver a decisão mais antiga' : 'Ver as outras ' + inteiro(resto) + ' decisões') : null]
       : h('p', { class: 'suave' }, 'Ainda nenhuma decisão. Cada sugestão aceita, recusada ou feita fica anotada aqui, com o resultado medido depois.'));
+  }
+
+  /* --- anotar uma mudança feita por conta própria (POST api/acoes-trafego, API-gestor.md §3) --- */
+  function formularioDeAnotar() {
+    const opcao = (valor, rotulo) => h('option', { value: valor }, rotulo);
+    const campos = {
+      tipo: h('select', { id: 'anTipo', name: 'tipo' }, opcao('', 'Escolha'), Object.entries(NOME_DO_TIPO).map(([v, r]) => opcao(v, r))),
+      titulo: h('input', { id: 'anTitulo', name: 'titulo', type: 'text', maxlength: '120', autocomplete: 'off', placeholder: 'Ex.: Desliguei os anúncios do Google no domingo' }),
+      onde: h('select', { id: 'anOnde', name: 'onde' }, opcao('', 'Não sei dizer'), ONDE_ANOTAR.map((o) => opcao(o.id, o.rotulo))),
+      campanha: h('input', { id: 'anCampanha', name: 'campanha', type: 'text', maxlength: '120', autocomplete: 'off', placeholder: 'Se foi numa campanha só, o nome dela' }),
+      porque: h('textarea', { id: 'anPorque', name: 'porque', rows: '2', maxlength: '1000' }),
+    };
+    const gravar = h('button', { class: 'botao botao-forte', type: 'submit' }, icone('certo'), 'Anotar no diário');
+    const rotulo = (id, texto, campo) => h('label', { class: 'campo', for: id }, h('span', null, texto), campo);
+    const caixa = h('details', { class: 'anotar' });
+    const form = h('form', { class: 'anotar-form', novalidate: true, on: { submit: async (e) => {
+      e.preventDefault();
+      for (const c of Object.values(campos)) erroNoCampo(c, null);
+      const v = anotacao({ tipo: campos.tipo.value, titulo: campos.titulo.value, onde: campos.onde.value, campanha: campos.campanha.value, porque: campos.porque.value });
+      if (!v.ok) { erroNoCampo(campos[v.campo], v.erro); campos[v.campo].focus(); return; }
+      gravar.disabled = true;
+      try {
+        const r = await ctx.api.gravar('api/acoes-trafego', v.corpo);
+        if (r && r.acao) acoes = [r.acao, ...acoes.filter((x) => String(x.id) !== String(r.acao.id))];
+        ctx.leitor.esquecer('api/acoes-trafego');
+        form.reset();
+        caixa.open = false;
+        pintarAcoes();
+        const nova = r && r.acao ? lerAcao(r.acao) : null;
+        ctx.avisar('Anotado no diário.' + (nova && nova.medirEm ? ' O Tráfego compara a semana antes com a semana depois em ' + dataCurta(nova.medirEm) + '.' : ''));
+      } catch (erro) {
+        const codigo = erro && erro.corpo && erro.corpo.codigo;
+        const campo = codigo === 'alvo' ? campos.onde : campos[codigo] || null;
+        if (campo) { erroNoCampo(campo, fraseDoErro(erro)); campo.focus(); } else ctx.avisar(fraseDoErro(erro));
+      } finally {
+        gravar.disabled = false;
+      }
+    } } },
+      h('p', { class: 'apoio' }, 'Mexeu num anúncio ou no atendimento por conta própria? Anote aqui: o Tráfego mede a semana antes e a semana depois, igual faz com as sugestões do Gestor.'),
+      rotulo('anTipo', 'Tipo da mudança', campos.tipo),
+      rotulo('anTitulo', 'O que foi feito', campos.titulo),
+      h('div', { class: 'anotar-dupla' }, rotulo('anOnde', 'Onde', campos.onde), rotulo('anCampanha', 'Campanha (se for uma só)', campos.campanha)),
+      rotulo('anPorque', 'Por quê (se quiser)', campos.porque),
+      h('div', { class: 'anotar-botoes' }, gravar));
+    caixa.append(h('summary', { class: 'ligacao anotar-abrir' }, icone('mais', 'icone-p'), 'Anotar uma mudança que eu fiz'), form);
+    return caixa;
   }
 
   /* --- plano da semana --- */
@@ -395,6 +478,7 @@ export function mostrar(ctxInicial) {
       if (saiu) return;
       acoes = Array.isArray(d) ? d : Array.isArray(d && d.acoes) ? d.acoes : Array.isArray(d && d.itens) ? d.itens : [];
       pintarAcoes();
+      el.anotar.hidden = Boolean(d && d.ligado === false);
       if (d && d.ligado === false) {
         trocar(el.decidir, h('p', { class: 'aviso-caixa' }, icone('info', 'icone-p'), h('span', null, d.aviso || 'O diário de decisões ainda não existe no banco.')));
         trocar(el.diario, h('p', { class: 'suave' }, 'Sem o diário no banco, as sugestões do Gestor ainda não ficam guardadas.'));
@@ -421,11 +505,22 @@ export function mostrar(ctxInicial) {
     } catch { temConta = false; }
     pintarProntas();
   }
+  /** Oficina sem nenhum contato nos últimos 30 dias: as perguntas prontas viram as de quem está começando
+   *  (antes "temContatos" nunca mudava e quem não tinha contato via "Por que tantos contatos estão sem origem?"). */
+  async function carregarContatos() {
+    try {
+      const d = (await ctx.leitor.ler('api/jornada?periodo=30d&tamanho=1')).dados;
+      if (saiu) return;
+      const total = d && d.pagina && ehNumero(d.pagina.total) ? d.pagina.total : null;
+      if (total === 0 && temContatos) { temContatos = false; pintarProntas(); }
+    } catch { /* sem a contagem, ficam as perguntas de quem já tem contatos */ }
+  }
 
   carregando(el.decidir); carregando(el.plano); carregando(el.conversas);
   pintarVazio();
   pintarProntas();
   carregarConexoes();
+  carregarContatos();
   carregarAcoes();
   carregarPlano();
   carregarConversas();

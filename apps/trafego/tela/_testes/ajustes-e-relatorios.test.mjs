@@ -23,10 +23,21 @@ test('metas: o jeito brasileiro de digitar vira número; em branco é "não sei"
   assert.equal(paraCampo(40, 'porcento'), '40');
 });
 
-test('metas: a conta de cabeça só aparece com o valor do serviço', () => {
-  assert.equal(contaDeCabeca({ ticket_medio: null, margem_pct: 40 }), null);
+test('metas: a conta de cabeça usa a régua do servidor (sem margem cadastrada, 45% de premissa)', () => {
+  // Sem valor do serviço ainda dá para dizer a partir de quanto a campanha se paga.
+  assert.match(contaDeCabeca({ ticket_medio: null, margem_pct: 40 }), /vira mais de R\$\s2,50 .*acima de R\$\s5,00/);
+  assert.doesNotMatch(contaDeCabeca({ ticket_medio: null, margem_pct: 40 }), /deixa/);
   assert.match(contaDeCabeca({ ticket_medio: 800, margem_pct: 40 }), /deixa R\$\s320/);
-  assert.match(contaDeCabeca({ ticket_medio: 800 }), /100% de margem/);
+  // Margem em branco (o servidor guarda 100%) ou 0: premissa de 45%, dita com todas as letras, nunca "100% de margem".
+  for (const margem of [undefined, null, 100, 0]) {
+    const t = contaDeCabeca({ ticket_medio: 800, margem_pct: margem });
+    assert.match(t, /Sem margem cadastrada, o Tráfego faz as contas com 45%, uma premissa/, String(margem));
+    assert.match(t, /45% de margem, cada serviço fechado deixa R\$\s360/, String(margem));
+    assert.match(t, /R\$\s2,22 .*R\$\s4,44/, 'a mesma régua da classificação (2,22 e 4,44)');
+    assert.doesNotMatch(t, /100% de margem/);
+  }
+  assert.equal(paraCampo(100, 'porcento'), '', '100% é o "em branco" antigo: o campo aparece vazio');
+  assert.equal(paraCampo(0, 'porcento'), '');
   for (const c of CAMPOS) for (const re of PROIBIDO) assert.doesNotMatch(c.rotulo + c.para, re, c.id);
 });
 

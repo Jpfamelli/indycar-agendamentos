@@ -199,6 +199,30 @@
   flex: 1 1 0;
   min-width: 0;
 }
+/* Celular: sem valor na linha de baixo, a origem e a campanha usam a ficha inteira (antes cortavam em "Troca de ól…"
+   com meia linha vazia ao lado); campanha longa desce para a linha de baixo em vez de sumir. */
+@media (max-width: 61.99em) {
+  .torre-jornada .torre-linha:has(> .jl-valor:empty) > .jl-origem {
+    grid-column: 1 / -1;
+  }
+  /* A situação comprida ("Esperando resposta", "há 17 h 48 min") alargava a coluna da direita e cortava o carro e o
+     serviço em "Renegade 2019 · Troca d…"; agora quem e o carro usam a ficha inteira, com lugar guardado para a data,
+     e o serviço comprido desce para a linha de baixo em vez de sumir. */
+  .torre-jornada .torre-linha > .jl-contato {
+    grid-column: 1 / -1;
+    padding-right: 3.75rem;
+  }
+  .torre-jornada .jl-contato > .apoio {
+    white-space: normal;
+  }
+}
+.jl-origem {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+.jl-origem > .apoio {
+  flex-basis: 8rem;
+}
 .jl-valor {
   grid-area: valor;
 }

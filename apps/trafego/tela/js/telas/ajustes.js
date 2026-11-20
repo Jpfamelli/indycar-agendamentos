@@ -7,6 +7,8 @@
    ============================================================================ */
 
 import { h, icone, trocar, focar } from '../dom.js';
+import { selo } from '../pecas.js';
+import { seloDasConexoes } from '../hoje-logica.js';
 import * as Conexoes from './gavetas/conexoes.js';
 import * as Origem from './gavetas/origem.js';
 import * as Metas from './gavetas/metas.js';
@@ -28,10 +30,18 @@ const largo = () => typeof matchMedia === 'function' && matchMedia('(min-width: 
 export function mostrar(ctxInicial) {
   let ctx = ctxInicial;
   let aberta = null;           // { id, sair? }
+  let saiu = false;
+  // O estado das conexões já no item da lista: "Faltam 2 passos", "Pede atenção" ou "Tudo ligado".
+  const estadoDasConexoes = h('span', { class: 'ajustes-item-estado' });
+  ctx.leitor.ler('api/conexoes').then((r) => {
+    const s = !saiu && seloDasConexoes(r && r.dados);
+    if (s) trocar(estadoDasConexoes, selo(s[0], s[1]));
+  }, () => { /* sem o estado, o item fica só com o nome */ });
   const lista = h('nav', { class: 'ajustes-lista', 'aria-label': 'Partes dos Ajustes' },
     h('ul', null, GAVETAS.map((g) => h('li', null,
       h('a', { class: 'ajustes-item', href: ctx.hrefDaTela('ajustes', { secao: g.id }), data: { id: g.id } },
         h('span', { class: 'ajustes-item-titulo' }, g.titulo),
+        g.id === 'conexoes' ? estadoDasConexoes : null,
         h('span', { class: 'ajustes-item-sobre' }, g.sobre),
         icone('chevron-direita', 'ajustes-item-seta'))))));
   const painel = h('div', { class: 'ajustes-painel', tabindex: '-1' });
@@ -92,6 +102,6 @@ export function mostrar(ctxInicial) {
   abrir(ctx, { focarTitulo: Boolean(ctx.rota.params.secao) });
   return {
     atualizar(novo) { abrir(novo); return true; },
-    sair() { if (aberta && aberta.sair) aberta.sair(); },
+    sair() { saiu = true; if (aberta && aberta.sair) aberta.sair(); },
   };
 }

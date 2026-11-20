@@ -57,8 +57,8 @@ test('situação em palavras', () => {
 
 test('descrição para leitor de tela', () => {
   const item = { etapa_atual: 'agendou', etapas: [{ id: 'contato', em }, { id: 'respondido', em }, { id: 'orcamento', em }, { id: 'agendou', em }], desfecho: { tipo: 'aberto', parado_dias: 2 } };
-  assert.equal(descricaoDosSetores(item), 'Chegou até Agendou, etapa 4 de 7. Em aberto, parado há 2 dias.');
-  assert.equal(descricaoDosSetores({ etapas: ETAPAS.map((e) => ({ id: e.id, em })), desfecho: { tipo: 'fechou', valor: 1 } }), 'Chegou até Fechou, etapa 7 de 7. Serviço fechado.');
+  assert.equal(descricaoDosSetores(item), 'Etapa 4 de 7: Agendou. Em aberto, parado há 2 dias.');
+  assert.equal(descricaoDosSetores({ etapas: ETAPAS.map((e) => ({ id: e.id, em })), desfecho: { tipo: 'fechou', valor: 1 } }), 'Etapa 7 de 7: Fechou.');
 });
 
 test('pendências: as três do mutirão abrem em fila; "sem resposta" abre a lista', () => {

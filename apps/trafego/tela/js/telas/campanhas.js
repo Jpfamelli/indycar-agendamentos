@@ -98,9 +98,23 @@ function numeroDoCriterio(c, criterio) {
 
 /* ------------------------------ a classificação ------------------------------ */
 
+/** Só uma plataforma? (o "Ver campanhas" de um alerta do radar chega com ?plataforma=meta; antes era ignorado.) */
+const plataformaDoFiltro = (ctx) => (ctx.rota.params.plataforma === 'meta' || ctx.rota.params.plataforma === 'google' ? ctx.rota.params.plataforma : null);
+/** Os parâmetros da lista que valem ao trocar a ordem ou tirar o filtro. */
+const paramsDaLista = (ctx, extra = {}) => ({ ...(ctx.periodo !== 'mes' ? { periodo: ctx.periodo } : {}), ...extra });
+
 function lista(ctx) {
-  Estados.buscar(ctx, 'api/campanhas?periodo=' + ctx.periodo, { forma: 'jornada', pintar: (d, { primeira }) => pintarLista(ctx, d, primeira) });
+  const plataforma = plataformaDoFiltro(ctx);
+  Estados.buscar(ctx, 'api/campanhas?periodo=' + ctx.periodo + (plataforma ? '&plataforma=' + plataforma : ''), { forma: 'jornada', pintar: (d, { primeira }) => pintarLista(ctx, d, primeira) });
   return null;
+}
+
+function avisoDoFiltro(ctx) {
+  const plataforma = plataformaDoFiltro(ctx);
+  if (!plataforma) return null;
+  const ordem = ctx.rota.params.ordem ? { ordem: ctx.rota.params.ordem } : {};
+  return h('p', { class: 'camp-filtro' }, 'Só as campanhas ' + (plataforma === 'meta' ? 'da Meta' : 'do Google') + '. ',
+    h('a', { class: 'ligacao', href: ctx.hrefDaTela('campanhas', paramsDaLista(ctx, ordem)) }, 'Ver todas'));
 }
 
 function resumoDoTopo(d) {
@@ -130,7 +144,8 @@ function controlesDeOrdem(ctx, campanhas, criterio) {
   if (validos.length <= 1) {
     return h('p', { class: 'apoio camp-ordem-so' }, 'Em ordem de ' + criterio.rotulo.toLowerCase() + '. Sem gasto ligado não dá para ordenar por custo nem por retorno.');
   }
-  const aoEscolher = (id) => ctx.ir('campanhas', { ...(ctx.periodo !== 'mes' ? { periodo: ctx.periodo } : {}), ...(id !== 'retorno' ? { ordem: id } : {}) });
+  const plataforma = plataformaDoFiltro(ctx);
+  const aoEscolher = (id) => ctx.ir('campanhas', paramsDaLista(ctx, { ...(plataforma ? { plataforma } : {}), ...(id !== 'retorno' ? { ordem: id } : {}) }));
   const opcoes = validos.map((c) => ({ id: c.id, rotulo: c.rotulo }));
   return h('div', { class: 'camp-ordem' },
     h('span', { class: 'apoio camp-ordem-rotulo', 'aria-hidden': 'true' }, 'Ordenar por'),
@@ -141,7 +156,9 @@ function controlesDeOrdem(ctx, campanhas, criterio) {
 function linhaDaClassificacao(ctx, estado, { campanha: c, posicao, distancia: dist }, criterio) {
   const num = numeroDoCriterio(c, criterio);
   const situacao = SITUACAO[c.situacao];
-  const href = ctx.hrefDaTela('campanhas', { plataforma: c.plataforma, chave: c.chave });
+  // Lista filtrada por plataforma: o detalhe guarda o filtro em "so" para voltar para a mesma lista.
+  const filtro = plataformaDoFiltro(ctx);
+  const href = ctx.hrefDaTela('campanhas', { plataforma: c.plataforma, chave: c.chave, ...(filtro ? { so: filtro } : {}) });
   return h('li', { class: 'camp-linha', data: { chave: c.plataforma + '|' + c.chave, lider: dist.tipo === 'lider' ? '1' : null } },
     h('span', { class: 'camp-pos', 'aria-hidden': posicao ? null : 'true' }, posicao ? [h('span', { class: 'so-leitor' }, 'Posição '), String(posicao)] : ''),
     h('div', { class: 'camp-nome' },
@@ -218,7 +235,8 @@ function pintarLista(ctx, d, primeira) {
   trocar(ctx.miolo,
     h('header', { class: 'camp-topo' },
       h('h1', { class: 'titulo-tela' }, 'Campanhas'),
-      h('p', { class: 'camp-resumo' }, resumoDoTopo(d))),
+      h('p', { class: 'camp-resumo' }, resumoDoTopo(d)),
+      avisoDoFiltro(ctx)),
     avisoSemConta(ctx, d),
     h('section', { class: 'bloco camp-classificacao', 'aria-labelledby': 'tClassificacao' },
       h('div', { class: 'bloco-cab camp-cab' },
@@ -238,7 +256,10 @@ function pintarLista(ctx, d, primeira) {
 /* ------------------------------ uma campanha aberta ------------------------------ */
 
 function detalhe(ctx, plataforma, chave) {
-  const voltar = () => ctx.ir('campanhas', { ...(ctx.periodo !== 'mes' ? { periodo: ctx.periodo } : {}), ...(ctx.rota.params.ordem ? { ordem: ctx.rota.params.ordem } : {}) });
+  const so = ctx.rota.params.so === 'meta' || ctx.rota.params.so === 'google' ? ctx.rota.params.so : null;
+  const destino = () => paramsDaLista(ctx, { ...(so ? { plataforma: so } : {}), ...(ctx.rota.params.ordem ? { ordem: ctx.rota.params.ordem } : {}) });
+  const voltar = () => ctx.ir('campanhas', destino());
+  voltar.href = () => ctx.hrefDaTela('campanhas', destino());
   ultimaAberta = plataforma + '|' + chave;
   const aoTeclar = (e) => {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
@@ -336,13 +357,28 @@ function palavrasETermos(d) {
         h('span', { class: 'apoio' }, [ehNumero(t.cliques) ? contagem(t.cliques, 'clique', 'cliques') : null, ehNumero(t.gasto) ? dinheiro(t.gasto) : null].filter(Boolean).join(' · ')))))) : null);
 }
 
+const CONTATOS_A_VISTA = 6;
+
 function contatosDaCampanha(ctx, d) {
   const c = d.campanha || {};
   const itens = Array.isArray(d.contatos) ? d.contatos : [];
   const total = ehNumero(d.contatos_total) ? d.contatos_total : itens.length;
   const naJornada = ctx.hrefDaTela('jornada', c.ext ? { campanha: c.ext } : { paga: '1' });
+  // Os 6 mais recentes à vista; o resto a um toque (no celular, 15 contatos davam três telas antes dos links).
+  const caixa = h('div', { class: 'camp-contatos' });
+  const pintarTorre = (todos) => {
+    const mostra = todos ? itens : itens.slice(0, CONTATOS_A_VISTA);
+    const resto = itens.length - mostra.length;
+    trocar(caixa, torreDeContatos(ctx, mostra, { rotulo: 'Contatos da campanha ' + (c.nome || ''), campanha: c.nome }),
+      resto > 0 ? h('button', { class: 'botao botao-quieto camp-contatos-mais', type: 'button', on: { click: () => {
+        pintarTorre(true);
+        const proximo = caixa.querySelectorAll('.torre-abre')[CONTATOS_A_VISTA];
+        if (proximo) proximo.focus();
+      } } }, icone('mais'), resto === 1 ? 'Ver o outro contato' : 'Ver os outros ' + inteiro(resto) + ' contatos') : null);
+  };
+  if (itens.length) pintarTorre(false);
   return bloco('tContatosCampanha', 'Contatos desta campanha', total > itens.length ? 'Os ' + inteiro(itens.length) + ' mais recentes de ' + inteiro(total) + '.' : null,
-    itens.length ? torreDeContatos(ctx, itens, { rotulo: 'Contatos da campanha ' + (c.nome || '') }) : h('p', { class: 'suave' }, 'Nenhum contato chegou por esta campanha no período.'),
+    itens.length ? caixa : h('p', { class: 'suave' }, 'Nenhum contato chegou por esta campanha no período.'),
     itens.length ? h('a', { class: 'ligacao', href: naJornada }, total > itens.length ? 'Ver todos os ' + inteiro(total) + ' na Jornada' : 'Ver na Jornada', icone('seta', 'icone-p')) : null);
 }
 
@@ -356,7 +392,7 @@ function pintarDetalhe(ctx, d, voltar) {
   trocar(ctx.miolo,
     h('header', { class: 'camp-det-topo' },
       h('nav', { class: 'camp-volta', 'aria-label': 'Caminho' },
-        h('a', { class: 'ligacao', href: ctx.hrefDaTela('campanhas', ctx.rota.params.ordem ? { ordem: ctx.rota.params.ordem } : {}), on: { click: (e) => { e.preventDefault(); voltar(); } } },
+        h('a', { class: 'ligacao', href: voltar.href(), on: { click: (e) => { e.preventDefault(); voltar(); } } },
           icone('voltar', 'icone-p'), 'Voltar para a classificação')),
       titulo,
       h('p', { class: 'camp-sobre' }, marcaDaPlataforma(c.plataforma), situacao ? h('span', { class: 'apoio' }, situacao) : null,

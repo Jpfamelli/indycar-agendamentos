@@ -182,16 +182,19 @@ export function responderCampanhas(m, q) {
   const gastoTotal = g ? (plataforma ? g[plataforma] : g.total) : null;
   const demo = Boolean(m.receita.demo);
   const sem = numerosDaOficina(semCampanha);
-  const comparacao = m.receita.contas && !demo ? {
-    linhas: ['meta', 'google'].map((plat) => {
+  const linhasDaComparacao = ['meta', 'google'].map((plat) => {
       const daPlat = campanhas.filter((c) => c.plataforma === plat);
       const gp = g ? g[plat] : null;
       const ct = daPlat.reduce((s, c) => s + c.contatos, 0), fe = daPlat.reduce((s, c) => s + c.fecharam, 0);
       const cpc = dividir(gp, ct), cps = dividir(gp, fe);
       return { plataforma: plat, custo_por_contato: cpc, custo_por_servico: cps, fecharam: fe,
         texto: (plat === 'meta' ? 'Meta' : 'Google') + ': ' + (cpc ? dinheiro(cpc) + ' por contato' : 'sem contato') + ' · ' + (cps ? dinheiro(cps) + ' por serviço fechado' : 'nenhum serviço fechado') };
-    }),
-    destaque: 'A Meta traz o serviço fechado mais barato neste período.',
+  });
+  // A mesma conta do servidor (motor/comparacao.js): só diz a mais barata com 3 serviços fechados em cada uma.
+  const comServico = linhasDaComparacao.filter((l) => l.custo_por_servico != null && l.fecharam >= 3).sort((a, b) => a.custo_por_servico - b.custo_por_servico);
+  const comparacao = m.receita.contas && !demo ? {
+    linhas: linhasDaComparacao,
+    destaque: comServico.length === 2 ? 'Pelos contatos da oficina, ' + (comServico[0].plataforma === 'meta' ? 'a Meta' : 'o Google') + ' trouxe serviço fechado mais barato no período.' : '',
   } : null;
   return {
     periodo: D.periodoPublico(p),
@@ -523,7 +526,7 @@ export function mensagemPronta(m, corpo) {
   let codigo = '';
   for (let i = 0, x = n * 7919; i < 5; i++, x = Math.floor(x / 31) + 17 * i) codigo += ALFABETO[x % ALFABETO.length];
   const final = texto + ' [ref ' + codigo + ']';
-  const link = 'https://wa.me/5512996830272?text=' + encodeURIComponent(final);
+  const link = 'https://wa.me/5512990001234?text=' + encodeURIComponent(final);
   const plataforma = c.plataforma === 'meta' || c.plataforma === 'google' ? c.plataforma : null;
   const paga = plataforma ? true : c.paga === true;
   return { status: 200, corpo: {
@@ -541,7 +544,9 @@ export function responderRastreio(m) {
   }
   return { ligado: true, script: '<script src="https://indycar-agendamentos.onrender.com/trafego/rastreio.js" async></script>', instalado_no_site: true,
     ultima_visita: '2026-11-19T10:21:00-03:00', ultimo_clique: '2026-11-19T09:12:00-03:00', cliques_7d: m.receita.contas ? 61 : 23, visitas_7d: m.receita.contas ? 410 : 188,
-    por_pagina: [{ pagina: '/', n: 11 }, { pagina: '/servicos/troca-de-oleo', n: 7 }, { pagina: '/agendar', n: 5 }] };
+    por_pagina: m.receita.contas  // a soma das páginas bate com as visitas e os cliques dos 7 dias
+      ? [{ pagina: '/', n: 214, cliques: 22 }, { pagina: '/servicos/troca-de-oleo', n: 121, cliques: 26 }, { pagina: '/agendar', n: 75, cliques: 13 }]
+      : [{ pagina: '/', n: 98, cliques: 8 }, { pagina: '/servicos/troca-de-oleo', n: 56, cliques: 10 }, { pagina: '/agendar', n: 34, cliques: 5 }] };
 }
 
 /* ------------------------------ chaves da IA de fora ------------------------------ */
@@ -664,7 +669,7 @@ function acoesBrutas(m) {
       alvo: { plataforma: 'google', nivel: 'campanha', ext: '20881330002', nome: 'Troca de óleo' },
       evidencias: [{ texto: 'R$ 319 de gasto e 0 serviço fechado de 01/11 a 19/11' }, { texto: 'Custo por contato de R$ 64, contra R$ 38 da média' }],
       medir_em: '2026-11-26', antes: null, depois: null, veredito: null, decidida_por: null, decidida_em: null, feita_em: null, nota: null },
-    { id: 'a-02', criada_em: '2026-11-19T07:00:00-03:00', origem: 'ia', autor: 'Gestor IA', tipo: 'aumentar_verba', status: 'proposta', risco: 'alto', risco_motivo: 'Risco alto: aumento de 40%, acima de 30%.', verba: { atual: 25, nova: 35, por: 'dia' },
+    { id: 'a-02', criada_em: '2026-11-19T07:00:00-03:00', origem: 'ia', autor: 'Gestor IA', tipo: 'aumentar_verba', status: 'proposta', risco: 'alto', risco_motivo: 'Risco alto: aumento de 40% de uma vez (o passo seguro é até 30%).', verba: { atual: 25, nova: 35, por: 'dia' },
       titulo: 'Aumentar a verba da "Troca de óleo R$ 169" de R$ 25 para R$ 35 por dia',
       porque: 'É a campanha que mais fecha serviço e a agenda da semana que vem tem vaga.',
       alvo: { plataforma: 'meta', nivel: 'campanha', ext: '120211450001', nome: 'Troca de óleo R$ 169' },
@@ -736,6 +741,22 @@ export function decidir(m, id, corpo, quem) {
   a.decidida_em = '2026-11-19T10:30:00-03:00';
   a.nota = corpo.nota ? String(corpo.nota).slice(0, 300) : null;
   if (decisao === 'aceitar') a.antes = medida({ contatos: 9, custo_por_contato: 64, gasto: 319, periodo: '12/11 a 18/11' }, { base: 'plataforma', rotulo: INTEIRA[a.alvo && a.alvo.plataforma] || 'o Google inteiro' });
+  return { status: 200, corpo: { ok: true, acao: rotular(a) } };
+}
+
+/** POST /api/acoes-trafego: a pessoa anota uma mudança que fez por conta própria (API-gestor.md §3). */
+const TIPOS_DO_DIARIO = ['pausar', 'reativar', 'aumentar_verba', 'reduzir_verba', 'trocar_criativo', 'mensagem_pronta', 'negativar_termo', 'ajustar_horario', 'corrigir_rastreio', 'outro'];
+export function registrarPropria(m, corpo, quem) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  if (!TIPOS_DO_DIARIO.includes(c.tipo)) return { status: 422, corpo: { erro: 'Escolha o tipo da mudança.', codigo: 'tipo' } };
+  const titulo = typeof c.titulo === 'string' ? c.titulo.trim() : '';
+  if (titulo.length < 5 || titulo.length > 120) return { status: 422, corpo: { erro: 'Escreva o que foi feito em 5 a 120 letras.', codigo: 'titulo' } };
+  const n = ++estado(m).proximoId;
+  const a = { id: 'a-p' + n, criada_em: '2026-11-19T10:40:00-03:00', origem: 'pessoa', autor: quem, tipo: c.tipo, status: c.ja_fiz === true ? 'feita' : 'aceita',
+    risco: 'baixo', risco_motivo: null, titulo, porque: typeof c.porque === 'string' ? c.porque.trim() : null, alvo: c.alvo || null, evidencias: [],
+    medir_em: '2026-11-26', antes: medida({ contatos: 9, custo_por_contato: 64, gasto: 319, periodo: '12/11 a 18/11' }, { base: 'plataforma', rotulo: 'a oficina inteira' }),
+    depois: null, veredito: null, decidida_por: quem, decidida_em: '2026-11-19T10:40:00-03:00', feita_em: c.ja_fiz === true ? '2026-11-19T10:40:00-03:00' : null, nota: null };
+  estado(m).acoes.unshift(a);
   return { status: 200, corpo: { ok: true, acao: rotular(a) } };
 }
 
@@ -886,7 +907,7 @@ export function relatorioFolha(m, q) {
   return { status: 200, corpo: {
     mes: { mes, de, ate, rotulo, fechado: mes !== '2026-11' }, periodo: { de, ate, rotulo, anterior: h.periodo.anterior }, estado: h.estado,
     titulo: 'IndyCar · Tráfego · ' + rotulo, frase, numeros: h.numeros, derivados: h.derivados, funil: h.funil, origens: h.origens,
-    campanhas: camps.campanhas.map(({ serie, ...c }) => c), sem_campanha: camps.sem_campanha,
+    campanhas: camps.campanhas.slice(0, 8).map(({ serie, ...c }) => c), sem_campanha: camps.sem_campanha, campanhas_total: camps.campanhas.length,
     horarios: { pico: camps.horarios.pico, leitura: camps.horarios.leitura }, texto: relatorioTexto(m, 'mensal').corpo.texto, gerado_em: '2026-11-19T13:30:00.000Z',
   } };
 }
@@ -915,7 +936,7 @@ export function devolucaoGoogle(m) {
   if (!m.receita.contas) return { status: 409, corpo: { erro: 'O banco ainda não guarda os identificadores de clique (falta aplicar a atualização do banco).', codigo: 'banco_sem_colunas' } };
   const linhas = ['GCLID,GBRAID,WBRAID,Conversion action,Conversion date and time,Conversion value,Currency,Order ID'];
   linhas.push('EAIa-teste-1,,,Venda na oficina,2026-11-12T16:40:00-03:00,890.00,BRL,lead-0001', 'EAIa-teste-2,,,Venda na oficina,2026-11-14T11:05:00-03:00,1250.00,BRL,lead-0002');
-  return { status: 200, csv: linhas.join('\r\n') + '\r\n', nome: 'vendas-google-central-2026-11-19.csv' };
+  return { status: 200, csv: linhas.join('\r\n') + '\r\n', nome: 'vendas-google-central-2026-11-19.csv', vendas: linhas.length - 1 };
 }
 
 export function devolucaoMeta(m) {

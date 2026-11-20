@@ -477,6 +477,8 @@ rota('POST', '/api/sync', async ({ corpo }) => {
 rota('POST', '/api/testar-conexoes', () => coletor.testarConexoes());
 
 rota('POST', '/api/demo', async ({ corpo, usuario }) => {
+  // Rodada 9: pôr ou tirar a demonstração mexe na tabela de números que todos veem: só o administrador.
+  soAdmin(usuario, 'pôr ou tirar os números de demonstração');
   const c = await corpo();
   if (c.limpar) {
     await db.apagarDemo();
@@ -495,6 +497,8 @@ rota('POST', '/api/config', async ({ corpo, usuario }) => {
   const v = validarConfig(await corpo());
   if (v.whatsapp_destinos !== undefined) soAdmin(usuario, 'trocar os números que recebem os relatórios');
   await db.salvarConfig(v);
+  // A verba e o valor médio novos valem na hora: o Hoje não pode seguir 30 s com o ritmo calculado pelas metas antigas.
+  require('./motor/fonte').esquecerLeituras();
   // Telefones mascarados no registro (só os 4 últimos dígitos).
   const detalhes = { ...v };
   if (v.whatsapp_destinos) detalhes.whatsapp_destinos = v.whatsapp_destinos.map(t => '•••' + t.slice(-4));
@@ -616,10 +620,12 @@ rota('POST', '/api/alertas/lidos', async ({ corpo }) => {
   return { ok: true };
 });
 
-rota('POST', '/api/radar', async ({ corpo }) => {
+rota('POST', '/api/radar', async ({ corpo, usuario }) => {
   const c = await corpo();
   // Simulação por padrão: quem clica "testar" não deve disparar WhatsApp
   // para o dono sem querer.
+  // Rodada 9: simular continua livre; mandar os alertas pelo WhatsApp do dono é só do administrador (a mesma regra do fechamento).
+  if (c.enviar === true) soAdmin(usuario, 'mandar os alertas pelo WhatsApp');
   const r = await radar.rodar({ enviar: c.enviar === true, ignorarCooldown: c.ignorar_cooldown === true });
   // Rodada 7: a simulação também mostra para onde cada alerta leva.
   return { ...r, alertas: (r.alertas || []).map(a => ({ ...a, acao: require('./acoes').acaoDoAlerta(a) })) };
@@ -628,6 +634,7 @@ rota('POST', '/api/radar', async ({ corpo }) => {
 rota('GET', '/api/relatorios', () => db.listarRelatorios(30));
 rota('POST', '/api/relatorio', async ({ corpo, usuario }) => {
   const c = await corpo();
+  if (c.enviar === true) soAdmin(usuario, 'mandar o relatório pelo WhatsApp');
   if (c.enviar === true) await equipe.banco().auditar(usuario, 'ads_relatorio_enviado_manual', { tabela: 'ads_relatorios' });
   const r = await relatorio.gerarEEnviar({
     referencia: DATA_ISO.test(c.referencia || '') ? c.referencia : undefined,
@@ -640,6 +647,7 @@ rota('POST', '/api/relatorio', async ({ corpo, usuario }) => {
 /* --- canal de WhatsApp (CodeWords + reserva Cloud API) --- */
 rota('GET', '/api/whatsapp/status', ({ q }) => whatsapp.status({ fresco: q.get('fresco') === '1' }));
 rota('POST', '/api/whatsapp/testar', async ({ usuario }) => {
+  soAdmin(usuario, 'mandar a mensagem de teste pelo WhatsApp');
   await equipe.banco().auditar(usuario, 'ads_whatsapp_teste', {});
   const cfg = await db.lerConfig({ fresco: true });
   if (!cfg.whatsapp_destinos.length) throw new ErroHttp(400, 'cadastre ao menos um número em Ajustes antes de testar o envio');

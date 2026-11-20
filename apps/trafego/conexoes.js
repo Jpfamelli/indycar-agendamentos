@@ -165,6 +165,9 @@ async function salvar(canal, entrada = {}, { gravar = db.salvarIntegracao } = {}
   const nome = entrada.conta_nome ? String(entrada.conta_nome).trim().slice(0, 80) : null;
   const linha = await gravar(canal, v.cred, nome);
   if (canal === 'google') google.esquecerToken?.();
+  // As telas guardam a leitura das conexões por 30 s: sem esquecer, o Hoje e os Ajustes seguiam dizendo
+  // "não ligada" logo depois de "Acesso guardado".
+  require('./motor/fonte').esquecerLeituras();
   return db.mascararIntegracao(linha);
 }
 

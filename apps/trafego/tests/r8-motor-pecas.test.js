@@ -112,6 +112,11 @@ test('comparação entre plataformas pela régua da oficina: custo por contato e
   assert.deepEqual(c.linhas.map(l => [l.plataforma, l.custo_por_contato, l.custo_por_servico]), [['meta', 37.5, 187.5], ['google', 75, 150]]);
   assert.equal(c.linhas[0].texto, 'Meta: R$ 37,50 por contato · R$ 188 por serviço fechado');
   assert.equal(c.destaque, 'Pelos contatos da oficina, o Google trouxe serviço fechado mais barato no período.');
+  const metaMaisBarata = C.comparacaoPlataformas([
+    { plataforma: 'meta', gasto: 900, contatos: 40, fecharam: 8 },
+    { plataforma: 'google', gasto: 1500, contatos: 12, fecharam: 6 },
+  ]);
+  assert.equal(metaMaisBarata.destaque, 'Pelos contatos da oficina, a Meta trouxe serviço fechado mais barato no período.', 'a Meta, não "o Meta"');
 
   const pouco = C.comparacaoPlataformas([
     { plataforma: 'meta', gasto: 1500, contatos: 40, fecharam: 8 },

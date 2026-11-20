@@ -33,10 +33,14 @@ export function montar(ctx, alvo) {
     baixar.disabled = true;
     trocar(saidaGoogle, h('p', { class: 'suave' }, 'Preparando o arquivo…'));
     try {
-      const { blob, nome } = await ctx.api.baixar('api/devolucao/google.csv');
+      const { blob, nome, vendas } = await ctx.api.baixar('api/devolucao/google.csv');
       if (saiu) return;
+      if (vendas === 0) {
+        trocar(saidaGoogle, h('p', { class: 'teste-resultado' }, selo('neutro', 'Nada para subir'), h('span', { class: 'apoio' }, ' Nenhuma venda fechada nos últimos 90 dias veio de clique no anúncio do Google. Quando vier, o arquivo sai aqui.')));
+        return;
+      }
       salvarArquivo(blob, nome || 'vendas-google.csv');
-      trocar(saidaGoogle, h('p', { class: 'teste-resultado' }, selo('bom', 'Arquivo pronto'), h('span', { class: 'apoio' }, ' ' + (nome || 'vendas-google.csv') + '. Se não apareceu, veja a pasta de downloads.')));
+      trocar(saidaGoogle, h('p', { class: 'teste-resultado' }, selo('bom', 'Arquivo pronto'), h('span', { class: 'apoio' }, ' ' + (ehNumero(vendas) ? contagem(vendas, 'venda', 'vendas') + ' em ' : '') + (nome || 'vendas-google.csv') + '. Se não apareceu, veja a pasta de downloads.')));
     } catch (erro) {
       if (saiu) return;
       trocar(saidaGoogle, h('p', { class: 'aviso-caixa' }, icone('info', 'icone-p'), h('span', null, erro && erro.codigo === 'banco_sem_colunas'
@@ -54,11 +58,16 @@ export function montar(ctx, alvo) {
       return;
     }
     const itens = Array.isArray(d.itens) ? d.itens : [];
+    // Só as do prazo pedem ação: elas vêm primeiro; as que passaram de 7 dias ficam a um toque, para conferir.
+    const noPrazo = itens.filter((v) => v.no_prazo), fora = itens.filter((v) => !v.no_prazo);
     trocar(listaMeta,
       h('p', { class: 'apoio' }, d.como || 'No app WhatsApp Business, ponha a conversa de cada venda na lista "Pedido concluído" em até 7 dias do contato.'),
       itens.length
-        ? [h('p', { class: 'devolucao-resumo' }, contagem(itens.length, 'venda de anúncio da Meta', 'vendas de anúncio da Meta') + ' nos últimos 30 dias; ' + (ehNumero(d.no_prazo) ? contagem(d.no_prazo, 'ainda está no prazo', 'ainda estão no prazo') : 'veja o prazo de cada uma') + '.'),
-          h('ul', { class: 'devolucao-lista' }, itens.map(item))]
+        ? [h('p', { class: 'devolucao-resumo' }, contagem(itens.length, 'venda de anúncio da Meta', 'vendas de anúncio da Meta') + ' nos últimos 30 dias; ' + (noPrazo.length ? contagem(noPrazo.length, 'ainda está no prazo', 'ainda estão no prazo') : 'nenhuma está no prazo agora') + '.'),
+          noPrazo.length ? h('ul', { class: 'devolucao-lista' }, noPrazo.map(item)) : null,
+          fora.length ? h('details', { class: 'devolucao-fora' },
+            h('summary', { class: 'botao botao-quieto' }, contagem(fora.length, 'venda fora do prazo', 'vendas fora do prazo') + ' (só para conferir)'),
+            h('ul', { class: 'devolucao-lista' }, fora.map(item))) : null]
         : h('p', { class: 'suave' }, 'Nenhuma venda de contato que veio de anúncio da Meta nos últimos 30 dias.'));
   }
 

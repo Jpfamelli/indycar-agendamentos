@@ -61,7 +61,7 @@ export function criarApi({ base, token, aoRecusar, aoEsperar, aoVoltar, buscar, 
   /** Resposta de erro → ErroApi com a frase do app (ou a de rede). 401 e 403 com código avisam a casca. */
   function erroDaResposta(resposta, dados) {
     const codigo = (dados && dados.codigo) || null;
-    if ((resposta.status === 401 || (resposta.status === 403 && codigo)) && aoRecusar) aoRecusar(resposta.status, codigo, dados);
+    if (Rede.recusaDaCasca(resposta.status, codigo) && aoRecusar) aoRecusar(resposta.status, codigo, dados);
     const frase = (dados && typeof dados.erro === 'string' && dados.erro) || Rede.mensagem(resposta.status, online()) || 'Não deu certo agora. Tente de novo.';
     const erro = new ErroApi(frase, { status: resposta.status, codigo, corpo: dados });
     // Frase vinda do próprio app: ele está acordado. Só a resposta sem frase (página do provedor) conta como "acordando".
@@ -114,7 +114,8 @@ export function criarApi({ base, token, aoRecusar, aoEsperar, aoVoltar, buscar, 
     if (!resposta.ok) throw await lerErro(resposta);
     const disposicao = resposta.headers.get('Content-Disposition') || '';
     const m = /filename="?([^";]+)"?/i.exec(disposicao);
-    return { blob: await resposta.blob(), nome: m ? m[1] : 'arquivo' };
+    const vendas = resposta.headers.get('X-Vendas');
+    return { blob: await resposta.blob(), nome: m ? m[1] : 'arquivo', vendas: vendas != null && /^[0-9]+$/.test(vendas) ? Number(vendas) : null };
   }
 
   /** Leitura (GET): tenta de novo sozinha enquanto o servidor acorda. */

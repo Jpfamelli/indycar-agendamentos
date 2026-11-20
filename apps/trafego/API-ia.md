@@ -67,7 +67,7 @@ Na Central o app mora em `/trafego`: `https://indycar-agendamentos.onrender.com/
 | `palavras_e_termos` | ler | período, `campanha_ext`, `limite`, `cursor` | `palavras[]` (palavra, correspondência, campanha, gasto, cliques, impressões, conversões, contatos, fecharam, faturado, custo_por_contato) e `termos[]` (mais clicados); `estado.termos` = `ok` ou `sem_tabela` |
 | `contatos` | ler | período, `canal`, `paga`, `campanha`, `desfecho`, `etapa`, `pendencia`, `ordem`, `limite` (≤100), `cursor` | `totais`, `itens[]` (item da jornada §5.3, com `texto_do_cliente` { nome, carro, servico, obs }) |
 | `contato` | ler | `lead_id` | o item + `linha_do_tempo` (mensagens com `texto_do_cliente`), `rastreio`, `historico`; com `ver_pii`: `telefone` e `links` |
-| `conversa` | ler + `ver_pii` | `lead_id`, `limite` (≤200), `cursor` | `mensagens[]` `{ em, de: cliente|oficina|automatica, status, texto_do_cliente }` |
+| `conversa` | ler + `ver_pii` | `lead_id`, `limite` (≤200), `cursor` | `mensagens[]` `{ em, de: cliente|oficina|automatica|sistema, status, texto_do_cliente }` (`sistema`: aviso do sistema gravado como recebido) |
 | `motivos_de_nao_fechar` | ler | período, `por` (`origem`/`campanha`) | `totais` e `grupos[]` (contatos, nao_fecharam, fracao_nao_fechou, motivos, sem_motivo) |
 | `agenda` | ler | — | `proximos_dias[]` (ocupação, marcados, vagas), `situacao`, `ocupacao_media`, `taxa_falta` (60 dias) |
 | `horarios` | ler | período (padrão 30d) | `contatos` (mapa dia × hora, pico) e `resposta` (mediana em minutos por dia × hora, `geral_min`) |

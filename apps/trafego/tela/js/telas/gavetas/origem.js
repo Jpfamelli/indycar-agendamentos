@@ -46,6 +46,7 @@ export function montar(ctx, alvo, { parte } = {}) {
     trocar(partes.frases,
       titulo('frases', 'Frases que dizem a origem'),
       h('p', { class: 'apoio' }, 'Quando a primeira mensagem do contato traz uma destas frases, o Tráfego já sabe de onde ele veio. A mensagem padrão do anúncio da Meta é a mais comum.'),
+      frases.length ? h('p', { class: 'apoio' }, 'Acento, letra maiúscula e pontuação no fim não contam: por isso as frases aparecem em minúsculas e sem acento, do jeito que o Tráfego compara.') : null,
       d.ligado === false ? h('p', { class: 'aviso-caixa' }, icone('info', 'icone-p'), h('span', null, d.aviso || 'Esta parte ainda não está ligada no banco.')) : null,
       frases.length ? h('ul', { class: 'frases' }, frases.map(linhaDaFrase)) : h('p', { class: 'suave' }, 'Nenhuma frase cadastrada ainda.'),
       d.ligado === false ? null : h('details', { class: 'frase-nova', id: 'o-frase-nova' }, h('summary', { class: 'botao' }, icone('mais'), 'Nova frase'), novaFrase.form));
@@ -57,7 +58,7 @@ export function montar(ctx, alvo, { parte } = {}) {
       h('div', { class: 'frase-corpo' },
         h('p', { class: 'frase-texto' }, h('span', { class: 'apoio' }, nomeDoTipo(f.tipo) + ' '), h('q', null, f.frase)),
         h('p', { class: 'frase-vira' }, h('span', { class: 'apoio' }, 'vira '), marcaDaOrigem(f.vira || { rotulo: f.rotulo }), f.campanha_nome ? h('span', { class: 'apoio' }, ' · ' + f.campanha_nome) : null),
-        h('p', { class: 'apoio' }, (ehNumero(f.acertos) ? contagem(f.acertos, 'contato reconhecido', 'contatos reconhecidos') : '') + (f.ultimo_acerto_em ? ', o último ' + haQuanto(f.ultimo_acerto_em) : '') + '.')),
+        linhaDosAcertos(f) ? h('p', { class: 'apoio' }, linhaDosAcertos(f)) : null),
       h('div', { class: 'frase-acoes' },
         f.ativa ? null : selo('neutro', 'Desligada'),
         h('button', { class: 'botao botao-quieto', type: 'button', on: { click: editar } }, 'Editar'),
@@ -325,10 +326,7 @@ export function montar(ctx, alvo, { parte } = {}) {
         h('p', { class: 'apoio' }, 'Linha para colar em qualquer site da oficina'),
         h('p', { class: 'caixa-codigo' }, d.script),
         botaoCopiar(ctx, d.script, { rotulo: 'Copiar a linha', aviso: 'Linha copiada. Cole no site, antes de fechar o </body>.' })] : null,
-      Array.isArray(d.por_pagina) && d.por_pagina.length ? h('table', { class: 'reaplicar-tabela' },
-        h('caption', { class: 'apoio' }, 'Cliques no WhatsApp por página (30 dias)'),
-        h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Página'), h('th', { scope: 'col' }, 'Cliques'))),
-        h('tbody', null, d.por_pagina.map((p) => h('tr', null, h('th', { scope: 'row' }, p.pagina), h('td', null, inteiro(p.n)))))) : null);
+      tabelaDePaginas(d.por_pagina));
   }
 
   carregarFrases();
@@ -339,6 +337,29 @@ export function montar(ctx, alvo, { parte } = {}) {
   carregarRastreio();
   if (parte && partes[parte]) setTimeout(() => { if (!saiu) irPara(parte); }, 300);
   return { sair() { saiu = true; }, parte: (p) => { if (p && partes[p]) irPara(p); } };
+}
+
+/** "23 contatos reconhecidos, o último ontem." Sem a contagem, só a data; sem nada, nada (nunca uma linha que começa com vírgula). */
+export function linhaDosAcertos(f) {
+  const partes = [];
+  if (ehNumero(f.acertos)) partes.push(contagem(f.acertos, 'contato reconhecido', 'contatos reconhecidos'));
+  const quando = f.ultimo_acerto_em ? haQuanto(f.ultimo_acerto_em) : null;
+  if (quando) partes.push((partes.length ? 'o último ' : 'Último contato reconhecido ') + quando);
+  return partes.length ? partes.join(', ') + '.' : null;
+}
+
+/** "/" é a página inicial; o resto aparece como o endereço da página. */
+export const nomeDaPagina = (p) => (!p || p === '/' ? 'Página inicial' : String(p));
+
+/** Páginas mais visitadas nos 7 dias (os mesmos das visitas e cliques do topo); a coluna de cliques some se o servidor não mandar. */
+export function tabelaDePaginas(lista) {
+  if (!Array.isArray(lista) || !lista.length) return null;
+  const comCliques = lista.some((p) => ehNumero(p.cliques));
+  return h('table', { class: 'reaplicar-tabela rastreio-paginas' },
+    h('caption', { class: 'apoio' }, 'Páginas mais visitadas nos últimos 7 dias'),
+    h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Página'), h('th', { scope: 'col' }, 'Visitas'), comCliques ? h('th', { scope: 'col' }, 'Cliques no WhatsApp') : null)),
+    h('tbody', null, lista.map((p) => h('tr', null, h('th', { scope: 'row' }, nomeDaPagina(p.pagina)), h('td', null, inteiro(p.n)),
+      comCliques ? h('td', null, ehNumero(p.cliques) ? inteiro(p.cliques) : '') : null))));
 }
 
 const titulo = (id, texto) => h('h3', { class: 'titulo-p', id: 'o-' + id + '-t', tabindex: '-1' }, texto);

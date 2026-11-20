@@ -79,7 +79,7 @@ test('"há quanto" e "parado há"', () => {
   assert.equal(F.haQuanto(agora - 2 * 3600000, agora), 'há 2 h');
   assert.equal(F.haQuanto(agora - 30 * 3600000, agora), 'ontem');
   assert.equal(F.haQuanto(agora - 5 * 86400000, agora), 'há 5 dias');
-  assert.equal(F.paradoHa(0), 'parado desde hoje');
+  assert.equal(F.paradoHa(0), 'nesta etapa desde hoje', 'quem andou hoje não está "parado"');
   assert.equal(F.paradoHa(1), 'parado há 1 dia');
   assert.equal(F.paradoHa(3.4), 'parado há 3 dias');
   assert.equal(F.paradoHa(null), null);

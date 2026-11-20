@@ -172,6 +172,16 @@ const ALFABETO_CODIGO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const RE_CODIGO_REF = /\[ref\s+([a-z0-9]{5})\]/i;        // script portátil e mensagem pronta: "[ref K7M2P]"
 const RE_CODIGO_SITE = /--r-([a-z0-9]{5})\)/i;           // site da IndyCar: "(site/cambio--google--r-k7m2p)"
 
+/**
+ * Avisos do próprio sistema que o banco gravou como mensagem RECEBIDA (achado D1 item 6, consulta C03):
+ * "[Sistema] …", "Agendamento: …", "Lembrete 24h enviado …" e "3 no-shows hoje". Não são o cliente escrevendo:
+ * não contam como primeira mensagem, nem como conversa, nem como frase candidata.
+ */
+const RE_AVISO_DO_SISTEMA = /^\s*(\[sistema\]|agendamento:\s|lembrete 24h enviado|\d+ no-shows hoje)/i;
+function ehAvisoDoSistema(mensagem) {
+  return typeof mensagem === 'string' && RE_AVISO_DO_SISTEMA.test(mensagem);
+}
+
 /** O código de rastreio dentro de uma mensagem, em maiúsculas; null se não há. */
 function codigoDaMensagem(mensagem) {
   const s = String(mensagem == null ? '' : mensagem).slice(0, 2000);
@@ -418,7 +428,7 @@ async function candidatas({ sb = db.sb, minimo = 3, dias = 180 } = {}) {
   }
   return {
     ligado: true,
-    candidatas: (Array.isArray(data) ? data : []).slice(0, 100).map(c => {
+    candidatas: (Array.isArray(data) ? data : []).filter(c => !ehAvisoDoSistema(c.frase) && !ehAvisoDoSistema(c.exemplo)).slice(0, 100).map(c => {
       const canal = sugestaoDaFrase(c.frase);
       return {
         frase: texto(c.frase, 300), n: Number(c.n) || 0, exemplo: texto(c.exemplo, 300), ultima_em: c.ultima_em || null,
@@ -484,8 +494,11 @@ async function reaplicar({ simular, desde, quem, sb = db.sb, agora = Date.now() 
     por_origem: Array.isArray(r.por_origem) ? r.por_origem.slice(0, 50).map(x => ({ rotulo: texto(x.rotulo, 120), n: Number(x.n) || 0 })) : [],
     por_frase: Array.isArray(r.por_frase) ? r.por_frase.slice(0, 50).map(x => ({ frase: texto(x.frase, 300), n: Number(x.n) || 0 })) : [],
   };
-  if (aplicar) saida.mudaram = Number(r.mudaram) || 0;
-  else {
+  if (aplicar) {
+    saida.mudaram = Number(r.mudaram) || 0;
+    // Os contatos ganharam origem no banco: a Jornada (45 s de memória) e o Hoje não podem seguir com "Ainda não sabemos".
+    if (saida.mudaram > 0) require('./jornada').esquecer();
+  } else {
     saida.mudariam = Number(r.mudariam) || 0;
     simulacoes.set(chave, { desde: d.dia, em: agora });
     saida.aplicar_ate = new Date(agora + DEZ_MINUTOS).toISOString();
@@ -609,7 +622,10 @@ async function situacaoDoRastreio({ sb = db.sb, script = null, agora = Date.now(
     if (recente) {
       visitas++;
       const p = texto(l.pagina, 120) || '/';
-      paginas.set(p, (paginas.get(p) || 0) + 1);
+      const conta = paginas.get(p) || { n: 0, cliques: 0 };
+      conta.n++;
+      if (l.evento === 'clique') conta.cliques++;
+      paginas.set(p, conta);
     }
   }
   return {
@@ -617,14 +633,15 @@ async function situacaoDoRastreio({ sb = db.sb, script = null, agora = Date.now(
     instalado_no_site: linhas.length > 0,
     ultima_visita: linhas[0] ? linhas[0].criado_em : null,
     ultimo_clique: ultimoClique, cliques_7d: cliques, visitas_7d: visitas,
-    por_pagina: [...paginas].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 10).map(([pagina, n]) => ({ pagina, n })),
+    // Por página, nos mesmos 7 dias: n = visitas (cada visitante conta uma vez), cliques = quantos deles tocaram no WhatsApp.
+    por_pagina: [...paginas].sort((a, b) => b[1].n - a[1].n || (a[0] < b[0] ? -1 : 1)).slice(0, 10).map(([pagina, c]) => ({ pagina, n: c.n, cliques: c.cliques })),
   };
 }
 
 module.exports = {
   CANAIS, ROTULO_CANAL, ROTULO_ANUNCIO_SEM_PLATAFORMA, rotuloDoCanal, FORCA, COMOS, CANAIS_MARCAVEIS, ALFABETO_CODIGO,
   texto, comoDe, forcaDe, certezaDe, canalDoContato, origemDoContato,
-  codigoDaMensagem, normalizarFrase, fraseDaMensagem, mensagemDeAnuncio, dadosDaOrigemManual, recusar,
+  codigoDaMensagem, normalizarFrase, fraseDaMensagem, mensagemDeAnuncio, dadosDaOrigemManual, recusar, ehAvisoDoSistema,
   // Ajustes › De onde vêm os contatos
   AVISO_SEM_MIGRACAO, DESTINOS, DEZ_MINUTOS, camposDoDestino, origemDaEvidencia,
   validarFrase, listarFrases, criarFrase, editarFrase, desligarFrase, sugestaoDaFrase, candidatas, testarMensagem,

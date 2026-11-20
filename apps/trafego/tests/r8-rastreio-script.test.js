@@ -67,7 +67,7 @@ test('chegada com anúncio: registra na primeira interação, guarda o código e
   const p = pagina({
     search: '?utm_source=google&utm_medium=cpc&utm_campaign=Oleo%20Nov&gclid=AbC-12_xYz&outro=1',
     referrer: 'https://www.google.com/',
-    links: ['https://wa.me/5512996830272?text=Quero%20agendar', 'https://oficina.com.br/contato'],
+    links: ['https://wa.me/5512990001234?text=Quero%20agendar', 'https://oficina.com.br/contato'],
   });
   assert.equal(p.pedidos.length, 0, 'nada vai para a rede antes da interação');
   assert.equal(p.timers[0].ms, 4000);
@@ -92,7 +92,7 @@ test('chegada com anúncio: registra na primeira interação, guarda o código e
 });
 
 test('clique no WhatsApp registra o clique (keepalive) com o serviço do link', async () => {
-  const link = criarLink('https://api.whatsapp.com/send?phone=5512996830272', { 'data-servico': 'cambio' });
+  const link = criarLink('https://api.whatsapp.com/send?phone=5512990001234', { 'data-servico': 'cambio' });
   const filho = { tagName: 'SPAN', parentNode: link };
   const p = pagina({ search: '?fbclid=IwAR0xYz', links: [link] });
   await p.interagir();
@@ -105,7 +105,7 @@ test('clique no WhatsApp registra o clique (keepalive) com o serviço do link', 
 
 test('volta sem anúncio não apaga o anúncio guardado e não registra de novo', async () => {
   const guardado = { dados: { gclid: 'AbC', referencia_tipo: 'anuncio', pagina: '/' }, codigo: 'QWERT', quando: Date.now() - 2 * 86400000 };
-  const p = pagina({ guardado, links: ['https://wa.me/5512996830272'] });
+  const p = pagina({ guardado, links: ['https://wa.me/5512990001234'] });
   assert.deepEqual(p.guardadoAgora(), guardado);
   await p.interagir();
   assert.equal(p.pedidos.length, 0);
@@ -129,7 +129,7 @@ test('chegada com anúncio novo substitui o guardado; guardado vencido (mais de 
 
 test('sem localStorage (bloqueado ou inexistente) tudo funciona só com a memória da página', async () => {
   for (const armazenamento of ['bloqueado', 'ausente']) {
-    const p = pagina({ armazenamento, search: '?gclid=Zz9', links: ['whatsapp://send?phone=5512996830272&text=Oi'] });
+    const p = pagina({ armazenamento, search: '?gclid=Zz9', links: ['whatsapp://send?phone=5512990001234&text=Oi'] });
     await p.interagir();
     assert.equal(p.pedidos.length, 1, armazenamento);
     assert.equal(textoDo(p.anchors[0].attrs.href), `Oi [ref ${CODIGO}]`, armazenamento);
@@ -137,7 +137,7 @@ test('sem localStorage (bloqueado ou inexistente) tudo funciona só com a memór
 });
 
 test('guardado corrompido não trava e vira chegada nova', async () => {
-  const p = pagina({ guardado: '{isto não é json', links: ['https://wa.me/5512996830272'] });
+  const p = pagina({ guardado: '{isto não é json', links: ['https://wa.me/5512990001234'] });
   await p.interagir();
   assert.equal(p.pedidos.length, 1);
   assert.equal(p.guardadoAgora().codigo, CODIGO);
@@ -145,24 +145,24 @@ test('guardado corrompido não trava e vira chegada nova', async () => {
 
 test('fetch que falha, resposta estranha ou navegador sem fetch: a página segue e os links ficam como estão', async () => {
   for (const rede of ['falha', 'lixo', 'sem_fetch']) {
-    const p = pagina({ rede, search: '?gclid=Zz9', links: ['https://wa.me/5512996830272?text=Oi'] });
+    const p = pagina({ rede, search: '?gclid=Zz9', links: ['https://wa.me/5512990001234?text=Oi'] });
     await p.interagir();
     await new Promise(r => setImmediate(r));
-    assert.equal(p.anchors[0].attrs.href, 'https://wa.me/5512996830272?text=Oi', rede);
+    assert.equal(p.anchors[0].attrs.href, 'https://wa.me/5512990001234?text=Oi', rede);
     assert.equal(p.guardadoAgora().codigo, null, rede);
   }
 });
 
 test('link sem texto ganha "Olá! [ref …]"; link com âncora e outros parâmetros continua certo', async () => {
-  const p = pagina({ search: '?gclid=1', links: ['https://wa.me/5512996830272', 'https://wa.me/5512996830272?text=', 'https://api.whatsapp.com/send?phone=5512996830272&text=Oi+tudo+bem&type=phone#topo'] });
+  const p = pagina({ search: '?gclid=1', links: ['https://wa.me/5512990001234', 'https://wa.me/5512990001234?text=', 'https://api.whatsapp.com/send?phone=5512990001234&text=Oi+tudo+bem&type=phone#topo'] });
   await p.interagir();
-  assert.equal(p.anchors[0].attrs.href, `https://wa.me/5512996830272?text=${encodeURIComponent(`Olá! [ref ${CODIGO}]`)}`);
+  assert.equal(p.anchors[0].attrs.href, `https://wa.me/5512990001234?text=${encodeURIComponent(`Olá! [ref ${CODIGO}]`)}`);
   assert.equal(textoDo(p.anchors[1].attrs.href), `Olá! [ref ${CODIGO}]`);
-  assert.equal(p.anchors[2].attrs.href, `https://api.whatsapp.com/send?phone=5512996830272&text=${encodeURIComponent(`Oi tudo bem [ref ${CODIGO}]`)}&type=phone#topo`);
+  assert.equal(p.anchors[2].attrs.href, `https://api.whatsapp.com/send?phone=5512990001234&text=${encodeURIComponent(`Oi tudo bem [ref ${CODIGO}]`)}&type=phone#topo`);
 });
 
 test('link já marcado não é marcado de novo (nem no clique)', async () => {
-  const marcado = `https://wa.me/5512996830272?text=${encodeURIComponent('Oi [ref ABCDE]')}`;
+  const marcado = `https://wa.me/5512990001234?text=${encodeURIComponent('Oi [ref ABCDE]')}`;
   const p = pagina({ search: '?gclid=1', links: [marcado] });
   await p.interagir();
   assert.equal(p.anchors[0].attrs.href, marcado);

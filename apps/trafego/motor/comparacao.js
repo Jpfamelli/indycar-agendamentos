@@ -73,6 +73,8 @@ function situacaoDaCampanha({ status = null, ultimoGasto = null, hoje = null } =
 const AMOSTRA_MINIMA = 3;
 const NOME_DA_PLATAFORMA = { meta: 'Meta', google: 'Google' };
 const nomeDaPlataforma = p => NOME_DA_PLATAFORMA[p] || (p ? String(p).charAt(0).toUpperCase() + String(p).slice(1) : 'Anúncio');
+/** "a Meta" (a empresa), "o Google": antes saía "o Meta trouxe…". */
+const comArtigo = p => (p === 'meta' ? 'a ' : 'o ') + nomeDaPlataforma(p);
 
 /**
  * Meta × Google pela régua da oficina (a justa): custo por contato que chegou e por serviço fechado.
@@ -90,7 +92,7 @@ function comparacaoPlataformas(lista = []) {
   });
   const comServico = linhas.filter(l => l.custo_por_servico != null && l.fecharam >= AMOSTRA_MINIMA);
   const melhor = linhas.length === 2 && comServico.length === 2 ? comServico.slice().sort((a, b) => a.custo_por_servico - b.custo_por_servico)[0] : null;
-  return { linhas, destaque: melhor ? `Pelos contatos da oficina, o ${nomeDaPlataforma(melhor.plataforma)} trouxe serviço fechado mais barato no período.` : '' };
+  return { linhas, destaque: melhor ? `Pelos contatos da oficina, ${comArtigo(melhor.plataforma)} trouxe serviço fechado mais barato no período.` : '' };
 }
 
 /* ---------- por que os números diferem (rel-logica.js: POR_QUE_DIFERE_ID) ---------- */

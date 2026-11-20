@@ -60,12 +60,18 @@ function desenhar(ctx, d) {
     numeros(d.numeros || [], estado),
     derivados(d.derivados || {}),
     h('div', { class: 'papel-duas' }, funil(d.funil), origens(d.origens || [])),
-    campanhas(d.campanhas || [], d.sem_campanha),
+    campanhas(d.campanhas || [], d.sem_campanha, d.campanhas_total),
     d.horarios && d.horarios.leitura ? h('p', { class: 'papel-nota' }, h('strong', null, 'Horários. '), d.horarios.leitura) : null,
     h('footer', { class: 'papel-pe' }, 'Feita em ' + (d.gerado_em ? dataHora(d.gerado_em) : 'hoje') + '. Contatos e serviços vêm da oficina; gasto vem da Meta e do Google.'));
   trocar(ctx.miolo, h('div', { class: 'papel-pagina' }, barra, folha));
   ctx.marcarAtualizado && ctx.marcarAtualizado();
   focar(titulo);
+}
+
+/** O servidor manda só as 8 de maior gasto; a folha diz quantas ficaram de fora (antes nunca dizia). */
+export function maisCampanhas(total, mostradas) {
+  const resto = Math.max(0, Math.round(Number(total) || 0) - mostradas);
+  return resto ? (resto === 1 ? 'Mais 1 campanha' : 'Mais ' + inteiro(resto) + ' campanhas') + ' na tela Campanhas (aqui vão as ' + inteiro(mostradas) + ' de maior gasto).' : null;
 }
 
 function periodoDaFolha(d) {
@@ -118,7 +124,7 @@ function origens(lista) {
         h('td', null, ehNumero(o.faturado) ? dinheiro(o.faturado) : 'sem dado'))))));
 }
 
-function campanhas(lista, semCampanha) {
+function campanhas(lista, semCampanha, total) {
   if (!lista.length && !(semCampanha && semCampanha.contatos)) return null;
   const top = lista.slice(0, 8);
   return h('section', { class: 'papel-bloco' },
@@ -132,6 +138,6 @@ function campanhas(lista, semCampanha) {
         h('td', null, ehNumero(c.fecharam) ? inteiro(c.fecharam) : 'sem dado'),
         h('td', null, ehNumero(c.custo_por_contato) ? dinheiro(c.custo_por_contato) : 'sem dado'),
         h('td', null, ehNumero(c.retorno) ? dinheiro(c.retorno, { centavos: true }) : 'sem dado')))))) : null,
-    lista.length > top.length ? h('p', { class: 'papel-apoio' }, 'Mais ' + inteiro(lista.length - top.length) + ' campanhas na tela Campanhas.') : null,
+    maisCampanhas(ehNumero(total) ? total : lista.length, top.length) ? h('p', { class: 'papel-apoio' }, maisCampanhas(ehNumero(total) ? total : lista.length, top.length)) : null,
     semCampanha && semCampanha.texto ? h('p', { class: 'papel-apoio' }, semCampanha.texto) : null);
 }

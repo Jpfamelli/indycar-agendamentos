@@ -14,6 +14,16 @@ export function passageiro(status) {
   return [0, 408, 429, 502, 503, 504, 520, 521, 522, 523, 524].includes(status);
 }
 
+/**
+ * 401, ou 403 que fala da PESSOA (sem acesso ao app, desativada, sem perfil, código de verificação, trocar senha):
+ * a casca para tudo e mostra o caminho. Outro 403 com código (ex.: "so_admin", só o administrador cria chave)
+ * é recusa de UMA ação: quem pediu mostra a frase ali mesmo e o resto do app segue funcionando.
+ */
+const RECUSAS_DA_PESSOA = new Set(['sem_acesso', 'desativado', 'sem_perfil', 'mfa', 'trocar_senha']);
+export function recusaDaCasca(status, codigo) {
+  return status === 401 || (status === 403 && RECUSAS_DA_PESSOA.has(codigo));
+}
+
 /** Só GET e HEAD repetem sozinhos. */
 export function podeRepetir(metodo) {
   const m = String(metodo || 'GET').toUpperCase();

@@ -242,7 +242,7 @@ cadastrado como frase marcaria como anúncio quem nunca viu o anúncio.
                          "campanha": { "ext": null, "nome": "Óleo novembro" }, "conjunto": null, "anuncio": null, "palavra_chave": null,
                          "como": "ref", "como_rotulo": "pelo código da mensagem pronta", "certeza": "certa" } },
   "texto": "Olá! Quero saber da troca de óleo. [ref DZ37K]",
-  "link_whatsapp": "https://wa.me/5512996830272?text=Ol%C3%A1!%20Quero%20saber%20da%20troca%20de%20%C3%B3leo.%20%5Bref%20DZ37K%5D",
+  "link_whatsapp": "https://wa.me/5512990001234?text=Ol%C3%A1!%20Quero%20saber%20da%20troca%20de%20%C3%B3leo.%20%5Bref%20DZ37K%5D",
   "qr_svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 53 53\" width=\"424\" height=\"424\" shape-rendering=\"crispEdges\" role=\"img\" aria-label=\"QR code\">…</svg>" }
 ```
 Sem telefone da oficina no cadastro: grava do mesmo jeito, com `link_whatsapp: null`, `qr_svg: null` e `aviso`.
@@ -252,9 +252,10 @@ Situação do rastreio do site (últimos 30 dias) e a linha para colar no site d
 ```json
 { "ligado": true, "script": "<script src=\"https://indycar-agendamentos.onrender.com/trafego/rastreio.js\" async></script>",
   "instalado_no_site": true, "ultima_visita": "2026-11-18T13:26:55.126Z", "ultimo_clique": "2026-11-18T13:33:35.126Z",
-  "cliques_7d": 1, "visitas_7d": 2, "por_pagina": [ { "pagina": "/servicos/oleo", "n": 2 } ] }
+  "cliques_7d": 1, "visitas_7d": 2, "por_pagina": [ { "pagina": "/servicos/oleo", "n": 2, "cliques": 1 } ] }
 ```
-`instalado_no_site` é verdadeiro quando chegou alguma visita em 30 dias (do site da IndyCar ou de um site de fora:
+`por_pagina` usa os mesmos 7 dias de `visitas_7d`: `n` é quantas visitas a página recebeu e `cliques`, quantas delas
+tocaram no WhatsApp (as 10 páginas mais visitadas). `instalado_no_site` é verdadeiro quando chegou alguma visita em 30 dias (do site da IndyCar ou de um site de fora:
 os dois gravam na mesma tabela). O endereço do script vem de `TRAFEGO_URL` quando o ambiente define.
 
 ---

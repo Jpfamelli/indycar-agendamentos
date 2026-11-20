@@ -35,7 +35,7 @@ function bancoCompleto() {
       { id: 'r3', codigo: 'CCCCC', evento: 'visita', permanente: false, pagina: '/', criado_em: new Date(Date.now() - 20 * 86400000).toISOString(), atualizado_em: null },
       { id: 'r4', codigo: 'DDDDD', evento: 'link', permanente: true, rotulo: 'Bio', criado_em: new Date().toISOString() },
     ],
-    empresa: [{ id: true, telefone: '(12) 99683-0272' }],
+    empresa: [{ id: true, telefone: '(12) 99000-1234' }],
     perfis: [],
   }, {
     unicos: { trafego_frases: ['frase'], trafego_rastreio: ['codigo'] },
@@ -191,7 +191,7 @@ test('mensagem pronta: grava o código permanente e devolve texto, link do Whats
   assert.deepEqual([nova.evento, nova.permanente, nova.plataforma, nova.paga, nova.criado_por], ['link', true, 'meta', true, ID(1)]);
   assert.match(nova.codigo, /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/);
   assert.equal(r.json.texto, `Olá! Quero saber da troca de óleo. [ref ${nova.codigo}]`);
-  assert.equal(r.json.link_whatsapp, `https://wa.me/5512996830272?text=${encodeURIComponent(r.json.texto)}`);
+  assert.equal(r.json.link_whatsapp, `https://wa.me/5512990001234?text=${encodeURIComponent(r.json.texto)}`);
   assert.match(r.json.qr_svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 \d+ \d+"/);
   assert.deepEqual([r.json.frase.codigo, r.json.frase.origem.canal, r.json.frase.origem.certeza, r.json.frase.origem.como_rotulo], [nova.codigo, 'meta', 'certa', 'pelo código da mensagem pronta']);
   assert.equal(auditorias.at(-1).acao, 'trafego_mensagem_pronta_criada');
@@ -215,7 +215,7 @@ test('mensagem pronta sem telefone da oficina: grava, devolve o texto e avisa (s
 
 test('mensagem pronta sorteia outro código quando o primeiro já existe', async () => {
   let vezes = 0;
-  const banco = criarBanco({ trafego_rastreio: [], empresa: [{ id: true, telefone: '12996830272' }] });
+  const banco = criarBanco({ trafego_rastreio: [], empresa: [{ id: true, telefone: '12990001234' }] });
   const inserir = banco.from;
   banco.from = tabela => {
     const c = inserir(tabela);
@@ -237,7 +237,7 @@ test('GET /api/origem/rastreio: situação do site e a linha para colar', async 
   assert.equal(r.json.instalado_no_site, true);
   assert.equal(r.json.cliques_7d, 1);
   assert.equal(r.json.visitas_7d, 2);
-  assert.deepEqual(r.json.por_pagina, [{ pagina: '/servicos/oleo', n: 2 }]);
+  assert.deepEqual(r.json.por_pagina, [{ pagina: '/servicos/oleo', n: 2, cliques: 1 }], 'por página: visitas e, delas, quantas tocaram no WhatsApp (7 dias)');
   assert.ok(r.json.ultimo_clique);
 });
 

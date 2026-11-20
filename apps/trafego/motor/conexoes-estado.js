@@ -159,19 +159,19 @@ function passosDeConexao(conexoes, { orcamento = null } = {}) {
   const atendimento = enderecos.caminhoNaCentral('atendimento', { aba: 'integracoes' });
   return [
     { feito: !!(c.whatsapp && c.whatsapp.situacao === 'ok'), titulo: 'WhatsApp da oficina ligado',
-      como: 'No Atendimento, em Configurações e depois Integrações: gere uma chave nova no CodeWords e cole lá. Só o dono da conta consegue.',
+      como: 'No Atendimento, abra Integrações (no grupo Sistema): gere uma chave nova em runtime.codewords.ai e cole lá. Só o dono da conta do CodeWords consegue.',
       acao: { rotulo: 'Abrir o Atendimento', ir: atendimento } },
     { feito: !!(c.site && c.site.rastreio), titulo: 'Site avisando de onde vem cada contato',
       como: 'O botão de WhatsApp do site manda um código junto com a mensagem. Este passo fica pronto no primeiro clique.',
       acao: { rotulo: 'Ver de onde vêm os contatos', ir: 'ajustes?secao=origem' } },
     { feito: !!(c.meta && c.meta.ligado), titulo: 'Conta de anúncios da Meta ligada',
-      como: 'Em Ajustes, na parte de Conexões: entre com a conta da Meta e escolha a conta de anúncios da oficina.',
+      como: 'Em Ajustes › Conexões, cartão da Meta: cole o número da conta de anúncios e o token do usuário do sistema (o passo a passo está em "Como pegar o token da Meta"), teste e salve.',
       acao: { rotulo: 'Ligar a Meta', ir: NOMES.meta.ir } },
     { feito: !!(c.google && c.google.ligado), titulo: 'Conta do Google Ads ligada',
-      como: 'Em Ajustes, na parte de Conexões: entre com a conta do Google e escolha a conta de anúncios da oficina.',
+      como: 'Em Ajustes › Conexões, cartão do Google Ads: cole o ID do cliente e o arquivo JSON da conta de serviço, teste e salve.',
       acao: { rotulo: 'Ligar o Google', ir: NOMES.google.ir } },
     { feito: Number(orcamento) > 0, titulo: 'Orçamento do mês definido',
-      como: 'Em Ajustes: diga quanto pretende investir por mês. Com isso a tela mostra se o gasto está no ritmo.',
+      como: 'Em Ajustes › Metas e verba: diga quanto pretende investir por mês. Com isso a tela mostra se o gasto está no ritmo.',
       acao: { rotulo: 'Definir o orçamento', ir: 'ajustes?secao=metas' } },
   ];
 }

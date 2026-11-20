@@ -184,7 +184,7 @@ function baseDoAlvo(alvo, tipo) {
 function rotuloDaBase(base, alvo) {
   const a = objeto(alvo) || {};
   if (base === 'campanha') return `a campanha ${a.nome || a.ext}`;
-  if (base === 'plataforma') return `o ${ROTULO_PLATAFORMA[a.plataforma] || 'anúncio'} inteiro`;
+  if (base === 'plataforma') return a.plataforma === 'meta' ? 'a Meta inteira' : `o ${ROTULO_PLATAFORMA[a.plataforma] || 'anúncio'} inteiro`;   // "a Meta", não "o Meta"
   return 'a oficina toda';
 }
 

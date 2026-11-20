@@ -16,6 +16,7 @@
    Para provar os estados de tela, também na página:
      ?sessao=nao        ninguém logado        ?sessao=vencida  a API recusa (401)
      ?acesso=nao        logado sem acesso ao app
+     ?papel=gestor      logado como gestor: chaves da IA e salvar acesso da Meta/Google respondem 403 so_admin
      ?falha=hoje|jornada|detalhe|pendencias|gravar   a rota responde erro 500
      ?falha=migracao    gravar motivo ou origem responde 503 "o banco ainda não recebeu a atualização" (a produção de hoje);
                         frases, candidatas e chaves respondem ligado:false com aviso
@@ -69,9 +70,10 @@ function pagina(res, status, titulo, miolo) {
   res.writeHead(status, { 'Content-Type': MIME['.html'], 'Content-Length': corpo.length, 'Cache-Control': 'no-store' });
   res.end(corpo);
 }
-function csv(res, { status = 200, csv: texto, nome }) {
+function csv(res, { status = 200, csv: texto, nome, vendas }) {
   const corpo = Buffer.from(texto);
-  res.writeHead(status, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Length': corpo.length, 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + nome + '"' });
+  res.writeHead(status, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Length': corpo.length, 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + nome + '"',
+    ...(vendas != null ? { 'X-Vendas': String(vendas) } : {}) });
   res.end(corpo);
 }
 const escapar = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -107,7 +109,7 @@ export function criar({ base = '/trafego/' } = {}) {
     const pega = (k) => url.searchParams.get(k) || daPagina.get(k) || '';
     const cenario = Dados.CENARIOS.includes(pega('cenario')) ? pega('cenario') : 'sem_conta';
     return { cenario, falha: pega('falha'), lento: Math.min(5000, Number(pega('lento')) || 0), acesso: pega('acesso'), sessao: pega('sessao'), acordando: pega('acordando'),
-      incompleto: pega('incompleto') === '1', ia: pega('ia'), miniatura: pega('miniatura') };
+      incompleto: pega('incompleto') === '1', ia: pega('ia'), miniatura: pega('miniatura'), papel: pega('papel') === 'gestor' ? 'gestor' : 'admin' };
   }
 
   /* Fluxo do Gestor (text/event-stream): os pedaços saem com espera, como o modelo de verdade. Parar no meio fecha a conexão. */
@@ -152,7 +154,11 @@ export function criar({ base = '/trafego/' } = {}) {
     if (req.headers.authorization !== 'Bearer chave-de-mentira' || ctx.sessao === 'vencida') {
       return json(res, 401, { erro: 'faça login', codigo: ctx.sessao === 'vencida' ? 'sessao_vencida' : 'login' });
     }
-    if (caminho === '/api/eu' && leitura) return json(res, 200, ctx.acesso === 'nao' ? { ...Dados.PERFIL, acesso: false, motivo_sem_acesso: 'sem_permissao' } : Dados.PERFIL);
+    if (caminho === '/api/eu' && leitura) return json(res, 200, ctx.acesso === 'nao' ? { ...Dados.PERFIL, acesso: false, motivo_sem_acesso: 'sem_permissao' } : { ...Dados.PERFIL, papel: ctx.papel });
+    // ?papel=gestor: o que é só do administrador responde 403 so_admin, como o servidor de verdade (rodada 9).
+    if (ctx.papel === 'gestor' && ((caminho === '/api/ia/chaves' || caminho.startsWith('/api/ia/chaves/')) || (caminho === '/api/integracoes' && !leitura))) {
+      return json(res, 403, { erro: caminho.startsWith('/api/ia/chaves') ? 'Só o administrador cria, vê e revoga as chaves da IA.' : 'Só o administrador pode trocar o acesso da Meta e do Google.', codigo: 'so_admin' });
+    }
     if (ctx.acesso === 'nao') return json(res, 403, { erro: 'Você não tem acesso a este app.', codigo: 'sem_acesso', apps: ['agenda'] });
 
     if (leitura && ctx.acordando) {
@@ -287,6 +293,11 @@ export function criar({ base = '/trafego/' } = {}) {
     if (partes[1] === 'acoes-trafego') {
       if (quebrou('acoes')) return undefined;
       if (leitura && partes.length === 2) return responder(T3b.responderAcoes(m, q));
+      if (req.method === 'POST' && partes.length === 2) {
+        const c = await corpo();
+        if (c === undefined) return invalido();
+        return responder(T3b.registrarPropria(m, c, nome));
+      }
       if (req.method === 'POST' && partes.length === 4) {
         const c = await corpo();
         if (c === undefined) return invalido();
@@ -364,9 +375,9 @@ export function criar({ base = '/trafego/' } = {}) {
   });
 }
 
-/** Sobe o servidor e devolve { servidor, endereco, fechar }. Só aceita as portas 3430 a 3439. */
+/** Sobe o servidor e devolve { servidor, endereco, fechar }. Só aceita as portas 3430 a 3439 (rodada 8) e 3530 a 3539 (rodada 9). */
 export function subir({ porta = 3430, base = '/trafego/' } = {}) {
-  if (!(porta >= 3430 && porta <= 3439)) throw new Error('Use uma porta de 3430 a 3439 (combinado da rodada).');
+  if (!((porta >= 3430 && porta <= 3439) || (porta >= 3530 && porta <= 3539))) throw new Error('Use uma porta de 3430 a 3439 ou de 3530 a 3539 (combinado das rodadas).');
   const servidor = criar({ base });
   return new Promise((resolve, reject) => {
     servidor.once('error', reject);

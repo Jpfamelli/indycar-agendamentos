@@ -96,7 +96,9 @@ function torreDeContatos(ctxInicial) {
     el.desfechos.appendChild(h('button', { class: 'ficha', type: 'button', 'aria-pressed': 'false', data: { id: d.id }, on: { click: () => irCom(mudar(filtros(), { desfecho: d.id })) } },
       d.rotulo, h('span', { class: 'ficha-n', hidden: true })));
   }
-  const fecharContato = () => ctx.ir('jornada', comParametros(ctx.rota.params, { contato: '' }));
+  // Quem abriu o contato pelo "Ver o contato inteiro" da fila volta para a fila (antes caía numa lista que nunca viu).
+  const veioDaFila = () => ctx.rota.params.volta === 'fila';
+  const fecharContato = () => ctx.ir('jornada', comParametros(ctx.rota.params, veioDaFila() ? { contato: '', modo: '', volta: '' } : { contato: '' }));
   el.detalhe.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     if (e.target && e.target.matches && e.target.matches('input, select, textarea')) return;
@@ -265,6 +267,7 @@ function torreDeContatos(ctxInicial) {
       if (!anterior) rolagem = window.scrollY;
       detalhe = Detalhe.abrir(() => ctx, el.detalhe, id, {
         aoFechar: fecharContato,
+        rotuloDaVolta: veioDaFila() ? 'Voltar para a fila' : 'Voltar para a lista',
         aoPrever: reverLinha,
         aoMudar: () => { if (!saiu && consultaPedida) carregar(consultaPedida); },
       });

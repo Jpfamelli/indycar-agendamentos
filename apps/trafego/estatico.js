@@ -17,6 +17,7 @@
    ============================================================ */
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
@@ -60,6 +61,18 @@ function reescreverAntiga(conteudo, { prefixo = '', raiz = '' } = {}) {
   return s;
 }
 
+/** ETag fraca pelo conteúdo (vale para a versão com e sem gzip), guardada junto do arquivo em memória. */
+function etagDe(item) {
+  if (!item.etag) item.etag = 'W/"' + crypto.createHash('sha1').update(item.cru).digest('base64url').slice(0, 20) + '"';
+  return item.etag;
+}
+/** If-None-Match: lista separada por vírgula, "*" ou a etiqueta (com ou sem W/). */
+function combina(cabecalho, etag) {
+  if (!cabecalho) return false;
+  const sem = (t) => t.trim().replace(/^W\//, '');
+  return String(cabecalho).split(',').some((t) => t.trim() === '*' || sem(t) === sem(etag));
+}
+
 function criar({ dirTela, dirAntiga, vendor = {}, antigaLigada = false }) {
   const TELA = path.resolve(dirTela), ANTIGA = path.resolve(dirAntiga);
 
@@ -89,10 +102,17 @@ function criar({ dirTela, dirAntiga, vendor = {}, antigaLigada = false }) {
   function enviar(req, res, arquivo, { tipo, cache, reescrever = null }) {
     const pronto = (err, item) => {
       if (err) return texto(res, 404, 'Não encontrado');
+      // Rodada 9: com ETag, o celular que já tem o arquivo ouve "304, não mudou" em vez de baixar tudo de novo
+      // (o index.html é no-cache e o service worker pede a casca pela rede a cada abertura).
+      const etag = etagDe(item);
+      if (combina(req.headers['if-none-match'], etag)) {
+        res.writeHead(304, { ETag: etag, 'Cache-Control': cache, Vary: 'Accept-Encoding' });
+        return res.end();
+      }
       const gz = item.gz && compressao.aceitaGzip(req);
       const corpo = gz ? item.gz : item.cru;
       res.writeHead(200, {
-        'Content-Type': tipo, 'Cache-Control': cache, 'Content-Length': corpo.length, Vary: 'Accept-Encoding',
+        'Content-Type': tipo, 'Cache-Control': cache, 'Content-Length': corpo.length, Vary: 'Accept-Encoding', ETag: etag,
         ...(gz ? { 'Content-Encoding': 'gzip' } : {}),
       });
       res.end(req.method === 'HEAD' ? undefined : corpo);

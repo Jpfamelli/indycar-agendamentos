@@ -186,10 +186,10 @@ test('contato: jornada completa; sem ver_pii nome curto, telefone nulo, primeira
 
 test('contato com ver_pii: nome inteiro, telefone inteiro e links', async () => {
   const r = await rodar('contato', { lead_id: LEAD }, LER_PII);
-  assert.equal(r.telefone, '5512996830272');
+  assert.equal(r.telefone, '5512990001234');
   assert.ok(r.texto_do_cliente.nome.startsWith('Maria Aparecida Souza'));
   assert.ok(r.links && r.links.crm);
-  assert.match(r.texto_do_cliente.primeira_mensagem, /99683-0272/);
+  assert.match(r.texto_do_cliente.primeira_mensagem, /99000-1234/);
 });
 
 test('conversa (com ver_pii): mensagens em ordem, quem escreveu, texto em texto_do_cliente, cursor; contato inexistente', async () => {
@@ -271,9 +271,9 @@ test('proposta_criar: aumento acima de 30% ou acima do teto mensal entra com ris
   const a = await rodar('proposta_criar', verba(50, 60), PROPOR);
   assert.equal(a.proposta.risco, 'normal');
   const b = await rodar('proposta_criar', verba(50, 70), PROPOR);
-  assert.equal(b.proposta.risco, 'alto'); assert.match(b.proposta.risco_motivo, /40%, acima de 30%/);
+  assert.equal(b.proposta.risco, 'alto'); assert.equal(b.proposta.risco_motivo, 'Risco alto: aumento de 40% de uma vez (o passo seguro é até 30%).');
   const c = await rodar('proposta_criar', verba(2800, 3200, 'mes'), PROPOR);
-  assert.equal(c.proposta.risco, 'alto'); assert.match(c.proposta.risco_motivo, /teto mensal de R\$\s3\.000/);
+  assert.equal(c.proposta.risco, 'alto'); assert.match(c.proposta.risco_motivo, /no mês daria R\$\s3\.200, acima da verba do mês \(R\$\s3\.000\)/);
   assert.equal(amb.sb.tabelas.trafego_acoes.at(-1).evidencias.risco, 'alto');
   await assert.rejects(rodar('proposta_criar', { ...PROPOSTA, tipo: 'aumentar_verba' }, PROPOR), e => /"verba"/.test(e.message));
   await assert.rejects(rodar('proposta_criar', verba(60, 50), PROPOR), e => /maior que a atual/.test(e.message));
@@ -444,7 +444,7 @@ test('Gestor de dentro do app: mesma lista, sem chave, com permissões e autor p
 });
 
 test('mascarar: telefone, e-mail e CPF; textoDoCliente corta em 300', () => {
-  assert.equal(D.mascarar('(12) 99683-0272 / 12 3632-1111 / +55 12 99683 0272'), '[telefone] / [telefone] / [telefone]');
+  assert.equal(D.mascarar('(12) 99000-1234 / 12 3632-1111 / +55 12 99000 1234'), '[telefone] / [telefone] / [telefone]');
   assert.equal(D.mascarar('ana.b@x.com.br, 123.456.789-09, 12345678909'), '[e-mail], [CPF], [CPF]');
   assert.equal(D.mascarar('Troca de óleo R$ 169 em 2026'), 'Troca de óleo R$ 169 em 2026');
   assert.equal(D.textoDoCliente('a'.repeat(500)).length, 300);

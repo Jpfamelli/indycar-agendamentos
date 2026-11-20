@@ -13,6 +13,7 @@ import { selo, setores, origem as marcaDaOrigem, barra, botaoDaAcao, vazio, semD
 import { rotuloDaEtapa } from '../setores.js';
 import * as Estados from './estados.js';
 import { mostrarAviso } from '../aviso.js';
+import { faltaLigar, seloDoRitmo, textoDaPassagem } from '../hoje-logica.js';
 
 const ICONE_DA_DIRECAO = { sobe: 'sobe', desce: 'desce', igual: 'igual' };
 const LEITURA_DO_TOM = { bom: 'bom sinal', atencao: 'pede atenção' };
@@ -128,18 +129,19 @@ function fazer(ctx, d) {
     lista.length
       ? h('ol', { class: 'acoes' }, lista.map((f, i) => {
         const g = GRAVIDADE[f.gravidade];
-        return h('li', { class: 'acao' },
+        // A gravidade vem antes do título: "Urgente" é a primeira coisa que se lê (antes ficava ao lado ou embaixo do botão).
+        return h('li', { class: 'acao' + (g ? ' acao-com-selo' : '') },
           h('span', { class: 'acao-ordem', 'aria-hidden': 'true' }, String(i + 1)),
+          g ? h('p', { class: 'acao-selo' }, selo(g[0], g[1], g[2])) : null,
           h('p', { class: 'acao-titulo' }, f.titulo),
           f.porque ? h('p', { class: 'acao-porque' }, f.porque) : null,
-          h('div', { class: 'acao-pe' }, botaoDaAcao(ctx, f.acao), g ? selo(g[0], g[1], g[2]) : null));
+          h('div', { class: 'acao-pe' }, botaoDaAcao(ctx, f.acao)));
       }))
       : vazio({ titulo: 'Nada pedindo ação agora', texto: 'Quando aparecer algo para resolver, entra aqui em ordem de importância.' }));
 }
 
 /* ------------------------------ ritmo ------------------------------ */
 
-const SITUACAO = { acima: ['atencao', 'Acima da verba'], no_ritmo: ['bom', 'No ritmo da verba'], abaixo: ['espera', 'Abaixo da verba'] };
 
 function ritmo(d) {
   const r = d.ritmo || {};
@@ -147,7 +149,7 @@ function ritmo(d) {
   const doMes = !d.periodo || d.periodo.rotulo === 'Este mês';
   const dias = (r.dias || []).map((x) => ({ data: x.data, total: x.contatos, marca: x.contatos_anuncio }));
   const temVerba = ehNumero(r.orcamento_mes) && r.orcamento_mes > 0 && ehNumero(r.gasto_ate_hoje);
-  const situacao = SITUACAO[r.situacao];
+  const situacao = seloDoRitmo(r);
   const partes = [];
   if (temVerba) {
     const fracao = (v) => Math.max(0, Math.min(1, v / r.orcamento_mes));
@@ -160,14 +162,18 @@ function ritmo(d) {
         ehNumero(r.esperado_ate_hoje) ? h('span', { class: 'verba-risco', 'aria-hidden': 'true', style: { '--v': fracao(r.esperado_ate_hoje).toFixed(4) } }) : null),
       h('p', { class: 'verba-pe' },
         situacao ? selo(situacao[0], situacao[1]) : null,
-        ehNumero(r.esperado_ate_hoje) ? h('span', { class: 'apoio' }, 'O risco marca o esperado até hoje: ' + dinheiro(r.esperado_ate_hoje) + '.') : null)));
+        ehNumero(r.esperado_ate_hoje) ? h('span', { class: 'apoio' }, 'A marca na barra é o esperado até hoje: ' + dinheiro(r.esperado_ate_hoje) + '.') : null)));
   } else if (estado.gasto === 'sem_conta' || estado.gasto === 'sem_dados') {
     partes.push(h('p', { class: 'suave' }, 'Sem conta de anúncio ligada, não há gasto para acompanhar. Por enquanto, o ritmo é o dos contatos.'));
   } else if (ehNumero(r.gasto_ate_hoje)) {
     partes.push(h('p', { class: 'suave' }, 'Gasto no período: ', h('strong', null, dinheiro(r.gasto_ate_hoje)), '.'));
   }
   if (ehNumero(r.meta_contatos)) partes.push(h('p', { class: 'suave' }, 'Meta de contatos no mês: ', h('strong', null, inteiro(r.meta_contatos)), '.'));
-  if (dias.length > 1) {
+  const algumContato = dias.some((x) => ehNumero(x.total) && x.total > 0);
+  if (dias.length > 1 && !algumContato) {
+    // Antes: um gráfico vazio (eixo de 1 a 19, legenda "de anúncio / outros contatos") sem nenhuma coluna.
+    partes.push(h('p', { class: 'suave' }, 'Nenhum contato ' + (doMes ? 'neste mês' : 'neste período') + ' ainda. Os contatos de cada dia aparecem aqui quando o primeiro chegar.'));
+  } else if (dias.length > 1) {
     const comNumero = dias.filter((x) => ehNumero(x.total));
     const temRecorde = comNumero.length >= 5 && comNumero.some((x) => x.total > 0);
     partes.push(
@@ -225,7 +231,7 @@ function caminho(ctx, d) {
           tem ? barra([{ v: anuncio / maior, marca: true }, { v: (e.total - anuncio) / maior }], 'barra-g funil-barra') : h('span', { class: 'barra barra-g funil-barra', 'aria-hidden': 'true' }),
           h('span', { class: 'funil-info' },
             tem && ehNumero(e.anuncio) ? h('span', { class: 'funil-anuncio' }, h('span', { class: 'marca-anuncio', 'aria-hidden': 'true' }), inteiro(e.anuncio) + ' de anúncio') : null,
-            i === 0 ? null : h('span', { class: 'funil-passagem' }, ehNumero(e.passagem) ? porcento(e.passagem) + ' da etapa anterior' : 'passagem sem dado')));
+            i === 0 ? null : h('span', { class: 'funil-passagem' }, textoDaPassagem(e, etapas[i - 1], porcento))));
       })),
       h('div', { class: 'perdidos' },
         h('h3', { class: 'titulo-p' }, 'Não fecharam'),
@@ -249,6 +255,8 @@ function origens(ctx, d) {
   const maior = Math.max(1, ...lista.map((o) => o.contatos || 0));
   const temCusto = lista.some((o) => ehNumero(o.custo_por_contato) || ehNumero(o.retorno));
   const estado = d.estado || {};
+  // "Ainda não sabemos" costuma ser a maior barra: o bloco leva direto para o mutirão que resolve.
+  const semOrigem = lista.find((o) => o.id === 'desconhecida' && ehNumero(o.contatos) && o.contatos > 0) || null;
   if (!lista.length) return bloco('tOrigens', 'De onde vieram os contatos', null, vazio({ titulo: 'Nenhum contato no período', texto: 'Quando chegar o primeiro, ele aparece aqui com a origem: anúncio, site, indicação ou porta.' }));
   return bloco('tOrigens', 'De onde vieram os contatos', null,
     h('ul', { class: 'origens' + (temCusto ? ' origens-com-custo' : '') },
@@ -258,12 +266,15 @@ function origens(ctx, d) {
       lista.map((o) => h('li', { class: 'origens-linha' },
         h('a', { class: 'origens-nome torre-abre', href: ctx.hrefDaTela('jornada', { canal: o.id }) }, marcaDaOrigem(o)),
         barra([{ v: (o.contatos || 0) / maior, marca: o.paga === true }], 'origens-barra'),
-        h('span', { class: 'origens-n numero' }, inteiro(o.contatos), h('span', { class: 'so-leitor' }, ' contatos')),
+        h('span', { class: 'origens-n numero' }, inteiro(o.contatos), h('span', { class: 'so-leitor' }, o.contatos === 1 ? ' contato' : ' contatos')),
         h('span', { class: 'origens-dados' },
           dado('fecharam', ehNumero(o.fecharam) ? inteiro(o.fecharam) : 'sem dado'),
           dado('faturado', ehNumero(o.faturado) ? dinheiro(o.faturado) : 'sem dado'),
           temCusto ? dado('custo por contato', ehNumero(o.custo_por_contato) ? dinheiro(o.custo_por_contato) : o.paga === true ? 'sem dado' : null) : null,
           temCusto ? dado('cada R$ 1 virou', ehNumero(o.retorno) ? dinheiro(o.retorno, { centavos: true }) : o.paga === true ? 'sem dado' : null) : null)))),
+    semOrigem ? h('p', { class: 'perdidos-falta origens-falta' },
+      h('span', null, contagem(semOrigem.contatos, 'contato ainda sem origem', 'contatos ainda sem origem') + ': cada um que ganha origem melhora a conta de onde vem o serviço.'),
+      h('a', { class: 'ligacao', href: ctx.hrefDaTela('jornada', { pendencia: 'sem_origem' }) }, 'Dizer de onde vieram', icone('seta', 'icone-p'))) : null,
     !temCusto && estado.gasto === 'sem_conta' ? h('p', { class: 'apoio' }, 'Custo por contato e retorno de cada origem entram quando a conta de anúncios estiver ligada.') : null);
 }
 
@@ -273,7 +284,7 @@ function deHoje(ctx, d, estreia) {
   const lista = d.hoje || [];
   return bloco('tHoje', 'Contatos de hoje', lista.length ? contagem(lista.length, 'até agora', 'até agora') : null,
     lista.length
-      ? h('ul', { class: 'hoje-lista' + (estreia ? ' acender' : '') }, lista.map((c, i) => h('li', { class: 'hoje-linha' },
+      ? h('ul', { class: 'hoje-lista' + (estreia ? ' acender' : '') }, lista.map((c, i) => h('li', { class: 'hoje-linha' + (ehNumero(c.espera_min) ? ' hoje-linha-espera' : '') },
         h('span', { class: 'hoje-hora numero' }, c.hora),
         h('a', { class: 'hoje-nome torre-abre', href: ctx.hrefDaTela('jornada', { contato: c.lead_id }) }, c.nome),
         h('span', { class: 'hoje-origem' }, marcaDaOrigem(c.origem)),
@@ -296,7 +307,7 @@ function conexoes(ctx, d) {
     detalhe ? h('span', { class: 'conexao-detalhe apoio' }, detalhe) : null);
   // `parada` (API-base.md, motor/conexoes-estado.js): mais de um dia e meio sem buscar os números.
   const coleta = (x) => (x && x.parada && !x.aviso ? 'A busca dos números está parada' + (x.ultima_coleta ? ': a última foi ' + haQuanto(x.ultima_coleta) : '') + '.'
-    : x && x.ultima_coleta ? 'Última leitura ' + haQuanto(x.ultima_coleta) + '.' : null);
+    : x && x.ultima_coleta ? 'Números buscados ' + haQuanto(x.ultima_coleta) + '.' : null);
   const juntar = (...partes) => partes.filter(Boolean).join(' ') || null;
   const itens = [];
   if (c.meta) itens.push(linha('Anúncios da Meta', CONTA_DE_ANUNCIO[c.meta.situacao], juntar(c.meta.aviso, coleta(c.meta))));
@@ -311,5 +322,6 @@ function conexoes(ctx, d) {
   }
   return bloco('tConexoes', 'Conexões', null,
     itens.length ? h('ul', { class: 'conexoes' }, itens) : h('p', { class: 'suave' }, 'Sem informação das conexões agora.'),
-    h('a', { class: 'ligacao', href: ctx.hrefDaTela('ajustes', { secao: 'conexoes' }) }, 'Ver o que falta ligar', icone('seta', 'icone-p')));
+    h('a', { class: 'ligacao', href: ctx.hrefDaTela('ajustes', { secao: 'conexoes' }) }, faltaLigar(c) ? 'Ver o que falta ligar' : 'Ver as conexões', icone('seta', 'icone-p')));
 }
+

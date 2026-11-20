@@ -9,7 +9,7 @@ import { h, icone, trocar, focar } from '../dom.js';
 import { valorPorFormato, comparacao, dinheiro, inteiro, ehNumero, periodoValido } from '../formato.js';
 import { selo } from '../pecas.js';
 import { buscar } from './estados.js';
-import { passoDaTecla, proximaSozinha, tempoDaTela, motivoDoVazio } from '../relatorios-logica.js';
+import { passoDaTecla, proximaSozinha, tempoDaTela, motivoDoVazio, marcaDaApresentacao } from '../relatorios-logica.js';
 
 const LEITURA = { bom: ['bom', 'Bom'], atencao: ['atencao', 'Atenção'], ruim: ['grave', 'Ruim'] };
 const PLATAFORMA = { meta: 'Meta', google: 'Google' };
@@ -84,7 +84,7 @@ export function mostrar(ctx) {
     const t = telas[atual];
     if (!t) { trocar(palco, h('p', { class: 'apres-frase' }, 'Nada para mostrar neste período.')); return; }
     trocar(palco, h('section', { class: 'apres-tela', data: { tela: t.id }, 'aria-labelledby': 'apresTitulo' },
-      h('p', { class: 'apres-marca' }, 'IndyCar Tráfego · ' + ((dados && dados.periodo && dados.periodo.rotulo) || '')),
+      h('p', { class: 'apres-marca' }, marcaDaApresentacao(dados && dados.periodo, t.titulo)),
       h('h1', { class: 'apres-titulo', id: 'apresTitulo' }, t.titulo || ''),
       conteudo(t)));
     contador.textContent = (atual + 1) + ' de ' + telas.length;
@@ -118,7 +118,7 @@ export function mostrar(ctx) {
         return h('ol', { class: 'apres-lista' }, (t.origens || []).slice(0, 6).map((o) => h('li', { class: 'apres-item' },
           comUnidade(o.contatos),
           h('span', { class: 'apres-item-texto' }, h('span', { class: 'apres-rotulo' }, o.rotulo),
-            h('span', { class: 'apres-apoio' }, [ehNumero(o.fecharam) ? inteiro(o.fecharam) + ' fecharam' : null, ehNumero(o.faturado) && o.faturado > 0 ? dinheiro(o.faturado) + ' faturados' : null].filter(Boolean).join(', '))))));
+            h('span', { class: 'apres-apoio' }, [ehNumero(o.fecharam) ? inteiro(o.fecharam) + (Math.round(o.fecharam) === 1 ? ' fechou' : ' fecharam') : null, ehNumero(o.faturado) && o.faturado > 0 ? dinheiro(o.faturado) + ' faturados' : null].filter(Boolean).join(', '))))));
       case 'campanhas':
         return (t.campanhas || []).length ? h('ol', { class: 'apres-lista' }, t.campanhas.slice(0, 5).map((cp) => {
           const l = cp.leitura && LEITURA[cp.leitura.tom];
@@ -126,7 +126,7 @@ export function mostrar(ctx) {
             comUnidade(cp.contatos),
             h('span', { class: 'apres-item-texto' },
               h('span', { class: 'apres-rotulo' }, (cp.nome || 'Campanha') + ' (' + (PLATAFORMA[cp.plataforma] || cp.plataforma || '') + ')'),
-              h('span', { class: 'apres-apoio' }, l ? selo(l[0], l[1]) : null, ' ', ehNumero(cp.custo_por_contato) ? dinheiro(cp.custo_por_contato) + ' por contato' : 'contatos; sem gasto ligado')));
+              h('span', { class: 'apres-apoio' }, l ? selo(l[0], l[1]) : null, ' ', ehNumero(cp.custo_por_contato) ? dinheiro(cp.custo_por_contato) + ' por contato' : 'sem gasto ligado')));
         })) : h('p', { class: 'apres-frase' }, 'Nenhuma campanha com contato neste período.');
       case 'proximos':
         return (t.itens || []).length ? h('ol', { class: 'apres-lista apres-fazer' }, t.itens.slice(0, 4).map((f, i) => h('li', { class: 'apres-item' },

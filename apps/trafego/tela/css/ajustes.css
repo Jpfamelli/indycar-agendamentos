@@ -60,6 +60,15 @@
   font-size: var(--tam-apoio);
   color: var(--cor-tinta-2);
 }
+.ajustes-item-estado {
+  grid-column: 1;
+}
+.ajustes-item-estado:empty {
+  display: none;
+}
+.ajustes-item:has(.ajustes-item-estado:not(:empty)) .ajustes-item-seta {
+  grid-row: 1 / span 3;
+}
 .ajustes-item-seta {
   grid-column: 2;
   grid-row: 1 / span 2;
@@ -235,6 +244,18 @@
   justify-content: space-between;
   gap: var(--p-esp-2);
 }
+.conexoes-passos-prontos {
+  gap: var(--p-esp-2);
+}
+.conexoes-passos-ver > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo);
+  cursor: pointer;
+}
+.conexoes-passos-ver[open] > summary {
+  margin-bottom: var(--p-esp-2);
+}
 .passos {
   display: grid;
   margin: 0;
@@ -323,7 +344,8 @@
   display: grid;
   gap: var(--p-esp-1);
   padding: var(--p-esp-3) var(--p-esp-4);
-  border-left: 0.1875rem solid var(--cor-grave);
+  border: 0.0625rem solid var(--cor-grave);
+  border-radius: var(--raio-controle);
   background-color: var(--cor-superficie-2);
 }
 .conexao-acessos > summary,
@@ -334,6 +356,10 @@
   display: grid;
   gap: var(--p-esp-4);
   padding-top: var(--p-esp-3);
+}
+/* Ajuda de um campo logo abaixo dele (sem o espaço inteiro da grade). */
+.conexao-ajuda {
+  margin-top: calc(-1 * var(--p-esp-3));
 }
 .conexao-form textarea {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
@@ -559,6 +585,10 @@
   font-weight: var(--peso-texto);
   overflow-wrap: anywhere;
 }
+/* Páginas do site: número de visitas e de cliques, os dois alinhados à direita. */
+.rastreio-paginas thead th:not(:first-child) {
+  text-align: right;
+}
 
 /* Mensagem pronta: o texto, o link e o QR lado a lado no computador. */
 .mensagem-pronta {
@@ -659,6 +689,10 @@
 }
 .chaves-lista-caixa {
   width: 100%;
+}
+/* Sem chave recém-criada, a caixa vazia não pode somar mais um espaço entre a explicação e "Chaves criadas". */
+.chave-nova-caixa:empty {
+  display: none;
 }
 .chave-nome {
   font-weight: var(--peso-forte);
@@ -773,4 +807,17 @@
 }
 .devolucao-item:not([data-prazo='1']) .devolucao-fazer {
   color: var(--cor-tinta-2);
+}
+/* As vendas que passaram do prazo ficam fechadas: não pedem nada, só servem para conferir. */
+.devolucao-fora > summary {
+  list-style: none;
+  width: max-content;
+  max-width: 100%;
+  cursor: pointer;
+}
+.devolucao-fora > summary::-webkit-details-marker {
+  display: none;
+}
+.devolucao-fora[open] > summary {
+  margin-bottom: var(--p-esp-2);
 }

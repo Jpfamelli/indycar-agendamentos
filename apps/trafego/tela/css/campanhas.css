@@ -709,3 +709,8 @@
 .camp-termo {
   overflow-wrap: anywhere;
 }
+
+/* Contatos da campanha: os 6 mais recentes e o botão que mostra o resto. */
+.camp-contatos-mais {
+  margin-top: var(--p-esp-3);
+}

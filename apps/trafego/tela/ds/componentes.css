@@ -670,6 +670,12 @@
   line-height: 0.9;
   color: var(--cor-tinta-3);
 }
+.acao-com-selo .acao-ordem {
+  grid-row: span 4;
+}
+.acao-selo {
+  line-height: 1;
+}
 .acao-titulo {
   font-size: var(--tam-texto-g);
   font-weight: var(--peso-forte);

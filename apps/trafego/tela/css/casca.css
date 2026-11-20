@@ -246,6 +246,10 @@
 body {
   padding-bottom: calc(var(--navbaixo-altura) + env(safe-area-inset-bottom, 0rem));
 }
+/* Quem anda pelo Tab (ou um link que rola até um campo) nunca para escondido atrás da barra de baixo. */
+html {
+  scroll-padding-bottom: calc(var(--navbaixo-altura) + env(safe-area-inset-bottom, 0rem) + var(--p-esp-3));
+}
 
 /* ------------------------------ período e "atualizado há X" ------------------------------ */
 .sessao {
@@ -338,6 +342,9 @@ body {
   }
   body {
     padding-bottom: 0;
+  }
+  html {
+    scroll-padding-bottom: 0;
   }
   #avisos {
     --toast-acima: 0rem;
@@ -491,3 +498,30 @@ body {
     }
   }
 }
+
+/* Sem acesso ou sem sessão nenhuma tela abre: a navegação some em vez de ficar com links que não fazem nada. */
+[data-parado] .casca-nav,
+[data-parado] .navbaixo,
+[data-parado] .casca-acoes a[data-tela] {
+  display: none;
+}
+
+/* Celular deitado (tela baixa): o topo fixo e a barra de baixo comiam 126 de 360 px. O topo passa a rolar com a
+   página e a barra de baixo fica numa linha só (ícone ao lado do nome), com o alvo de 44 px. */
+@media (max-width: 61.99em) and (max-height: 30em) {
+  :root {
+    --navbaixo-altura: 2.75rem;
+  }
+  .casca {
+    position: static;
+  }
+  html {
+    scroll-padding-top: var(--p-esp-4);
+  }
+  .navbaixo a {
+    grid-auto-flow: column;
+    justify-content: center;
+    gap: var(--p-esp-2);
+  }
+}
+

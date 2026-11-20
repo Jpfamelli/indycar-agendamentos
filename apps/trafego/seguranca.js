@@ -106,6 +106,7 @@ const LIMITES_CAROS = {
   'GET /api/fechamento': 30,
   'GET /api/fechamento.csv': 30,
   'POST /api/fechamento/enviar': 5,
+  'POST /api/gestor/conversas': 30,   // rodada 9: cada uma é uma linha nova no banco
 };
 
 /* Revisão de segurança (19/11): o primeiro item do X-Forwarded-For é o que o visitante escreve, então não serve

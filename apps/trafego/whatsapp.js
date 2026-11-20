@@ -58,13 +58,13 @@ function limparCache() { cacheStatus = { valor: null, em: 0 }; }
 
 /** Traduz o problema do vigia para a frase da tela (o mesmo vocabulário do Atendimento). */
 const PROBLEMAS_CANAL = {
-  'codewords-chave-recusada': 'chave do CodeWords recusada (401) — gere uma chave nova em Atendimento › Configurações; a fila guarda as mensagens até lá',
+  'codewords-chave-recusada': 'chave do CodeWords recusada (401): gere uma chave nova e cole em Atendimento › Integrações; a fila guarda as mensagens até lá',
   'codewords-fora': 'o CodeWords (que leva as mensagens) não está respondendo; a fila guarda as mensagens até voltar',
-  'whatsapp-desconectado': 'aparelho do WhatsApp desconectado — reconecte em Atendimento › Configurações',
-  'whatsapp-sem-config': 'WhatsApp sem chave ou aparelho em Atendimento › Configurações',
-  'whatsapp-sem-receber': 'o WhatsApp está conectado mas não recebe — religue o fluxo em Atendimento › Configurações',
+  'whatsapp-desconectado': 'aparelho do WhatsApp desconectado: reconecte em Atendimento › Integrações',
+  'whatsapp-sem-config': 'WhatsApp sem chave ou aparelho em Atendimento › Integrações',
+  'whatsapp-sem-receber': 'o WhatsApp está conectado mas não recebe: religue o fluxo em Atendimento › Integrações',
   'comunicar-fora': 'o Comunicar (carteiro da fila) está fora do ar',
-  'comunicar-carteiro-parado': 'o carteiro do Comunicar parou — as mensagens ficam na fila até ele voltar',
+  'comunicar-carteiro-parado': 'o carteiro do Comunicar parou: as mensagens ficam na fila até ele voltar',
   'comunicar-fila-parada': 'a fila do Comunicar está parada (mensagens vencidas sem sair)',
 };
 

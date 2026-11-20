@@ -176,6 +176,8 @@ function responderFolha({ q = new URLSearchParams(), pedido = null, fonte = Font
       titulo: `IndyCar · Tráfego · ${m.rotulo}`,
       frase: painel.frase, numeros: painel.numeros, derivados: painel.derivados, funil: painel.funil, origens: painel.origens,
       campanhas: campanhas.campanhas.slice(0, MAX_CAMPANHAS_FOLHA).map(semSerie), sem_campanha: campanhas.sem_campanha,
+      // a folha leva as 8 de maior gasto; o total deixa ela dizer quantas ficaram de fora
+      campanhas_total: campanhas.campanhas.length,
       horarios: { pico: campanhas.horarios.pico, leitura: campanhas.horarios.leitura },
       texto: relatorio.texto,
       gerado_em: new Date(fonte.agora()).toISOString(),

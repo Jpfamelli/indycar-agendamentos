@@ -46,7 +46,10 @@ function registrar(ctx) {
     }
     const dias = Math.min(30, Math.max(1, parseInt(c.dias, 10) || 7));
     await auditar(usuario, 'ads_coleta_agora', { tabela: 'ads_metricas_dia', detalhes: { dias } });
-    return resumoDaColeta(await d().coletor.sincronizar({ dias, origem: 'pessoa' }));
+    const r = await d().coletor.sincronizar({ dias, origem: 'pessoa' });
+    // Os números novos já valem: as telas não podem responder com a leitura guardada de antes da busca.
+    (d().fonte || require('../motor/fonte')).esquecerLeituras();
+    return resumoDaColeta(r);
   });
 
   rota('GET', '/api/coleta/situacao', async () => {
@@ -75,6 +78,7 @@ function registrar(ctx) {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="vendas-google-${formato}-${hoje}.csv"`,
       'Cache-Control': 'no-store',
+      'X-Vendas': String(r.linhas),   // quantas vendas foram no arquivo: com zero, a tela avisa em vez de baixar um arquivo vazio
     });
     res.end(r.csv);
   });
@@ -109,6 +113,7 @@ registrar.dependencias = {
   get coletor() { return require('../coletor'); },
   get devolucao() { return require('../devolucao'); },
   get conexoes() { return require('../conexoes'); },
+  get fonte() { return require('../motor/fonte'); },
 };
 registrar.resumoDaColeta = resumoDaColeta;
 

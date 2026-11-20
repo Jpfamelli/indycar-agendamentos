@@ -281,7 +281,7 @@ function alertasDaConta(linhas, { contatosMeta = null, ontem, disparos = new Map
         mensagem: `O investimento caiu de ${reais$(total.media)} por dia (média dos 7 dias anteriores) para ${reais$(total.ontem)} em ${ddmm(ontem)}: cartão recusado, anúncio reprovado ou saldo zerado?${quedas.length ? ` (${quedas.map(det).join('; ')})` : ''}` });
     } else for (const x of quedas) {
       emitir('gasto_parou', `conta|gasto_parou|${x.p}`, { plataforma: x.p, valor_medido: Math.round(x.ontem * 100) / 100,
-        mensagem: `O investimento no ${PLATAFORMA_NOME[x.p]} caiu de ${reais$(x.media)} por dia para ${reais$(x.ontem)} em ${ddmm(ontem)}, enquanto o resto seguiu normal: cartão recusado, anúncio reprovado ou saldo zerado?` });
+        mensagem: `O investimento ${x.p === 'meta' ? 'na Meta' : `no ${PLATAFORMA_NOME[x.p] || x.p}`} caiu de ${reais$(x.media)} por dia para ${reais$(x.ontem)} em ${ddmm(ontem)}, enquanto o resto seguiu normal: cartão recusado, anúncio reprovado ou saldo zerado?` });
     }
   }
 

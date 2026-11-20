@@ -260,6 +260,15 @@ ol.fala-lista {
   align-items: center;
   gap: var(--p-esp-3);
 }
+/* Recusar: o porquê (opcional) e a confirmação, no lugar dos botões. */
+.proposta-recusa {
+  display: grid;
+  gap: var(--p-esp-3);
+  max-width: var(--medida-texto);
+}
+.proposta-recusa textarea {
+  width: 100%;
+}
 
 /* ------------------------------ plano ------------------------------ */
 .gestor-plano {
@@ -367,10 +376,46 @@ ol.fala-lista {
 /* Resumo das mensagens antigas (conversa com mais de 40 mensagens) e veredito por extenso. */
 .fala-resumo {
   padding: var(--p-esp-3) var(--p-esp-4);
-  border-left: 0.1875rem solid var(--cor-linha-forte);
+  border: 0.0625rem dashed var(--cor-linha-forte);
+  border-radius: var(--raio-controle);
   color: var(--cor-tinta-2);
 }
 .diario-veredito {
   max-width: var(--medida-texto);
   font-weight: var(--peso-forte);
+}
+
+/* Anotar uma mudança feita por conta própria (rodada 9): fechado por padrão, abre no próprio diário. */
+.anotar {
+  margin-top: var(--p-esp-4);
+}
+.anotar-abrir {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--p-esp-2);
+  min-height: var(--alvo);
+  cursor: pointer;
+}
+.anotar-form {
+  display: grid;
+  gap: var(--p-esp-4);
+  padding-top: var(--p-esp-3);
+}
+.anotar-dupla {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--p-esp-4);
+}
+.anotar-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--p-esp-3);
+}
+@media (min-width: 30em) {
+  .anotar-dupla {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.diario-mais {
+  margin-top: var(--p-esp-3);
 }

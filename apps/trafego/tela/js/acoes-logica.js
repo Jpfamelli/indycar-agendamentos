@@ -82,6 +82,7 @@ export function lerAcao(a) {
     alvoRotulo: texto(a.alvo_rotulo),
     status,
     statusTexto: { tom: STATUS[status].tom, texto: texto(a.status_rotulo) || STATUS[status].texto },
+    origem: AUTOR[a.origem] ? a.origem : 'ia',
     autor: texto(a.autor) || AUTOR[a.origem] || 'Gestor IA',
     venceEm: status === 'proposta' ? a.vence_em || null : null,
     criadaEm: a.criada_em || null,
@@ -140,4 +141,55 @@ export function perguntasProntas({ temConta = false, temContatos = true } = {}) 
     return ['De onde vêm os contatos que fecham?', 'Quem está esperando resposta?', 'Por que tantos contatos estão sem origem?', 'O que falta ligar para eu ver o custo?'];
   }
   return ['Qual campanha eu pauso?', 'Os anúncios estão se pagando este mês?', 'Onde vale pôr mais verba?', 'Por que a Meta conta mais conversas do que chegam?'];
+}
+
+/** Quem fez o quê, na linha do diário: a mudança anotada por uma pessoa não foi "sugerida" por ela. */
+export function quemNoDiario(acao) {
+  if (!acao) return '';
+  if (acao.origem === 'pessoa') return (acao.decididaPor || acao.autor) + ' anotou';
+  return acao.autor + ' sugeriu' + (acao.decididaPor ? ' · ' + acao.decididaPor + ' decidiu' : '');
+}
+
+/** Onde a pessoa fez a mudança (o "alvo" de POST api/acoes-trafego). */
+export const ONDE_ANOTAR = Object.freeze([
+  { id: 'meta', rotulo: 'Meta (Facebook e Instagram)' },
+  { id: 'google', rotulo: 'Google Ads' },
+  { id: 'oficina', rotulo: 'Na oficina (atendimento, preço, horário)' },
+  { id: 'site', rotulo: 'No site' },
+]);
+
+/**
+ * "Anotar uma mudança que eu fiz": confere o formulário antes de mandar (as mesmas regras do servidor,
+ * API-gestor.md §3) e monta o corpo. Devolve { ok: true, corpo } ou { ok: false, campo, erro }.
+ */
+export function anotacao({ tipo, titulo, onde, campanha, porque } = {}) {
+  const t = (v) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  if (!NOME_DO_TIPO[tipo]) return { ok: false, campo: 'tipo', erro: 'Escolha o tipo da mudança.' };
+  const oQue = t(titulo);
+  if (oQue.length < 5) return { ok: false, campo: 'titulo', erro: 'Escreva o que foi feito (pelo menos 5 letras).' };
+  if (oQue.length > 120) return { ok: false, campo: 'titulo', erro: 'Use até 120 letras; o detalhe vai em "Por quê".' };
+  const motivo = t(porque);
+  if (motivo.length > 1000) return { ok: false, campo: 'porque', erro: 'O "por quê" pode ter até 1000 letras.' };
+  const corpo = { tipo, titulo: oQue, ja_fiz: true };
+  if (motivo) corpo.porque = motivo;
+  const lugar = ONDE_ANOTAR.find((o) => o.id === onde);
+  if (lugar) {
+    const nome = t(campanha).slice(0, 120);
+    const ehAnuncio = lugar.id === 'meta' || lugar.id === 'google';
+    corpo.alvo = { plataforma: lugar.id, nivel: ehAnuncio && nome ? 'campanha' : ehAnuncio ? 'conta' : 'outro', nome: nome || lugar.rotulo };
+  }
+  return { ok: true, corpo };
+}
+
+/** "2026-11-26" → "26/11" (a data vem pronta do servidor; sem fuso no meio). */
+const ddmm = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] : null; };
+
+/**
+ * Sem o "depois" ainda, o diário mostra só a coluna "Antes" e diz numa linha quando o depois chega
+ * (antes repetia "ainda não medido" em cada linha da tabela). Recusada ou expirada nunca terá depois: null.
+ */
+export function quandoMedeODepois(a) {
+  if (!a || a.status === 'recusada' || a.status === 'expirada') return null;
+  if (a.status === 'feita') return ddmm(a.medirEm) ? 'O depois sai em ' + ddmm(a.medirEm) + ', quando o Tráfego mede.' : 'O depois ainda não foi medido.';
+  return 'O depois é medido quando a mudança for feita.';
 }

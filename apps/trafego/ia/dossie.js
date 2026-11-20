@@ -607,7 +607,8 @@ async function conversa(args, ctx) {
   const c = await ler(args.lead_id, ctx);
   if (!c) throw recusar('Contato não encontrado. Confira o "lead_id" na ferramenta contatos.');
   const todas = (c.mensagens || []).slice().sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
-    .map(m => ({ em: J.isoBR(m.created_at), de: m.direcao === 'entrada' ? 'cliente' : (m.gerada_por_ia ? 'automatica' : 'oficina'), status: m.status || null,
+    // aviso do sistema gravado como recebido (D1, item 6) não é o cliente: a IA não deve ler como pedido dele
+    .map(m => ({ em: J.isoBR(m.created_at), de: m.direcao === 'entrada' ? (O.ehAvisoDoSistema(m.corpo) ? 'sistema' : 'cliente') : (m.gerada_por_ia ? 'automatica' : 'oficina'), status: m.status || null,
       texto_do_cliente: textoDoCliente(m.corpo, { verPii: ctx.verPii, max: 1000 }) }));
   const pg = pagina(todas, { cursor: args.cursor, limite: args.limite || 100 });
   const doCliente = todas.filter(m => m.de === 'cliente').length;
@@ -800,9 +801,10 @@ function prepararProposta(args, { hoje, tetoMensal = null }) {
     if (args.tipo === 'aumentar_verba') {
       const motivos = [];
       const aumento = v.nova / v.atual - 1;
-      if (aumento > AUMENTO_SEM_RISCO) motivos.push(`aumento de ${Math.round(aumento * 100)}%, acima de ${Math.round(AUMENTO_SEM_RISCO * 100)}%`);
+      // rodada 9: diz o que o número quer dizer (antes: "aumento de 40%, acima de 30%", sem dizer que 30% é o passo seguro)
+      if (aumento > AUMENTO_SEM_RISCO) motivos.push(`aumento de ${Math.round(aumento * 100)}% de uma vez (o passo seguro é até ${Math.round(AUMENTO_SEM_RISCO * 100)}%)`);
       const noMes = por === 'mes' ? v.nova : v.nova * DIAS_NO_MES;
-      if (tetoMensal != null && noMes > tetoMensal) motivos.push(`passa do teto mensal de ${dinheiro(tetoMensal)}`);
+      if (tetoMensal != null && noMes > tetoMensal) motivos.push(`no mês daria ${dinheiro(noMes)}, acima da verba do mês (${dinheiro(tetoMensal)})`);
       if (motivos.length) { risco = 'alto'; riscoMotivo = `Risco alto: ${motivos.join(' e ')}.`; }
     }
   }

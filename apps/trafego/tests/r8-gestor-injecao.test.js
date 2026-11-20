@@ -74,7 +74,7 @@ test('injeção: a frase do cliente só chega ao modelo dentro de texto_do_clien
   assert.ok(vistos >= 4, `a frase chegou ao modelo (como dado) ${vistos} vezes, sempre dentro de texto_do_cliente`);
   const doContato = rastrear(corpos[1], FRASE).dentro;
   assert.ok(doContato.some(c => /content\[1\]/.test(c)), 'a ferramenta contato devolveu a frase (como dado)');
-  assert.ok(!JSON.stringify(corpos).includes('5512996830272') && !JSON.stringify(corpos).includes('maria.souza@'), 'sem telefone nem e-mail do cliente (ver_pii desligado)');
+  assert.ok(!JSON.stringify(corpos).includes('5512990001234') && !JSON.stringify(corpos).includes('maria.souza@'), 'sem telefone nem e-mail do cliente (ver_pii desligado)');
 
   // 2) As ferramentas que "decidiriam" não existem; a proposta entra só como proposta.
   const rs = corpos[2].messages.at(-1).content.filter(b => b.type === 'tool_result');
