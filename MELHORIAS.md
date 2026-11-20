@@ -1242,3 +1242,16 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - Movere continua sem acesso real (`orc_carga_movere` vazia): a Casa mostra como neutro.
 - Pátio e Orçador ainda sem o cabeçalho COOP pedido (a janela aberta por `window.open` não perde o vínculo hoje; o pedido continua aberto).
 - Nada foi publicado (sem Netlify, Render ou Edge Function), conforme a regra da rodada.
+
+## Rodada 9 (19-20/11/2026)
+
+- **R9-AGE-001** · tela · A lista do Início permite registrar Chegou pelo cartão, ao lado dos desfechos · `8c60a72`
+- **R9-AGE-002** · enxugar · Mais recolhe telas secundárias e abre quando uma delas é acessada por atalho · `8c60a72`
+- **R9-AGE-003** · tela · A abertura mostra a data e dá destaque aos horários sem desfecho · `8c60a72`
+- **R9-AGE-004** · texto · O rótulo do Início acompanha o nome da aba em português · `8c60a72`
+- **R9-AGE-005** · texto · Os indicadores do dia usam Chegaram hoje e Vieram e não fecharam · `8c60a72`
+- **R9-AGE-006** · celular · Os horários do dia ganham mais espaço que o histórico recente no desktop e ocupam toda a coluna no celular · `8c60a72`
+- **R9-AGE-007** · acessibilidade · As ações da lista e a impressão ganham alvo de toque de 44 px · `8c60a72`
+- **R9-AGE-008** · acessibilidade · Navegação e cartões do dia destacam o foco de teclado · `8c60a72`
+- **R9-AGE-009** · acessibilidade · Os cartões e indicadores do dia respeitam movimento reduzido · `8c60a72`
+- **R9-AGE-010** · celular · Os quatro indicadores do dia ocupam duas colunas no celular · `8c60a72`

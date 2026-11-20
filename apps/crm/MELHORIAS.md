@@ -1288,3 +1288,16 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - Contagem de números de orçamento e ordem do banco real pode ter avançado por causa do bloco SQL revertido.
 - Os eventos ao vivo foram provados com bloco SQL revertido e dublê; falta ver com orçamento e ordem de verdade.
 - Cópias SQL das migrações em `indycar-ferramentas/sql/` (fora do repositório). Nada foi publicado.
+
+## Rodada 9 (19-20/11/2026)
+
+- **R9-CRM-001** · conserto · A janela de pagamento mantém Concluir dentro do rodapé em 375 e 1440 px · `8c60a72`
+- **R9-CRM-002** · tela · A primeira visita abre Contatos e preserva a aba da sessão nas visitas seguintes · `8c60a72`
+- **R9-CRM-003** · enxugar · Mais agrupa as telas secundárias com abertura automática ao navegar para uma delas · `8c60a72`
+- **R9-CRM-004** · enxugar · Mais filtros e opções recolhe filtros avançados e deixa Limpar filtros à vista · `8c60a72`
+- **R9-CRM-005** · texto · Painel substitui Dashboard no título e na navegação · `8c60a72`
+- **R9-CRM-006** · texto · Contatos dá nome à lista e à ação Novo contato · `8c60a72`
+- **R9-CRM-007** · celular · A navegação quebra em linhas e mostra os nomes das seções no celular · `8c60a72`
+- **R9-CRM-008** · acessibilidade · Navegação, filtros e ações de contato ganham contorno visível para teclado · `8c60a72`
+- **R9-CRM-009** · acessibilidade · Os controles da lista ganham altura mínima de 44 px · `8c60a72`
+- **R9-CRM-010** · acessibilidade · A área de contatos respeita a preferência por movimento reduzido · `8c60a72`
