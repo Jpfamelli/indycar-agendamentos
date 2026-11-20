@@ -136,12 +136,25 @@
   function toastDesfazer(msg, aoDesfazer, rotulo = 'Desfazer', ms = 6000) {
     C.toast(msg, ms, { rotulo, fazer: aoDesfazer });
   }
+  /* rodada 9: a lista é redesenhada a cada ação e o botão usado sumia: o foco caía no começo da página e quem usa
+     teclado ou leitor de tela se perdia. Depois de adiar, o foco fica na mesma tarefa; depois de concluir, vai para
+     a tarefa seguinte (ou para o campo de nova tarefa, se a lista acabou). */
+  const seletorDe = (attr, id) => `#listaTarefas [${attr}="${(window.CSS && CSS.escape) ? CSS.escape(id) : String(id).replace(/"/g, '')}"]`;
+  function vizinhaDe(id) {
+    const lis = [...document.querySelectorAll('#listaTarefas li[data-tid]')];
+    const i = lis.findIndex((li) => li.dataset.tid === id);
+    const v = i < 0 ? null : (lis[i + 1] || lis[i - 1]);
+    return v ? v.dataset.tid : null;
+  }
+  function focar(seletor) { const el = document.querySelector(seletor); if (el) el.focus(); }
   async function concluir(id, caixa) {
     caixa.disabled = true;
     const { error } = await C.sb.from('tarefas').update({ status: 'feita' }).eq('id', id);
     if (error) { caixa.disabled = false; caixa.checked = false; return C.toast('Não consegui concluir agora.'); }
     const t = tarefas.find((x) => x.id === id);
+    const proxima = vizinhaDe(id);
     tarefas = tarefas.filter((x) => x.id !== id); desenhar();
+    focar(proxima ? seletorDe('data-tarefa', proxima) : '#tTitulo');
     toastDesfazer('Tarefa concluída.', async () => {
       const r = await C.sb.from('tarefas').update({ status: 'aberta' }).eq('id', id);
       if (r.error) return C.toast('Não consegui desfazer.');
@@ -153,6 +166,7 @@
     const antes = t.vence_em;
     const novo = new Date(M.adiarTarefa(antes, new Date(), dias)).toISOString();
     t.vence_em = novo; desenhar();
+    focar(seletorDe(dias > 1 ? 'data-adiar-mais' : 'data-adiar', id));
     const { error } = await C.sb.from('tarefas').update({ vence_em: novo }).eq('id', id);
     if (error) { t.vence_em = antes; desenhar(); return C.toast('Não consegui adiar agora.'); }
     toastDesfazer('Tarefa adiada para ' + M.textoDoPrazo(novo) + '.', async () => {
