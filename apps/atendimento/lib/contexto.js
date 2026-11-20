@@ -16,6 +16,7 @@
    para dar para testar com dublê.
    ============================================================ */
 'use strict';
+const { fraseDoBanco, avisoDeLeitura } = require('./seguranca.js');
 
 
 const COM = require('./comunicar.js');
@@ -43,9 +44,9 @@ function criarContexto({ sb, agora = () => new Date(), cacheMs = CACHE_MS, diasL
   const ler = async (rotulo, consulta, avisos) => {
     try {
       const { data, error } = await consulta;
-      if (error) { avisos.push(`${rotulo}: ${error.message}`); return null; }
+      if (error) { avisos.push(avisoDeLeitura(rotulo, error)); return null; }
       return data;
-    } catch (e) { avisos.push(`${rotulo}: ${e.message}`); return null; }
+    } catch (e) { avisos.push(avisoDeLeitura(rotulo, e)); return null; }
   };
 
   /** Catálogo, janelas, serviços, consultores, etapas, regras e empresa (cache 10 min). */
@@ -109,7 +110,7 @@ function criarContexto({ sb, agora = () => new Date(), cacheMs = CACHE_MS, diasL
     const { data: conversa, error } = await sb.from('conversas')
       .select('id,nome,telefone,telefone_e164,cliente_id,etapa_id,etapa_em,status,ia_ativa,aguardando_consultor,aguardando_desde,desfecho,atribuida_a,assumida_em,ultima_mensagem_em,created_at,tipo')
       .eq('id', conversaId).maybeSingle();
-    if (error) return { ok: false, status: 503, erro: 'Não consegui ler a conversa: ' + error.message };
+    if (error) return { ok: false, status: 503, erro: fraseDoBanco(error, 'ler a conversa') };
     if (!conversa) return { ok: false, status: 404, erro: 'Conversa não encontrada.' };
 
     let clienteId = conversa.cliente_id || null;

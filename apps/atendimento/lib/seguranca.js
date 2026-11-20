@@ -62,7 +62,8 @@ function politicaCSP({ supabaseUrl = '', hashes = [] } = {}) {
     'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
     'img-src': ["'self'", 'data:', 'blob:', sb].filter(Boolean),
     'media-src': ["'self'", 'blob:', 'data:', sb].filter(Boolean),
-    'connect-src': ["'self'", sb, sbWs, 'https://cdn.jsdelivr.net'].filter(Boolean),
+    // rodada 10: a CDN saiu daqui; ela só serve o <script> de reserva (script-src), a tela não faz pedido para lá
+    'connect-src': ["'self'", sb, sbWs].filter(Boolean),
     'worker-src': ["'self'"],
     'manifest-src': ["'self'"],
     'frame-ancestors': ["'none'"],
@@ -263,9 +264,23 @@ function erroSeguro(err, { log = console.error } = {}) {
   return { erro: `Algo deu errado no servidor. Tente de novo; se continuar, avise o suporte (código ${ref}).`, codigo: 'erro_interno', ref };
 }
 
+/**
+ * Falha do banco (rodada 10): a tela recebe uma frase simples; o texto cru (tabela, coluna, regra)
+ * fica só no log do servidor. `oQue` completa a frase: "gravar", "ler a conversa"…
+ */
+function fraseDoBanco(error, oQue = 'gravar', { log = console.error } = {}) {
+  try { log(`[banco] ${oQue}:`, error?.message || error, error?.code || ''); } catch { /* log não derruba */ }
+  return `Não consegui ${oQue} agora. Tente de novo em instantes.`;
+}
+/** Aviso de leitura que faltou numa ficha: diz qual parte, sem o erro cru (que vai para o log). */
+function avisoDeLeitura(rotulo, error, { log = console.error } = {}) {
+  try { log(`[banco] ler ${rotulo}:`, error?.message || error, error?.code || ''); } catch { /* log não derruba */ }
+  return `Não consegui ler: ${rotulo}`;
+}
+
 module.exports = {
   ORIGENS_ECOSSISTEMA, METODOS_CORS, cabecalhosCors, hashesDosScripts, politicaCSP, cabecalhosBase, aplicarCabecalhos,
   ipDoCliente, criarLimitador, ErroHttp, lerCorpoJson,
   ehUuid, ehEmail, texto, inteiro, dataISO, instante, listaDe, telefone,
-  CHAVES_SENSIVEIS, semSegredos, erroSeguro,
+  CHAVES_SENSIVEIS, semSegredos, erroSeguro, fraseDoBanco, avisoDeLeitura,
 };

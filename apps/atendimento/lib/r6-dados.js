@@ -16,6 +16,7 @@
    O banco é injetado (sb) para testar com dublê.
    ============================================================ */
 'use strict';
+const { avisoDeLeitura } = require('./seguranca.js');
 
 const R6 = require('../public/r6-regras.js');
 const PAT = require('./patio.js');
@@ -61,9 +62,9 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
   async function ler(rotulo, consulta, avisos) {
     try {
       const { data, error } = await consulta;
-      if (error) { avisos.push(`${rotulo}: ${error.message}`); return []; }
+      if (error) { avisos.push(avisoDeLeitura(rotulo, error, { log })); return []; }
       return data || [];
-    } catch (e) { avisos.push(`${rotulo}: ${e.message}`); return []; }
+    } catch (e) { avisos.push(avisoDeLeitura(rotulo, e, { log })); return []; }
   }
 
   /* ---------------- Fila: o que sabemos de cada conversa ---------------- */

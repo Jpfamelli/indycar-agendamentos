@@ -17,6 +17,7 @@ const PAT  = require('./lib/patio.js');
 const CTX  = require('./lib/contexto.js');
 const IA   = require('./lib/ia-copiloto.js');
 const FUN  = require('./lib/ia-funil.js');
+const { destinoDoCodeWords } = require('./lib/destino-codewords.js');
 const { criarPausaSincronia, ehRecusa } = require('./lib/pausa-sincronia.js');
 const pausaSincronia = criarPausaSincronia();
 const RD   = require('./lib/resumo-dia.js');
@@ -484,8 +485,14 @@ Escreva APENAS a próxima mensagem do atendente, pronta para enviar. Sem aspas, 
              aviso: temPreco ? 'A sugestão cita valor — confira antes de enviar (a IA não deveria passar preço).' : undefined,
              truncado: msg.stop_reason === 'max_tokens' };
   } catch (err) {
-    return { ok: false, erro: err.status === 429 ? 'A IA está sobrecarregada agora. Tente em instantes.'
-                             : (err.message || 'falha ao falar com a Claude') };
+    /* Rodada 10: a resposta crua do provedor (tipo do erro, id do pedido, "invalid x-api-key") fica no log.
+       A tela recebe o que fazer. */
+    console.error('sugerir:', err?.status || '', err?.message || err);
+    const frase = err?.status === 429 || err?.status === 529 ? 'A IA está sobrecarregada agora. Tente em instantes.'
+      : err?.status === 401 || err?.status === 403 ? 'A chave da IA foi recusada. Avise o administrador (Configurações › IA).'
+      : /timeout|timed out|abort/i.test(String(err?.name) + String(err?.message)) ? 'A IA demorou demais para responder. Tente de novo.'
+      : 'A IA não respondeu agora. Tente de novo em instantes.';
+    return { ok: false, erro: frase };
   }
 }
 
@@ -680,10 +687,13 @@ async function pausarCarlos(sb, telefone, pausar) {
     if (!cfg?.api_key || !cfg?.service_id) {
       return { ok: false, erro: 'CodeWords não configurado' };
     }
-    const base = (cfg.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+    // rodada 10: a chave só vai para endereço https e público (lib/destino-codewords.js)
+    const dest = destinoDoCodeWords(cfg);
+    if (!dest.ok) return { ok: false, erro: dest.erro };
+    const base = dest.base;
     const rota = pausar ? 'stop-ai' : 'start-ai';
 
-    const r = await fetch(`${base}/run/${cfg.service_id}/${rota}`, {
+    const r = await fetch(`${base}/run/${dest.fluxo}/${rota}`, {
       method: 'POST',
       headers: { Authorization: cfg.api_key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: soDigitos(telefone) }),
@@ -793,12 +803,18 @@ async function baseDoGerenciador() {
   if (!sb) return null;
   const { data: cfg } = await sb.from('codewords_config').select('*').maybeSingle();
   if (!cfg?.api_key) return null;
-  const base = (cfg.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  /* Rodada 10: endereço que não é https e público não recebe a chave nem as conversas.
+     Fica como "não configurado" e o motivo aparece em Integrações (ultimo_erro). */
+  const dest = destinoDoCodeWords(cfg);
+  if (!dest.ok) {
+    if (cfg.ultimo_erro !== dest.erro) await sb.from('codewords_config').update({ ultimo_erro: dest.erro }).eq('id', true);
+    return null;
+  }
   return {
-    url: `${base}/run/${cfg.servico_conexao || 'whatsapp_device_manager'}`,
+    url: `${dest.base}/run/${dest.servico}`,
     chave: cfg.api_key,
     telefone: cfg.numero_whatsapp || NUMERO_DO_ATENDIMENTO,
-    fluxo: cfg.service_id || null,
+    fluxo: dest.fluxo,
     sb,
   };
 }
@@ -1280,7 +1296,13 @@ async function enviarPeloCodeWordsDeVerdade({ telefone, corpo, nome, conversaId 
      WhatsApp; para envio ele responde {"status":"skip","message":"Own message
      or empty"} com HTTP 200 — ou seja, o painel dizia "enviado" e a mensagem
      nunca chegava ao cliente. Fica só como alternativa manual. */
-  const base = (cfg.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+  // rodada 10: a mensagem do cliente e a chave só saem para endereço https e público
+  const dest = destinoDoCodeWords(cfg);
+  if (!dest.ok) {
+    await sb.from('codewords_config').update({ ultimo_erro: dest.erro }).eq('id', true);
+    return { ok: false, erro: dest.erro, codigo: 'destino_invalido' };
+  }
+  const base = dest.base;
   const porDispositivo = cfg.modo_envio !== 'fluxo';
 
   if (porDispositivo && !cfg.device_id) {
@@ -1309,9 +1331,9 @@ async function enviarPeloCodeWordsDeVerdade({ telefone, corpo, nome, conversaId 
      O valor continua guardado na coluna device_id — o que mudou foi só
      como o CodeWords quer recebê-lo. */
   const destino = porDispositivo
-    ? `${base}/run/${cfg.servico_conexao || 'whatsapp_device_manager'}`
+    ? `${base}/run/${dest.servico}`
       + `/proxy/send/message?phone_id=${encodeURIComponent(cfg.device_id)}`
-    : (cfg.url_envio || (cfg.service_id ? `${base}/run/${cfg.service_id}` : null));
+    : (dest.urlEnvio || (dest.fluxo ? `${base}/run/${dest.fluxo}` : null));
 
   if (!destino) {
     return { ok:false, desligado:true,
@@ -2220,8 +2242,10 @@ async function testarChaveCodeWords(chave) {
   const k = String(chave || cfg?.api_key || '').trim();
   if (!k) return { ok: false, resultado: 'outro', mensagem: 'Nenhuma chave salva para testar.' };
 
-  const base = (cfg?.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
-  const servico = cfg?.servico_conexao || 'whatsapp_device_manager';
+  const dest = destinoDoCodeWords(cfg || {});
+  if (!dest.ok) return { ok: false, resultado: 'outro', mensagem: dest.erro, status: 0, mascara: COM.mascararChave(k), salva: !chave };
+  const base = dest.base;
+  const servico = dest.servico;
   let status = 0, txt = '';
   try {
     const r = await fetch(`${base}/run/${servico}/connections`, {
@@ -2733,7 +2757,9 @@ const handler = async (req, res) => {
         return json(res, 503, { erro: 'WhatsApp da empresa não conectado — veja Configurações › Conexão.' });
       }
 
-      const base = (cfg.base_url || 'https://runtime.codewords.ai').replace(/\/+$/, '');
+      const dest = destinoDoCodeWords(cfg);
+      if (!dest.ok) return json(res, 503, { erro: dest.erro, codigo: 'destino_invalido' });
+      const base = dest.base;
       const ehImagem = /^image\//i.test(mime);
       /* Áudio vai por send/audio: assim chega como MENSAGEM DE VOZ no
          WhatsApp (com a onda e o play), não como arquivo para baixar. */
@@ -2748,7 +2774,7 @@ const handler = async (req, res) => {
 
       try {
         const resposta = await fetch(
-          `${base}/run/${cfg.servico_conexao || 'whatsapp_device_manager'}`
+          `${base}/run/${dest.servico}`
           + `/proxy/${rota}`
           + `?phone_id=${encodeURIComponent(cfg.device_id)}`,
           { method: 'POST', headers: { Authorization: cfg.api_key }, body: fd,
@@ -3113,7 +3139,8 @@ const handler = async (req, res) => {
 
       const hoje = partesLocais(new Date()).dia;
       const trintaDias = partesLocais(new Date(Date.now() - 29 * DIA_MS)).dia;
-      const dataValida = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+      // rodada 10: dia que não existe (31/02) não vale; antes o relatório contava de 03/03 sem avisar
+      const dataValida = v => !!SEG.dataISO(v);
 
       let de  = parametros.get('de')  || trintaDias;
       let ate = parametros.get('ate') || hoje;
