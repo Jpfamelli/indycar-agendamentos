@@ -24,14 +24,17 @@
     var unico = false, escrita = null;
     var b = {};
     var filtros = [];
-    ['select', 'eq', 'neq', 'in', 'not', 'is', 'gte', 'lte', 'gt', 'lt', 'order', 'limit', 'range', 'or', 'filter', 'match', 'ilike', 'like', 'contains', 'returns', 'abortSignal']
+    var sinal = null;
+    b.abortSignal = function (s) { sinal = s; return b; };
+    ['select', 'eq', 'neq', 'in', 'not', 'is', 'gte', 'lte', 'gt', 'lt', 'order', 'limit', 'range', 'or', 'filter', 'match', 'ilike', 'like', 'contains', 'returns']
       .forEach(function (m) { b[m] = function () { if (/^(eq|in|is|not)$/.test(m)) filtros.push([m].concat([].slice.call(arguments))); return b; }; });
     ['update', 'insert', 'upsert', 'delete'].forEach(function (m) { b[m] = function (v) { escrita = { tabela: nome, acao: m, valor: v }; return b; }; });
     b.maybeSingle = function () { unico = true; return b; };
     b.single = function () { unico = true; return b; };
     b.then = function (ok, falha) {
       if (escrita) { escrita.filtros = filtros; window.__GRAVADO.push(escrita); } else window.__LIDO.push(nome);
-      if (R.pendurar.has(nome)) return new Promise(function () {});
+      // pendurado: nunca responde, a não ser que a tela tenha posto um tempo limite (aí responde o erro, como a biblioteca de verdade)
+      if (R.pendurar.has(nome)) return new Promise(function (resolve) { if (sinal) sinal.addEventListener('abort', function () { resolve({ data: null, error: { message: 'AbortError: The operation was aborted', name: 'AbortError' }, count: null, status: 0 }); }); }).then(ok, falha);
       return espera().then(function () {
         if (R.erros[nome]) return { data: null, error: R.erros[nome], count: null, status: 401 };
         if (R.falhar.has(nome)) return { data: null, error: { message: 'falha simulada: ' + nome }, count: null, status: 500 };

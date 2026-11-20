@@ -5,8 +5,9 @@
 //   node tests/r10-casa-browser.mjs                  → roda todas as provas (ok/FALHOU) e sai com 1 se alguma falhar
 //   node tests/r10-casa-browser.mjs --antes <pasta>  → as mesmas provas na Casa de <pasta>/casa (git archive de um commit)
 //   node tests/r10-casa-browser.mjs --so <pedaço>    → só as provas cujo nome contém o pedaço
+//   node tests/r10-casa-browser.mjs --fotos <pasta>  → guarda a foto das telas novas (sessão vencida, tentar de novo…)
 import { createRequire } from 'node:module';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,6 +19,9 @@ const BASE = 'http://localhost:3522';
 const arg = (nome) => { const i = process.argv.indexOf(nome); return i > 0 ? process.argv[i + 1] : ''; };
 const FONTE = arg('--antes') ? resolve(arg('--antes')) : RAIZ;
 const SO = arg('--so');
+const FOTOS = arg('--fotos') ? resolve(arg('--fotos')) : '';
+if (FOTOS) mkdirSync(FOTOS, { recursive: true });
+const foto = async (page, nome) => { if (FOTOS) await page.screenshot({ path: join(FOTOS, nome + '.png') }).catch(() => {}); };
 const MOCK = readFileSync(join(AQUI, 'r9-casa-mock/dados.js'), 'utf8') + '\n' + readFileSync(join(AQUI, 'r10-casa-mock/supabase-falso.js'), 'utf8');
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2' };
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,6 +46,9 @@ async function abrir(cenario = {}, { esperar = null } = {}) {
   await page.evaluateOnNewDocument((c) => {
     window.__CENARIO = c; window.__ABAS = [];
     window.open = (url, nome) => { window.__ABAS.push([String(url), String(nome)]); return { focus() {} }; };
+    // os relógios que a Casa liga ficam anotados, para a prova poder "passar o tempo" sem esperar minutos
+    window.__INTERVALOS = []; const ligar = window.setInterval.bind(window);
+    window.setInterval = (fn, ms, ...resto) => { window.__INTERVALOS.push({ fn, ms }); return ligar(fn, ms, ...resto); };
     try { if (!sessionStorage.getItem('__aba_limpa')) { localStorage.clear(); sessionStorage.setItem('__aba_limpa', '1'); for (const [k, v] of Object.entries(c.ls || {})) localStorage.setItem(k, v); } } catch { /* segue */ }
     try { localStorage.setItem('indycar_tema', 'escuro'); if (!localStorage.getItem('indycar_central_visao')) localStorage.setItem('indycar_central_visao', 'operacao'); } catch { /* segue */ }
   }, cenario);
@@ -135,6 +142,7 @@ prova('r10-sessao-vencida', async (abrir) => {
   const vencido = { message: 'JWT expired', code: 'PGRST301' };
   const { page } = await abrir({ papel: 'admin', semRenovar: true, erros: { r6_agora: vencido, tarefas: vencido, notificacoes: vencido } }, { esperar: 'body' });
   await espera(900);
+  await foto(page, 'sessao-vencida');
   conferir('r10-sessao-vencida: login vencido e sem renovar volta para a tela de entrar', await visivel(page, '#fLogin') && !(await visivel(page, '#casa')));
   conferir('r10-sessao-vencida: a tela diz o motivo', /Sua sessão venceu\. Entre de novo/.test(await texto(page, '#lErro')), await texto(page, '#lErro'));
   conferir('r10-sessao-vencida: tentou renovar uma vez só', (await gravadas(page, 'auth', 'renovar')) === 1, (await gravadas(page, 'auth', 'renovar')) + ' tentativas');
@@ -251,6 +259,7 @@ prova('r10-saude-sem-leitura', async (abrir) => {
   conferir('r10-saude-sem-leitura: uma falha só não alarma', !(await visivel(page, '#avisoApps')));
   await page.evaluate(() => window.Casa.verificarApps());
   await espera(400);
+  await foto(page, 'saude-sem-leitura');
   conferir('r10-saude-sem-leitura: na segunda falha seguida a Casa diz que não conseguiu conferir', await visivel(page, '#avisoApps') && /Não consegui conferir se o Pátio e o Orçador estão no ar/.test(await texto(page, '#avisoApps')), await texto(page, '#avisoApps').then((x) => x.slice(0, 70)));
   rede.saudeFalha = false;
   await page.click('#avisoApps [data-verificar-apps]');
@@ -266,6 +275,7 @@ prova('r10-links-tempo', async (abrir) => {
   await page.waitForSelector('[data-ficha-links]', { timeout: 4000 });
   await page.click('[data-ficha-links]');
   await espera(1300);
+  await foto(page, 'links-do-cliente-sem-resposta');
   const t = await texto(page, '#fichaLinks');
   conferir('r10-links-tempo: links do cliente sem resposta param de esperar e dizem o porquê', /Não consegui gerar os links\. A Central demorou demais para responder/.test(t), t.slice(0, 90));
   conferir('r10-links-tempo: e o botão volta a funcionar para tentar de novo', await page.evaluate(() => !document.querySelector('.ficha-barra [data-ficha-links]').disabled) && rede.links === 1);
@@ -273,6 +283,7 @@ prova('r10-links-tempo', async (abrir) => {
 
 prova('r10-config-de-novo', async (abrir) => {
   const { page, rede } = await abrir({ papel: 'admin', sessao: false, configFalha: 1 });
+  await foto(page, 'config-tentar-de-novo');
   conferir('r10-config-de-novo: a configuração do login falhou e a tela oferece "Tentar de novo"', await visivel(page, '#lTentar') && /Tentar de novo/.test(await texto(page, '#lErro')), await texto(page, '#lErro'));
   await page.click('#lTentar');
   await espera(600);
@@ -313,6 +324,74 @@ prova('r10-meta-sair', async (abrir) => {
   await page.waitForSelector('#fLogin:not([hidden])', { timeout: 4000 });
   const depois = await page.evaluate(() => [localStorage.getItem('indycar_central_meta_mes'), localStorage.getItem('indycar_central_meta_sinc'), localStorage.getItem('indycar_tema')]);
   conferir('r10-meta-sair: ao sair, a meta do mês não fica guardada no computador da oficina (o tema fica)', antes === '60000' && depois[0] === null && depois[1] === null && depois[2] === 'escuro', JSON.stringify([antes, depois]));
+});
+
+/* ---------- lote 6: sair, senha errada antiga, relógio das tarefas e leituras sem resposta ---------- */
+prova('r10-sair-limpa', async (abrir) => {
+  const { page } = await abrir({ papel: 'admin', ls: { indycar_central_visao: 'dono' } });
+  await page.evaluate(() => { window.Casa.alternarSino(true); window.Casa.ficha.abrir({ tel55: '5512999900031', nome: 'Gabi Inventada' }); });
+  await espera(700);
+  const sobrou = () => page.evaluate(() => { const t = [...document.querySelectorAll('#casa, #busca, #ficha, #toast')].map((e) => e.textContent).join(' '); return ['Gabi', 'Elisa', 'Onix', 'R$', 'Paulo', '99990', 'dono@oficina.test', 'Cobrar orçamento'].filter((x) => t.includes(x)); });
+  conferir('r10-sair-limpa: com a Casa aberta, os dados estão na página (a prova enxerga)', (await sobrou()).length >= 6, (await sobrou()).join(','));
+  await page.evaluate(() => { window.Casa.ficha.fechar(); document.querySelector('[data-acao="sair"]').click(); });
+  await page.waitForSelector('#fLogin:not([hidden])', { timeout: 4000 });
+  await espera(300);
+  conferir('r10-sair-limpa: ao sair, nomes, telefones, tarefas e faturamento saem da página', (await sobrou()).length === 0, (await sobrou()).join(','));
+  await page.type('#lEmail', 'dono@oficina.test'); await page.type('#lSenha', 'senha-de-mentira');
+  await page.click('#lEntrar');
+  await page.waitForSelector('#casa:not([hidden])', { timeout: 5000 });
+  await espera(800);
+  conferir('r10-sair-limpa: quem entra de novo vê a Casa inteira outra vez', (await texto(page, '#nomeCurto')) === 'Paulo' && (await page.$$('#listaTarefas li[data-tid]')).length > 0 && (await page.$$('#gradeApps a.app')).length >= 6 && /R\$/.test(await texto(page, '#donoTiles')));
+});
+
+prova('r10-erros-antigos', async (abrir) => {
+  const haUmaHora = String(Date.now() - 3600_000);
+  const { page } = await abrir({ papel: 'admin', sessao: false, ls: { indycar_central_erros: '7', indycar_central_erros_em: haUmaHora } });
+  await page.type('#lEmail', 'dono@oficina.test'); await page.type('#lSenha', 'errada');
+  await page.click('#lEntrar');
+  await espera(400);
+  conferir('r10-erros-antigos: senha errada hoje diz só que não confere', /E-mail ou senha não conferem/.test(await texto(page, '#lErro')), await texto(page, '#lErro'));
+  await page.evaluate(() => { document.querySelector('#lSenha').value = ''; });
+  await page.type('#lSenha', 'senha-de-mentira');
+  await page.click('#lEntrar');
+  await espera(900);
+  conferir('r10-erros-antigos: erros de uma hora atrás não fazem esperar depois de um erro só', await visivel(page, '#casa'), await texto(page, '#lErro'));
+
+  const b = await abrir({ papel: 'admin', sessao: false, ls: { indycar_central_erros: '7', indycar_central_erros_em: String(Date.now() - 2000) } });
+  await b.page.type('#lEmail', 'dono@oficina.test'); await b.page.type('#lSenha', 'senha-de-mentira');
+  await b.page.click('#lEntrar');
+  await espera(400);
+  conferir('r10-erros-antigos: erros de agora há pouco continuam freando', /Muitas tentativas seguidas/.test(await texto(b.page, '#lErro')));
+  await b.page.close();
+});
+
+prova('r10-tarefas-relogio', async (abrir) => {
+  const { page } = await abrir({ papel: 'admin' });
+  const t0 = await lidas(page, 'tarefas');
+  const bater = () => page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); for (const i of window.__INTERVALOS) if (i.ms === 120000) i.fn(); });
+  await bater();
+  await espera(300);
+  conferir('r10-tarefas-relogio: lida há pouco, o relógio não relê', (await lidas(page, 'tarefas')) - t0 === 0);
+  await adiantar(page, 121_000);
+  await bater();
+  await espera(500);
+  conferir('r10-tarefas-relogio: passados 2 minutos com a aba à vista, as tarefas são relidas sem depender do tempo real', (await lidas(page, 'tarefas')) - t0 === 1, ((await lidas(page, 'tarefas')) - t0) + ' leituras');
+});
+
+prova('r10-leitura-pendurada', async (abrir) => {
+  const { page } = await abrir({ papel: 'admin' });
+  await page.evaluate(() => { const real = AbortSignal.timeout.bind(AbortSignal); AbortSignal.timeout = (ms) => real(Math.min(ms, 400)); window.__R10.pendurar.add('r6_cliente_360'); window.__R10.pendurar.add('r6_busca_global'); window.Casa.ficha.abrir({ tel55: '5512999900031', nome: 'Gabi Inventada' }); });
+  await espera(1200);
+  await foto(page, 'ficha-sem-resposta');
+  const f = await texto(page, '#fichaCorpo');
+  conferir('r10-leitura-pendurada: ficha sem resposta para de esperar e oferece tentar de novo', /Não consegui montar a ficha agora/.test(f) && !!(await page.$('#fichaCorpo [data-ficha-de-novo]')), f.slice(0, 70));
+  await page.evaluate(() => { window.__R10.pendurar.delete('r6_cliente_360'); document.querySelector('#fichaCorpo [data-ficha-de-novo]').click(); });
+  await espera(700);
+  conferir('r10-leitura-pendurada: e o "tentar de novo" monta a ficha', /Linha do tempo|Orçamentos|Fazer agora/.test(await texto(page, '#fichaCorpo')));
+  await page.evaluate(() => { window.Casa.ficha.fechar(); window.Casa.busca.abrir('gabi'); });
+  await espera(1400);
+  const b = await texto(page, '#buscaLista');
+  conferir('r10-leitura-pendurada: busca sem resposta sai do "Buscando…" e oferece tentar de novo', /A busca não respondeu agora/.test(b) && (await texto(page, '#buscaDica')) === '', b.slice(0, 60) + ' | ' + await texto(page, '#buscaDica'));
 });
 
 // === FIM DAS PROVAS ===

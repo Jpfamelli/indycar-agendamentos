@@ -130,6 +130,10 @@
   function semAcesso(msg, podeTentar = false) { $('#saMotivo').textContent = msg; $('#saTentar').hidden = !podeTentar; mostrar('semAcesso'); }
 
   function esperaPorErros() {
+    /* rodada 10: a conta de senhas erradas não vencia nunca. Quem errou 5 vezes num dia, dias depois errava UMA e já
+       esperava 20 s ou mais. Passados 15 minutos do último erro, a conta zera. */
+    const ultimo = Number(ler(LS_ERROS + '_em')) || 0;
+    if (ultimo && Date.now() - ultimo > 15 * 60_000) { gravar(LS_ERROS, null); gravar(LS_ERROS + '_em', null); }
     const n = Number(ler(LS_ERROS)) || 0;
     return n >= 5 ? Math.min(60, (n - 4) * 10) : 0;   // 10 s, 20 s… até 1 min
   }
@@ -240,6 +244,25 @@
     for (const m of window.CasaModulos) { try { m.desmontar && m.desmontar(); } catch (e) { console.error('Casa: módulo', m.nome, e); } }
     montada = false;
     document.title = 'IndyCar Central';
+    limparTela();
+  }
+  /**
+   * rodada 10: ao sair, a Casa só era escondida. Nomes e telefones de cliente, tarefas, avisos e o faturamento da visão do
+   * dono continuavam na página (dava para ver pelas ferramentas do navegador) e as tarefas e os avisos de quem saiu
+   * apareciam por um instante para quem entrasse depois no mesmo computador. Agora o conteúdo é apagado junto.
+   */
+  const PARA_LIMPAR = ['#listaNotif', '#sinoAtencao', '#sinoRodape', '#atencaoLista', '#saudeLista', '#manhaOntem', '#manhaAmanha', '#manhaPend', '#manhaLembrar', '#manhaBaixa',
+    '#donoTiles', '#donoBarras', '#donoNota', '#donoConv', '#donoMeta', '#donoConsultores', '#donoGargalos', '#donoLigacoes', '#listaTarefas', '#buscaLista', '#fichaCorpo', '#fichaChips',
+    '#gradeApps', '#acoes', '#avisoApps', '#clima', '#mpNome', '#mpEmail', '#mpPapel', '#nomeCurto', '#bPerfil', '#fichaTit', '#fichaSub', '#saudeTxt', '#saudeHora', '#tarefasNum', '#sinoNum', '#toast'];
+  function limparTela() {
+    for (const s of PARA_LIMPAR) { const el = $(s); if (el) el.textContent = ''; }
+    for (const el of document.querySelectorAll('#agora [data-lista]')) el.textContent = '';
+    for (const el of document.querySelectorAll('#agora [data-num]')) el.textContent = '…';
+    for (const el of document.querySelectorAll('#agora [data-det]')) el.textContent = 'carregando…';
+    for (const s of ['#buscaInput', '#tTitulo', '#sinoBusca']) { const el = $(s); if (el) el.value = ''; }
+    const barras = $('#donoBarras'); if (barras) barras.setAttribute('aria-label', 'Faturamento por dia');
+    const av = $('#bPerfil'); if (av) av.style.background = '';
+    $('#toast').hidden = true;
   }
   async function sair(global) {
     desmontarModulos();
@@ -339,6 +362,7 @@
   }
 
   function montarCasa() {
+    if (montada) desmontarModulos();   // antes de desenhar: desmontar agora apaga o que estava na tela
     const nome = (perfil.nome || perfil.email || '').trim();
     const curto = nome.split(/\s+/)[0] || 'equipe';
     $('#ola').textContent = L.saudacao();
@@ -355,7 +379,6 @@
     /* rodada 8: veio de um app sem sessão (/?voltar=): abre o app na aba com o nome dele. Se esta aba já é a do app
        (o Tráfego mandou para cá), a própria aba volta para ele; se não, abre a aba do app e a Casa fica. */
     if (voltarPedido) { const v = voltarPedido; voltarPedido = ''; abrirNaAba(v); }
-    if (montada) desmontarModulos();
     montada = true;
     for (const m of window.CasaModulos) { try { m.montar && m.montar(Casa); } catch (e) { console.error('Casa: módulo', m.nome, e); } }
     if (buscaPedida) { const t = buscaPedida; buscaPedida = ''; setTimeout(() => Casa.busca && Casa.busca.abrir(t), 120); }

@@ -14,7 +14,7 @@
   /* rodada 10: tarefa com gravação em andamento (dois toques em "adiar" não adiam dois dias), hora da última leitura
      boa e o relógio que junta uma rajada de mudanças do tempo real numa leitura só */
   const gravando = new Set();
-  let lidoEm = 0, debLeitura = null;
+  let lidoEm = 0, debLeitura = null, timerLeitura = null;
   const $ = (s) => document.querySelector(s);
 
   /** vence_em (ISO) para "hoje 17h30", "amanhã 9h" ou "em 7 dias". Oficina em UTC-3 (sem horário de verão). */
@@ -263,6 +263,10 @@
        depois de mais de 1 minuto. */
     window.addEventListener('online', aoVoltarARede);
     document.addEventListener('visibilitychange', aoVisivel);
+    /* e de 2 em 2 minutos com a aba à vista (a Casa fica aberta o dia todo no balcão: se o tempo real caísse, as tarefas
+       novas só apareciam recarregando a página). O painel e o sino já tinham relógio; as tarefas não. */
+    clearInterval(timerLeitura);
+    timerLeitura = setInterval(() => { if (!document.hidden && C && C.perfil && Date.now() - lidoEm > 110_000) carregar(); }, 120_000);
   };
   /* uma rajada de mudanças (o Orçador criando 8 tarefas, alguém concluindo várias) vira UMA leitura, 400 ms depois da última */
   function agendarLeitura() { clearTimeout(debLeitura); debLeitura = setTimeout(() => { if (C && C.perfil) carregar(); }, 400); }
@@ -271,7 +275,7 @@
   MOD.desmontar = function () {
     try { if (canal && C) C.sb.removeChannel(canal); } catch { /* segue */ }
     canal = null; tarefas = []; ligas = {}; orcs = {}; fones = {};
-    clearTimeout(debLeitura); gravando.clear(); lidoEm = 0;
+    clearTimeout(debLeitura); clearInterval(timerLeitura); gravando.clear(); lidoEm = 0;
     window.removeEventListener('online', aoVoltarARede);
     document.removeEventListener('visibilitychange', aoVisivel);
   };
