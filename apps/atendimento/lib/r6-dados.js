@@ -16,6 +16,7 @@
    O banco é injetado (sb) para testar com dublê.
    ============================================================ */
 'use strict';
+const { mensagemEhAviso } = require('./aviso-sistema.js');
 const { avisoDeLeitura } = require('./seguranca.js');
 
 const R6 = require('../public/r6-regras.js');
@@ -40,6 +41,7 @@ function textosSemResposta(mensagens = []) {
   const out = [];
   for (let i = mensagens.length - 1; i >= 0; i--) {
     const m = mensagens[i];
+    if (mensagemEhAviso(m)) continue;          // rodada 10: nota do sistema não é o cliente (lib/aviso-sistema.js)
     if (m.direcao === 'saida') break;
     if (m.direcao !== 'entrada') continue;
     let t = String(m.corpo ?? '').trim();
@@ -149,7 +151,7 @@ function criarR6({ sb, agora = () => new Date(), log = console.error, patio = nu
 
     const conversas = {};
     for (const cv of convs) {
-      const lista = (por.get(cv.id) || []).slice().reverse();     // do mais antigo ao mais novo
+      const lista = (por.get(cv.id) || []).filter(m => !mensagemEhAviso(m)).reverse();     // do mais antigo ao mais novo, sem as notas do sistema
       const sem = textosSemResposta(lista);
       const semResposta = lista.length ? lista[lista.length - 1].direcao === 'entrada' : (cv.nao_lidas > 0);
       const o = osPorCliente.get(cv.cliente_id) || osPorTel.get(chaveTel(cv.telefone_e164 || cv.telefone)) || null;

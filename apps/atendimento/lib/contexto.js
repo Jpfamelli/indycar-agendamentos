@@ -16,6 +16,7 @@
    para dar para testar com dublê.
    ============================================================ */
 'use strict';
+const { mensagemEhAviso } = require('./aviso-sistema.js');
 const { fraseDoBanco, avisoDeLeitura } = require('./seguranca.js');
 
 
@@ -309,7 +310,8 @@ function horaDeBrasilia(iso) {
  * de novo em conversa já em andamento e não sabia se a espera era de horas ou dias.
  */
 function situacaoDaConversa(mensagens = [], agora = new Date()) {
-  const ms = (mensagens || []).filter(m => m && Number.isFinite(Date.parse(m.created_at || '')));
+  // rodada 10: as notas do sistema gravadas como "entrada" não entram na conta de quem falou por último
+  const ms = (mensagens || []).filter(m => m && Number.isFinite(Date.parse(m.created_at || '')) && !mensagemEhAviso(m));
   const ultima = ms[ms.length - 1] || null;
   const ultEntrada = [...ms].reverse().find(m => m.direcao === 'entrada') || null;
   const lojaJaFalou = ms.some(m => m.direcao === 'saida' && String(m.corpo || '').trim());

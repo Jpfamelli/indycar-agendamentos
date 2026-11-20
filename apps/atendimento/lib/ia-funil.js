@@ -26,6 +26,7 @@
    de mentira.
    ============================================================ */
 'use strict';
+const { mensagemEhAviso } = require('./aviso-sistema.js');
 const { fraseDoBanco } = require('./seguranca.js');
 
 const CTX = require('./contexto.js');
@@ -103,7 +104,7 @@ function minutosEsperando(mensagens = [], agora = new Date()) {
   let primeira = null;
   for (let i = mensagens.length - 1; i >= 0; i--) {
     const m = mensagens[i];
-    if (!m) continue;
+    if (!m || mensagemEhAviso(m)) continue;     // rodada 10: nota do sistema não é o cliente esperando
     if (m.direcao === 'saida') break;
     if (m.direcao === 'entrada' && Number.isFinite(Date.parse(m.created_at || ''))) primeira = m;
   }
@@ -112,7 +113,7 @@ function minutosEsperando(mensagens = [], agora = new Date()) {
 /** Rodada 7: rajada de mensagens do cliente nos últimos minutos. */
 function emRajada(mensagens = [], agora = new Date(), { minimo = RAJADA_MENSAGENS, janelaMin = RAJADA_JANELA_MIN } = {}) {
   const limite = Number(agora) - janelaMin * 60_000;
-  return (mensagens || []).filter(m => m && m.direcao === 'entrada' && Date.parse(m.created_at || '') >= limite).length >= minimo;
+  return (mensagens || []).filter(m => m && m.direcao === 'entrada' && !mensagemEhAviso(m) && Date.parse(m.created_at || '') >= limite).length >= minimo;
 }
 
 /** Um atendente humano (não a IA) escreveu nos últimos `min` minutos? */
@@ -120,7 +121,7 @@ function humanoEscreveuRecentemente(mensagens = [], agora = new Date(), min = HU
   const limite = Number(agora) - min * 60_000;
   return (mensagens || []).some(m => m && m.direcao === 'saida' && !m.gerada_por_ia
     && Number.isFinite(Date.parse(m.created_at || '')) && Date.parse(m.created_at) >= limite
-    && !/^\s*\[sistema\]/i.test(String(m.corpo || '')));
+    && !mensagemEhAviso(m));
 }
 
 /** Cliente com horário futuro e conversa ainda na primeira etapa (ou sem etapa) → etapa "Agendado". */
