@@ -34,7 +34,7 @@ test('R10-ATD-033: nenhuma pergunta de apagar usa a janela do navegador; a do ap
   for (const titulo of ['Excluir a conversa de', 'Apagar o registro', 'Excluir o atalho', 'Excluir a etapa']) assert.ok(app.includes(titulo), titulo);
 });
 
-test('R10-ATD-034: perguntas do dia a dia (reenviar, assumir, lidas, encaixe, retomada, resolvi) passam pela janela do app', () => {
+test('R10-ATD-033 (dia a dia): perguntas (reenviar, assumir, lidas, encaixe, retomada, resolvi) passam pela janela do app', () => {
   const usos = ['app.js', 'r6-tela.js', 'r6c5.js', 'r7c4.js'].map(f => (pub(f).match(/Acesso\.perguntar\(/g) || []).length);
   assert.deepEqual(usos, [8, 2, 1, 2]);
   const r7 = pub('r7c4.js');
@@ -42,7 +42,7 @@ test('R10-ATD-034: perguntas do dia a dia (reenviar, assumir, lidas, encaixe, re
   assert.match(pub('r6-tela.js'), /campo: \{ rotulo: 'Como você resolveu\?/);
 });
 
-test('R10-ATD-035: tema claro usa a logo de fundo transparente e ela está na casca guardada', () => {
+test('R10-ATD-034: tema claro usa a logo de fundo transparente e ela está na casca guardada', () => {
   assert.match(pub('styles.css'), /:root\[data-tema="claro"\] \.logo-img\{content:url\("logo-claro\.png"\);mix-blend-mode:normal\}/);
   const png = fs.readFileSync(path.join(__dirname, '..', 'public', 'logo-claro.png'));
   assert.equal(png.readUInt32BE(16), 225);
@@ -52,7 +52,7 @@ test('R10-ATD-035: tema claro usa a logo de fundo transparente e ela está na ca
   assert.match(sw, /indycar-atendimento-v22/);
 });
 
-test('R10-ATD-036: os roteiros antigos respondem à pergunta do app (não dependem mais da janela do navegador)', () => {
+test('R10-ATD-035: os roteiros antigos respondem à pergunta do app (não dependem mais da janela do navegador)', () => {
   for (const r of ['roteiro-r5c-dono-confirmacao.cjs', 'roteiro-r6c5.cjs', 'roteiro-r7c4.cjs', 'roteiro-rodada4.cjs', 'roteiro-rodada5.cjs', 'roteiro-rodada6.cjs', 'roteiro-tela.cjs']) {
     const s = ler(r);
     assert.match(s, /responderPerguntas\(p, /, r);
