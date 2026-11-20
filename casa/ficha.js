@@ -94,7 +94,7 @@
     if (btn) btn.disabled = true;
     try {
       const { data: { session } } = await C.sb.auth.getSession();
-      const r = await fetch('/api/central/links-cliente', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (session ? session.access_token : '') }, body: JSON.stringify({ telefone: f.tel55 }), cache: 'no-store' });
+      const r = await fetch('/api/central/links-cliente', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (session ? session.access_token : '') }, body: JSON.stringify({ telefone: f.tel55 }), cache: 'no-store', signal: AbortSignal.timeout(15000) });   // rodada 10: sem resposta em 15 s, desiste e deixa tentar de novo (antes ficava em "Gerando os links…" para sempre)
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.erro || 'falhou');
       if (!d.ok) { caixa.innerHTML = `<p class="vazio" role="status">${d.motivo === 'cliente_nao_encontrado' ? 'Esse telefone ainda não é cliente cadastrado. Marque um horário ou crie um orçamento primeiro.' : 'Os links não estão disponíveis agora.'}</p>`; return; }

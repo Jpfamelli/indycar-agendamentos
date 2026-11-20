@@ -258,6 +258,63 @@ prova('r10-saude-sem-leitura', async (abrir) => {
   conferir('r10-saude-sem-leitura: conferiu de novo com sucesso e o aviso some', !(await visivel(page, '#avisoApps')));
 });
 
+/* ---------- lote 5: links do cliente, configuração do login e meta do mês ---------- */
+prova('r10-links-tempo', async (abrir) => {
+  const { page, rede } = await abrir({ papel: 'admin', linksPendurado: true });
+  // o tempo limite de verdade é 15 s; na prova ele é encurtado para não esperar
+  await page.evaluate(() => { const real = AbortSignal.timeout.bind(AbortSignal); AbortSignal.timeout = (ms) => real(Math.min(ms, 400)); window.Casa.ficha.abrir({ tel55: '5512999900031', nome: 'Gabi Inventada' }); });
+  await page.waitForSelector('[data-ficha-links]', { timeout: 4000 });
+  await page.click('[data-ficha-links]');
+  await espera(1300);
+  const t = await texto(page, '#fichaLinks');
+  conferir('r10-links-tempo: links do cliente sem resposta param de esperar e dizem o porquê', /Não consegui gerar os links\. A Central demorou demais para responder/.test(t), t.slice(0, 90));
+  conferir('r10-links-tempo: e o botão volta a funcionar para tentar de novo', await page.evaluate(() => !document.querySelector('.ficha-barra [data-ficha-links]').disabled) && rede.links === 1);
+});
+
+prova('r10-config-de-novo', async (abrir) => {
+  const { page, rede } = await abrir({ papel: 'admin', sessao: false, configFalha: 1 });
+  conferir('r10-config-de-novo: a configuração do login falhou e a tela oferece "Tentar de novo"', await visivel(page, '#lTentar') && /Tentar de novo/.test(await texto(page, '#lErro')), await texto(page, '#lErro'));
+  await page.click('#lTentar');
+  await espera(600);
+  conferir('r10-config-de-novo: tentou de novo, o erro some e o botão também', !(await visivel(page, '#lTentar')) && !(await visivel(page, '#lErro')) && rede.config === 2);
+  await page.type('#lEmail', 'dono@oficina.test'); await page.type('#lSenha', 'senha-de-mentira');
+  await page.click('#lEntrar');
+  await page.waitForSelector('#casa:not([hidden])', { timeout: 5000 });
+  conferir('r10-config-de-novo: e dá para entrar sem recarregar a página', await visivel(page, '#casa'));
+
+  const b = await abrir({ papel: 'admin', configFalha: 1 }, { esperar: '#fLogin:not([hidden])' });
+  await b.page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await b.page.waitForSelector('#casa:not([hidden])', { timeout: 5000 }).catch(() => {});
+  conferir('r10-config-de-novo: quando a internet volta, a Casa tenta sozinha e abre', await visivel(b.page, '#casa'));
+  await b.page.close();
+});
+
+prova('r10-meta', async (abrir) => {
+  const mes = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
+  // este aparelho já acertou a meta com o banco neste mês; depois o dono tirou a meta em outro aparelho (o banco está sem meta)
+  const { page } = await abrir({ papel: 'admin', vazio: true, ls: { indycar_central_meta_mes: '50000', indycar_central_meta_sinc: mes, indycar_central_visao: 'dono' } });
+  await espera(700);
+  conferir('r10-meta: meta tirada em outro aparelho não volta para o banco por este', (await gravadas(page, 'casa_metas')) === 0, (await gravadas(page, 'casa_metas')) + ' gravações');
+  conferir('r10-meta: e este aparelho passa a mostrar "sem meta", como o banco', (await page.evaluate(() => localStorage.getItem('indycar_central_meta_mes'))) === '');
+
+  // aparelho que nunca acertou com o banco: a meta que só existia nele sobe uma vez (como já era)
+  const b = await abrir({ papel: 'admin', vazio: true, ls: { indycar_central_meta_mes: '50000', indycar_central_visao: 'dono' } });
+  await espera(700);
+  conferir('r10-meta: a meta que só existia no aparelho ainda sobe na primeira vez', (await gravadas(b.page, 'casa_metas', 'upsert')) === 1 && (await b.page.evaluate(() => localStorage.getItem('indycar_central_meta_sinc'))) === mes);
+  await b.page.close();
+});
+
+prova('r10-meta-sair', async (abrir) => {
+  // o dono guardou a meta neste computador (ela fica também no aparelho)
+  const { page } = await abrir({ papel: 'admin', ls: { indycar_central_visao: 'dono', indycar_central_meta_mes: '60000' } });
+  await espera(500);
+  const antes = await page.evaluate(() => localStorage.getItem('indycar_central_meta_mes'));
+  await page.evaluate(() => document.querySelector('[data-acao="sair"]').click());
+  await page.waitForSelector('#fLogin:not([hidden])', { timeout: 4000 });
+  const depois = await page.evaluate(() => [localStorage.getItem('indycar_central_meta_mes'), localStorage.getItem('indycar_central_meta_sinc'), localStorage.getItem('indycar_tema')]);
+  conferir('r10-meta-sair: ao sair, a meta do mês não fica guardada no computador da oficina (o tema fica)', antes === '60000' && depois[0] === null && depois[1] === null && depois[2] === 'escuro', JSON.stringify([antes, depois]));
+});
+
 // === FIM DAS PROVAS ===
 try {
   for (const [nome, fn] of PROVAS) {

@@ -445,6 +445,7 @@
   function erroDosLinks(e, online = true) {
     const m = String((e && e.message) || '').trim();
     if (!online) return 'Sem internet agora. Confira a conexão e tente de novo.';
+    if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) return 'A Central demorou demais para responder. Tente de novo.';   // rodada 10
     if (!m || m === 'falhou' || /failed to fetch|networkerror|load failed|network request failed/i.test(m) || (e && e.name === 'TypeError')) return 'A Central não respondeu. Tente de novo em instantes.';
     return m.length > 140 ? m.slice(0, 139) + '…' : m;
   }

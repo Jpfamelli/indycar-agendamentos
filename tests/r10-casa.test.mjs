@@ -26,3 +26,11 @@ test('r10-codigo-rede (regra): erro de rede é reconhecido pelo texto, pelo nome
   assert.equal(N.erroDeRede(new Error('sem fator')), false);
   assert.equal(N.erroDeRede(null), false);
 });
+
+test('r10-links-tempo (regra): pedido que estourou o tempo vira frase em português (não o texto técnico do navegador)', () => {
+  const estouro = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+  assert.equal(N.erroDosLinks(estouro), 'A Central demorou demais para responder. Tente de novo.');
+  assert.equal(N.erroDosLinks(Object.assign(new Error('signal is aborted without reason'), { name: 'AbortError' })), 'A Central demorou demais para responder. Tente de novo.');
+  assert.equal(N.erroDosLinks(estouro, false), 'Sem internet agora. Confira a conexão e tente de novo.', 'sem internet continua na frente');
+  assert.equal(N.erroDosLinks(new Error('Entre de novo na Central.')), 'Entre de novo na Central.', 'o recado do servidor continua passando');
+});

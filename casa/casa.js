@@ -35,7 +35,8 @@
   /* rodada 9: o que é de quem usou sai do aparelho junto com a pessoa. As buscas recentes guardam nome e telefone
      de cliente, e os avisos adiados escondiam do próximo (o dono, por exemplo) o que o anterior adiou. O e-mail
      lembrado e o tema ficam: são escolha do aparelho, marcadas na tela de entrada. */
-  const LS_DA_PESSOA = ['indycar_central_buscas', 'indycar_central_sino_adiados'];
+  /* rodada 10: a meta do mês (dado do dono) também sai: ela mora no banco e volta sozinha quando o dono entra de novo */
+  const LS_DA_PESSOA = ['indycar_central_buscas', 'indycar_central_sino_adiados', 'indycar_central_meta_mes', 'indycar_central_meta_sinc'];
   const esquecerPessoa = () => { for (const k of LS_DA_PESSOA) gravar(k, null); };
   /**
    * Aviso curto no pé da tela. `opcao`: o tempo em ms, ou 'ok' / 'err' (o erro fica 6 s, com a cor de problema).
@@ -365,6 +366,8 @@
     $('#fLogin').addEventListener('submit', entrar);
     for (const f of ['#fLogin', '#fMfa', '#fSenha']) $(f).addEventListener('input', (e) => { if (e.target.matches('input')) e.target.removeAttribute('aria-invalid'); });
     $('#lEsqueci').addEventListener('click', esqueci);
+    $('#lTentar').addEventListener('click', () => ligarLogin());
+    window.addEventListener('online', () => { if (!sb) ligarLogin(); });   // rodada 10: a internet voltou e o login ainda não tinha carregado
     $('#fMfa').addEventListener('submit', confirmarMfa);
     $('#fSenha').addEventListener('submit', gravarSenha);
     $('#bTema').addEventListener('click', trocarTema);
@@ -417,16 +420,34 @@
     } catch { buscaPedida = ''; voltarPedido = ''; }
     const email = ler(LS_EMAIL); if (email) $('#lEmail').value = email;
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+    await ligarLogin();
+  }
+  /**
+   * rodada 10: se a Central não respondesse a configuração do login na abertura (queda de segundos, Wi-Fi que ainda não
+   * tinha voltado), a tela mandava recarregar a página e nenhum botão funcionava. Agora há "Tentar de novo", e a Casa
+   * tenta sozinha quando a internet volta. Só quando a biblioteca do login não carregou é que precisa recarregar.
+   */
+  let ligando = false;
+  async function ligarLogin() {
+    if (sb || ligando) return;
+    ligando = true;
+    const tentar = $('#lTentar');
+    tentar.disabled = true; tentar.setAttribute('aria-busy', 'true');
     try {
-      const r = await fetch('/api/central/config', { cache: 'no-store' });
-      cfg = await r.json();
-      $('#versao').textContent = cfg.versao || '';
-      bases = L.bases(cfg.apps); links = L.links(bases);
+      const r = await fetch('/api/central/config', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      cfg = r.ok ? await r.json() : null;
+      if (cfg) { $('#versao').textContent = cfg.versao || ''; bases = L.bases(cfg.apps); links = L.links(bases); }
     } catch { cfg = null; }
-    if (!cfg?.supabaseUrl || !cfg?.supabaseAnonKey || !window.supabase?.createClient) {
-      mostrar('fLogin');
-      return erro('#lErro', 'Não consegui falar com o servidor ou carregar o login. Confira a internet e recarregue a página.');
+    finally { ligando = false; tentar.disabled = false; tentar.removeAttribute('aria-busy'); }
+    if (!window.supabase?.createClient) {
+      mostrar('fLogin'); tentar.hidden = true;
+      return erro('#lErro', 'Não consegui carregar o login. Confira a internet e recarregue a página.');
     }
+    if (!cfg?.supabaseUrl || !cfg?.supabaseAnonKey) {
+      mostrar('fLogin'); tentar.hidden = false;
+      return erro('#lErro', 'Não consegui falar com o servidor agora. Confira a internet e toque em "Tentar de novo".');
+    }
+    tentar.hidden = true; erro('#lErro', '');
     sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
     sb.auth.onAuthStateChange((evento, s) => {
       if (evento === 'PASSWORD_RECOVERY') { sessao = s; emRecuperacao = true; return pedirSenha('recuperar'); }

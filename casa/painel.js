@@ -332,6 +332,8 @@
   }
   /* meta do mês (guardada neste aparelho) + projeção pelo ritmo dos dias úteis */
   const LS_META = 'indycar_central_meta_mes';
+  /* rodada 10: mês em que este aparelho já acertou a meta com o banco (ver carregarMeta) */
+  const LS_META_SINC = 'indycar_central_meta_sinc';
   /* meta do mês compartilhada (casa_metas, só gestor/admin): vale em todo aparelho; o localStorage fica de reserva */
   let metaRemota;   // undefined = ainda não leu · null = não há meta no banco · número
   const mesChave = () => L.hojeSP().slice(0, 7);
@@ -341,6 +343,7 @@
     try {
       if (n) { const r = await C.sb.from('casa_metas').upsert({ mes: mesChave(), valor: n, atualizado_por: C.perfil.id, updated_at: new Date().toISOString() }, { onConflict: 'mes' }); if (r.error) throw r.error; metaRemota = n; }
       else { const r = await C.sb.from('casa_metas').delete().eq('mes', mesChave()); if (r.error) throw r.error; metaRemota = null; }
+      gravar(LS_META_SINC, mesChave());
       if (!silencioso) C.toast(n ? 'Meta guardada para todos os aparelhos.' : 'Meta tirada.', 'ok');
     } catch { if (!silencioso) C.toast('Guardei só neste aparelho: não consegui salvar a meta para todos.', 'err'); }
   }
@@ -350,7 +353,11 @@
       if (r.error) throw r.error;
       metaRemota = r.data ? Number(r.data.valor) : null;
       const local = Number(ler(LS_META)) || 0;
-      if (metaRemota === null && local > 0) await salvarMeta(local, true);   // meta que estava só neste aparelho sobe uma vez
+      /* rodada 10: "sobe uma vez" era toda vez. Se o dono tirasse a meta em um aparelho, qualquer outro aparelho que ainda
+         tivesse a meta antiga guardada mandava ela de volta para o banco ao abrir a Casa. Agora o aparelho sobe a meta que
+         só existia nele uma única vez por mês; depois disso ele copia o que está no banco (inclusive "sem meta"). */
+      if (metaRemota === null && local > 0 && ler(LS_META_SINC) !== mesChave()) await salvarMeta(local, true);
+      else { gravar(LS_META, metaRemota ? String(metaRemota) : ''); gravar(LS_META_SINC, mesChave()); }
     } catch { metaRemota = undefined; }
     if (dono) desenharMeta(dono.faturamento || {});
   }
