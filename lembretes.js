@@ -15,6 +15,8 @@ const somaDias = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCD
 export function quandoRelativo(dataIso, hora, hojeIso) {
   const h = String(hora || '').slice(0, 5);
   const as = h ? ` às ${h}` : '';
+  // rodada 9: sem data de verdade o recado não pode sair com "undefined (undefined/undefined)"
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dataIso || '')) || Number.isNaN(Date.parse(`${dataIso}T12:00:00Z`))) return `no dia marcado${as}`;
   if (dataIso === hojeIso) return `hoje${as}`;
   if (dataIso === somaDias(hojeIso, 1)) return `amanhã${as}`;
   const d = new Date(`${dataIso}T12:00:00Z`);
@@ -30,7 +32,7 @@ export function textoDoLembrete(modelo, a, hojeIso) {
     servico: a?.servico || 'o atendimento', quando: quandoRelativo(a?.data, a?.hora, hojeIso),
   };
   const base = modelo && String(modelo).trim() ? modelo : 'Oi {primeiro_nome}! Lembrete da IndyCar: seu horário para {servico} é {quando}. Posso confirmar? Se precisar remarcar, é só responder por aqui. 🏁';
-  return String(base).replace(/\{(\w+)\}/g, (_, k) => mapa[k] ?? '').replace(/[ \t]{2,}/g, ' ').trim();
+  return String(base).replace(/\{(\w+)\}/g, (_, k) => mapa[k] ?? '').replace(/[ \t]{2,}/g, ' ').replace(/ +([!,.?;:])/g, '$1').trim();   // nome vazio: "Oi !" vira "Oi!"
 }
 
 const ENVIADOS = new Set(['enviado', 'entregue', 'lido', 'respondido']);

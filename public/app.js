@@ -206,7 +206,7 @@ const iniciais = (nome) => String(nome || '').trim().split(/\s+/).filter(Boolean
 function dataExtenso(iso) {
   const d = new Date(iso + 'T12:00:00');
   return cap(d.toLocaleDateString('pt-BR',{weekday:'long'})) + ', ' +
-         d.getDate() + ' De ' + cap(d.toLocaleDateString('pt-BR',{month:'long'})) + ' De ' + d.getFullYear();
+         d.getDate() + ' de ' + d.toLocaleDateString('pt-BR',{month:'long'}) + ' de ' + d.getFullYear();   // 'Sexta-feira, 20 de novembro de 2026' (antes 'De Novembro De')
 }
 const dataBR = (iso) => { if(!iso) return ''; const [a,m,d]=iso.split('-'); return `${d}/${m}/${a}`; };
 /* Data de hoje no fuso da OFICINA. toISOString é UTC: das 21h em diante ele já
@@ -1842,7 +1842,7 @@ function catalogoHtml(lista) {
 function servicoCard(s) {
   const faz = s.fazemos === 1;
   const meta = [];
-  if (s.tipo_veiculo) meta.push(`Veículo: ${esc(s.tipo_veiculo)}`);
+  if (s.tipo_veiculo) meta.push(`Carro: ${esc(s.tipo_veiculo)}`);
   if (s.observacao)   meta.push(esc(s.observacao));
   return `<div class="serv${faz ? '' : ' nao'}">
     <div class="serv-topo">

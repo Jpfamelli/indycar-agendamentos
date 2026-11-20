@@ -212,3 +212,48 @@ test('R9 lote 7: botões principais chapados; verde e campo do "Marcar rápido" 
   assert.ok(contraste('#ffffff', '#15803d') >= 4.5);
   assert.match(regra(css9, '.r6c-rapido input'), /background:var\(--panel-3\);border:1px solid var\(--border-2\)/);
 });
+
+/* ============================ lote 8 ============================ */
+test('R9 lote 8: lembrete sem data de verdade não sai com "undefined"; nome vazio não deixa "Oi !"', async () => {
+  const { quandoRelativo, textoDoLembrete } = await import('../lembretes.js');
+  assert.equal(quandoRelativo('x', '10:00', '2026-11-20'), 'no dia marcado às 10:00');
+  assert.equal(quandoRelativo(undefined, '', '2026-11-20'), 'no dia marcado');
+  assert.equal(quandoRelativo('2026-13-45', '09:00', '2026-11-20'), 'no dia marcado às 09:00');
+  assert.equal(quandoRelativo('2026-11-21', '10:00', '2026-11-20'), 'amanhã às 10:00');
+  assert.equal(quandoRelativo('2026-11-25', '08:30:00', '2026-11-20'), 'quarta (25/11) às 08:30');
+  const semNome = textoDoLembrete(null, { cliente_nome: '', servico: 'Troca de óleo', data: '2026-11-21', hora: '10:00' }, '2026-11-20');
+  assert.match(semNome, /^Oi! Lembrete da IndyCar: seu horário para Troca de óleo é amanhã às 10:00\./);
+  const semData = textoDoLembrete('Oi {primeiro_nome} , seu horário é {quando} .', { cliente_nome: 'Maria Aparecida', hora: '10:00' }, '2026-11-20');
+  assert.equal(semData, 'Oi Maria, seu horário é no dia marcado às 10:00.');
+  assert.doesNotMatch(semNome + semData, /undefined|NaN/);
+});
+
+test('R9 lote 8: proposta de pré-agendamento sem data de verdade não sai com "undefined /"', async () => {
+  const { rotuloDoDia, textoDePropor } = await import('../preagenda.js');
+  assert.equal(rotuloDoDia('bla', '2026-11-20'), 'no dia combinado');
+  assert.equal(rotuloDoDia(undefined, '2026-11-20'), 'no dia combinado');
+  assert.equal(rotuloDoDia('2026-11-22', '2026-11-20'), 'dom 22/11');
+  assert.equal(rotuloDoDia('2026-11-21', '2026-11-20'), 'amanhã');
+  assert.doesNotMatch(textoDePropor({ nome: 'Ana', servico: 'Óleo', data: 'bla', hoje: '2026-11-20', periodo: 'manha', sugestao: { hora: '08:30' } }), /undefined|NaN/);
+});
+
+test('R9 lote 8: data por extenso em português certo ("20 de novembro de 2026")', () => {
+  const i = app.indexOf('function dataExtenso(iso) {');
+  const fonte = app.slice(i, app.indexOf('\n}', i) + 2);
+  const dataExtenso = new Function('cap', fonte + '; return dataExtenso;')((s) => s.charAt(0).toUpperCase() + s.slice(1));
+  assert.equal(dataExtenso('2026-11-20'), 'Sexta-feira, 20 de novembro de 2026');
+  assert.equal(dataExtenso('2026-03-01'), 'Domingo, 1 de março de 2026');
+});
+
+test('R9 lote 8: "carro", nunca "veículo", na tela de Serviços, nas planilhas e no Google Agenda', () => {
+  assert.ok(app.includes('meta.push(`Carro: ${esc(s.tipo_veiculo)}`)'));
+  const srv = ler('server.js');
+  assert.ok(srv.includes("gerarCSV(['id','cliente','telefone','carro','placa','servico',"));
+  assert.ok(srv.includes("gerarCSV(['id','nome','telefone','carro','placa','modelo','origem','criado_em'], rows)"));
+  assert.ok(srv.includes('a.veiculo ? `Carro: ${a.veiculo}'));
+  for (const f of TELAS) assert.deepEqual(semComentarios(f).filter((c) => /[Vv]eículo/.test(c)), [], f);
+});
+
+test('R9 lote 8: a caixa do "Buscar em tudo" não estica na altura', () => {
+  assert.match(regra(css9, '.modal-body > .search.larga'), /flex:0 0 auto/);
+});

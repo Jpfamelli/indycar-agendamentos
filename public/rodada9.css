@@ -157,3 +157,6 @@
 .r6c-rapido input{background:var(--panel-3);border:1px solid var(--border-2);border-radius:10px;padding:10px 12px;color:var(--text);font:inherit;font-size:14px}
 .r6c-rapido input:focus-visible{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
 .r6c-rapido input::placeholder{color:var(--muted-2)}
+
+/* ---- "Buscar em tudo": a caixa de busca tomava 320 px de ALTURA (a base de largura valia como altura na janela em coluna) ---- */
+.modal-body > .search.larga{flex:0 0 auto}

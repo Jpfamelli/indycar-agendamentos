@@ -494,7 +494,7 @@ async function gerarICS() {
     const fim = new Date(ini.getTime() + minutos * 60000);
     const p = (n) => String(n).padStart(2, '0');
     const fimStr = `${fim.getFullYear()}${p(fim.getMonth() + 1)}${p(fim.getDate())}T${p(fim.getHours())}${p(fim.getMinutes())}00`;
-    const desc = [`Serviço: ${a.servico}`, a.veiculo ? `Veículo: ${a.veiculo}${a.placa ? ' (' + a.placa + ')' : ''}` : '',
+    const desc = [`Serviço: ${a.servico}`, a.veiculo ? `Carro: ${a.veiculo}${a.placa ? ' (' + a.placa + ')' : ''}` : '',
       a.telefone ? `WhatsApp: ${a.telefone}` : '', a.consultor_nome ? `Consultor: ${a.consultor_nome}` : '',
       `Status: ${a.status}`].filter(Boolean).join('\n');
     linhas.push('BEGIN:VEVENT', `UID:indycar-${a.id}@agendamentos`,
@@ -1996,21 +1996,21 @@ async function api(req, res, url) {
     const lista = await dados.listarTodosAgendamentos('select=*,consultores(nome,cor)&order=data.desc,hora.asc');
     await dados.auditar(usuario.id, 'exportou_csv', 'agendamentos', null, { linhas: lista.length });
     const rows = lista.map((a) => ({
-      id: a.id, cliente: a.cliente_nome, telefone: a.telefone, veiculo: a.veiculo, placa: a.placa,
+      id: a.id, cliente: a.cliente_nome, telefone: a.telefone, carro: a.veiculo, placa: a.placa,
       servico: a.servico, data: a.data, hora: a.hora, status: a.status, confirmado: a.confirmado ? 'sim' : 'não', valor: valorParaPlanilha(a.valor),
       origem: a.origem, consultor: a.consultor_nome, criado_em: a.created_at,
     }));
-    return send(res, 200, gerarCSV(['id','cliente','telefone','veiculo','placa','servico','data','hora','status','confirmado','valor','origem','consultor','criado_em'], rows),
+    return send(res, 200, gerarCSV(['id','cliente','telefone','carro','placa','servico','data','hora','status','confirmado','valor','origem','consultor','criado_em'], rows),
       { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="agendamentos.csv"' });
   }
   if (pathname === '/api/export/clientes.csv' && m === 'GET') {
     const lista = await dados.listarClientes();
     await dados.auditar(usuario.id, 'exportou_csv', 'clientes', null, { linhas: lista.length });
     const rows = lista.map((c) => ({
-      id: c.id, nome: c.nome, telefone: c.telefone, veiculo: c.veiculo,
+      id: c.id, nome: c.nome, telefone: c.telefone, carro: c.veiculo,
       placa: c.placa, modelo: c.modelo, origem: c.origem, criado_em: c.created_at,
     }));
-    return send(res, 200, gerarCSV(['id','nome','telefone','veiculo','placa','modelo','origem','criado_em'], rows),
+    return send(res, 200, gerarCSV(['id','nome','telefone','carro','placa','modelo','origem','criado_em'], rows),
       { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="clientes.csv"' });
   }
 
@@ -2397,6 +2397,7 @@ async function handler(req, res) {
       if (!ipDentroDoLimite(ipDaRequisicao(req))) {
         return send(res, 429, { erro: 'Muitos pedidos deste aparelho. Espere um minuto.' }, { 'Retry-After': '60' });
       }
+      res.setHeader('Cache-Control', 'no-store');   // rodada 9: vale para toda a API, inclusive as planilhas; quem define outro valor na resposta continua mandando
       return await api(req, res, url);
     }
     return await serveStatic(req, res, url.pathname);

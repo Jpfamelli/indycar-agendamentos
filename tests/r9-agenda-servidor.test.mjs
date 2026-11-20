@@ -188,3 +188,25 @@ test('R9 fontes: o servidor entrega a fonte do próprio app com o tipo certo e u
   assert.doesNotMatch(csp, /fonts\.googleapis|fonts\.gstatic/);
   assert.doesNotMatch(await pagina.text(), /fonts\.googleapis|fonts\.gstatic/);
 });
+
+test('R9 API: toda resposta com dado de cliente sai com no-store (planilhas também); quem define outro cache continua mandando', async () => {
+  _injetar({ dados: { ...falso,
+    listarClientes: async () => [{ id: ID(801), nome: 'Maria', telefone: '12991110001', veiculo: 'HB20', placa: 'ABC1D23', modelo: '2019', origem: 'Google', created_at: '2026-01-01' }],
+    listarTodosAgendamentos: async () => [{ id: ID(1), cliente_nome: 'Maria', telefone: '12991110001', veiculo: 'HB20', placa: 'ABC1D23', servico: 'Óleo', data: '2026-11-20', hora: '10:00', status: 'concluido', valor: 120 }],
+    listarConsultores: async () => [], aniversariosProximos: async () => [],
+  } });
+  const h = { Authorization: 'Bearer gestor' };
+  const cli = await fetch(base + '/api/export/clientes.csv', { headers: h });
+  assert.equal(cli.status, 200); assert.equal(cli.headers.get('cache-control'), 'no-store');
+  const linhas = (await cli.text()).split('\r\n');
+  assert.equal(linhas[0].replace(/^﻿/, ''), '"id";"nome";"telefone";"carro";"placa";"modelo";"origem";"criado_em"');
+  assert.match(linhas[1], /"Maria";"12991110001";"HB20";"ABC1D23"/);
+  const ags = await fetch(base + '/api/export/agendamentos.csv', { headers: h });
+  assert.equal(ags.headers.get('cache-control'), 'no-store');
+  assert.match((await ags.text()).split('\r\n')[0], /"telefone";"carro";"placa"/);
+  assert.equal((await fetch(base + '/api/consultores', { headers: h })).headers.get('cache-control'), 'no-store');
+  assert.equal((await fetch(base + '/api/nao-existe', { headers: h })).headers.get('cache-control'), 'no-store');
+  assert.equal((await fetch(base + '/api/aniversarios', { headers: h })).headers.get('cache-control'), 'private, max-age=300');
+  // arquivo da tela não é API: continua conferindo a versão a cada abertura
+  assert.equal((await fetch(base + '/styles.css')).headers.get('cache-control'), 'no-cache, must-revalidate');
+});
