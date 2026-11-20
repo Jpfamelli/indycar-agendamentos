@@ -1,12 +1,12 @@
-# Rodada 10 · Comunicar
+﻿# Rodada 10 · Comunicar
 
-Entrega parcial. 32 de 100 melhorias registradas. Próximo número: R10-COM-033.
+Entrega parcial. 33 de 100 melhorias registradas. Próximo número: R10-COM-034.
 
 A suíte de referência passou 310/310 com isolamento padrão do Node. O modo sem isolamento fez os dublês dos testes compartilharem estado, por isso a conferência foi repetida com os subprocessos padrão.
 
 ## Para outra frente
 
-Faltam a cobertura dos 69 comportamentos R9-COM-032 a R9-COM-100 e 68 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
+Faltam a cobertura dos comportamentos R9-COM-032 a R9-COM-100 ainda sem cobertura e 67 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
 
 ## Para o João
 
@@ -42,3 +42,7 @@ O commit `c2b65f6` cobre R10-COM-004 a 008. Os cinco testes de perfil falharam a
 - `3a4944f` cobre R10-COM-009 a 012. O perfil valida corpo, limite do cargo, caracteres do telefone e tipos das preferências de notificação.
 - `5d99dff` cobre R10-COM-013 a 018. A API valida título, descrição, prioridade e prazo de tarefas e exige valor booleano explícito no consentimento do cliente. O teste legado continua conferindo que chaves desconhecidas são ignoradas. Um valor inválido de uma preferência reconhecida agora recebe erro.
 - A suíte integral passou de 318 para 328 testes. As novas regressões falharam antes das correções e passaram depois. `npm run check` passou. Os testes de API usaram banco e WhatsApp simulados. O Chrome não foi reexecutado nesta continuação.
+
+## Janelas de prévia e aniversários
+
+O commit 73c64a1 adiciona um roteiro Chrome exclusivo do Comunicar para R9-COM-037, 039 e 040–042. A versão anterior a e5040f5 falhou na primeira asserção de carregamento. A versão atual passou nos quatro cenários de largura e tema. O roteiro confirma a identidade do mock local, desativa o service worker e bloqueia escritas e rede externa. A suíte Node continua em 343/343, em processos separados, e npm run check passou.
