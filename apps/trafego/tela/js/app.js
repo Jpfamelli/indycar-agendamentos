@@ -401,6 +401,9 @@ async function partir() {
   }
   if (estado.parado) return;
   if (estado.eu && estado.eu.acesso === false) {
+    // A pessoa está logada, só não tem este app: o botão da conta mostra as iniciais dela (antes ficava "?"),
+    // e o menu dela tem o "Sair" para entrar com outro usuário.
+    pintarConta();
     pararEm(() => Estados.semAcesso(miolo, { mensagem: null, hrefCentral }));
     return;
   }

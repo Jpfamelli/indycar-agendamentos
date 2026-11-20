@@ -194,6 +194,8 @@ export const CASOS = {
     await pagina.waitForFunction(() => /não tem acesso/i.test(document.querySelector('#miolo')?.textContent || ''));
     const visiveis = await pagina.$$eval('.navbaixo a, .casca-nav a, .casca-acoes a[data-tela]', (l) => l.filter((a) => a.getClientRects().length > 0).length);
     conferir(visiveis === 0, 'nenhum link de tela à vista (' + visiveis + ')');
+    const iniciais = await texto(pagina, '#contaIniciais');
+    conferir(iniciais && iniciais !== '?', 'o botão da conta mostra as iniciais de quem entrou: ' + iniciais);
     await pagina.goto(endereco + '?cenario=cheio#/hoje', { waitUntil: 'networkidle0' });
     const comAcesso = await pagina.$$eval('.navbaixo a, .casca-nav a', (l) => l.filter((a) => a.getClientRects().length > 0).length);
     conferir(comAcesso >= 4, 'com acesso, a navegação aparece (' + comAcesso + ')');
