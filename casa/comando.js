@@ -45,6 +45,7 @@
     document.querySelectorAll('#acoes .acao').forEach((el) => {
       const k = (el.getAttribute('target') || '').replace('indycar-', '');
       el.classList.toggle('acao-fora', fora.has(k));
+      el.title = fora.has(k) ? 'Este app não está respondendo agora. Clique só se precisar.' : '';
     });
     for (const [id, app] of [['#cPatio', 'patio'], ['#cOrc', 'orcador']]) {
       const det = document.querySelector(id + ' [data-det]');

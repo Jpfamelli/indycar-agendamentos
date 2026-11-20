@@ -160,3 +160,6 @@ button.t-texto:hover { text-decoration: underline dotted; }
 
 /* campo com erro nos formulários de entrada (o erro diz qual campo; antes só a frase embaixo) */
 .campo input[aria-invalid="true"] { border-color: var(--cor-grave); box-shadow: 0 0 0 1px var(--cor-grave); }
+
+/* rodada 9: atalho de app fora do ar ("Nova entrada no pátio", "Novo orçamento") avisava só com a borda tracejada; agora diz */
+.acao-fora::after { content: '· fora do ar'; font-weight: 700; color: var(--red-2); }

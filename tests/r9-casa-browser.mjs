@@ -46,6 +46,7 @@ const CENARIOS = [
   { nome: 'falhaop', cenario: { papel: 'admin', falhar: ['r6_agora', 'tarefas'] }, larguras: [375], acao: 'operacao', espera: ['sem dado', 'não deu para ler agora'] },
   { nome: 'sinofalha', cenario: { papel: 'admin', falhar: ['notificacoes'] }, larguras: [375], acao: 'sino', espera: ['Não consegui ler os avisos agora', 'tentar de novo'] },
   { nome: 'vazio', cenario: { papel: 'admin', vazio: true, zap: 'ok' }, larguras: [1440, 375], espera: ['Nenhum fechamento com valor nos últimos 7 dias', 'Ainda sem faturamento marcado neste mês'] },
+  { nome: 'foradoar', cenario: { papel: 'admin', foraDoAr: ['patio', 'orcador'] }, larguras: [1440, 375], espera: ['verificar de novo'] },
   { nome: 'atendente', cenario: { papel: 'atendente', zap: 'ok' }, larguras: [375] },
   { nome: 'recepcao', cenario: { papel: 'agenda', zap: 'ok' }, larguras: [375] },
   { nome: 'mecanico', cenario: { papel: 'mecanico', zap: 'ok' }, larguras: [375] },
@@ -108,7 +109,10 @@ async function abrirPagina(cenario, largura, tema) {
     if (u.origin !== BASE) return req.respond({ status: 204, body: '' });
     const json = (o, status = 200) => req.respond({ status, contentType: 'application/json', body: JSON.stringify(o) });
     if (u.pathname === '/api/central/config') return json({ supabaseUrl: 'https://mentira.supabase.co', supabaseAnonKey: 'chave-de-mentira', versao: 'r9 (dados inventados)', apps: {} });
-    if (u.pathname === '/api/central/saude-apps') return json({ verificado_em: Date.now(), apps: { patio: { fora: false }, orcador: { fora: false } }, internos: { agenda: { ok: true }, crm: { ok: true }, comunicar: { ok: true }, atendimento: { ok: true }, trafego: { ok: true } } });
+    if (u.pathname === '/api/central/saude-apps') {
+      const fora = (k) => (cenario.foraDoAr || []).includes(k) ? { fora: true, desde: Date.now() - 25 * 60000, motivo: 'sem_resposta' } : { fora: false };
+      return json({ verificado_em: Date.now(), apps: { patio: fora('patio'), orcador: fora('orcador') }, internos: { agenda: { ok: true }, crm: { ok: true }, comunicar: { ok: true }, atendimento: { ok: true }, trafego: { ok: true } } });
+    }
     if (u.pathname === '/api/central/links-cliente') return json({ ok: true, nome: 'Gabi Inventada', aceita_mensagens: true, minha: 'https://indycar-patio.netlify.app/minha/exemplo', indique: null, acompanhar: null, os: null });
     if (u.pathname.startsWith('/agenda/api/')) return json([]);
     if (u.pathname === '/sw.js') return req.respond({ status: 404, body: '' });

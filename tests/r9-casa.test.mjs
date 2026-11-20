@@ -485,3 +485,9 @@ test('"g depois f" abre o Tráfego e a dica do g só lista os apps que a pessoa 
   assert.match(s, /dica\(dicaDoG\(\)\)/);
   assert.doesNotMatch(s, /g…  a Agenda · t Atendimento/, 'dica fixa com todos os apps saiu');
 });
+
+test('atalho de app fora do ar diz "fora do ar" (antes só a borda tracejada mostrava)', () => {
+  assert.match(ler('r9.css'), /\.acao-fora::after \{ content: '· fora do ar';/);
+  assert.match(semComentarios(ler('comando.js')), /el\.title = fora\.has\(k\) \? 'Este app não está respondendo agora\. Clique só se precisar\.' : '';/);
+  assert.match(readFileSync(join(RAIZ, 'tests', 'r9-casa-browser.mjs'), 'utf8'), /nome: 'foradoar', cenario: \{ papel: 'admin', foraDoAr: \['patio', 'orcador'\] \}/, 'o Chrome mede a tela com Pátio e Orçador fora');
+});
