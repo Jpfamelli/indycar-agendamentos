@@ -1227,6 +1227,7 @@ dialog.dlg .dv-cort{flex-direction:row;align-items:center;gap:6px;white-space:no
 /* ---- Rodada 5 (16/10/2026): busca global, filtros salvos, ficha 360, leads sem dono, previsão, campanha ---- */
 .busca-global-btn{display:inline-flex;align-items:center;gap:7px;color:var(--gray)}
 .busca-global-btn kbd{font-size:.68rem;padding:1px 6px;border:1px solid var(--line);border-radius:5px;background:var(--superficie);color:var(--texto)}
+.busca-global-btn kbd::before{content:"Ctrl K"}
 .busca-global-btn:hover{color:var(--texto)}
 dialog.dlg-busca{width:min(640px,calc(100vw - 32px));padding:14px;margin-top:8vh}
 .bg-campo{display:flex;align-items:center;gap:10px;padding:4px 8px;border:1px solid var(--line);border-radius:12px;background:var(--campo-fundo)}
