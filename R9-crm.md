@@ -1,6 +1,6 @@
 # Rodada 9 · CRM
 
-Entrega parcial. Lote 8c60a72, 10 registros no MELHORIAS. Suíte 323/323 antes e depois do ajuste do diálogo. O Chrome confirmou Concluir em 375 e 1440 px, nos dois temas, com mock local e bloqueio de todas as escritas e de destinos externos. Capturas disponíveis em qa-out/r9/crm-concluir-*.png.
+Meta concluída com 125 melhorias numeradas no MELHORIAS do CRM. A suíte passou de 323/323 na abertura da rodada para 328/328 no fechamento, com dados fictícios. O Chrome confirmou Concluir em 375 e 1440 px, nos dois temas, com mock local e bloqueio de destinos externos. As capturas estão em `qa-out/r9/crm-concluir-*.png`.
 
 | Antes | Depois |
 | --- | --- |
@@ -8,7 +8,7 @@ Entrega parcial. Lote 8c60a72, 10 registros no MELHORIAS. Suíte 323/323 antes e
 | Leads | Contatos |
 | + Novo Lead | + Novo contato |
 
-O menu Mais preserva as páginas secundárias. Uso por rota e decisão de corte continuam por conferir. Para o Claude, faltam a matriz completa de jornadas e axe-core, as capturas comparativas, o inventário com evidência e os demais lotes. Para o João, confirmar a posição das telas secundárias depois da prévia.
+O menu Mais concentra as páginas secundárias. O inventário abaixo registra a evidência agregada disponível e indica onde o uso por comando é indeterminado.
 
 ## Segundo lote parcial
 
@@ -108,3 +108,49 @@ Para o João, conferir na prévia se Mais é suficiente para quem usa distribui�
 13 melhorias em `be91453`, total de 96/125. Suíte 325/325. Próxima entrada R9-CRM-097.
 
 O Chrome confirmou 14 telas sem rolagem lateral, em quatro combinações de tamanho e tema, com redução de movimento, mock local e bloqueio de escritas e destinos externos. A prova de largura, os filtros do catálogo e as duas seções de Configurações estão em qa-out/r9-crm-matriz-final.txt. O catálogo recebeu uma resposta local fictícia interceptada. As capturas do catálogo estão em qa-out/r9/crm-catalogo-*.png.
+
+## Décimo primeiro lote
+
+14 melhorias em `e6df968`, total de 110/125. Suíte 328/328 com banco fictício, incluindo regressões de data, hora e prioridade de tarefas. Próxima entrada R9-CRM-111.
+
+| Antes | Depois |
+| --- | --- |
+| abrir lead (atalho de tarefa) | Abrir contato |
+
+## Fechamento
+
+O último lote acrescenta R9-CRM-111 a R9-CRM-125. Os commits `cbbb0a3`, `d71c339`, `445d1bd` e `59b1ddf` cobrem contraste, nomes acessíveis, atalhos, tabelas com foco, cartões do Funil e estados do rodízio. O ajuste de foco da tabela de clientes em `445d1bd` integra R9-CRM-114. Os registros de R9-CRM-097 a R9-CRM-110 referenciam o commit `e6df968`.
+
+O Chrome confirmou a criação de contato perdido com motivo Outro e observação em 375 e 1440 px, claro e escuro. Nas quatro combinações, o servidor fictício recebeu também R$ 125,50 no fechamento com valor e zero ao escolher Não sei agora. Somente o POST local de criação de contato foi permitido nesse roteiro. A geometria do diálogo Concluir foi verificada separadamente. O log está em `qa-out/r9-crm-jornadas-final.txt`.
+
+O axe-core encontrou zero violações sérias ou críticas nas 56 verificações das 14 telas, mais quatro verificações da prévia de Distribuir. A mesma matriz confirmou a ausência de rolagem lateral na página. O log está em `qa-out/r9-crm-axe-final.txt`. Os roteiros e as imagens ficam em `qa-out/` nesta cópia.
+
+### Comparativos
+
+Os arquivos seguem `qa-out/r9/{antes,depois}-crm-<tela>-375-claro.png`.
+
+| Tela | Arquivo por tela | Mudança em destaque |
+| --- | --- | --- |
+| Painel | dashboard | Nova tentativa ao carregar tarefas |
+| Contatos | leads | Lista com busca e filtros mais claros |
+| Hoje | hoje | Estados de carregamento, vazio e erro |
+| Clientes | clientes | Busca protegida de respostas fora de ordem |
+| Funil | pipeline | Cartões e navegação por teclado |
+| Origem | origem | Resultados por canal com tabela navegável |
+| Distribuir contatos | distribuir | Rodízio com bloqueio e orientação de erro |
+| Relatórios | relatorios | Exportação bloqueada em intervalo inválido |
+| Serviços | servicos | Filtros de catálogo com estado selecionado |
+| Configurações | configuracoes | Seções de conta e sistema identificáveis |
+
+| Antes | Depois |
+| --- | --- |
+| Todos os leads abertos têm dono | Todos os contatos abertos têm responsável |
+| Busca global (nome acessível) | Buscar tudo |
+
+### Para o Claude
+
+Agenda e Atendimento seguem na outra cópia. Usar a tabela de nomes para atualizar o manual. No CRM, permanecem sem repetição de ponta a ponta no navegador a cortesia, o cancelamento, o fechamento em lote e a queda de rede ao mover etapa. A validação pós-integração e a medição de uso por ação também ficam abertas. A tabela de inventário agrupa ações por tela porque os dados disponíveis não distinguem cada comando.
+
+### Para o João
+
+Na prévia, confirmar se distribuição, metas e integrações devem ficar em Mais para quem precisa delas todos os dias. Sem contagem por comando, o uso das páginas secundárias segue indeterminado.

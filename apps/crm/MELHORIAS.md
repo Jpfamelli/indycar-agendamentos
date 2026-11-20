@@ -1392,3 +1392,32 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-094** · conserto · Um período inválido limpa as métricas anteriores e bloqueia CSV e PDF até a correção. · `be91453`
 - **R9-CRM-095** · aviso · O relatório exibe “dado indisponível” se o tempo de resposta não carregar. · `be91453`
 - **R9-CRM-096** · acessibilidade · As duas tabelas de relatório anunciam o título correspondente ao leitor de tela. · `be91453`
+- **R9-CRM-097** · conserto · Um erro de carregamento antigo não substitui a lista atual de tarefas do Painel. · `e6df968`
+- **R9-CRM-098** · conserto · Uma resposta atrasada de tarefas não substitui a lista da ficha atual. · `e6df968`
+- **R9-CRM-099** · tela · A ficha informa que as tarefas estão carregando antes de exibir um estado vazio. · `e6df968`
+- **R9-CRM-100** · aviso · A ficha mantém o aviso de erro das tarefas e oferece nova tentativa. · `e6df968`
+- **R9-CRM-101** · aviso · O Painel oferece nova tentativa se uma consulta de tarefas falhar, inclusive quando há resultados antigos. · `e6df968`
+- **R9-CRM-102** · texto · O estado vazio do Painel informa que é o filtro atual que não tem tarefas abertas. · `e6df968`
+- **R9-CRM-103** · acessibilidade · A navegação anuncia Painel e a quantidade de tarefas no singular ou plural. · `e6df968`
+- **R9-CRM-104** · texto · O atalho da tarefa usa “Abrir contato” quando o nome ainda não está disponível. · `e6df968`
+- **R9-CRM-105** · conserto · O controle de mudança de situação da tarefa fica bloqueado enquanto a alteração é gravada. · `e6df968`
+- **R9-CRM-106** · conserto · Desfazer restaura a situação anterior da tarefa, inclusive ao desfazer uma reabertura. · `e6df968`
+- **R9-CRM-107** · acessibilidade · Cancelar tarefa tem alvo de 44 px no Painel e na ficha. · `e6df968`
+- **R9-CRM-108** · conserto · O vencimento rejeita horas e minutos fora do relógio em vez de ajustar silenciosamente. · `e6df968`
+- **R9-CRM-109** · conserto · O vencimento rejeita mês ou dia inválido e preserva os quatro dígitos do ano. · `e6df968`
+- **R9-CRM-110** · conserto · A prioridade da tarefa aceita apenas as três opções válidas, com Normal quando está vazia. · `e6df968`
+- **R9-CRM-111** · acessibilidade · O nome acessível do menu de perfil inclui as iniciais visíveis. · `cbbb0a3`
+- **R9-CRM-112** · acessibilidade · O carregamento da lista de clientes tem texto para leitores de tela e oculta o esqueleto decorativo. · `cbbb0a3`
+- **R9-CRM-113** · acessibilidade · O botão de tema usa o mesmo rótulo na tela e no leitor de tela. · `cbbb0a3`
+- **R9-CRM-114** · acessibilidade · As tabelas roláveis do CRM recebem nome e foco visível para navegação por teclado. · `cbbb0a3`
+- **R9-CRM-115** · acessibilidade · O título inicial de Distribuir contatos segue a hierarquia de cabeçalhos da página. · `cbbb0a3`
+- **R9-CRM-116** · acessibilidade · O cartão do funil agrupa seus controles e anuncia como abrir a ficha pelo teclado. · `cbbb0a3`
+- **R9-CRM-117** · conserto · O rodízio bloqueia Aplicar enquanto recalcula a sugestão. · `cbbb0a3`
+- **R9-CRM-118** · aviso · Após erro no rodízio, a tela limpa o resumo antigo e orienta a usar Recalcular. · `cbbb0a3`
+- **R9-CRM-119** · texto · O rodízio vazio informa que todos os contatos abertos têm responsável. · `cbbb0a3`
+- **R9-CRM-120** · acessibilidade · As iniciais brancas ganham contraste na paleta de cores de avatar. · `cbbb0a3`
+- **R9-CRM-121** · acessibilidade · O texto de Ctrl K usa a cor de texto principal para melhorar a leitura. · `cbbb0a3`
+- **R9-CRM-122** · conserto · A abertura de fichas pelo teclado respeita controles internos e ignora a repetição da tecla. · `d71c339`
+- **R9-CRM-123** · aviso · Distribuir contatos exibe um texto enquanto calcula o rodízio. · `d71c339`
+- **R9-CRM-124** · celular · As opções de cor do avatar têm alvo de toque de 44 px. · `d71c339`
+- **R9-CRM-125** · acessibilidade · Buscar tudo usa o texto visível como nome acessível e o atalho tem um atributo próprio. · `59b1ddf`
