@@ -1439,3 +1439,9 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-013** · segurança · A ativação ou desativação de acesso exige um booleano explícito (testes R10-CRM-013 em testes/r10-equipe.test.cjs) · `e8f518b`
 - **R10-CRM-014** · conserto · Cadastro da equipe recusa senha temporária longa demais em vez de truncá-la (teste R10-CRM-014 em testes/r10-equipe.test.cjs) · `e8f518b`
 - **R10-CRM-015** · conserto · Cadastro da equipe valida a opção de troca obrigatória de senha (teste R10-CRM-015 em testes/r10-equipe.test.cjs) · `e8f518b`
+- **R10-CRM-016** · segurança · Registro de investimento exige canal válido em texto (teste R10-CRM-016 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-017** · conserto · Registro de investimento recusa mês fora do calendário (teste R10-CRM-017 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-018** · conserto · Registro de investimento recusa valor negativo sem zerar a despesa (teste R10-CRM-018 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-019** · conserto · Registro de cliques recusa contagem fracionária (teste R10-CRM-019 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-020** · conserto · Registro de impressões recusa booleanos (teste R10-CRM-020 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-021** · conserto · Registro de conversões recusa contagem acima do intervalo aceito pelo banco (teste R10-CRM-021 em testes/r10-investimento.test.cjs) · `988ede8`
