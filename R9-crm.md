@@ -94,3 +94,11 @@ Para o João, conferir na prévia se Mais é suficiente para quem usa distribui�
 | --- | --- |
 | Leads sem dono (título da tela) | Distribuir contatos |
 | Veículos leves e Todos os veículos (escopo no catálogo) | Carros leves e Todos os carros |
+
+## Nono lote
+
+13 melhorias em `1151ad1`, total de 83/125. Suíte 325/325. Próxima entrada R9-CRM-084.
+
+| Antes | Depois |
+| --- | --- |
+| Ver lead por lead | Ver contato por contato |

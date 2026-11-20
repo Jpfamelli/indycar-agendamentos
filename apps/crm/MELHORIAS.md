@@ -1366,3 +1366,16 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-068** · texto · O catálogo usa “carros” para indicar o escopo do serviço. · `bba7a4b`
 - **R9-CRM-069** · aviso · Uma falha no catálogo é anunciada e pode ser recuperada na própria tela. · `bba7a4b`
 - **R9-CRM-070** · acessibilidade · Trocar de página na lista mantém o foco nos controles de paginação. · `bba7a4b`
+- **R9-CRM-071** · conserto · A fila Hoje descarta respostas atrasadas depois que chega um pedido mais recente. · `1151ad1`
+- **R9-CRM-072** · acessibilidade · A lista da fila Hoje indica quando está atualizando. · `1151ad1`
+- **R9-CRM-073** · conserto · Atender o próximo fica indisponível enquanto a fila carrega, evitando ações sobre o resultado anterior. · `1151ad1`
+- **R9-CRM-074** · aviso · Uma falha na fila Hoje anuncia o erro e retira os totais e as ações desatualizadas. · `1151ad1`
+- **R9-CRM-075** · celular · A busca na fila Hoje mostra a ação Buscar no teclado do celular. · `1151ad1`
+- **R9-CRM-076** · acessibilidade · A barra da meta diária informa os contatos feitos, mesmo quando o total ultrapassa a meta. · `1151ad1`
+- **R9-CRM-077** · tela · A fila Hoje diferencia uma busca sem resultados de uma fila zerada. · `1151ad1`
+- **R9-CRM-078** · acessibilidade · O catálogo anuncia a quantidade de resultados ao editar a busca ou os filtros. · `1151ad1`
+- **R9-CRM-079** · enxugar · A aba Clientes deixa de reter uma cópia sem consumidores da última resposta. · `1151ad1`
+- **R9-CRM-080** · celular · Os grupos de filtros da distribuição podem encolher e quebrar linha dentro da tela. · `1151ad1`
+- **R9-CRM-081** · acessibilidade · A seleção de quem recebe os contatos tem alvo mínimo de 44 px. · `1151ad1`
+- **R9-CRM-082** · texto · A distribuição informa de forma direta que só inclui contatos sem responsável. · `1151ad1`
+- **R9-CRM-083** · texto · A prévia usa “Ver contato por contato” para abrir a lista detalhada. · `1151ad1`
