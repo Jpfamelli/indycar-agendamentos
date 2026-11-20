@@ -809,7 +809,31 @@ async function handler(req, res) {
           return json(res, 403, { erro: 'Só o administrador registra investimento.' });
         }
         const dados = await readBody(req);
-        if (!dados || !dados.canal) return json(res, 400, { erro: 'informe o canal' });
+        if (!store.ORIGENS.includes(dados.canal)) {
+          return json(res, 400, { erro: 'Selecione um canal válido.' });
+        }
+        if ('competencia' in dados && (typeof dados.competencia !== 'string' ||
+            !/^\d{4}-(0[1-9]|1[0-2])$/.test(dados.competencia))) {
+          return json(res, 400, { erro: 'Informe um mês válido no formato AAAA-MM.' });
+        }
+        const campos = {
+          investimento: 'Investimento',
+          cliques: 'Cliques',
+          impressoes: 'Impressões',
+          conversoes: 'Conversões',
+        };
+        for (const [campo, rotulo] of Object.entries(campos)) {
+          if (!(campo in dados)) continue;
+          const valor = dados[campo];
+          const numero = typeof valor === 'number' ||
+            (typeof valor === 'string' && /^\d+(\.\d+)?$/.test(valor)) ? Number(valor) : NaN;
+          if (!Number.isFinite(numero) || numero < 0) {
+            return json(res, 400, { erro: `${rotulo}: informe um número maior ou igual a zero.` });
+          }
+          if (campo !== 'investimento' && (!Number.isInteger(numero) || numero > 2147483647)) {
+            return json(res, 400, { erro: `${rotulo}: informe um inteiro de até 2.147.483.647.` });
+          }
+        }
         const roi = await store.salvarMetrica(dados);
         await auditar(quem, 'investimento_salvar', { tabela: 'metricas_canal', registro: String(dados.canal).slice(0, 20), detalhes: { competencia: dados.competencia || null, investimento: Number(dados.investimento) || 0 } });
         return json(res, 200, roi);
