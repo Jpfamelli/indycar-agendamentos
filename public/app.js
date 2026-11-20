@@ -2945,7 +2945,7 @@ window.abrirRemarcar = async function(id) {
     <div class="modal-head"><h3>${svg(I.calendar)} Remarcar</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <p class="remarcar-quem"><b>${esc(a.cliente_nome)}</b> · ${esc(a.servico)}<br>
-        <small class="muted">Hoje marcado para ${esc(rotuloDia(a.data, agoraSP().data))} às ${esc(a.hora)}${['nao_veio', 'cancelado'].includes(a.status) ? ', volta para Aguardando' : ''}</small></p>
+        <small class="muted">Horário atual: ${esc(rotuloDia(a.data, agoraSP().data))} às ${esc(a.hora)}${['nao_veio', 'cancelado'].includes(a.status) ? ', volta para Aguardando' : ''}</small></p>
       <div class="grid2">
         <div class="field"><label for="r_data">Nova data</label><input id="r_data" type="date" value="${esc(a.data)}"></div>
         <div class="field"><label for="r_hora">Nova hora</label><input id="r_hora" type="time" value="${esc(a.hora)}" min="08:00" max="17:30" step="900"></div>

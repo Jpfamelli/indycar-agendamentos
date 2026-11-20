@@ -160,3 +160,6 @@
 
 /* ---- "Buscar em tudo": a caixa de busca tomava 320 px de ALTURA (a base de largura valia como altura na janela em coluna) ---- */
 .modal-body > .search.larga{flex:0 0 auto}
+
+/* ---- menu: com "Mais" aberto os itens encolhiam (ícone de 21 px virava 14) em vez de o menu rolar ---- */
+.nav > *,.nav-mais-itens > *{flex-shrink:0}

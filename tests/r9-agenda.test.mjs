@@ -257,3 +257,21 @@ test('R9 lote 8: "carro", nunca "veículo", na tela de Serviços, nas planilhas 
 test('R9 lote 8: a caixa do "Buscar em tudo" não estica na altura', () => {
   assert.match(regra(css9, '.modal-body > .search.larga'), /flex:0 0 auto/);
 });
+
+test('R9 lote 8: menu com "Mais" aberto rola em vez de encolher os itens; Remarcar diz o horário atual sem repetir "hoje"', () => {
+  assert.match(regra(css9, '.nav > *,.nav-mais-itens > *'), /flex-shrink:0/);
+  assert.match(ler('public/styles.css'), /\.nav\{[^}]*overflow-y:auto/);
+  assert.ok(app.includes('<small class="muted">Horário atual: ${esc(rotuloDia(a.data, agoraSP().data))} às'));
+  assert.ok(!app.includes('Hoje marcado para'));
+});
+
+test('R9 lote 8: login sem pulo de layout, erro do primeiro acesso anunciado e app instalado com a cor e a descrição da página', () => {
+  assert.equal(html.split('class="login-logo" width="170" height="170"').length - 1, 6);
+  assert.ok(!/class="login-logo" \/>/.test(html));
+  for (const id of ['erroLogin', 'erroPrimeiro', 'erroEsqueci', 'erroNovaSenha', 'erroMfa']) assert.ok(new RegExp(`id="${id}" role="alert"`).test(html), id);
+  const man = JSON.parse(ler('public/manifest.json'));
+  assert.equal(man.theme_color, '#070a14');
+  assert.equal(man.theme_color, /<meta name="theme-color" content="(#[0-9a-f]{6})"/.exec(html)[1]);
+  assert.equal(man.description, /<meta name="description" content="([^"]+)"/.exec(html)[1].replace('Agenda da IndyCar Centro Automotivo', 'Agenda da IndyCar Centro Automotivo'));
+  assert.doesNotMatch(man.description, /CRM|IA/);
+});
