@@ -299,7 +299,7 @@
       tile('Orçamentos aprovados (30 dias)', C.esc(L.brl(o.valor_aprovado)), `${o.aprovados || 0} de ${o.enviados || 0} enviados${conv.orcAprovados === null ? '' : ' · ' + conv.orcAprovados + '%'}`);
     const bs = L.barras(d.serie7);
     const hojeB = L.hojeSP();   /* rodada 9: barra sem degradê; a de hoje em vermelho e com a palavra "hoje" (não só a cor) */
-    $('#donoBarras').innerHTML = bs.map((b) => `<div class="barra${b.dia === hojeB ? ' barra-hoje' : ''}" title="${C.esc(L.brl(b.valor))}"><span class="barra-v">${b.valor ? C.esc(L.brlCurto(b.valor)) : ''}</span><span class="barra-col"><span class="barra-fill" data-h="${b.pct}"></span></span><span class="barra-d">${b.dia === hojeB ? 'hoje' : C.esc(L.diaCurto(b.dia))}</span></div>`).join('');
+    $('#donoBarras').innerHTML = bs.map((b) => `<div class="barra${b.dia === hojeB ? ' barra-hoje' : ''}" title="${C.esc(L.brl(b.valor))}"><span class="barra-v">${C.esc(window.CasaLogica4.rotuloDaBarra(b.valor))}</span><span class="barra-col"><span class="barra-fill" data-h="${b.pct}"></span></span><span class="barra-d">${b.dia === hojeB ? 'hoje' : C.esc(L.diaCurto(b.dia))}</span></div>`).join('');
     $('#donoBarras').setAttribute('aria-label', 'Faturamento por dia: ' + bs.map((b) => `${L.diaCurto(b.dia)} ${L.brl(b.valor)}`).join(', '));
     /* rodada 9: sete barras vazias sem explicação pareciam gráfico quebrado; agora diz o que falta */
     const vazio7 = $('#donoBarrasVazio');

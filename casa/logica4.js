@@ -412,11 +412,24 @@
       .map((c) => ({ ...c, tom: L.tomDaEtapa(c.etapa, c.etapa_em, agoraMs) }));
   }
 
+  /**
+   * Valor em cima de cada barra do gráfico de 7 dias. Curto para caber nos 40 px da barra no celular: antes era
+   * "R$ 1.750" e virava "R$ 1.7…". O título do gráfico já diz que é faturamento, e o valor inteiro fica no
+   * title da barra e no aria-label do gráfico. Dia sem valor: nada.
+   */
+  function rotuloDaBarra(v) {
+    const n = Math.round(Number(v) || 0);
+    if (n <= 0) return '';
+    if (n >= 1e6) return (n / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mi';
+    if (n >= 1e3) return (n / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil';
+    return String(n);
+  }
+
   root.CasaLogica4 = Object.freeze({
     nacional, telefoneDoLinkWa, VALIDADE_PARAR_MS, MOTIVOS_PARAR, rotuloParar, estadoParar, paraConsultar, guardarParar, textoBloqueado, AVISO_PARAR_SEM_CONFERIR, AVISO_PARAR_BLOQUEADO,
     ORIGENS_TAREFA, TIPOS_ORC_TAREFA, infoDaTarefa, ehDoOrcador, contarReabordar, linkDaDescricao, descricaoLimpa,
     NOME_SIST, ESTADOS_WHATSAPP, REGRAS_VIGIA, regraDoCodigo, FAIXA_VIGIA, faixaDoVigia, saudeSistemas, resumoDaSaude,
     resumoLigacoes, ROTULO_ACAO, fichaDe, OPCOES_ADIAR, ateQuando, quandoVolta, acaoDoAviso, appDoAviso, textoDoAviso, filtrarPorTexto,
-    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico,
+    pessoasDaBusca, filtrosDaBusca, alemDoCorte, dicaDaBusca, erroDosLinks, chegadasDaRecepcao, ordemDoMecanico, rotuloDaBarra,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
