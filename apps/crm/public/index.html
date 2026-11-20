@@ -140,7 +140,7 @@
     <div class="topbar-actions">
       <div class="search">
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-        <input aria-label="Buscar contatos" id="search" type="search" placeholder="Nome, telefone ou placa" />
+        <input aria-label="Buscar contatos" id="search" type="search" enterkeyhint="search" placeholder="Nome, telefone ou placa" />
       </div>
       <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Busca global: nome, telefone ou placa (Ctrl+K)" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd>Ctrl K</kbd></button>
       <button type="button" class="fila-chip" id="filaChip" hidden aria-live="polite"></button>
@@ -229,7 +229,7 @@
             <button type="button" class="btn btn-ghost sm" id="btnImportarNao">Agora não</button></div>
         </div>
         <form class="tarefa-form" id="formTarefaPainel">
-          <input id="tarefaTexto" maxlength="200" placeholder="Ex.: ligar para o João" aria-label="Nova tarefa" required />
+          <input id="tarefaTexto" enterkeyhint="done" maxlength="200" placeholder="Ex.: ligar para o João" aria-label="Nova tarefa" required />
           <input id="tarefaData" type="date" aria-label="Dia" />
           <input id="tarefaHora" type="time" aria-label="Hora" step="900" />
           <select id="tarefaPrioridade" aria-label="Prioridade"><option value="2">Normal</option><option value="3">Urgente</option><option value="1">Baixa</option></select>
@@ -310,7 +310,7 @@
       <div class="barra-busca">
         <div class="busca-local">
           <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-          <input id="buscaCliente" type="search" aria-label="Buscar cliente" placeholder="Buscar por nome, telefone, placa ou carro…" />
+          <input id="buscaCliente" type="search" enterkeyhint="search" aria-label="Buscar cliente" placeholder="Buscar por nome, telefone, placa ou carro…" />
         </div>
         <label class="ordem-cli">Ordenar <select id="ordemClientes"><option value="gasto">Quem mais gastou</option><option value="recente">Contato recente</option><option value="sumido">Sumidos há mais tempo</option><option value="nome">Nome A–Z</option></select></label>
         <span class="filter-count" id="cliCount" aria-live="polite"></span>
@@ -410,7 +410,7 @@
         <fieldset class="ds-grupo"><legend>Etapa</legend><div class="pilulas" id="dsStatus"></div></fieldset>
         <fieldset class="ds-grupo"><legend>Origem</legend><div class="pilulas" id="dsOrigem"></div></fieldset>
         <label class="ds-idade">Entrou há
-          <select id="dsIdade"><option value="">qualquer tempo</option><option value="0-7">até 7 dias</option><option value="7-30">7 a 30 dias</option><option value="30-90">30 a 90 dias</option><option value="7">mais de 7 dias</option><option value="30">mais de 30 dias</option><option value="90">mais de 90 dias</option></select></label>
+          <select id="dsIdade" aria-label="Tempo desde a abertura do contato"><option value="">qualquer tempo</option><option value="0-7">até 7 dias</option><option value="7-30">7 a 30 dias</option><option value="30-90">30 a 90 dias</option><option value="7">mais de 7 dias</option><option value="30">mais de 30 dias</option><option value="90">mais de 90 dias</option></select></label>
         <p class="muted mini-nota">Só entram leads <strong>sem responsável</strong>. Quem já tem dono continua com ele.</p>
       </div>
       <div class="card">
@@ -474,7 +474,7 @@
       <div class="barra-busca">
         <div class="busca-local">
           <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-          <input id="buscaServico" type="search" aria-label="Buscar serviço ou categoria" placeholder="Buscar serviço ou categoria…" />
+          <input id="buscaServico" type="search" enterkeyhint="search" aria-label="Buscar serviço ou categoria" placeholder="Buscar serviço ou categoria…" />
         </div>
         <div class="filters" style="margin:0" id="filtrosServico">
           <button type="button" class="filtro-pill ativo" data-faz="">Todos</button>
@@ -516,7 +516,7 @@
           </label>
           <div class="row">
             <label>ID do Pixel
-              <input name="meta_pixel_id" placeholder="998877665544" autocomplete="off" />
+              <input name="meta_pixel_id" inputmode="numeric" placeholder="998877665544" autocomplete="off" />
             </label>
             <label>Token expira em
               <input name="meta_token_expira_em" type="date" />
@@ -548,10 +548,10 @@
           </label>
           <div class="row">
             <label>Customer ID *
-              <input name="google_customer_id" placeholder="123-456-7890" autocomplete="off" />
+              <input name="google_customer_id" inputmode="tel" placeholder="123-456-7890" autocomplete="off" />
             </label>
             <label>Login Customer ID
-              <input name="google_login_customer_id" placeholder="MCC (opcional)" autocomplete="off" />
+              <input name="google_login_customer_id" inputmode="tel" placeholder="MCC (opcional)" autocomplete="off" />
             </label>
           </div>
           <label>Developer Token *
@@ -671,7 +671,7 @@
                      placeholder="pelo menos 8 caracteres" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
             </label>
             <label>Repetir a nova senha
-              <span class="senha-campo"><input id="senhaNova2" type="password" minlength="8" autocomplete="new-password"
+              <span class="senha-campo"><input id="senhaNova2" type="password" enterkeyhint="done" minlength="8" autocomplete="new-password"
                      placeholder="digite a mesma senha" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
             </label>
             <div class="int-actions">
@@ -786,7 +786,7 @@
       <div role="tabpanel" id="painelTl" aria-labelledby="abaTl" class="lf-painel"><ol class="linha-tempo" id="linhaTempo"></ol></div>
       <div role="tabpanel" id="painelLembretes" aria-labelledby="abaLembretes" class="lf-painel" hidden>
         <form class="tarefa-form" id="formTarefaLead">
-          <input id="tarefaLeadTexto" maxlength="200" placeholder="Ex.: retornar com o orçamento" aria-label="Nova tarefa para este contato" required />
+          <input id="tarefaLeadTexto" enterkeyhint="done" maxlength="200" placeholder="Ex.: retornar com o orçamento" aria-label="Nova tarefa para este contato" required />
           <input id="tarefaLeadData" type="date" aria-label="Dia" />
           <input id="tarefaLeadHora" type="time" aria-label="Hora" step="900" />
           <select id="tarefaLeadPara" aria-label="Para quem"></select>

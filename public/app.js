@@ -1245,7 +1245,7 @@ async function renderAgenda(opts = {}) {
   view.innerHTML = `
     <div class="toolbar">
       <!-- sem botão "Novo agendamento" aqui: o do topo da página já faz isso -->
-      <div class="search larga">${svg(I.search)}<input id="qAgenda" type="search" placeholder="Cliente, placa ou telefone" value="${esc(q0)}" aria-label="Buscar agendamento"></div>
+      <div class="search larga">${svg(I.search)}<input id="qAgenda" type="search" enterkeyhint="search" placeholder="Cliente, placa ou telefone" value="${esc(q0)}" aria-label="Buscar agendamento"></div>
       <button type="button" class="btn" id="btnVerSemana" title="Ver a semana em grade, com ocupação por dia (tecla S)">${svg(I.calendar)} Semana</button>
       <button type="button" class="btn" id="btnEsperaAgenda" title="Quem quer um horário e ainda não achou (tecla E)">${svg(I.relogio)} Espera${state.contagens?.espera ? ` <em class="tab-num">${state.contagens.espera}</em>` : ''}</button>
       <button type="button" class="icon-btn so-tela" id="btnImprimirAgenda" title="Imprimir a folha de um dia" aria-label="Imprimir a folha de um dia">${svg(I.imprimir)}</button>
@@ -1285,7 +1285,7 @@ async function renderClientes(opts = {}) {
   if (opts.quieto && $('#cliBody') && $('#qCli')) { $('#cliBody').innerHTML = clienteRows(list, q0); bindCliRows(); return; }
   view.innerHTML = `
     <div class="toolbar">
-      <div class="left"><div class="search">${svg(I.search)}<input id="qCli" type="search" placeholder="Buscar por nome, telefone ou placa…" value="${esc(q0)}" aria-label="Buscar cliente"></div>
+      <div class="left"><div class="search">${svg(I.search)}<input id="qCli" type="search" enterkeyhint="search" placeholder="Buscar por nome, telefone ou placa…" value="${esc(q0)}" aria-label="Buscar cliente"></div>
         <span class="badge-pill bp-gray" id="cliTotal">${list.length} ${list.length === 1 ? 'cliente' : 'clientes'}</span></div>
       <button class="btn primary" onclick="openClienteModal()">${svg(I.plus)} Novo cliente</button>
     </div>
@@ -1954,7 +1954,7 @@ async function cfgOficina(box) {
           <div class="field"><label>Slogan</label>
             <input id="of_slogan" value="${esc(empresa.slogan)}" placeholder="Quem conhece, indica!"></div>
           <div class="field"><label>Telefone</label>
-            <input id="of_tel" value="${esc(empresa.telefone)}" placeholder="12 99999-9999"></div>
+            <input id="of_tel" type="tel" autocomplete="tel" value="${esc(empresa.telefone)}" placeholder="12 99999-9999"></div>
           <div><button class="btn primary so-gestor" id="of_salvar">${svg(I.check)} Salvar dados</button></div>
           <p class="form-msg" id="of_msg" hidden></p>
         </div>
@@ -2238,7 +2238,7 @@ async function renderConectores() {
       <div class="panel"><div class="panel-head"><h2>📅 Google Agenda</h2></div>
         <div class="panel-body">
           <div class="field"><label>URL do calendário (assine no Google Agenda)</label>
-            <input id="cn_ics" value="${esc(icsUrl)}" readonly onclick="this.select()"></div>
+            <input id="cn_ics" aria-label="Link do calendário iCal" value="${esc(icsUrl)}" readonly onclick="this.select()"></div>
           <div style="display:flex;gap:8px">
             <button class="btn primary" id="cn_copy">📋 Copiar URL</button>
             <a class="btn" href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl" target="_blank" rel="noopener">Abrir Google Agenda</a>
@@ -2433,8 +2433,8 @@ async function waConfig(box, cfg) {
           <div class="field"><label>Access Token ${cfg.tem_token?`<span class="chip">salvo: ${esc(cfg.token_mask)}</span>`:''} *</label>
             <input id="cfg_token" type="password" autocomplete="off" placeholder="${cfg.tem_token?'•••• deixe em branco para manter o atual':'Cole o token permanente'}"></div>
           <div class="grid2">
-            <div class="field"><label>Business Account ID (WABA)</label><input id="cfg_waba" value="${esc(cfg.business_account_id||'')}"></div>
-            <div class="field"><label>Versão da API</label><input id="cfg_ver" value="${esc(cfg.api_version||'v21.0')}"></div>
+            <div class="field"><label for="cfg_waba">ID da conta do WhatsApp (WABA)</label><input id="cfg_waba" inputmode="numeric" value="${esc(cfg.business_account_id||'')}"></div>
+            <div class="field"><label for="cfg_ver">Versão da API</label><input id="cfg_ver" spellcheck="false" value="${esc(cfg.api_version||'v21.0')}"></div>
           </div>
           <div class="field"><label for="cfg_num">Número exibido</label><input id="cfg_num" type="tel" value="${esc(cfg.numero_exibicao||'')}" placeholder="+55 12 99999-0000"></div>
           <div style="display:flex;gap:10px;margin-top:4px">
@@ -2449,7 +2449,7 @@ async function waConfig(box, cfg) {
         <div class="panel-body">
           <div class="field"><label>URL do Webhook (cole na Meta)</label>
             <input id="cfg_webhook" value="${esc(webhook)}" readonly onclick="this.select()"></div>
-          <div class="field"><label>Token de verificação</label><input id="cfg_verify" value="${esc(cfg.verify_token||'indycar')}"></div>
+          <div class="field"><label for="cfg_verify">Token de verificação</label><input id="cfg_verify" spellcheck="false" value="${esc(cfg.verify_token||'indycar')}"></div>
           <!-- Lembretes de agendamento saíram daqui (09/10): quem manda é o Comunicar,
                com a régua dele e o "aceita mensagens" de cada cliente. -->
           <div class="aviso-leitura" style="margin-top:4px">${svg(I.send)}
@@ -2548,7 +2548,7 @@ Lembrete, aniversário e revisão são do <b>Comunicar</b>.</div></div>
           <div class="field"><label>Workflow do atendente (vincula o número)</label><input id="cw_sid" value="${esc(cfg.cw_service_id||'')}" placeholder="indycar_carlos_whatsapp_..."></div>
           <div class="field"><label>Workflow do banco de agendamentos (importação)</label><input id="cw_db" value="${esc(cfg.cw_db_service_id||'')}" placeholder="indycar_agendamentos_db_..."></div>
           <div class="field"><label>Workflow de follow-up de ausência (IA)</label><input id="cw_noshow" value="${esc(cfg.cw_noshow_service_id||'')}" placeholder="indycar_noshow_notifier_..."></div>
-          <div class="field"><label>Base URL</label><input id="cw_base" value="${esc(cfg.cw_base_url||'https://runtime.codewords.ai')}"></div>
+          <div class="field"><label for="cw_base">Endereço base do CodeWords</label><input id="cw_base" inputmode="url" value="${esc(cfg.cw_base_url||'https://runtime.codewords.ai')}"></div>
           <button class="btn primary so-gestor" id="ia_save">${svg(I.check)} Salvar</button>
         </div></div>
       <div class="panel"><div class="panel-head"><h2>${svg(I.calendar)} Agendamentos da IA</h2></div>
@@ -3062,7 +3062,7 @@ window.abrirBuscaGlobal = function() {
   openModal(`
     <div class="modal-head"><h3>${svg(I.search)} Buscar em tudo</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
     <div class="modal-body">
-      <div class="search larga">${svg(I.search)}<input id="bgQ" type="search" placeholder="Nome, telefone, placa, carro ou serviço" aria-label="Buscar agendamentos e clientes" autocomplete="off"></div>
+      <div class="search larga">${svg(I.search)}<input id="bgQ" type="search" enterkeyhint="search" placeholder="Nome, telefone, placa, carro ou serviço" aria-label="Buscar agendamentos e clientes" autocomplete="off"></div>
       <div id="bgRes" class="busca-res" aria-live="polite"><p class="muted">Digite pelo menos 2 caracteres. Atalho: Ctrl+K.</p></div>
       <p class="busca-dica"><kbd class="mini">↑</kbd> <kbd class="mini">↓</kbd> escolhe · <kbd class="mini">Enter</kbd> abre · telefone com ou sem DDD, placa com ou sem hífen</p>
     </div>`);
@@ -3536,7 +3536,7 @@ window.openClienteModal = async function(id, opts = {}){
       </div>
       <div class="grid2">
         <div class="field"><label for="c_veic">Carro</label><input id="c_veic" value="${esc(c.veiculo)}" placeholder="Ônix"></div>
-        <div class="field"><label for="c_placa">Placa</label><input id="c_placa" value="${esc(c.placa)}" style="text-transform:uppercase"></div>
+        <div class="field"><label for="c_placa">Placa</label><input id="c_placa" autocapitalize="characters" spellcheck="false" value="${esc(c.placa)}" style="text-transform:uppercase"></div>
       </div>
       <div class="grid3">
         <div class="field"><label for="c_mod">Ano do carro</label><input id="c_mod" inputmode="numeric" maxlength="4" placeholder="2020" value="${esc(c.modelo)}"></div>
