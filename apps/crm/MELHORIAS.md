@@ -1469,3 +1469,7 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-043** · segurança · Criação de tarefas da triagem rejeita uma seleção com identificadores inválidos (teste R10-CRM-043 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
 - **R10-CRM-044** · segurança · Execução em lote da IA rejeita uma seleção com identificadores inválidos antes de executar ações (teste R10-CRM-044 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
 - **R10-CRM-045** · conserto · Recusa de ação da IA exige motivo em texto quando informado (teste R10-CRM-045 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-046** · conserto · Atribuição de lead exige motivo em texto quando informado (teste R10-CRM-046 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
+- **R10-CRM-047** · conserto · Distribuição em lote rejeita toda a seleção quando há um identificador inválido (teste R10-CRM-047 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
+- **R10-CRM-048** · conserto · Rodízio exige um período finito de 1 a 8760 horas (teste R10-CRM-048 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
+- **R10-CRM-049** · conserto · Rodízio exige limite inteiro de 1 a 200 leads (teste R10-CRM-049 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
