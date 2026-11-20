@@ -1427,3 +1427,7 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-001** · conserto · O cadastro de contatos preserva acentos quando o JSON chega em blocos HTTP (teste R10-CRM-001 em testes/r10-json.test.cjs) · `387f5ac`
 - **R10-CRM-002** · segurança · O CRM rejeita JSON com UTF-8 inválido antes de cadastrar o contato (teste R10-CRM-002 em testes/r10-json.test.cjs) · `77ce05a`
 - **R10-CRM-003** · segurança · O CRM exige codificação compatível para o corpo HTTP antes de cadastrar o contato (teste R10-CRM-003 em testes/r10-json.test.cjs) · `802154f`
+- **R10-CRM-004** · conserto · Cadastro rejeita telefone que mistura letras e dígitos (teste R10-CRM-004 em testes/r10-json.test.cjs) · `4911a42`
+- **R10-CRM-005** · conserto · Valores do lead rejeitam booleanos em vez de convertê-los em valores monetários (teste R10-CRM-005 em testes/r10-json.test.cjs) · `4911a42`
+- **R10-CRM-006** · conserto · Cadastro exige texto no campo de placa (teste R10-CRM-006 em testes/r10-json.test.cjs) · `4911a42`
+- **R10-CRM-007** · conserto · Motivo de perda exige uma opção em texto (teste R10-CRM-007 em testes/r10-json.test.cjs) · `4911a42`
