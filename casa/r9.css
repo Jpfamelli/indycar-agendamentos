@@ -115,3 +115,10 @@ button.t-texto:hover { text-decoration: underline dotted; }
 .conv-linha b { white-space: nowrap; }
 @media (max-width: 520px) { .conv-linha { grid-template-columns: minmax(0, 1fr) 60px minmax(40px, auto); } }
 #donoBarrasVazio { margin: 8px 0 0; }
+
+/* cartões do "Agora" vazios: a regra ".agora-lista li { display: block }" vencia a do ".vazio-ensina" (grade) e a
+   dica herdava "white-space: nowrap" do "span:first-child" das linhas; a frase não quebrava e a coluna do cartão
+   crescia para 699 px, cortando o número e a dica no celular. Agora a dica quebra e a coluna nunca passa do cartão. */
+.agora-cartao { grid-template-columns: minmax(0, 1fr); }
+.agora-lista li.vazio-ensina { display: grid; gap: 4px; }
+.agora-lista li.vazio-ensina span { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
