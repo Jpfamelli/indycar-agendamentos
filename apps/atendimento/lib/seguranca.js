@@ -137,7 +137,7 @@ function criarLimitador({ maxChaves = 5000, agora = () => Date.now() } = {}) {
   /** Quantos segundos faltam para a chave liberar (para o Retry-After). */
   function espera(chave) {
     const a = uso.get(chave);
-    return a ? Math.max(1, Math.ceil((a.zeraEm - agora()) / 1000)) : 0;
+    return a ? Math.max(0, Math.ceil((a.zeraEm - agora()) / 1000)) : 0;
   }
   /** Conta sem bloquear (ex.: falhas de login por IP). */
   function contar(chave, janelaMs) {
@@ -204,8 +204,9 @@ function texto(v, max = 200) {
 
 /** Inteiro entre min e max, ou `padrao`. */
 function inteiro(v, { min = -Infinity, max = Infinity, padrao = null } = {}) {
+  if (typeof v !== 'number' && (typeof v !== 'string' || !v.trim())) return padrao;
   const n = Number(v);
-  if (v === '' || v === null || v === undefined || !Number.isFinite(n) || !Number.isInteger(n)) return padrao;
+  if (!Number.isInteger(n)) return padrao;
   return Math.min(max, Math.max(min, n));
 }
 
@@ -220,6 +221,7 @@ function dataISO(v) {
 function instante(v) {
   if (typeof v !== 'string' || v.length > 40) return null;
   if (!/^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/.test(v)) return null;
+  if (!dataISO(v.slice(0, 10))) return null;
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
 }
@@ -246,9 +248,9 @@ const CHAVES_SENSIVEIS = /senha|password|secret|token|api_?key|apikey|authorizat
 
 /** Copia o objeto trocando os campos sensíveis por "•••" (recursivo, com limite). */
 function semSegredos(obj, prof = 0) {
-  if (prof > 6 || obj === null || obj === undefined) return obj;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (prof > 6) return '[omitido]';
   if (Array.isArray(obj)) return obj.slice(0, 200).map(x => semSegredos(x, prof + 1));
-  if (typeof obj !== 'object') return obj;
   const out = {};
   for (const [k, v] of Object.entries(obj)) out[k] = CHAVES_SENSIVEIS.test(k) ? '•••' : semSegredos(v, prof + 1);
   return out;
