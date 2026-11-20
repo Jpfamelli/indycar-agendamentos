@@ -154,7 +154,21 @@ try {
   await page.click('#seletorVisao [data-visao="dono"]'); await espera(700);
   await page.evaluate(() => { window.__GRAVADO.length = 0; window.__RESPOSTA_PROMPT = 'R$ 80.000'; });
   const meta = await page.$('[data-meta]');
-  if (meta) { await meta.click(); await espera(400); }
+  if (meta) { await meta.click(); await espera(300); }
+  const campo = await page.evaluate(() => ({ aberto: !!document.querySelector('#metaValor'), foco: document.activeElement && document.activeElement.id }));
+  if (campo.aberto) {   // rodada 9: campo no próprio bloco (antes window.prompt)
+    conferir('meta: abre um campo no bloco, com o foco nele (sem janela do navegador)', campo.foco === 'metaValor', JSON.stringify(campo));
+    await page.keyboard.press('Escape'); await espera(150);
+    const fechou = await page.evaluate(() => [!document.querySelector('#metaValor'), document.activeElement && document.activeElement.hasAttribute('data-meta')]);
+    conferir('meta: Esc cancela e devolve o foco ao botão', fechou[0] && fechou[1], JSON.stringify(fechou));
+    await page.click('[data-meta]'); await espera(200);
+    await page.type('#metaValor', 'oitenta'); await page.keyboard.press('Enter'); await espera(200);
+    const erro = await page.evaluate(() => ({ alerta: (document.querySelector('#metaErro') || {}).textContent || '', invalido: document.querySelector('#metaValor').getAttribute('aria-invalid'), foco: document.activeElement.id, gravou: window.__GRAVADO.length }));
+    conferir('meta: valor que não dá para ler mostra o erro no campo e não grava', /Não entendi/.test(erro.alerta) && erro.invalido === 'true' && erro.foco === 'metaValor' && erro.gravou === 0, JSON.stringify(erro));
+    const ficou = await page.$eval('#metaValor', (i) => i.value);
+    conferir('meta: com erro, o que foi digitado continua no campo para corrigir', ficou === 'oitenta', ficou);
+    await page.$eval('#metaValor', (i) => i.select()); await page.type('#metaValor', 'R$ 80.000'); await page.keyboard.press('Enter'); await espera(400);
+  }
   const metaGravada = await page.evaluate(() => window.__GRAVADO.find((g) => g.tabela === 'casa_metas'));
   conferir('meta: "R$ 80.000" grava 80000', metaGravada && metaGravada.valor && metaGravada.valor.valor === 80000, JSON.stringify(metaGravada && metaGravada.valor));
   });

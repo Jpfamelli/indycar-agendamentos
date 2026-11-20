@@ -383,3 +383,13 @@ test('busca com erro: aviso falado (role alert) e botão "tentar de novo" que bu
   assert.match(s, /<p class="vazio vazio-erro" role="alert">\$\{navigator\.onLine \? 'A busca não respondeu agora\.' : 'Sem internet\.'\} <button type="button" class="btn-link" data-busca-de-novo>tentar de novo<\/button><\/p>/);
   assert.match(s, /if \(e\.target\.closest\('\[data-busca-de-novo\]'\)\) \{ buscar\(inp\.value\); inp\.focus\(\); return; \}/);
 });
+
+test('meta do mês: campo no próprio bloco (sem window.prompt), com rótulo, ajuda, erro no campo e Esc que cancela', () => {
+  const s = semComentarios(ler('painel.js'));
+  assert.doesNotMatch(s, /window\.prompt\(/);
+  assert.match(s, /<label for="metaValor">Meta de faturamento do mês<\/label>/);
+  assert.match(s, /aria-describedby="metaAjuda\$\{erroMeta \? ' metaErro' : ''\}"/);
+  assert.match(s, /<p id="metaErro" class="vazio-erro" role="alert">/);
+  assert.match(s, /e\.key === 'Escape' && editandoMeta/);
+  assert.match(s, /const valor = erroMeta \? rascunhoMeta :/);
+});
