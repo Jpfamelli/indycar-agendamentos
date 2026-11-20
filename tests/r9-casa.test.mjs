@@ -538,3 +538,8 @@ test('busca: as buscas recentes entram nas setas (antes pulavam direto para os c
   assert.match(s, /class="busca-rec" data-linha id="br-\$\{i\}" data-recente="\$\{C\.esc\(x\)\}" aria-label="Buscar de novo: \$\{C\.esc\(x\)\}"/);
   assert.match(ler('r9.css'), /\.busca-rec\.ativa \{ background: var\(--panel-2\); box-shadow: inset 0 0 0 1px var\(--red\); \}/);
 });
+
+test('filtros das tarefas e do sino: depois de filtrar, o foco fica no filtro escolhido (antes ia para o começo da página)', () => {
+  assert.match(semComentarios(ler('tarefas.js')), /filtro = b\.dataset\.filtroT; desenhar\(\); \[\.\.\.document\.querySelectorAll\('#tFiltros \[data-filtro-t\]'\)\]\.find\(\(x\) => x\.dataset\.filtroT === filtro\)\?\.focus\(\);/);
+  assert.match(semComentarios(ler('sino.js')), /filtro = f\.dataset\.filtro; desenhar\(\); \[\.\.\.document\.querySelectorAll\('#sinoFiltros \[data-filtro\]'\)\]\.find\(\(x\) => x\.dataset\.filtro === filtro\)\?\.focus\(\); return;/);
+});

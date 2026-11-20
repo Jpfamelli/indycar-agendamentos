@@ -205,7 +205,7 @@
         else gruposAbertos.add(grupo.dataset.grupoTipo);
       }
       const f = e.target.closest('[data-filtro]');
-      if (f) { filtro = f.dataset.filtro; desenhar(); return; }
+      if (f) { filtro = f.dataset.filtro; desenhar(); [...document.querySelectorAll('#sinoFiltros [data-filtro]')].find((x) => x.dataset.filtro === filtro)?.focus(); return; }   // rodada 9: o foco fica no filtro (antes caía fora do sino)
       const ler = e.target.closest('[data-ler]');
       if (ler) {
         const tipo = ler.closest('[data-grupo-tipo]')?.dataset.grupoTipo;

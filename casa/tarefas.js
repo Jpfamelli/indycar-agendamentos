@@ -239,7 +239,8 @@
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); editando = null; desenhar(); volta(); }
     };
     $('#listaTarefas').onfocusout = (e) => { const i = e.target.closest && e.target.closest('[data-edita]'); if (i && editando === i.dataset.edita) salvarTitulo(i.dataset.edita, i.value); };
-    $('#tFiltros').onclick = (e) => { const b = e.target.closest('[data-filtro-t]'); if (b) { filtro = b.dataset.filtroT; desenhar(); } };
+    // rodada 9: o filtro redesenha os próprios botões; o foco ia para o começo da página (agora fica no filtro escolhido)
+    $('#tFiltros').onclick = (e) => { const b = e.target.closest('[data-filtro-t]'); if (b) { filtro = b.dataset.filtroT; desenhar(); [...document.querySelectorAll('#tFiltros [data-filtro-t]')].find((x) => x.dataset.filtroT === filtro)?.focus(); } };
     C.focarTarefa = () => C.irPara('#tTitulo', { bloco: 'center' });
     C.tarefas = { carregar, prazoISO, lista: () => tarefas, ligas: () => ligas, filtrar: (f) => { filtro = f; desenhar(); } };
     carregar(); carregarNomes();

@@ -401,6 +401,22 @@ try {
   conferir('busca: Enter na recente busca de novo', depois.campo === 'HB20' && depois.achou > 0, JSON.stringify(depois));
   await b.page.close();
   });
+
+  // 26. filtros das tarefas e do sino pelo teclado: o foco fica no filtro escolhido (antes caía no começo da página)
+  await passo("26. filtros mantêm o foco", async () => {
+  const f = await abrir({ papel: 'admin' }, 1440);
+  await f.page.focus('#tFiltros [data-filtro-t="vencidas"]');
+  await f.page.keyboard.press('Enter'); await espera(150);
+  const t = await f.page.evaluate(() => ({ foco: document.activeElement?.dataset?.filtroT || document.activeElement?.tagName, marcado: document.querySelector('#tFiltros [aria-pressed="true"]')?.dataset.filtroT }));
+  conferir('tarefas: Enter no filtro "Vencidas" filtra e o foco fica nele', t.foco === 'vencidas' && t.marcado === 'vencidas', JSON.stringify(t));
+  await f.page.click('#bSino'); await espera(500);
+  const alvo = await f.page.evaluate(() => [...document.querySelectorAll('#sinoFiltros [data-filtro]')].map((b) => b.dataset.filtro).find((x) => x));
+  await f.page.evaluate((a) => [...document.querySelectorAll('#sinoFiltros [data-filtro]')].find((b) => b.dataset.filtro === a).focus(), alvo);
+  await f.page.keyboard.press('Enter'); await espera(150);
+  const s = await f.page.evaluate(() => ({ foco: document.activeElement?.dataset?.filtro ?? document.activeElement?.tagName, aberto: !document.querySelector('#painelSino').hidden }));
+  conferir('sino: Enter num filtro de app filtra e o foco fica nele', s.foco === alvo && s.aberto, JSON.stringify({ ...s, alvo }));
+  await f.page.close();
+  });
 } finally {
   await browser.close();
 }
