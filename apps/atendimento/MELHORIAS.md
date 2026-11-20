@@ -1375,3 +1375,53 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - **R9-ATD-015** · conserto · Uma atualização em tempo real mantém a página de histórico solicitada e preserva a posição da leitura. · `a3d3634`
 - **R9-ATD-016** · conserto · Uma falha de outra conversa não substitui o histórico da conversa aberta. · `a3d3634`
 - **R9-ATD-017** · teste · A suíte verifica cliques repetidos, nova tentativa após falha e atualização concorrente do histórico. · `a3d3634`
+- **R9-ATD-018** · conserto · Conversa aberta no celular com o WhatsApp parado: as mensagens voltam a aparecer (tinham 0 px de altura em 375 x 812; agora 210 px ou mais) · `f28048d`
+- **R9-ATD-019** · celular · Conversa aberta no celular ocupa a tela toda: a barra de telas dá lugar à conversa e a seta volta para a lista · `f28048d`
+- **R9-ATD-020** · enxugar · Dentro da conversa fica um aviso só de WhatsApp parado (o segundo, que repetia o primeiro, sai) · `f28048d`
+- **R9-ATD-021** · celular · No celular a faixa de cima não repete o aviso dentro da conversa e volta ao sair para a lista · `f28048d`
+- **R9-ATD-022** · celular · Ações do cabeçalho da conversa numa linha só (eram duas linhas, 93 px) · `f28048d`
+- **R9-ATD-023** · celular · Etapa, responsável e quem mais está na conversa numa linha que rola (eram 72 px) · `f28048d`
+- **R9-ATD-024** · celular · Propostas da IA com teto de altura e rolagem: não empurram mais as mensagens para fora da tela · `f28048d`
+- **R9-ATD-025** · celular · Aviso de WhatsApp parado da conversa com o texto e o botão lado a lado · `f28048d`
+- **R9-ATD-026** · celular · Faixa do WhatsApp parado enxuta no celular: de 135 px para no máximo 96 px · `f28048d`
+- **R9-ATD-027** · conserto · Computador da recepção (1366 x 768) com o WhatsApp parado: as mensagens têm 150 px garantidos (tinham 0 px); quem encolhe e rola são as propostas da IA · `f28048d`
+- **R9-ATD-028** · conserto · Computador com mouse: a triagem volta a ser compacta e a lista de conversas começa antes de 560 px (começava em 658 px de uma tela de 768) · `f28048d`
+- **R9-ATD-029** · tela · Computador: aviso de WhatsApp parado e resumo da fila com o botão ao lado do texto, sem linha extra · `f28048d`
+- **R9-ATD-030** · tela · Tela baixa de computador: a faixa do que o cliente tem nos outros sistemas fica numa linha só, que rola · `f28048d`
+- **R9-ATD-031** · conserto · O título Copiloto aparece inteiro na ficha estreita (virava reticências ao lado dos selos de uso) · `f28048d`
+- **R9-ATD-032** · acessibilidade · No celular os botões da barra de telas continuam com nome para o leitor de tela (o nome era escondido com display:none) · `f28048d`
+- **R9-ATD-033** · celular · Logo menor e tema dentro do menu do perfil: sobram mais telas à vista na barra do celular · `f28048d`
+- **R9-ATD-034** · celular · Barra de telas, sino e seletor de sistemas com 44 px (eram 37, 36 e 22 px) · `f28048d`
+- **R9-ATD-035** · celular · Botão Abrir Integrações da faixa de aviso com 44 px (tinha 24 px) · `f28048d`
+- **R9-ATD-036** · celular · Botões e links de texto de todas as telas com 44 px (tinham de 17 a 36 px) · `f28048d`
+- **R9-ATD-037** · celular · Filtros, alternadores e campos de busca e de data com 44 px em Atalhos, Tarefas, IA, Relatórios, Equipe e Auditoria (tinham de 23 a 36 px) · `f28048d`
+- **R9-ATD-038** · celular · Etiqueta de etapa, responsável, faixa do cliente e respostas "para agora" com 44 px na conversa (tinham de 23 a 34 px) · `f28048d`
+- **R9-ATD-039** · celular · Chegou e Reenviar, na mensagem que não saiu, com 44 px (tinham 19 px) · `f28048d`
+- **R9-ATD-040** · celular · Painel do cliente: ações rápidas, títulos de bloco e botões com 44 px (tinham de 36 a 42 px) · `f28048d`
+- **R9-ATD-041** · celular · Ficha do cliente: fechar, links para os outros sistemas e editar com 44 px (tinham de 18 a 33 px) · `f28048d`
+- **R9-ATD-042** · celular · Botões do copiloto com 44 px (tinham 40 px) · `f28048d`
+- **R9-ATD-043** · celular · Linhas de abrir e fechar (ver detalhes, Anteriores, Histórico, feitas) com 44 px (tinham de 19 a 26 px) · `f28048d`
+- **R9-ATD-044** · celular · Tarefas: concluir e os três ícones de ação com 44 px (tinham 26 e 30 px) · `f28048d`
+- **R9-ATD-045** · celular · Estrela de favorito do atalho e Mover do funil com 44 px (tinham 28 e 40 px) · `f28048d`
+- **R9-ATD-046** · celular · Bolinhas de cor do avatar, em Minha conta, com 44 px (tinham 26 px) · `f28048d`
+- **R9-ATD-047** · celular · Caixas de marcar com 24 px e linha de 44 px (o quadradinho tinha 13 px) · `f28048d`
+- **R9-ATD-048** · celular · Horários do Agendar e botões da retomada com 44 px (tinham 40 e 36 px) · `a5a3819`
+- **R9-ATD-049** · conserto · As faixas de WhatsApp parado, voltou e andando seguem o tema do app (seguiam o tema do sistema: no app escuro com Windows claro saíam rosa claro) · `a5a3819`
+- **R9-ATD-050** · acessibilidade · Contadores do pátio acima da lista com contraste AA (era 2,5:1) · `a5a3819`
+- **R9-ATD-051** · acessibilidade · Busca global: textos secundários e título dos grupos com contraste AA nos dois temas · `a5a3819`
+- **R9-ATD-052** · acessibilidade · Etiqueta de etapa com contraste AA nos dois temas (era 1,8:1 no tema claro) · `f28048d`
+- **R9-ATD-053** · acessibilidade · Etiqueta do responsável com contraste AA nos dois temas (era 3,4:1) · `f28048d`
+- **R9-ATD-054** · acessibilidade · Iniciais de quem enviou a mensagem com contraste AA (era 2,7:1) · `f28048d`
+- **R9-ATD-055** · acessibilidade · Tema claro: vermelho e verde de texto mais escuros; selo IA ativa (2,7:1), Assumir (4,2:1) e etiquetas vermelhas (4,2:1) passam no AA · `f28048d`
+- **R9-ATD-056** · acessibilidade · Tema claro: etiqueta de aniversário com contraste AA (era 3,9:1) · `f28048d`
+- **R9-ATD-057** · acessibilidade · Tema claro: hora e carro da conversa selecionada com contraste AA (era 4,4:1) · `f28048d`
+- **R9-ATD-058** · acessibilidade · Selo de espera do cliente com contraste AA nos três níveis · `f28048d`
+- **R9-ATD-059** · acessibilidade · Tema claro: azul de texto mais escuro; etiqueta Novo hoje passa no AA · `f28048d`
+- **R9-ATD-060** · acessibilidade · Iniciais de quem está na mesma conversa com contraste AA (era 3,95:1) · `fcdbe2a`
+- **R9-ATD-061** · acessibilidade · Os cinco gráficos dos Relatórios têm resumo em texto para leitor de tela (série, total, período, pico) · `fcdbe2a`
+- **R9-ATD-062** · acessibilidade · Gráficos e tabelas que rolam para o lado recebem foco pelo teclado · `fcdbe2a`
+- **R9-ATD-063** · acessibilidade · Os avisos do cliente no cabeçalho da conversa recebem foco pelo teclado quando rolam · `fcdbe2a`
+- **R9-ATD-064** · acessibilidade · Cartão do funil deixa de ser um botão com botão dentro (Mover) · `fcdbe2a`
+- **R9-ATD-065** · acessibilidade · Cartão de atalho deixa de ser um botão com botão dentro (favorito) · `fcdbe2a`
+- **R9-ATD-066** · teste · Suíte nova test/r9-tela.test.js: 11 testes, com os geradores de gráfico rodando numa caixa de areia · `f28048d`
+- **R9-ATD-067** · teste · Roteiro scripts/roteiro-r9.cjs: 133 conferências no Chrome (axe-core, 44 px, rolagem lateral e alturas em 375, 1366 e 1440 px, dois temas), só com servidor de mentira · `f28048d`
