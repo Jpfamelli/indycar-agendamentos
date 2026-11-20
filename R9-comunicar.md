@@ -22,3 +22,5 @@ Chrome com mock e tráfego externo bloqueado. O painel abre por clique e teclado
 A segunda passagem protege consultas concorrentes, busca e filtros de mensagens. Foram registradas 14 melhorias em `e6bc7ed`, `290e36a` e `8e5b653`, totalizando **31/100**. A suíte passou em **310/310**. Retomar em R9-COM-032. Nenhum nome de botão ou de tela mudou nesta passagem.
 
 O uso de Campanhas, Clientes e Satisfação por rota segue indeterminado. Para João, revisar o agrupamento em Mais e verificar a chave do CodeWords em Atendimento › Configurações › Integrações. Para Claude, conferir o caminho no manual ao integrar.
+
+A retomada registrou a proteção da ficha de `ea9c56f` e aplicou em `e5040f5` proteções à prévia e aos aniversários, com nova tentativa, indicação de carregamento e ajustes de foco. Total **42/100**, próximo **R9-COM-043**. A suíte isolada passou **310/310** e a verificação de sintaxe passou. Faltam repetir no Chrome as jornadas afetadas nesta retomada, concluir a auditoria axe, comparar as capturas e completar o inventário. Nenhum nome de ação ou tela existente mudou.

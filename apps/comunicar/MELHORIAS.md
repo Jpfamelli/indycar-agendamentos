@@ -1039,3 +1039,14 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-029** · teste · O roteiro protegido confere e captura os painéis nos temas claro e escuro. · `8e5b653`
 - **R9-COM-030** · teste · O Chrome reproduz a navegação durante consulta atrasada e uma atualização que falha. · `8e5b653`
 - **R9-COM-031** · teste · O roteiro verifica que um período invertido preserva o filtro e pode ser limpo. · `8e5b653`
+- **R9-COM-032** · conserto · A ficha de um cliente ignora respostas de outra ficha ou de uma ficha já fechada. · `ea9c56f`
+- **R9-COM-033** · aviso · A abertura da ficha pode ser repetida pelo aviso de erro. · `ea9c56f`
+- **R9-COM-034** · aviso · Uma falha de atualização mantém a ficha atual visível. · `ea9c56f`
+- **R9-COM-035** · acessibilidade · A ficha recebe foco ao abrir e o recupera após atualizar os controles. · `ea9c56f`
+- **R9-COM-036** · conserto · A resposta da prévia não altera outra janela aberta durante a consulta. · `e5040f5`
+- **R9-COM-037** · aviso · A prévia oferece nova tentativa quando a consulta falha. · `e5040f5`
+- **R9-COM-038** · conserto · A lista de aniversários ignora respostas de uma janela que já foi fechada. · `e5040f5`
+- **R9-COM-039** · aviso · A lista de aniversários oferece nova tentativa quando a consulta falha. · `e5040f5`
+- **R9-COM-040** · acessibilidade · A prévia e os aniversários indicam carregamento para tecnologia assistiva. · `e5040f5`
+- **R9-COM-041** · acessibilidade · Ao fechar uma janela cujo conteúdo foi substituído, o foco volta ao controle que a abriu. · `e5040f5`
+- **R9-COM-042** · acessibilidade · O foco entra na janela imediatamente e prioriza o primeiro controle visível do formulário. · `e5040f5`
