@@ -10,32 +10,21 @@
   let C = null, L = null, N = null, sonda = null, rpc = null, banco = null, leituraEm = 0, timer = null, timerBanco = null, antes = null, aberto = false, ligEm = 0;
   const $ = (s) => document.querySelector(s);
   let vigia = null, montagem = 0, leituraVigia = 0;
-  const CHAVE = 'codewords-chave-recusada';
-  const planos = [
-    [/^(whatsapp-|codewords-|webhook-)/, 'Abra Integrações no Atendimento, confira a conexão e faça o teste de envio.'],
-    [/^anthropic-/, 'Confira a chave e o saldo da IA nas Integrações do Atendimento.'],
-    [/^comunicar-/, 'Abra o Comunicar e confira a fila e o carteiro.'],
-    [/^patio-/, 'Abra o Pátio e confira a rotina de avisos.'],
-    [/^backup-/, 'Peça ao suporte para conferir o último backup e testar a restauração.'],
-    [/^(exclusao-em-massa|admin-novo)$/, 'Confira a atividade da equipe e confirme com o administrador.'],
-  ];
 
+  /* rodada 9: título curto e o que fazer para cada um dos 23 avisos graves (N.faixaDoVigia); o texto cru do Vigia vira detalhe pequeno;
+     selo "Urgente" com ícone e palavra (não só a cor); link para o app certo quando a pessoa tem acesso */
+  function linkDoVigia(abrir) {
+    if (!abrir || !C.podeUsar(abrir.app) || !C.bases[abrir.app]) return '';
+    try {
+      const url = new URL(abrir.q || '', new URL(C.bases[abrir.app], location.origin)).href;
+      return ` <a href="${C.esc(url)}" target="${C.esc(L.nomeDaAba(abrir.app))}">${C.esc(abrir.rotulo)}</a>`;
+    } catch { return ''; }
+  }
   function desenharVigia() {
     const avisos = [];
-    if (vigia?.erro) avisos.push('<li>Não deu para conferir os avisos do Vigia agora.</li>');
-    for (const aviso of vigia?.graves || []) {
-      const chave = aviso.codigo === CHAVE;
-      const titulo = chave ? 'WhatsApp recusado' : (aviso.resumo || N.regraDoCodigo(aviso.codigo)?.frase || 'Problema detectado pelo Vigia');
-      const tempo = Number.isInteger(aviso.dias) && aviso.dias > 0 ? ` há ${aviso.dias} dia${aviso.dias === 1 ? '' : 's'}` : '';
-      const passo = chave ? 'Gere uma chave nova no CodeWords e cole em Atendimento › Integrações.'
-        : planos.find(([codigo]) => codigo.test(aviso.codigo))?.[1] || 'Confira o sistema afetado e peça ajuda ao suporte se a falha continuar.';
-      const link = chave && C.podeUsar('atendimento') ? ` <a href="${C.esc(new URL('?aba=integracoes', new URL(C.bases.atendimento, location.origin)).href)}" target="${C.esc(L.nomeDaAba('atendimento'))}">Abrir Integrações</a>` : '';
-      avisos.push(`<li><strong>${C.esc(titulo + tempo)}</strong><span>${C.esc(passo)}${link}</span></li>`);
-    }
-    if (vigia?.vigia_parado) {
-      const horas = Math.max(1, Math.floor((Date.parse(vigia.gerado_em) - Date.parse(vigia.vigia_conferiu_em)) / 3600000));
-      const titulo = Number.isFinite(horas) ? `O Vigia não confere há ${horas} horas` : 'O Vigia está sem registro da última conferência';
-      avisos.push(`<li><strong>${titulo}</strong><span>Peça ao suporte para conferir a rotina do Vigia.</span></li>`);
+    if (vigia?.erro) avisos.push('<li class="vigia-item vigia-leve"><strong>Não deu para conferir os avisos do Vigia agora.</strong><span>A Casa tenta de novo sozinha em alguns minutos.</span></li>');
+    for (const a of N.faixaDoVigia(vigia)) {
+      avisos.push(`<li class="vigia-item"><span class="vigia-selo"><span aria-hidden="true">⚠</span> Urgente</span><strong>${C.esc(a.titulo)}${a.tempo ? ' ' + C.esc(a.tempo) : ''}</strong><span>${C.esc(a.passo)}${linkDoVigia(a.abrir)}</span>${a.detalhe ? `<small class="vigia-detalhe">O Vigia anotou: ${C.esc(a.detalhe)}</small>` : ''}</li>`);
     }
     for (const el of document.querySelectorAll('[data-avisos-vigia]')) {
       el.hidden = !avisos.length;
@@ -72,7 +61,8 @@
     $('#saudeBotao').setAttribute('aria-expanded', String(aberto));
     $('#saudePainel').hidden = !aberto;
     const topo = document.querySelector('.topo-marca');
-    if (topo) { topo.dataset.saude = r.tom; topo.title = r.tom === 'ok' ? '' : r.texto; }
+    // rodada 9: o ponto ao lado do logo era só cor e só "title" (que o leitor de tela não lê com aria-label e o celular não mostra)
+    if (topo) { topo.dataset.saude = r.tom; topo.title = r.tom === 'ok' || r.tom === 'neutro' ? '' : r.texto; topo.setAttribute('aria-label', N.rotuloDoLogo(r)); }
     $('#saudeLista').innerHTML = s.itens.map((i) => {
       const app = i.app && C.podeUsar(i.app) ? `<a class="saude-abrir" href="${C.esc(C.bases[i.app])}" target="${C.esc(L.nomeDaAba(i.app))}">Abrir ${C.esc(L.APPS[i.app].nome)} ↗</a>` : '';
       return `<li class="saude-item tom-${C.esc(i.tom)}" data-sistema="${C.esc(i.k)}">
@@ -88,12 +78,8 @@
   /** Avisa uma vez quando um sistema piora ou volta (comparando com a leitura anterior). */
   function avisarMudancas(s) {
     const agora = Object.fromEntries(s.itens.map((i) => [i.k, i.tom]));
-    if (antes) {
-      for (const i of s.itens) {
-        if (antes[i.k] && antes[i.k] !== 'ruim' && i.tom === 'ruim') C.toast(`${i.nome} ficou com problema.`, 5000);
-        else if (antes[i.k] === 'ruim' && i.tom === 'ok') C.toast(`${i.nome} voltou ao normal.`, 4000);
-      }
-    }
+    const aviso = N.avisoDeMudancas(antes, s.itens);
+    if (aviso) C.toast(aviso.texto, aviso.ruim ? 5000 : 4000);
     antes = agora;
   }
 
@@ -129,7 +115,7 @@
     box.dataset.ok = '1';
     const cab = '<h3 class="dono-h">Ligações entre sistemas</h3>';
     if (!r.itens.length) { box.innerHTML = cab + '<p class="vazio vazio-ensina"><b>Tudo ligado. 🔗</b><span>Pátio, Orçador, Agenda, CRM e Atendimento estão se enxergando: nenhum caso solto agora.</span></p>'; return; }
-    box.innerHTML = cab + `<p class="dono-nota">${r.total} caso${r.total === 1 ? '' : 's'} em ${r.tipos} tipo${r.tipos === 1 ? '' : 's'}${r.alta ? ` · ${r.alta} grave${r.alta === 1 ? '' : 's'}` : ''}</p><ul class="ligacoes">${r.itens.map((i) => {
+    box.innerHTML = cab + `<p class="dono-nota">${C.esc(N.textoDasLigacoes(r))}</p><p class="vazio-mini">${C.esc(N.EXPLICA_LIGACOES)}</p><ul class="ligacoes">${r.itens.map((i) => {
       const app = C.podeUsar(i.app) ? i.app : null;
       const alvo = i.link || (app ? C.bases[app] : '');
       const miolo = `<span class="a-num">${i.n}</span><span class="a-txt">${C.esc(i.texto)}<small>${C.esc(i.appNome)} · ${C.esc(i.como)}</small></span><span class="a-seta" aria-hidden="true">›</span>`;

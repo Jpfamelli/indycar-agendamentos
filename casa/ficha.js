@@ -37,7 +37,7 @@
       return `<li class="ficha-acao" data-acao="${C.esc(a.codigo)}"><span class="a-txt"><b>${C.esc(a.titulo)}</b>${a.motivo ? `<small>${C.esc(a.motivo)}</small>` : ''}</span>${botao}</li>`;
     }).join('');
     const patio = f.patio.map((o) => `<li><span class="a-txt"><b>#${C.esc(o.numero)}</b> ${C.esc([o.veiculo, o.placa].filter(Boolean).join(' · ') || 'Carro')}<small>${C.esc(o.etapa)}${o.atrasado ? ' · parado além do normal' : ''}${o.extras ? ` · ${o.extras} extra${o.extras > 1 ? 's' : ''} esperando o cliente` : ''}</small></span>${app(o.link, 'patio', 'Abrir a OS')}</li>`).join('');
-    const orc = f.orcamentos.map((q) => `<li><span class="a-txt"><b>${C.esc(L.numeroOrc(q.numero))}</b> ${C.esc(L.brl(q.total))}<small>${C.esc(q.status)}${q.veiculo ? ' · ' + C.esc(q.veiculo) : ''}${q.esperandoHoras >= 6 ? ` · esperando há ${C.esc(L.duracao(q.esperandoHoras * 36e5))}` : ''}</small></span>${app(q.link, 'orcador', 'Abrir')}</li>`).join('');
+    const orc = f.orcamentos.map((q) => `<li><span class="a-txt"><b>${C.esc(L.numeroOrc(q.numero))}</b> ${C.esc(L.brl(q.total))}<small>${C.esc(N.situacaoDoOrc(q))}${q.veiculo ? ' · ' + C.esc(q.veiculo) : ''}</small></span>${app(q.link, 'orcador', 'Abrir')}</li>`).join('');
     const ag = f.agenda.map((a) => `<li><span class="a-txt"><b>${C.esc(dataCurta(a.data))} ${C.esc(a.hora)}</b> ${C.esc(a.servico || 'Horário')}<small>${C.esc(a.status)}</small></span>${app(a.link, 'agenda', 'Abrir')}</li>`).join('');
     const linha = f.linha.map((e) => `<li><span class="a-txt"><b>${C.esc(e.titulo)}</b>${e.detalhe ? `<small>${C.esc(e.detalhe)}</small>` : ''}</span><time>${C.esc(quandoCurto(e.quando))}</time></li>`).join('');
     $('#fichaCorpo').innerHTML =
@@ -71,7 +71,7 @@
       desenhar(N.fichaDe(data, C.bases, location.origin), data);
     } catch (e) {
       if (minha !== seq) return;
-      $('#fichaCorpo').innerHTML = `<p class="vazio vazio-erro">${navigator.onLine ? 'Não consegui montar a ficha agora.' : 'Sem internet.'} <button type="button" class="btn-link" data-ficha-de-novo="${C.esc(e164)}">tentar de novo</button></p>`;
+      $('#fichaCorpo').innerHTML = `<p class="vazio vazio-erro" role="alert">${navigator.onLine ? 'Não consegui montar a ficha agora.' : 'Sem internet.'} <button type="button" class="btn-link" data-ficha-de-novo="${C.esc(e164)}">tentar de novo</button></p>`;
     }
   }
   /** Esc fecha a ficha mesmo se o foco saiu dela (depois de abrir uma aba, por exemplo). */
@@ -97,7 +97,7 @@
       const r = await fetch('/api/central/links-cliente', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (session ? session.access_token : '') }, body: JSON.stringify({ telefone: f.tel55 }), cache: 'no-store' });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.erro || 'falhou');
-      if (!d.ok) { caixa.innerHTML = `<p class="vazio">${d.motivo === 'cliente_nao_encontrado' ? 'Esse telefone ainda não é cliente cadastrado — marque um horário ou crie um orçamento primeiro.' : 'Os links não estão disponíveis agora.'}</p>`; return; }
+      if (!d.ok) { caixa.innerHTML = `<p class="vazio" role="status">${d.motivo === 'cliente_nao_encontrado' ? 'Esse telefone ainda não é cliente cadastrado. Marque um horário ou crie um orçamento primeiro.' : 'Os links não estão disponíveis agora.'}</p>`; return; }
       const nome = f.nome && !/^\(/.test(f.nome) ? f.nome : d.nome;
       const linhas = [
         ['minha', 'Minha IndyCar (histórico do carro)', d.minha, `Aqui está a sua Minha IndyCar, com o histórico do seu carro: `],
@@ -106,9 +106,9 @@
       ].filter((x) => x[2]);
       caixa.innerHTML = linhas.length ? `<h3>Links do cliente</h3><ul class="ficha-lista">${linhas.map(([k, rot, url, frase]) => `<li data-link="${C.esc(k)}"><span class="a-txt"><b>${C.esc(rot)}</b><input class="ficha-url" readonly value="${C.esc(url)}" aria-label="${C.esc(rot)}" /></span>
           <button type="button" class="ficha-btn" data-copiar-url="${C.esc(url)}">Copiar</button>${wa(f.tel55, `${W.mensagemWa('oi', { nome })} ${frase}${url}`, 'Mandar', 'wa-mini', `Mandar o link ${rot} pelo WhatsApp`)}</li>`).join('')}</ul>` +
-        (d.aceita_mensagens === false ? '<p class="dono-nota">Este cliente pediu para não receber mensagens: copie o link, mas não mande pelo WhatsApp.</p>' : '') : '<p class="vazio">Sem links para este cliente agora.</p>';
+        (d.aceita_mensagens === false ? '<p class="dono-nota">Este cliente pediu para não receber mensagens: copie o link, mas não mande pelo WhatsApp.</p>' : '') : '<p class="vazio" role="status">Sem links para este cliente agora.</p>';
     } catch (e) {
-      caixa.innerHTML = `<p class="vazio vazio-erro">Não consegui gerar os links agora. ${C.esc(String(e && e.message || '').slice(0, 80))}</p>`;
+      caixa.innerHTML = `<p class="vazio vazio-erro" role="alert">Não consegui gerar os links. ${C.esc(N.erroDosLinks(e, navigator.onLine))} <button type="button" class="btn-link" data-ficha-links>tentar de novo</button></p>`;
     } finally { if (btn) btn.disabled = false; }
   }
   async function copiar(texto, msg) {

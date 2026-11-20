@@ -45,6 +45,7 @@
     document.querySelectorAll('#acoes .acao').forEach((el) => {
       const k = (el.getAttribute('target') || '').replace('indycar-', '');
       el.classList.toggle('acao-fora', fora.has(k));
+      el.title = fora.has(k) ? 'Este app não está respondendo agora. Clique só se precisar.' : '';
     });
     for (const [id, app] of [['#cPatio', 'patio'], ['#cOrc', 'orcador']]) {
       const det = document.querySelector(id + ' [data-det]');
@@ -72,7 +73,8 @@
     document.querySelectorAll('#agora .agora-cartao').forEach((el) => {
       const fechado = !!rec[el.id];
       el.classList.toggle('recolhido', fechado);
-      const b = el.querySelector('.recolher'); if (b) { b.setAttribute('aria-expanded', String(!fechado)); b.textContent = fechado ? '▸' : '▾'; b.title = fechado ? 'Mostrar a lista' : 'Esconder a lista'; }
+      // rodada 9: o nome do botão sai do rótulo de AGORA (o mecânico vê "Meus carros no pátio"; antes ficava o nome do HTML)
+      const b = el.querySelector('.recolher'); if (b) { const rot = el.querySelector('.agora-rotulo')?.textContent || 'o cartão'; b.setAttribute('aria-label', (fechado ? 'Mostrar a lista de ' : 'Esconder a lista de ') + rot); b.setAttribute('aria-expanded', String(!fechado)); b.textContent = fechado ? '▸' : '▾'; b.title = fechado ? 'Mostrar a lista' : 'Esconder a lista'; }
     });
   }
   function ligarRecolher() {
@@ -157,10 +159,10 @@
       case 'marcar-lidas': return $('#bLerTodas').click();
       case 'atalhos': return $('#bAjuda').click();
       case 'saude': return C.saude && C.saude.abrir(true);
-      case 'tarefas-vencidas': C.tarefas && C.tarefas.filtrar('vencidas'); return document.querySelector('#tTarefas').scrollIntoView({ block: 'start', behavior: 'smooth' });
-      case 'tarefas-orcador': C.tarefas && C.tarefas.filtrar('orcador'); return document.querySelector('#tTarefas').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      case 'tarefas-vencidas': C.tarefas && C.tarefas.filtrar('vencidas'); return C.irPara('#tTarefas');
+      case 'tarefas-orcador': C.tarefas && C.tarefas.filtrar('orcador'); return C.irPara('#tTarefas');
       case 'recolher': return recolherTodos();
-      case 'ligacoes': C.painel && C.painel.trocarVisao('dono'); return setTimeout(() => { const b = document.querySelector('#donoLigacoes'); if (b) b.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 150);
+      case 'ligacoes': C.painel && C.painel.trocarVisao('dono'); return setTimeout(() => C.irPara('#donoLigacoes'), 150);
       case 'visao-dono': return C.painel && C.painel.trocarVisao('dono');
       case 'visao-operacao': return C.painel && C.painel.trocarVisao('operacao');
       case 'sair': return document.querySelector('[data-acao="sair"]').click();
@@ -173,7 +175,7 @@
   /* ---------------- resumo do dia (dono) ---------------- */
   async function copiarResumo(dono, agora) {
     const texto = M.resumoDoDia({ dono, agora, hojeIso: L.hojeSP() });
-    try { await navigator.clipboard.writeText(texto); C.toast('Resumo do dia copiado — é só colar no WhatsApp.'); }
+    try { await navigator.clipboard.writeText(texto); C.toast('Resumo do dia copiado. É só colar no WhatsApp.'); }
     catch { C.toast('Não consegui copiar neste navegador.'); }
   }
 

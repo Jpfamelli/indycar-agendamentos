@@ -104,8 +104,8 @@
     const itens = [];
     if (conversas.length) itens.push({ k: 'conversas', n: conversas.length, texto: `${conversas.length} ${conversas.length === 1 ? 'conversa sua esperando' : 'conversas suas esperando'} resposta`, app: 'atendimento' });
     if (vencidas.length) itens.push({ k: 'vencidas', n: vencidas.length, texto: `${vencidas.length} ${vencidas.length === 1 ? 'tarefa vencida' : 'tarefas vencidas'}`, app: null });
-    if (horarios.length) itens.push({ k: 'horarios', n: horarios.length, texto: `${horarios.length} ${horarios.length === 1 ? 'horário seu' : 'horários seus'} por vir hoje`, extra: proximo ? `o próximo é ${L.hora5(proximo.hora)} — ${proximo.nome || ''}` : '', app: 'agenda' });
-    if (semDono && !conversas.length) itens.push({ k: 'sem-dono', n: semDono, texto: `${semDono} ${semDono === 1 ? 'conversa sem dono' : 'conversas sem dono'} — pegue uma`, app: 'atendimento' });
+    if (horarios.length) itens.push({ k: 'horarios', n: horarios.length, texto: `${horarios.length} ${horarios.length === 1 ? 'horário seu' : 'horários seus'} por vir hoje`, extra: proximo ? `o próximo é às ${L.hora5(proximo.hora)}${proximo.nome ? ': ' + proximo.nome : ''}` : '', app: 'agenda' });
+    if (semDono && !conversas.length) itens.push({ k: 'sem-dono', n: semDono, texto: `${semDono} ${semDono === 1 ? 'conversa sem dono' : 'conversas sem dono'}: pegue uma`, app: 'atendimento' });
     return { hojeIso, itens, total: itens.reduce((s, i) => s + i.n, 0), proximo, vencidas: vencidas.length };
   }
 
@@ -201,13 +201,34 @@
     }
     return out.sort((a, b) => Date.parse(b.created_at || 0) - Date.parse(a.created_at || 0));
   }
-  const ROTULO_TIPO = { atraso: 'atrasos', falta: 'faltas', nao_veio: 'faltas', extra: 'extras esperando', pronto: 'carros prontos', orcamento: 'orçamentos', aprovado: 'aprovados', recusado: 'recusados', orcamento_aprovado: 'orçamentos aprovados', orcamento_recusado: 'orçamentos recusados', conversa: 'conversas', mensagem: 'mensagens', lead: 'leads', tarefa: 'tarefas', patio: 'pátio', aguardando: 'conversas aguardando', espera: 'conversas esperando', ia: 'avisos da IA', resumo: 'resumos', resumo_semanal: 'resumos da semana', tarefas_vencidas: 'tarefas vencidas', orcamento_visto: 'orçamentos vistos', reabordar: 'orçamentos para reabordar', avaliacao: 'avaliações' };
+  const ROTULO_TIPO = { atraso: 'atrasos', falta: 'faltas', nao_veio: 'faltas', extra: 'extras esperando', pronto: 'carros prontos', orcamento: 'orçamentos', aprovado: 'aprovados', recusado: 'recusados', orcamento_aprovado: 'orçamentos aprovados', orcamento_recusado: 'orçamentos recusados', conversa: 'conversas', mensagem: 'mensagens', lead: 'contatos novos', tarefa: 'tarefas', patio: 'pátio', aguardando: 'conversas aguardando', espera: 'conversas esperando', ia: 'avisos da IA', resumo: 'resumos', resumo_semanal: 'resumos da semana', tarefas_vencidas: 'tarefas vencidas', orcamento_visto: 'orçamentos vistos', reabordar: 'orçamentos para reabordar', avaliacao: 'avaliações' };
   const rotuloTipo = (t) => ROTULO_TIPO[t] || t || 'avisos';
   /** Adiados neste aparelho: { id: ateMs }. Devolve só os que ainda não voltaram. */
   function aindaAdiados(mapa, agoraMs = Date.now()) {
     const out = {};
     for (const [id, ate] of Object.entries(mapa || {})) if (num(ate) > agoraMs) out[id] = ate;
     return out;
+  }
+  /**
+   * Valor da meta do mês como a pessoa escreve: "80000", "80.000", "R$ 80.000,00", "80 mil", "80k", "1,5 milhão".
+   * Devolve reais inteiros; '' (vazio) = tirar a meta; NaN = não entendi. Antes "R$ 80.000" era recusado.
+   */
+  function valorDaMeta(texto) {
+    let s = String(texto == null ? '' : texto).toLowerCase().replace(/r\$/g, '').replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    let mult = 1;
+    const m = /^(.*?)\s*(mil|k|milh[aãoõ]es|milh[aã]o|mi)$/.exec(s);
+    if (m) { s = m[1].trim(); mult = /^(mil|k)$/.test(m[2]) ? 1e3 : 1e6; }
+    if (!/^\d[\d.,]*$/.test(s)) return NaN;
+    if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');            // 80.000,50 → 80000.50
+    else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');            // 80.000 → 80000
+    const n = Number(s) * mult;
+    if (n === 0) return '';                                                    // "0" também tira a meta
+    return Number.isFinite(n) && n > 0 && n < 1e8 ? Math.round(n) : NaN;
+  }
+  /** "Marcar todas como lidas" vale só para o que está na tela: os avisos visíveis (já sem adiados e já filtrados pela busca), ainda não lidos e do app escolhido. */
+  function idsParaLerTodas(visiveis, app = '') {
+    return (visiveis || []).filter((n) => n && n.id && !n.lida_em && (!app || n.app === app)).map((n) => n.id);
   }
 
   /* ---------------- visão do dono ---------------- */
@@ -242,7 +263,7 @@
     const o = agora?.orcamentos || {};
     const c = agora?.conversas || {};
     const h = agora?.agenda || {};
-    const linhas = [`*${nome} — resumo de ${hojeIso ? hojeIso.split('-').reverse().join('/') : 'hoje'}*`,
+    const linhas = [`*${nome}: resumo de ${hojeIso ? hojeIso.split('-').reverse().join('/') : 'hoje'}*`,
       `Faturado hoje: ${L.brl(f.hoje)} (${num(f.fechados_hoje)} ${num(f.fechados_hoje) === 1 ? 'fechamento' : 'fechamentos'})`,
       `Semana: ${L.brl(f.semana)} · Mês: ${L.brl(f.mes)}`,
       `Carros no pátio: ${num(p.total)}${num(p.prontos) ? ` (${p.prontos} pronto${p.prontos > 1 ? 's' : ''} p/ retirar)` : ''}`,
@@ -253,14 +274,16 @@
   }
 
   /* ---------------- atalhos extras ---------------- */
-  const ATALHOS_NUMERO = { 1: 'agenda', 2: 'atendimento', 3: 'crm', 4: 'comunicar', 5: 'patio', 6: 'orcador' };
+  const ATALHOS_NUMERO = { 1: 'agenda', 2: 'atendimento', 3: 'crm', 4: 'comunicar', 5: 'patio', 6: 'orcador', 7: 'ads' };
   /** Estados vazios que ensinam: o que dizer e qual o próximo passo em cada cartão. */
   const VAZIOS = {
-    cPatio: { texto: 'Nenhum carro dentro da oficina agora.', dica: 'Quando um cliente chega, toque em "Chegou" na Agenda ou em "+ Nova entrada" — o carro aparece aqui com a etapa ao vivo.' },
+    cPatio: { texto: 'Nenhum carro dentro da oficina agora.', dica: 'Quando um cliente chega, toque em "Chegou" na Agenda ou em "+ Nova entrada": o carro aparece aqui com a etapa ao vivo.' },
+    /* rodada 9: o mecânico só vê os carros dele; o texto da oficina inteira (e o "+ Nova entrada", que ele não tem) não servia */
+    cPatioMeus: { texto: 'Nenhum carro passado para você.', dica: 'Quando o consultor passar um carro para você no Pátio, ele aparece aqui com a etapa ao vivo. Os outros carros da oficina estão em "Abrir o Pátio".' },
     cOrc: { texto: 'Nenhum orçamento esperando resposta.', dica: 'Orçamento enviado e ainda sem resposta aparece aqui, com o tempo de espera e se o cliente já abriu o link.' },
     cConversas: { texto: 'Ninguém esperando o consultor.', dica: 'Conversa em que o cliente escreveu por último e a equipe ainda não respondeu aparece aqui, da mais antiga para a mais nova.' },
     cHoje: { texto: 'Nenhum horário marcado para hoje.', dica: 'Use "+ Novo horário" ou peça ao Atendimento para oferecer horários livres ao cliente.' },
-    cLeads: { texto: 'Todo lead novo tem responsável.', dica: 'Leads dos últimos 7 dias sem dono aparecem aqui para alguém assumir no CRM.' },
+    cLeads: { texto: 'Todo contato novo tem responsável.', dica: 'Contatos dos últimos 7 dias sem dono aparecem aqui para alguém assumir no CRM.' },
   };
   /** Clima da oficina: aberta, abre em, fecha em. */
   function climaDaOficina(agora = new Date()) {
@@ -268,7 +291,7 @@
     const hm = new Intl.DateTimeFormat('en-GB', { timeZone: FUSO, hour: '2-digit', minute: '2-digit', hour12: false }).format(agora);
     const [h, m] = hm.split(':').map(Number);
     const min = h * 60 + m;
-    if (dia === 'Sun') return { estado: 'fechada', texto: 'Domingo — a oficina está fechada. Abre segunda às 8h.' };
+    if (dia === 'Sun') return { estado: 'fechada', texto: 'Domingo: a oficina está fechada. Abre segunda às 8h.' };
     if (min < 8 * 60) return { estado: 'antes', texto: `A oficina abre em ${L.duracao((8 * 60 - min) * 60000)} (8h).`, minutos: 8 * 60 - min };
     if (min >= 17 * 60 + 30) return { estado: 'depois', texto: `Expediente encerrado às 17h30. ${dia === 'Sat' ? 'Abre segunda às 8h.' : 'Abre amanhã às 8h.'}` };
     const falta = 17 * 60 + 30 - min;
@@ -279,7 +302,7 @@
     avisosDeApps, voltaramAoAr, rotuloMotivo, PLANO_B, horaDe,
     comandos, filtrarComandos, ordemDosCartoes, ORDEM_CARTOES,
     meuDia, itemPreAgendamento, prazoDaTarefa, adiarTarefa, situacaoDaTarefa, filtrarTarefas, contagemDeTarefas, textoDoPrazo,
-    iconeDoAviso, agruparAvisos, aindaAdiados, rotuloTipo,
+    iconeDoAviso, agruparAvisos, aindaAdiados, idsParaLerTodas, valorDaMeta, rotuloTipo,
     projecaoDoMes, progressoDaMeta, rankingConsultores, resumoDoDia,
     ATALHOS_NUMERO, VAZIOS, climaDaOficina,
   });

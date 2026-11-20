@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const MOD = { nome: 'atalhos' };
-  let C = null, L = null, esperandoG = false, timerG = null, aberta = false, ultimoFoco = null, dicaG = null;
+  let C = null, L = null, esperandoG = false, timerG = null, aberta = false, ultimoFoco = null;
   const $ = (s) => document.querySelector(s);
 
   function abrirAjuda() {
@@ -20,14 +20,22 @@
     try { ultimoFoco && ultimoFoco.focus && ultimoFoco.focus(); } catch { /* sumiu */ }
   }
 
+  /* rodada 9: a dica do "g…" usa o aviso da Casa (um relógio só) e não apaga um aviso com botão na tela ("Desfazer", "Concluir a tarefa") */
   function dica(texto) {
     const t = $('#toast');
-    t.textContent = texto; t.hidden = false;
-    clearTimeout(dicaG); dicaG = setTimeout(() => { if (t.textContent === texto) t.hidden = true; }, 1300);
+    if (t && !t.hidden && t.querySelector('.toast-btn')) return;
+    C.toast(texto, 1300);
+  }
+  /* rodada 9: a dica listava apps que a pessoa não pode abrir (e o atalho respondia "sem acesso"); agora só os dela */
+  function dicaDoG() {
+    const meus = Object.entries(L.ATALHOS_G).filter(([, app]) => C.podeUsar(app)).map(([t, app]) => `${t} ${L.APPS[app].nome}`);
+    return meus.length ? 'g…  ' + meus.join(' · ') : 'Nenhum app liberado para o seu usuário.';
   }
 
   function teclado(e) {
     if (!C || !C.perfil) return;
+    // ajuda aberta: o Tab não escapa para a página de trás (só tem o botão Fechar)
+    if (aberta && e.key === 'Tab') { e.preventDefault(); $('#ajudaFechar').focus(); return; }
     if (e.key === 'Escape') {
       if (aberta) { e.preventDefault(); fecharAjuda(); }
       return;
@@ -53,8 +61,8 @@
     }
     if (k === '/') { e.preventDefault(); C.busca && C.busca.abrir(); }
     else if (k === '?') { e.preventDefault(); abrirAjuda(); }
-    else if (k === 'g' || k === 'G') { esperandoG = true; dica('g…  a Agenda · t Atendimento · c CRM · m Comunicar · p Pátio · o Orçador'); clearTimeout(timerG); timerG = setTimeout(() => { esperandoG = false; }, 1500); }
-    else if (/^[1-6]$/.test(k)) {
+    else if (k === 'g' || k === 'G') { esperandoG = true; dica(dicaDoG()); clearTimeout(timerG); timerG = setTimeout(() => { esperandoG = false; }, 1500); }
+    else if (/^[1-7]$/.test(k)) {
       const app = window.CasaLogica2.ATALHOS_NUMERO[k];
       e.preventDefault();
       if (C.podeUsar(app)) C.abrirNaAba(C.bases[app]); else C.toast(`Você não tem acesso ao ${L.APPS[app].nome}.`);
@@ -70,7 +78,7 @@
     }
     else if (k === 'h' || k === 'H') { if (C.saude) { e.preventDefault(); C.saude.abrir(); } }
     else if (k === 'e' || k === 'E') { if (C.recolherTodos) { e.preventDefault(); C.recolherTodos(); } }
-    else if (k === 't' || k === 'T') { const t = document.querySelector('#tTarefas'); if (t) { e.preventDefault(); t.scrollIntoView({ block: 'start', behavior: 'smooth' }); } }
+    else if (k === 't' || k === 'T') { if (document.querySelector('#tTarefas')) { e.preventDefault(); C.irPara('#tTarefas'); } }
     else if (k === 'n' || k === 'N') { e.preventDefault(); C.focarTarefa && C.focarTarefa(); }
     else if (k === 's' || k === 'S') { e.preventDefault(); C.alternarSino && C.alternarSino(); }
     else if (k === 'r' || k === 'R') { e.preventDefault(); C.painel && C.painel.atualizar(); C.toast('Atualizando…', 1200); }

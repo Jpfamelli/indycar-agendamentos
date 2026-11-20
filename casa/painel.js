@@ -27,13 +27,13 @@
   const itemLi = (inner, wa) => (wa ? `<li class="com-acao">${inner}${wa}</li>` : `<li>${inner}</li>`);
   function pilula(texto, tom) { return `<span class="pil${tom ? ' pil-' + tom : ''}">${C.esc(texto)}</span>`; }
 
-  function cartao(id, { num, det, linhas, erro }) {
+  function cartao(id, { num, det, linhas, erro, vazio }) {
     const el = $(id);
     el.hidden = false;
-    const n = el.querySelector('[data-num]'); if (n) n.textContent = num;
+    const n = el.querySelector('[data-num]'); if (n) { n.textContent = num; n.classList.toggle('num-texto', !/^\d/.test(String(num))); }
     const d = el.querySelector('[data-det]'); if (d) d.textContent = det;
     const l = el.querySelector('[data-lista]');
-    const ensina = window.CasaLogica2 && window.CasaLogica2.VAZIOS[el.id];
+    const ensina = window.CasaLogica2 && window.CasaLogica2.VAZIOS[vazio || el.id];
     if (l) l.innerHTML = erro ? `<li class="vazio vazio-erro">${C.esc(erro)} <button type="button" class="btn-link" data-recarregar>tentar de novo</button></li>` : (linhas || (ensina && Number(num) === 0 ? `<li class="vazio vazio-ensina"><b>${C.esc(ensina.texto)}</b><span>${C.esc(ensina.dica)}</span></li>` : ''));
     el.classList.toggle('carregou', !erro);
   }
@@ -61,7 +61,8 @@
     if (p.extras_pendentes) partes.push(`${p.extras_pendentes} extra${p.extras_pendentes > 1 ? 's' : ''} esperando aprovação`);
     cartao('#cPatio', {
       num: String(p.total || 0),
-      det: p.total ? 'dentro da oficina' + (partes.length ? ' · ' + partes.join(' · ') : '') : (V.soMeusCarros ? 'nenhum carro com você agora' : 'pátio vazio agora'),
+      det: p.total ? 'dentro da oficina' + (partes.length ? ' · ' + partes.join(' · ') : '') : (V.soMeusCarros ? 'sua lista está livre' : 'pátio vazio agora'),
+      vazio: V.soMeusCarros ? 'cPatioMeus' : 'cPatio',
       linhas: lista.map((o) => {
         const tom = L.tomDaEtapa(o.etapa, o.etapa_em, agora);
         const prev = L.previsao(o.previsao_entrega, o.etapa, agora);
@@ -129,13 +130,13 @@
     cartao('#cHoje', {
       num: String(a.total || 0),
       det: a.total ? partes.join(' · ') : 'nenhum horário marcado hoje',
-      linhas: (a.total > 1 ? `<li class="filtro-hoje" role="group" aria-label="Filtrar horários de hoje">${[['todos', 'Todos'], ['vir', 'Por vir'], ['chegou', 'Na oficina']].map(([k, n]) => `<button type="button" data-filtro-hoje="${k}" aria-pressed="${filtroHoje === k}">${n}</button>`).join('')}</li>` : '') +
+      linhas: (a.total > 1 ? `<li class="filtro-hoje"><div class="filtro-hoje-grupo" role="group" aria-label="Filtrar horários de hoje">${[['todos', 'Todos'], ['vir', 'Por vir'], ['chegou', 'Na oficina']].map(([k, n]) => `<button type="button" data-filtro-hoje="${k}" aria-pressed="${filtroHoje === k}">${n}</button>`).join('')}</div></li>` : '') +
         (por.length ? por.slice(0, 12).map((x) => itemLi(linkA(links.agenda(x.id), 'agenda', 'linha linha-2',
           `<span class="l-a"><b>${C.esc(L.hora5(x.hora))}</b> ${C.esc(x.nome || '')}</span>` +
           `<span class="l-b">${pilula(L.rotuloAg(x.status), x.status === 'nao_veio' ? 'ruim' : L.CHEGARAM.includes(x.status) ? 'bom' : x.confirmado ? 'bom' : '')}` +
           `${x.patio_etapa ? ' ' + pilula('🔧 ' + L.rotuloEtapa(x.patio_etapa), x.patio_etapa === 'pronto' ? 'bom' : 'aviso') : ''}` +
           `${x.orc_id ? ' ' + pilula('🧾 ' + L.rotuloOrc(x.orc_status), x.orc_status === 'aprovado' ? 'bom' : x.orc_status === 'recusado' ? 'ruim' : '') : ''}</span>` +
-          `<span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`), (x.status === 'aguardando' && !x.confirmado ? waBtn('lembrar', { ...x, data: a.hoje || undefined }, hojeIso(), a.hoje || hojeIso()) : '') + (L.CHEGARAM.includes(x.status) && !x.orc_id && x.telefone && C.podeUsar('orcador') ? `<a class="wa-mini wa-orcar" href="${C.esc(links.novoOrcamento({ telefone: x.telefone, nome: x.nome }))}" target="${C.esc(L.nomeDaAba('orcador'))}" aria-label="Criar orçamento para ${C.esc(x.nome || 'cliente')} no Orçador">🧾 Orçar</a>` : ''))).join('')
+          `<span class="l-c">${C.esc([x.veiculo, x.servico].filter(Boolean).join(' · '))}</span>`), (x.status === 'aguardando' && !x.confirmado ? waBtn('lembrar', { ...x, data: a.hoje || undefined }, hojeIso(), a.hoje || hojeIso()) : '') + (L.CHEGARAM.includes(x.status) && !x.orc_id && x.telefone && C.podeUsar('orcador') ? `<a class="wa-mini wa-orcar" href="${C.esc(links.novoOrcamento({ telefone: x.telefone, nome: x.nome }))}" target="${C.esc(L.nomeDaAba('orcador'))}" aria-label="Orçar: criar orçamento para ${C.esc(x.nome || 'cliente')} no Orçador">🧾 Orçar</a>` : ''))).join('')
           : (a.total ? '<li class="vazio">Nenhum horário nesse filtro.</li>' : '')),
     });
     rodapeLinks('#cHoje', { '[data-abrir]': [links.agenda(), 'agenda'], '[data-nova]': [links.agendaNovo(), 'agenda'] });
@@ -144,7 +145,7 @@
   function desenharLeads(l) {
     cartao('#cLeads', {
       num: String(l.novos_sem_dono || 0),
-      det: `${l.novos_sem_dono ? 'novos sem responsável (7 dias)' : 'todo lead novo tem dono'} · ${l.novos_hoje || 0} chegaram hoje`,
+      det: `${l.novos_sem_dono ? 'novos sem responsável (7 dias)' : 'todo contato novo tem dono'} · ${l.novos_hoje || 0} chegaram hoje`,
       linhas: '',
     });
     rodapeLinks('#cLeads', { '[data-abrir]': [links.crmLead(), 'crm'] });
@@ -169,7 +170,7 @@
     cartao('#cHoje', {
       num: String(c.falta),
       det: c.total ? `${c.falta} por chegar · ${c.chegaram} já chegaram${c.atrasados.length ? ' · ' + c.atrasados.length + ' atrasado' + (c.atrasados.length > 1 ? 's' : '') : ''}` : 'nenhum horário marcado hoje',
-      linhas: (c.proximo ? `<li class="proximo-chegada">Próximo: <b>${C.esc(L.hora5(c.proximo.hora))}</b> — ${C.esc(c.proximo.nome || 'Cliente')}</li>` : '') + faltam.slice(0, 10).map((x) => linha(x, L.hora5(x.hora) < hm)).join(''),
+      linhas: (c.proximo ? `<li class="proximo-chegada">Próximo: <b>${C.esc(L.hora5(c.proximo.hora))}</b> · ${C.esc(c.proximo.nome || 'Cliente')}</li>` : '') + faltam.slice(0, 10).map((x) => linha(x, L.hora5(x.hora) < hm)).join(''),
     });
     rodapeLinks('#cHoje', { '[data-abrir]': [links.agenda(), 'agenda'] });
   }
@@ -184,25 +185,37 @@
   }
 
   /* ---------------- "pede atenção agora" + selos dos apps ---------------- */
+  /* rodada 9: a gravidade aparece em palavra e ícone (Urgente, Atenção), não só na cor da borda, que saiu */
+  const seloGrav = (g) => (g >= 3 ? '<span class="a-selo a-selo-3"><span aria-hidden="true">⚠</span> Urgente</span>' : g === 2 ? '<span class="a-selo a-selo-2">Atenção</span>' : '');
   function desenharAtencao(a) {
     const itens = L.atencao(a, V, links);
     const sec = $('#atencao');
     sec.hidden = !itens.length;
     $('#atencaoLista').innerHTML = itens.map((i) => `<li class="grav-${i.grav}">${linkA(i.url, i.app, 'atencao-item',
-      `<span class="a-num">${Number(i.n)}</span><span class="a-txt">${C.esc(i.texto)}${i.extra ? `<small>${C.esc(i.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('');
+      `<span class="a-num">${Number(i.n)}</span><span class="a-txt">${seloGrav(i.grav)}${C.esc(i.texto)}${i.extra ? `<small>${C.esc(i.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('');
     C.sino && C.sino.mostrarAtencao(itens);
     // selos nas peças da grade de apps
     const selo = { atendimento: a.conversas?.esperando, patio: a.patio?.total, orcador: a.orcamentos?.esperando, agenda: a.agenda?.total, crm: a.leads?.novos_sem_dono };
     for (const [k, n] of Object.entries(selo)) {
       const el = document.querySelector(`[data-app-selo="${k}"]`);
-      if (el) { el.textContent = Number(n) > 0 ? String(n) : ''; el.hidden = !(Number(n) > 0); el.title = { atendimento: 'conversas esperando', patio: 'carros no pátio', orcador: 'orçamentos esperando resposta', agenda: 'horários hoje', crm: 'leads novos sem dono' }[k] || ''; }
+      if (el) { el.textContent = Number(n) > 0 ? String(n) : ''; el.hidden = !(Number(n) > 0); el.title = { atendimento: 'conversas esperando', patio: 'carros no pátio', orcador: 'orçamentos esperando resposta', agenda: 'horários hoje', crm: 'contatos novos sem dono' }[k] || ''; }
     }
   }
 
   /* ---------------- ao vivo ---------------- */
+  /* rodada 9: o relógio "atualizado há…" muda a cada 5 s e o leitor de tela lia tudo; agora só fala quando o estado muda (sem internet, falhou, voltou) */
+  let estadoFalado = 'ok';
+  function falarEstado() {
+    const e = !online ? 'offline' : emFalha ? 'falha' : 'ok';
+    if (e === estadoFalado) return;
+    const el = $('#vivoAviso');
+    if (el) el.textContent = e === 'offline' ? 'Sem internet: o painel mostra o último que carregou.' : e === 'falha' ? 'A última atualização do painel falhou.' : 'Painel atualizado de novo.';
+    estadoFalado = e;
+  }
   function relogio() {
     const ponto = $('#vivoPonto'), txt = $('#vivoTxt');
-    if (!online) { ponto.className = 'vivo-ponto ruim'; txt.textContent = 'sem internet — mostrando o último que carregou'; return; }
+    falarEstado();
+    if (!online) { ponto.className = 'vivo-ponto ruim'; txt.textContent = 'sem internet: mostrando o último que carregou'; return; }
     if (!ultima) { ponto.className = 'vivo-ponto'; txt.textContent = emFalha ? 'não consegui carregar' : 'carregando…'; return; }
     const seg = Math.round((Date.now() - ultima) / 1000);
     const velho = seg > 600 || emFalha;
@@ -256,7 +269,7 @@
       if (!silencioso || !dados) {
         const msg = navigator.onLine ? 'não deu para ler agora' : 'sem internet';
         for (const [id, ok] of [['#cPatio', V.patio], ['#cOrc', V.orcamentos], ['#cConversas', V.conversas], ['#cHoje', V.agenda], ['#cLeads', V.leads]]) {
-          if (ok && !dados) cartao(id, { num: '—', det: msg, linhas: '', erro: msg });
+          if (ok && !dados) cartao(id, { num: 'sem dado', det: msg, linhas: '', erro: msg });
         }
       }
     } finally { carregando = false; relogio(); }
@@ -264,10 +277,9 @@
 
   /* ---------------- visão do dono ---------------- */
   function seta(v) {
-    if (!v) return '';
-    if (v.novo) return '<span class="delta bom">novo</span>';
-    if (!v.sinal) return '<span class="delta">igual</span>';
-    return `<span class="delta ${v.sinal > 0 ? 'bom' : 'ruim'}">${v.sinal > 0 ? '▲' : '▼'} ${Math.abs(v.pct)}%</span>`;
+    const t = window.CasaLogica4.textoDaVariacao(v);
+    if (!t) return '';
+    return `<span class="delta ${t.classe}">${t.seta ? `<span aria-hidden="true">${t.seta}</span> ` : ''}${C.esc(t.texto)}</span>`;
   }
   /* a CSP da Casa não deixa style="" no HTML: alturas e larguras entram pelo CSSOM */
   function medidas(raiz) {
@@ -281,27 +293,31 @@
     const o = d.orcamentos || {};
     $('#donoTiles').innerHTML =
       tile('Faturamento hoje', C.esc(L.brl(f.hoje)), `${f.fechados_hoje || 0} fechado${f.fechados_hoje === 1 ? '' : 's'} · ontem ${C.esc(L.brl(f.ontem))}`) +
-      tile('Faturamento da semana', C.esc(L.brl(f.semana)), `${f.fechados_semana || 0} fechados · ticket ${C.esc(L.brl(f.ticket_semana))}`, seta(L.variacao(f.semana, f.semana_passada)) + '<small class="tile-peq">vs. mesma altura da semana passada</small>') +
+      tile('Faturamento da semana', C.esc(L.brl(f.semana)), `${f.fechados_semana || 0} fechados · média de ${C.esc(L.brl(f.ticket_semana))} por carro`, seta(L.variacao(f.semana, f.semana_passada)) + '<small class="tile-peq">comparado com a semana passada até este mesmo dia</small>') +
       tile('Faturamento do mês', C.esc(L.brl(f.mes)), 'só conta quem foi marcado "fechou" na Agenda') +
       tile('Orçamentos aprovados (30 dias)', C.esc(L.brl(o.valor_aprovado)), `${o.aprovados || 0} de ${o.enviados || 0} enviados${conv.orcAprovados === null ? '' : ' · ' + conv.orcAprovados + '%'}`);
     const bs = L.barras(d.serie7);
-    $('#donoBarras').innerHTML = bs.map((b) => `<div class="barra" title="${C.esc(L.brl(b.valor))}"><span class="barra-v">${b.valor ? C.esc(L.brlCurto(b.valor)) : ''}</span><span class="barra-col"><span class="barra-fill" data-h="${b.pct}"></span></span><span class="barra-d">${C.esc(L.diaCurto(b.dia))}</span></div>`).join('');
+    const hojeB = L.hojeSP();   /* rodada 9: barra sem degradê; a de hoje em vermelho e com a palavra "hoje" (não só a cor) */
+    $('#donoBarras').innerHTML = bs.map((b) => `<div class="barra${b.dia === hojeB ? ' barra-hoje' : ''}" title="${C.esc(L.brl(b.valor))}"><span class="barra-v">${C.esc(window.CasaLogica4.rotuloDaBarra(b.valor))}</span><span class="barra-col"><span class="barra-fill" data-h="${b.pct}"></span></span><span class="barra-d">${b.dia === hojeB ? 'hoje' : C.esc(L.diaCurto(b.dia))}</span></div>`).join('');
     $('#donoBarras').setAttribute('aria-label', 'Faturamento por dia: ' + bs.map((b) => `${L.diaCurto(b.dia)} ${L.brl(b.valor)}`).join(', '));
+    /* rodada 9: sete barras vazias sem explicação pareciam gráfico quebrado; agora diz o que falta */
+    const vazio7 = $('#donoBarrasVazio');
+    if (vazio7) vazio7.hidden = bs.some((b) => b.valor > 0);
     const nota = $('#donoNota');
     nota.hidden = !(f.sem_valor_semana > 0);
-    if (!nota.hidden) nota.innerHTML = `⚠ ${Number(f.sem_valor_semana)} fechamento${f.sem_valor_semana > 1 ? 's' : ''} desta semana sem valor informado: o faturamento está subestimado. ${linkA(links.agenda(), 'agenda', 'link', 'Abrir a Agenda')}`;
-    const barraConv = (rot, v, bom = true) => `<div class="conv-linha"><span>${C.esc(rot)}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${bom ? '' : 'ruim'}" data-w="${v === null ? 0 : Math.min(100, v)}"></span></span><b>${v === null ? '—' : v + '%'}</b></div>`;
+    if (!nota.hidden) nota.innerHTML = `⚠ ${Number(f.sem_valor_semana)} fechamento${f.sem_valor_semana > 1 ? 's' : ''} desta semana sem valor informado: o faturamento de verdade é maior que o mostrado. ${linkA(links.agenda(), 'agenda', 'link', 'Abrir a Agenda')}`;
+    const barraConv = (rot, v, bom = true) => `<div class="conv-linha"><span>${C.esc(rot)}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${bom ? '' : 'ruim'}" data-w="${v === null ? 0 : Math.min(100, v)}"></span></span><b>${v === null ? 'sem dado' : v + '%'}</b></div>`;
     const cv = d.conversao || {};
     $('#donoConv').innerHTML =
-      barraConv(`Leads que agendaram (${cv.agendaram || 0} de ${cv.leads || 0})`, conv.leadsAgendaram) +
-      barraConv(`Leads que fecharam (${cv.fecharam || 0})`, conv.leadsFecharam) +
+      barraConv(`Contatos que agendaram (${cv.agendaram || 0} de ${cv.leads || 0})`, conv.leadsAgendaram) +
+      barraConv(`Contatos que fecharam (${cv.fecharam || 0})`, conv.leadsFecharam) +
       barraConv(`Quem veio e fechou (${cv.fechou || 0} de ${(cv.fechou || 0) + (cv.nao_fechou || 0)})`, conv.fechamento) +
       barraConv(`Faltas (${cv.nao_veio || 0} não vieram)`, conv.falta, false) +
       barraConv(`Orçamentos aprovados (${o.aprovados || 0} de ${o.enviados || 0})`, conv.orcAprovados);
     desenharMeta(f);
     medidas($('#visaoDono'));
     const g = L.gargalos(d, links);
-    $('#donoGargalos').innerHTML = g.length ? g.map((x) => `<li class="grav-${x.grav}">${linkA(x.url, x.app, 'atencao-item', `<span class="a-num">${x.grav >= 3 ? '!' : '•'}</span><span class="a-txt">${C.esc(x.texto)}${x.extra ? `<small>${C.esc(x.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('')
+    $('#donoGargalos').innerHTML = g.length ? g.map((x) => `<li class="grav-${x.grav}">${linkA(x.url, x.app, 'atencao-item', `<span class="a-num" aria-hidden="true">${x.grav >= 3 ? '!' : '•'}</span><span class="a-txt">${seloGrav(x.grav)}${C.esc(x.texto)}${x.extra ? `<small>${C.esc(x.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('')
       : '<li class="vazio">Nenhum gargalo agora. Oficina andando. 🏁</li>';
   }
   /* meta do mês (guardada neste aparelho) + projeção pelo ritmo dos dias úteis */
@@ -336,18 +352,57 @@
     const pm = M2.progressoDaMeta(f.mes, meta);
     box.innerHTML = '<h3 class="dono-h">Ritmo do mês</h3>' +
       (p.projecao === null ? '<p class="dono-nota">Sem dias úteis para projetar.</p>' :
+        /* rodada 9: com nada fechado ainda, "o mês fecha em R$ 0,00" assustava; diz quando a projeção aparece */
+        !(Number(f.mes) > 0) ? `<p class="meta-linha">Ainda sem faturamento marcado neste mês. A projeção aparece depois do primeiro "fechou" com valor na Agenda. <small>(${p.passados} de ${p.total} dias úteis passados)</small></p>` :
         `<p class="meta-linha">No ritmo de agora o mês fecha em <b>${C.esc(L.brl(p.projecao))}</b> <small>(${p.passados} de ${p.total} dias úteis passados)</small></p>`) +
       (pm ? `<div class="conv-linha"><span>Meta de ${C.esc(L.brl(meta))}</span><span class="conv-barra" aria-hidden="true"><span class="conv-fill ${pm.batida ? '' : 'ruim'}" data-w="${Math.min(100, pm.pct)}"></span></span><b>${pm.pct}%</b></div>
         <p class="dono-nota">${pm.batida ? 'Meta batida! 🏁' : 'Faltam ' + C.esc(L.brl(pm.falta)) + (p.faltam ? ' em ' + p.faltam + ' dias úteis (' + C.esc(L.brl(Math.ceil(pm.falta / p.faltam))) + ' por dia)' : '')}</p>` : '<p class="dono-nota">Defina uma meta para acompanhar a barra.</p>') +
-      `<div class="dono-botoes"><button type="button" class="btn-link" data-meta>${meta ? 'mudar a meta' : 'definir a meta do mês'}</button> <button type="button" class="btn-link" data-copiar-resumo>copiar resumo do dia</button></div>`;
+      (editandoMeta ? formularioDaMeta(meta) :
+      `<div class="dono-botoes"><button type="button" class="btn-link" data-meta>${meta ? 'mudar a meta' : 'definir a meta do mês'}</button> <button type="button" class="btn-link" data-copiar-resumo>copiar resumo do dia</button></div>`);
     medidas(box);
+  }
+  /* rodada 9: a meta era pedida numa janela do navegador (window.prompt): no celular ela cobre a tela, não mostra o
+     teclado de números e o erro voltava num aviso que sumia. Agora é um campo dentro do próprio bloco. */
+  let editandoMeta = false, erroMeta = '', rascunhoMeta = '';
+  function formularioDaMeta(meta) {
+    const valor = erroMeta ? rascunhoMeta : (meta ? meta.toLocaleString('pt-BR') : '');   // com erro, o que a pessoa digitou fica para ela corrigir
+    return `<form class="meta-form" data-meta-form novalidate>
+      <label for="metaValor">Meta de faturamento do mês</label>
+      <div class="meta-form-linha"><input id="metaValor" name="valor" inputmode="decimal" autocomplete="off" value="${C.esc(valor)}" placeholder="Ex.: 80.000 ou 80 mil" aria-describedby="metaAjuda${erroMeta ? ' metaErro' : ''}"${erroMeta ? ' aria-invalid="true"' : ''} />
+      <button type="submit" class="btn btn-meta">Guardar</button><button type="button" class="btn-link" data-meta-cancelar>Cancelar</button></div>
+      <small id="metaAjuda">Escreva como preferir: 80000, 80.000 ou R$ 80 mil. Deixe vazio para tirar a meta.</small>
+      ${erroMeta ? `<p id="metaErro" class="vazio-erro" role="alert">${C.esc(erroMeta)}</p>` : ''}
+    </form>`;
+  }
+  function editarMeta(ligar) {
+    editandoMeta = ligar; erroMeta = '';
+    if (dono) desenharMeta(dono.faturamento || {});
+    const alvo = ligar ? $('#metaValor') : $('#donoMeta [data-meta]');
+    if (alvo) { alvo.focus(); if (ligar) alvo.select(); }
+  }
+  function guardarMetaDoForm(texto) {
+    const lido = window.CasaLogica2.valorDaMeta(texto);   // rodada 9: aceita "R$ 80.000", "80 mil", "80k"
+    if (Number.isNaN(lido)) {
+      rascunhoMeta = String(texto || '');
+      erroMeta = 'Não entendi esse valor. Escreva só o número, como 80000, 80.000 ou 80 mil.';
+      if (dono) desenharMeta(dono.faturamento || {});
+      const i = $('#metaValor'); if (i) i.focus();
+      return;
+    }
+    const meta = lido || 0;
+    editandoMeta = false; erroMeta = '';
+    metaRemota = meta || null;                       // a barra já mostra o valor novo; o banco confirma em seguida
+    gravar(LS_META, meta ? String(meta) : '');
+    if (dono) desenharMeta(dono.faturamento || {});
+    const b = $('#donoMeta [data-meta]'); if (b) b.focus();
+    salvarMeta(meta);
   }
   function desenharConsultores(r) {
     const M2 = window.CasaLogica2, box = $('#donoConsultores');
     if (!box || !M2) return;
     const rk = M2.rankingConsultores(r && r.consultores);
     const org = (r && r.origens) || [];
-    box.innerHTML = '<h3 class="dono-h">Desempenho (30 dias)</h3>' + (rk.length ? `<div class="tabela-rolavel"><table class="tab-dono"><thead><tr><th>Consultor</th><th>Marcados</th><th>Vieram</th><th>Fecharam</th><th>Faltas</th><th>Faturado</th></tr></thead><tbody>${rk.map((x) => `<tr><th scope="row">${C.esc(x.nome)}</th><td>${x.marcados}</td><td>${x.vieram}</td><td>${x.fecharam}${x.taxaFecha === null ? '' : ` <small>${x.taxaFecha}%</small>`}</td><td class="${x.taxaFalta >= 30 ? 'txt-ruim' : ''}">${x.faltaram}${x.taxaFalta === null ? '' : ` <small>${x.taxaFalta}%</small>`}</td><td>${C.esc(L.brl(x.valor))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="dono-nota">Sem horários nos últimos 30 dias.</p>') +
+    box.innerHTML = '<h3 class="dono-h">Desempenho (30 dias)</h3>' + (rk.length ? `<div class="tabela-rolavel" tabindex="0" role="region" aria-label="Tabela de desempenho dos consultores (arraste para o lado para ver tudo)"><table class="tab-dono"><thead><tr><th>Consultor</th><th>Marcados</th><th>Vieram</th><th>Fecharam</th><th>Faltas</th><th>Faturado</th></tr></thead><tbody>${rk.map((x) => `<tr><th scope="row">${C.esc(x.nome)}</th><td>${x.marcados}</td><td>${x.vieram}</td><td>${x.fecharam}${x.taxaFecha === null ? '' : ` <small>${x.taxaFecha}%</small>`}</td><td class="${x.taxaFalta >= 30 ? 'txt-ruim' : ''}">${x.faltaram}${x.taxaFalta === null ? '' : ` <small>${x.taxaFalta}%</small>`}</td><td>${C.esc(L.brl(x.valor))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="dono-nota">Sem horários nos últimos 30 dias.</p>') +
       (org.length ? `<h3 class="dono-h dono-h2">Origem que mais fecha</h3><ul class="origens">${org.slice(0, 5).map((o) => `<li><span>${C.esc(o.origem)}</span><b>${Number(o.fecharam)}</b><small>de ${Number(o.marcados)} marcados · ${C.esc(L.brl(o.valor))}</small></li>`).join('')}</ul>` : '');
   }
   async function carregarConsultores() {
@@ -377,7 +432,7 @@
     gravar(LS_VISAO, visao);
     $('#visaoOperacao').hidden = visao !== 'operacao';
     $('#visaoDono').hidden = visao !== 'dono';
-    document.querySelectorAll('#seletorVisao [data-visao]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.visao === visao)));
+    document.querySelectorAll('#seletorVisao [data-visao]').forEach((b) => { b.setAttribute('aria-selected', String(b.dataset.visao === visao)); b.tabIndex = b.dataset.visao === visao ? 0 : -1; });
     if (visao === 'dono' && (!dono || Date.now() - ultimaDono > 30_000)) carregarDono();
   }
 
@@ -423,7 +478,7 @@
   function aoVisivel() { if (!document.hidden && C && C.perfil) { carregarAgora({ silencioso: true }); if (visao === 'dono' && Date.now() - ultimaDono > 60_000) carregarDono(); } }
 
   MOD.montar = function (casa) {
-    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; dono = null; ultima = 0; emFalha = false; filtroHoje = 'todos';
+    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; dono = null; ultima = 0; emFalha = false; filtroHoje = 'todos'; estadoFalado = 'ok';
     V.recepcao = C.perfil.papel === 'agenda';
     online = navigator.onLine;
     for (const id of ['#cPatio', '#cOrc', '#cConversas', '#cHoje', '#cLeads']) $(id).hidden = true;
@@ -444,24 +499,26 @@
 
     $('#bAtualizar').onclick = () => { C.painel.atualizar(); C.toast('Atualizando…', 1200); };
     $('#seletorVisao').onclick = (e) => { const b = e.target.closest('[data-visao]'); if (b) trocarVisao(b.dataset.visao); };
+    /* rodada 9: abas de verdade: setas, Home e End trocam a visão e levam o foco junto (antes só o mouse ou o Tab) */
+    $('#seletorVisao').onkeydown = (e) => {
+      const abas = [...document.querySelectorAll('#seletorVisao [data-visao]')];
+      const i = abas.indexOf(document.activeElement);
+      if (i < 0) return;
+      const j = e.key === 'ArrowRight' ? (i + 1) % abas.length : e.key === 'ArrowLeft' ? (i - 1 + abas.length) % abas.length : e.key === 'Home' ? 0 : e.key === 'End' ? abas.length - 1 : -1;
+      if (j < 0) return;
+      e.preventDefault(); e.stopPropagation();
+      trocarVisao(abas[j].dataset.visao); abas[j].focus();
+    };
+    editandoMeta = false; erroMeta = '';
+    $('#donoMeta').onsubmit = (e) => { if (!e.target.matches('[data-meta-form]')) return; e.preventDefault(); guardarMetaDoForm($('#metaValor').value); };
+    $('#donoMeta').onkeydown = (e) => { if (e.key === 'Escape' && editandoMeta) { e.preventDefault(); e.stopPropagation(); editarMeta(false); } };
     $('#miolo').onclick = (e) => {
       if (e.target.closest('[data-recarregar]')) { C.painel.atualizar(); return; }
       const f = e.target.closest('[data-filtro-hoje]');
       if (f) { filtroHoje = f.dataset.filtroHoje; if (dados?.agenda) desenharHoje(dados.agenda); return; }
       if (e.target.closest('[data-abrir-busca]')) { C.busca && C.busca.abrir(); return; }
-      if (e.target.closest('[data-meta]')) {
-        const atual = metaAtual() || '';
-        const v = window.prompt('Meta de faturamento do mês, em reais (deixe vazio para tirar):', atual);
-        if (v === null) return;
-        const n = Number(String(v).replace(/\./g, '').replace(',', '.'));
-        const meta = Number.isFinite(n) && n > 0 && n < 1e8 ? Math.round(n) : 0;
-        if (!meta && String(v).trim()) { C.toast('Não entendi esse valor. Use só números, ex.: 80000.', 'err'); return; }
-        metaRemota = meta || null;                       // a barra já mostra o valor novo; o banco confirma em seguida
-        gravar(LS_META, meta ? String(meta) : '');
-        if (dono) desenharMeta(dono.faturamento || {});
-        salvarMeta(meta);
-        return;
-      }
+      if (e.target.closest('[data-meta]')) { editarMeta(true); return; }
+      if (e.target.closest('[data-meta-cancelar]')) { editarMeta(false); return; }
       if (e.target.closest('[data-copiar-resumo]')) { if (dono && dados) C.copiarResumo(dono, dados); else C.toast('Espere o painel carregar.'); }
     };
     relogio();

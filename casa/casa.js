@@ -30,11 +30,38 @@
   /* ---------------- utilidades ---------------- */
   const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const gravar = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
-  function toast(msg, ms = 3200) {
-    const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  /* rodada 9: o que é de quem usou sai do aparelho junto com a pessoa. As buscas recentes guardam nome e telefone
+     de cliente, e os avisos adiados escondiam do próximo (o dono, por exemplo) o que o anterior adiou. O e-mail
+     lembrado e o tema ficam: são escolha do aparelho, marcadas na tela de entrada. */
+  const LS_DA_PESSOA = ['indycar_central_buscas', 'indycar_central_sino_adiados'];
+  const esquecerPessoa = () => { for (const k of LS_DA_PESSOA) gravar(k, null); };
+  /**
+   * Aviso curto no pé da tela. `opcao`: o tempo em ms, ou 'ok' / 'err' (o erro fica 6 s, com a cor de problema).
+   * `acao` ({ rotulo, fazer }) vira um botão no aviso, como o "Desfazer". Um relógio só para todos os avisos:
+   * um aviso novo nunca some antes do tempo dele por causa do relógio de um aviso anterior.
+   */
+  function toast(msg, opcao, acao) {
+    const t = $('#toast');
+    const ms = L.tempoDoAviso(opcao, !!acao);
+    t.textContent = msg;
+    t.dataset.tom = opcao === 'err' ? 'erro' : opcao === 'ok' ? 'ok' : '';
+    if (acao && acao.rotulo && typeof acao.fazer === 'function') {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'toast-btn'; b.textContent = acao.rotulo;
+      b.onclick = () => { t.hidden = true; clearTimeout(toast._t); acao.fazer(); };
+      t.append(' ', b);
+    }
+    t.hidden = false;
     clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, ms);
   }
   function erro(el, msg) { const e = $(el); e.textContent = msg || ''; e.hidden = !msg; }
+  /* rodada 9: erro nos formulários de entrada aponta o campo: aria-invalid (borda de erro) no campo certo e o foco vai
+     para ele, com o texto selecionado; antes o erro aparecia embaixo e o foco ficava no botão. */
+  function apontar(form, sel) {
+    for (const i of $(form).querySelectorAll('input[aria-invalid]')) i.removeAttribute('aria-invalid');
+    if (!sel) return;
+    const i = $(sel); i.setAttribute('aria-invalid', 'true'); i.focus(); if (i.select) i.select();
+  }
   function mensagemDeErro(e) {
     const m = String(e?.message || e || '');
     if (/invalid login credentials/i.test(m)) return 'E-mail ou senha não conferem.';
@@ -66,7 +93,24 @@
     const m = document.querySelector('meta[name="theme-color"]');
     if (m) m.setAttribute('content', claro ? '#eef0f4' : '#070a14');
     gravar('indycar_tema', claro ? 'claro' : 'escuro');
+    rotularTema();
     requestAnimationFrame(() => requestAnimationFrame(() => r.removeAttribute('data-trocando-tema')));
+  }
+  /** O botão do tema diz qual está valendo e para qual vai (o leitor de tela não via o estado). */
+  function rotularTema() {
+    const b = $('#bTema'); if (!b) return;
+    const claro = document.documentElement.getAttribute('data-tema') === 'claro';
+    b.setAttribute('aria-pressed', String(claro));
+    b.setAttribute('aria-label', claro ? 'Tema claro ligado. Trocar para o escuro' : 'Tema escuro ligado. Trocar para o claro');
+    b.title = claro ? 'Trocar para o tema escuro' : 'Trocar para o tema claro';
+  }
+  /** Fecha o sino e o menu do perfil e zera o "aberto" dos dois botões. `foco`: devolve o foco ao botão que estava aberto. */
+  function fecharMenus(foco = false) {
+    const sino = $('#painelSino'), menu = $('#menuPerfil');
+    const volta = foco ? (!menu.hidden ? $('#bPerfil') : !sino.hidden ? $('#bSino') : null) : null;
+    sino.hidden = true; menu.hidden = true;
+    $('#bSino').setAttribute('aria-expanded', 'false'); $('#bPerfil').setAttribute('aria-expanded', 'false');
+    if (volta) volta.focus();
   }
 
   /* ---------------- telas da entrada ---------------- */
@@ -92,7 +136,8 @@
     erro('#lErro', '');
     const email = $('#lEmail').value.trim().toLowerCase();
     const senha = $('#lSenha').value;
-    if (!email || !senha) return erro('#lErro', 'Preencha o e-mail e a senha.');
+    apontar('#fLogin', null);
+    if (!email || !senha) { apontar('#fLogin', !email ? '#lEmail' : '#lSenha'); return erro('#lErro', !email ? 'Preencha o e-mail.' : 'Preencha a senha.'); }
     const espera = esperaPorErros();
     const ultimo = Number(ler(LS_ERROS + '_em')) || 0;
     if (espera && Date.now() - ultimo < espera * 1000) {
@@ -107,27 +152,38 @@
       $('#lSenha').value = '';
       await depoisDoLogin();
     } catch (e) {
-      if (/invalid login/i.test(String(e?.message))) { gravar(LS_ERROS, String((Number(ler(LS_ERROS)) || 0) + 1)); gravar(LS_ERROS + '_em', String(Date.now())); }
+      if (/invalid login/i.test(String(e?.message))) { gravar(LS_ERROS, String((Number(ler(LS_ERROS)) || 0) + 1)); gravar(LS_ERROS + '_em', String(Date.now())); apontar('#fLogin', '#lSenha'); }
       erro('#lErro', mensagemDeErro(e));
     } finally { b.disabled = false; b.textContent = 'Entrar'; }
   }
 
+  /* rodada 9: o envio do link é limitado a poucos por hora. Dois toques seguidos gastavam dois envios e o segundo
+     voltava "Muitas tentativas" por cima do aviso de sucesso. Agora o botão espera a resposta e, depois de pedir,
+     o mesmo e-mail só pede de novo depois de 1 minuto (com aviso de onde procurar). */
+  let resetPedido = { email: '', em: 0 };
   async function esqueci() {
+    const b = $('#lEsqueci');
+    if (b.disabled) return;
     const email = $('#lEmail').value.trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return erro('#lErro', 'Digite o seu e-mail acima e toque de novo em "Esqueci a senha".');
+    if (resetPedido.email === email && Date.now() - resetPedido.em < 60_000) return toast('O link já foi pedido agora há pouco. Confira a caixa de entrada e o spam antes de pedir outro.', 6000);
+    b.disabled = true; b.setAttribute('aria-busy', 'true');
     try {
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/' });
       if (error) throw error;
+      resetPedido = { email, em: Date.now() };
       erro('#lErro', '');
       toast('Se o e-mail estiver cadastrado, o link chega em instantes (o envio é limitado a poucos por hora). O administrador também pode gerar uma senha temporária.', 6000);
     } catch (e) { erro('#lErro', mensagemDeErro(e)); }
+    finally { b.disabled = false; b.removeAttribute('aria-busy'); }
   }
 
   async function confirmarMfa(ev) {
     ev.preventDefault();
     erro('#mErro', '');
     const code = $('#mCodigo').value.replace(/\s/g, '');
-    if (!/^\d{6}$/.test(code)) return erro('#mErro', 'O código tem 6 números.');
+    apontar('#fMfa', null);
+    if (!/^\d{6}$/.test(code)) { apontar('#fMfa', '#mCodigo'); return erro('#mErro', 'O código tem 6 números.'); }
     try {
       const { data } = await sb.auth.mfa.listFactors();
       const f = (data?.totp || []).find((x) => x.status === 'verified');
@@ -143,10 +199,11 @@
     ev.preventDefault();
     erro('#sErro', '');
     const a = $('#sNova').value, b = $('#sRepete').value;
-    if (a.length < 8) return erro('#sErro', 'Use pelo menos 8 caracteres.');
-    if (a !== b) return erro('#sErro', 'As duas senhas não são iguais.');
+    apontar('#fSenha', null);
+    if (a.length < 8) { apontar('#fSenha', '#sNova'); return erro('#sErro', 'Use pelo menos 8 caracteres.'); }
+    if (a !== b) { apontar('#fSenha', '#sRepete'); return erro('#sErro', 'As duas senhas não são iguais.'); }
     const email = sessao?.user?.email || '';
-    if (email && a.toLowerCase() === email.toLowerCase()) return erro('#sErro', 'A senha não pode ser o seu e-mail.');
+    if (email && a.toLowerCase() === email.toLowerCase()) { apontar('#fSenha', '#sNova'); return erro('#sErro', 'A senha não pode ser o seu e-mail.'); }
     try {
       const { error } = await sb.auth.updateUser({ password: a });
       if (error) throw error;
@@ -173,8 +230,9 @@
     desmontarModulos();
     // sem "scope" o supabase-js sai de TODOS os aparelhos (inclusive o celular do mecânico)
     try { await sb.auth.signOut({ scope: global ? 'global' : 'local' }); } catch { /* sessão já tinha ido */ }
+    esquecerPessoa();
     perfil = null; sessao = null;
-    $('#menuPerfil').hidden = true; $('#painelSino').hidden = true;
+    fecharMenus();
     mostrar('fLogin');
     if (global) toast('Você saiu de todos os aparelhos.');
   }
@@ -209,8 +267,22 @@
     get links() { return links; },
     get cfg() { return cfg; },
     L, esc, toast, abrirNaAba, podeUsar: (app) => podeUsar(perfil, app), visao: () => L.visao(perfil),
-    $: (s) => document.querySelector(s),
+    $: (s) => document.querySelector(s), irPara,
   };
+  /**
+   * rodada 9: "ir para" (tecla t, comandos da busca, aviso do sino) rolava a página, mas o foco ficava lá em cima: quem
+   * usa teclado ou leitor de tela continuava no topo. Agora o foco vai junto (o título vira alvo de foco) e a rolagem só
+   * é animada para quem não pediu menos movimento no aparelho.
+   */
+  function irPara(alvo, { bloco = 'start' } = {}) {
+    const el = typeof alvo === 'string' ? $(alvo) : alvo;
+    if (!el) return;
+    let calmo = false;
+    try { calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { /* sem matchMedia */ }
+    el.scrollIntoView({ block: bloco, behavior: calmo ? 'auto' : 'smooth' });
+    if (!el.matches('a[href], button, input, select, textarea, [tabindex]')) el.setAttribute('tabindex', '-1');
+    try { el.focus({ preventScroll: true }); } catch { el.focus(); }
+  }
 
   function desenharApps() {
     const meus = ORDEM_APPS.map((k) => L.APPS[k]).filter((a) => podeUsar(perfil, a.k));
@@ -234,7 +306,7 @@
     const av = $('#bPerfil');
     av.textContent = (curto[0] || '?').toUpperCase();
     if (/^#[0-9a-f]{3,8}$/i.test(perfil.avatar_cor || '')) av.style.background = perfil.avatar_cor;
-    $('#mpNome').textContent = nome || '—';
+    $('#mpNome').textContent = nome || 'Sem nome cadastrado';
     $('#mpEmail').textContent = perfil.email || sessao.user.email || '';
     $('#mpPapel').textContent = [PAPEL[perfil.papel] || perfil.papel || '', perfil.cargo || ''].filter(Boolean).join(' · ');
     desenharApps();
@@ -251,6 +323,7 @@
   /* ---------------- ligações da tela ---------------- */
   function ligar() {
     $('#fLogin').addEventListener('submit', entrar);
+    for (const f of ['#fLogin', '#fMfa', '#fSenha']) $(f).addEventListener('input', (e) => { if (e.target.matches('input')) e.target.removeAttribute('aria-invalid'); });
     $('#lEsqueci').addEventListener('click', esqueci);
     $('#fMfa').addEventListener('submit', confirmarMfa);
     $('#fSenha').addEventListener('submit', gravarSenha);
@@ -264,14 +337,29 @@
       if (acao === 'sair') return sair(false);
       if (acao === 'sair-todos') return sair(true);
       if (acao === 'tentar') { $('#carregando').hidden = false; return depoisDoLogin().catch(() => semAcesso('Ainda sem conexão. Tente de novo em instantes.', true)); }
-      if (acao === 'trocar-senha') { $('#menuPerfil').hidden = true; return pedirSenha('troca'); }
+      if (acao === 'trocar-senha') { fecharMenus(); return pedirSenha('troca'); }
       const sino = e.target.closest('#bSino'), av = e.target.closest('#bPerfil');
       if (sino) { Casa.alternarSino ? Casa.alternarSino() : null; $('#menuPerfil').hidden = true; return; }
-      if (av) { const m = $('#menuPerfil'); m.hidden = !m.hidden; av.setAttribute('aria-expanded', String(!m.hidden)); $('#painelSino').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false'); return; }
-      if (!e.target.closest('#painelSino, #menuPerfil')) { $('#painelSino').hidden = true; $('#menuPerfil').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false'); $('#bPerfil').setAttribute('aria-expanded', 'false'); }
+      if (av) {
+        const m = $('#menuPerfil'); m.hidden = !m.hidden; av.setAttribute('aria-expanded', String(!m.hidden)); $('#painelSino').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false');
+        // rodada 9: menu de verdade: ao abrir, o foco vai para a primeira opção (setas andam; ver keydown abaixo)
+        if (!m.hidden) { const primeiro = m.querySelector('[role="menuitem"]'); if (primeiro) primeiro.focus(); }
+        return;
+      }
+      if (!e.target.closest('#painelSino, #menuPerfil')) fecharMenus();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { $('#painelSino').hidden = true; $('#menuPerfil').hidden = true; $('#bSino').setAttribute('aria-expanded', 'false'); }
+      // Esc fecha o sino ou o menu e devolve o foco ao botão que abriu (antes o foco ficava num painel escondido)
+      if (e.key === 'Escape' && (!$('#painelSino').hidden || !$('#menuPerfil').hidden)) fecharMenus(true);
+    });
+    // menu do perfil: setas, Home e End andam entre as opções; Tab sai e fecha (padrão de menu do leitor de tela)
+    $('#menuPerfil').addEventListener('keydown', (e) => {
+      const itens = [...$('#menuPerfil').querySelectorAll('[role="menuitem"]')];
+      const i = itens.indexOf(document.activeElement);
+      if (e.key === 'Tab') { fecharMenus(); return; }
+      const j = e.key === 'ArrowDown' ? (i + 1) % itens.length : e.key === 'ArrowUp' ? (i - 1 + itens.length) % itens.length : e.key === 'Home' ? 0 : e.key === 'End' ? itens.length - 1 : -1;
+      if (j < 0 || !itens.length) return;
+      e.preventDefault(); itens[j].focus();
     });
   }
 
@@ -279,6 +367,7 @@
   let voltarPedido = '';   // rodada 8: /?voltar=/trafego/... volta para o app depois do login (só caminho interno; ver L.voltarSeguro)
   async function iniciar() {
     ligar();
+    rotularTema();
     /* /?busca=<termo>: outros apps abrem a Casa já com a busca global preenchida (o termo sai da barra de endereço) */
     try {
       const p = new URLSearchParams(location.search);
@@ -303,7 +392,8 @@
       if (evento === 'PASSWORD_RECOVERY') { sessao = s; emRecuperacao = true; return pedirSenha('recuperar'); }
       if (evento === 'SIGNED_OUT' && perfil) {      // saiu em outro app/aba (a sessão é uma só neste domínio)
         desmontarModulos();
-        perfil = null; sessao = null; $('#menuPerfil').hidden = true; $('#painelSino').hidden = true;
+        esquecerPessoa();
+        perfil = null; sessao = null; fecharMenus();
         mostrar('fLogin');
       }
     });
