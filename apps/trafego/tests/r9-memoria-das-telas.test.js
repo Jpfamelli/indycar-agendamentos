@@ -90,3 +90,22 @@ test('lançar valor, motivo ou origem (jornada.esquecer) faz o Hoje e as Campanh
     assert.equal(leituras, 2, 'depois de gravar, lê de novo');
   } finally { f.trocar({ sb: null, jornada: undefined }); }
 });
+
+test('reaplicar as origens (de verdade) faz a Jornada e o Hoje lerem os contatos de novo; simular não', async () => {
+  const Jornada = require('../jornada');
+  const Origem = require('../origem');
+  const original = Jornada.esquecer;
+  let esquecidas = 0;
+  Jornada.esquecer = () => { esquecidas++; };
+  const sb = { rpc: async (nome, a) => ({ data: { analisados: 10, com_mensagem: 8, com_sinal: 3, [a.p_simular ? 'mudariam' : 'mudaram']: 3, por_origem: [], por_frase: [] }, error: null }) };
+  try {
+    Origem.esquecerSimulacoes();
+    const quem = { id: 'joao' };
+    const agora = Date.parse('2026-11-19T12:00:00-03:00');
+    await Origem.reaplicar({ simular: true, desde: '2026-11-01', quem, sb, agora });
+    assert.equal(esquecidas, 0, 'simular não muda nada');
+    const r = await Origem.reaplicar({ simular: false, desde: '2026-11-01', quem, sb, agora: agora + 1000 });
+    assert.equal(r.mudaram, 3);
+    assert.equal(esquecidas, 1);
+  } finally { Jornada.esquecer = original; Origem.esquecerSimulacoes(); }
+});

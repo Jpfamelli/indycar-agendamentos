@@ -494,8 +494,11 @@ async function reaplicar({ simular, desde, quem, sb = db.sb, agora = Date.now() 
     por_origem: Array.isArray(r.por_origem) ? r.por_origem.slice(0, 50).map(x => ({ rotulo: texto(x.rotulo, 120), n: Number(x.n) || 0 })) : [],
     por_frase: Array.isArray(r.por_frase) ? r.por_frase.slice(0, 50).map(x => ({ frase: texto(x.frase, 300), n: Number(x.n) || 0 })) : [],
   };
-  if (aplicar) saida.mudaram = Number(r.mudaram) || 0;
-  else {
+  if (aplicar) {
+    saida.mudaram = Number(r.mudaram) || 0;
+    // Os contatos ganharam origem no banco: a Jornada (45 s de memória) e o Hoje não podem seguir com "Ainda não sabemos".
+    if (saida.mudaram > 0) require('./jornada').esquecer();
+  } else {
     saida.mudariam = Number(r.mudariam) || 0;
     simulacoes.set(chave, { desde: d.dia, em: agora });
     saida.aplicar_ate = new Date(agora + DEZ_MINUTOS).toISOString();
