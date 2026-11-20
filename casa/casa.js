@@ -149,15 +149,25 @@
     } finally { b.disabled = false; b.textContent = 'Entrar'; }
   }
 
+  /* rodada 9: o envio do link é limitado a poucos por hora. Dois toques seguidos gastavam dois envios e o segundo
+     voltava "Muitas tentativas" por cima do aviso de sucesso. Agora o botão espera a resposta e, depois de pedir,
+     o mesmo e-mail só pede de novo depois de 1 minuto (com aviso de onde procurar). */
+  let resetPedido = { email: '', em: 0 };
   async function esqueci() {
+    const b = $('#lEsqueci');
+    if (b.disabled) return;
     const email = $('#lEmail').value.trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return erro('#lErro', 'Digite o seu e-mail acima e toque de novo em "Esqueci a senha".');
+    if (resetPedido.email === email && Date.now() - resetPedido.em < 60_000) return toast('O link já foi pedido agora há pouco. Confira a caixa de entrada e o spam antes de pedir outro.', 6000);
+    b.disabled = true; b.setAttribute('aria-busy', 'true');
     try {
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/' });
       if (error) throw error;
+      resetPedido = { email, em: Date.now() };
       erro('#lErro', '');
       toast('Se o e-mail estiver cadastrado, o link chega em instantes (o envio é limitado a poucos por hora). O administrador também pode gerar uma senha temporária.', 6000);
     } catch (e) { erro('#lErro', mensagemDeErro(e)); }
+    finally { b.disabled = false; b.removeAttribute('aria-busy'); }
   }
 
   async function confirmarMfa(ev) {
