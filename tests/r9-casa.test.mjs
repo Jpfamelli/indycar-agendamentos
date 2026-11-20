@@ -81,7 +81,7 @@ test('meta do mês: aceita como a pessoa escreve (R$ 80.000, 80 mil, 80k)', () =
   assert.ok(Number.isNaN(M.valorDaMeta('abc')));
   assert.ok(Number.isNaN(M.valorDaMeta('-5')));
   assert.ok(Number.isNaN(M.valorDaMeta('999999999')));
-  assert.match(ler('painel.js'), /window\.CasaLogica2\.valorDaMeta\(v\)/);
+  assert.match(ler('painel.js'), /window\.CasaLogica2\.valorDaMeta\(texto\)/);
 });
 
 test('busca: contagem certa quando só acha pessoas (antes "2 resultados em 0 sistema")', () => {
