@@ -140,7 +140,7 @@
     <div class="topbar-actions">
       <div class="search">
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
-        <input aria-label="Buscar contatos" id="search" type="search" placeholder="Filtrar contatos (Ctrl+K busca tudo)…" />
+        <input aria-label="Buscar contatos" id="search" type="search" placeholder="Nome, telefone ou placa" />
       </div>
       <button type="button" class="btn btn-ghost sm busca-global-btn" id="btnBuscaGlobal" aria-label="Busca global: nome, telefone ou placa (Ctrl+K)" title="Busca global (Ctrl+K)"><span aria-hidden="true">⌕</span><span class="bg-txt">Buscar tudo</span><kbd>Ctrl K</kbd></button>
       <button type="button" class="fila-chip" id="filaChip" hidden aria-live="polite"></button>
@@ -418,7 +418,7 @@
         <div id="dsGente" class="ds-gente" role="group" aria-label="Pessoas que recebem"></div>
         <fieldset class="ds-grupo"><legend>Como dividir</legend>
           <label class="chk"><input type="radio" name="dsModo" value="igual" checked /> Partes iguais</label>
-          <label class="chk"><input type="radio" name="dsModo" value="carga" /> Igualar a carga (quem tem menos leads abertos recebe mais)</label>
+          <label class="chk"><input type="radio" name="dsModo" value="carga" /> Igualar a carga (quem tem menos contatos abertos recebe mais)</label>
         </fieldset>
         <button type="button" class="btn btn-primary" id="dsPrevia">Ver prévia</button>
       </div>
@@ -806,11 +806,11 @@
       <input type="hidden" id="fId" />
       <div class="row">
         <label>Nome *<input id="fNome" maxlength="120" autocomplete="name" required placeholder="João da Silva" aria-describedby="erro-fNome" /><small class="campo-erro" id="erro-fNome"></small></label>
-        <label>Telefone *<input id="fTelefone" type="tel" inputmode="tel" maxlength="20" required placeholder="(12) 9 9999-9999" aria-describedby="erro-fTelefone" /><small class="campo-erro" id="erro-fTelefone"></small></label>
+        <label>Telefone *<input id="fTelefone" autocomplete="tel" type="tel" inputmode="tel" maxlength="20" required placeholder="(12) 9 9999-9999" aria-describedby="erro-fTelefone" /><small class="campo-erro" id="erro-fTelefone"></small></label>
       </div>
       <div class="row">
         <label>Carro<input id="fCarro" maxlength="200" placeholder="Corolla 2018" /></label>
-        <label>Placa<input id="fPlaca" maxlength="8" placeholder="ABC1D23" autocapitalize="characters" aria-describedby="erro-fPlaca" /><small class="campo-erro" id="erro-fPlaca"></small></label>
+        <label>Placa<input id="fPlaca" spellcheck="false" maxlength="8" placeholder="ABC1D23" autocapitalize="characters" aria-describedby="erro-fPlaca" /><small class="campo-erro" id="erro-fPlaca"></small></label>
       </div>
       <div class="row">
         <label>Serviço<select id="fServico"></select></label>
@@ -821,7 +821,7 @@
         <label>Valor pago (R$)<input id="fPago" type="number" step="0.01" min="0" max="10000000" inputmode="decimal" placeholder="0,00" aria-describedby="erro-fPago" /><small class="campo-erro" id="erro-fPago"></small></label>
       </div>
       <div class="row">
-        <label>Status<select id="fStatusForm"></select></label>
+        <label>Etapa<select id="fStatusForm"></select></label>
         <label>Campanha (UTM)<input id="fCampanha" maxlength="200" placeholder="ex: trafego-cambio" /></label>
       </div>
       <div class="row">
@@ -908,7 +908,7 @@
 <!-- Rodada 5: busca global (Ctrl+K) -->
 <dialog class="dlg dlg-busca" id="dlgBusca" aria-labelledby="dlgBuscaT">
   <h3 id="dlgBuscaT" class="sr">Busca global</h3>
-  <div class="bg-campo"><span aria-hidden="true">⌕</span><input id="buscaGlobal" type="text" inputmode="search" enterkeyhint="go" autocomplete="off" placeholder="Nome, telefone ou placa…" aria-label="Buscar em leads e clientes" aria-controls="buscaResultados" aria-expanded="true" role="combobox" /><kbd>Esc</kbd></div>
+  <div class="bg-campo"><span aria-hidden="true">⌕</span><input id="buscaGlobal" type="text" inputmode="search" enterkeyhint="go" autocomplete="off" placeholder="Nome, telefone ou placa…" aria-label="Buscar em contatos e clientes" aria-controls="buscaResultados" aria-expanded="true" role="combobox" /><kbd>Esc</kbd></div>
   <div id="buscaResultados" class="bg-resultados" role="listbox" aria-label="Resultados"><p class="vazio-curto">Digite 2 letras do nome, 4 números do telefone ou a placa. <kbd>↑</kbd> <kbd>↓</kbd> escolhem, <kbd>Enter</kbd> abre.</p></div>
 </dialog>
 
@@ -916,7 +916,7 @@
   <form method="dialog" id="formFiltro">
     <h3 id="dlgFiltroT">Salvar este filtro</h3>
     <p class="muted" id="dlgFiltroResumo"></p>
-    <label>Nome do filtro<input id="filtroNome" maxlength="40" required placeholder="ex.: Orçamentos parados do Google" /></label>
+    <label>Nome do filtro<input id="filtroNome" enterkeyhint="done" maxlength="40" required placeholder="ex.: Orçamentos parados do Google" /></label>
     <p class="form-erro" id="filtroErro" role="alert"></p>
     <div class="modal-actions"><button type="button" class="btn btn-ghost" data-fechar>Cancelar</button><div class="spacer"></div><button type="submit" class="btn btn-primary">Salvar</button></div>
   </form>
@@ -972,7 +972,7 @@
       <input name="loginEmail" id="loginEmail" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" />
     </label>
     <label>Senha
-      <span class="senha-campo"><input name="loginSenha" id="loginSenha" type="password" required autocomplete="current-password" placeholder="••••••••" aria-describedby="capsLogin" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
+      <span class="senha-campo"><input name="loginSenha" id="loginSenha" enterkeyhint="go" type="password" required autocomplete="current-password" placeholder="••••••••" aria-describedby="capsLogin" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span>
     </label>
     <p class="caps-aviso" id="capsLogin" role="status" hidden>⇪ Caps Lock está ligado</p>
     <label class="chk login-lembrar"><input type="checkbox" id="lembrarEmail" /> Lembrar meu e-mail neste aparelho</label>
@@ -988,7 +988,7 @@
     <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
     <h1 class="login-titulo-2">Esqueci a senha</h1>
     <p class="login-sub">Digite o seu e-mail. Mandamos um link para você criar uma senha nova.</p>
-    <label>E-mail<input id="esqEmail" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" /></label>
+    <label>E-mail<input id="esqEmail" enterkeyhint="send" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" /></label>
     <button type="submit" class="btn-entrar" id="btnEsqEnviar">ENVIAR LINK</button>
     <p class="login-erro" id="esqErro" role="alert" hidden></p>
     <p class="login-ok" id="esqOk" role="status" hidden></p>
@@ -1015,7 +1015,7 @@
     <span class="brand-mark login-marca"><span class="bm-indy">INDY</span><span class="bm-car">CAR</span></span>
     <h1 class="login-titulo-2">Código de verificação</h1>
     <p class="login-sub">Abra o app autenticador do celular e digite o código de 6 números da IndyCar.</p>
-    <label>Código<input id="mfaCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required placeholder="000 000" class="codigo-mfa" /></label>
+    <label>Código<input id="mfaCodigo" enterkeyhint="done" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required placeholder="000 000" class="codigo-mfa" /></label>
     <button type="submit" class="btn-entrar" id="btnMfaEntrar">CONFIRMAR</button>
     <p class="login-erro" id="mfaErro" role="alert" hidden></p>
     <button type="button" class="login-link" data-sair-login>Entrar com outra conta</button>

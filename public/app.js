@@ -1245,7 +1245,7 @@ async function renderAgenda(opts = {}) {
   view.innerHTML = `
     <div class="toolbar">
       <!-- sem botão "Novo agendamento" aqui: o do topo da página já faz isso -->
-      <div class="search larga">${svg(I.search)}<input id="qAgenda" placeholder="Buscar por cliente, placa ou telefone — a busca acha também quem já foi para o CRM" value="${esc(q0)}" aria-label="Buscar agendamento"></div>
+      <div class="search larga">${svg(I.search)}<input id="qAgenda" type="search" placeholder="Cliente, placa ou telefone" value="${esc(q0)}" aria-label="Buscar agendamento"></div>
       <button type="button" class="btn" id="btnVerSemana" title="Ver a semana em grade, com ocupação por dia (tecla S)">${svg(I.calendar)} Semana</button>
       <button type="button" class="btn" id="btnEsperaAgenda" title="Quem quer um horário e ainda não achou (tecla E)">${svg(I.relogio)} Espera${state.contagens?.espera ? ` <em class="tab-num">${state.contagens.espera}</em>` : ''}</button>
       <button type="button" class="icon-btn so-tela" id="btnImprimirAgenda" title="Imprimir a folha de um dia" aria-label="Imprimir a folha de um dia">${svg(I.imprimir)}</button>
@@ -1285,7 +1285,7 @@ async function renderClientes(opts = {}) {
   if (opts.quieto && $('#cliBody') && $('#qCli')) { $('#cliBody').innerHTML = clienteRows(list, q0); bindCliRows(); return; }
   view.innerHTML = `
     <div class="toolbar">
-      <div class="left"><div class="search">${svg(I.search)}<input id="qCli" placeholder="Buscar por nome, telefone ou placa…" value="${esc(q0)}" aria-label="Buscar cliente"></div>
+      <div class="left"><div class="search">${svg(I.search)}<input id="qCli" type="search" placeholder="Buscar por nome, telefone ou placa…" value="${esc(q0)}" aria-label="Buscar cliente"></div>
         <span class="badge-pill bp-gray" id="cliTotal">${list.length} ${list.length === 1 ? 'cliente' : 'clientes'}</span></div>
       <button class="btn primary" onclick="openClienteModal()">${svg(I.plus)} Novo cliente</button>
     </div>
@@ -1799,7 +1799,7 @@ async function renderServicos() {
         <span class="badge-pill bp-green">${fazemos} a oficina faz</span>
       </div>
       <div class="search">${svg(I.search)}
-        <input id="qServ" placeholder="Buscar serviço, categoria ou escopo…" autocomplete="off"></div>
+        <input id="qServ" type="search" aria-label="Buscar serviço, categoria ou escopo" placeholder="Buscar serviço, categoria ou escopo…" autocomplete="off"></div>
     </div>
     <div class="aviso-leitura">${svg(I.cadeado)}
       <div><b>Só leitura nesta tela.</b> Este é o catálogo que a IA do WhatsApp consulta para
@@ -1947,7 +1947,7 @@ async function cfgOficina(box) {
         <div class="panel-head"><h2>${svg(I.loja)} Dados da oficina</h2></div>
         <div class="panel-body">
           <small class="muted">É o que aparece no topo desta tela e no convite do Google Agenda.</small>
-          <div class="field"><label>Nome *</label>
+          <div class="field"><label for="of_nome">Nome *</label>
             <input id="of_nome" value="${esc(empresa.nome)}" placeholder="IndyCar Centro Automotivo"></div>
           <div class="field"><label>Endereço</label>
             <input id="of_end" value="${esc(empresa.endereco)}" placeholder="Av. Bandeirantes, 875 — Taubaté/SP"></div>
@@ -2095,7 +2095,7 @@ async function cfgEquipe(box) {
           <small class="muted">Você escolhe uma senha provisória e entrega para a pessoa — no primeiro login ela cria
             a dela. O e-mail não precisa existir de verdade, mas não pode repetir o de outra pessoa.</small>
           <div class="field"><label for="eq_nome">Nome</label>
-            <input id="eq_nome" maxlength="80" placeholder="Ex.: Maria Souza" autocomplete="off"></div>
+            <input id="eq_nome" maxlength="80" placeholder="Ex.: Maria Souza" autocomplete="name"></div>
           <div class="field"><label for="eq_email">E-mail</label>
             <input id="eq_email" type="email" placeholder="maria@indycartaubate.com" autocomplete="off"></div>
           <div class="field"><label for="eq_senha">Senha provisória</label>
@@ -2255,7 +2255,7 @@ Todos os agendamentos aparecem na sua agenda Google e <b>se atualizam sozinhos</
         <div class="panel-body">
           <div class="field"><label class="switch"><input type="checkbox" id="cn_whk_on" ${it.webhook_ativo?'checked':''}> <span>Enviar eventos para outro sistema</span></label>
             <small class="muted">Dispara um POST JSON quando um agendamento é <b>criado</b> ou muda de <b>status</b>. Ligue em Zapier/Make/n8n e conecte a milhares de apps (planilhas, e-mail, CRM…).</small></div>
-          <div class="field"><label>URL do webhook</label><input id="cn_whk" value="${esc(it.webhook_url||'')}" placeholder="https://hooks.zapier.com/..."></div>
+          <div class="field"><label for="cn_whk">URL do webhook</label><input id="cn_whk" inputmode="url" value="${esc(it.webhook_url||'')}" placeholder="https://hooks.zapier.com/..."></div>
           <div style="display:flex;gap:8px">
             <button class="btn primary" id="cn_whk_save">${svg(I.check)} Salvar</button>
             <button class="btn" id="cn_whk_test">${svg(I.send)} Testar</button>
@@ -2429,14 +2429,14 @@ async function waConfig(box, cfg) {
         <div class="panel-body">
           <div class="field"><label class="switch"><input type="checkbox" id="cfg_ativo" ${cfg.ativo?'checked':''}> <span>Enviar mensagens automaticamente pela Cloud API</span></label>
             <small class="muted">Desligado: o sistema registra a mensagem e abre o WhatsApp pelo link <b>wa.me</b>.</small></div>
-          <div class="field"><label>Phone Number ID *</label><input id="cfg_pnid" value="${esc(cfg.phone_number_id||'')}" placeholder="Ex.: 123456789012345"></div>
+          <div class="field"><label for="cfg_pnid">ID do número *</label><input id="cfg_pnid" inputmode="numeric" value="${esc(cfg.phone_number_id||'')}" placeholder="Ex.: 123456789012345"></div>
           <div class="field"><label>Access Token ${cfg.tem_token?`<span class="chip">salvo: ${esc(cfg.token_mask)}</span>`:''} *</label>
             <input id="cfg_token" type="password" autocomplete="off" placeholder="${cfg.tem_token?'•••• deixe em branco para manter o atual':'Cole o token permanente'}"></div>
           <div class="grid2">
             <div class="field"><label>Business Account ID (WABA)</label><input id="cfg_waba" value="${esc(cfg.business_account_id||'')}"></div>
             <div class="field"><label>Versão da API</label><input id="cfg_ver" value="${esc(cfg.api_version||'v21.0')}"></div>
           </div>
-          <div class="field"><label>Número exibido</label><input id="cfg_num" value="${esc(cfg.numero_exibicao||'')}" placeholder="+55 12 99999-0000"></div>
+          <div class="field"><label for="cfg_num">Número exibido</label><input id="cfg_num" type="tel" value="${esc(cfg.numero_exibicao||'')}" placeholder="+55 12 99999-0000"></div>
           <div style="display:flex;gap:10px;margin-top:4px">
             <button class="btn primary so-gestor" id="cfg_save">${svg(I.check)} Salvar</button>
             <button class="btn green" id="cfg_test">${svg(I.send)} Testar conexão</button>
@@ -3063,7 +3063,7 @@ window.abrirBuscaGlobal = function() {
     <div class="modal-head"><h3>${svg(I.search)} Buscar em tudo</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="search larga">${svg(I.search)}<input id="bgQ" type="search" placeholder="Nome, telefone, placa, carro ou serviço" aria-label="Buscar agendamentos e clientes" autocomplete="off"></div>
-      <div id="bgRes" class="busca-res" aria-live="polite"><p class="muted">Digite pelo menos 2 letras. Atalho: Ctrl+K.</p></div>
+      <div id="bgRes" class="busca-res" aria-live="polite"><p class="muted">Digite pelo menos 2 caracteres. Atalho: Ctrl+K.</p></div>
       <p class="busca-dica"><kbd class="mini">↑</kbd> <kbd class="mini">↓</kbd> escolhe · <kbd class="mini">Enter</kbd> abre · telefone com ou sem DDD, placa com ou sem hífen</p>
     </div>`);
   let vez = 0;
@@ -3270,7 +3270,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
       <div id="f_ficha">${a.cliente_id ? '<div class="ficha-mini carregando"><span class="skel" style="height:12px;width:60%"></span></div>' : ''}</div>
       <div class="grid2">
         <div class="field"><label for="f_veic">Carro</label><input id="f_veic" value="${esc(a.veiculo)}" placeholder="Ônix"></div>
-        <div class="field"><label for="f_placa">Placa</label><input id="f_placa" value="${esc(a.placa)}" placeholder="AURA6742" style="text-transform:uppercase"></div>
+        <div class="field"><label for="f_placa">Placa</label><input id="f_placa" autocapitalize="characters" spellcheck="false" value="${esc(a.placa)}" placeholder="AURA6742" style="text-transform:uppercase"></div>
       </div>
       <div class="field"><label for="f_serv">Serviço *</label>
         <input id="f_serv" list="servListAg" value="${esc(a.servico)}" placeholder="Selecione ou digite o serviço">
