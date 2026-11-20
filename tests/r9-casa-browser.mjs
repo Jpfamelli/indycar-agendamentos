@@ -45,7 +45,7 @@ const CENARIOS = [
   { nome: 'falha', cenario: { papel: 'admin', falhar: ['r6_agora', 'notificacoes', 'tarefas', 'r7_c1_saude_sistemas', 'vigia_avisos_abertos', 'r6_c1c_manha'] }, larguras: [1440, 375], espera: ['Não consegui ler as tarefas agora'] },
   { nome: 'falhaop', cenario: { papel: 'admin', falhar: ['r6_agora', 'tarefas'] }, larguras: [375], acao: 'operacao', espera: ['sem dado', 'não deu para ler agora'] },
   { nome: 'sinofalha', cenario: { papel: 'admin', falhar: ['notificacoes'] }, larguras: [375], acao: 'sino', espera: ['Não consegui ler os avisos agora', 'tentar de novo'] },
-  { nome: 'vazio', cenario: { papel: 'admin', vazio: true, zap: 'ok' }, larguras: [1440, 375] },
+  { nome: 'vazio', cenario: { papel: 'admin', vazio: true, zap: 'ok' }, larguras: [1440, 375], espera: ['Nenhum fechamento com valor nos últimos 7 dias', 'Ainda sem faturamento marcado neste mês'] },
   { nome: 'atendente', cenario: { papel: 'atendente', zap: 'ok' }, larguras: [375] },
   { nome: 'recepcao', cenario: { papel: 'agenda', zap: 'ok' }, larguras: [375] },
   { nome: 'mecanico', cenario: { papel: 'mecanico', zap: 'ok' }, larguras: [375] },

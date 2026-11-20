@@ -13,8 +13,9 @@
   function construtor(nome, fonte) {
     var unico = false, escrita = null;
     var b = {};
+    var filtros = [];   // eq/in/… de uma escrita, para o roteiro conferir O QUE foi marcado (ex.: marcar todas como lidas)
     ['select', 'eq', 'neq', 'in', 'not', 'is', 'gte', 'lte', 'gt', 'lt', 'order', 'limit', 'range', 'or', 'filter', 'match', 'ilike', 'like', 'contains', 'returns', 'abortSignal']
-      .forEach(function (m) { b[m] = function () { return b; }; });
+      .forEach(function (m) { b[m] = function () { if (/^(eq|in|is|not)$/.test(m)) filtros.push([m].concat([].slice.call(arguments))); return b; }; });
     ['update', 'insert', 'upsert', 'delete'].forEach(function (m) { b[m] = function (v) { escrita = { tabela: nome, acao: m, valor: v }; return b; }; });
     b.maybeSingle = function () { unico = true; return b; };
     b.single = function () { unico = true; return b; };
@@ -22,7 +23,7 @@
       var atraso = Number(C.atraso) || 0;
       return new Promise(function (r) { setTimeout(r, atraso); }).then(function () {
         if (falhar.has(nome)) return { data: null, error: { message: 'falha simulada: ' + nome }, count: null, status: 500 };
-        if (escrita) { window.__GRAVADO.push(escrita); return { data: null, error: null, count: null, status: 204 }; }
+        if (escrita) { escrita.filtros = filtros; window.__GRAVADO.push(escrita); return { data: null, error: null, count: null, status: 204 }; }
         var v = fonte();
         var data = v === undefined ? (unico ? null : []) : (typeof v === 'function' ? v() : v);
         if (unico && Array.isArray(data)) data = data[0] || null;

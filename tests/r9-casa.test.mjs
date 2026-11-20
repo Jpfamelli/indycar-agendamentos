@@ -230,3 +230,38 @@ test('visual: fundo liso, sem barra colorida de lado, barra de faturamento sem d
   assert.match(semComentarios(ler('painel.js')), /\$\{b\.dia === hojeB \? 'hoje' :/);
   assert.match(semComentarios(ler('painel.js')), /a-selo-3"><span aria-hidden="true">⚠<\/span> Urgente/);
 });
+
+test('sino: botões ⏱ e ✓ com 44 px (antes herdavam 100% e espremiam o aviso num terço); no celular é folha de altura inteira', () => {
+  const css = semComentarios(ler('r9.css'));
+  assert.match(css, /\.lista-notif li \.notif-adiar, \.lista-notif li \.notif-ler \{ width: 44px; flex: 0 0 44px;/);
+  assert.match(css, /\.painel-topo > strong \{ flex: 1 1 auto; \}/);
+  const m = /@media \(max-width: 520px\) \{\s*\.painel-sino \{([^}]*)\}/.exec(css);
+  assert.ok(m, 'regra do celular para o sino');
+  assert.match(m[1], /bottom: 0/); assert.match(m[1], /width: 100%/);
+  assert.match(css, /\.sino-filtros \{ flex-wrap: nowrap; overflow-x: auto;/);
+});
+
+test('menu do perfil: foco na primeira opção ao abrir, setas/Home/End andam, Tab fecha; avatar avisa que abre menu', () => {
+  const c = semComentarios(ler('casa.js'));
+  assert.match(c, /const primeiro = m\.querySelector\('\[role="menuitem"\]'\); if \(primeiro\) primeiro\.focus\(\);/);
+  assert.match(c, /\$\('#menuPerfil'\)\.addEventListener\('keydown'/);
+  assert.match(c, /e\.key === 'ArrowDown'/);
+  assert.match(c, /if \(e\.key === 'Tab'\) \{ fecharMenus\(\); return; \}/);
+  assert.match(ler('index.html'), /id="bPerfil"[^>]*aria-haspopup="menu"/);
+});
+
+test('app instalado: barra na cor do topo (escura, como a meta theme-color) e descrição com o Tráfego', () => {
+  const m = JSON.parse(ler('manifest.json'));
+  const meta = /<meta name="theme-color" content="([^"]+)"/.exec(ler('index.html'))[1];
+  assert.equal(m.theme_color, meta);
+  assert.equal(m.theme_color, '#070a14');
+  assert.match(m.description, /Tráfego/);
+});
+
+test('visão do dono vazia: gráfico de 7 dias explica o vazio e a projeção não diz "fecha em R$ 0,00"', () => {
+  const p = semComentarios(ler('painel.js'));
+  assert.match(ler('index.html'), /<p id="donoBarrasVazio" class="vazio-mini" hidden>Nenhum fechamento com valor nos últimos 7 dias/);
+  assert.match(p, /vazio7\.hidden = bs\.some\(\(b\) => b\.valor > 0\)/);
+  assert.match(p, /Ainda sem faturamento marcado neste mês/);
+  assert.match(semComentarios(ler('r9.css')), /\.conv-linha b \{ white-space: nowrap; \}/);
+});

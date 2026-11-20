@@ -1,0 +1,188 @@
+// Casa no Chrome (rodada 9): roteiro de TECLADO e de cliques com o Supabase de mentira (tests/r9-casa-mock/).
+// Confere o que a foto não mostra: para onde vai o foco, o que o leitor de tela ouve e o que seria gravado.
+// Nada sai para a rede (interceptação do Chrome, como em tests/r9-casa-browser.mjs).
+//
+//   node tests/r9-casa-interacoes.mjs                 → imprime cada conferência (ok/FALHOU) e sai com 1 se alguma falhar
+//   node tests/r9-casa-interacoes.mjs --antes <pasta>  → o mesmo roteiro na Casa de <pasta>/casa
+import { createRequire } from 'node:module';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const require = createRequire(import.meta.url);
+const AQUI = dirname(fileURLToPath(import.meta.url));
+const RAIZ = resolve(AQUI, '..');
+const puppeteer = require(resolve(RAIZ, '../indycar-ferramentas/node_modules/puppeteer-core'));
+const BASE = 'http://localhost:3521';
+const iAntes = process.argv.indexOf('--antes');
+const FONTE = iAntes > 0 ? resolve(process.argv[iAntes + 1]) : RAIZ;   // --antes <pasta>: a mesma conferência na Casa de antes (git archive)
+const MOCK = readFileSync(join(AQUI, 'r9-casa-mock/dados.js'), 'utf8') + '\n' + readFileSync(join(AQUI, 'r9-casa-mock/supabase-falso.js'), 'utf8');
+const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2' };
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const browser = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', userDataDir: resolve(RAIZ, 'qa-out/r9/perfil-chrome-teclado'), args: ['--no-sandbox', '--disable-background-networking'] });
+const resultados = [];
+const conferir = (nome, ok, detalhe = '') => { resultados.push({ nome, ok: !!ok, detalhe }); console.log(`${ok ? 'ok     ' : 'FALHOU '} ${nome}${detalhe ? '  (' + detalhe + ')' : ''}`); };
+
+async function abrir(cenario, largura = 1440) {
+  const page = await browser.newPage();
+  const erros = [];
+  page.on('pageerror', (e) => erros.push(String(e.message)));
+  await page.setViewport({ width: largura, height: 900 });
+  await page.setBypassServiceWorker(true);
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+  await page.evaluateOnNewDocument((c) => {
+    window.__CENARIO = c; window.__ABAS = [];
+    window.open = (url, nome) => { window.__ABAS.push([String(url), String(nome)]); return { focus() {} }; };
+    window.prompt = () => window.__RESPOSTA_PROMPT ?? null;
+    try { localStorage.setItem('indycar_tema', 'escuro'); localStorage.setItem('indycar_central_visao', 'operacao'); } catch { /* segue */ }
+  }, cenario);
+  await page.setRequestInterception(true);
+  page.on('request', (req) => {
+    const u = new URL(req.url());
+    if (u.hostname === 'cdn.jsdelivr.net' && /supabase/.test(u.pathname)) return req.respond({ status: 200, contentType: TIPOS['.js'], headers: { 'Access-Control-Allow-Origin': '*' }, body: MOCK });
+    if (u.origin !== BASE) return req.respond({ status: 204, body: '' });
+    const json = (o) => req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
+    if (u.pathname === '/api/central/config') return json({ supabaseUrl: 'https://mentira.supabase.co', supabaseAnonKey: 'chave-de-mentira', versao: 'r9', apps: {} });
+    if (u.pathname === '/api/central/saude-apps') return json({ verificado_em: Date.now(), apps: {}, internos: {} });
+    if (u.pathname.startsWith('/agenda/api/')) return json([]);
+    const caminho = u.pathname === '/' ? '/casa/index.html' : u.pathname;
+    const arq = join(FONTE, caminho);
+    if (!/^\/casa\/[\w.-]+$/.test(caminho) || !existsSync(arq)) return req.respond({ status: 404, body: '' });
+    return req.respond({ status: 200, contentType: TIPOS[caminho.slice(caminho.lastIndexOf('.'))] || 'application/octet-stream', body: readFileSync(arq) });
+  });
+  await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#casa:not([hidden])', { timeout: 8000 });
+  await espera(900);
+  return { page, erros };
+}
+const foco = (page) => page.evaluate(() => { const a = document.activeElement; return a ? (a.id ? '#' + a.id : a.tagName.toLowerCase() + (a.dataset.acao ? '[' + a.dataset.acao + ']' : a.dataset.visao ? '[' + a.dataset.visao + ']' : a.dataset.editar ? '[editar]' : '')) : ''; });
+
+const passo = async (nome, fn) => { try { await fn(); } catch (e) { conferir(nome, false, 'quebrou: ' + String(e.message).slice(0, 90)); } };
+try {
+  const { page, erros } = await abrir({ papel: 'admin' });
+
+  // 1. menu do perfil: abre com foco na 1ª opção, setas andam, Esc devolve o foco e fecha
+  await passo("1. menu do perfil: abre com foco na 1ª opção, setas andam, Esc devolve o foco e fecha", async () => {
+  await page.click('#bPerfil'); await espera(80);
+  conferir('perfil: ao abrir, o foco vai para "Trocar senha"', (await foco(page)) === 'button[trocar-senha]', await foco(page));
+  await page.keyboard.press('ArrowDown');
+  conferir('perfil: seta para baixo vai para "Sair"', (await foco(page)) === 'button[sair]', await foco(page));
+  await page.keyboard.press('End');
+  conferir('perfil: End vai para a última opção', (await foco(page)) === 'button[sair-todos]', await foco(page));
+  await page.keyboard.press('Escape'); await espera(50);
+  conferir('perfil: Esc fecha e devolve o foco ao avatar', (await foco(page)) === '#bPerfil' && await page.$eval('#menuPerfil', (m) => m.hidden) && (await page.$eval('#bPerfil', (b) => b.getAttribute('aria-expanded'))) === 'false');
+  });
+
+  // 2. abas da visão
+  await passo("2. abas da visão", async () => {
+  await page.focus('#seletorVisao [data-visao="operacao"]'); await page.keyboard.press('ArrowRight'); await espera(300);
+  conferir('abas: seta para a direita abre a Visão do dono e leva o foco', (await page.evaluate(() => document.activeElement.dataset.visao)) === 'dono' && !(await page.$eval('#visaoDono', (s) => s.hidden)) && (await page.$eval('#seletorVisao [data-visao="dono"]', (b) => b.tabIndex)) === 0);
+  await page.keyboard.press('Home'); await espera(200);
+  conferir('abas: Home volta para Operação', (await page.evaluate(() => document.activeElement.dataset.visao)) === 'operacao' && (await page.$eval('#visaoDono', (s) => s.hidden)));
+  });
+
+  // 3. ajuda prende o Tab
+  await passo("3. ajuda prende o Tab", async () => {
+  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press('?'); await espera(100);
+  await page.keyboard.press('Tab'); await page.keyboard.press('Tab');
+  conferir('ajuda: o Tab não sai da janela de atalhos', (await foco(page)) === '#ajudaFechar', await foco(page));
+  await page.keyboard.press('Escape'); await espera(50);
+  });
+
+  // 4. tecla 7 abre o Tráfego na aba dele
+  await passo("4. tecla 7 abre o Tráfego na aba dele", async () => {
+  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press('7'); await espera(50);
+  const abas = await page.evaluate(() => window.__ABAS);
+  conferir('tecla 7 abre o Tráfego na aba indycar-ads', abas.some(([u, n]) => /\/trafego\/$/.test(u) && n === 'indycar-ads'), JSON.stringify(abas));
+  });
+
+  // 5. busca: o item marcado pelas setas é anunciado; Tráfego no "Ir para"
+  await passo("5. busca: o item marcado pelas setas é anunciado; Tráfego no \"Ir para\"", async () => {
+  await page.click('#bBusca'); await espera(150);
+  conferir('busca: Tráfego aparece no "Ir para"', !!(await page.$('#bl-ir-ads')));
+  await page.type('#buscaInput', 'gabi'); await espera(900);
+  await page.keyboard.press('ArrowDown'); await espera(50);
+  const anuncio = await page.$eval('#buscaAnuncio', (p) => p.textContent);
+  conferir('busca: leitor de tela ouve o item marcado', anuncio.length > 3, anuncio);
+  conferir('busca: nenhum role="option" nem listbox', (await page.$$('#busca [role="option"], #busca [role="listbox"]')).length === 0);
+  await page.keyboard.press('Escape'); await espera(100);
+  });
+
+  // 6. tarefa: título editável pelo teclado; Esc volta o foco ao título
+  await passo("6. tarefa: título editável pelo teclado; Esc volta o foco ao título", async () => {
+  const btn = await page.$('#listaTarefas [data-editar]');
+  await btn.focus(); await page.keyboard.press('Enter'); await espera(80);
+  conferir('tarefa: Enter no título abre o campo de edição focado', (await foco(page)) === 'input');
+  await page.keyboard.press('Escape'); await espera(80);
+  conferir('tarefa: Esc cancela e devolve o foco ao título', (await foco(page)) === 'button[editar]', await foco(page));
+  });
+
+  // 7. concluir tarefa → aviso com "Desfazer"; a dica do "g" não apaga o botão
+  await passo("7. concluir tarefa → aviso com \"Desfazer\"; a dica do \"g\" não apaga o botão", async () => {
+  await page.click('#listaTarefas input[type="checkbox"]'); await espera(150);
+  conferir('tarefa concluída mostra "Desfazer"', !!(await page.$('#toast:not([hidden]) .toast-btn')));
+  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press('g'); await espera(100);
+  conferir('a dica do "g" não apaga o "Desfazer"', !!(await page.$('#toast:not([hidden]) .toast-btn')));
+  await page.keyboard.press('Escape');
+  await espera(1600);
+  conferir('aviso com botão continua depois de 1,6 s (relógio de 6 s)', !!(await page.$('#toast:not([hidden]) .toast-btn')));
+  });
+
+  // 8. sino: "marcar todas" com busca só marca o que está na tela
+  await passo("8. sino: \"marcar todas\" com busca só marca o que está na tela", async () => {
+  await page.evaluate(() => { window.__GRAVADO.length = 0; });
+  await page.click('#bSino'); await espera(400);
+  await page.type('#sinoBusca', 'HB20'); await espera(400);
+  await page.click('#bLerTodas'); await espera(300);
+  const gravou = await page.evaluate(() => window.__GRAVADO.filter((g) => g.tabela === 'notificacoes'));
+  const ids = gravou.flatMap((g) => (g.filtros || []).filter((f) => f[0] === 'in').flatMap((f) => f[2]));
+  conferir('sino: "marcar todas" com a busca "HB20" marca só 1 aviso', ids.length === 1, JSON.stringify(ids));
+  });
+
+  // 9. Esc no sino devolve o foco ao sino
+  await passo("9. Esc no sino devolve o foco ao sino", async () => {
+  await page.keyboard.press('Escape'); await espera(80);
+  conferir('sino: Esc fecha e devolve o foco ao botão do sino', (await foco(page)) === '#bSino' && (await page.$eval('#painelSino', (p) => p.hidden)));
+  });
+
+  // 10. meta: "R$ 80.000" é aceito
+  await passo("10. meta: \"R$ 80.000\" é aceito", async () => {
+  await page.click('#seletorVisao [data-visao="dono"]'); await espera(700);
+  await page.evaluate(() => { window.__GRAVADO.length = 0; window.__RESPOSTA_PROMPT = 'R$ 80.000'; });
+  const meta = await page.$('[data-meta]');
+  if (meta) { await meta.click(); await espera(400); }
+  const metaGravada = await page.evaluate(() => window.__GRAVADO.find((g) => g.tabela === 'casa_metas'));
+  conferir('meta: "R$ 80.000" grava 80000', metaGravada && metaGravada.valor && metaGravada.valor.valor === 80000, JSON.stringify(metaGravada && metaGravada.valor));
+  });
+
+  // 11. botão do tema diz o estado
+  await passo("11. botão do tema diz o estado", async () => {
+  const tema = await page.$eval('#bTema', (b) => [b.getAttribute('aria-pressed'), b.getAttribute('aria-label')]);
+  conferir('tema: botão diz qual tema está ligado', /ligado/.test(tema[1] || '') && tema[0] !== null, JSON.stringify(tema));
+
+  conferir('nenhum erro de JavaScript na página', !erros.length, erros.join(' | ').slice(0, 200));
+  await page.close();
+  });
+
+  // 12. Criar tarefa: dois cliques não gravam duas vezes (banco lento)
+  await passo("12. Criar tarefa: dois cliques não gravam duas vezes (banco lento)", async () => {
+  const lenta = await abrir({ papel: 'admin', atraso: 700 });
+  await lenta.page.evaluate(() => { window.__GRAVADO.length = 0; });
+  await lenta.page.type('#tTitulo', 'Ligar para o fornecedor de pneus');
+  await lenta.page.click('#fTarefa [type="submit"]');
+  await lenta.page.click('#fTarefa [type="submit"]').catch(() => {});
+  await espera(900);
+  const criadas = await lenta.page.evaluate(() => window.__GRAVADO.filter((g) => g.tabela === 'tarefas' && g.acao === 'insert').length);
+  conferir('tarefa: dois cliques em Criar com banco lento gravam uma vez só', criadas === 1, 'gravou ' + criadas);
+  await lenta.page.close();
+  });
+} finally {
+  await browser.close();
+}
+const falhas = resultados.filter((r) => !r.ok);
+console.log(`\n${resultados.length - falhas.length} de ${resultados.length} conferências ok`);
+process.exit(falhas.length ? 1 : 0);
