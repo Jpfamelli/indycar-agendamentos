@@ -1421,13 +1421,17 @@ window.openCampanhaModal = async function (pre = {}) {
 async function renderClientes({ vez = state._vez } = {}) {
   const lista = await api('GET', '/clientes' + (state.cliQ ? `?q=${encodeURIComponent(state.cliQ)}` : ''));
   if (vez !== state._vez) return;
-  const comNasc = lista.filter(c => c.nascimento).length, fora = lista.filter(c => c.aceita_mensagens === false).length;
+  const contagem = (clientes) => {
+    const comNasc = clientes.filter(c => c.nascimento).length;
+    const fora = clientes.filter(c => c.aceita_mensagens === false).length;
+    return `<span class="badge-pill bp-gray">${clientes.length}${state.cliQ ? ' encontrados' : ''}</span>
+      <span class="badge-pill bp-green">🎂 ${comNasc} com aniversário</span>
+      ${fora ? `<span class="badge-pill bp-red">🚫 ${fora} fora da lista</span>` : ''}`;
+  };
   view.innerHTML = `
     <div class="toolbar">
       <div class="left"><h2>Clientes</h2>
-        <span class="badge-pill bp-gray">${lista.length}${state.cliQ ? ' encontrados' : ''}</span>
-        <span class="badge-pill bp-green">🎂 ${comNasc} com aniversário</span>
-        ${fora ? `<span class="badge-pill bp-red">🚫 ${fora} fora da lista</span>` : ''}</div>
+        <span id="cliContagem" role="status">${contagem(lista)}</span></div>
       <div class="right">
         <div class="search">${svg(I.search)}<input id="qCli" placeholder="Nome, telefone ou placa…" value="${esc(state.cliQ)}" aria-label="Buscar clientes"></div>
         <button type="button" class="btn" id="btnAniv">${svg(I.gift)} Aniversários</button>
@@ -1444,14 +1448,22 @@ async function renderClientes({ vez = state._vez } = {}) {
     const termo = state.cliQ;
     const pesquisa = ++busca;
     const atual = () => inp.isConnected && pesquisa === busca && inp.value.trim() === termo;
+    const resultados = $('#cliLista');
+    resultados.setAttribute('aria-busy', 'true');
     try {
       const r = await api('GET', '/clientes' + (termo ? `?q=${encodeURIComponent(termo)}` : ''));
       if (!atual()) return;
-      const resultados = $('#cliLista');
+      $('#cliContagem').innerHTML = contagem(r);
       resultados.innerHTML = linhasClientes(r);
       ligarClientes(resultados, r);
     } catch {
-      if (atual()) toast('Não deu para buscar os clientes. Tente de novo.', 'err');
+      if (atual()) {
+        $('#cliContagem').textContent = '';
+        resultados.innerHTML = '<p class="form-msg erro" role="alert">Não deu para buscar os clientes.</p><button class="btn" type="button">Tentar de novo</button>';
+        $('button', resultados).onclick = () => { inp.focus(); inp.dispatchEvent(new Event('input')); };
+      }
+    } finally {
+      if (pesquisa === busca) resultados.removeAttribute('aria-busy');
     }
   }, 250));
   $('#btnImportar')?.addEventListener('click', () => openImportarModal());
@@ -1461,7 +1473,7 @@ async function renderClientes({ vez = state._vez } = {}) {
 /* Quem saiu da lista só volta pela mão do gestor (o servidor também barra). */
 const travaReligar = (c) => (c.aceita_mensagens === false && !pode('optout_religar') ? 'disabled title="Só gestor volta a mandar para quem saiu da lista"' : '');
 function linhasClientes(lista) {
-  if (!lista.length) return vazio(I.user, state.cliQ ? 'Ninguém com esse nome' : 'Nenhum cliente', state.cliQ ? 'Tente pelo telefone ou pela placa.' : 'A base é a mesma do CRM, da Agenda e do Atendimento.');
+  if (!lista.length) return vazio(I.user, state.cliQ ? 'Nenhum cliente encontrado' : 'Nenhum cliente', state.cliQ ? 'Confira o nome, telefone ou placa e tente de novo.' : 'A base é a mesma do CRM, da Agenda e do Atendimento.');
   return lista.map(c => `<div class="cli${c.aceita_mensagens === false ? ' fora' : ''}" data-id="${esc(c.id)}">
     <button type="button" class="cli-nome" data-ficha="${esc(c.id)}" title="Abrir ficha"><span class="av">${esc(iniciais(c.nome) || 'IC')}</span><b>${esc(c.nome)}</b>${c.aceita_mensagens === false ? '<span class="selo">não quer mensagens</span>' : ''}</button>
     <span class="cli-meta"><span class="col tel">${svg(I.phone)} ${esc(telBR(c.telefone))}</span>
@@ -1485,8 +1497,11 @@ function ligarClientes(root, lista) {
 }
 async function mudarAceite(c, aceita, sw) {
   if (aceita) {
+    if (sw) sw.disabled = true;
     try { const r = await api('PUT', `/clientes/${c.id}`, { aceita_mensagens:true }); Object.assign(c, r); toast(`${c.nome} volta a receber mensagens.`); sw?.closest('.cli')?.classList.remove('fora'); sw?.closest('.cli')?.querySelector('.selo')?.remove(); }
     catch (e) { toast(e.message, 'err'); if (sw) sw.checked = false; }
+    finally { if (sw) sw.disabled = false; }
+    abrirFicha(c.id, true);
     return;
   }
   openModal(`<div class="modal-head"><h3>${svg(I.x)} Parar de mandar para ${esc(c.nome)}</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
@@ -1494,12 +1509,17 @@ async function mudarAceite(c, aceita, sw) {
       <div class="field"><label for="opt_motivo">Motivo (opcional)</label><input id="opt_motivo" maxlength="120" placeholder="Ex.: pediu no balcão"></div></div>
     <div class="modal-foot"><button type="button" class="btn" data-fechar>Voltar</button><button type="button" class="btn primary" id="opt_ok">Confirmar</button></div>`);
   let feito = false;
-  $('#opt_ok').addEventListener('click', async () => {
+  $('#opt_ok').addEventListener('click', async ({ currentTarget: btn }) => {
+    btn.disabled = true;
     try {
       const r = await api('PUT', `/clientes/${c.id}`, { aceita_mensagens:false, motivo: $('#opt_motivo').value.trim() || undefined });
-      Object.assign(c, r); feito = true; closeModal(); toast(`${c.nome} não recebe mais mensagens.`);
+      Object.assign(c, r); feito = true;
+      if (btn.isConnected) closeModal();
+      abrirFicha(c.id, true);
+      toast(`${c.nome} não recebe mais mensagens.`);
       if (state.route === 'clientes') route(null, { quieto:true });
     } catch (e) { toast(e.message, 'err'); }
+    finally { btn.disabled = false; if (feito && sw) sw.checked = false; }
   });
   const volta = () => { if (!feito && sw) sw.checked = true; overlay.removeEventListener('fechou', volta); };
   overlay.addEventListener('fechou', volta);
@@ -1512,15 +1532,22 @@ window.openNascimentoModal = function (c) {
       <input id="n_data" inputmode="numeric" placeholder="DD/MM/AAAA (ou só DD/MM)" value="${c.nascimento ? esc(nascBR(c.nascimento)) : ''}">
       <small>Pode ser só dia e mês — para os parabéns o ano não importa.</small></div></div>
     <div class="modal-foot"><button type="button" class="btn" data-fechar>Cancelar</button><button type="button" class="btn primary" id="n_salvar">${svg(I.check)} Salvar</button></div>`);
-  $('#n_salvar').addEventListener('click', async () => {
-    const v = $('#n_data').value.trim();
-    if (v && !/^\d{1,2}\/\d{1,2}(\/\d{4})?$/.test(v)) return toast('Use DD/MM/AAAA ou DD/MM.', 'err');
+  $('#n_salvar').addEventListener('click', async ({ currentTarget: btn }) => {
+    const campo = $('#n_data');
+    const v = campo.value.trim();
+    if (v && !/^\d{1,2}\/\d{1,2}(\/\d{4})?$/.test(v)) {
+      campo.focus();
+      return toast('Use DD/MM/AAAA ou DD/MM.', 'err');
+    }
+    btn.disabled = true;
     try {
       const r = await api('PUT', `/clientes/${c.id}`, { nascimento: v });
-      Object.assign(c, r); toast(v ? 'Aniversário salvo 🎂' : 'Aniversário removido.'); closeModal();
+      Object.assign(c, r); toast(v ? 'Aniversário salvo 🎂' : 'Aniversário removido.');
+      if (btn.isConnected) closeModal();
       if (state.route === 'clientes') route(null, { quieto:true });
       if (!$('#gavetaOverlay').hidden) abrirFicha(c.id, true);
     } catch (e) { toast(e.message, 'err'); }
+    finally { btn.disabled = false; }
   });
 };
 
@@ -1712,11 +1739,11 @@ async function renderSatisfacao({ vez = state._vez } = {}) {
           <div class="field"><label for="sat_busca">Cliente</label><div class="search" style="max-width:none">${svg(I.search)}<input id="sat_busca" placeholder="Nome, telefone ou placa…" autocomplete="off"></div>
             <div class="sugestoes" id="sat_sug" hidden></div><div id="sat_escolhido"></div></div>
           <div class="field"><span class="rot">Como o cliente ficou?</span>
-            <div class="sat-botoes"><button type="button" class="btn sat-opcao" data-sat="1">${svg(I.smile)} Satisfeito</button><button type="button" class="btn sat-opcao" data-sat="0">${svg(I.sad)} Insatisfeito</button></div></div>
+            <div class="sat-botoes"><button type="button" class="btn sat-opcao" data-sat="1" aria-pressed="false">${svg(I.smile)} Satisfeito</button><button type="button" class="btn sat-opcao" data-sat="0" aria-pressed="false">${svg(I.sad)} Insatisfeito</button></div></div>
           <div class="field"><span class="rot">Nota (opcional)</span><div class="estrelas" role="radiogroup" aria-label="Nota de 1 a 5">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="estrela" data-nota="${n}" role="radio" aria-checked="false" aria-label="${n} ${n === 1 ? 'estrela' : 'estrelas'}">★</button>`).join('')}</div></div>
           <div class="field"><label for="sat_coment">Comentário (opcional)</label><textarea id="sat_coment" placeholder="O que o cliente disse…"></textarea></div>
           <div><button type="button" class="btn primary" id="sat_salvar">${svg(I.check)} Registrar</button></div>
-          <p class="form-msg" id="sat_msg" hidden></p>
+          <p class="form-msg" id="sat_msg" role="status" hidden></p>
         </div>
       </div>
       <div class="panel">
@@ -1738,25 +1765,40 @@ async function renderSatisfacao({ vez = state._vez } = {}) {
 
   let escolha = null, nota = null, cliente = null;
   const inp = $('#sat_busca'), sug = $('#sat_sug');
-  inp.addEventListener('input', debounce(async () => {
-    const q = inp.value.trim(); if (q.length < 2) { sug.hidden = true; return; }
-    const r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`).catch(() => []);
+  let busca = 0;
+  const pesquisar = debounce(async (q, consulta) => {
+    if (!inp.isConnected || consulta !== busca || q.length < 2) return;
+    const r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`).catch(() => null);
+    if (!inp.isConnected || consulta !== busca) return;
+    if (!r) {
+      sug.innerHTML = '<p class="dica" role="alert">Não deu para buscar o cliente. Edite a busca para tentar de novo.</p>';
+      sug.hidden = false;
+      return;
+    }
     sug.innerHTML = r.length ? r.slice(0, 8).map(x => `<button type="button" class="sugestao" data-id="${esc(x.id)}"><b>${esc(x.nome)}</b><small>${esc(telBR(x.telefone))}</small></button>`).join('') : '<div class="dica" style="padding:8px">Ninguém com esse nome.</div>';
     sug.hidden = false;
-    $$('.sugestao', sug).forEach(b => b.addEventListener('click', () => { cliente = r.find(y => y.id === b.dataset.id); inp.value = cliente.nome; sug.hidden = true;
+    $$('.sugestao', sug).forEach(b => b.addEventListener('click', () => { ++busca; cliente = r.find(y => y.id === b.dataset.id); inp.value = cliente.nome; sug.hidden = true;
       $('#sat_escolhido').innerHTML = `<div class="cli-escolhido" style="margin-top:6px"><span><b>${esc(cliente.nome)}</b><small>${esc(telBR(cliente.telefone))}</small></span></div>`; }));
-  }, 250));
-  $$('.sat-opcao').forEach(b => b.addEventListener('click', () => { escolha = b.dataset.sat === '1'; $$('.sat-opcao').forEach(x => { x.classList.toggle('ativa', x === b); x.classList.toggle('feliz', x === b && escolha); }); }));
+  }, 250);
+  inp.addEventListener('input', () => {
+    cliente = null;
+    $('#sat_escolhido').replaceChildren();
+    sug.hidden = true;
+    pesquisar(inp.value.trim(), ++busca);
+  });
+  $$('.sat-opcao').forEach(b => b.addEventListener('click', () => { escolha = b.dataset.sat === '1'; $$('.sat-opcao').forEach(x => { x.classList.toggle('ativa', x === b); x.classList.toggle('feliz', x === b && escolha); x.setAttribute('aria-pressed', String(x === b)); }); }));
   $$('.estrela').forEach(b => b.addEventListener('click', () => { nota = Number(b.dataset.nota); $$('.estrela').forEach(x => { const on = Number(x.dataset.nota) <= nota; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(Number(x.dataset.nota) === nota)); }); }));
   $('#sat_salvar').addEventListener('click', async () => {
     const msg = (t, okk) => { const el = $('#sat_msg'); el.textContent = t; el.className = 'form-msg ' + (okk ? 'ok' : 'erro'); el.hidden = false; };
-    if (!cliente) return msg('Escolha um cliente da lista.', false);
-    if (escolha === null) return msg('Diga se ele ficou satisfeito ou não.', false);
+    if (!cliente) { inp.focus(); return msg('Escolha um cliente da lista.', false); }
+    if (escolha === null) { $('[data-sat]', view).focus(); return msg('Diga se ele ficou satisfeito ou não.', false); }
     const btn = $('#sat_salvar'); btn.disabled = true;
     try {
       await api('POST', '/satisfacao', { cliente_id: cliente.id, satisfeito: escolha, nota, comentario: $('#sat_coment').value.trim() || null });
-      toast('Retorno registrado.'); route(null, { quieto:true });
-    } catch (e) { msg(e.message, false); btn.disabled = false; }
+      toast('Retorno registrado.');
+      if (btn.isConnected) route(null, { quieto:true });
+    } catch (e) { if (btn.isConnected) msg(e.message, false); }
+    finally { btn.disabled = false; }
   });
   $$('[data-apagar]', view).forEach(b => b.addEventListener('click', async () => {
     if (!confirm('Apagar este registro de satisfação?')) return;
