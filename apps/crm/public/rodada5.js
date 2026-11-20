@@ -287,7 +287,8 @@ const SD = { dados: null, carregando: false };
 async function carregarSemDono() {
   if (!SOU_GESTOR || SD.carregando) return;
   SD.carregando = true;
-  const el = $('#sdRodizio'); el.innerHTML = '<div class="skeleton" aria-label="Calculando o rodízio"></div>';
+  const el = $('#sdRodizio');
+  el.innerHTML = '<p class="vazio-curto">Calculando o rodízio…</p>';
   el.setAttribute('aria-busy', 'true');
   $('#sdAplicar').disabled = true;
   try { SD.dados = await api('/api/leads/sem-dono'); renderSemDono(); }

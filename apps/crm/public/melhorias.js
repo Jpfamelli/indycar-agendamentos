@@ -654,7 +654,7 @@ document.addEventListener('keydown', e => {
   if (e.key === '/') { e.preventDefault(); irPara('leads'); $('#search').focus(); }
 });
 document.addEventListener('keydown', e => {
-  if (/INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName)) return;
+  if (e.defaultPrevented || e.repeat || e.target.closest('input,select,textarea,button,a[href],[contenteditable]')) return;
   const tr = e.target.closest('#tblLeads tr[data-id],#tblRecent tr[data-id],.kb-card');
   if (tr && !e.shiftKey && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirModal(tr.dataset.id); }
 });

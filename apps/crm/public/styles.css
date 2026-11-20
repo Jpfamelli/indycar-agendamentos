@@ -998,7 +998,7 @@ body.sem-rede .topbar::after{content:'Sem internet';position:fixed;top:10px;righ
 .cores-avatar legend{font-size:.85rem;color:var(--rotulo);margin-bottom:6px}
 .cor-avatar{position:relative;cursor:pointer}
 .cor-avatar input{position:absolute;opacity:0;inset:0;cursor:pointer}
-.cor-avatar span{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--cor-avatar) 45%,#000);color:#fff;font-family:var(--font-cond);font-weight:700;font-size:.85rem;border:2px solid transparent}
+.cor-avatar span{width:var(--alvo);height:var(--alvo);border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--cor-avatar) 45%,#000);color:#fff;font-family:var(--font-cond);font-weight:700;font-size:.85rem;border:2px solid transparent}
 .cor-avatar input:checked+span{border-color:var(--texto);box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--cor-avatar)}
 .cor-avatar input:focus-visible+span{outline:2px solid var(--red);outline-offset:3px}
 .mini-nota{font-size:.8rem}
