@@ -370,6 +370,8 @@ export function criarApi(deps) {
   rota('GET', '/api/segmentos/salvos', async ({ res }) => ok(res, await dados.listarSegmentosSalvos()));
   rota('POST', '/api/segmentos/salvos', async ({ res, usuario, body }) => {
     if (!segmentoValido(String(body.filtro || ''))) return bad(res, 'Segmento desconhecido.');
+    const nome = typeof body.nome === 'string' ? body.nome.trim().replace(/\s+/g, ' ') : '';
+    if (nome.length < 2 || nome.length > 60) return bad(res, 'Dê um nome ao segmento (2 a 60 caracteres).');
     try {
       const s = await dados.salvarSegmento({ nome: body.nome, filtro: String(body.filtro || ''), valor: body.valor, criado_por: usuario.id, criado_por_nome: usuario.nome || usuario.email });
       auditar(usuario, 'segmento_salvo', 'comunicar_segmentos', s?.id, { nome: s?.nome, filtro: s?.filtro, valor: s?.valor });
@@ -862,6 +864,13 @@ export function criarApi(deps) {
   rota('POST', '/api/satisfacao', async ({ res, usuario, body }) => {
     if (!dados.ehUuid(body.cliente_id)) return bad(res, 'Escolha o cliente.');
     if (body.satisfeito !== true && body.satisfeito !== false) return bad(res, 'Diga se o cliente ficou satisfeito ou não.');
+    if (body.nota != null && (
+      !['number', 'string'].includes(typeof body.nota) || !/^[1-5]$/.test(String(body.nota))
+    )) return bad(res, 'Use uma nota de 1 a 5.');
+    if (body.comentario != null && (typeof body.comentario !== 'string' || body.comentario.length > 1000))
+      return bad(res, 'Use até 1.000 caracteres no comentário.');
+    if (body.envio_id != null && !dados.ehUuid(body.envio_id)) return bad(res, 'Envio inválido.');
+    if (body.agendamento_id != null && !dados.ehUuid(body.agendamento_id)) return bad(res, 'Agendamento inválido.');
     return ok(res, await dados.registrarResposta({ ...body, registrado_por: usuario.nome || usuario.email }));
   });
   rota('DELETE', `/api/satisfacao/${U}`, async ({ res, usuario, url }) => {

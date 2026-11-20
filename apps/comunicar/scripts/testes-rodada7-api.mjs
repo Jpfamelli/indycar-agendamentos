@@ -40,6 +40,26 @@ async function subir({ simular = null, livre = false } = {}) {
 }
 test.after(() => banco.restaurar());
 
+for (const [id, caminho, corpo] of [
+  ['028', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, nota: true }],
+  ['029', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, comentario: 'a'.repeat(1001) }],
+  ['030', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, envio_id: 'inválido' }],
+  ['031', '/api/satisfacao', { cliente_id: ID(10), satisfeito: true, agendamento_id: 'inválido' }],
+  ['032', '/api/segmentos/salvos', { filtro: 'todos', nome: ['Clientes'] }],
+  ['032', '/api/segmentos/salvos', { filtro: 'todos', nome: 'a'.repeat(61) }],
+]) {
+  test(`R10-COM-${id}: recusa entrada inválida antes de gravar em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const tabela = caminho === '/api/satisfacao' ? 'posvenda_respostas' : 'comunicar_segmentos';
+      const antes = tabelas[tabela]?.length ?? 0;
+      const r = await s.chamar('gestor', 'POST', caminho, corpo);
+      assert.equal(r.status, 400, JSON.stringify(r.json));
+      assert.equal(tabelas[tabela]?.length ?? 0, antes);
+    } finally { await s.fechar(); }
+  });
+}
+
 const tarefaValida = { titulo: 'Confirmar horário com o cliente' };
 for (const [numero, campo, valor] of [
   ['013', 'titulo', ['Confirmar']],
