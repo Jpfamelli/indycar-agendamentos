@@ -356,3 +356,10 @@ test('esqueci a senha: espera a resposta (botão desligado) e não pede de novo 
 test('aviso do pé: usa a largura da tela no celular (antes era metade, por causa do left 50%)', () => {
   assert.match(ler('r9.css'), /\.toast \{ left: 16px; right: 16px; transform: none; width: fit-content; max-width: min\(560px, calc\(100vw - 32px\)\);/);
 });
+
+test('ficha: orçamento diz "esperando resposta há 1 dia" (antes "esperando resposta · Onix · esperando há 1 dia")', () => {
+  assert.equal(N.situacaoDoOrc({ status: 'esperando resposta', esperandoHoras: 26 }), 'esperando resposta há ' + L.duracao(26 * 36e5));
+  assert.equal(N.situacaoDoOrc({ status: 'esperando resposta', esperandoHoras: 2 }), 'esperando resposta');
+  assert.equal(N.situacaoDoOrc({ status: 'em aberto', esperandoHoras: 10 }), 'em aberto · esperando há ' + L.duracao(10 * 36e5));
+  assert.doesNotMatch(semComentarios(ler('ficha.js')), /· esperando há/);
+});
