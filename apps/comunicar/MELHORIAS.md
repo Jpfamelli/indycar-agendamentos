@@ -1089,3 +1089,22 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-079** · acessibilidade · O botão da mensagem de regra anuncia se ela está aberta. · `41fc2d5`
 - **R9-COM-080** · acessibilidade · O nome Regra ativa é associado diretamente à caixa de seleção. · `41fc2d5`
 - **R9-COM-081** · conserto · Criar uma regra usa o retorno da gravação e elimina uma consulta que podia indicar falha após o cadastro. · `41fc2d5`
+- **R9-COM-082** · conserto · Os totais em Clientes acompanham os resultados da busca. · `d6e492a`
+- **R9-COM-083** · acessibilidade · A lista de clientes anuncia o carregamento da pesquisa. · `d6e492a`
+- **R9-COM-084** · aviso · A busca de clientes exibe a falha e permite repetir o mesmo termo. · `d6e492a`
+- **R9-COM-085** · texto · O resultado vazio orienta a conferir nome, telefone ou placa. · `d6e492a`
+- **R9-COM-086** · conserto · O alternador impede uma segunda ação enquanto libera mensagens. · `d6e492a`
+- **R9-COM-087** · conserto · A ficha aberta reflete a nova permissão de mensagens e atualiza suas ações. · `d6e492a`
+- **R9-COM-088** · conserto · A confirmação de parar mensagens bloqueia cliques repetidos. · `d6e492a`
+- **R9-COM-089** · conserto · A resposta do pedido de parar preserva uma janela aberta depois. · `d6e492a`
+- **R9-COM-090** · conserto · O alternador permanece desligado após a confirmação, inclusive se a janela tiver sido fechada durante a gravação. · `d6e492a`
+- **R9-COM-091** · acessibilidade · Uma data em formato inválido devolve o foco ao campo de aniversário. · `d6e492a`
+- **R9-COM-092** · conserto · Salvar aniversário bloqueia gravações repetidas enquanto aguarda resposta. · `d6e492a`
+- **R9-COM-093** · conserto · Salvar aniversário preserva a janela aberta depois. · `d6e492a`
+- **R9-COM-094** · acessibilidade · As opções de satisfação anunciam qual foi selecionada. · `d6e492a`
+- **R9-COM-095** · acessibilidade · O erro no registro de satisfação é anunciado. · `d6e492a`
+- **R9-COM-096** · conserto · A busca de satisfação ignora resultados de pesquisas antigas. · `d6e492a`
+- **R9-COM-097** · conserto · Editar a busca limpa o cliente selecionado antes de permitir salvar. · `d6e492a`
+- **R9-COM-098** · aviso · A busca de satisfação distingue erro de consulta de resultado vazio. · `d6e492a`
+- **R9-COM-099** · acessibilidade · O registro incompleto leva o foco ao cliente ou à escolha de satisfação. · `d6e492a`
+- **R9-COM-100** · conserto · O retorno de um registro de satisfação preserva a tela aberta depois. · `d6e492a`
