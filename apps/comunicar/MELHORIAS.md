@@ -1069,3 +1069,23 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R9-COM-059** · conserto · A confirmação atrasada do envio preserva a janela e o rascunho abertos depois. · `044da23`
 - **R9-COM-060** · teste · O cenário de adiamento seletivo usa validade posterior ao novo horário e confere a data gravada. · `fb90dce`
 - **R9-COM-061** · teste · O Chrome verifica o bloqueio do avanço com a prévia desatualizada nos dois temas e larguras, com escritas e rede externa bloqueadas. · `ee3c8a5`
+- **R9-COM-062** · aviso · Falha ao carregar prazos aparece separada de uma lista vazia. · `41fc2d5`
+- **R9-COM-063** · conserto · A nova tentativa recupera prazos sem perder edições nas réguas. · `41fc2d5`
+- **R9-COM-064** · acessibilidade · Após recuperar prazos, o foco passa para o primeiro controle disponível. · `41fc2d5`
+- **R9-COM-065** · conserto · Descartar limpa o rascunho local. · `41fc2d5`
+- **R9-COM-066** · conserto · O botão de IA fica fora do tratamento dos chips de variáveis. · `41fc2d5`
+- **R9-COM-067** · conserto · A inserção de uma variável respeita o limite da mensagem. · `41fc2d5`
+- **R9-COM-068** · acessibilidade · A pausa geral tem nome estável para leitor de tela. · `41fc2d5`
+- **R9-COM-069** · acessibilidade · O alternador de domingo identifica a ação de envio. · `41fc2d5`
+- **R9-COM-070** · acessibilidade · O alternador de horário comercial identifica a restrição. · `41fc2d5`
+- **R9-COM-071** · acessibilidade · O total de alterações pendentes é anunciado. · `41fc2d5`
+- **R9-COM-072** · conserto · Mudar o horário atualiza a prévia de todas as réguas. · `41fc2d5`
+- **R9-COM-073** · conserto · Restaurar o valor padrão limpa o estado de alteração. · `41fc2d5`
+- **R9-COM-074** · conserto · O salvamento ignora cliques repetidos. · `41fc2d5`
+- **R9-COM-075** · acessibilidade · Uma janela invertida leva o foco ao horário inicial. · `41fc2d5`
+- **R9-COM-076** · acessibilidade · Um link inválido leva o foco ao campo de avaliação e explica os formatos aceitos. · `41fc2d5`
+- **R9-COM-077** · conserto · O formulário evita edições e descarte durante o salvamento. · `41fc2d5`
+- **R9-COM-078** · conserto · A resposta do salvamento preserva a tela aberta após sair de Réguas. · `41fc2d5`
+- **R9-COM-079** · acessibilidade · O botão da mensagem de regra anuncia se ela está aberta. · `41fc2d5`
+- **R9-COM-080** · acessibilidade · O nome Regra ativa é associado diretamente à caixa de seleção. · `41fc2d5`
+- **R9-COM-081** · conserto · Criar uma regra usa o retorno da gravação e elimina uma consulta que podia indicar falha após o cadastro. · `41fc2d5`
