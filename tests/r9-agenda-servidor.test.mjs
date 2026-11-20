@@ -256,3 +256,15 @@ test('R10-AGE-003: configurações rejeitam JSON com bytes UTF-8 inválidos', as
   assert.equal(resposta.status, 400);
   assert.equal(gravado.empresa, anterior);
 });
+
+test('R10-AGE-004: configurações rejeitam corpo JSON composto só de espaços', async () => {
+  const anterior = gravado.empresa;
+  const resposta = await fetch(base + '/api/empresa', {
+    method: 'PUT',
+    headers: { Authorization: 'Bearer gestor', 'Content-Type': 'application/json' },
+    body: ' \t\r\n ',
+  });
+  assert.equal(resposta.status, 400);
+  assert.match((await resposta.json()).erro, /envie JSON/);
+  assert.equal(gravado.empresa, anterior);
+});

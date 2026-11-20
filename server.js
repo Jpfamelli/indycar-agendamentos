@@ -139,7 +139,7 @@ function readBody(req) {
       if (estourou) return;
       try {
         const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(Buffer.concat(blocos, tamanho));
-        if (!raw.trim()) return resolve({});
+        if (!raw) return resolve({});
         const j = JSON.parse(raw);
         if (!j || typeof j !== 'object' || Array.isArray(j)) {
           return reject(new ErroHttp(400, 'O corpo precisa ser um objeto JSON.'));
