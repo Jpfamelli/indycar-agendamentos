@@ -1463,3 +1463,8 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - **R9-ATD-103** · teste · Suíte nova test/r9-tarefas.test.js: 3 testes com banco de mentira (aviso sem nome de coluna, leitura que falha, limite são) · `dc71550`
 - **R9-ATD-104** · teste · test/r9-tela.test.js ganha 4 testes: código morto fora, cores da barra, ícone da notificação e avisos sem nome de rota · `01e9b34`
 - **R9-ATD-105** · acessibilidade · Nova conversa: o motivo do telefone recusado aparece abaixo do campo, é lido pelo leitor de tela (role=alert, aria-invalid) e some quando a pessoa volta a digitar · `902a163`
+- **R9-ATD-106** · aviso · Integrações: com a chave recusada, o selo do cartão CodeWords diz "chave recusada" em vez de "ligado" (a faixa dizia que o WhatsApp parou e o cartão dizia que estava tudo ligado) · `011bd42`
+- **R9-ATD-107** · celular · A barra de telas rola sozinha até a tela aberta (em Auditoria, Etapas ou Integrações o botão da tela ficava fora da vista) · `011bd42`
+- **R9-ATD-108** · acessibilidade · O botão da tela aberta leva aria-current, e o leitor de tela diz onde a pessoa está · `011bd42`
+- **R9-ATD-109** · celular · Funil: o campo de filtrar ocupa a linha inteira (tinha 61 px e o texto aparecia cortado em "Filt") · `011bd42`
+- **R9-ATD-110** · teste · test/r9-tela.test.js ganha 3 testes (selo do CodeWords rodando numa caixa de areia, barra de telas, filtro do funil) e o roteiro no Chrome passa a 164 conferências · `011bd42`
