@@ -1129,3 +1129,9 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-016** · conserto · Prioridade de tarefa fora da escala recebe aviso antes de salvar (teste R10-COM-016 em testes-rodada7-api.mjs) · `5d99dff`
 - **R10-COM-017** · conserto · Prazo de tarefa de tipo incompatível recebe aviso antes de salvar (teste R10-COM-017 em testes-rodada7-api.mjs) · `5d99dff`
 - **R10-COM-018** · segurança · Atualização de consentimento exige valor booleano explícito (teste R10-COM-018 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-019** · segurança · A reabordagem rejeita listas no lugar do mapa de textos (teste R10-COM-019 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-020** · segurança · Cada mensagem de reabordagem exige texto (teste R10-COM-020 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-021** · conserto · Horário de envio recusa valores booleanos (teste R10-COM-021 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-022** · segurança · A reabordagem rejeita seleções inválidas de orçamentos antes de consultar o público (teste R10-COM-022 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-023** · segurança · O filtro de reabordagem só aceita motivos conhecidos (teste R10-COM-023 em testes-rodada7-api.mjs) · `782301e`
+- **R10-COM-024** · segurança · O escopo da triagem exige valor booleano quando informado (teste R10-COM-024 em testes-rodada7-api.mjs) · `782301e`
