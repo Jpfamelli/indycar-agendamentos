@@ -81,7 +81,7 @@ export function montarProntidao(f) {
 
   // 8. teste que chegou
   const testeDias = teste.ultimoOkEm ? (agora - new Date(teste.ultimoOkEm).getTime()) / 86400000 : null;
-  if (testeDias !== null && testeDias <= 30) item('teste', 'Um teste chegou no seu celular', 'ok', 'O último teste saiu bem nos últimos 30 dias.');
+  if (testeDias !== null && testeDias >= 0 && testeDias <= 30) item('teste', 'Um teste chegou no seu celular', 'ok', 'O último teste saiu bem nos últimos 30 dias.');
   else item('teste', 'Um teste chegou no seu celular', 'aviso', 'Mande um teste (Réguas › qualquer régua › "Mandar teste para mim") e confira se chegou.', { tipo: 'rota', alvo: 'reguas', rotulo: 'Mandar teste' });
 
   // 9. aniversários
@@ -95,8 +95,9 @@ export function montarProntidao(f) {
     { tipo: 'modal', alvo: 'aniversarios', rotulo: 'Cadastrar mais' });
 
   // 10. carteiro (o que acorda o servidor e envia)
+  const idadeRodadaMs = carteiro.ultimaEm ? agora - new Date(carteiro.ultimaEm).getTime() : NaN;
   if (!cfg.carteiro_configurado) item('carteiro', 'Carteiro automático', 'falta', 'O carteiro externo não está configurado: com o servidor dormindo, nada sai. Fale com o administrador.', null, true);
-  else if (carteiro.ultimaEm && (agora - new Date(carteiro.ultimaEm).getTime()) < 40 * 60000) {
+  else if (idadeRodadaMs >= 0 && idadeRodadaMs < 40 * 60000) {
     const f24 = Number(carteiro.falhas24h) || 0;
     item('carteiro', 'Carteiro automático', f24 >= 4 ? 'aviso' : 'ok',
       f24 ? `Rodando. Nas últimas 24 h, ${f24} chamada(s) encontraram o servidor dormindo ou fora do ar — o reforço tenta de novo em 5 min e nada se perde.` : 'Rodando a cada 15 min, com reforço quando o servidor não acorda.',
