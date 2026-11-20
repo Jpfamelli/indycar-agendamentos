@@ -49,6 +49,26 @@ test('R10-CRM-002: cadastro rejeita JSON com bytes UTF-8 inválidos', async (t) 
   assert.equal(app.db.leads.length, 0);
 });
 
+const dadosValidacao = { nome: 'Cliente teste', telefone: '12999990000' };
+
+for (const [id, descricao, campos] of [
+  ['004', 'telefone com letras', { telefone: 'abc12999990000' }],
+  ['005', 'valor informado como booleano', { valor_pago: true }],
+  ['006', 'placa informada como lista', { placa: ['ABC1234'] }],
+  ['007', 'motivo de perda informado como lista', { motivo_perda: ['caro'] }],
+]) {
+  test(`R10-CRM-${id}: cadastro recusa ${descricao}`, async (t) => {
+    const app = await subirServidor();
+    t.after(() => app.fechar());
+    const resposta = await app.req('gestor', '/api/leads', {
+      method: 'POST',
+      body: { ...dadosValidacao, ...campos },
+    });
+    assert.equal(resposta.status, 400);
+    assert.equal(app.db.leads.length, 0);
+  });
+}
+
 test('R10-CRM-003: corpo JSON compactado recebe resposta de formato nao aceito', async (t) => {
   const app = await subirServidor();
   t.after(() => app.fechar());

@@ -20,14 +20,21 @@
   function validarLead(d, parcial = false) {
     if (!d || typeof d !== 'object' || Array.isArray(d)) return 'Informe um objeto JSON.';
     if ((!parcial || 'nome' in d) && (typeof d.nome !== 'string' || !d.nome.trim() || d.nome.length > 120)) return 'Informe um nome com até 120 caracteres.';
-    if ((!parcial || 'telefone' in d) && !/^(?:55)?\d{10,11}$/.test(digitos(d.telefone))) return 'Informe telefone com DDD (10 ou 11 dígitos).';
-    for (const k of ['valor_orcado','valor_pago']) if (k in d && (!Number.isFinite(Number(d[k])) || Number(d[k]) < 0 || Number(d[k]) > 10000000)) return 'Informe valores entre zero e R$ 10 milhões.';
+    if (!parcial || 'telefone' in d) {
+      const tel = d.telefone;
+      if ((typeof tel !== 'string' && !Number.isSafeInteger(tel)) || !/^\+?[\d().\s-]+$/.test(String(tel).trim()) || !/^(?:55)?\d{10,11}$/.test(digitos(tel))) return 'Informe telefone com DDD (10 ou 11 dígitos).';
+    }
+    for (const k of ['valor_orcado','valor_pago']) {
+      const valor = d[k];
+      if (valor == null) continue;
+      if ((typeof valor !== 'number' && typeof valor !== 'string') || !Number.isFinite(Number(valor)) || Number(valor) < 0 || Number(valor) > 10000000) return 'Informe valores entre zero e R$ 10 milhões.';
+    }
     if ('status' in d && !['novo','contato','orcamento','agendado','em_servico','concluido','perdido'].includes(d.status)) return 'Etapa inválida.';
     if ('origem' in d && !['meta','google','indicacao','organico','whatsapp','passagem','telefone'].includes(d.origem)) return 'Origem inválida.';
-    if (d.motivo_perda != null && !Object.hasOwn(MOTIVOS_R8, d.motivo_perda)) return 'Motivo da perda inválido.';
+    if (d.motivo_perda != null && (typeof d.motivo_perda !== 'string' || !Object.hasOwn(MOTIVOS_R8, d.motivo_perda))) return 'Motivo da perda inválido.';
     if (d.motivo_perda_obs != null && (typeof d.motivo_perda_obs !== 'string' || d.motivo_perda_obs.length > 140)) return 'Escreva o motivo em até 140 caracteres.';
     if (d.motivo_perda === 'outro' && !d.motivo_perda_obs?.trim()) return 'Escreva o motivo.';
-    if (d.placa && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(normalizar(d.placa))) return 'Confira a placa: ABC1234 ou ABC1D23.';
+    if (d.placa != null && (typeof d.placa !== 'string' || (d.placa && !/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(normalizar(d.placa))))) return 'Confira a placa: ABC1234 ou ABC1D23.';
     for (const k of ['observacoes','servico','carro_modelo','utm_campaign','utm_source','utm_medium']) if (k in d && d[k] !== null && (typeof d[k] !== 'string' || d[k].length > (k === 'observacoes' ? 4000 : 200))) return 'Texto maior que o permitido.';
     return null;
   }
