@@ -59,6 +59,8 @@ async function rotasR3(c) {
     exigirGestor('Só um gestor roda o rodízio.');
     frear('rodizio', 10, 60_000);
     const b = await lerCorpo();
+    if ('simular' in b && typeof b.simular !== 'boolean') throw falha(400, 'Informe se é uma simulação.');
+    if ('todos' in b && typeof b.todos !== 'boolean') throw falha(400, 'Informe se o rodízio inclui todos os leads.');
     const r = await eq.rodizio({ executar: b.simular !== true, quem, horas: b.horas, todos: b.todos === true, limite: b.limite });
     json(res, 200, r);
     c.limparStats?.();
@@ -140,6 +142,9 @@ async function rotasR3(c) {
     exigirGestor('Só um gestor roda as automações.');
     frear('automacoes', 6, 60_000);
     const b = await lerCorpo();
+    if ('regras' in b && (!Array.isArray(b.regras) || b.regras.some(r => !a.REGRAS.includes(r)))) {
+      throw falha(400, `Regras válidas: ${a.REGRAS.join(', ')}.`);
+    }
     const r = await a.ciclo({ origem: 'manual', quem, regras: b.regras });
     json(res, r.ocupado ? 409 : 200, r);
     c.limparStats?.();
@@ -151,6 +156,9 @@ async function rotasR3(c) {
     frear('exportar', 30, 600_000);
     const b = await lerCorpo();
     const tipo = ['leads', 'clientes', 'tarefas', 'desempenho', 'relatorio', 'valores', 'distribuicao'].includes(b.tipo) ? b.tipo : 'leads';
+    if ('quantidade' in b && !(typeof b.quantidade === 'number' || (typeof b.quantidade === 'string' && /^\d+$/.test(b.quantidade)))) {
+      throw falha(400, 'Informe a quantidade exportada em números.');
+    }
     const qtd = Math.max(0, Math.min(1_000_000, Math.round(Number(b.quantidade) || 0)));
     const filtros = b.filtros && typeof b.filtros === 'object' && !Array.isArray(b.filtros)
       ? Object.fromEntries(Object.entries(b.filtros).slice(0, 12).map(([k, v]) => [String(k).slice(0, 30), typeof v === 'object' ? null : String(v ?? '').slice(0, 60)])) : null;
