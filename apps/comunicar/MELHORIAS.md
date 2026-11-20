@@ -1119,3 +1119,13 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-006** · segurança · Telefone do perfil recusa listas e preserva a normalização do DDD (teste R10-COM-006 em testes-r10-perfil.mjs) · `c2b65f6`
 - **R10-COM-007** · segurança · A cor do perfil exige texto hexadecimal ou campo limpo (teste R10-COM-007 em testes-r10-perfil.mjs) · `c2b65f6`
 - **R10-COM-008** · segurança · Preferências do perfil recusam listas em vez de tratá-las como configuração vazia (teste R10-COM-008 em testes-r10-perfil.mjs) · `c2b65f6`
+- **R10-COM-009** · segurança · A validação de perfil recusa corpo nulo ou de tipo incompatível (teste R10-COM-009 em testes-r10-perfil.mjs) · `3a4944f`
+- **R10-COM-010** · conserto · Cargo acima de 60 caracteres recebe aviso antes de salvar (teste R10-COM-010 em testes-r10-perfil.mjs) · `3a4944f`
+- **R10-COM-011** · conserto · Telefone com letras recebe aviso e a máscara comum continua aceita (teste R10-COM-011 em testes-r10-perfil.mjs) · `3a4944f`
+- **R10-COM-012** · conserto · Preferências de notificação inválidas recebem aviso antes de salvar (teste R10-COM-012 em testes-r10-perfil.mjs) · `3a4944f`
+- **R10-COM-013** · segurança · A API exige título de tarefa em texto (teste R10-COM-013 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-014** · segurança · A API recusa descrição de tarefa enviada como objeto (teste R10-COM-014 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-015** · conserto · Descrição de tarefa acima de 2.000 caracteres recebe aviso antes de salvar (teste R10-COM-015 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-016** · conserto · Prioridade de tarefa fora da escala recebe aviso antes de salvar (teste R10-COM-016 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-017** · conserto · Prazo de tarefa de tipo incompatível recebe aviso antes de salvar (teste R10-COM-017 em testes-rodada7-api.mjs) · `5d99dff`
+- **R10-COM-018** · segurança · Atualização de consentimento exige valor booleano explícito (teste R10-COM-018 em testes-rodada7-api.mjs) · `5d99dff`

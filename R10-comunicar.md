@@ -1,16 +1,16 @@
 # Rodada 10 · Comunicar
 
-Entrega parcial. 8 de 100 melhorias registradas.
+Entrega parcial. 18 de 100 melhorias registradas. Próximo número: R10-COM-019.
 
 A suíte de referência passou 310/310 com isolamento padrão do Node. O modo sem isolamento fez os dublês dos testes compartilharem estado, por isso a conferência foi repetida com os subprocessos padrão.
 
 ## Para outra frente
 
-Faltam a cobertura dos 69 comportamentos R9-COM-032 a R9-COM-100 e 92 melhorias para a meta do app.
+Faltam a cobertura dos 69 comportamentos R9-COM-032 a R9-COM-100 e 82 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
 
 ## Para o João
 
-Sem mudanças de nomes, correções de segurança ou medições de desempenho neste app.
+Sem mudanças de nomes ou medições de desempenho neste lote. Os limites de cargo e descrição devolvem erro em vez de salvar conteúdo cortado.
 
 ## Chrome
 
@@ -29,3 +29,9 @@ O checklist mantém o aviso quando a data do último teste de envio ou da rodada
 ## Validação de perfil
 
 O commit `c2b65f6` cobre R10-COM-004 a 008. Os cinco testes de perfil falharam antes e passaram depois. A suíte completa passou de 313 para 318 testes com o isolamento padrão do Node. Cargo, telefone e cor aceitam limpar o campo. Nenhuma chamada a serviços externos foi necessária para estes testes.
+
+## Continuação
+
+- `3a4944f` cobre R10-COM-009 a 012. O perfil valida corpo, limite do cargo, caracteres do telefone e tipos das preferências de notificação.
+- `5d99dff` cobre R10-COM-013 a 018. A API valida título, descrição, prioridade e prazo de tarefas e exige valor booleano explícito no consentimento do cliente. O teste legado continua conferindo que chaves desconhecidas são ignoradas. Um valor inválido de uma preferência reconhecida agora recebe erro.
+- A suíte integral passou de 318 para 328 testes. As novas regressões falharam antes das correções e passaram depois. `npm run check` passou. Os testes de API usaram banco e WhatsApp simulados. O Chrome não foi reexecutado nesta continuação.
