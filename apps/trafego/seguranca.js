@@ -6,21 +6,33 @@
    ============================================================ */
 'use strict';
 
-/* A tela só carrega coisas daqui, das fontes do Google e fala com o Supabase. */
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self'",
-  // style="width:…" das barras e gráficos (atributo, não <style> injetável)
-  "style-src-attr 'unsafe-inline'",
-  "font-src 'self'",
-  "img-src 'self' data: blob:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-].join('; ');
+/* A tela só carrega coisas daqui e fala com o banco da casa.
+   Rodada 10: connect-src leva só o endereço do projeto do Supabase (SUPABASE_URL), não mais qualquer *.supabase.co
+   (um projeto de outra pessoa também é *.supabase.co), e sem wss: a tela nova não usa canal em tempo real.
+   Sem endereço https configurado (desenvolvimento), vale o padrão antigo. */
+function cspPara(urlDoSupabase, { tempoReal = false } = {}) {
+  let banco = 'https://*.supabase.co';
+  try {
+    const u = new URL(String(urlDoSupabase || ''));
+    if (u.protocol === 'https:' && u.hostname && !u.username && !u.password) banco = u.origin;
+  } catch { /* fica o padrão */ }
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    // style="width:…" das barras e gráficos (atributo, não <style> injetável)
+    "style-src-attr 'unsafe-inline'",
+    "font-src 'self'",
+    "img-src 'self' data: blob:",
+    // a tela antiga (religada por TRAFEGO_TELA_ANTIGA=1) ouve o sino em tempo real: só aí entra o wss, e só do mesmo endereço
+    "connect-src 'self' " + banco + (tempoReal ? ' ' + banco.replace(/^https:/, 'wss:') : ''),
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join('; ');
+}
+const CSP = cspPara(process.env.SUPABASE_URL, { tempoReal: process.env.TRAFEGO_TELA_ANTIGA === '1' });
 
 const PERMISSOES = 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()';
 
@@ -113,6 +125,10 @@ const LIMITES_CAROS = {
   'GET /api/fechamento.csv': 30,
   'POST /api/fechamento/enviar': 5,
   'POST /api/gestor/conversas': 30,   // rodada 9: cada uma é uma linha nova no banco
+  // rodada 10: gravações que não tinham limite nenhum por pessoa
+  'POST /api/config': 30,
+  'POST /api/ia/chaves': 10,
+  'GET /api/ia/chaves': 120,          // cada leitura da lista grava uma linha na auditoria
 };
 
 /* Revisão de segurança (19/11): o primeiro item do X-Forwarded-For é o que o visitante escreve, então não serve
@@ -139,4 +155,4 @@ function mensagemPublica(e) {
   return 'Algo deu errado aqui. Tente de novo em instantes.';
 }
 
-module.exports = { CSP, PERMISSOES, cabecalhos, cors, origemPermitida, criarLimitador, LIMITES_CAROS, ipDe, mensagemPublica, ORIGENS };
+module.exports = { CSP, cspPara, PERMISSOES, cabecalhos, cors, origemPermitida, criarLimitador, LIMITES_CAROS, ipDe, mensagemPublica, ORIGENS };

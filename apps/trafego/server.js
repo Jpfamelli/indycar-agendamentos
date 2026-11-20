@@ -510,7 +510,11 @@ rotaAntiga('POST', '/api/demo', async ({ corpo, usuario }) => {
 });
 
 /* --- configuração e metas (usada pelos dois módulos) --- */
-rota('GET', '/api/config', () => db.lerConfig({ fresco: true }));
+/* Rodada 10: os telefones que recebem os relatórios (o celular do dono) só vão inteiros para o administrador, que é
+   quem pode trocá-los. Quem tem o app liberado vê as metas e só o final de cada número. */
+const configParaQuem = (cfg, usuario) => (equipe.ehAdmin(usuario) || !cfg || !Array.isArray(cfg.whatsapp_destinos) ? cfg
+  : { ...cfg, whatsapp_destinos: cfg.whatsapp_destinos.map(t => '•••' + String(t).slice(-4)) });
+rota('GET', '/api/config', async ({ usuario }) => configParaQuem(await db.lerConfig({ fresco: true }), usuario));
 rota('POST', '/api/config', async ({ corpo, usuario }) => {
   const v = validarConfig(await corpo());
   if (v.whatsapp_destinos !== undefined) soAdmin(usuario, 'trocar os números que recebem os relatórios');
@@ -521,7 +525,7 @@ rota('POST', '/api/config', async ({ corpo, usuario }) => {
   const detalhes = { ...v };
   if (v.whatsapp_destinos) detalhes.whatsapp_destinos = v.whatsapp_destinos.map(t => '•••' + t.slice(-4));
   await equipe.banco().auditar(usuario, 'ads_config_alterada', { tabela: 'ads_config', registro: 'true', detalhes });
-  return db.lerConfig({ fresco: true });
+  return configParaQuem(await db.lerConfig({ fresco: true }), usuario);
 });
 
 /* --- metas de marketing da loja (tabela metas, perfil_id nulo) --- */

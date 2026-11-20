@@ -128,9 +128,11 @@ function criar({ dirTela, dirAntiga, vendor = {}, antigaLigada = false }) {
     if (partes.some(p => p.startsWith('.'))) return true;
     // No Windows, "arquivo.md." e "arquivo.md::$DATA" abrem "arquivo.md": nome com ":" ou terminado em ponto/espaço não passa.
     if (/[:*?"<>|]/.test(rel) || partes.some(p => /[. ]$/.test(p))) return true;
+    // Rodada 10: package.json (o da pasta js/ só diz ao Node que os arquivos são módulos) é bastidor: não vai para o navegador.
+    const nome = partes[partes.length - 1].toLowerCase();
+    if (nome === 'package.json' || nome === 'package-lock.json') return true;
     if (!ehTela) return false;
     if (partes.some(p => p.startsWith('_'))) return true;
-    const nome = partes[partes.length - 1].toLowerCase();
     return nome.endsWith('.md') || /[.]test[.][cm]?js$/.test(nome);
   }
 
