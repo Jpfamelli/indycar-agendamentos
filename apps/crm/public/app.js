@@ -134,8 +134,8 @@ let CATALOGO = [];              // os 138 serviços, como vieram do banco
 
 /* ---------------- Navegação ---------------- */
 const TITULOS = {
-  dashboard:     ['Dashboard', 'Visão geral da operação comercial'],
-  leads:         ['Leads', 'Todos os contatos, carros e serviços'],
+  dashboard:     ['Painel', 'Visão geral da operação comercial'],
+  leads:         ['Contatos', ''],
   clientes:      ['Clientes', 'A base compartilhada com a agenda e o atendimento'],
   pipeline:      ['Funil de Vendas', 'Acompanhe cada lead até o fechamento'],
   origem:        ['Origem dos Leads', 'De onde vem cada cliente — e quanto rende'],
@@ -160,7 +160,10 @@ function irPara(v) {
   $$('.view').forEach(x => x.classList.remove('active'));
   $(`#view-${v}`)?.classList.add('active');
   $('#viewTitle').textContent = TITULOS[v][0];
+  const abaAtiva = $('.nav-item.active')?.closest('details');
+  if (abaAtiva) abaAtiva.open = true;
   $('#viewSub').textContent = TITULOS[v][1];
+  $('#viewSub').hidden = !TITULOS[v][1];
   $('.search').style.display = ABAS_COM_BUSCA.has(v) ? '' : 'none';
   $('#btnNovo').style.display = ABAS_SEM_NOVO.has(v) ? 'none' : '';
   if (v === 'integracoes')   carregarIntegracoes();
@@ -266,7 +269,8 @@ async function carregar() {
     renderHowto();
     if (primeira) {
       let aba = null; try { aba = sessionStorage.getItem('indycar_crm_aba'); } catch { /* ignora */ }
-      if (aba && aba !== 'dashboard' && !$(`.nav-item[data-view="${aba}"]`)?.hidden) irPara(aba);
+      const atalho = Object.hasOwn(TITULOS, aba) && [...document.querySelectorAll('.nav-item')].find(item => item.dataset.view === aba);
+      irPara(atalho && !atalho.hidden ? aba : 'leads');
       abrirPorLink();
     }
   } catch (err) {

@@ -476,6 +476,7 @@ function linkConversa(a) {
 function appointmentCard(a, opts) {
   const o = (opts && typeof opts === 'object') ? opts : {};
   return corpoDoCartao(a, o.agora || agoraSP(), `
+        ${o.comChegada ? `<button class="act chegou-dia" type="button" data-act="compareceu">${svg(I.check)} Chegou</button>` : ''}
         <button class="act green solido" data-act="concluido"
                 title="Veio e fez o serviço: sai do Início e vai para o CRM como Concluído">${svg(I.check)} Veio e fechou</button>
         <button class="act red" data-act="nao_veio">${svg(I.x)} Não veio</button>
@@ -714,6 +715,7 @@ function bindApptActions(root) {
           toast('Agendamento excluído');
           return route();
         }
+        if (act === 'compareceu') return marcarNaRecepcao(card, act, { aoAtualizar: () => route() });
         if (RECADO_DESFECHO[act] || act === 'nao_veio') return marcarDesfecho(card, id, act);
       } catch (e) { toast(e.message, 'err'); }
     }));
@@ -969,12 +971,9 @@ function pintarInicio(d, opts = {}) {
   // abertura: quem é o próximo?
   const prox = grupos.agendados.find(a => String(a.hora) >= agora.hm);
   const semDesfecho = grupos.agendados.filter(a => String(a.hora) < agora.hm).length;
-  const saud = agora.min < 12 * 60 ? 'Bom dia' : agora.min < 18 * 60 ? 'Boa tarde' : 'Boa noite';
-  const primeiroNome = String(state.perfil?.nome || '').trim().split(/\s+/)[0];
-  const frase = prox ? `Próximo cliente às ${esc(prox.hora)}.`
-    : semDesfecho ? `${semDesfecho} ${semDesfecho === 1 ? 'cliente de hoje ainda sem desfecho' : 'clientes de hoje ainda sem desfecho'} — marque quem veio.`
-    : !d.agendaHoje.length ? 'Nenhum agendamento para hoje.'
-    : 'Agenda de hoje em dia. 🏁';
+  const frase = semDesfecho
+    ? `${semDesfecho} ${semDesfecho === 1 ? 'horário sem desfecho' : 'horários sem desfecho'}`
+    : !d.agendaHoje.length ? 'Nenhum agendamento para hoje.' : '';
   const relProx = prox ? quandoRel(prox, agora) : null;
 
   // a divisão A seguir / Já passaram é recalculada AQUI: ela muda com o relógio
@@ -991,8 +990,9 @@ function pintarInicio(d, opts = {}) {
   view.innerHTML = `
     <div class="hero-dia">
       <div>
-        <div class="hero-data">${esc(dataExtenso(d.data))}</div>
-        <h2 class="hero-titulo">${saud}${primeiroNome ? ', ' + esc(primeiroNome) : ''}. <span>${frase}</span></h2>
+        <h2 class="hero-titulo">Agenda de hoje</h2>
+        <p class="hero-data">${esc(dataExtenso(d.data))}</p>
+        ${frase ? `<p class="hero-situacao">${frase}</p>` : ''}
         ${c.semTelefone30d > 0 ? `<button type="button" class="chip-aviso" id="chipSemTel"
             title="Sem telefone o cliente não recebe lembrete nem pós-venda. Toque para ver e corrigir.">
             ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
@@ -1004,22 +1004,21 @@ function pintarInicio(d, opts = {}) {
       ${prox ? `<div class="hero-prox">
         <span class="h">${esc(prox.hora)}</span>
         <div><small>Próximo${relProx ? ' · ' + esc(relProx.txt) : ''}</small>
-          <b>${esc(prox.cliente_nome)} — ${esc(prox.servico)}</b></div>
+          <b>${esc(prox.cliente_nome)} · ${esc(prox.servico)}</b></div>
       </div>` : ''}
     </div>
     <!-- Pedido do dono (2026-09-16): só 4 números do DIA, numa linha. A classe
          row2 já é a grade de 4 colunas (com os mesmos pontos de quebra). -->
     <div class="stat-grid row2">
       ${statCard('red',    c.totalHoje,    'Agendamentos hoje',       I.calendar)}
-      ${statCard('green',  c.compareceram, 'Compareceram hoje',       I.check)}
+      ${statCard('green',  c.compareceram, 'Chegaram hoje',       I.check)}
       ${statCard('orange', c.naoVieram,    'Não vieram hoje',         I.x)}
-      ${statCard('purple', c.naoFechou,    'Compareceu e não fechou', I.flag)}
+      ${statCard('purple', c.naoFechou,    'Vieram e não fecharam', I.flag)}
     </div>
-    <div class="cols">
+    <div class="cols cols-dia">
       <div class="panel">
         <div class="panel-head">
-          <h2>${svg(I.calendar)} Agenda de hoje</h2>
-          <span class="panel-sub">quem veio vai para o CRM</span>
+          <h2>Horários de hoje</h2>
           <button type="button" class="icon-btn so-tela" id="btnImprimir" title="Imprimir a folha do dia"
                   aria-label="Imprimir a folha do dia">${svg(I.imprimir)}</button>
         </div>
@@ -1033,8 +1032,7 @@ function pintarInicio(d, opts = {}) {
       </div>
       <div class="panel">
         <div class="panel-head">
-          <h2>${svg(I.calendar)} Últimos agendamentos</h2>
-          <span class="panel-sub">o mais próximo primeiro</span>
+          <h2>Últimos agendamentos</h2>
         </div>
         <div class="panel-body lista" id="ultimos" data-saida="desfecho"></div>
       </div>
@@ -1048,7 +1046,7 @@ function pintarInicio(d, opts = {}) {
     });
     const lista = grupos[state.hojeTab] || [];
     const box = $('#agendaHoje');
-    pintarLista(box, lista.length ? lista.map(a => appointmentCard(a, { agora })).join('')
+    pintarLista(box, lista.length ? lista.map(a => appointmentCard(a, { agora, comChegada: state.hojeTab === 'agendados' })).join('')
       : vazio(...VAZIO_HOJE[state.hojeTab]), animar);
     bindApptActions(box);
   };
@@ -3938,7 +3936,8 @@ async function marcarNaRecepcao(card, marca, o = {}) {
       } }] });
     }
     else { toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok'); window.R7?.pedirMotivo(id, nome); }
-    state._recPintar?.(false);
+    if (o.aoAtualizar) await o.aoAtualizar();
+    else state._recPintar?.(false);
   } catch (e) {
     if (navigator.onLine === false || e instanceof TypeError || e?.fora) {
       enfileirar(id, marca, nome);
@@ -4086,7 +4085,7 @@ const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, client
   servicos:renderServicos, whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe,
   historico:renderHistorico, conectores:renderConectores, configuracoes:renderConfiguracoes,
   dia:renderDia, semana:(o) => renderSemana(o), pendencias:renderPendencias, ajuda:renderAjuda, espera:renderEspera };
-const TAGS = { inicio:'DASHBOARD', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
+const TAGS = { inicio:'INÍCIO', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
   servicos:'SERVIÇOS', whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE',
   historico:'HISTÓRICO', conectores:'CONECTORES', configuracoes:'CONFIGURAÇÕES',
   dia:'RECEPÇÃO', semana:'SEMANA', pendencias:'PENDÊNCIAS', ajuda:'AJUDA', espera:'LISTA DE ESPERA' };
@@ -4144,7 +4143,9 @@ async function route(r, opts = {}){
     n.classList.toggle('active', ativa);
     if (ativa) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current');
   });
-  $('#pageTag').textContent = TAGS[state.route] || 'DASHBOARD';
+  const grupoAtivo = $('.nav-item.active')?.closest('details');
+  if (grupoAtivo) grupoAtivo.open = true;
+  $('#pageTag').textContent = TAGS[state.route] || 'AGENDA';
   document.title = `${TITULOS[state.route] || 'Início'} · IndyCar Agenda`;
   // troca de tela anunciada para quem usa leitor de tela (a região é invisível)
   if (!quieto) { const av = $('#anuncioTela'); if (av) av.textContent = `Tela ${TITULOS[state.route] || 'Início'}`; }
