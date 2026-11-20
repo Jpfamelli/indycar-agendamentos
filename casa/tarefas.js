@@ -86,8 +86,8 @@
           : `<button type="button" class="t-texto" data-editar="${C.esc(t.id)}" title="Toque para editar" aria-label="${C.esc(t.titulo)} (editar o título)">${C.esc(t.titulo)}</button>`}${desc ? `<small class="t-desc">${C.esc(desc)}</small>` : ''}</span>
         <span class="t-lado"><span class="t-quando">${sit === 'vencida' ? 'venceu ' : sit === 'sem-prazo' ? '' : 'até '}${C.esc(prazo || 'sem prazo')}</span>
           <span class="t-acoes">${botaoWa(t)}${o ? `<a class="t-abrir" href="${C.esc(o.url)}" target="${C.esc(L.nomeDaAba(o.app))}">abrir ${C.esc(o.rotulo)} ↗</a>` : ''}
-          <button type="button" class="t-adiar" data-adiar="${C.esc(t.id)}" title="Adiar para o próximo dia útil, 9h" aria-label="Adiar: ${C.esc(t.titulo)}">adiar ›</button>
-          <button type="button" class="t-adiar t-adiar-mais" data-adiar-mais="${C.esc(t.id)}" title="Adiar por 3 dias úteis" aria-label="Adiar por 3 dias: ${C.esc(t.titulo)}">+3 dias</button></span></span></li>`;
+          <button type="button" class="t-adiar" data-adiar="${C.esc(t.id)}" title="Adiar para o próximo dia útil, 9h" aria-label="Adiar 1 dia útil: ${C.esc(t.titulo)}">adiar 1 dia</button>
+          <button type="button" class="t-adiar t-adiar-mais" data-adiar-mais="${C.esc(t.id)}" title="Adiar por 3 dias úteis" aria-label="Adiar 3 dias úteis: ${C.esc(t.titulo)}">adiar 3 dias</button></span></span></li>`;
     }).join('') : (leitura === 'carregando' && !tarefas.length) ? '<li class="vazio"><span role="status">Carregando suas tarefas…</span></li>'
       : (leitura === 'falhou' && !tarefas.length) ? '<li class="vazio vazio-erro"><span role="alert">Não consegui ler as tarefas agora.</span> <button type="button" class="btn-link" data-tarefas-de-novo>tentar de novo</button></li>'
       : `<li class="vazio vazio-ensina"><b>${filtro === 'todas' ? 'Nenhuma tarefa aberta com você. 🏁' : (VAZIO_DO_FILTRO[filtro] || 'Nada neste filtro.')}</b>${filtro === 'todas' ? '<span>Escreva acima e aperte Enter: “ligar para o Marcos sobre o orçamento”, com prazo se tiver. Conversas, contatos do CRM e orçamentos também geram tarefas aqui.</span>' : ''}</li>`;
