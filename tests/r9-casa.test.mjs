@@ -449,3 +449,13 @@ test('sino pelo teclado: ⏱ leva às opções, adiar e ✓ deixam o foco na lis
   assert.match(s, /adiarAberto \? `#listaNotif \[data-adiar-id="\$\{seguro\(id\)\}"\]` : `#listaNotif \[data-adiar-sino="\$\{seguro\(id\)\}"\]`/);
   assert.match(s, /!b\.closest\('details:not\(\[open\]\)'\)/, 'vizinho é um aviso que dá para alcançar (fora de grupo fechado)');
 });
+
+test('janelas da busca e da ficha sem marco duplicado (o pé e o cabeçalho delas eram footer/header: o leitor de tela ouvia dois rodapés e dois topos)', () => {
+  const h = ler('index.html');
+  const busca = h.slice(h.indexOf('<div id="busca"'), h.indexOf('<!-- ======================= FICHA'));
+  const ficha = h.slice(h.indexOf('<div id="ficha"'), h.indexOf('</div>\n  </div>', h.indexOf('<div id="ficha"')) + 20);
+  assert.doesNotMatch(busca, /<footer|<header/);
+  assert.doesNotMatch(ficha, /<footer|<header/);
+  assert.match(busca, /<div class="busca-pe">/);
+  assert.match(ficha, /<div class="ficha-cab">/);
+});
