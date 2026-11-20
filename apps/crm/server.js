@@ -932,6 +932,9 @@ async function handler(req, res) {
         }
 
         const bruto = await readBody(req);
+        if (typeof bruto.nome !== 'string') return json(res, 400, { erro: 'Informe o nome da pessoa em texto.' });
+        if (bruto.cargo != null && typeof bruto.cargo !== 'string') return json(res, 400, { erro: 'Informe o cargo em texto.' });
+
         const nome  = texto1(bruto.nome, 80).trim();
         const email = texto1(bruto.email, 160).trim().toLowerCase();
         if (typeof bruto.senha !== 'string' || bruto.senha.length > 200) {
