@@ -102,3 +102,9 @@ Para o João, conferir na prévia se Mais é suficiente para quem usa distribui�
 | Antes | Depois |
 | --- | --- |
 | Ver lead por lead | Ver contato por contato |
+
+## Décimo lote
+
+13 melhorias em `be91453`, total de 96/125. Suíte 325/325. Próxima entrada R9-CRM-097.
+
+O Chrome confirmou 14 telas sem rolagem lateral, em quatro combinações de tamanho e tema, com redução de movimento, mock local e bloqueio de escritas e destinos externos. A prova de largura, os filtros do catálogo e as duas seções de Configurações estão em qa-out/r9-crm-matriz-final.txt. O catálogo recebeu uma resposta local fictícia interceptada. As capturas do catálogo estão em qa-out/r9/crm-catalogo-*.png.

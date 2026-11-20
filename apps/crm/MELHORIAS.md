@@ -1379,3 +1379,16 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-081** · acessibilidade · A seleção de quem recebe os contatos tem alvo mínimo de 44 px. · `1151ad1`
 - **R9-CRM-082** · texto · A distribuição informa de forma direta que só inclui contatos sem responsável. · `1151ad1`
 - **R9-CRM-083** · texto · A prévia usa “Ver contato por contato” para abrir a lista detalhada. · `1151ad1`
+- **R9-CRM-084** · celular · As ações da distribuição cabem em 375 px, incluindo Aplicar o rodízio sugerido. · `be91453`
+- **R9-CRM-085** · tela · A distribuição indica que está carregando a equipe antes de apresentar os nomes. · `be91453`
+- **R9-CRM-086** · aviso · Uma falha na busca da equipe permanece visível e oferece nova tentativa. · `be91453`
+- **R9-CRM-087** · conserto · A prévia da distribuição só fica disponível com candidatos e pelo menos uma pessoa escolhida. · `be91453`
+- **R9-CRM-088** · acessibilidade · Alterar um filtro de distribuição mantém o foco no filtro. · `be91453`
+- **R9-CRM-089** · acessibilidade · Marcar um nome da equipe atualiza a contagem sem recriar a caixa de seleção. · `be91453`
+- **R9-CRM-090** · acessibilidade · A contagem de pessoas escolhidas é anunciada ao leitor de tela. · `be91453`
+- **R9-CRM-091** · texto · A contagem filtrada e a tabela de distribuição usam “contato”. · `be91453`
+- **R9-CRM-092** · conserto · Cancelar a confirmação de desfazer deixa o botão do histórico disponível para uso posterior. · `be91453`
+- **R9-CRM-093** · conserto · O relatório descarta tempos de resposta de consultas antigas ao trocar o período. · `be91453`
+- **R9-CRM-094** · conserto · Um período inválido limpa as métricas anteriores e bloqueia CSV e PDF até a correção. · `be91453`
+- **R9-CRM-095** · aviso · O relatório exibe “dado indisponível” se o tempo de resposta não carregar. · `be91453`
+- **R9-CRM-096** · acessibilidade · As duas tabelas de relatório anunciam o título correspondente ao leitor de tela. · `be91453`
