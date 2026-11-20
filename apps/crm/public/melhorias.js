@@ -239,7 +239,18 @@ function renderPaginacao(nav, p, ir) {
   nav.innerHTML = `<button type="button" class="btn btn-ghost sm" data-pag="${p.pagina - 1}" ${p.pagina === 1 ? 'disabled' : ''} aria-label="Página anterior">‹</button>
     <span class="filter-count">${p.de}–${p.ate} de ${p.total} · página ${p.pagina} de ${p.paginas}</span>
     <button type="button" class="btn btn-ghost sm" data-pag="${p.pagina + 1}" ${p.pagina === p.paginas ? 'disabled' : ''} aria-label="Próxima página">›</button>`;
-  nav.onclick = e => { const b = e.target.closest('[data-pag]'); if (b && !b.disabled) ir(Number(b.dataset.pag)); };
+  nav.onclick = e => {
+    const botao = e.target.closest('[data-pag]');
+    if (!botao || botao.disabled) return;
+    const manterFoco = document.activeElement === botao;
+    const sentido = Math.sign(Number(botao.dataset.pag) - p.pagina);
+    const pagina = Number(botao.dataset.pag);
+    ir(pagina);
+    if (manterFoco) {
+      const seguinte = nav.querySelector(`[data-pag="${pagina + sentido}"]:enabled`);
+      (seguinte || nav.querySelector('[data-pag]:enabled'))?.focus({preventScroll: true});
+    }
+  };
 }
 // um único ouvinte por tabela (antes: um por linha a cada render)
 for (const sel of ['#tblLeads', '#tblRecent']) {
@@ -296,7 +307,7 @@ document.addEventListener('click', e => { if (!e.target.closest('.colunas-menu')
 const LIMITE_CARTOES = 40; const COLUNAS_ABERTAS = new Set();
 function cartaoKanban(l, agora) {
   const d = U.diasNaEtapa(l, agora), p = U.parado(l, agora), trava = travaLead(l);
-  return `<div class="kb-card${p ? ' parado' : ''}${trava ? ' travado' : ''}" data-id="${esc(l.id)}"${trava ? ' data-travado="1"' : ''} tabindex="0" role="button" aria-roledescription="cartão arrastável" aria-label="${esc(l.nome)}, ${esc(LABEL_STATUS[l.status] ?? l.status)}, ${esc(U.textoDias(d))} na etapa${p ? ', parado' : ''}">
+  return `<div class="kb-card${p ? ' parado' : ''}${trava ? ' travado' : ''}" data-id="${esc(l.id)}"${trava ? ' data-travado="1"' : ''} tabindex="0" role="group" aria-description="Pressione Enter para abrir o contato." aria-label="${esc(l.nome)}, ${esc(LABEL_STATUS[l.status] ?? l.status)}, ${esc(U.textoDias(d))} na etapa${p ? ', parado' : ''}">
     <span class="kb-alca" aria-hidden="true" title="Arraste para mudar de etapa">⠿</span>
     <div class="kb-nome">${esc(l.nome)}</div>
     <div class="kb-meta">${esc(l.carro_modelo) || '—'} · ${esc(l.servico) || 'serviço n/d'}</div>
@@ -643,7 +654,7 @@ document.addEventListener('keydown', e => {
   if (e.key === '/') { e.preventDefault(); irPara('leads'); $('#search').focus(); }
 });
 document.addEventListener('keydown', e => {
-  if (/INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName)) return;
+  if (e.defaultPrevented || e.repeat || e.target.closest('input,select,textarea,button,a[href],[contenteditable]')) return;
   const tr = e.target.closest('#tblLeads tr[data-id],#tblRecent tr[data-id],.kb-card');
   if (tr && !e.shiftKey && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirModal(tr.dataset.id); }
 });

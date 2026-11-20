@@ -287,10 +287,20 @@ const SD = { dados: null, carregando: false };
 async function carregarSemDono() {
   if (!SOU_GESTOR || SD.carregando) return;
   SD.carregando = true;
-  const el = $('#sdRodizio'); el.innerHTML = '<div class="skeleton" aria-label="Calculando o rodízio"></div>';
+  const el = $('#sdRodizio');
+  el.innerHTML = '<p class="vazio-curto">Calculando o rodízio…</p>';
+  el.setAttribute('aria-busy', 'true');
+  $('#sdAplicar').disabled = true;
   try { SD.dados = await api('/api/leads/sem-dono'); renderSemDono(); }
-  catch (e) { el.innerHTML = `<p class="vazio-curto">Não consegui calcular agora: ${esc(e.message)}</p>`; $('#sdAplicar').disabled = true; }
-  finally { SD.carregando = false; }
+  catch (e) {
+    SD.dados = null;
+    $('#sdTxt').textContent = '';
+    $('#sdResumo').replaceChildren();
+    el.innerHTML = `<p class="vazio-curto" role="alert">Não consegui calcular o rodízio: ${esc(e.message)}. Use Recalcular para tentar novamente.</p>`;
+  } finally {
+    SD.carregando = false;
+    el.setAttribute('aria-busy', 'false');
+  }
 }
 function renderSemDono() {
   const d = SD.dados; if (!d) return;
@@ -300,10 +310,10 @@ function renderSemDono() {
   $('#sdResumo').innerHTML = r.total ? Object.entries(r.porEtapa).sort((a, b) => b[1] - a[1]).map(([k, n]) => chip(LABEL_STATUS[k] || k, n)).join('')
     + '<span class="sd-sep" aria-hidden="true"></span>' + r.porIdade.filter(x => x.qtd).map(x => chip(x.rotulo, x.qtd)).join('') : '';
   const el = $('#sdRodizio'), btn = $('#sdAplicar');
-  if (!r.total) { el.innerHTML = '<p class="vazio-curto"><strong>Todos os leads abertos têm dono. 🏁</strong><br>Os novos entram no rodízio automático em até 48 h.</p>'; btn.disabled = true; return; }
+  if (!r.total) { el.innerHTML = '<p class="vazio-curto">Todos os contatos abertos têm responsável.</p>'; btn.disabled = true; return; }
   if (s.semGente) { el.innerHTML = '<p class="vazio-curto">Ninguém está marcado para receber leads. Em Configurações › Equipe, ligue "recebe leads" para os vendedores.</p>'; btn.disabled = true; return; }
   el.innerHTML = `<p class="muted mini-nota">Rodízio sugerido (quem tem menos leads abertos recebe mais; orçamentos e agendados saem primeiro):</p>
-    <div class="table-wrap"><table class="table"><thead><tr><th>Pessoa</th><th class="num">Abertos hoje</th><th class="num">Recebe</th><th>Por etapa</th><th class="num">Fica com</th></tr></thead>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Resumo do rodízio sugerido"><table class="table"><thead><tr><th>Pessoa</th><th class="num">Abertos hoje</th><th class="num">Recebe</th><th>Por etapa</th><th class="num">Fica com</th></tr></thead>
     <tbody>${s.resumo.map(x => `<tr class="sem-clique"><td>${chipResponsavel(x.id)}</td><td class="num">${esc(x.antes)}</td><td class="num"><b>+${esc(x.recebe)}</b></td>
       <td class="cell-sub">${Object.entries(x.porEtapa).map(([k, n]) => `${esc(LABEL_STATUS[k] || k)} ${n}`).join(' · ') || '—'}</td><td class="num">${esc(x.depois)}</td></tr>`).join('')}</tbody></table></div>
     ${s.total < r.total ? `<p class="muted mini-nota">Sugestão para os primeiros ${s.total} de ${r.total}; aplique e recalcule para o resto.</p>` : ''}`;

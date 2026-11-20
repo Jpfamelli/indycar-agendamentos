@@ -31,7 +31,9 @@ const MIME = {
   '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
 };
 /* HTML sempre revalida (uma publicação nova aparece na hora); CSS e JS ficam 5 min no navegador. */
-const CACHE = { '.html': 'no-cache', '.css': 'public, max-age=300', '.js': 'public, max-age=300', '.mjs': 'public, max-age=300' };
+/* Rodada 10: fonte não muda (se mudar, muda de nome): 30 dias no navegador. Com 1 hora, cada abertura depois disso
+   voltava ao servidor para perguntar pelas 4 fontes. */
+const CACHE = { '.html': 'no-cache', '.css': 'public, max-age=300', '.js': 'public, max-age=300', '.mjs': 'public, max-age=300', '.woff2': 'public, max-age=2592000' };
 /* Service worker e manifest nunca ficam presos no navegador (senão a versão nova demora a chegar). */
 const SEMPRE_FRESCO = new Set(['sw.js', 'manifest.webmanifest', 'manifest.json']);
 const TEXTO_ANTIGO = new Set(['.html', '.js', '.css']);
@@ -128,9 +130,11 @@ function criar({ dirTela, dirAntiga, vendor = {}, antigaLigada = false }) {
     if (partes.some(p => p.startsWith('.'))) return true;
     // No Windows, "arquivo.md." e "arquivo.md::$DATA" abrem "arquivo.md": nome com ":" ou terminado em ponto/espaço não passa.
     if (/[:*?"<>|]/.test(rel) || partes.some(p => /[. ]$/.test(p))) return true;
+    // Rodada 10: package.json (o da pasta js/ só diz ao Node que os arquivos são módulos) é bastidor: não vai para o navegador.
+    const nome = partes[partes.length - 1].toLowerCase();
+    if (nome === 'package.json' || nome === 'package-lock.json') return true;
     if (!ehTela) return false;
     if (partes.some(p => p.startsWith('_'))) return true;
-    const nome = partes[partes.length - 1].toLowerCase();
     return nome.endsWith('.md') || /[.]test[.][cm]?js$/.test(nome);
   }
 

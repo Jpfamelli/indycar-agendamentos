@@ -1,5 +1,5 @@
 /* ============================================================
-   Chaves da IA de fora — Ajustes › Chaves da IA (rodada 8, frente T5a). Só administrador; tudo auditado.
+   Chaves da IA de fora — Ajustes › Acesso da IA de fora (rodada 8, frente T5a). Só administrador; tudo auditado.
 
    GET    /api/ia/chaves      → { ligado, aviso, chaves: [{ id, nome, prefixo, escopos, ver_pii, criada_em, ultimo_uso_em, usos, revogada_em, ativa }] }
    POST   /api/ia/chaves      { nome, escopos: ['ler'] | ['ler','propor'], ver_pii } → { ok, chave (em claro, UMA vez), aviso, registro }

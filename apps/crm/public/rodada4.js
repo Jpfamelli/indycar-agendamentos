@@ -228,13 +228,27 @@ const DS = {status: new Set(['novo', 'contato', 'orcamento', 'agendado', 'em_ser
 async function carregarDistribuir() {
   if (!SOU_GESTOR) { irPara('dashboard'); return; }
   renderFiltrosDs();
+  $('#dsPrevia').disabled = true;
+  $('#dsGente').setAttribute('aria-busy', 'true');
+  $('#dsGente').textContent = 'Carregando equipe…';
   try {
     const r = await api('/api/vendedores');
     DS.vendedores = (r.vendedores || []).filter(v => v.papel !== 'agenda');
     if (!DS.gente) DS.gente = new Set(DS.vendedores.filter(v => v.recebe_leads !== false && v.papel !== 'admin').map(v => v.id));
     if (!DS.gente.size) DS.gente = new Set(DS.vendedores.map(v => v.id));
-  } catch (e) { $('#dsGente').innerHTML = `<p class="vazio-curto">Não consegui carregar a equipe: ${esc(e.message)}</p>`; }
-  renderGenteDs(); carregarHistoricoDs();
+    renderGenteDs();
+  } catch (e) {
+    DS.vendedores = [];
+    DS.plano = null;
+    $('#dsResultado').hidden = true;
+    $('#dsGenteQtd').textContent = '';
+    $('#dsGente').innerHTML = `<p class="vazio-curto" role="alert">Não consegui carregar a equipe: ${esc(e.message)}</p><button type="button" class="btn btn-ghost" id="dsTentarEquipe">Tentar novamente</button>`;
+    $('#dsTentarEquipe').addEventListener('click', carregarDistribuir);
+  } finally {
+    $('#dsGente').setAttribute('aria-busy', 'false');
+    atualizarPreviaDs();
+  }
+  carregarHistoricoDs();
 }
 function candidatosDs() {
   return R4.filtrarDistribuir(TODOS, {status: [...DS.status], origem: [...DS.origem], idade: $('#dsIdade').value});
@@ -245,22 +259,34 @@ function renderFiltrosDs() {
   $('#dsStatus').innerHTML = STATUSES.map(s => pill('status', s, LABEL_STATUS[s] ?? s, semDono.filter(l => l.status === s).length)).join('');
   $('#dsOrigem').innerHTML = ORIGENS.filter(o => semDono.some(l => (l.origem || 'organico') === o)).map(o => pill('origem', o, LABEL_ORIGEM[o] ?? o, semDono.filter(l => (l.origem || 'organico') === o).length)).join('') || '<span class="muted">—</span>';
   const n = candidatosDs().length;
-  $('#dsQtd').textContent = `${n} lead${n === 1 ? '' : 's'} sem responsável neste filtro`;
-  $('#dsPrevia').disabled = !n;
+  $('#dsQtd').textContent = `${n} contato${n === 1 ? '' : 's'} sem responsável neste filtro`;
+  atualizarPreviaDs(n);
+}
+function atualizarPreviaDs(total = candidatosDs().length) {
+  $('#dsPrevia').disabled = !total || $('#dsGente').getAttribute('aria-busy') === 'true' || !DS.vendedores.some(v => DS.gente?.has(v.id));
 }
 for (const sel of ['#dsStatus', '#dsOrigem']) $(sel).addEventListener('click', e => {
   const b = e.target.closest('[data-ds]'); if (!b) return;
+  const botoes = [...e.currentTarget.querySelectorAll('[data-ds]')];
+  const indice = botoes.indexOf(b);
+  const manterFoco = b === document.activeElement;
   const g = DS[b.dataset.ds]; if (g.has(b.dataset.v)) g.delete(b.dataset.v); else g.add(b.dataset.v);
   DS.plano = null; $('#dsResultado').hidden = true; renderFiltrosDs();
+  if (manterFoco) e.currentTarget.querySelectorAll('[data-ds]')[indice]?.focus();
 });
 $('#dsIdade').addEventListener('change', () => { DS.plano = null; $('#dsResultado').hidden = true; renderFiltrosDs(); });
 function renderGenteDs() {
   $('#dsGente').innerHTML = DS.vendedores.length ? DS.vendedores.map(v => `<label class="ds-pessoa"><input type="checkbox" value="${esc(v.id)}" ${DS.gente.has(v.id) ? 'checked' : ''}>
       ${chipResponsavel(v.id)}<small>${esc(v.abertos ?? 0)} aberto${v.abertos === 1 ? '' : 's'}${v.recebe_leads === false ? ' · não recebe no rodízio' : ''}</small></label>`).join('')
     : '<p class="vazio-curto">Ninguém da equipe pode receber leads do CRM ainda. Libere o app CRM para os vendedores em Configurações › Equipe.</p>';
-  $('#dsGenteQtd').textContent = `${DS.gente?.size || 0} escolhida${DS.gente?.size === 1 ? '' : 's'}`;
+  atualizarGenteDs();
 }
-$('#dsGente').addEventListener('change', e => { const i = e.target.closest('input[type=checkbox]'); if (!i) return; if (i.checked) DS.gente.add(i.value); else DS.gente.delete(i.value); DS.plano = null; $('#dsResultado').hidden = true; renderGenteDs(); });
+function atualizarGenteDs() {
+  const total = DS.vendedores.filter(v => DS.gente?.has(v.id)).length;
+  $('#dsGenteQtd').textContent = total === 1 ? '1 pessoa escolhida' : `${total} pessoas escolhidas`;
+  atualizarPreviaDs();
+}
+$('#dsGente').addEventListener('change', e => { const i = e.target.closest('input[type=checkbox]'); if (!i) return; if (i.checked) DS.gente.add(i.value); else DS.gente.delete(i.value); DS.plano = null; $('#dsResultado').hidden = true; atualizarGenteDs(); });
 $$('input[name=dsModo]').forEach(r => r.addEventListener('change', () => { DS.plano = null; $('#dsResultado').hidden = true; }));
 function montarPrevia() {
   const leads = candidatosDs(), gente = DS.vendedores.filter(v => DS.gente.has(v.id));
@@ -275,7 +301,7 @@ function montarPrevia() {
       <td class="cell-sub">${Object.entries(x.porEtapa).map(([s, n]) => `${esc(LABEL_STATUS[s] ?? s)} ${n}`).join(' · ') || '—'}</td>
       <td class="num">${esc((DS.vendedores.find(v => v.id === x.id)?.abertos || 0) + x.recebe)}</td></tr>`).join('')}</tbody>`;
   const agora = Date.now();
-  $('#tblDsLeads').innerHTML = `<thead><tr><th>Lead</th><th>Etapa</th><th>Origem</th><th>Entrou</th><th>Vai para</th></tr></thead>
+  $('#tblDsLeads').innerHTML = `<thead><tr><th>Contato</th><th>Etapa</th><th>Origem</th><th>Entrou</th><th>Vai para</th></tr></thead>
     <tbody>${DS.plano.plano.slice(0, 300).map(p => { const l = TODOS.find(x => String(x.id) === p.id) || {}; return `<tr class="sem-clique"><td>${esc(l.nome || p.nome)}</td><td>${esc(LABEL_STATUS[p.status] ?? p.status)}</td>
       <td>${esc(LABEL_ORIGEM[l.origem] ?? l.origem ?? '')}</td><td class="cell-sub">${esc(R4.idadeDias(l, agora))} dias</td><td>${chipResponsavel(p.para)}</td></tr>`; }).join('')}
       ${DS.plano.plano.length > 300 ? `<tr class="sem-clique"><td colspan="5" class="muted">…e mais ${DS.plano.plano.length - 300}.</td></tr>` : ''}</tbody>`;
@@ -319,10 +345,11 @@ async function carregarHistoricoDs() {
       : '<p class="vazio-curto">Nenhuma distribuição ainda. Escolha os leads e as pessoas acima.</p>';
   } catch (e) { el.innerHTML = `<p class="vazio-curto">Não consegui ler o histórico: ${esc(e.message)}</p>`; }
 }
-$('#dsHistorico').addEventListener('click', async e => { const b = e.target.closest('[data-desfazer]'); if (!b) return; b.disabled = true; try { await desfazerDistribuicao(b.dataset.desfazer); } catch (err) { toast('⚠️ ' + err.message); b.disabled = false; } });
+$('#dsHistorico').addEventListener('click', async e => { const b = e.target.closest('[data-desfazer]'); if (!b) return; b.disabled = true; try { await desfazerDistribuicao(b.dataset.desfazer); } catch (err) { toast('⚠️ ' + err.message); } finally { b.disabled = false; } });
 
 /* ================= relatórios gerenciais (gestor) ================= */
-const REL = {chave: 'mes', de: '', ate: '', dados: null, desemp: null};
+const REL = {chave: 'mes', de: '', ate: '', dados: null, desemp: null, carregandoDesempenho: false};
+let pedidoRelatorio = 0;
 const isoLocal = d => new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 function periodoRel() {
   const h = new Date(), hoje = new Date(h.getFullYear(), h.getMonth(), h.getDate());
@@ -337,12 +364,31 @@ async function carregarRelatorios() {
   if (p) { REL.de = isoLocal(p[0]); REL.ate = isoLocal(p[1]); }
   $('#relIni').value = REL.de; $('#relFim').value = REL.ate;
   $$('#relPeriodo [data-rel]').forEach(b => { const on = b.dataset.rel === REL.chave; b.classList.toggle('ativo', on); b.setAttribute('aria-pressed', String(on)); });
-  let iv; try { iv = R4.intervaloDatas(REL.de, REL.ate); } catch (e) { $('#relTxt').textContent = e.message; return; }
+  const pedido = ++pedidoRelatorio;
+  let iv;
+  try {
+    iv = R4.intervaloDatas(REL.de, REL.ate);
+  } catch (e) {
+    $('#relTxt').textContent = e.message;
+    REL.dados = null;
+    for (const id of ['relKpis', 'relFunil', 'relMotivos', 'tblRelOrigem', 'tblRelVendedor']) $('#' + id).replaceChildren();
+    $('#relCsv').disabled = true;
+    $('#relImprimir').disabled = true;
+    return;
+  }
+  $('#relCsv').disabled = false;
+  $('#relImprimir').disabled = false;
+  REL.desemp = null;
+  REL.carregandoDesempenho = true;
   REL.dados = R4.relatorio(TODOS, iv.ini, iv.fim, {equipe: EQUIPE, rotuloOrigem: o => LABEL_ORIGEM[o] ?? o});
   const fmt = s => s.split('-').reverse().join('/');
   $('#relTxt').textContent = `De ${fmt(REL.de)} a ${fmt(REL.ate)} · entradas pela data de chegada, vendas e perdas pela data em que fecharam.`;
   renderRelatorio();
-  try { REL.desemp = await api(`/api/desempenho?livre=1&de=${REL.de}&ate=${REL.ate}`); } catch { REL.desemp = null; }
+  let desempenho = null;
+  try { desempenho = await api(`/api/desempenho?livre=1&de=${REL.de}&ate=${REL.ate}`); } catch { /* exibe dados locais */ }
+  if (pedido !== pedidoRelatorio) return;
+  REL.desemp = desempenho;
+  REL.carregandoDesempenho = false;
   renderRelatorio();
 }
 function renderRelatorio() {
@@ -351,7 +397,7 @@ function renderRelatorio() {
   const kpi = (r, v, s = '') => `<div class="kpi"><div class="kpi-label">${r}</div><div class="kpi-value">${v}</div><div class="kpi-delta"><span class="flat">${s}</span></div></div>`;
   $('#relKpis').innerHTML = kpi('Leads novos', t.leads, `${t.agendados} chegaram a agendar`) + kpi('Vendas', t.ganhos, `${t.perdidos} perdidas`)
     + kpi('Conversão', t.conversao == null ? '—' : t.conversao.toLocaleString('pt-BR') + '%', 'vendas ÷ (vendas + perdas)') + kpi('Faturamento', brl(t.faturamento), `ticket ${brl(t.ticket)}`)
-    + kpi('Tempo de resposta', R4.textoMinutos(tr), REL.desemp ? 'mediana da loja' : 'carregando…') + kpi('Até fechar', t.cicloMedio == null ? '—' : t.cicloMedio.toLocaleString('pt-BR') + ' d', 'média da entrada à venda')
+    + kpi('Tempo de resposta', R4.textoMinutos(tr), REL.carregandoDesempenho ? 'carregando…' : REL.desemp ? 'mediana da loja' : 'dado indisponível') + kpi('Até fechar', t.cicloMedio == null ? '—' : t.cicloMedio.toLocaleString('pt-BR') + ' d', 'média da entrada à venda')
     + (t.semValor ? kpi('Vendas sem valor', t.semValor, 'faturamento incompleto') : '');
   const max = Math.max(1, ...d.funil.map(x => x.chegaram));
   $('#relFunil').innerHTML = t.leads ? d.funil.map(x => `<div class="fm-row"><span class="fm-name">${esc(LABEL_STATUS[x.etapa])}</span><div class="fm-bar"><div class="fm-fill" style="width:${x.chegaram / max * 100}%"></div></div><span class="fm-num">${x.chegaram}</span><span class="fm-taxa" title="Passaram da etapa anterior">${x.taxa}%</span></div>`).join('')

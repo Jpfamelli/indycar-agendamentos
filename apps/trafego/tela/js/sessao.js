@@ -10,13 +10,22 @@ import * as Rede from './rede.js';
 import { ErroApi } from './api.js';
 
 /** Lê a configuração pública (endereço e chave pública do Supabase), esperando o servidor acordar se preciso. */
-async function lerConfiguracao(base, { aoEsperar, dormir }) {
+export async function lerConfiguracao(base, { aoEsperar, dormir, buscar, tempoLimite = 15000 } = {}) {
+  const pedir = buscar || ((...a) => fetch(...a));
+  const online = () => (typeof navigator !== 'undefined' ? navigator.onLine : undefined);
   const tarefa = async () => {
-    let r;
-    try { r = await fetch(base + 'api/config-publica', { cache: 'no-store' }); }
-    catch { throw new ErroApi(Rede.mensagem(0, navigator.onLine), { status: 0 }); }
-    if (!r.ok) throw new ErroApi(Rede.mensagem(r.status, navigator.onLine) || 'O servidor não respondeu. Tente de novo em instantes.', { status: r.status });
-    return r.json();
+    /* Rodada 10: este era o único pedido da tela sem tempo limite. Conexão que abre e não responde (Wi-Fi ruim,
+       servidor acordando) deixava "Abrindo o Tráfego" na tela para sempre; agora desiste em 15 s e tenta de novo. */
+    const controle = new AbortController();
+    const relogio = setTimeout(() => controle.abort(), tempoLimite);
+    try {
+      let r;
+      try { r = await pedir(base + 'api/config-publica', { cache: 'no-store', signal: controle.signal }); }
+      catch { throw new ErroApi(Rede.mensagem(0, online()), { status: 0 }); }
+      if (!r.ok) throw new ErroApi(Rede.mensagem(r.status, online()) || 'O servidor não respondeu. Tente de novo em instantes.', { status: r.status });
+      try { return await r.json(); }
+      catch { throw new ErroApi(Rede.mensagem(0, online()), { status: 0 }); }
+    } finally { clearTimeout(relogio); }
   };
   return Rede.comNovasTentativas(tarefa, { aoEsperar, dormir });
 }

@@ -201,14 +201,29 @@ document.addEventListener('click', e => {
 });
 
 /* ================= aba Hoje: meta do dia, busca, próximo da fila e retornos ================= */
+let pedidoHoje = 0;
 async function carregarHoje7() {
   const el = $('#hojeLista'); if (!el) return;
+  const pedido = ++pedidoHoje;
+  el.setAttribute('aria-busy', 'true');
+  if ($('#r7Proximo')) $('#r7Proximo').disabled = true;
   el.innerHTML = '<div class="skeleton" aria-label="Montando a fila"></div>';
   const qs = new URLSearchParams(); if (H6.escopo) qs.set('escopo', H6.escopo); if (R7.hoje.q) qs.set('q', R7.hoje.q); if (R7.hoje.origem) qs.set('origem', R7.hoje.origem);
   try {
     const [d, e] = await Promise.all([api6('/api/fila-do-dia' + (qs.toString() ? '?' + qs : '')), api6('/api/entregues-sem-fechar')]);
+    if (pedido !== pedidoHoje) return;
     H6.dados = d; H6.entregues = e; renderHoje6(); r7BarraHoje(d);
-  } catch (err) { el.innerHTML = `<p class="vazio-curto">Não consegui montar a fila agora: ${esc(err.message)} <button type="button" class="link-btn" data-h6c="recarregar">Tentar de novo</button></p>`; }
+  } catch (err) {
+    if (pedido !== pedidoHoje) return;
+    H6.dados = null;
+    H6.entregues = null;
+    $('#hojeResumo').replaceChildren();
+    $('#hojeEntregues').replaceChildren();
+    if ($('#r7MetaDia')) $('#r7MetaDia').hidden = true;
+    el.innerHTML = `<p class="vazio-curto"><span role="alert">Não consegui montar a fila agora: ${esc(err.message)}</span> <button type="button" class="link-btn" data-h6c="recarregar">Tentar de novo</button></p>`;
+  } finally {
+    if (pedido === pedidoHoje) el.setAttribute('aria-busy', 'false');
+  }
 }
 carregarHoje6 = carregarHoje7;
 textoMotivo6.indicacao_nova = 'Indicação nova';
@@ -218,7 +233,7 @@ function r7BarraHoje(d) {
     b = document.createElement('div'); b.id = 'r7HojeBarra'; b.className = 'r7-hoje-barra';
     $('#hojeResumo').insertAdjacentElement('afterend', b);
     b.innerHTML = `<div class="r7-meta" id="r7MetaDia" role="progressbar" aria-label="Contatos de hoje"><div class="r7-meta-barra"><div id="r7MetaFill"></div></div><span id="r7MetaTxt"></span></div>
-      <div class="r7-filtros"><label class="sr" for="r7Q">Buscar na fila</label><input type="search" id="r7Q" placeholder="Buscar nome, telefone ou placa" maxlength="60" autocomplete="off">
+      <div class="r7-filtros"><label class="sr" for="r7Q">Buscar na fila</label><input type="search" id="r7Q" placeholder="Buscar nome, telefone ou placa" maxlength="60" autocomplete="off" enterkeyhint="search">
       <label class="sr" for="r7Origem">Origem</label><select id="r7Origem"><option value="">Todas as origens</option>${['whatsapp', 'google', 'meta', 'indicacao', 'organico', 'telefone'].map(o => `<option value="${o}">${esc(ROTULO_ORIGEM7[o])}</option>`).join('')}</select>
       <button type="button" class="btn btn-primary sm" id="r7Proximo">▶ Atender o próximo</button></div>`;
     let t = null;
@@ -227,9 +242,14 @@ function r7BarraHoje(d) {
     $('#r7Proximo').addEventListener('click', async () => { const id = H6.dados?.proximo; if (!id) { toast('A fila está zerada. 🏁'); return; } await registrarContato6(id); carregarHoje7(); r7CarregarRetornos(true); });
   }
   const feitos = d.feitos_hoje, meta = d.meta_dia || 12, pct = Math.min(100, Math.round(feitos / meta * 100));
-  $('#r7MetaFill').style.width = pct + '%'; $('#r7MetaDia').setAttribute('aria-valuenow', String(feitos)); $('#r7MetaDia').setAttribute('aria-valuemax', String(meta));
+  const progresso = $('#r7MetaDia');
+  progresso.hidden = false;
+  $('#r7MetaFill').style.width = pct + '%';
+  progresso.setAttribute('aria-valuenow', String(Math.min(feitos, meta)));
+  progresso.setAttribute('aria-valuemax', String(meta));
+  progresso.setAttribute('aria-valuetext', `${feitos} de ${meta} contatos na meta de hoje`);
   $('#r7MetaTxt').textContent = feitos >= meta ? `Meta do dia batida: ${feitos} contatos. 🏁` : `${feitos} de ${meta} contatos hoje · faltam ${d.falta_para_meta}`;
-  $('#r7MetaDia').classList.toggle('feita', feitos >= meta);
+  progresso.classList.toggle('feita', feitos >= meta);
   $('#r7Proximo').disabled = !d.proximo;
 }
 const ROTULO_ORIGEM7 = { whatsapp: 'WhatsApp', google: 'Google', meta: 'Meta (Instagram e Facebook)', organico: 'Orgânico', telefone: 'Telefone', indicacao: 'Indicação', site: 'Site', sem: 'Sem origem' };
@@ -412,7 +432,7 @@ async function r7Origens(dias) {
     card.innerHTML = `<div class="r6-cab"><h3>Desempenho por origem</h3><label class="r6-esc">Período<select id="r7OrigemDias" aria-label="Período"><option value="">Este mês</option>${[7, 30, 90].map(d => `<option value="${d}"${dias === d ? ' selected' : ''}>Últimos ${d} dias</option>`).join('')}</select></label></div>
       <p class="card-sub">Leads que chegaram no período, o que virou venda e quanto custou (Meta e Google, pelo gasto do Ads). ${r.so_demonstracao ? '<b class="parado-txt">Os números do Ads ainda são de demonstração.</b>' : ''}</p>
       <div class="ficha-kpis"><div class="ficha-kpi"><span>Leads</span><b>${r.total.leads}</b><small>${r.anterior.leads} no período anterior</small></div><div class="ficha-kpi"><span>Faturado</span><b>${esc(brl(r.total.faturamento))}</b></div><div class="ficha-kpi"><span>Pago (Meta + Google)</span><b>${r.pago.leads} leads</b><small>gasto ${esc(brl(r.pago.gasto))}</small></div><div class="ficha-kpi"><span>Orgânico e indicação</span><b>${r.organico.leads} leads</b><small>${esc(brl(r.organico.faturamento))}</small></div></div>
-      <div class="table-wrap"><table class="table"><thead><tr><th>Origem</th><th class="num">Leads</th><th class="num">Orçaram</th><th class="num">Vendas</th><th class="num">Conversão</th><th class="num">Faturado</th><th class="num">Ticket</th><th class="num">Dias p/ fechar</th><th class="num">Gasto</th><th class="num">Custo/lead</th><th class="num">Retorno</th></tr></thead><tbody>${r.linhas.map(x => `<tr><td>${esc(x.rotulo)}${x.paga ? ' <span class="tag">anúncio</span>' : ''}</td><td class="num">${x.leads} ${venc(x.variacao_leads)}</td><td class="num">${x.orcaram}</td><td class="num">${x.ganhos}</td><td class="num">${pct7(x.conversao)}</td><td class="num">${esc(brl(x.faturamento))}</td><td class="num">${x.ticket ? esc(brl(x.ticket)) : '—'}</td><td class="num">${x.dias_ate_fechar ?? '—'}</td><td class="num">${x.gasto != null ? esc(brl(x.gasto)) : '—'}</td><td class="num">${x.cpl != null ? esc(brl(x.cpl)) : '—'}</td><td class="num">${x.roas != null ? x.roas + 'x' : '—'}</td></tr>`).join('')}</tbody></table></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Comparação detalhada por origem"><table class="table"><thead><tr><th>Origem</th><th class="num">Leads</th><th class="num">Orçaram</th><th class="num">Vendas</th><th class="num">Conversão</th><th class="num">Faturado</th><th class="num">Ticket</th><th class="num">Dias p/ fechar</th><th class="num">Gasto</th><th class="num">Custo/lead</th><th class="num">Retorno</th></tr></thead><tbody>${r.linhas.map(x => `<tr><td>${esc(x.rotulo)}${x.paga ? ' <span class="tag">anúncio</span>' : ''}</td><td class="num">${x.leads} ${venc(x.variacao_leads)}</td><td class="num">${x.orcaram}</td><td class="num">${x.ganhos}</td><td class="num">${pct7(x.conversao)}</td><td class="num">${esc(brl(x.faturamento))}</td><td class="num">${x.ticket ? esc(brl(x.ticket)) : '—'}</td><td class="num">${x.dias_ate_fechar ?? '—'}</td><td class="num">${x.gasto != null ? esc(brl(x.gasto)) : '—'}</td><td class="num">${x.cpl != null ? esc(brl(x.cpl)) : '—'}</td><td class="num">${x.roas != null ? x.roas + 'x' : '—'}</td></tr>`).join('')}</tbody></table></div>
       ${r.insights.length ? `<ul class="r6-insights">${r.insights.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}`;
     $('#r7OrigemDias').onchange = ev => r7Origens(ev.target.value ? Number(ev.target.value) : 0);
   } catch (e) { card.innerHTML = '<h3>Desempenho por origem</h3>'; erro7(card, e, 'origens'); }

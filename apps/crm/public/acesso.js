@@ -248,7 +248,7 @@ function renderAvatar() {
   $('#mpNome').textContent = p.nome || 'Sem nome';
   $('#mpEmail').textContent = p.email || '';
   $('#mpPapel').textContent = [LABEL_PAPEL[p.papel] || p.papel, p.cargo].filter(Boolean).join(' · ');
-  $('#btnPerfil').setAttribute('aria-label', 'Menu do perfil de ' + (p.nome || 'você'));
+  $('#btnPerfil').setAttribute('aria-label', ini + ', menu do perfil de ' + (p.nome || 'você'));
 }
 function iniciarSessao() {
   if (SESSAO_ATIVA || !PERFIL?.id) return;

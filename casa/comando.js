@@ -6,7 +6,7 @@
   const MOD = { nome: 'comando' };
   const LS_RECOLHIDOS = 'indycar_central_recolhidos';
   const LS_ADIADOS = 'indycar_central_sino_adiados';
-  let C = null, L = null, M = null, timerSaude = null, timerClima = null, ultimaSaude = null, consultorId = null, falhasSaude = 0;
+  let C = null, L = null, M = null, timerSaude = null, timerClima = null, ultimaSaude = null, consultorId = null, falhasSaude = 0, saudeEm = 0;
   const $ = (s) => document.querySelector(s);
   const ler = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
   const gravar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
@@ -14,11 +14,12 @@
   /* ---------------- saúde do Pátio e do Orçador ---------------- */
   async function verificarApps({ forcar = false } = {}) {
     let s = null;
+    saudeEm = Date.now();
     try {
-      const r = await fetch('/api/central/saude-apps', { cache: 'no-store' });
+      const r = await fetch('/api/central/saude-apps', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
       if (r.ok) s = await r.json();
     } catch { /* sem internet: o aviso de rede cuida */ }
-    if (!s) { falhasSaude++; return; }
+    if (!s) { falhasSaude++; if (falhasSaude >= 2 && navigator.onLine) semLeituraDosApps(); return; }
     falhasSaude = 0;
     const voltou = M.voltaramAoAr(ultimaSaude, s);
     ultimaSaude = s;
@@ -26,6 +27,14 @@
     pintarSaude(s);
     try { C.aoSaudeApps && C.aoSaudeApps(s); } catch { /* a faixa de saúde é um extra */ }
     if (forcar && !voltou.length && !M.avisosDeApps(s).length) C.toast('Pátio e Orçador estão respondendo.', 2500);
+  }
+  /* rodada 10: quando a própria conferência falhava (a Central não respondia, ou respondia erro), a Casa não dizia nada e a
+     falta de aviso parecia "tudo no ar". Na segunda falha seguida, com internet, ela diz que não conseguiu conferir. */
+  function semLeituraDosApps() {
+    const box = $('#avisoApps');
+    if (!box || box.querySelector('[data-app-fora]')) return;   // um aviso de app fora do ar, já na tela, vale mais
+    box.hidden = false;
+    box.innerHTML = '<div class="aviso-app" data-sem-leitura><strong>Não consegui conferir se o Pátio e o Orçador estão no ar.</strong> <span>Os atalhos continuam valendo. Se um deles não abrir, espere um minuto e tente de novo.</span></div><button type="button" class="btn-link" data-verificar-apps>verificar de novo</button>';
   }
   function pintarSaude(s) {
     const av = M.avisosDeApps(s);
@@ -199,7 +208,7 @@
     const ir = e.target.closest('[data-ir-tarefas]');
     if (ir) { e.preventDefault(); if (ir.dataset.filtroTarefas && C.tarefas && C.tarefas.filtrar) C.tarefas.filtrar(ir.dataset.filtroTarefas); C.focarTarefa && C.focarTarefa(); }
   }
-  function aoVisivel() { if (!document.hidden && C && C.perfil) verificarApps(); }
+  function aoVisivel() { if (!document.hidden && C && C.perfil && Date.now() - saudeEm > 30_000) verificarApps(); }   // rodada 10: a resposta vale 40 s no servidor; não pergunta de novo a cada troca de aba
   MOD.desmontar = function () {
     clearInterval(timerSaude); clearInterval(timerClima);
     document.removeEventListener('visibilitychange', aoVisivel);

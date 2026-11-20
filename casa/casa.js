@@ -23,6 +23,8 @@
   const ORDEM_APPS = ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador', 'ads'];
 
   let sb = null, sessao = null, perfil = null, emRecuperacao = false;
+  /* rodada 10: travas contra clique duplo (entrar, código de verificação, senha nova) e a conferência da sessão vencida */
+  let entrando = false, conferindoCodigo = false, gravandoSenha = false, conferindoSessao = false, sessaoEm = 0;
   let cfg = null, bases = L.bases(), links = L.links(bases);
   let montada = false;
   window.CasaModulos = window.CasaModulos || [];
@@ -33,7 +35,8 @@
   /* rodada 9: o que é de quem usou sai do aparelho junto com a pessoa. As buscas recentes guardam nome e telefone
      de cliente, e os avisos adiados escondiam do próximo (o dono, por exemplo) o que o anterior adiou. O e-mail
      lembrado e o tema ficam: são escolha do aparelho, marcadas na tela de entrada. */
-  const LS_DA_PESSOA = ['indycar_central_buscas', 'indycar_central_sino_adiados'];
+  /* rodada 10: a meta do mês (dado do dono) também sai: ela mora no banco e volta sozinha quando o dono entra de novo */
+  const LS_DA_PESSOA = ['indycar_central_buscas', 'indycar_central_sino_adiados', 'indycar_central_meta_mes', 'indycar_central_meta_sinc'];
   const esquecerPessoa = () => { for (const k of LS_DA_PESSOA) gravar(k, null); };
   /**
    * Aviso curto no pé da tela. `opcao`: o tempo em ms, ou 'ok' / 'err' (o erro fica 6 s, com a cor de problema).
@@ -127,6 +130,10 @@
   function semAcesso(msg, podeTentar = false) { $('#saMotivo').textContent = msg; $('#saTentar').hidden = !podeTentar; mostrar('semAcesso'); }
 
   function esperaPorErros() {
+    /* rodada 10: a conta de senhas erradas não vencia nunca. Quem errou 5 vezes num dia, dias depois errava UMA e já
+       esperava 20 s ou mais. Passados 15 minutos do último erro, a conta zera. */
+    const ultimo = Number(ler(LS_ERROS + '_em')) || 0;
+    if (ultimo && Date.now() - ultimo > 15 * 60_000) { gravar(LS_ERROS, null); gravar(LS_ERROS + '_em', null); }
     const n = Number(ler(LS_ERROS)) || 0;
     return n >= 5 ? Math.min(60, (n - 4) * 10) : 0;   // 10 s, 20 s… até 1 min
   }
@@ -144,6 +151,7 @@
       return erro('#lErro', `Muitas tentativas seguidas. Espere ${Math.ceil((espera * 1000 - (Date.now() - ultimo)) / 1000)} s.`);
     }
     const b = $('#lEntrar'); b.disabled = true; b.textContent = 'Entrando…';
+    entrando = true;
     try {
       const { error } = await sb.auth.signInWithPassword({ email, password: senha });
       if (error) throw error;
@@ -154,7 +162,7 @@
     } catch (e) {
       if (/invalid login/i.test(String(e?.message))) { gravar(LS_ERROS, String((Number(ler(LS_ERROS)) || 0) + 1)); gravar(LS_ERROS + '_em', String(Date.now())); apontar('#fLogin', '#lSenha'); }
       erro('#lErro', mensagemDeErro(e));
-    } finally { b.disabled = false; b.textContent = 'Entrar'; }
+    } finally { entrando = false; b.disabled = false; b.textContent = 'Entrar'; }
   }
 
   /* rodada 9: o envio do link é limitado a poucos por hora. Dois toques seguidos gastavam dois envios e o segundo
@@ -184,6 +192,11 @@
     const code = $('#mCodigo').value.replace(/\s/g, '');
     apontar('#fMfa', null);
     if (!/^\d{6}$/.test(code)) { apontar('#fMfa', '#mCodigo'); return erro('#mErro', 'O código tem 6 números.'); }
+    /* rodada 10: dois toques em "Confirmar" mandavam o mesmo código duas vezes; o segundo voltava "não confere" por cima
+       do primeiro, que tinha dado certo. E sem internet a tela dizia que o código estava errado. */
+    if (conferindoCodigo) return;
+    const b = $('#fMfa [type="submit"]');
+    conferindoCodigo = true; b.disabled = true; b.textContent = 'Conferindo…';
     try {
       const { data } = await sb.auth.mfa.listFactors();
       const f = (data?.totp || []).find((x) => x.status === 'verified');
@@ -192,7 +205,9 @@
       if (error) throw error;
       $('#mCodigo').value = '';
       await depoisDoLogin();
-    } catch { erro('#mErro', 'Código não confere. Confira o horário do celular e tente de novo.'); }
+    } catch (e) {
+      erro('#mErro', window.CasaLogica4.erroDeRede(e, navigator.onLine) ? 'Sem internet agora. O código pode estar certo: confira a conexão e tente de novo.' : 'Código não confere. Confira o horário do celular e tente de novo.');
+    } finally { conferindoCodigo = false; b.disabled = false; b.textContent = 'Confirmar'; }
   }
 
   async function gravarSenha(ev) {
@@ -204,6 +219,9 @@
     if (a !== b) { apontar('#fSenha', '#sRepete'); return erro('#sErro', 'As duas senhas não são iguais.'); }
     const email = sessao?.user?.email || '';
     if (email && a.toLowerCase() === email.toLowerCase()) { apontar('#fSenha', '#sNova'); return erro('#sErro', 'A senha não pode ser o seu e-mail.'); }
+    if (gravandoSenha) return;   // rodada 10: dois toques não trocam a senha duas vezes (a segunda voltava "precisa ser diferente da atual")
+    const botao = $('#fSenha [type="submit"]'), rotulo = botao.textContent;
+    gravandoSenha = true; botao.disabled = true; botao.textContent = 'Gravando…';
     try {
       const { error } = await sb.auth.updateUser({ password: a });
       if (error) throw error;
@@ -213,6 +231,7 @@
       toast('Senha gravada.');
       await depoisDoLogin();
     } catch (e) { erro('#sErro', mensagemDeErro(e)); }
+    finally { gravandoSenha = false; botao.disabled = false; botao.textContent = rotulo; }
   }
   function pedirSenha(motivo) {
     $('#sMotivo').textContent = motivo === 'recuperar' ? 'Você veio pelo link do e-mail: escolha a senha nova.'
@@ -225,6 +244,25 @@
     for (const m of window.CasaModulos) { try { m.desmontar && m.desmontar(); } catch (e) { console.error('Casa: módulo', m.nome, e); } }
     montada = false;
     document.title = 'IndyCar Central';
+    limparTela();
+  }
+  /**
+   * rodada 10: ao sair, a Casa só era escondida. Nomes e telefones de cliente, tarefas, avisos e o faturamento da visão do
+   * dono continuavam na página (dava para ver pelas ferramentas do navegador) e as tarefas e os avisos de quem saiu
+   * apareciam por um instante para quem entrasse depois no mesmo computador. Agora o conteúdo é apagado junto.
+   */
+  const PARA_LIMPAR = ['#listaNotif', '#sinoAtencao', '#sinoRodape', '#atencaoLista', '#saudeLista', '#manhaOntem', '#manhaAmanha', '#manhaPend', '#manhaLembrar', '#manhaBaixa',
+    '#donoTiles', '#donoBarras', '#donoNota', '#donoConv', '#donoMeta', '#donoConsultores', '#donoGargalos', '#donoLigacoes', '#listaTarefas', '#buscaLista', '#fichaCorpo', '#fichaChips',
+    '#gradeApps', '#acoes', '#avisoApps', '#clima', '#mpNome', '#mpEmail', '#mpPapel', '#nomeCurto', '#bPerfil', '#fichaTit', '#fichaSub', '#saudeTxt', '#saudeHora', '#tarefasNum', '#sinoNum', '#toast'];
+  function limparTela() {
+    for (const s of PARA_LIMPAR) { const el = $(s); if (el) el.textContent = ''; }
+    for (const el of document.querySelectorAll('#agora [data-lista]')) el.textContent = '';
+    for (const el of document.querySelectorAll('#agora [data-num]')) el.textContent = '…';
+    for (const el of document.querySelectorAll('#agora [data-det]')) el.textContent = 'carregando…';
+    for (const s of ['#buscaInput', '#tTitulo', '#sinoBusca']) { const el = $(s); if (el) el.value = ''; }
+    const barras = $('#donoBarras'); if (barras) barras.setAttribute('aria-label', 'Faturamento por dia');
+    const av = $('#bPerfil'); if (av) av.style.background = '';
+    $('#toast').hidden = true;
   }
   async function sair(global) {
     desmontarModulos();
@@ -235,6 +273,32 @@
     fecharMenus();
     mostrar('fLogin');
     if (global) toast('Você saiu de todos os aparelhos.');
+  }
+
+  /**
+   * rodada 10: o login vence (computador que dormiu, aba aberta desde ontem) e cada bloco passava a dizer "não consegui
+   * ler" para sempre, sem contar o motivo. Agora o bloco que recebe a recusa avisa aqui: a Casa tenta renovar a sessão uma
+   * vez (no máximo 1 vez por minuto); renovou, relê tudo; não renovou, volta para a tela de entrar dizendo o porquê.
+   */
+  function sessaoVenceu(e) {
+    if (!window.CasaLogica4.erroDeSessao(e)) return false;
+    if (conferindoSessao || !perfil || Date.now() - sessaoEm < 60_000) return true;
+    conferindoSessao = true; sessaoEm = Date.now();
+    (async () => {
+      let renovou = false;
+      try { const r = await sb.auth.refreshSession(); renovou = !r.error && !!(r.data && r.data.session); } catch { renovou = false; }
+      conferindoSessao = false;
+      if (!perfil) return;
+      if (renovou) {
+        try { Casa.painel && Casa.painel.atualizar(); Casa.sino && Casa.sino.carregar(); Casa.tarefas && Casa.tarefas.carregar(); } catch { /* o relógio de cada bloco cobre */ }
+        return;
+      }
+      desmontarModulos(); esquecerPessoa(); perfil = null; sessao = null; fecharMenus();
+      try { await sb.auth.signOut({ scope: 'local' }); } catch { /* a sessão já tinha ido */ }
+      mostrar('fLogin');
+      erro('#lErro', 'Sua sessão venceu. Entre de novo para continuar.');
+    })();
+    return true;
   }
 
   /* ---------------- depois do login ---------------- */
@@ -267,7 +331,7 @@
     get links() { return links; },
     get cfg() { return cfg; },
     L, esc, toast, abrirNaAba, podeUsar: (app) => podeUsar(perfil, app), visao: () => L.visao(perfil),
-    $: (s) => document.querySelector(s), irPara,
+    $: (s) => document.querySelector(s), irPara, sessaoVenceu,
   };
   /**
    * rodada 9: "ir para" (tecla t, comandos da busca, aviso do sino) rolava a página, mas o foco ficava lá em cima: quem
@@ -298,6 +362,7 @@
   }
 
   function montarCasa() {
+    if (montada) desmontarModulos();   // antes de desenhar: desmontar agora apaga o que estava na tela
     const nome = (perfil.nome || perfil.email || '').trim();
     const curto = nome.split(/\s+/)[0] || 'equipe';
     $('#ola').textContent = L.saudacao();
@@ -314,7 +379,6 @@
     /* rodada 8: veio de um app sem sessão (/?voltar=): abre o app na aba com o nome dele. Se esta aba já é a do app
        (o Tráfego mandou para cá), a própria aba volta para ele; se não, abre a aba do app e a Casa fica. */
     if (voltarPedido) { const v = voltarPedido; voltarPedido = ''; abrirNaAba(v); }
-    if (montada) desmontarModulos();
     montada = true;
     for (const m of window.CasaModulos) { try { m.montar && m.montar(Casa); } catch (e) { console.error('Casa: módulo', m.nome, e); } }
     if (buscaPedida) { const t = buscaPedida; buscaPedida = ''; setTimeout(() => Casa.busca && Casa.busca.abrir(t), 120); }
@@ -325,6 +389,8 @@
     $('#fLogin').addEventListener('submit', entrar);
     for (const f of ['#fLogin', '#fMfa', '#fSenha']) $(f).addEventListener('input', (e) => { if (e.target.matches('input')) e.target.removeAttribute('aria-invalid'); });
     $('#lEsqueci').addEventListener('click', esqueci);
+    $('#lTentar').addEventListener('click', () => ligarLogin());
+    window.addEventListener('online', () => { if (!sb) ligarLogin(); });   // rodada 10: a internet voltou e o login ainda não tinha carregado
     $('#fMfa').addEventListener('submit', confirmarMfa);
     $('#fSenha').addEventListener('submit', gravarSenha);
     $('#bTema').addEventListener('click', trocarTema);
@@ -377,19 +443,48 @@
     } catch { buscaPedida = ''; voltarPedido = ''; }
     const email = ler(LS_EMAIL); if (email) $('#lEmail').value = email;
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+    await ligarLogin();
+  }
+  /**
+   * rodada 10: se a Central não respondesse a configuração do login na abertura (queda de segundos, Wi-Fi que ainda não
+   * tinha voltado), a tela mandava recarregar a página e nenhum botão funcionava. Agora há "Tentar de novo", e a Casa
+   * tenta sozinha quando a internet volta. Só quando a biblioteca do login não carregou é que precisa recarregar.
+   */
+  let ligando = false;
+  async function ligarLogin() {
+    if (sb || ligando) return;
+    ligando = true;
+    const tentar = $('#lTentar');
+    tentar.disabled = true; tentar.setAttribute('aria-busy', 'true');
     try {
-      const r = await fetch('/api/central/config', { cache: 'no-store' });
-      cfg = await r.json();
-      $('#versao').textContent = cfg.versao || '';
-      bases = L.bases(cfg.apps); links = L.links(bases);
+      const r = await fetch('/api/central/config', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      cfg = r.ok ? await r.json() : null;
+      if (cfg) { $('#versao').textContent = cfg.versao || ''; bases = L.bases(cfg.apps); links = L.links(bases); }
     } catch { cfg = null; }
-    if (!cfg?.supabaseUrl || !cfg?.supabaseAnonKey || !window.supabase?.createClient) {
-      mostrar('fLogin');
-      return erro('#lErro', 'Não consegui falar com o servidor ou carregar o login. Confira a internet e recarregue a página.');
+    finally { ligando = false; tentar.disabled = false; tentar.removeAttribute('aria-busy'); }
+    if (!window.supabase?.createClient) {
+      mostrar('fLogin'); tentar.hidden = true;
+      return erro('#lErro', 'Não consegui carregar o login. Confira a internet e recarregue a página.');
     }
+    if (!cfg?.supabaseUrl || !cfg?.supabaseAnonKey) {
+      mostrar('fLogin'); tentar.hidden = false;
+      return erro('#lErro', 'Não consegui falar com o servidor agora. Confira a internet e toque em "Tentar de novo".');
+    }
+    tentar.hidden = true; erro('#lErro', '');
     sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
     sb.auth.onAuthStateChange((evento, s) => {
       if (evento === 'PASSWORD_RECOVERY') { sessao = s; emRecuperacao = true; return pedirSenha('recuperar'); }
+      if (evento === 'TOKEN_REFRESHED' && s) { sessao = s; return; }
+      /* rodada 10: a sessão é uma só neste endereço. Se OUTRA pessoa entra em outra aba (ou num app), esta Casa continuava
+         mostrando o painel, as tarefas e os avisos de quem estava antes: agora desmonta e monta para quem entrou. E a aba
+         que ficou parada na tela de entrar entra sozinha quando o login acontece em outra aba. O setTimeout é porque a
+         biblioteca não deixa chamar o Supabase de dentro deste aviso. */
+      if (evento === 'SIGNED_IN' && s && s.user) {
+        if (perfil && s.user.id !== perfil.id) { setTimeout(() => { desmontarModulos(); esquecerPessoa(); perfil = null; sessao = null; fecharMenus(); depoisDoLogin(); }, 0); return; }
+        if (perfil) { sessao = s; return; }
+        if (!entrando && !emRecuperacao && !$('#fLogin').hidden) setTimeout(() => { if (!perfil && !entrando) depoisDoLogin(); }, 0);
+        return;
+      }
       if (evento === 'SIGNED_OUT' && perfil) {      // saiu em outro app/aba (a sessão é uma só neste domínio)
         desmontarModulos();
         esquecerPessoa();

@@ -15,7 +15,7 @@
     const termo = normalizar(q);
     if (!termo) return true;
     const tel = digitos(q), x = indiceBusca(l);
-    return x.campos.some(v => v.includes(termo)) || (tel.length >= 8 && x.tel8 === tel.slice(-8));
+    return x.campos.some(v => v.includes(termo)) || (tel.length >= 8 && /^[+\d().\s-]+$/.test(q) && x.tel8 === tel.slice(-8));
   }
   function validarLead(d, parcial = false) {
     if (!d || typeof d !== 'object' || Array.isArray(d)) return 'Informe um objeto JSON.';
@@ -196,6 +196,7 @@
     return d.length === 11 ? `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}` : `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
   }
   function paginar(lista, pagina, tamanho = 50) {
+    if (!Number.isSafeInteger(tamanho) || tamanho < 1) tamanho = 50;
     const total = lista.length, paginas = Math.max(1, Math.ceil(total / tamanho));
     const p = Math.min(Math.max(1, Math.floor(Number(pagina) || 1)), paginas);
     return {itens: lista.slice((p - 1) * tamanho, p * tamanho), pagina: p, paginas, total, de: total ? (p - 1) * tamanho + 1 : 0, ate: Math.min(p * tamanho, total)};
@@ -391,9 +392,12 @@
   function vencimentoDe(data, hora) {
     if (!data) return null;
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(data); if (!m) throw new Error('Data inválida.');
-    const h = /^(\d{2}):(\d{2})$/.exec(hora || '17:30'); if (!h) throw new Error('Hora inválida.');
-    const d = new Date(+m[1], m[2] - 1, +m[3], +h[1], +h[2]);
-    if (!Number.isFinite(+d) || d.getDate() !== +m[3]) throw new Error('Data inválida.');
+    const h = /^(\d{2}):(\d{2})$/.exec(hora || '17:30');
+    if (!h || +h[1] > 23 || +h[2] > 59) throw new Error('Hora inválida.');
+    const d = new Date(0);
+    d.setHours(+h[1], +h[2], 0, 0);
+    d.setFullYear(+m[1], +m[2] - 1, +m[3]);
+    if (+m[1] < 1 || d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) throw new Error('Data inválida.');
     return d.toISOString();
   }
   function situacaoTarefaDb(t, agora = new Date()) {
@@ -427,8 +431,8 @@
     if (titulo.length > 200) throw new Error('Tarefa com até 200 caracteres.');
     const descricao = String(d.descricao || '').trim();
     if (descricao.length > 2000) throw new Error('Descrição com até 2.000 caracteres.');
-    const prioridade = Math.round(num(d.prioridade) || 2);
-    if (prioridade < 1 || prioridade > 3) throw new Error('Prioridade de 1 a 3.');
+    const prioridade = d.prioridade == null || d.prioridade === '' ? 2 : Number(d.prioridade);
+    if (![1, 2, 3].includes(prioridade)) throw new Error('Prioridade de 1 a 3.');
     const row = {titulo, prioridade, origem: 'crm', status: 'aberta'};
     if (descricao) row.descricao = descricao;
     if (d.vence_em) { if (!Number.isFinite(ms(d.vence_em))) throw new Error('Data inválida.'); row.vence_em = new Date(d.vence_em).toISOString(); }
@@ -522,7 +526,7 @@
   /* Aviso de lead de colega (o servidor devolve o mesmo texto no 403). */
   function avisoLeadDeOutro(nome) {
     const n = String(nome || '').trim().split(/\s+/)[0];
-    return n ? `Este lead é do ${n}. Peça para ele ou para o gestor.` : 'Este lead é de um colega. Peça para ele ou para o gestor.';
+    return n ? `${n} é responsável por este contato. Peça ajuda à pessoa responsável ou ao gestor.` : 'Um colega é responsável por este contato. Peça ajuda à pessoa responsável ou ao gestor.';
   }
   function ordenarDesempenho(lista, criterio = 'faturamento') {
     const v = x => criterio === 'tempo_resposta_min' ? -(x[criterio] ?? Infinity) : num(x[criterio]);
