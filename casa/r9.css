@@ -127,3 +127,9 @@ button.t-texto:hover { text-decoration: underline dotted; }
 .agora-lista { grid-template-columns: minmax(0, 1fr); }
 /* no celular o nome pode descer de linha: com "…" o selo "aprovado · sem horário" sumia */
 @media (max-width: 520px) { .agora-lista .linha .l-a { white-space: normal; overflow-wrap: anywhere; } }
+
+/* celular e tablet (toque, sem mouse): não há teclado físico, então some a cola de teclas
+   ("Ctrl K" no botão de busca, "↑ ↓ escolher · Enter · Esc" no pé da busca, teclas dos comandos) */
+@media (hover: none) and (pointer: coarse) {
+  .busca-pe, .kbd-css, .acao-busca kbd, .busca-cmd kbd { display: none; }
+}
