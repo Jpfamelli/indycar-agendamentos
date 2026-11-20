@@ -933,7 +933,7 @@ export function devolucaoGoogle(m) {
   if (!m.receita.contas) return { status: 409, corpo: { erro: 'O banco ainda não guarda os identificadores de clique (falta aplicar a atualização do banco).', codigo: 'banco_sem_colunas' } };
   const linhas = ['GCLID,GBRAID,WBRAID,Conversion action,Conversion date and time,Conversion value,Currency,Order ID'];
   linhas.push('EAIa-teste-1,,,Venda na oficina,2026-11-12T16:40:00-03:00,890.00,BRL,lead-0001', 'EAIa-teste-2,,,Venda na oficina,2026-11-14T11:05:00-03:00,1250.00,BRL,lead-0002');
-  return { status: 200, csv: linhas.join('\r\n') + '\r\n', nome: 'vendas-google-central-2026-11-19.csv' };
+  return { status: 200, csv: linhas.join('\r\n') + '\r\n', nome: 'vendas-google-central-2026-11-19.csv', vendas: linhas.length - 1 };
 }
 
 export function devolucaoMeta(m) {

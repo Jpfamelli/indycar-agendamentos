@@ -70,9 +70,10 @@ function pagina(res, status, titulo, miolo) {
   res.writeHead(status, { 'Content-Type': MIME['.html'], 'Content-Length': corpo.length, 'Cache-Control': 'no-store' });
   res.end(corpo);
 }
-function csv(res, { status = 200, csv: texto, nome }) {
+function csv(res, { status = 200, csv: texto, nome, vendas }) {
   const corpo = Buffer.from(texto);
-  res.writeHead(status, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Length': corpo.length, 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + nome + '"' });
+  res.writeHead(status, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Length': corpo.length, 'Cache-Control': 'no-store', 'Content-Disposition': 'attachment; filename="' + nome + '"',
+    ...(vendas != null ? { 'X-Vendas': String(vendas) } : {}) });
   res.end(corpo);
 }
 const escapar = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

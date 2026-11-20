@@ -795,3 +795,16 @@
 .devolucao-item:not([data-prazo='1']) .devolucao-fazer {
   color: var(--cor-tinta-2);
 }
+/* As vendas que passaram do prazo ficam fechadas: não pedem nada, só servem para conferir. */
+.devolucao-fora > summary {
+  list-style: none;
+  width: max-content;
+  max-width: 100%;
+  cursor: pointer;
+}
+.devolucao-fora > summary::-webkit-details-marker {
+  display: none;
+}
+.devolucao-fora[open] > summary {
+  margin-bottom: var(--p-esp-2);
+}

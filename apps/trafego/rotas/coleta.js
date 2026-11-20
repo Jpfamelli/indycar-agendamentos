@@ -75,6 +75,7 @@ function registrar(ctx) {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="vendas-google-${formato}-${hoje}.csv"`,
       'Cache-Control': 'no-store',
+      'X-Vendas': String(r.linhas),   // quantas vendas foram no arquivo: com zero, a tela avisa em vez de baixar um arquivo vazio
     });
     res.end(r.csv);
   });

@@ -53,6 +53,22 @@ export const CASOS = {
     conferir(depois > 5, 'abre o resto');
     conferir(await pagina.$eval('.diario-item:nth-child(6)', (el) => document.activeElement === el), 'o foco vai para a primeira que estava escondida');
   },
+
+  /* Ajustes › Devolver as vendas: o arquivo do Google diz quantas vendas levou; a Meta mostra primeiro as do prazo. */
+  async 'devolucao'(pagina, endereco) {
+    await pagina.goto(endereco + '?cenario=cheio#/ajustes?secao=devolucao', { waitUntil: 'networkidle0' });
+    const cliente = await pagina.target().createCDPSession();
+    await cliente.send('Browser.setDownloadBehavior', { behavior: 'deny' }).catch(() => {});
+    await pagina.click('.devolucao-bloco .botao-forte');
+    await pagina.waitForFunction(() => /Arquivo pronto|Nada para subir/.test(document.querySelector('.devolucao-saida')?.textContent || ''));
+    const google = await texto(pagina, '.devolucao-saida');
+    conferir(google.includes('2 vendas em vendas-google-central'), 'diz quantas vendas foram no arquivo: ' + google);
+    const visiveis = await pagina.$$eval('.devolucao-meta > .devolucao-lista .devolucao-item', (l) => l.map((li) => li.dataset.prazo || ''));
+    conferir(visiveis.length === 1 && visiveis[0] === '1', 'à vista só a venda no prazo: ' + visiveis.join(','));
+    const resumo = await texto(pagina, '.devolucao-fora > summary');
+    conferir(resumo === '1 venda fora do prazo (só para conferir)', 'a fora do prazo fica a um toque: ' + resumo);
+    conferir(!(await pagina.$eval('.devolucao-fora', (el) => el.open)), 'fechada de início');
+  },
 };
 
 const puppeteer = await carregarPuppeteer();

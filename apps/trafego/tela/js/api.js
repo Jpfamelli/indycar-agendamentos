@@ -114,7 +114,8 @@ export function criarApi({ base, token, aoRecusar, aoEsperar, aoVoltar, buscar, 
     if (!resposta.ok) throw await lerErro(resposta);
     const disposicao = resposta.headers.get('Content-Disposition') || '';
     const m = /filename="?([^";]+)"?/i.exec(disposicao);
-    return { blob: await resposta.blob(), nome: m ? m[1] : 'arquivo' };
+    const vendas = resposta.headers.get('X-Vendas');
+    return { blob: await resposta.blob(), nome: m ? m[1] : 'arquivo', vendas: vendas != null && /^[0-9]+$/.test(vendas) ? Number(vendas) : null };
   }
 
   /** Leitura (GET): tenta de novo sozinha enquanto o servidor acorda. */
