@@ -87,6 +87,11 @@ function readBody(req) {
     // corpo com conteúdo tem de ser JSON (formulário de outro site não passa)
     const tipo = String(req.headers['content-type'] || '');
     const temCorpo = Number(req.headers['content-length'] || 0) > 0 || !!req.headers['transfer-encoding'];
+    const codificacao = String(req.headers['content-encoding'] || 'identity').trim().toLowerCase();
+    if (temCorpo && codificacao !== 'identity') {
+      req.resume();
+      return reject(Object.assign(new Error('Envie o corpo JSON sem compactação.'), { status: 415 }));
+    }
     if (temCorpo && !/^application\/json(\s*;|$)/i.test(tipo.trim())) {
       req.resume();
       return reject(Object.assign(new Error('Envie o corpo como JSON (Content-Type: application/json).'), { status: 415 }));
@@ -650,6 +655,15 @@ async function handler(req, res) {
       if (pathname === '/api/leads' && req.method === 'POST') {
         const body = await readBody(req);
         const falha = utils.validarLead(body); if (falha) return json(res,400,{erro:falha});
+        if (body.created_at != null) {
+          const data = body.created_at;
+          const dia = typeof data === 'string' && /^\d{4}-\d{2}-\d{2}(?:$|T)/.test(data) ? data.slice(0, 10) : '';
+          const calendario = new Date(dia + 'T00:00:00Z');
+          if (!Number.isFinite(calendario.getTime()) || calendario.toISOString().slice(0, 10) !== dia ||
+              !Number.isFinite(Date.parse(data))) {
+            return json(res, 400, { erro: 'Informe uma data de cadastro válida.' });
+          }
+        }
         if (!dentroDoLimite(`criar-lead:${quem.id}`, 60, 60_000)) return json(res, 429, { erro: 'Muitos leads seguidos. Espere um minuto.' });
         /* O gatilho do banco põe como responsável quem cuida da conversa do
            cliente; sem conversa, quem criou. Aqui o servidor fala com a chave de
@@ -804,7 +818,31 @@ async function handler(req, res) {
           return json(res, 403, { erro: 'Só o administrador registra investimento.' });
         }
         const dados = await readBody(req);
-        if (!dados || !dados.canal) return json(res, 400, { erro: 'informe o canal' });
+        if (!store.ORIGENS.includes(dados.canal)) {
+          return json(res, 400, { erro: 'Selecione um canal válido.' });
+        }
+        if ('competencia' in dados && (typeof dados.competencia !== 'string' ||
+            !/^\d{4}-(0[1-9]|1[0-2])$/.test(dados.competencia))) {
+          return json(res, 400, { erro: 'Informe um mês válido no formato AAAA-MM.' });
+        }
+        const campos = {
+          investimento: 'Investimento',
+          cliques: 'Cliques',
+          impressoes: 'Impressões',
+          conversoes: 'Conversões',
+        };
+        for (const [campo, rotulo] of Object.entries(campos)) {
+          if (!(campo in dados)) continue;
+          const valor = dados[campo];
+          const numero = typeof valor === 'number' ||
+            (typeof valor === 'string' && /^\d+(\.\d+)?$/.test(valor)) ? Number(valor) : NaN;
+          if (!Number.isFinite(numero) || numero < 0) {
+            return json(res, 400, { erro: `${rotulo}: informe um número maior ou igual a zero.` });
+          }
+          if (campo !== 'investimento' && (!Number.isInteger(numero) || numero > 2147483647)) {
+            return json(res, 400, { erro: `${rotulo}: informe um inteiro de até 2.147.483.647.` });
+          }
+        }
         const roi = await store.salvarMetrica(dados);
         await auditar(quem, 'investimento_salvar', { tabela: 'metricas_canal', registro: String(dados.canal).slice(0, 20), detalhes: { competencia: dados.competencia || null, investimento: Number(dados.investimento) || 0 } });
         return json(res, 200, roi);
@@ -831,15 +869,24 @@ async function handler(req, res) {
       if (pathname === '/api/perfil' && req.method === 'PATCH') {
         const b = await readBody(req);
         const patch = {};
-        if ('nome' in b || !Object.keys(b).length) { const nome = texto1(b.nome, 80).trim(); if (!nome) return json(res, 400, { erro: 'Informe o seu nome.' }); patch.nome = nome; }
-        if ('cargo' in b) patch.cargo = texto1(b.cargo, 60).trim() || null;
+        if ('nome' in b || !Object.keys(b).length) {
+          if (typeof b.nome !== 'string' || !b.nome.trim()) return json(res, 400, { erro: 'Informe o seu nome.' });
+          patch.nome = texto1(b.nome.trim(), 80);
+        }
+        if ('cargo' in b) {
+          if (b.cargo !== null && typeof b.cargo !== 'string') return json(res, 400, { erro: 'Informe o cargo em texto.' });
+          patch.cargo = texto1(b.cargo, 60).trim() || null;
+        }
         if ('telefone' in b) {
+          if (b.telefone !== null && (typeof b.telefone !== 'string' || !/^[0-9+(). -]*$/.test(b.telefone))) {
+            return json(res, 400, { erro: 'Telefone com DDD, por favor.' });
+          }
           const t = texto1(b.telefone, 30).replace(/\D/g, '');
           if (t && (t.length < 10 || t.length > 13)) return json(res, 400, { erro: 'Telefone com DDD, por favor.' });
           patch.telefone = t || null;
         }
         if ('avatar_cor' in b) {
-          if (b.avatar_cor !== null && !/^#[0-9a-f]{6}$/i.test(String(b.avatar_cor))) return json(res, 400, { erro: 'Cor inválida (use #RRGGBB).' });
+          if (b.avatar_cor !== null && (typeof b.avatar_cor !== 'string' || !/^#[0-9a-f]{6}$/i.test(b.avatar_cor))) return json(res, 400, { erro: 'Cor inválida (use #RRGGBB).' });
           patch.avatar_cor = b.avatar_cor;
         }
         if ('preferencias' in b) {
@@ -885,9 +932,18 @@ async function handler(req, res) {
         }
 
         const bruto = await readBody(req);
+        if (typeof bruto.nome !== 'string') return json(res, 400, { erro: 'Informe o nome da pessoa em texto.' });
+        if (bruto.cargo != null && typeof bruto.cargo !== 'string') return json(res, 400, { erro: 'Informe o cargo em texto.' });
+
         const nome  = texto1(bruto.nome, 80).trim();
         const email = texto1(bruto.email, 160).trim().toLowerCase();
-        const senha = texto1(bruto.senha, 200);
+        if (typeof bruto.senha !== 'string' || bruto.senha.length > 200) {
+          return json(res, 400, { erro: 'Informe uma senha de até 200 caracteres.' });
+        }
+        if (bruto.trocar_senha !== undefined && typeof bruto.trocar_senha !== 'boolean') {
+          return json(res, 400, { erro: 'Informe se a pessoa precisa trocar a senha.' });
+        }
+        const senha = bruto.senha;
         const papel = U.PAPEIS.includes(bruto.papel) ? bruto.papel : 'atendente'; // 'agenda' = so presenca
         if (bruto.apps !== undefined && (!Array.isArray(bruto.apps) || bruto.apps.some(a => !U.APPS.includes(a)))) return json(res, 400, { erro: `Apps válidos: ${U.APPS.join(', ')}.` });
         const apps = papel === 'agenda' ? ['agenda'] : (Array.isArray(bruto.apps) ? [...new Set(bruto.apps)] : U.APPS);
@@ -932,7 +988,8 @@ async function handler(req, res) {
 
         const bruto = await readBody(req);
         const id    = texto1(bruto.id, 60);
-        const papel = U.PAPEIS.includes(bruto.papel) ? bruto.papel : 'atendente'; // 'agenda' = so presenca
+        if (!U.PAPEIS.includes(bruto.papel)) return json(res, 400, { erro: 'Escolha uma função válida.' });
+        const papel = bruto.papel;
         if (!ehUuid(id)) return json(res, 400, { erro: 'Informe quem você quer alterar.' });
 
         const sb = adminSupabase();
@@ -974,6 +1031,7 @@ async function handler(req, res) {
         if (!ehAdmin) return json(res, 403, { erro: 'Só o administrador faz isso.' });
 
         const bruto = await readBody(req);
+        if (typeof bruto.ativo !== 'boolean') return json(res, 400, { erro: 'Informe se o acesso ficará ativo.' });
         const id = texto1(bruto.id, 60);
         if (!ehUuid(id)) return json(res, 400, { erro: 'Informe quem você quer alterar.' });
         if (id === quem.id) {

@@ -300,8 +300,9 @@ function criarEquipe({ sb, agora = () => Date.now(), auditar = async () => null,
       if (!(c in b)) continue;
       const v = b[c];
       if (v === null || v === '') { out[c] = null; algum = true; continue; }
-      const n = Number(v);
+      const n = typeof v === 'number' || (typeof v === 'string' && /^\d+(\.\d+)?$/.test(v.trim())) ? Number(v) : NaN;
       const max = c === 'faturamento' ? 10_000_000 : 100_000;
+      if (c !== 'faturamento' && Number.isFinite(n) && !Number.isInteger(n)) throw falha(400, `Meta de ${c} deve ser um número inteiro.`);
       if (!Number.isFinite(n) || n < 0 || n > max) throw falha(400, `Meta de ${c} inválida (0 a ${max.toLocaleString('pt-BR')}).`);
       out[c] = c === 'faturamento' ? Math.round(n * 100) / 100 : Math.round(n);
       algum = true;

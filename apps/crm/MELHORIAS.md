@@ -1426,3 +1426,32 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 
 - **R10-CRM-001** · conserto · O cadastro de contatos preserva acentos quando o JSON chega em blocos HTTP (teste R10-CRM-001 em testes/r10-json.test.cjs) · `387f5ac`
 - **R10-CRM-002** · segurança · O CRM rejeita JSON com UTF-8 inválido antes de cadastrar o contato (teste R10-CRM-002 em testes/r10-json.test.cjs) · `77ce05a`
+- **R10-CRM-003** · segurança · O CRM exige codificação compatível para o corpo HTTP antes de cadastrar o contato (teste R10-CRM-003 em testes/r10-json.test.cjs) · `802154f`
+- **R10-CRM-004** · conserto · Cadastro rejeita telefone que mistura letras e dígitos (teste R10-CRM-004 em testes/r10-json.test.cjs) · `4911a42`
+- **R10-CRM-005** · conserto · Valores do lead rejeitam booleanos em vez de convertê-los em valores monetários (teste R10-CRM-005 em testes/r10-json.test.cjs) · `4911a42`
+- **R10-CRM-006** · conserto · Cadastro exige texto no campo de placa (teste R10-CRM-006 em testes/r10-json.test.cjs) · `4911a42`
+- **R10-CRM-007** · conserto · Motivo de perda exige uma opção em texto (teste R10-CRM-007 em testes/r10-json.test.cjs) · `4911a42`
+- **R10-CRM-008** · segurança · Perfil rejeita nome enviado como número (teste R10-CRM-008 em testes/r10-perfil.test.cjs) · `60fc802`
+- **R10-CRM-009** · segurança · Perfil rejeita cargo enviado como objeto (teste R10-CRM-009 em testes/r10-perfil.test.cjs) · `60fc802`
+- **R10-CRM-010** · segurança · Perfil rejeita telefone com letras sem normalizá-lo silenciosamente (teste R10-CRM-010 em testes/r10-perfil.test.cjs) · `60fc802`
+- **R10-CRM-011** · segurança · Perfil exige texto hexadecimal no campo da cor do avatar (teste R10-CRM-011 em testes/r10-perfil.test.cjs) · `60fc802`
+- **R10-CRM-012** · segurança · Mudança de papel exige uma função válida antes de alterar permissões (teste R10-CRM-012 em testes/r10-equipe.test.cjs) · `e8f518b`
+- **R10-CRM-013** · segurança · A ativação ou desativação de acesso exige um booleano explícito (testes R10-CRM-013 em testes/r10-equipe.test.cjs) · `e8f518b`
+- **R10-CRM-014** · conserto · Cadastro da equipe recusa senha temporária longa demais em vez de truncá-la (teste R10-CRM-014 em testes/r10-equipe.test.cjs) · `e8f518b`
+- **R10-CRM-015** · conserto · Cadastro da equipe valida a opção de troca obrigatória de senha (teste R10-CRM-015 em testes/r10-equipe.test.cjs) · `e8f518b`
+- **R10-CRM-016** · segurança · Registro de investimento exige canal válido em texto (teste R10-CRM-016 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-017** · conserto · Registro de investimento recusa mês fora do calendário (teste R10-CRM-017 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-018** · conserto · Registro de investimento recusa valor negativo sem zerar a despesa (teste R10-CRM-018 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-019** · conserto · Registro de cliques recusa contagem fracionária (teste R10-CRM-019 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-020** · conserto · Registro de impressões recusa booleanos (teste R10-CRM-020 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-021** · conserto · Registro de conversões recusa contagem acima do intervalo aceito pelo banco (teste R10-CRM-021 em testes/r10-investimento.test.cjs) · `988ede8`
+- **R10-CRM-022** · segurança · Alteração de integração exige booleano para ativar ou desativar o canal (teste R10-CRM-022 em testes/r10-integracoes.test.cjs) · `f40c469`
+- **R10-CRM-023** · segurança · Configuração de mídia recusa objetos, listas e números nos campos de texto (teste R10-CRM-023 em testes/r10-integracoes.test.cjs) · `f40c469`
+- **R10-CRM-024** · conserto · Configuração do Meta recusa datas de expiração inexistentes (teste R10-CRM-024 em testes/r10-integracoes.test.cjs) · `f40c469`
+- **R10-CRM-025** · conserto · Cadastro rejeita data fora do calendário antes de salvar o contato (teste R10-CRM-025 em testes/r10-json.test.cjs) · `4d738e7`
+- **R10-CRM-026** · conserto · Edição preserva o valor do orçamento quando a entrada monetária contém só espaços (teste R10-CRM-026 em testes/r10-json.test.cjs) · `4d738e7`
+- **R10-CRM-027** · segurança · Criação de tarefa exige que o título seja texto (teste R10-CRM-027 em testes/r10-tarefas.test.cjs) · `a139891`
+- **R10-CRM-028** · conserto · Criação de tarefa rejeita uma descrição em formato de objeto (teste R10-CRM-028 em testes/r10-tarefas.test.cjs) · `a139891`
+- **R10-CRM-029** · conserto · Criação de tarefa mantém prioridade alta reservada à opção explícita (teste R10-CRM-029 em testes/r10-tarefas.test.cjs) · `a139891`
+- **R10-CRM-030** · conserto · Criação de tarefa rejeita listas no campo de prazo (teste R10-CRM-030 em testes/r10-tarefas.test.cjs) · `a139891`
+- **R10-CRM-031** · desempenho · Salvar integração passa de duas operações para uma na tabela de configuração (teste R10-CRM-031 em testes/r10-integracoes.test.cjs, commit do teste 4d81988) · `f40c469`

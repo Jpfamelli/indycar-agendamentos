@@ -316,20 +316,31 @@ async function getIntegracoes() {
 async function salvarIntegracao(canal, dados = {}) {
   if (!CANAIS_INTEGRACAO.includes(canal)) throw new Error('canal inválido');
 
-  const { data: atual, error: e1 } = await sb.from('integracoes_ads')
-    .select('*').eq('canal', canal).maybeSingle();
-  erro('salvarIntegracao/ler', e1);
-
   const patch = { canal };
   for (const campo of CAMPOS_INTEGRACAO[canal]) {
     if (!(campo in dados)) continue;
-    let v = dados[campo];
-    v = v === null || v === undefined ? '' : String(v).trim();
+    const valor = dados[campo];
+    if (valor != null && typeof valor !== 'string') {
+      throw Object.assign(new Error(`Informe o campo ${campo} em texto.`), { status: 400 });
+    }
+    const v = (valor ?? '').trim();
+    if (campo === 'meta_token_expira_em' && v) {
+      const data = new Date(v + 'T00:00:00Z');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || !Number.isFinite(data.getTime()) ||
+          data.toISOString().slice(0, 10) !== v) {
+        throw Object.assign(new Error('Informe uma data de expiração válida.'), { status: 400 });
+      }
+    }
     // segredo vazio ou mascarado = "não mexi neste campo"
     if (SEGREDOS.has(campo) && (!v || v.startsWith(MASK))) continue;
     patch[campo] = v || null;
   }
-  if ('ativo' in dados) patch.ativo = !!dados.ativo;
+  if ('ativo' in dados) {
+    if (typeof dados.ativo !== 'boolean') {
+      throw Object.assign(new Error('Informe se a integração está ativa.'), { status: 400 });
+    }
+    patch.ativo = dados.ativo;
+  }
 
   const { data: row, error: e2 } = await sb.from('integracoes_ads')
     .upsert(patch, { onConflict: 'canal' }).select().single();
