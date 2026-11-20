@@ -1383,3 +1383,4 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R10-AGE-001** · segurança · A API da Agenda rejeita listas, números, texto e null em corpos JSON antes de gravar configurações (teste R10-AGE-001 em tests/r9-agenda-servidor.test.mjs) · `5c99a4b`
 - **R10-AGE-002** · conserto · Configurações preserva acentos quando o JSON chega em blocos HTTP (teste R10-AGE-002 em tests/r9-agenda-servidor.test.mjs) · `97667b3`
 - **R10-AGE-003** · segurança · A Agenda rejeita JSON com UTF-8 inválido antes de salvar os dados da oficina (teste R10-AGE-003 em tests/r9-agenda-servidor.test.mjs) · `77ce05a`
+- **R10-AGE-004** · conserto · A API da Agenda identifica corpo só com espaços como JSON inválido e orienta a corrigir a requisição (teste R10-AGE-004 em tests/r9-agenda-servidor.test.mjs) · `b176402`
