@@ -1273,3 +1273,15 @@ Cada linha foi conferida por teste (`npm test`: `casa-r7`, `casa-r7-servidor`, `
 - **R9-AGE-024** · celular · A placa no agendamento usa maiúsculas e dispensa correções de palavras. · `254ecdc`
 - **R9-AGE-025** · acessibilidade · O cadastro da equipe identifica o campo como nome. · `254ecdc`
 - **R9-AGE-026** · texto · A busca global informa que aceita números de telefone e de placa desde o segundo caractere. · `254ecdc`
+
+
+- **R9-AGE-027** · celular · A busca de agendamentos oferece a tecla Buscar no celular. · `af408bd`
+- **R9-AGE-028** · celular · A busca de clientes oferece a tecla Buscar no celular. · `af408bd`
+- **R9-AGE-029** · celular · A busca global oferece a tecla Buscar no celular. · `af408bd`
+- **R9-AGE-030** · celular · A placa no cadastro de cliente usa maiúsculas e desativa a correção de palavras. · `af408bd`
+- **R9-AGE-031** · celular · O telefone da oficina usa teclado de telefone e preenchimento compatível. · `af408bd`
+- **R9-AGE-032** · acessibilidade · O link iCal tem nome persistente para o leitor de tela. · `af408bd`
+- **R9-AGE-033** · acessibilidade · O ID da conta do WhatsApp tem rótulo associado em português e teclado numérico. · `af408bd`
+- **R9-AGE-034** · acessibilidade · A versão da API tem rótulo associado e dispensa corretor de palavras. · `af408bd`
+- **R9-AGE-035** · acessibilidade · O token de verificação tem rótulo associado e dispensa corretor de palavras. · `af408bd`
+- **R9-AGE-036** · acessibilidade · O endereço base do CodeWords tem rótulo associado e teclado para URL. · `af408bd`

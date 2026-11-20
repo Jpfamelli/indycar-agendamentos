@@ -26,3 +26,15 @@ O commit `254ecdc` adiciona 10 melhorias e leva o app a 26/125. Suíte local 463
 | Antes | Depois |
 | --- | --- |
 | Phone Number ID | ID do número |
+
+
+## Quinto lote
+
+O commit `af408bd` leva a Agenda a 36/125. Suíte Agenda 463/463 com isolamento de processos e Supabase fictício. Próxima entrada R9-AGE-037. A validação de teclado virtual e leitor de tela segue pendente.
+
+| Antes | Depois |
+| --- | --- |
+| Business Account ID (WABA) | ID da conta do WhatsApp (WABA) |
+| Base URL | Endereço base do CodeWords |
+
+O levantamento da rodada 1 identificou 103 agendamentos concluídos, dos quais 99 sem valor, e 43 agendamentos passados em aberto. Isso sustenta manter as ações de fechamento e acompanhamento. Os dados não identificam o uso de cada botão.

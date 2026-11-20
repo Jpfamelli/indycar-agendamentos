@@ -1322,3 +1322,15 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R9-CRM-027** · celular · O teclado indica a conclusão do código de verificação. · `254ecdc`
 - **R9-CRM-028** · acessibilidade · A busca global anuncia Contatos e Clientes conforme a navegação. · `254ecdc`
 - **R9-CRM-029** · texto · A distribuição da equipe explica o critério usando Contatos. · `254ecdc`
+
+
+- **R9-CRM-030** · celular · A busca da lista de contatos oferece a tecla Buscar no celular. · `af408bd`
+- **R9-CRM-031** · celular · A busca na tela de clientes oferece a tecla Buscar no celular. · `af408bd`
+- **R9-CRM-032** · celular · A busca do catálogo de serviços oferece a tecla Buscar no celular. · `af408bd`
+- **R9-CRM-033** · celular · O campo de nova tarefa da fila mostra Concluir no teclado. · `af408bd`
+- **R9-CRM-034** · celular · O campo de tarefa do contato mostra Concluir no teclado. · `af408bd`
+- **R9-CRM-035** · celular · A confirmação da nova senha mostra Concluir no teclado. · `af408bd`
+- **R9-CRM-036** · celular · O campo do pixel da Meta abre o teclado numérico. · `af408bd`
+- **R9-CRM-037** · celular · O ID da conta do Google abre um teclado com dígitos e hífen. · `af408bd`
+- **R9-CRM-038** · celular · O ID da conta administradora do Google abre um teclado com dígitos e hífen. · `af408bd`
+- **R9-CRM-039** · acessibilidade · O filtro de idade da distribuição tem nome acessível que explica a data de referência. · `af408bd`
