@@ -12,6 +12,8 @@ const { relogioLocal } = require('./rodizio.js');
 
 const ORIGENS = ['manual', 'atendimento', 'crm', 'agenda', 'comunicar', 'orcador', 'ia', 'automacao'];
 const ORIGENS_PELA_ROTA = ['atendimento', 'manual', 'ia'];
+/* Rodada 9: o aviso fala a língua de quem usa (antes saía "conversa_id inválido.") */
+const NOME_DO_VINCULO = { cliente_id: 'o cliente', lead_id: 'o lead', conversa_id: 'a conversa', agendamento_id: 'o horário' };
 
 /** Fim do expediente (17:30 em São Paulo) de hoje, ou do próximo dia útil se já passou. */
 function prazoPadrao(agora = new Date()) {
@@ -37,7 +39,7 @@ function validarTarefa(b = {}, { agora = new Date(), origem = 'atendimento' } = 
   }
   for (const k of ['cliente_id', 'lead_id', 'conversa_id', 'agendamento_id']) {
     if (b[k] === undefined || b[k] === null || b[k] === '') continue;
-    if (!S.ehUuid(b[k])) return { erro: `${k} inválido.`, campo: k };
+    if (!S.ehUuid(b[k])) return { erro: `Não reconheci ${NOME_DO_VINCULO[k]} ligado a esta tarefa. Abra de novo e tente outra vez.`, campo: k };
     dados[k] = b[k];
   }
   if (b.prioridade !== undefined) {
@@ -55,6 +57,13 @@ function validarTarefa(b = {}, { agora = new Date(), origem = 'atendimento' } = 
   }
   dados.origem = ORIGENS.includes(origem) ? origem : 'atendimento';
   return { dados };
+}
+
+/** Rodada 9: quantas linhas pedir ao banco: de 1 a 200; texto, negativo ou vazio viram o padrão (100). */
+function limiteSeguro(v, padrao = 100) {
+  const n = Math.trunc(Number(v));
+  if (!Number.isFinite(n) || n < 1) return padrao;
+  return Math.min(200, n);
 }
 
 function criarTarefas({ sb, auditar = async () => ({ ok: true }), agora = () => new Date() } = {}) {
@@ -96,7 +105,9 @@ function criarTarefas({ sb, auditar = async () => ({ ok: true }), agora = () => 
       sb.from('tarefas').select('id,responsavel_id,vence_em,prioridade').eq('status', 'aberta').limit(10000),
       sb.from('conversas').select('atribuida_a,aguardando_consultor,status').neq('status', 'resolvida').limit(10000),
     ]);
-    if (ps.error || ts.error) return falha(503, 'banco_fora', 'Não consegui ler a carga da equipe agora.');
+    /* Rodada 9: se a leitura das conversas falhar, a carga não sai com zero conversas para todo mundo
+       (o gestor leria "ninguém tem cliente em aberto"): avisa que não deu para ler. */
+    if (ps.error || ts.error || cs.error) return falha(503, 'banco_fora', 'Não consegui ler a carga da equipe agora.');
     const t = agora();
     const hoje = relogioLocal(t).data;
     const fimHoje = new Date(Date.parse(`${hoje}T00:00:00-03:00`) + 86_400_000).toISOString();
@@ -138,7 +149,7 @@ function criarTarefas({ sb, auditar = async () => ({ ok: true }), agora = () => 
     if (!['aberta', 'feita', 'cancelada'].includes(status)) return falha(400, 'status', 'Status inválido.');
     const { data, error } = await sb.from('tarefas')
       .select('id,titulo,descricao,responsavel_id,criado_por,cliente_id,lead_id,conversa_id,agendamento_id,origem,prioridade,vence_em,status,created_at,concluida_em')
-      .eq('responsavel_id', pessoaId).eq('status', status).order('vence_em', { ascending: true }).limit(Math.min(200, limite));
+      .eq('responsavel_id', pessoaId).eq('status', status).order('vence_em', { ascending: true }).limit(limiteSeguro(limite));
     if (error) return falha(503, 'banco_fora', 'Não consegui ler as tarefas agora.');
     const iso = agora().toISOString();
     return { ok: true, status: 200, tarefas: (data || []).map(x => ({ ...x, atrasada: !!(x.vence_em && x.vence_em < iso && x.status === 'aberta') })) };
@@ -147,4 +158,4 @@ function criarTarefas({ sb, auditar = async () => ({ ok: true }), agora = () => 
   return { criar, cargaDaEquipe, daPessoa };
 }
 
-module.exports = { criarTarefas, validarTarefa, prazoPadrao, ORIGENS };
+module.exports = { criarTarefas, validarTarefa, prazoPadrao, limiteSeguro, ORIGENS };
