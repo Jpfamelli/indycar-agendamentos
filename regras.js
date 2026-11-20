@@ -387,6 +387,53 @@ export function validarWaConfig(corpo) {
   return { ok: true, campos };
 }
 
+/** Ficha do cliente (novo e edição): cada campo de texto com tipo e tamanho. `parcial` = edição (só confere o que veio). */
+export function validarCliente(corpo, { parcial = false } = {}) {
+  const c = corpo && typeof corpo === 'object' ? corpo : {};
+  const campos = {};
+  if (!parcial || c.nome !== undefined) {
+    const nome = typeof c.nome === 'string' ? c.nome.trim() : '';
+    if (!nome) return { ok: false, erro: 'Informe o nome.' };
+    if (nome.length > 160) return { ok: false, erro: 'Nome longo demais (até 160 letras).' };
+    campos.nome = nome;
+  }
+  for (const [k, max, longo] of [
+    ['veiculo', 120, 'Carro longo demais (até 120 letras).'], ['placa', 20, 'Placa longa demais (até 20 letras).'],
+    ['modelo', 60, 'Ano ou modelo longo demais (até 60 letras).'], ['observacoes', 4000, 'Observações longas demais (até 4.000 letras).'],
+    ['origem', 60, 'Origem longa demais (até 60 letras).'], ['aceita_mensagens_motivo', 200, 'Motivo longo demais (até 200 letras).'],
+    ['email', 160, 'E-mail inválido.'],
+  ]) {
+    if (c[k] === undefined || c[k] === null) continue;
+    const v = textoDeCampo(c[k]);
+    if (v === null) return { ok: false, erro: `Campo inválido: ${k}.` };
+    if (v.length > max) return { ok: false, erro: longo };
+    if (k === 'email' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return { ok: false, erro: 'E-mail inválido.' };
+    campos[k] = v;
+  }
+  return { ok: true, campos };
+}
+
+/** Política de conteúdo (CSP) da Agenda. Com o Supabase configurado, a tela só fala com AQUELE projeto
+    (https para o login e wss para o sino ao vivo); sem configuração (instalação nova) vale o curinga de antes. */
+export function politicaDeConteudo(supabaseUrl) {
+  let projeto = null;
+  try { const u = new URL(String(supabaseUrl || '')); if (u.protocol === 'https:' && u.host) projeto = u.host; } catch { /* sem projeto */ }
+  const supabase = projeto ? `https://${projeto} wss://${projeto}` : 'https://*.supabase.co wss://*.supabase.co';
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
+    "img-src 'self' data: blob:",
+    // jsdelivr: o service worker guarda a biblioteca do login (versão fixa) para a casca abrir sem rede
+    `connect-src 'self' ${supabase} https://cdn.jsdelivr.net`,
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join('; ');
+}
+
 /** Id de fluxo ou de serviço do CodeWords: entra no caminho do endereço chamado, então nada de barra, ponto de interrogação ou espaço. */
 export const idDeServicoValido = (v) => typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$/.test(v) && !v.includes('..');
 

@@ -13,6 +13,8 @@ const PESSOAS = {
   gestor:    { id: ID(902), email: 'gestor@teste', papel: 'gestor', ativo: true, apps: ['agenda'] },
   atendente: { id: ID(903), email: 'at@teste', papel: 'atendente', ativo: true, apps: ['agenda'] },
 };
+/** Erro como o supabase.js levanta (nome próprio e status): é o que NÃO pode ir para a tela. */
+const erroDeBanco = (m) => Object.assign(new Error(m), { name: 'ErroSupabase', status: 400 });
 let gravado, mensagens, recibos, wa, ia, base, chamadasFora, foraResponde, consultas, integracoes, agendamentos, falhas;
 const falso = {
   ...real,
@@ -35,9 +37,9 @@ const falso = {
   criarCliente: async (c) => { gravado.cliente = c; return { id: ID(601), ...c }; },
   atualizarCliente: async (id, c) => { gravado.cliente = c; return { id, ...c }; },
   criarConfirmacao: async () => ({ token: 'a1b2c3d4e5f6a7b8c9d0e1f2', canal: 'whatsapp', resposta: null, enviado_em: null }),
-  enfileirarLembrete: async () => { if (falhas.lembrete) throw new Error(falhas.lembrete); return { ok: true }; },
+  enfileirarLembrete: async () => { if (falhas.lembrete) throw erroDeBanco(falhas.lembrete); return { ok: true }; },
   lembreteDoAgendamento: async () => ({ situacao: { codigo: 'na_fila' } }),
-  enfileirarAvisoDeRemarcacao: async () => { if (falhas.remarcacao) throw new Error(falhas.remarcacao); return { ok: true }; },
+  enfileirarAvisoDeRemarcacao: async () => { if (falhas.remarcacao) throw erroDeBanco(falhas.remarcacao); return { ok: true }; },
   criarMembro: async () => { throw new Error(falhas.cadastro || 'A user with this email address has already been registered'); },
   contarPerfis: async () => 3,
 };
@@ -291,4 +293,73 @@ test('R10-AGE-020: falha de rede com o CodeWords vira recado em português, sem 
   assert.equal(cx.j.ok, false); assert.match(cx.j.erro, /Não consegui falar com o CodeWords/); assert.doesNotMatch(cx.j.erro, /ECONNREFUSED|34\.120|fetch failed/);
   foraResponde = async () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError'); };
   assert.match((await chamar('gestor', 'POST', '/api/codewords/run', { inputs: {} })).j.erro, /não respondeu a tempo/);
+});
+
+/* ------------------------------------------------------------------ servidor: endereço torto, links, ICS ---- */
+test('R10-AGE-021: pedido com endereço ou Host torto recebe 400 na hora (antes ficava sem resposta e derrubava o servidor sozinho)', async () => {
+  const soltas = []; const anota = (e) => soltas.push(String(e?.message || e));
+  process.on('unhandledRejection', anota);
+  try {
+    assert.match(await cru('GET // HTTP/1.1\r\nHost: agenda.teste\r\nConnection: close\r\n\r\n'), /^HTTP\/1\.1 400/);
+    assert.match(await cru('GET /api/versao HTTP/1.1\r\nHost: [\r\nConnection: close\r\n\r\n'), /^HTTP\/1\.1 400/);
+    assert.match(await cru('GET /api/versao HTTP/1.1\r\nHost: agenda.teste\r\nConnection: close\r\n\r\n'), /^HTTP\/1\.1 200/);
+    await new Promise((ok) => setTimeout(ok, 50));
+    assert.deepEqual(soltas, [], 'nenhuma promessa ficou sem tratamento');
+  } finally { process.off('unhandledRejection', anota); }
+});
+
+test('R10-AGE-022: arquivo pedido com % quebrado é 404, não erro 500', async () => {
+  assert.match(await cru('GET /%E0%A4%A HTTP/1.1\r\nHost: agenda.teste\r\nConnection: close\r\n\r\n'), /^HTTP\/1\.1 404/);
+  assert.match(await cru('GET /%zz.css HTTP/1.1\r\nHost: agenda.teste\r\nConnection: close\r\n\r\n'), /^HTTP\/1\.1 404/);
+});
+
+test('R10-AGE-023: o link de confirmação não é montado com Host forjado no pedido', async () => {
+  const pedir = (cab) => chamar('atendente', 'POST', `/api/agendamentos/${ID(11)}/confirmacao`, {}, cab);
+  const limpo = await pedir({});
+  assert.equal(limpo.status, 200); assert.ok(limpo.j.link.startsWith(base + '/confirmar/?t='), limpo.j.link);
+  for (const cab of [{ 'X-Forwarded-Host': 'golpe.exemplo.com' }, { 'X-Forwarded-Host': 'golpe.exemplo.com', 'X-Forwarded-Proto': 'https' }, { 'X-Forwarded-Proto': 'javascript' }]) {
+    const r = await pedir(cab);
+    assert.doesNotMatch(r.j.link + r.j.texto + r.j.whatsapp, /golpe\.exemplo|javascript/, JSON.stringify(cab));
+    assert.match(r.j.link, /^https?:\/\/(127\.0\.0\.1:\d+|indycar-agendamentos\.onrender\.com)\/confirmar\/\?t=/);
+  }
+  // o endereço oficial pode vir do ambiente (domínio próprio)
+  process.env.AGENDA_URL_PUBLICA = 'https://agenda.indycar.exemplo/';
+  assert.ok((await pedir({ 'X-Forwarded-Host': 'golpe.exemplo.com' })).j.link.startsWith('https://agenda.indycar.exemplo/confirmar/?t='));
+  // e os domínios do ecossistema continuam valendo quando o proxy os informa
+  delete process.env.AGENDA_URL_PUBLICA;
+  assert.ok((await pedir({ 'X-Forwarded-Host': 'indycar-agendamentos.onrender.com', 'X-Forwarded-Proto': 'https' })).j.link.startsWith('https://indycar-agendamentos.onrender.com/confirmar/?t='));
+});
+
+test('R10-AGE-024: o calendário (ICS) tem freio para quem tenta adivinhar o token e não deixa nome de cliente abrir linha nova', async () => {
+  agendamentos[ID(12)] = { id: ID(12), cliente_nome: 'Ana\rBEGIN:VEVENT\rSUMMARY:falso', telefone: '', servico: 'Freio', data: '2099-12-30', hora: '10:00', status: 'aguardando' };
+  const certo = await chamar(null, 'GET', '/api/agenda.ics?t=' + 'a'.repeat(32));
+  assert.equal(certo.status, 200);
+  assert.equal(certo.txt.split(/\r\n|\r|\n/).filter((l) => l === 'BEGIN:VEVENT').length, 2, 'dois horários, dois eventos');
+  let ultimo;
+  for (let i = 0; i < 11; i++) ultimo = await chamar(null, 'GET', '/api/agenda.ics?t=tentativa' + i);
+  assert.equal(ultimo.status, 429, 'a 11ª tentativa errada do mesmo endereço é barrada');
+  assert.equal((await chamar(null, 'GET', '/api/agenda.ics?t=' + 'a'.repeat(32))).status, 429, 'o endereço barrado não testa mais nada (nem acerta por sorte)');
+  assert.equal((await chamar(null, 'GET', '/api/agenda.ics?t=' + 'a'.repeat(32), undefined, { 'X-Forwarded-For': '203.0.113.7' })).status, 200, 'o Google, de outro endereço, continua lendo');
+});
+
+/* ------------------------------------------------------------------ erros que vazavam detalhe ---- */
+
+/* ------------------------------------------------------------------ entradas que faltava conferir ---- */
+
+/* ------------------------------------------------------------------ desempenho medido ---- */
+
+test('R10-AGE-031: endereço que não é arquivo devolve a casca comprimida e com ETag (21,8 kB viram menos de 7 kB; revalidar custa um 304 vazio)', async () => {
+  const pedir = (cab) => new Promise((ok, falha) => {
+    import('node:http').then(({ request }) => {
+      const p = request(base + '/uma-tela-qualquer', { headers: cab }, (res) => { const b = []; res.on('data', (d) => b.push(d)); res.on('end', () => ok({ status: res.statusCode, cab: res.headers, bytes: Buffer.concat(b).length })); });
+      p.on('error', falha); p.end();
+    });
+  });
+  const cru1 = await pedir({});
+  const br = await pedir({ 'Accept-Encoding': 'br' });
+  assert.equal(br.status, 200); assert.equal(br.cab['content-encoding'], 'br'); assert.ok(br.cab.etag, 'tem ETag');
+  assert.ok(cru1.bytes > 20000, 'a casca crua tem mais de 20 kB: ' + cru1.bytes);
+  assert.ok(br.bytes < 7000, 'comprimida fica abaixo de 7 kB: ' + br.bytes);
+  const de_novo = await pedir({ 'Accept-Encoding': 'br', 'If-None-Match': br.cab.etag });
+  assert.equal(de_novo.status, 304); assert.equal(de_novo.bytes, 0);
 });

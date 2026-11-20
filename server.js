@@ -16,6 +16,7 @@ import {
   urlDeWebhookSegura, validarServico, validarModelo, validarEmpresa,
   igualSeguro, tokenDeVerificacaoValido, assinaturaDaMetaConfere, lerWebhookDaMeta, SITUACOES_DE_MENSAGEM,
   recadoDeRede, validarWaConfig, validarIaConfig, validarEnvioDeWhatsapp, idDeServicoValido,
+  ORIGENS_DO_ECOSSISTEMA, validarCliente, politicaDeConteudo,
 } from './regras.js';
 import { rodarAutomacoes, proximoDiaUtil } from './automacoes.js';
 import { idsDeAgendamento, entradaDoChegou } from './patio.js';
@@ -512,7 +513,8 @@ async function gerarICS() {
     dados.agendamentosParaICS(500),
     dados.duracoesDeServicos(),
   ]);
-  const escTxt = (t) => String(t || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  // rodada 10: o \r sai antes (sozinho ele abria linha nova em leitor de calendário mais frouxo: um nome de cliente criava evento)
+  const escTxt = (t) => String(t || '').replace(/\r\n?/g, '\n').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
   // hora chega normalizada em HH:MM da camada de dados
   const fmt = (d, hm) => d.replace(/-/g, '') + 'T' + String(hm).replace(/:/g, '').slice(0, 4) + '00';
   const linhas = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//IndyCar Agendamentos//PT-BR',
@@ -681,11 +683,25 @@ const ROTAS_SEM_LOGIN = new Set([
 /* Endereço público desta Agenda, visto de fora (atrás do proxy do Render vem
    X-Forwarded-Proto). Com a Central, req.prefixo (ex.: '/agenda') entra no fim:
    é a base dos links que o servidor monta para o cliente (confirmação). */
+const HOSTS_DO_ECOSSISTEMA = new Set(ORIGENS_DO_ECOSSISTEMA.map((o) => new URL(o).host));
+const ENDERECO_DE_RESERVA = 'https://indycar-agendamentos.onrender.com';
+/* Rodada 10: o link de confirmação vai para o WhatsApp do cliente. Antes o domínio vinha do cabeçalho do pedido
+   (Host / X-Forwarded-Host), que quem chama escolhe: dava para a oficina mandar ao cliente um link de outro site.
+   Agora: AGENDA_URL_PUBLICA (se houver) → host do pedido SE for do ecossistema, do Render ou local → endereço oficial. */
+function hostConfiavel(h) {
+  return !!h && (HOSTS_DO_ECOSSISTEMA.has(h) || /^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/.test(h)
+    || (!!process.env.RENDER_EXTERNAL_HOSTNAME && h === process.env.RENDER_EXTERNAL_HOSTNAME));
+}
 function baseDaRequisicao(req) {
-  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || (req.socket?.encrypted ? 'https' : 'http');
-  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'localhost').split(',')[0].trim();
   const prefixo = String(req.prefixo || '').replace(/\/+$/, '');
-  return `${proto}://${host}${prefixo}`;
+  try {
+    const oficial = new URL(String(process.env.AGENDA_URL_PUBLICA || ''));
+    if (oficial.protocol === 'https:' || oficial.protocol === 'http:') return oficial.origin + prefixo;
+  } catch { /* sem endereço oficial no ambiente: decide pelo pedido */ }
+  const pedido = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+  const proto = pedido === 'https' || pedido === 'http' ? pedido : (req.socket?.encrypted ? 'https' : 'http');
+  const host = [req.headers['x-forwarded-host'], req.headers.host].map((h) => String(h || '').split(',')[0].trim().toLowerCase()).find(hostConfiavel);
+  return (host ? `${proto}://${host}` : ENDERECO_DE_RESERVA) + prefixo;
 }
 
 /* Rotas que custam caro (varrem a tabela, chamam serviço de fora): no máximo
@@ -2018,9 +2034,15 @@ async function api(req, res, url) {
     const t = searchParams.get('t');
     // sem token nem consulta o banco
     if (!t) return send(res, 403, 'forbidden', { 'Content-Type': 'text/plain' });
+    /* rodada 10: dez tokens errados do mesmo endereço em 10 min e ele para de ser atendido aqui (antes dava para
+       tentar adivinhar o token sem limite; o calendário leva nome, telefone e placa dos clientes). */
+    const chaveIcs = `ics:${ipDaRequisicao(req)}`, usoIcs = USO.get(chaveIcs);
+    if (usoIcs && usoIcs.qtd >= 10 && usoIcs.zeraEm > Date.now()) return send(res, 429, 'too many attempts', { 'Content-Type': 'text/plain', 'Retry-After': '600' });
     const cfg = await getIntegracoes(); // await obrigatório: sem ele a comparação viraria Promise
-    if (!cfg.ics_token || t !== cfg.ics_token)
+    if (!igualSeguro(t, cfg.ics_token)) {
+      dentroDoLimite(chaveIcs, 10, 600_000);
       return send(res, 403, 'forbidden', { 'Content-Type': 'text/plain' });
+    }
     return send(res, 200, await gerarICS(), { 'Content-Type': 'text/calendar; charset=utf-8',
       'Content-Disposition': 'inline; filename="indycar-agendamentos.ics"' });
   }
@@ -2321,7 +2343,9 @@ async function api(req, res, url) {
 const _estaticos = new Map();   // caminho -> { chave, bruto, etag, comp:{br,gzip} }
 const TEXTUAIS = new Set(['.html', '.css', '.js', '.json', '.svg']);
 async function serveStatic(req, res, pathname) {
-  let rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+  let rel;
+  try { rel = decodeURIComponent(pathname === '/' ? '/index.html' : pathname); }
+  catch { return notFound(res); }   // rodada 10: "%E0%A4%A" (% quebrado) era erro 500
   const filePath = normalize(join(PUBLIC, rel));
   // anti path-traversal: compara COM o separador, senão uma pasta irmã
   // chamada "publicX" passaria no teste (e o %2e%2e escapa do new URL)
@@ -2339,11 +2363,10 @@ async function serveStatic(req, res, pathname) {
   } catch {
     /* rodada 6: arquivo com extensão que não existe (/rodada9.js, /foto.png) é 404 — antes devolvia o index.html com 200 e o navegador tentava rodar HTML como script */
     if (/\.(?:js|mjs|css|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|json|txt|xml)$/i.test(pathname)) return notFound(res);
-    // SPA fallback
+    // SPA fallback (rodada 10: pela mesma porta dos arquivos: comprimida, com ETag e 304; antes saía crua, 21,8 kB a cada vez)
     try {
-      const html = await readFile(join(PUBLIC, 'index.html'));
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
+      const casca = join(PUBLIC, 'index.html');
+      return servirArquivo(req, res, casca, await stat(casca));
     } catch { notFound(res); }
   }
 }
@@ -2436,8 +2459,12 @@ function ipDentroDoLimite(ip, teto = 300, janelaMs = 60_000) {
    --------------------------------------------------------------------------- */
 async function handler(req, res) {
   const inicio = process.hrtime.bigint();
-  const url = new URL(req.url, `http://${req.headers.host}`);
   cabecalhosDeSeguranca(res);
+  /* rodada 10: endereço ou Host torto ("GET //", "Host: [") estourava AQUI, fora do try: o pedido ficava sem
+     resposta e a promessa sem tratamento derrubava o servidor rodando sozinho. Agora é 400 na hora. */
+  let url;
+  try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
+  catch { return send(res, 400, { erro: 'Endereço inválido.' }); }
   // Log só da API, com duração — sem a query string, que pode carregar o token do ICS.
   if (url.pathname.startsWith('/api/')) {
     // id curto por requisição: aparece no log e volta no cabeçalho X-Request-Id,
