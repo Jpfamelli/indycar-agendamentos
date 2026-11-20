@@ -90,15 +90,17 @@ function readBody(req) {
       req.resume();
       return reject(Object.assign(new Error('Envie o corpo como JSON (Content-Type: application/json).'), { status: 415 }));
     }
-    let raw = '', bytes = 0, excedeu = false;
+    const blocos = [];
+    let bytes = 0, excedeu = false;
     req.on('data', c => {
       bytes += c.length;
       if (bytes > 65536) { excedeu = true; return; }
-      raw += c;
+      blocos.push(c);
     });
     req.on('end', () => {
       if (excedeu) return reject(Object.assign(new Error('Corpo maior que 64 KB.'), { status: 413 }));
-      if (!raw) return resolve({});
+      if (!bytes) return resolve({});
+      const raw = Buffer.concat(blocos, bytes).toString('utf8');
       let v;
       try { v = JSON.parse(raw); } catch { return reject(Object.assign(new Error('JSON inválido'), {status:400})); }
       // sempre um objeto: lista, número ou texto soltos não chegam às rotas
