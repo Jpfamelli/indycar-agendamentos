@@ -302,3 +302,10 @@ test('R9 lote 8: sugestões do Remarcar com nome falado que contém o que se vê
   assert.ok(html.includes('Crie a sua conta de administrador.'));
   assert.doesNotMatch(semComentarios('public/index.html').join('\n'), /—/);
 });
+
+test('R9 lote 8: sobras da última medida (Quadro em 375 px sem rolagem lateral, horário da Semana, "Ver", histórico da ficha)', () => {
+  assert.match(regra(toque, '.qd-bar .left,.qd-nav'), /flex-wrap:wrap;min-width:0;max-width:100%/);
+  assert.match(regra(toque, '.sem-abrir'), /min-height:var\(--alvo\)/);
+  assert.ok(toque.includes('  .btn.mini{min-width:var(--alvo);justify-content:center}'));
+  assert.match(css9, /\.ctx-item\{min-height:var\(--alvo\)\}/);
+});

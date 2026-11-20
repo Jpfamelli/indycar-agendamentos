@@ -1,6 +1,6 @@
 // QA da Rodada 9 da Agenda, parte 2: janelas, popovers, login e modo presença no servidor de MENTIRA.
 // Mede o mesmo que scripts/qa-r9-agenda.mjs (rolagem lateral, toque de 44 px, axe-core, travessão). Nada toca o banco real.
-//   node scripts/qa-r9-modais.mjs [--fotos depois]
+//   node scripts/qa-r9-modais.mjs [--fotos depois] [--cenas login,busca]
 import fs from 'node:fs';
 import { iniciarMock, abrirNavegador, dorme } from './qa-r7c2-lib.mjs';
 import { medirTela } from './qa-r6c-lib.mjs';
@@ -13,12 +13,12 @@ const fecha = 'if (typeof closeModal === "function") closeModal(); document.quer
 /* cada cena: [nome, rota, js que abre, seletor que deve aparecer, papel] */
 const CENAS = [
   ['novo-agendamento', 'inicio', 'openAgendamentoModal()', '#modal .modal-body'],
-  ['editar-agendamento', 'agenda', 'document.querySelector(".appt [data-act=editar], .appt .act.ico")?.click()', '#modal .modal-body'],
+  ['editar-agendamento', 'agenda', 'document.querySelector(".appt [data-act=editar]")?.click(); await new Promise((r) => setTimeout(r, 1200))', '#modal .modal-head'],
   ['valor-ao-concluir', 'agenda', 'document.querySelector(".appt [data-act=concluido]")?.click()', '#modal .modal-body'],
-  ['nao-veio', 'agenda', 'document.querySelector(".appt [data-act=nao_veio]")?.click()', '#modal .modal-body'],
+  ['nao-veio', 'agenda', 'document.querySelector(".appt [data-act=nao_veio]")?.click()', '#toast .toast-acao'],
   ['remarcar', 'agenda', 'abrirRemarcar(document.querySelector(".appt[data-id]")?.dataset.id)', '#modal .modal-body'],
   ['cliente-novo', 'clientes', 'openClienteModal()', '#modal .modal-body'],
-  ['cliente-ficha', 'clientes', 'document.querySelector("#view table tbody tr [data-ficha], #view table tbody tr button")?.click()', '#modal .modal-body'],
+  ['cliente-ficha', 'clientes', 'document.querySelector("#cliBody [data-act=edit]")?.click(); await new Promise((r) => setTimeout(r, 1200))', '#modal .modal-head'],
   ['consultor', 'equipe', 'openConsultorModal()', '#modal .modal-body'],
   ['espera-nova', 'espera', 'openEsperaModal()', '#modal .modal-body'],
   ['whatsapp-enviar', 'followup', 'document.querySelector(".appt [data-act=whatsapp]")?.click()', '#modal .modal-body'],
@@ -33,10 +33,11 @@ const CENAS = [
   ['login-primeiro', 'inicio', 'const t = document.getElementById("telaLogin"); t.hidden = false; t.style.display = ""; document.querySelectorAll("#telaLogin form").forEach((f) => { f.hidden = f.id !== "formPrimeiro"; })', '#formPrimeiro'],
   ['presenca', 'dia', '1', '#view', 'agenda'],
 ];
+const iC = process.argv.indexOf('--cenas'); const SO = iC > 0 ? process.argv[iC + 1].split(',') : null;
 const achados = [];
 try {
   for (const largura of [375, 1440]) for (const tema of ['escuro', 'claro']) {
-    for (const [nome, rota, js, sel, papel] of CENAS) {
+    for (const [nome, rota, js, sel, papel] of CENAS.filter((c) => !SO || SO.includes(c[0]))) {
       const { browser, page } = await abrirNavegador({ largura, altura: largura < 500 ? 800 : 950 });
       const erros = []; page.on('pageerror', (e) => erros.push(String(e))); page.on('dialog', (d) => d.accept());
       try {
@@ -57,6 +58,6 @@ try {
     }
   }
 } finally { mock.parar(); }
-fs.writeFileSync(SAIDA + 'medida-janelas.json', JSON.stringify(achados, null, 1));
+fs.writeFileSync(SAIDA + (SO ? 'medida-janelas-parte.json' : 'medida-janelas.json'), JSON.stringify(achados, null, 1));
 console.log('não abriram:', [...new Set(achados.filter((a) => !a.abriu).map((a) => a.rota))].join(', ') || 'nenhuma');
 console.log(achados.filter((a) => a.rolagem || a.pequenos?.length || a.axe?.length || a.travessao?.length || a.erros).length, 'cena(s) com achado em', achados.length);

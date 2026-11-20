@@ -186,3 +186,16 @@
 }
 /* texto secundário no escuro (hora do aviso, prazo da tarefa, título dos Apps): 3,43 sobre o popover; agora passa de 4,5 */
 :root{--muted-2:#8189a0}
+
+/* ---- última medida: sobras ---- */
+@media (max-width:720px),(pointer:coarse){
+  /* Quadro em 375 px: com os botões de 44 px a fila de data passava da tela; agora quebra de linha */
+  .qd-bar .left,.qd-nav{flex-wrap:wrap;min-width:0;max-width:100%}
+  .qd-nav{display:flex}
+  #qdData{flex:1 1 130px;min-width:0}
+  /* horário na Semana: 42 px; "Ver" dos Relatórios: 43 px de largura */
+  .sem-abrir{min-height:var(--alvo)}
+  .btn.mini{min-width:var(--alvo);justify-content:center}
+}
+/* histórico na ficha do cliente (toque para abrir o agendamento): 22 px de altura */
+@media (max-width:720px),(pointer:coarse){ .ctx-item{min-height:var(--alvo)} }
