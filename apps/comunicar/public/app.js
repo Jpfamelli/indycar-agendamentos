@@ -278,6 +278,7 @@ function esqueleto(rota) {
 
 async function route(r, opts = {}) {
   const quieto = opts.quieto === true;
+  if (quieto && view.getAttribute('aria-busy') === 'true') return;
   if (r) state.route = r;
   const vez = state._vez = (state._vez || 0) + 1;
   $$('.nav-item').forEach(n => { const ativo = n.dataset.route === state.route; n.classList.toggle('active', ativo);
@@ -286,21 +287,27 @@ async function route(r, opts = {}) {
   const mudouDeTela = !quieto && state._rotaAnunciada !== state.route;
   if (!quieto) { view.classList.add('entrando'); view.innerHTML = esqueleto(state.route); view.setAttribute('aria-busy', 'true'); }
   try {
-    await (ROUTES[state.route] || renderInicio)({ quieto });
+    await (ROUTES[state.route] || renderInicio)({ quieto, vez });
     if (vez === state._vez && !quieto) {
       clearTimeout(state._entraTimer);
       state._entraTimer = setTimeout(() => view.classList.remove('entrando'), 1200);
     }
   } catch (e) {
-    if (vez === state._vez) view.innerHTML = vazio(I.alerta, 'Não deu para abrir esta tela', esc(e.message) + (e.status === 0 || e.status >= 500 ? '<br><button type="button" class="btn btn-mini" data-tentar-tela>Tentar de novo</button>' : ''));
-    $('[data-tentar-tela]', view)?.addEventListener('click', () => route(state.route));
+    if (vez !== state._vez) return;
+    if (quieto) {
+      toast('Não deu para atualizar esta tela. Tente de novo em instantes.', 'err');
+      return;
+    }
+    view.innerHTML = vazio(I.alerta, 'Não deu para abrir esta tela', esc(e.message) + (e.status === 0 || e.status >= 500 ? '<br><button type="button" class="btn btn-mini" data-tentar-tela>Tentar de novo</button>' : ''));
+    $('[data-tentar-tela]', view)?.addEventListener('click', () => route(state.route), { once: true });
   } finally {
-    view.removeAttribute('aria-busy');
+    if (vez === state._vez) view.removeAttribute('aria-busy');
   }
+  if (vez !== state._vez) return;
   /* acessibilidade (rodada 4): título da aba, aviso para leitor de tela e foco no título da tela nova */
   const nomeTela = NOMES_TELA[state.route] || 'Início';
   document.title = `${nomeTela} · IndyCar Comunicar`;
-  if (mudouDeTela && vez === state._vez) {
+  if (mudouDeTela) {
     state._rotaAnunciada = state.route;
     const an = $('#anuncioTela'); if (an) an.textContent = `Tela ${nomeTela}`;
     if (state._focarTela) { const h = $('h2', view); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll:true }); } }
@@ -322,14 +329,17 @@ async function refreshBadge(pendentes) {
 // ============================================================================
 // INÍCIO
 // ============================================================================
-async function renderInicio() {
+async function renderInicio({ quieto } = {}) {
+  const vez = state._vez;
   /* O status do WhatsApp consulta o CodeWords (pode levar segundos): a tela
      pinta primeiro com "verificando…" e o item é preenchido quando chegar. */
   const waPromise = api('GET', '/whatsapp/status').catch(() => ({ ok:false, erro:'sem resposta' }));
   const [r, saude] = await Promise.all([api('GET', '/resumo'), api('GET', '/saude').catch(() => null)]);
+  if (vez !== state._vez) return;
+  const detalhesAbertos = quieto && $('.inicio-detalhes', view)?.open;
+  const acoesAbertas = quieto && $('.inicio-mais-acoes', view)?.open;
   const s = r.satisfacao || {};
   const hoje = new Date();
-  const dataTxt = hoje.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', weekday:'long', day:'2-digit', month:'long' });
 
   let titulo;
   if (r.pausaGeral) titulo = `Envios pausados <span>· ligue de novo em Réguas › Envio</span>`;
@@ -340,7 +350,7 @@ async function renderInicio() {
   const htmlWhatsapp = (wa) => {
     if (!wa) return '<span class="dot"></span><span>WhatsApp <b>verificando…</b></span>';
     let dot = 'off', txt = 'WhatsApp <b>desconectado</b>';
-    if (wa.chaveRecusada) { txt = 'WhatsApp <b>chave recusada</b>'; }
+    if (wa.chaveRecusada) { txt = 'WhatsApp <b>parado: chave recusada</b>. Troque a chave em Atendimento › Configurações › Integrações.'; }
     else if (wa.conectado) { dot = 'on'; txt = `WhatsApp <b>conectado</b>${wa.numero ? ` · ${esc(telBR(wa.numero))}` : ''}`; }
     else if (wa.ok === false) { dot = 'warn'; txt = 'WhatsApp <b>sem resposta</b>'; }
     return `<span class="dot ${dot}"></span><span>${txt}</span>`;
@@ -362,18 +372,21 @@ async function renderInicio() {
       <span class="num${v.enviadas ? '' : ' zero'}">${v.enviadas}</span>
       <span class="num${v.respondidas ? '' : ' zero'}">${v.respondidas}${v.pararam ? `<small>${v.pararam} pediu p/ parar</small>` : ''}</span>
       <span class="num${v.agendaram ? '' : ' zero'}">${v.agendaram}</span>
-    </div>`).join('') : vazio(I.regua, 'Nada enviado nos últimos 30 dias', 'Ligue as réguas e as mensagens começam a sair sozinhas.');
+    </div>`).join('') : vazio(I.regua, 'Nada enviado nos últimos 30 dias', 'Confira a conexão do WhatsApp e as réguas.');
 
   const aniv = r.aniversariantesDoMes || [];
   const mesNome = hoje.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', month:'long' });
 
   view.innerHTML = `
     <div class="hero-dia">
-      <div><div class="hero-data">${esc(dataTxt)}</div><h2 class="hero-titulo">${titulo}</h2></div>
+      <div><h2 class="hero-titulo">${titulo}</h2></div>
       <div class="hero-acoes">
-        <button type="button" class="btn" id="btnPrevia">${svg(I.olho)} Prévia de hoje</button>
+        <button type="button" class="btn primary" id="btnPrevia">Prévia de hoje</button>
+        <details class="inicio-mais-acoes"${acoesAbertas ? ' open' : ''}>
+          <summary>Mais ações</summary>
         <button type="button" class="btn" id="btnMes">${svg(I.calendar)} Próximos 30 dias</button>
-        ${pode('rodar') ? `<button type="button" class="btn primary" id="btnRodar">${svg(I.play)} Rodar agora</button>` : ''}
+        ${pode('rodar') ? `<button type="button" class="btn" id="btnRodar">${svg(I.play)} Rodar agora</button>` : ''}
+        </details>
       </div>
     </div>
     <div class="faixa-equipe" id="faixaEquipe" hidden></div>
@@ -396,6 +409,8 @@ async function renderInicio() {
       ${statCard('wa', s.pct === null || s.pct === undefined ? '—' : s.pct, 'Satisfação', I.smile, { sufixo:'%', sub: s.notaMedia ? `nota média ${String(s.notaMedia).replace('.', ',')} · ${s.total} respostas` : `${s.total || 0} respostas` })}
     </div>
 
+    <details class="inicio-detalhes"${detalhesAbertos ? ' open' : ''}>
+      <summary>Mais indicadores</summary>
     <div class="cols ia-cols" id="iaLinha">
       <div class="panel ia-panel-resumo"><div class="panel-head"><h2><span class="ia-selo">✨ IA</span> Resumo da semana</h2><span class="panel-sub">cache de 6 h</span></div>
         <div class="panel-body" id="iaResumo"><div class="skel" style="height:72px"></div></div></div>
@@ -429,12 +444,16 @@ async function renderInicio() {
           </div>
         </div>
       </div>
-    </div>`;
+    </div>
+    </details>`;
 
   animarNumeros(view);
   carregarLinhaIA();
   $('#btnRelatorio')?.addEventListener('click', () => abrirRelatorio('todas'));
-  waPromise.then(wa => { const el = $('#waItem'); if (el) el.innerHTML = htmlWhatsapp(wa); });
+  const waItem = $('#waItem', view);
+  waPromise.then(wa => {
+    if (waItem?.isConnected) waItem.innerHTML = htmlWhatsapp(wa);
+  });
   $('#btnRodar')?.addEventListener('click', rodarAgora);
   $('#btnPrevia').addEventListener('click', () => abrirPrevia());
   $('#btnMes').addEventListener('click', () => window.R4?.abrirMes());
@@ -493,8 +512,9 @@ async function abrirPrevia(regua = null) {
 // ============================================================================
 // RÉGUAS — réguas automáticas + envio
 // ============================================================================
-async function renderReguas() {
+async function renderReguas({ vez = state._vez } = {}) {
   const [cfg, regras] = await Promise.all([api('GET', '/comunicar/config'), api('GET', '/regras-retorno').catch(() => [])]);
+  if (vez !== state._vez) return;
   state.cfg = cfg; state.cfgEdit = {}; state.regras = regras;
   /* rodada 4: alterações que não foram salvas (aba fechada, servidor dormindo) voltam */
   const rascunho = ehGestor() ? window.R4?.lerRascunhoReguas(cfg) : null;
@@ -787,7 +807,7 @@ function ligarRegras() {
 // ============================================================================
 // MENSAGENS — fila e histórico
 // ============================================================================
-async function renderMensagens({ quieto } = {}) {
+async function renderMensagens({ quieto, vez = state._vez } = {}) {
   const f = state.msg;
   const q = new URLSearchParams();
   if (f.status !== 'todas') q.set('status', f.status);
@@ -802,6 +822,7 @@ async function renderMensagens({ quieto } = {}) {
   const POR_PAGINA = 100;
   q.set('limite', String(POR_PAGINA));
   const lista = await api('GET', '/envios?' + q);
+  if (vez !== state._vez) return;
   state._msgLista = lista; state._msgFim = lista.length < POR_PAGINA;
   const htmlLista = () => lista.length ? lista.map(cartaoEnvio).join('')
     : vazio(I.wa, f.q || f.de || f.ate || f.intencao !== 'todas' || f.origem !== 'todas' || f.status !== 'todas' || f.tipo !== 'todos' ? 'Nada com esse filtro' : 'Nenhuma mensagem ainda',
@@ -821,7 +842,7 @@ async function renderMensagens({ quieto } = {}) {
 
   view.innerHTML = `
     <div class="toolbar">
-      <div class="left"><h2>Mensagens</h2><span class="badge-pill bp-gray" id="qtdMsg">${plural(lista.length, 'na lista', 'na lista')}</span></div>
+      <div class="left"><h2>Mensagens</h2><span class="badge-pill bp-gray" id="qtdMsg" role="status">${plural(lista.length, 'na lista', 'na lista')}${state._msgFim ? '' : '+'}</span></div>
       <div class="right">
         <div class="search">${svg(I.search)}<input id="qMsg" placeholder="Buscar por nome, telefone ou texto…" value="${esc(f.q)}" aria-label="Buscar mensagens"></div>
         <select id="tipoMsg" class="inp" style="width:auto" aria-label="Filtrar por tipo">${tipos.map(t => `<option value="${t}" ${f.tipo === t ? 'selected' : ''}>${t === 'todos' ? 'Todos os tipos' : `${TIPO[t]?.emoji || ''} ${TIPO[t]?.rotulo || t}`}</option>`).join('')}</select>
@@ -845,24 +866,31 @@ async function renderMensagens({ quieto } = {}) {
 
   $('#maisMsg').addEventListener('click', async (ev) => {
     const b = ev.currentTarget; b.disabled = true; b.textContent = 'Carregando…';
+    const consulta = state._vez;
     try {
       const q2 = new URLSearchParams(state._qMsg); q2.set('limite', '100'); q2.set('offset', String(state._msgLista.length));
       const mais = await api('GET', '/envios?' + q2);
+      if (consulta !== state._vez || !b.isConnected) return;
       state._msgLista.push(...mais); state._msgFim = mais.length < 100;
       $('#listaEnvios').insertAdjacentHTML('beforeend', mais.map(cartaoEnvio).join(''));
-      ligarAcoesEnvio($('#listaEnvios'));
       $('#qtdMsg').textContent = plural(state._msgLista.length, 'na lista', 'na lista') + (state._msgFim ? '' : '+');
       b.hidden = state._msgFim;
-    } catch (e) { toast(e.message, 'err'); }
+    } catch (e) { if (consulta === state._vez && b.isConnected) toast(e.message, 'err'); }
     finally { b.disabled = false; b.textContent = 'Carregar mais 100'; }
   });
   $$('.pilula', view).forEach(b => b.addEventListener('click', () => { state.msg.status = b.dataset.filtro; route(null, { quieto:true }); }));
   $('#tipoMsg').addEventListener('change', e => { state.msg.tipo = e.target.value; route(null, { quieto:true }); });
-  $('#qMsg').addEventListener('input', debounce(e => { state.msg.q = e.target.value.trim(); route(null, { quieto:true }); }, 300));
+  $('#qMsg').addEventListener('input', debounce(e => {
+    if (!e.target.isConnected) return;
+    state.msg.q = e.target.value.trim();
+    route(null, { quieto:true });
+  }, 300));
   const mudarPeriodo = () => {
-    state.msg.de = $('#deMsg').value; state.msg.ate = $('#ateMsg').value;
-    if (state.msg.de && state.msg.ate && state.msg.de > state.msg.ate) { toast('O "de" precisa vir antes do "até".', 'err'); return; }
-    $('#limparPeriodo').hidden = !(state.msg.de || state.msg.ate); route(null, { quieto:true });
+    const de = $('#deMsg').value, ate = $('#ateMsg').value;
+    $('#limparPeriodo').hidden = !(de || ate);
+    if (de && ate && de > ate) { toast('A data inicial precisa vir antes da final.', 'err'); return; }
+    state.msg.de = de; state.msg.ate = ate;
+    route(null, { quieto:true });
   };
   $('#deMsg').addEventListener('change', mudarPeriodo); $('#ateMsg').addEventListener('change', mudarPeriodo);
   $('#limparPeriodo').addEventListener('click', () => { $('#deMsg').value = ''; $('#ateMsg').value = ''; mudarPeriodo(); });
@@ -961,8 +989,9 @@ function ligarAcoesEnvio(root) {
 // ============================================================================
 // CAMPANHAS — nova campanha em passos + histórico
 // ============================================================================
-async function renderCampanhas() {
+async function renderCampanhas({ vez = state._vez } = {}) {
   const envios = await api('GET', '/envios?tipo=campanha&limite=1000');
+  if (vez !== state._vez) return;
   /* agrupa por (mensagem + dia): como o servidor grava o corpo JÁ com o nome e
      o carro de cada cliente, a chave usa o começo do texto sem o nome. */
   const grupos = new Map();
@@ -1245,8 +1274,9 @@ window.openCampanhaModal = async function (pre = {}) {
 // ============================================================================
 // CLIENTES — busca, aniversário, opt-out, ficha e importação
 // ============================================================================
-async function renderClientes() {
+async function renderClientes({ vez = state._vez } = {}) {
   const lista = await api('GET', '/clientes' + (state.cliQ ? `?q=${encodeURIComponent(state.cliQ)}` : ''));
+  if (vez !== state._vez) return;
   const comNasc = lista.filter(c => c.nascimento).length, fora = lista.filter(c => c.aceita_mensagens === false).length;
   view.innerHTML = `
     <div class="toolbar">
@@ -1263,10 +1293,22 @@ async function renderClientes() {
     <div class="panel"><div class="panel-body lista lista-anim" id="cliLista">${linhasClientes(lista)}</div></div>`;
   ligarClientes($('#cliLista'), lista);
   const inp = $('#qCli');
+  let busca = 0;
   inp.addEventListener('input', debounce(async () => {
+    if (!inp.isConnected) return;
     state.cliQ = inp.value.trim();
-    const r = await api('GET', '/clientes' + (state.cliQ ? `?q=${encodeURIComponent(state.cliQ)}` : '')).catch(() => []);
-    if ($('#cliLista')) { $('#cliLista').innerHTML = linhasClientes(r); ligarClientes($('#cliLista'), r); }
+    const termo = state.cliQ;
+    const pesquisa = ++busca;
+    const atual = () => inp.isConnected && pesquisa === busca && inp.value.trim() === termo;
+    try {
+      const r = await api('GET', '/clientes' + (termo ? `?q=${encodeURIComponent(termo)}` : ''));
+      if (!atual()) return;
+      const resultados = $('#cliLista');
+      resultados.innerHTML = linhasClientes(r);
+      ligarClientes(resultados, r);
+    } catch {
+      if (atual()) toast('Não deu para buscar os clientes. Tente de novo.', 'err');
+    }
   }, 250));
   $('#btnImportar')?.addEventListener('click', () => openImportarModal());
   $('#btnAniv').addEventListener('click', () => window.R4?.abrirAniversarios());
@@ -1339,18 +1381,36 @@ window.openNascimentoModal = function (c) {
 };
 
 /* ---- FICHA do cliente (gaveta lateral) ---- */
+let consultaFicha = 0;
+let clienteDaFicha = null;
+
 async function abrirFicha(id, quieto = false) {
   const ov = $('#gavetaOverlay'), g = $('#gaveta');
+  if (quieto && (ov.hidden || id !== clienteDaFicha)) return;
+  const consulta = ++consultaFicha;
+  clienteDaFicha = id;
   if (!quieto) {
-    state._focoGaveta = document.activeElement;
+    if (ov.hidden) state._focoGaveta = document.activeElement;
     g.innerHTML = `<div class="gaveta-head"><div class="quem"><span class="av skel" style="border:none"></span><div><h3 id="gavetaTitulo">Carregando…</h3></div></div>
       <button type="button" class="modal-close" data-fechar-gaveta aria-label="Fechar ficha">×</button></div>
       <div class="gaveta-body"><div class="skel" style="height:80px"></div><div class="skel" style="height:120px"></div><div class="skel" style="height:160px"></div></div>`;
     ov.hidden = false; document.body.style.overflow = 'hidden';
+    $('[data-fechar-gaveta]', g).focus({ preventScroll:true });
   }
   let f;
   try { f = await api('GET', `/clientes/${id}/ficha`); }
-  catch (e) { $('.gaveta-body', g).innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
+  catch {
+    if (consulta !== consultaFicha) return;
+    if (quieto) {
+      toast('Não consegui atualizar a ficha. Abra novamente para tentar.', 'err');
+    } else {
+      $('.gaveta-body', g).innerHTML = '<p class="form-msg erro" role="alert">Não consegui abrir a ficha.</p><button type="button" class="btn" data-repetir-ficha>Tentar novamente</button>';
+      $('[data-repetir-ficha]', g).addEventListener('click', () => abrirFicha(id));
+    }
+    return;
+  }
+  if (consulta !== consultaFicha) return;
+  const focoAtual = g.contains(document.activeElement) ? document.activeElement : null;
   const c = f.cliente, r = f.resumo || {};
   const hoje = hojeSP();
   const rev = f.proximaRevisao;
@@ -1399,10 +1459,13 @@ async function abrirFicha(id, quieto = false) {
   $('#gNasc').addEventListener('click', () => openNascimentoModal(c));
   $('#gTarefa').addEventListener('click', () => window.Conta?.novaTarefa({ cliente_id: c.id, titulo: `Falar com ${c.nome}` }));
   $('#gMandar').addEventListener('click', () => { fecharGaveta(); openCampanhaModal({ cliente:c }); });
-  if (!quieto) setTimeout(() => $('[data-fechar-gaveta]', g)?.focus({ preventScroll:true }), 30);
+  const novoFoco = focoAtual?.id && document.getElementById(focoAtual.id);
+  if (focoAtual) (novoFoco && !novoFoco.disabled ? novoFoco : $('[data-fechar-gaveta]', g))?.focus({ preventScroll:true });
 }
 function fecharGaveta() {
   const ov = $('#gavetaOverlay'); if (ov.hidden) return;
+  consultaFicha++;
+  clienteDaFicha = null;
   ov.hidden = true; document.body.style.overflow = '';
   if (state._focoGaveta?.isConnected) state._focoGaveta.focus({ preventScroll:true });
   state._focoGaveta = null;
@@ -1481,8 +1544,9 @@ function lerPlanilha(texto) {
 // ============================================================================
 // SATISFAÇÃO
 // ============================================================================
-async function renderSatisfacao() {
+async function renderSatisfacao({ vez = state._vez } = {}) {
   const [respostas, resumo] = await Promise.all([api('GET', '/satisfacao'), api('GET', '/resumo').catch(() => null)]);
+  if (vez !== state._vez) return;
   const s = resumo?.satisfacao || (() => { const total = respostas.length, felizes = respostas.filter(r => r.satisfeito).length;
     const notas = respostas.map(r => Number(r.nota)).filter(n => n >= 1 && n <= 5);
     return { total, satisfeitos:felizes, insatisfeitos:total - felizes, pct: total ? Math.round((felizes / total) * 100) : null,

@@ -451,7 +451,7 @@
       } else if (p === 'horario') {
         add('horario', 'Dois horários', `${n}${doisHorarios}`);
       } else if (p === 'endereco') {
-        add('endereco', 'Endereço', `Ficamos na Av. Bandeirantes, 875 — Parque Paduan, Taubaté. Atendemos de segunda a sábado, das 8h às 17h30. Quer que eu já deixe um horário reservado no seu nome?`);
+        add('endereco', 'Endereço', `Ficamos na Av. Bandeirantes, 875: Parque Paduan, Taubaté. Atendemos de segunda a sábado, das 8h às 17h30. Quer que eu já deixe um horário reservado no seu nome?`);
       } else if (p === 'garantia') {
         add('garantia', 'Garantia', `${n}a garantia é de 12 meses em peça e em mão de obra. Teve algum problema com o serviço?`);
       } else if (p === 'pagamento') {

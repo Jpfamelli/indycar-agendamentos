@@ -316,11 +316,11 @@ const roda = (nome) => !FILTRO || nome.includes(FILTRO);
     ok(`[${w}] auditoria: filtro "Equipe e acessos" + frases de papel/desativou/apps/senha/convite`,
       fp.some(f => /mudou o papel de Maria Souza de atendente para gestor/.test(f)) && fp.some(f => /desativou o acesso de Paulo Mendes/.test(f))
       && fp.some(f => /mudou os apps de Bianca Lopes: liberou Comunicar; tirou Atendimento/.test(f)) && fp.some(f => /gerou uma senha temporária para Carlos Henrique/.test(f))
-      && fp.some(f => /convidou Carlos Henrique como atendente/.test(f)) && fp.some(f => /desativou o acesso de Paulo Mendes — “Saiu da empresa”/.test(f)), fp.join(' || '));
+      && fp.some(f => /convidou Carlos Henrique como atendente/.test(f)) && fp.some(f => /desativou o acesso de Paulo Mendes: “Saiu da empresa”/.test(f)), fp.join(' || '));
     await p.select('#audTabela', ''); await p.select('#audPessoa', U.gestor); await espera(700);
     const fg = await p.$$eval('#linhaAuditoria .lt-frase', fs => fs.map(f => f.textContent.trim()));
     ok(`[${w}] auditoria: filtro por pessoa (só Maria)`, fg.length > 0 && fg.every(f => f.startsWith('Maria Souza')), fg[0]);
-    ok(`[${w}] auditoria: frases de lead, transferência e exclusão`, fg.some(f => /moveu o lead de Camila Rodrigues de em contato para orçamento/.test(f)) && fg.some(f => /passou a conversa de José Antônio Ferreira de Maria Souza para Leonardo Alves — “Fim do meu turno”/.test(f)) && fg.some(f => /apagou o agendamento de Hugo Teste/.test(f)), fg.join(' || '));
+    ok(`[${w}] auditoria: frases de lead, transferência e exclusão`, fg.some(f => /moveu o lead de Camila Rodrigues de em contato para orçamento/.test(f)) && fg.some(f => /passou a conversa de José Antônio Ferreira de Maria Souza para Leonardo Alves: “Fim do meu turno”/.test(f)) && fg.some(f => /apagou o agendamento de Hugo Teste/.test(f)), fg.join(' || '));
     await p.select('#audPessoa', ''); await espera(700);
     await clicar(p, '#audProxima'); await espera(700);
     ok(`[${w}] auditoria: "Mais antigos" vai para a página 2`, /Página 2/.test(await texto(p, '#audPaginaTxt')));
@@ -550,10 +550,10 @@ const roda = (nome) => !FILTRO || nome.includes(FILTRO);
   if (roda('semrotas')) {
     const p = await abrir('admin', 1440, '&sem_rotas=1');
     await clicar(p, '.nav-item[data-aba="equipe"]'); await espera(900);
-    ok('sem rotas: Equipe mostra aviso amigável e a lista que dá (só leitura)', /ainda não chegou no servidor/.test(await texto(p, '#gradeEquipe')) && (await p.$$('#gradeEquipe .pessoa-cartao')).length > 0 && !(await visivel(p, '#btnConvidar')));
+    ok('sem rotas: Equipe mostra aviso amigável e a lista que dá (só leitura)', /ainda não está disponível/.test(await texto(p, '#gradeEquipe')) && (await p.$$('#gradeEquipe .pessoa-cartao')).length > 0 && !(await visivel(p, '#btnConvidar')));
     await shot(p, 'sem-rotas-equipe-1440');
     await clicar(p, '.nav-item[data-aba="auditoria"]'); await espera(800);
-    ok('sem rotas: Auditoria mostra aviso amigável (sem erro vermelho)', /ainda não chegou no servidor/.test(await texto(p, '#linhaAuditoria')));
+    ok('sem rotas: Auditoria mostra aviso amigável (sem erro vermelho)', /ainda não está disponível/.test(await texto(p, '#linhaAuditoria')));
     await clicar(p, '.nav-item[data-aba="tarefas"]'); await clicar(p, '[data-tarefas-ver="equipe"]'); await espera(900);
     ok('sem rotas: carga da equipe calculada na tela, com aviso', /calculada aqui/.test(await texto(p, '#cargaEquipe')) && (await p.$$('#cargaEquipe .carga-pessoa')).length > 0);
     await clicar(p, '.nav-item[data-aba="conversas"]');

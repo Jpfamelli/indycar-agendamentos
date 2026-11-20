@@ -10,7 +10,7 @@
 //    (arquivos); demorou, deu 5xx/4xx ou caiu → cópia do cache.
 // As conversas vêm direto do Supabase (que não dorme), então com a casca de pé
 // o atendente segue lendo e respondendo enquanto o servidor acorda.
-const CACHE = 'indycar-atendimento-v20';
+const CACHE = 'indycar-atendimento-v21';
 
 /* Rodada 5 (Central): o service worker pode estar servido em /atendimento/sw.js. Tudo é
    relativo à pasta dele (RAIZ): a casca, os arquivos e a fronteira do /api/. */
@@ -19,7 +19,7 @@ const RAIZ = self.location.pathname.replace(/sw\.js$/, '');
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala — o app deixa de ser instalável sem dizer por quê. Mantenha
    aqui só o que existe de verdade (o copiloto.js/.css do painel da IA também). */
-const ARQUIVOS = ['', 'styles.css', 'apps.js', 'rede.js', 'vendor/supabase.js', 'app.js', 'acesso.js', 'equipe.js', 'tarefas.js', 'r6-regras.js', 'r6-tela.js', 'r6.css', 'r6c5.js', 'r6c5.css', 'r7-regras.js', 'r7c4.js', 'r7c4.css',
+const ARQUIVOS = ['', 'styles.css', 'apps.js', 'rede.js', 'vendor/supabase.js', 'app.js', 'acesso.js', 'equipe.js', 'tarefas.js', 'r6-regras.js', 'r6-tela.js', 'r6.css', 'r6c5.js', 'r6c5.css', 'r7-regras.js', 'r9-regras.js', 'r7c4.js', 'r7c4.css',
                   'ajuda.js', 'casca.js', 'copiloto.js', 'copiloto.css', 'manifest.json', 'logo.png',
                   'icon-192.png', 'icon-512.png'];
 const CORE = ARQUIVOS.map((u) => RAIZ + u);
@@ -49,7 +49,7 @@ function guardar(chave, r) {
 }
 
 const PAGINA_OFFLINE = () => new Response('<!doctype html><meta charset="utf-8"><title>IndyCar · Atendimento</title>'
-  + '<body style="font-family:system-ui;background:#0a0a0b;color:#f5f5f7;display:grid;place-items:center;height:100vh;margin:0;text-align:center">'
+  + '<body style="font-family:system-ui;background:#070a14;color:#f5f5f7;display:grid;place-items:center;height:100vh;margin:0;text-align:center">'
   + '<div><h1 style="font-size:1.3rem">Sem conexão com o Atendimento</h1><p>Confira a internet. Esta página tenta de novo sozinha.</p>'
   + '<script>setTimeout(function(){location.reload()},15000)</script></div>',
   { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });

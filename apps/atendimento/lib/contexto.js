@@ -467,4 +467,25 @@ function fichaParaTela(ficha) {
   return { ...f, mensagens: undefined, totalMensagens: (f.mensagens || []).length };
 }
 
-module.exports = { situacaoDaConversa, textoDaSituacao, horaDeBrasilia, criarContexto, textoParaIA, textoDoCatalogo, fichaParaTela, limparTextoDoCliente, semValores, MAX_MENSAGENS };
+/** Rodada 9: ficha curta que o NAVEGADOR manda no "Sugerir" sem conversa (aba de teste da IA).
+    O nome vem do perfil do WhatsApp, isto é, quem escreve é o cliente: cada campo entra limpo
+    (sem marca de cerca, sem caractere de controle), numa linha só e com teto de tamanho.
+    Nada que não seja texto ou número é aceito. */
+function fichaDoNavegador(cliente, cerca = '') {
+  if (!cliente || typeof cliente !== 'object' || Array.isArray(cliente)) return 'Cliente novo (sem cadastro ainda).';
+  const campo = (v, max) => {
+    if (typeof v !== 'string' && typeof v !== 'number') return '';
+    return limparTextoDoCliente(String(v).replace(/[\r\n]+/g, ' ').slice(0, max * 2), cerca).replace(/\s+/g, ' ').trim().slice(0, max);
+  };
+  const linhas = [
+    `Nome: ${campo(cliente.nome, 80) || 'não informado'}`,
+    campo(cliente.carro_modelo, 60) ? `Carro: ${campo(cliente.carro_modelo, 60)}` : null,
+    campo(cliente.placa, 10) ? `Placa: ${campo(cliente.placa, 10)}` : null,
+    campo(cliente.servicos_feitos, 200) ? `Serviços feitos: ${campo(cliente.servicos_feitos, 200)}` : null,
+    campo(cliente.proximo_horario, 40) ? `Tem horário marcado para: ${campo(cliente.proximo_horario, 40)}` : null,
+    campo(cliente.ultimo_servico_em, 40) ? `Último serviço: ${campo(cliente.ultimo_servico_em, 40)}` : null,
+  ];
+  return linhas.filter(Boolean).join('\n');
+}
+
+module.exports = { situacaoDaConversa, textoDaSituacao, horaDeBrasilia, criarContexto, textoParaIA, textoDoCatalogo, fichaParaTela, limparTextoDoCliente, fichaDoNavegador, semValores, MAX_MENSAGENS };

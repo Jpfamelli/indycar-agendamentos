@@ -56,7 +56,7 @@
   /** Corpo do JSON que a tela recebe quando o servidor não acordou a tempo. */
   function erroAmigavel(tipo, status) {
     if (tipo === 'acordando') return { ok: false, codigo: 'servidor_acordando', status: status || 503,
-      erro: 'O sistema está acordando e ainda não respondeu. Já tentei por 3 minutos — tente de novo daqui a pouco.' };
+      erro: 'O sistema está acordando e ainda não respondeu. Já tentei por 3 minutos: tente de novo daqui a pouco.' };
     if (tipo === 'rede') return { ok: false, codigo: 'sem_conexao', status: 0,
       erro: 'Sem conexão com o sistema. Confira a internet e tente de novo.' };
     return { ok: false, codigo: 'servidor_fora', status: status || 502,
@@ -258,7 +258,7 @@
       clearInterval(relogio); return;
     }
     const falta = proximaEm - Date.now();
-    sub.textContent = 'As conversas continuam aqui — ' + (falta > 0 ? textoDaEspera(falta, tentativaAtual) : 'tentando agora…') + '.';
+    sub.textContent = 'As conversas continuam aqui: ' + (falta > 0 ? textoDaEspera(falta, tentativaAtual) : 'tentando agora…') + '.';
   }
   function tentarAgora() {
     if (estado === 'parado' || esperando === 0) { sondar(); }

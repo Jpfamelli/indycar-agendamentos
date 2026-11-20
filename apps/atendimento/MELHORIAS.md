@@ -1354,3 +1354,117 @@ Legenda: 🔗 = conexão com outro sistema (Pátio, Orçador, Agenda, CRM, Comun
 - Link "Acompanhar o carro" (`acompanhar` de `r7_p3b_links_cliente`) já chega na resposta de `/api/r7/cliente-links`, mas ainda não tem botão próprio (o botão "🔗 Link do carro" da R6 segue valendo).
 - Migrações aplicadas: `r7_c4_zap_retomadas` e `r7_c4_indice_manipulacao` (cópias em `indycar-ferramentas/sql/`).
 - Movere real continua pendente (T16) e a publicação da Central é do coordenador: nada foi publicado.
+
+
+## Rodada 9 (19-20/11/2026)
+
+- **R9-ATD-001** · enxugar · Triagem diária fica à vista e filtros adicionais abrem em Mais filtros. · `9301455`
+- **R9-ATD-002** · acessibilidade · Leitores de tela identificam a navegação do Atendimento. · `9301455`
+- **R9-ATD-003** · acessibilidade · Filtros anunciam um grupo de controles sem semântica de barra de ferramentas. · `9301455`
+- **R9-ATD-004** · celular · Filtros quebram em linhas em vez de exigir rolagem horizontal. · `9301455`
+- **R9-ATD-005** · celular · Controles de conversa têm área mínima de 44 px. · `9301455`
+- **R9-ATD-006** · acessibilidade · Controles exibem contorno visível ao navegar com teclado. · `9301455`
+- **R9-ATD-007** · tela · A lista e a conversa adotam os fundos escuros definidos para a IndyCar. · `9301455`
+- **R9-ATD-008** · acessibilidade · Textos secundários ganham contraste nos dois temas. · `9301455`
+- **R9-ATD-009** · tela · O cabeçalho da conversa ganha uma divisória fixa em relação às mensagens. · `9301455`
+- **R9-ATD-010** · aviso · A faixa explica a interrupção e aponta para Integrações. · `9301455`
+- **R9-ATD-011** · conserto · A faixa reserva espaço depois de atualizar o texto. · `9301455`
+- **R9-ATD-012** · conserto · O filtro adicional selecionado por link abre o painel automaticamente. · `9301455`
+- **R9-ATD-013** · conserto · Cliques repetidos em mensagens anteriores durante a carga pedem só uma página. · `a3d3634`
+- **R9-ATD-014** · conserto · Uma falha ao carregar o histórico permite repetir a mesma página e exibe o que fazer. · `a3d3634`
+- **R9-ATD-015** · conserto · Uma atualização em tempo real mantém a página de histórico solicitada e preserva a posição da leitura. · `a3d3634`
+- **R9-ATD-016** · conserto · Uma falha de outra conversa não substitui o histórico da conversa aberta. · `a3d3634`
+- **R9-ATD-017** · teste · A suíte verifica cliques repetidos, nova tentativa após falha e atualização concorrente do histórico. · `a3d3634`
+- **R9-ATD-018** · conserto · Conversa aberta no celular com o WhatsApp parado: as mensagens voltam a aparecer (tinham 0 px de altura em 375 x 812; agora 210 px ou mais) · `f28048d`
+- **R9-ATD-019** · celular · Conversa aberta no celular ocupa a tela toda: a barra de telas dá lugar à conversa e a seta volta para a lista · `f28048d`
+- **R9-ATD-020** · enxugar · Dentro da conversa fica um aviso só de WhatsApp parado (o segundo, que repetia o primeiro, sai) · `f28048d`
+- **R9-ATD-021** · celular · No celular a faixa de cima não repete o aviso dentro da conversa e volta ao sair para a lista · `f28048d`
+- **R9-ATD-022** · celular · Ações do cabeçalho da conversa numa linha só (eram duas linhas, 93 px) · `f28048d`
+- **R9-ATD-023** · celular · Etapa, responsável e quem mais está na conversa numa linha que rola (eram 72 px) · `f28048d`
+- **R9-ATD-024** · celular · Propostas da IA com teto de altura e rolagem: não empurram mais as mensagens para fora da tela · `f28048d`
+- **R9-ATD-025** · celular · Aviso de WhatsApp parado da conversa com o texto e o botão lado a lado · `f28048d`
+- **R9-ATD-026** · celular · Faixa do WhatsApp parado enxuta no celular: de 135 px para no máximo 96 px · `f28048d`
+- **R9-ATD-027** · conserto · Computador da recepção (1366 x 768) com o WhatsApp parado: as mensagens têm 150 px garantidos (tinham 0 px); quem encolhe e rola são as propostas da IA · `f28048d`
+- **R9-ATD-028** · conserto · Computador com mouse: a triagem volta a ser compacta e a lista de conversas começa antes de 560 px (começava em 658 px de uma tela de 768) · `f28048d`
+- **R9-ATD-029** · tela · Computador: aviso de WhatsApp parado e resumo da fila com o botão ao lado do texto, sem linha extra · `f28048d`
+- **R9-ATD-030** · tela · Tela baixa de computador: a faixa do que o cliente tem nos outros sistemas fica numa linha só, que rola · `f28048d`
+- **R9-ATD-031** · conserto · O título Copiloto aparece inteiro na ficha estreita (virava reticências ao lado dos selos de uso) · `f28048d`
+- **R9-ATD-032** · acessibilidade · No celular os botões da barra de telas continuam com nome para o leitor de tela (o nome era escondido com display:none) · `f28048d`
+- **R9-ATD-033** · celular · Logo menor e tema dentro do menu do perfil: sobram mais telas à vista na barra do celular · `f28048d`
+- **R9-ATD-034** · celular · Barra de telas, sino e seletor de sistemas com 44 px (eram 37, 36 e 22 px) · `f28048d`
+- **R9-ATD-035** · celular · Botão Abrir Integrações da faixa de aviso com 44 px (tinha 24 px) · `f28048d`
+- **R9-ATD-036** · celular · Botões e links de texto de todas as telas com 44 px (tinham de 17 a 36 px) · `f28048d`
+- **R9-ATD-037** · celular · Filtros, alternadores e campos de busca e de data com 44 px em Atalhos, Tarefas, IA, Relatórios, Equipe e Auditoria (tinham de 23 a 36 px) · `f28048d`
+- **R9-ATD-038** · celular · Etiqueta de etapa, responsável, faixa do cliente e respostas "para agora" com 44 px na conversa (tinham de 23 a 34 px) · `f28048d`
+- **R9-ATD-039** · celular · Chegou e Reenviar, na mensagem que não saiu, com 44 px (tinham 19 px) · `f28048d`
+- **R9-ATD-040** · celular · Painel do cliente: ações rápidas, títulos de bloco e botões com 44 px (tinham de 36 a 42 px) · `f28048d`
+- **R9-ATD-041** · celular · Ficha do cliente: fechar, links para os outros sistemas e editar com 44 px (tinham de 18 a 33 px) · `f28048d`
+- **R9-ATD-042** · celular · Botões do copiloto com 44 px (tinham 40 px) · `f28048d`
+- **R9-ATD-043** · celular · Linhas de abrir e fechar (ver detalhes, Anteriores, Histórico, feitas) com 44 px (tinham de 19 a 26 px) · `f28048d`
+- **R9-ATD-044** · celular · Tarefas: concluir e os três ícones de ação com 44 px (tinham 26 e 30 px) · `f28048d`
+- **R9-ATD-045** · celular · Estrela de favorito do atalho e Mover do funil com 44 px (tinham 28 e 40 px) · `f28048d`
+- **R9-ATD-046** · celular · Bolinhas de cor do avatar, em Minha conta, com 44 px (tinham 26 px) · `f28048d`
+- **R9-ATD-047** · celular · Caixas de marcar com 24 px e linha de 44 px (o quadradinho tinha 13 px) · `f28048d`
+- **R9-ATD-048** · celular · Horários do Agendar e botões da retomada com 44 px (tinham 40 e 36 px) · `a5a3819`
+- **R9-ATD-049** · conserto · As faixas de WhatsApp parado, voltou e andando seguem o tema do app (seguiam o tema do sistema: no app escuro com Windows claro saíam rosa claro) · `a5a3819`
+- **R9-ATD-050** · acessibilidade · Contadores do pátio acima da lista com contraste AA (era 2,5:1) · `a5a3819`
+- **R9-ATD-051** · acessibilidade · Busca global: textos secundários e título dos grupos com contraste AA nos dois temas · `a5a3819`
+- **R9-ATD-052** · acessibilidade · Etiqueta de etapa com contraste AA nos dois temas (era 1,8:1 no tema claro) · `f28048d`
+- **R9-ATD-053** · acessibilidade · Etiqueta do responsável com contraste AA nos dois temas (era 3,4:1) · `f28048d`
+- **R9-ATD-054** · acessibilidade · Iniciais de quem enviou a mensagem com contraste AA (era 2,7:1) · `f28048d`
+- **R9-ATD-055** · acessibilidade · Tema claro: vermelho e verde de texto mais escuros; selo IA ativa (2,7:1), Assumir (4,2:1) e etiquetas vermelhas (4,2:1) passam no AA · `f28048d`
+- **R9-ATD-056** · acessibilidade · Tema claro: etiqueta de aniversário com contraste AA (era 3,9:1) · `f28048d`
+- **R9-ATD-057** · acessibilidade · Tema claro: hora e carro da conversa selecionada com contraste AA (era 4,4:1) · `f28048d`
+- **R9-ATD-058** · acessibilidade · Selo de espera do cliente com contraste AA nos três níveis · `f28048d`
+- **R9-ATD-059** · acessibilidade · Tema claro: azul de texto mais escuro; etiqueta Novo hoje passa no AA · `f28048d`
+- **R9-ATD-060** · acessibilidade · Iniciais de quem está na mesma conversa com contraste AA (era 3,95:1) · `fcdbe2a`
+- **R9-ATD-061** · acessibilidade · Os cinco gráficos dos Relatórios têm resumo em texto para leitor de tela (série, total, período, pico) · `fcdbe2a`
+- **R9-ATD-062** · acessibilidade · Gráficos e tabelas que rolam para o lado recebem foco pelo teclado · `fcdbe2a`
+- **R9-ATD-063** · acessibilidade · Os avisos do cliente no cabeçalho da conversa recebem foco pelo teclado quando rolam · `fcdbe2a`
+- **R9-ATD-064** · acessibilidade · Cartão do funil deixa de ser um botão com botão dentro (Mover) · `fcdbe2a`
+- **R9-ATD-065** · acessibilidade · Cartão de atalho deixa de ser um botão com botão dentro (favorito) · `fcdbe2a`
+- **R9-ATD-066** · teste · Suíte nova test/r9-tela.test.js: 11 testes, com os geradores de gráfico rodando numa caixa de areia · `f28048d`
+- **R9-ATD-067** · teste · Roteiro scripts/roteiro-r9.cjs: 133 conferências no Chrome (axe-core, 44 px, rolagem lateral e alturas em 375, 1366 e 1440 px, dois temas), só com servidor de mentira · `f28048d`
+- **R9-ATD-068** · conserto · Nova conversa confere o telefone antes de criar e diz o porquê (sem DDD, curto, comprido, com letras, DDD que não existe); antes aceitava qualquer texto · `902a163`
+- **R9-ATD-069** · conserto · Nova conversa: clique duplo não abre a mesma conversa duas vezes; o botão mostra Abrindo… enquanto trabalha · `902a163`
+- **R9-ATD-070** · celular · Nova conversa: o campo do telefone abre o teclado de telefone e o nome tem limite de tamanho · `902a163`
+- **R9-ATD-071** · conserto · Atalho: comando digitado com espaço, acento ou maiúscula ("Bom Dia") é gravado como se digita depois da barra ("bomdia"); antes ficava impossível de chamar · `902a163`
+- **R9-ATD-072** · celular · Atalho: campo do comando sem maiúscula automática nem corretor; comando e título com limite · `902a163`
+- **R9-ATD-073** · conserto · Agendar grava a placa sem hífen, no formato que a busca encontra (a busca por placa não achava "ABC-1D23") · `902a163`
+- **R9-ATD-074** · conserto · Ficha do cliente: Editar grava a placa no mesmo formato e diz o porquê quando está fora do padrão; placa antiga que não foi mexida não trava os outros campos · `902a163`
+- **R9-ATD-075** · celular · Agendar: placa em maiúsculas, sem corretor e com limite; carro com limite · `902a163`
+- **R9-ATD-076** · celular · Integrações: campos de ID, endereço e senha do webhook sem maiúscula automática nem corretor; número do WhatsApp com teclado de telefone · `902a163`
+- **R9-ATD-077** · segurança · Sugerir sem conversa: nome, carro e placa enviados pela tela entram limpos, numa linha só e com teto de tamanho (o nome vem do perfil do WhatsApp do cliente) · `2aed50d`
+- **R9-ATD-078** · segurança · Sugerir sem conversa: a ficha fica dentro da cerca de "dado, nunca instrução", junto com a conversa (ficava fora) · `2aed50d`
+- **R9-ATD-079** · celular · Lista de conversas: tocar na etiqueta de etapa ou no nome do responsável abre a conversa (era um alvo de 20 px que abria um menu, fácil de errar com o dedo) · `902a163`
+- **R9-ATD-080** · celular · Lista de conversas: busca, Próxima, carros sem conversa e Pegar com 44 px (tinham de 22 a 42 px) · `902a163`
+- **R9-ATD-081** · celular · Fechar (×) de todas as janelas com 44 px (tinha 31 px) · `902a163`
+- **R9-ATD-082** · celular · Mostrar senha, nas telas de entrar e de trocar senha, com 44 px (tinha 38 px) · `902a163`
+- **R9-ATD-083** · celular · Busca da ajuda e Copiar da verificação em duas etapas com 44 px (tinham 25 e 39 px) · `902a163`
+- **R9-ATD-084** · texto · Telas de entrar, esqueci a senha e primeiro acesso sem travessão · `902a163`
+- **R9-ATD-085** · texto · Conversa: avisos de fila, de sistema acordando, de áudio, de anexo e dicas dos botões sem travessão · `902a163`
+- **R9-ATD-086** · texto · Funil, Etapas, IA, Relatórios, Integrações, Auditoria, Minha conta e janelas com descrições sem travessão; motivo pronto "Assunto técnico: precisa de consultor" · `902a163`
+- **R9-ATD-087** · texto · Equipe, histórico da Auditoria, Tarefas e transferência de conversa sem travessão · `a6169fe`
+- **R9-ATD-088** · texto · Ajuda e respostas sugeridas do copiloto sem travessão · `a6169fe`
+- **R9-ATD-089** · texto · Painel do cliente (pátio, orçamentos, pedido de horário) e avisos de rede sem travessão · `a6169fe`
+- **R9-ATD-090** · teste · Suíte nova test/r9-regras.test.js: 8 testes (telefone, comando, placa, ficha do Sugerir, cerca e travessão em 11 arquivos de tela) · `902a163`
+- **R9-ATD-091** · teste · Roteiro no Chrome passa de 133 para 159 conferências: lista no celular, 15 janelas, telas de entrar e a janela Nova conversa · `902a163`
+- **R9-ATD-092** · enxugar · Sai do app a função que contava a carga da lista antiga da equipe: nenhuma tela chamava e ela pedia até 5.000 conversas ao banco · `01e9b34`
+- **R9-ATD-093** · enxugar · Saem do app dois ajudantes sem uso (tradução de erro de login antiga e data por extenso) e a lista escondida da equipe em Configurações · `01e9b34`
+- **R9-ATD-094** · enxugar · Saem 39 linhas de CSS da lista antiga da equipe, do filtro "meus" antigo e dos links externos da barra, que nenhuma tela usa mais · `01e9b34`
+- **R9-ATD-095** · tela · Barra do celular na cor da barra do app nos dois temas; abertura do app instalado e página "sem conexão" com o fundo atual (eram do preto antigo) · `01e9b34`
+- **R9-ATD-096** · conserto · Ícone da notificação de mensagem nova acompanha a pasta onde o app está montado (dentro da Central a notificação saía sem ícone) · `01e9b34`
+- **R9-ATD-097** · texto · Equipe e Auditoria: sete avisos de servidor antigo deixam de mostrar nome de rota ("POST /api/equipe") e dizem o que fazer · `ac12678`
+- **R9-ATD-098** · texto · Tarefas: o aviso da carga calculada na tela explica o limite em português simples, sem nome de rota · `ac12678`
+- **R9-ATD-099** · texto · Distribuir pelo rodízio: o aviso de servidor antigo diz o que fazer, sem nome de rota · `01e9b34`
+- **R9-ATD-100** · texto · Criar tarefa: vínculo quebrado avisa "Não reconheci a conversa ligada a esta tarefa" em vez de "conversa_id inválido." · `dc71550`
+- **R9-ATD-101** · conserto · Carga da equipe: se a leitura das conversas falha, o gestor recebe o aviso de falha em vez de "zero conversas" para todo mundo · `dc71550`
+- **R9-ATD-102** · segurança · Tarefas de uma pessoa: o limite de linhas pedido ao banco fica sempre entre 1 e 200 (texto ou número negativo chegavam crus ao banco) · `dc71550`
+- **R9-ATD-103** · teste · Suíte nova test/r9-tarefas.test.js: 3 testes com banco de mentira (aviso sem nome de coluna, leitura que falha, limite são) · `dc71550`
+- **R9-ATD-104** · teste · test/r9-tela.test.js ganha 4 testes: código morto fora, cores da barra, ícone da notificação e avisos sem nome de rota · `01e9b34`
+- **R9-ATD-105** · acessibilidade · Nova conversa: o motivo do telefone recusado aparece abaixo do campo, é lido pelo leitor de tela (role=alert, aria-invalid) e some quando a pessoa volta a digitar · `902a163`
+- **R9-ATD-106** · aviso · Integrações: com a chave recusada, o selo do cartão CodeWords diz "chave recusada" em vez de "ligado" (a faixa dizia que o WhatsApp parou e o cartão dizia que estava tudo ligado) · `011bd42`
+- **R9-ATD-107** · celular · A barra de telas rola sozinha até a tela aberta (em Auditoria, Etapas ou Integrações o botão da tela ficava fora da vista) · `011bd42`
+- **R9-ATD-108** · acessibilidade · O botão da tela aberta leva aria-current, e o leitor de tela diz onde a pessoa está · `011bd42`
+- **R9-ATD-109** · celular · Funil: o campo de filtrar ocupa a linha inteira (tinha 61 px e o texto aparecia cortado em "Filt") · `011bd42`
+- **R9-ATD-110** · teste · test/r9-tela.test.js ganha 3 testes (selo do CodeWords rodando numa caixa de areia, barra de telas, filtro do funil) e o roteiro no Chrome passa a 164 conferências · `011bd42`

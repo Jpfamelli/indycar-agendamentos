@@ -148,7 +148,7 @@ const Tarefas = (() => {
     NOTIFS.unshift(n);
     pintarSino();
     if (!Acesso.prefAviso(n.tipo) && ['tarefa', 'conversa', 'aguardando', 'lead'].includes(n.tipo)) return;
-    toast(`🔔 ${n.titulo}${n.corpo ? ' — ' + n.corpo : ''}`);
+    toast(`🔔 ${n.titulo}${n.corpo ? ': ' + n.corpo : ''}`);
     if (Acesso.prefAviso('som')) { try { tocarSom(); } catch { /* sem som */ } }
     $('#btnSino').classList.remove('balanca'); void $('#btnSino').offsetWidth; $('#btnSino').classList.add('balanca');
   }
@@ -310,7 +310,7 @@ const Tarefas = (() => {
         tarefas_hoje: t.filter(x => grupoDe(x) === 'hoje').length, conversas_abertas: CONVERSAS.filter(c => c.atribuida_a === p.id).length, _local: true };
     });
     const max = Math.max(1, ...linhas.map(l => (l.tarefas_abertas || 0) + (l.conversas_abertas || 0)));
-    el.innerHTML = (CARGA === 'sem-rota' ? '<p class="aviso carga-aviso">🛠 Carga calculada aqui na tela (o servidor ainda não tem GET /api/tarefas/equipe) — conversas contam só as carregadas.</p>' : '')
+    el.innerHTML = (CARGA === 'sem-rota' ? '<p class="aviso carga-aviso">🛠 Carga calculada aqui na tela, só com as conversas já carregadas. Para o número completo, peça a quem cuida do sistema para publicar a versão nova do servidor.</p>' : '')
       + linhas.sort((a, b) => (b.tarefas_atrasadas || 0) - (a.tarefas_atrasadas || 0) || (b.tarefas_abertas || 0) - (a.tarefas_abertas || 0)).map(l => {
         const id = l.perfil_id || l.id;
         const tot = (l.tarefas_abertas || 0) + (l.conversas_abertas || 0);
@@ -428,7 +428,7 @@ const Tarefas = (() => {
     f.reset();
     $('#tarefaErro').hidden = true;
     $('#tarefaLigada').hidden = !novaCtx;
-    $('#tarefaLigada').innerHTML = novaCtx ? `Ligada a <b>${esc(novaCtx.nome)}</b> — aparece na ficha do cliente.` : '';
+    $('#tarefaLigada').innerHTML = novaCtx ? `Ligada a <b>${esc(novaCtx.nome)}</b>: aparece na ficha do cliente.` : '';
     const podeOutros = ehGestor();
     $('#tarefaResponsavel').disabled = !podeOutros;
     $('#tarefaResponsavel').title = podeOutros ? '' : 'Tarefa para outra pessoa: peça ao gestor (ou crie para você)';
@@ -470,7 +470,7 @@ const Tarefas = (() => {
       if (!MINHAS.some(t => t.id === nova.id) && (nova.responsavel_id === eu() || nova.criado_por === eu())) MINHAS.push(nova);
       if (novaCtx && !FICHA.some(t => t.id === nova.id)) FICHA.unshift(nova);
       fecharModal('modalTarefaBg');
-      toast(nova.responsavel_id === eu() ? '✓ Tarefa criada' : `✓ Tarefa passada para ${primeiroNome(nomeDe(nova.responsavel_id))} — ela recebe o aviso no sino`, 'ok');
+      toast(nova.responsavel_id === eu() ? '✓ Tarefa criada' : `✓ Tarefa passada para ${primeiroNome(nomeDe(nova.responsavel_id))}: ela recebe o aviso no sino`, 'ok');
       pintarBadges(); renderTarefas(); renderFichaTarefas();
     } catch (err) {
       erro.textContent = 'Não consegui criar: ' + err.message;
@@ -492,7 +492,7 @@ const Tarefas = (() => {
     transf = { conv, para };
     const lista = colegas().filter(p => p.id !== eu() || conv.atribuida_a !== eu());
     const contagem = (id) => CONVERSAS.filter(c => c.atribuida_a === id && !c.desfecho).length;
-    $('#transferirSub').innerHTML = `<b>${esc(tituloDaConversa(conv))}</b> — hoje com ${conv.atribuida_a ? esc(nomeDe(conv.atribuida_a)) : 'ninguém'}.`;
+    $('#transferirSub').innerHTML = `<b>${esc(tituloDaConversa(conv))}</b>: hoje com ${conv.atribuida_a ? esc(nomeDe(conv.atribuida_a)) : 'ninguém'}.`;
     $('#transferirColegas').innerHTML = lista.filter(p => p.id !== conv.atribuida_a).map(p => `
       <label class="colega${p.id === para ? ' ativo' : ''}">
         <input type="radio" name="para" value="${esc(p.id)}" ${p.id === para ? 'checked' : ''} />
@@ -523,7 +523,7 @@ const Tarefas = (() => {
         // servidor sem a rota nova: troca o dono do jeito antigo (sem o motivo)
         fecharModal('modalTransferirBg');
         await trocarDono(conv, para);
-        toast('↪ Passou — mas o motivo não foi registrado (o servidor ainda não tem a transferência nova).');
+        toast('↪ Passou, mas o motivo não foi registrado (o servidor ainda não tem a transferência nova).');
         return;
       }
       if (!r.ok || j.ok === false) {
@@ -535,7 +535,7 @@ const Tarefas = (() => {
       if (conversaAtual?.id === conv.id) { conversaAtual.atribuida_a = para; renderDonoDoChat(); renderBotaoAssumir(); }
       renderConversas();
       fecharModal('modalTransferirBg');
-      toast(`↪ Conversa passada para ${primeiroNome(nomeDe(para))}${motivo ? ' com o motivo' : ''} — ela foi avisada no sino.`, 'ok');
+      toast(`↪ Conversa passada para ${primeiroNome(nomeDe(para))}${motivo ? ' com o motivo' : ''}: ela foi avisada no sino.`, 'ok');
       agendarRecargaLista();
     } catch (err) {
       erro.textContent = 'Não consegui transferir: ' + err.message;
@@ -580,8 +580,8 @@ const Tarefas = (() => {
       : nomes.length === 1 ? `${nomes[0]} também está aqui` : `${nomes.slice(0, -1).join(', ')} e ${nomes.at(-1)} também estão aqui`;
     el.hidden = false;
     el.classList.toggle('digitando', !!digitando.length);
-    el.title = `Com esta conversa aberta agora: ${outros.map(o => o.nome).join(', ')} — combine quem responde para o cliente não receber duas respostas.`;
-    el.innerHTML = `<span class="pr-avatares">${outros.slice(0, 3).map(o => `<span class="avatar mini" style="background:${/^#[0-9a-f]{6}$/i.test(o.cor || '') ? o.cor : corDoDono(o.id || '')}">${esc(iniciais(o.nome))}</span>`).join('')}</span>
+    el.title = `Com esta conversa aberta agora: ${outros.map(o => o.nome).join(', ')}: combine quem responde para o cliente não receber duas respostas.`;
+    el.innerHTML = `<span class="pr-avatares">${outros.slice(0, 3).map(o => `<span class="avatar mini" aria-hidden="true" style="background:color-mix(in srgb, ${/^#[0-9a-f]{6}$/i.test(o.cor || '') ? o.cor : corDoDono(o.id || '')} 62%, #fff);color:#0b0f1a">${esc(iniciais(o.nome))}</span>`).join('')}</span>
       <span class="pr-txt">👀 ${esc(txt)}</span>`;
   }
   function avisarDigitando() {

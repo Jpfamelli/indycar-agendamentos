@@ -97,7 +97,7 @@
       const txt = nome === 'minha'
         ? `${n ? n + ', ' : ''}aqui você acompanha seus orçamentos, o carro e o histórico na IndyCar: ${link}`
         : `${n ? n + ', ' : ''}se você gostou do atendimento, pode indicar um amigo por aqui e vocês dois ganham: ${link}`;
-      if (noCampo(txt)) toast('Link no campo — revise e envie');
+      if (noCampo(txt)) toast('Link no campo: revise e envie');
     }
   }
 

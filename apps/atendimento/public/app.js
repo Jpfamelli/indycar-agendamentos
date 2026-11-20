@@ -26,13 +26,11 @@ function horaCurta(iso) {
   if (d.toDateString() === ontem.toDateString()) return 'ontem';
   return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
 }
-const dataLonga = iso => !iso ? '' :
-  new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
 
 /* Rodada 4: erro técnico vira português claro em qualquer aviso (toast e estados de erro).
    Quem lê é o atendente, não o programador. */
 const ERROS_TECNICOS = [
-  [/failed to fetch|networkerror|load failed|network request failed/i, 'Sem conexão. Confira a internet — tento de novo sozinho.'],
+  [/failed to fetch|networkerror|load failed|network request failed/i, 'Sem conexão. Confira a internet: tento de novo sozinho.'],
   [/jwt expired|invalid jwt|refresh token/i, 'Sua sessão venceu. Entre de novo.'],
   [/permission denied|row-level security|violates row-level/i, 'Você não tem permissão para isso. Peça ao gestor.'],
   [/timeout|timed out|aborted/i, 'Demorou demais para responder. Tente de novo.'],
@@ -128,7 +126,7 @@ async function iniciar() {
   cfg = CONFIG = await obterConfig();
   $('#loginEspera')?.setAttribute('hidden', '');
   if (!cfg) {
-    mostrarErroLogin('O sistema não respondeu. Ele pode estar acordando (leva até 1 minuto) — esta tela tenta de novo sozinha.');
+    mostrarErroLogin('O sistema não respondeu. Ele pode estar acordando (leva até 1 minuto): esta tela tenta de novo sozinha.');
     // quando o servidor voltar (a faixa confere sozinha), recomeça
     const parar = window.Rede?.aoMudar(d => { if (d.voltou) { parar?.(); $('#loginErro').hidden = true; iniciar(); } });
     window.Rede?.vigiarAteVoltar();
@@ -253,16 +251,6 @@ $('#formPrimeiro').addEventListener('submit', async (e) => {
   }
 });
 
-function traduzErroAuth(m = '') {
-  if (typeof Acesso !== 'undefined') return Acesso.traduzirErro(m);
-  const t = m.toLowerCase();
-  if (t.includes('invalid login')) return 'E-mail ou senha incorretos.';
-  if (t.includes('already registered')) return 'Esse e-mail já tem conta. Use "Entrar".';
-  if (t.includes('email not confirmed')) return 'Confirme o e-mail antes de entrar.';
-  if (t.includes('password')) return 'Senha muito curta (mínimo 6 caracteres).';
-  return m || 'Não consegui entrar.';
-}
-
 // Sair: abre a escolha de limpar o aparelho (acesso.js)
 $('#btnSair').addEventListener('click', () => Acesso.pedirSair());
 
@@ -362,7 +350,13 @@ $$('.nav-item').forEach(b => b.addEventListener('click', () => {
   const aba = b.dataset.aba;
   // CRM e Agenda são links que abrem noutra janela: não têm aba para mostrar
   if (!aba) return;
-  $$('.nav-item').forEach(x => x.classList.toggle('ativo', x === b));
+  $$('.nav-item').forEach(x => {
+    x.classList.toggle('ativo', x === b);
+    // leitor de tela sabe qual tela está aberta
+    if (x === b) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current');
+  });
+  // celular: a barra de telas rola sozinha até a tela aberta (ela ficava escondida fora da vista)
+  if (window.matchMedia('(max-width:900px)').matches) b.scrollIntoView?.({ block: 'nearest', inline: 'center' });
   $$('.aba').forEach(s => s.classList.toggle('ativa', s.id === `aba-${aba}`));
   fecharMenuEtapas();
   // relatório é caro de montar: só busca quando o atendente entra na aba
@@ -758,7 +752,7 @@ function renderConversas() {
           ${chegouHoje(c.created_at) && c.tipo !== 'disparo' ? '<span class="tag novo-hoje">🆕 novo</span>' : ''}
           ${c.atribuida_a ? donoHtml(c)
             : `<button type="button" class="dono pegar" data-pegar="${esc(c.id)}"
-                 title="Ninguém responsável — um clique e o cliente é seu">★ Pegar</button>`}
+                 title="Ninguém responsável: um clique e o cliente é seu">★ Pegar</button>`}
           ${plaquinhaHtml(c)}
           <span class="tag ${esc(c.status)}">${esc(c.status)}</span>
           ${IaFunil.respondendo(c.id) ? '<span class="tag ia-respondendo" title="A IA do funil está lendo e respondendo esta conversa agora"><i class="girando" aria-hidden="true"></i> IA respondendo</span>' : (c.ia_ativa ? '<span class="tag ia">✨ IA</span>' : '')}
@@ -908,6 +902,8 @@ function trocarFiltroStatus(status) {
   filtroStatus = status || '';
   $$('#aba-conversas .filtros-status .chip').forEach(x => {
     const ativo = (x.dataset.status || '') === filtroStatus;
+    const extras = x.closest('#filtrosExtras');
+    if (ativo && extras) extras.open = true;
     x.classList.toggle('ativo', ativo);
     x.setAttribute('aria-pressed', ativo ? 'true' : 'false');
   });
@@ -937,13 +933,25 @@ async function carregarOrigemDaConversa(conv) {
     : 'Não sei de onde veio';
 }
 
+let aberturaConversa = 0;
+
 async function abrirConversa(id, { focarCampo = false } = {}) {
   if (!id) return;
+  const abertura = ++aberturaConversa;
   let conv = CONVERSAS.find(c => c.id === id) || BUSCA_REMOTA.lista.find(c => c.id === id);
   // Veio do funil, de um link ou da busca no banco? A lista pode estar filtrada
   // ou paginada — nesse caso buscamos a conversa direto, em vez de o clique não fazer nada.
   if (!conv) {
-    const { data } = await sb.from('conversas').select('*').eq('id', id).maybeSingle();
+    let data;
+    try {
+      const resultado = await sb.from('conversas').select('*').eq('id', id).maybeSingle();
+      if (resultado.error) throw resultado.error;
+      data = resultado.data;
+    } catch {
+      if (abertura === aberturaConversa) toast('Não consegui abrir a conversa. Tente novamente.');
+      return;
+    }
+    if (abertura !== aberturaConversa) return;
     if (!data) return toast('⚠️ Não encontrei essa conversa.');
     conv = data;
   }
@@ -990,6 +998,7 @@ async function abrirConversa(id, { focarCampo = false } = {}) {
   renderConversas();
   if (focarCampo) campo.focus();
   await Promise.all([carregarMensagens(), carregarFicha(conv)]);
+  if (abertura !== aberturaConversa) return;
 
   // abriu = leu (pinta na hora; o banco vem atrás)
   if (conv.nao_lidas > 0 && conversaAtual?.id === conv.id) {
@@ -1004,7 +1013,7 @@ async function abrirConversa(id, { focarCampo = false } = {}) {
      Puxa o que falta ao abrir o chat, senão o atendente vê as perguntas do
      cliente e nenhuma resposta, e acha que a IA está muda.
      Sem await de propósito: a conversa já abriu, isto completa depois. */
-  sincronizarConversaAberta(conv.id);
+  if (abertura === aberturaConversa) sincronizarConversaAberta(conv.id);
 
   /* Enquanto ESTA conversa estiver aberta, busca o que chegou a cada 15s —
      é o que deixa a resposta aparecer quase na hora, sem esperar o relógio
@@ -1048,31 +1057,41 @@ function guardarMsgsEmMemoria(id, lista) {
 let limiteMsgs = PAGINA_MSGS;
 let temMsgsAnteriores = false;
 let geracaoMsgs = 0;
+let carregandoMsgsAnteriores = null;
 let marcaNaoLidas = { conv: null, n: 0 };     // "— 3 não lidas —" ao abrir
 
 async function carregarMensagens({ anteriores = false } = {}) {
   if (!conversaAtual) return;
-  const convId = conversaAtual.id, minha = ++geracaoMsgs;
-  if (anteriores) limiteMsgs += PAGINA_MSGS;
-  else if (conversaRenderizada !== convId) limiteMsgs = PAGINA_MSGS;
+  const convId = conversaAtual.id;
+  if (carregandoMsgsAnteriores?.convId !== convId) carregandoMsgsAnteriores = null;
+  if (anteriores && carregandoMsgsAnteriores?.convId === convId) return;
+  const minha = ++geracaoMsgs;
+  if (conversaRenderizada !== convId) limiteMsgs = PAGINA_MSGS;
+  const paginacao = anteriores ? { convId, limite: limiteMsgs + PAGINA_MSGS } : carregandoMsgsAnteriores;
+  const carregandoAnteriores = paginacao?.convId === convId;
+  if (anteriores) carregandoMsgsAnteriores = paginacao;
+  const limitePedido = carregandoAnteriores ? paginacao.limite : limiteMsgs;
   try {
     const { data, error } = await sb.from('whatsapp_mensagens')
       .select('*').eq('conversa_id', convId)
-      .order('created_at', { ascending: false }).limit(limiteMsgs);
+      .order('created_at', { ascending: false }).limit(limitePedido);
     if (error) throw error;
     if (minha !== geracaoMsgs || conversaAtual?.id !== convId) return;   // trocou de conversa no meio
+    limiteMsgs = limitePedido;
     temMsgsAnteriores = (data || []).length >= limiteMsgs;
     MENSAGENS = (data || []).slice().reverse();
     MENSAGENS.forEach(m => Recuperador.marcar(m));
     guardarMsgsEmMemoria(convId, MENSAGENS);
-    renderMensagens({ manterTopo: anteriores });
+    renderMensagens({ manterTopo: carregandoAnteriores });
   } catch (err) {
-    if (minha !== geracaoMsgs) return;
+    if (minha !== geracaoMsgs || conversaAtual?.id !== convId) return;
     if (!MENSAGENS.length) {
       $('#mensagens').innerHTML = `<div class="vazio">⚠️ Não consegui carregar as mensagens.<br>
         <small>${esc(erroLegivel(err.message))}</small><br><br>
         <button type="button" class="btn btn-ghost sm" data-acao="recarregar-msgs">Tentar de novo</button></div>`;
-    } else toast('⚠️ ' + err.message);
+    } else toast(carregandoAnteriores ? 'Não deu para carregar as mensagens anteriores. Tente de novo.' : '⚠️ ' + err.message);
+  } finally {
+    if (carregandoAnteriores && minha === geracaoMsgs && carregandoMsgsAnteriores === paginacao) carregandoMsgsAnteriores = null;
   }
 }
 
@@ -1137,14 +1156,14 @@ function statusDaMensagem(m) {
   if (m.direcao === 'entrada') return '';
   const st = m._local || m.status;
   if (st === 'enviando') return window.Rede?.estado === 'acordando'
-    ? '<span class="msg-st st-enviando st-acordando" title="O sistema está acordando — sai sozinha assim que ele responder">⏳ esperando o sistema</span>'
+    ? '<span class="msg-st st-enviando st-acordando" title="O sistema está acordando: sai sozinha assim que ele responder">⏳ esperando o sistema</span>'
     : '<span class="msg-st st-enviando" title="Enviando…">⏳</span>';
-  if (st === 'na_fila') return '<span class="msg-st st-fila" title="Sem internet — sai sozinha quando a conexão voltar">🕓 na fila</span>';
+  if (st === 'na_fila') return '<span class="msg-st st-fila" title="Sem internet: sai sozinha quando a conexão voltar">🕓 na fila</span>';
   if (st === 'enviado') return '<span class="msg-st st-ok" title="Entregue ao WhatsApp">✓</span>';
   /* 16/10: o WhatsApp não respondeu a tempo depois do pedido — pode ter chegado. Nada sai
      de novo sozinho: a pessoa confere na conversa e escolhe "Chegou" ou "Reenviar". */
   if (st === 'falhou' && /^Sem confirmação/.test(m.erro || '')) {
-    return `<span class="msg-st st-falhou st-duvida" title="${esc(m.erro)}">❓ não sabemos se chegou — confira no WhatsApp</span>
+    return `<span class="msg-st st-falhou st-duvida" title="${esc(m.erro)}">❓ não sabemos se chegou: confira no WhatsApp</span>
       <button type="button" class="msg-reenviar" data-chegou="${esc(m.id)}">Chegou</button>
       <button type="button" class="msg-reenviar" data-reenviar="${esc(m.id)}" data-forcar="1">Reenviar</button>`;
   }
@@ -1159,7 +1178,7 @@ function statusDaMensagem(m) {
   const idade = Date.now() - new Date(m.created_at).getTime();
   // rodada 4: anotada para sair quando o servidor acordar (mesmo que já tenha passado de 2 min)
   if (window.Rede?.estado !== 'ok' && Entregas.ler().some(x => x.mensagemId === m.id)) {
-    return '<span class="msg-st st-enviando st-acordando" title="O sistema está acordando — sai sozinha assim que ele responder">⏳ esperando o sistema</span>';
+    return '<span class="msg-st st-enviando st-acordando" title="O sistema está acordando: sai sozinha assim que ele responder">⏳ esperando o sistema</span>';
   }
   return idade < 120_000 ? '<span class="msg-st st-enviando" title="Enviando…">⏳</span>'
     : '<span class="msg-st st-sem" title="Registrada aqui, sem confirmação de entrega">•</span>';
@@ -1379,7 +1398,7 @@ $('#btnApagarMsgs')?.addEventListener('click', async () => {
   if (!confirm(
       `Apagar ${ids.length} mensagem(ns) do painel?\n\n`
     + `Elas somem daqui e do histórico da oficina, sem desfazer.\n`
-    + `No celular do cliente as mensagens CONTINUAM — isso não apaga o WhatsApp dele.`)) return;
+    + `No celular do cliente as mensagens CONTINUAM: isso não apaga o WhatsApp dele.`)) return;
 
   const b = $('#btnApagarMsgs');
   b.disabled = true;
@@ -1550,11 +1569,11 @@ $('#btnAudio').addEventListener('click', async () => {
 
     gravador.start();
     comecouEm = Date.now();
-    pintarStatusAudio('● 0:00 — toque para enviar', true);
+    pintarStatusAudio('● 0:00, toque para enviar', true);
     relogioAudio = setInterval(() => {
       const s = Math.floor((Date.now() - comecouEm) / 1000);
       if (s >= MAX_AUDIO_S) { gravador.stop(); return; }
-      pintarStatusAudio(`● ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} — toque para enviar`, true);
+      pintarStatusAudio(`● ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}: toque para enviar`, true);
     }, 500);
   } catch (err) {
     toast(err.name === 'NotAllowedError'
@@ -1581,7 +1600,7 @@ const tamanhoLegivel = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).to
 
 function prepararAnexo(f) {
   if (!conversaAtual) return toast('Abra uma conversa primeiro.');
-  if (f.size > MAX_ANEXO) return toast(`⚠️ ${f.name} tem ${tamanhoLegivel(f.size)} — o máximo é 15 MB.`);
+  if (f.size > MAX_ANEXO) return toast(`⚠️ ${f.name} tem ${tamanhoLegivel(f.size)}: o máximo é 15 MB.`);
   if (!f.size) return toast('⚠️ Esse arquivo está vazio.');
   if (f.type && !TIPOS_ANEXO.test(f.type) && !/\.(pdf|docx?|xlsx?|txt|csv|zip)$/i.test(f.name)) {
     return toast('⚠️ Esse tipo de arquivo não vai pelo WhatsApp. Mande foto, PDF, Word, Excel, texto ou zip.');
@@ -1657,7 +1676,7 @@ campo.addEventListener('paste', (ev) => {
     profundidade = 0; aviso.hidden = true;
     const f = ev.dataTransfer.files?.[0];
     if (f) prepararAnexo(f);
-    if ((ev.dataTransfer.files?.length || 0) > 1) toast('Um arquivo por vez — mandei a prévia do primeiro.');
+    if ((ev.dataTransfer.files?.length || 0) > 1) toast('Um arquivo por vez: mandei a prévia do primeiro.');
   });
 })();
 
@@ -1697,7 +1716,7 @@ async function enviarMensagem() {
   if (navigator.onLine === false) {
     filaOfflineAdicionar({ conversaId: conv.id, telefone: conv.telefone, nome: conv.nome, clienteId: conv.cliente_id, corpo: texto });
     renderMensagens({ forcarFim: true });
-    toast('🕓 Sem internet — a mensagem ficou na fila e sai sozinha quando a conexão voltar.');
+    toast('🕓 Sem internet: a mensagem ficou na fila e sai sozinha quando a conexão voltar.');
     return;
   }
   await entregarMensagem(conv, texto);
@@ -1751,7 +1770,7 @@ async function entregarMensagem(conv, texto, { linhaExistente = null, reenviar =
       tirarLocal(conv.id, local._idLocal);
       filaOfflineAdicionar({ conversaId: conv.id, telefone: conv.telefone, nome: conv.nome, clienteId: conv.cliente_id, corpo: texto });
       if (conversaAtual?.id === conv.id) renderMensagens({ forcarFim: true });
-      toast('🕓 A conexão piscou — a mensagem ficou na fila e sai sozinha quando voltar.');
+      toast('🕓 A conexão piscou: a mensagem ficou na fila e sai sozinha quando voltar.');
       return false;
     }
     // nem chegou ao banco: fica na tela como "não saiu", com o texto para tentar de novo
@@ -1866,7 +1885,7 @@ $('#btnExcluirConversa').addEventListener('click', async () => {
   + `Para confirmar, digite o nome: ${nome}`);
   if (digitado === null) return;
   if (digitado.trim().toLowerCase() !== String(nome).trim().toLowerCase()) {
-    return toast('Nome não confere — nada foi apagado.');
+    return toast('Nome não confere: nada foi apagado.');
   }
 
   const btn = $('#btnExcluirConversa');
@@ -2021,7 +2040,7 @@ async function carregarFicha(conv) {
 
       ${fx?.ok ? `<div class="ficha-bloco area-bloco">
         <div class="ficha-titulo">Área do Cliente</div>
-        <small class="ficha-sub">Histórico do carro, revisões, pedir horário e indicar amigo — pelo celular.</small>
+        <small class="ficha-sub">Histórico do carro, revisões, pedir horário e indicar amigo, pelo celular.</small>
         <button type="button" class="btn-patio" id="btnAreaCliente">🔗 Gerar link e colar no chat</button>
       </div>` : ''}
 
@@ -2035,7 +2054,7 @@ async function carregarFicha(conv) {
             <b class="${revAtrasada ? 'rev-atrasada' : 'rev-ok'}">${esc(dataCurta(rev?.prevista))}
               <small class="ficha-sub">${esc(rev?.rotulo || 'Revisão geral')} · ${esc(String(rev?.meses || 6))} meses${rev?.padrao ? ' (padrão)' : ''}
               ${revAtrasada ? ' · atrasada' : rev ? ' · ' + esc(tempoRelativo(rev.prevista)) : ''}</small></b></div>`
-        : '<div class="vazio" style="padding:10px">Nenhum serviço concluído ainda — a revisão aparece depois do primeiro.</div>'}
+        : '<div class="vazio" style="padding:10px">Nenhum serviço concluído ainda: a revisão aparece depois do primeiro.</div>'}
       </div>
 
       <div class="ficha-bloco">
@@ -2153,7 +2172,7 @@ async function carregarFicha(conv) {
               {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}
               ${a.consultores?.nome ? '· ' + esc(a.consultores.nome) : ''}
               ${a.valor > 0 ? '· ' + brl(a.valor) : ''}</small>
-          </div>`).join('') : '<div class="vazio" style="padding:14px">Sem horário marcado. Use <b>Agendar</b> no topo do chat — ou peça ao ✨.</div>'}
+          </div>`).join('') : '<div class="vazio" style="padding:14px">Sem horário marcado. Use <b>Agendar</b> no topo do chat, ou peça ao ✨.</div>'}
       </div>
 
       <datalist id="listaServicos">
@@ -2188,7 +2207,7 @@ function blocoDoPatioHtml(p) {
       </div>
       ${!entregue && p.etapa !== 'pronto' ? `<div class="ficha-linha"><span>Previsão</span><b>${prevTxt
         ? esc(prevTxt) + (atrasada ? ' <span class="tag atrasada">passou</span>' : '')
-        : '<span class="ficha-faltando">sem previsão — não prometa prazo</span>'}</b></div>` : ''}
+        : '<span class="ficha-faltando">sem previsão: não prometa prazo</span>'}</b></div>` : ''}
       ${p.extras_pendentes?.length ? `<div class="patio-extras" aria-label="Extras esperando o cliente">
         ${p.extras_pendentes.map(e => `<div class="ficha-linha"><span>⏳ ${esc(e.descricao)} <small class="ficha-sub">${esc(URGENCIA_PATIO[e.urgencia] || e.urgencia || '')}</small></span>
           <b>${e.valor ? brl(e.valor) : '—'}</b></div>`).join('')}</div>` : ''}
@@ -2199,7 +2218,7 @@ function blocoDoPatioHtml(p) {
 }
 function ligarPatioDaFicha(conv, fx) {
   $('#btnPatioLink')?.addEventListener('click', () => {
-    if (inserirNoCampo(fx?.patio?.texto_link || fx?.patio?.link_cliente || '')) toast('📋 Link de acompanhamento no campo — revise e envie');
+    if (inserirNoCampo(fx?.patio?.texto_link || fx?.patio?.link_cliente || '')) toast('📋 Link de acompanhamento no campo: revise e envie');
   });
   $('#btnAreaCliente')?.addEventListener('click', async (ev) => {
     const b = ev.currentTarget;
@@ -2210,7 +2229,7 @@ function ligarPatioDaFicha(conv, fx) {
       if (r.status === 401) { await sessaoMorreu(); return; }
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) throw new Error(j.erro || 'Não consegui gerar o link agora.');
-      if (inserirNoCampo(j.texto || j.link)) toast('🔗 Link da Área do Cliente no campo — revise e envie');
+      if (inserirNoCampo(j.texto || j.link)) toast('🔗 Link da Área do Cliente no campo: revise e envie');
     } catch (e) { toast('⚠️ ' + e.message); }
     finally { b.disabled = false; }
   });
@@ -2330,6 +2349,12 @@ function ligarEdicaoDaFicha(conv, f, leads, cli = {}) {
     ev.preventDefault();
     const nome = $('#fcNome').value.trim();
     if (!nome) return toast('⚠️ O nome não pode ficar vazio.');
+    /* placa no formato que a busca encontra (sem hífen); uma placa antiga fora do padrão que já
+       estava na ficha e não foi mexida continua valendo: não trava a edição dos outros campos */
+    let placaFc = R9.placaDigitada($('#fcPlaca').value);
+    const placaIgual = $('#fcPlaca').value.trim() === String(f.placa || '').trim();
+    if (!placaFc.ok && placaIgual) placaFc = { ok: true, placa: String(f.placa || '').trim() };
+    if (!placaFc.ok) { $('#fcPlaca').focus(); return toast('⚠️ ' + placaFc.erro); }
     const botao = form.querySelector('[type="submit"]');
     botao.disabled = true;
     try {
@@ -2340,7 +2365,7 @@ function ligarEdicaoDaFicha(conv, f, leads, cli = {}) {
       const campos = {
         nome,
         carro_modelo: $('#fcCarro').value.trim() || null,
-        placa:        $('#fcPlaca').value.trim().toUpperCase() || null,
+        placa:        placaFc.placa || null,
         email:        $('#fcEmail').value.trim() || null,
         observacoes:  $('#fcObs').value.trim() || null,
         nascimento,
@@ -2485,7 +2510,7 @@ function statusDoTempoReal(status) {
       carregarConversas();
       /* Rodada 4: busca o que chegou ENQUANTO estava fora (não só recarrega a
          conversa aberta) e diz quantas mensagens foram recuperadas. */
-      Recuperador.buscar('reconectou').then(n => toast(n ? `✅ Tempo real de volta — ${n} mensage${n > 1 ? 'ns chegaram' : 'm chegou'} enquanto estava fora` : '✅ Tempo real de volta'));
+      Recuperador.buscar('reconectou').then(n => toast(n ? `✅ Tempo real de volta: ${n} mensage${n > 1 ? 'ns chegaram' : 'm chegou'} enquanto estava fora` : '✅ Tempo real de volta'));
     }
     if (pill) pill.hidden = true;
     return;
@@ -2655,14 +2680,21 @@ $('#formNovaConversa').addEventListener('submit', async e => {
   e.preventDefault();
   const tel = $('#novaTelefone').value.trim();
   const nome = $('#novaNome').value.trim();
-  if (!tel) return;
+  const campoTel = $('#novaTelefone'), erroTel = $('#novaTelefoneErro');
+  const conf = R9.telefoneNovaConversa(tel);
+  campoTel.setAttribute('aria-invalid', conf.ok ? 'false' : 'true');
+  if (erroTel) { erroTel.textContent = conf.erro; erroTel.hidden = conf.ok; }
+  if (!conf.ok) { campoTel.focus(); return; }
+  const botaoNova = e.target.querySelector('button[type=submit]');
+  if (botaoNova.disabled) return;          // clique duplo: a primeira abertura ainda está indo
+  botaoNova.disabled = true;
+  botaoNova.textContent = 'Abrindo…';
 
   try {
-    const digitos = tel.replace(/\D/g, '');
+    const digitos = conf.digitos;
     // já existe conversa com esse telefone?
     const { data: existente } = await sb.from('conversas').select('*')
-      .eq('telefone_e164', digitos.length >= 12 && digitos.startsWith('55')
-        ? digitos.slice(2) : digitos).maybeSingle();
+      .eq('telefone_e164', digitos).maybeSingle();
 
     if (existente) {
       $('#modalNovaBg').classList.remove('aberto');
@@ -2680,6 +2712,13 @@ $('#formNovaConversa').addEventListener('submit', async e => {
     abrirConversa(data.id);
     toast('✅ Conversa criada');
   } catch (err) { toast('⚠️ ' + err.message); }
+  finally { botaoNova.disabled = false; botaoNova.textContent = 'Abrir conversa'; }
+});
+// o aviso do telefone some assim que a pessoa volta a digitar
+$('#novaTelefone').addEventListener('input', () => {
+  $('#novaTelefone').removeAttribute('aria-invalid');
+  const erroTel = $('#novaTelefoneErro');
+  if (erroTel) erroTel.hidden = true;
 });
 
 /* ============================================================
@@ -2709,7 +2748,7 @@ $('#btnSugerir').addEventListener('click', async () => {
     campo.value = r.sugestao;
     campo.dispatchEvent(new Event('input'));
     campo.focus();
-    toast('✨ Sugestão pronta — revise antes de enviar');
+    toast('✨ Sugestão pronta: revise antes de enviar');
   } catch (err) {
     toast('⚠️ ' + err.message);
   } finally {
@@ -2783,7 +2822,7 @@ async function carregarWhatsappConfig() {
     f.business_account_id.value = data.business_account_id || '';
     f.ativo.checked             = !!data.ativo;
     $('#maskToken').textContent = data.access_token
-      ? `Salvo: ${MASCARA.repeat(8)}${String(data.access_token).slice(-4)} — deixe em branco para manter.`
+      ? `Salvo: ${MASCARA.repeat(8)}${String(data.access_token).slice(-4)}, deixe em branco para manter.`
       : '';
   } catch { /* sem permissão: já avisado acima */ }
 }
@@ -3002,8 +3041,8 @@ function renderAtalhos() {
   }
   const maisUsado = Math.max(0, ...lista.map(a => a.usos || 0));
   el.innerHTML = lista.map(a => `
-    <div class="atalho-cartao ${a.ativo ? '' : 'inativo'}" data-id="${esc(a.id)}" tabindex="0" role="button"
-         aria-label="Editar o atalho /${esc(a.comando)}">
+    <div class="atalho-cartao ${a.ativo ? '' : 'inativo'}" data-id="${esc(a.id)}" tabindex="0" role="group"
+         aria-label="Atalho /${esc(a.comando)}. Enter abre para editar">
       <div class="ac-topo">
         <span class="ac-cmd">/${esc(a.comando)}</span>
         <span class="ac-cat">${esc(a.categoria || 'geral')}</span>
@@ -3067,14 +3106,16 @@ $('#formAtalho').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target;
   const dados = {
-    comando:      f.comando.value.trim().replace(/^\//, ''),
+    comando:      R9.comandoAtalho(f.comando.value).comando,
     titulo:       f.titulo.value.trim(),
     corpo:        f.corpo.value,
     categoria:    f.categoria.value,
     consultor_id: f.consultor_id.value || null,
     ativo:        f.ativo.checked,
   };
+  if (!dados.comando && f.comando.value.trim()) { f.comando.focus(); return toast('⚠️ ' + R9.comandoAtalho(f.comando.value).erro); }
   if (!dados.comando || !dados.titulo || !dados.corpo) return toast('Preencha comando, título e mensagem.');
+  f.comando.value = dados.comando;       // mostra como ficou (sem espaço, acento ou maiúscula)
 
   try {
     const { error } = atalhoEditando
@@ -3129,7 +3170,7 @@ function renderBotaoAssumir() {
     b.textContent = '🙋 Assumir';
     b.title = deOutro
       ? 'O Carlos está respondendo. Assumir também passa o cliente para você.'
-      : 'Assumir este atendimento — o Carlos para de responder este cliente';
+      : 'Assumir este atendimento: o Carlos para de responder este cliente';
     b.classList.remove('assumido');
   } else {
     b.innerHTML = '↩️ Devolver<span class="so-largo"> para a IA</span>';
@@ -3171,8 +3212,8 @@ async function assumirAtendimento(assumir, forcar = false) {
 
     if (r.aviso) toast('⚠️ ' + r.aviso);
     else toast(assumir
-      ? '🙋 Atendimento assumido — o Carlos parou de responder este cliente'
-      : '↩️ Devolvido — o Carlos voltou a atender este cliente');
+      ? '🙋 Atendimento assumido: o Carlos parou de responder este cliente'
+      : '↩️ Devolvido: o Carlos voltou a atender este cliente');
   } catch (err) {
     toast('⚠️ ' + err.message);
   } finally {
@@ -3216,6 +3257,8 @@ $('#formAgendar').addEventListener('submit', async e => {
   const f = e.target;
   const servNome = $('#agendarServico').selectedOptions[0]?.textContent || '';
   if (!f.servico_id.value) return toast('Escolha o serviço.');
+  const placaAg = R9.placaDigitada(f.placa.value);
+  if (!placaAg.ok) { f.placa.focus(); return toast('⚠️ ' + placaAg.erro); }
 
   const btn = f.querySelector('button[type=submit]');
   btn.disabled = true;
@@ -3232,7 +3275,7 @@ $('#formAgendar').addEventListener('submit', async e => {
       nome:         conversaAtual.nome || conversaAtual.telefone,
       telefone:     conversaAtual.telefone,
       carro_modelo: f.veiculo.value.trim() || null,
-      placa:        f.placa.value.trim().toUpperCase() || null,
+      placa:        placaAg.placa || null,
       servico:      servNome,
       servico_id:   f.servico_id.value,
       valor_orcado: valor,
@@ -3429,7 +3472,7 @@ function donoHtml(conv) {
   const id = conv?.atribuida_a;
   if (!id) {
     return `<button type="button" class="dono sem-dono" data-dono="${esc(conv.id)}"
-      title="Ninguém responsável — clique para assumir">👤 sem dono</button>`;
+      title="Ninguém responsável: clique para assumir">👤 sem dono</button>`;
   }
   const p = EQUIPE.get(id);
   const nome = p?.nome || '';
@@ -3442,7 +3485,7 @@ function donoHtml(conv) {
              : nome ? `Responsável: ${nome}` : 'Responsável fora da sua lista';
   return `<button type="button" class="dono${eu ? ' eu' : ''}" data-dono="${esc(conv.id)}"
     style="--dn-cor:${cor};--dn-fundo:${corComAlfa(cor, .16)}"
-    title="${esc(dica)} — clique para passar para outra pessoa">
+    title="${esc(dica)}: clique para passar para outra pessoa">
     ${esc(rotulo)}</button>`;
 }
 
@@ -3459,7 +3502,7 @@ function plaquinhaHtml(conv) {
   if (e && !e.ativa) classes.push('inativa');
   return `<button type="button" class="${classes.join(' ')}"
     style="--pl-cor:${cor};--pl-fundo:${corComAlfa(cor, .15)}"
-    title="Etapa do funil — clique para trocar">${esc(rotulo)}${marcaIa}</button>`;
+    title="Etapa do funil: clique para trocar">${esc(rotulo)}${marcaIa}</button>`;
 }
 
 function renderEtapaDoChat() {
@@ -3576,7 +3619,7 @@ async function distribuirPeloRodizio(conv) {
   try {
     const r = await fetch(`/api/conversas/${encodeURIComponent(conv.id)}/distribuir`, { method: 'POST', headers: await authCabecalhos(), body: '{}' });
     const j = await r.json().catch(() => ({}));
-    if (r.status === 404 && !j.codigo) throw new Error('o servidor ainda não tem o rodízio (POST /api/conversas/:id/distribuir)');
+    if (r.status === 404 && !j.codigo) throw new Error('Ainda não dá para distribuir por aqui: o servidor está numa versão antiga. Peça a quem cuida do sistema para publicar a versão nova do servidor.');
     if (!r.ok || j.ok === false) {
       if (j.atribuida_a) { conv.atribuida_a = j.atribuida_a; renderDonoDoChat(); renderConversas(); }
       throw new Error(j.erro || `o servidor respondeu ${r.status}`);
@@ -3727,8 +3770,8 @@ function renderFunil() {
   if (!CONVERSAS_FUNIL.length) {
     resumo.innerHTML = '';
     quadro.innerHTML = `<div class="vazio">Ainda não há nenhuma conversa no sistema.<br><br>
-      Assim que o primeiro cliente mandar mensagem no WhatsApp — ou você abrir uma conversa
-      na aba <b>Conversas</b> — ela aparece aqui para ser encaixada numa etapa.</div>`;
+      Assim que o primeiro cliente mandar mensagem no WhatsApp, ou você abrir uma conversa
+      na aba <b>Conversas</b>: ela aparece aqui para ser encaixada numa etapa.</div>`;
     return;
   }
   // Nenhuma conversa encaixada ainda: em vez de um resumo só de zeros, explica
@@ -3736,7 +3779,7 @@ function renderFunil() {
   resumo.innerHTML = !noFunil ? `<p class="funil-nota">Existem
       <b>${esc(String(CONVERSAS_FUNIL.length))}</b> ${CONVERSAS_FUNIL.length === 1 ? 'conversa' : 'conversas'},
       mas nenhuma foi encaixada numa etapa ainda. Arraste os cartões da coluna
-      <b>Sem etapa</b> para a etapa certa — ou abra a conversa e use o botão
+      <b>Sem etapa</b> para a etapa certa, ou abra a conversa e use o botão
       <b>✨ Classificar</b>.</p>` : `
     <div class="kpi"><b>${esc(String(noFunil))}</b><span>no funil</span>
       <small>de ${esc(String(CONVERSAS_FUNIL.length))} conversas</small></div>
@@ -3778,7 +3821,7 @@ function cartaoHtml(c) {
   const carro = [c.clientes?.carro_modelo, c.clientes?.placa].filter(Boolean).join(' · ');
   const dono = c.atribuida_a ? EQUIPE.get(c.atribuida_a) : null;
   return `<article class="funil-cartao${atrasado ? ' atrasado' : ''}" draggable="true" data-id="${esc(c.id)}"
-    tabindex="0" role="button" aria-label="${esc(`${c.nome || c.telefone}, ${parado.texto}. Enter abre a conversa; setas para os lados mudam a etapa`)}">
+    tabindex="0" aria-label="${esc(`${c.nome || c.telefone}, ${parado.texto}. Enter abre a conversa; setas para os lados mudam a etapa`)}">
     <div class="fc-topo">
       <strong>${esc(c.nome || c.telefone)}</strong>
       ${c.etapa_por_ia ? '<i class="pl-ia" title="Etapa carimbada pela IA">✨</i>' : ''}
@@ -3876,13 +3919,13 @@ function renderEtapasAdmin() {
     aviso.innerHTML = 'A tabela <code>funil_config</code> ainda não existe no banco. '
       + 'Rode o arquivo <code>supabase/migracoes/23_funil_config.sql</code> no SQL Editor do '
       + 'Supabase para esta chavinha funcionar. Até lá, a classificação automática fica '
-      + 'desligada — o botão <b>✨ Classificar</b> do chat continua funcionando normalmente.';
+      + 'desligada: o botão <b>✨ Classificar</b> do chat continua funcionando normalmente.';
   } else if (!admin) {
     aviso.textContent = 'Só o administrador liga ou desliga a classificação automática.';
   } else {
     aviso.innerHTML = `A IA só grava quando tem pelo menos
       <b>${esc(String(Math.round(FUNIL_CFG.confianca_minima * 100)))}%</b> de confiança.
-      Abaixo disso ela mantém a etapa como está — e você continua podendo trocar na mão.`;
+      Abaixo disso ela mantém a etapa como está, e você continua podendo trocar na mão.`;
   }
 
   $('#btnNovaEtapa').hidden = !admin;
@@ -3912,7 +3955,7 @@ function renderEtapasAdmin() {
           ${e.perda ? '<span class="selo off">perda</span>' : ''}
           ${e.ativa ? '' : '<span class="selo">inativa</span>'}
         </div>
-        <p class="etapa-desc">${esc(e.descricao || 'Sem descrição — a IA fica sem essa pista.')}</p>
+        <p class="etapa-desc">${esc(e.descricao || 'Sem descrição: a IA fica sem essa pista.')}</p>
         <div class="etapa-gatilhos">
           ${gatilhos.length ? gatilhos.map(g => `<code>${esc(g)}</code>`).join('')
             : '<small class="etapa-sem">sem gatilhos cadastrados</small>'}
@@ -4112,7 +4155,7 @@ $('#chaveIaClassifica').addEventListener('change', async e => {
     FUNIL_CFG.ia_classifica = ligada;
     toast(ligada
       ? '✨ A IA vai atualizar as plaquinhas sozinha quando o cliente escrever'
-      : '🛑 A IA parou de classificar sozinha — só no botão ✨ Classificar');
+      : '🛑 A IA parou de classificar sozinha: só no botão ✨ Classificar');
   } catch (err) {
     e.target.checked = !ligada;
     toast('⚠️ ' + err.message);
@@ -4156,7 +4199,7 @@ async function classificarConversa(conversaId, { silencioso = false } = {}) {
     if (abaVisivel('funil')) await carregarFunil();
 
     if (r.mudou) {
-      toast(`✨ ${r.etapaDepois}${r.motivo ? ' — ' + r.motivo : ''}`);
+      toast(`✨ ${r.etapaDepois}${r.motivo ? ': ' + r.motivo : ''}`);
     } else if (!silencioso) {
       toast('✨ ' + (r.aviso || 'A IA manteve a etapa atual.') + (r.motivo ? ' ' + r.motivo : ''));
     }
@@ -4204,7 +4247,7 @@ async function carregarCodeWords() {
     // O webhook mora no Supabase (Edge Function) — funciona 24h, sem depender deste PC.
     // Só mostra o endereço quando ele veio do banco; nunca inventa localhost.
     $('#urlWebhook').textContent = data?.url_webhook_publica
-      || 'Ainda não configurado — salve as configurações abaixo.';
+      || 'Ainda não configurado: salve as configurações abaixo.';
     if (!data) return;
     const f = $('#formCodeWords');
     f.url_envio.value      = data.url_envio || '';
@@ -4213,9 +4256,8 @@ async function carregarCodeWords() {
     f.ativo.checked        = !!data.ativo;
     f.responder_auto.checked = !!data.responder_auto;
 
-    const selo = $('#seloCW');
-    selo.textContent = data.ativo ? 'ligado' : 'desligado';
-    selo.className = 'selo ' + (data.ativo ? 'on' : '');
+    CW_ATIVO = !!data.ativo;
+    pintarSeloCodeWords();
 
     $('#cwStatus').className = 'cw-status' + (data.ultimo_erro ? ' erro' : '');
     $('#cwStatus').innerHTML = data.ultimo_erro
@@ -4257,7 +4299,7 @@ $('#btnTestarCW').addEventListener('click', async () => {
       method:'POST', headers: await authCabecalhos(),
       body: JSON.stringify({ telefone: conversaAtual?.telefone }),
     })).json();
-    toast(r.ok ? '✅ O CodeWords respondeu — conexão funcionando'
+    toast(r.ok ? '✅ O CodeWords respondeu: conexão funcionando'
                : '⚠️ ' + (r.erro || 'não consegui falar com o CodeWords'));
     await carregarCodeWords();
   } catch (err) { toast('⚠️ ' + err.message); }
@@ -4321,7 +4363,7 @@ $('#formChave').addEventListener('submit', async (e) => {
       campoChave.value = '';
       mostrarResultadoChave({ resultado: 'ok',
         mensagem: `Chave ${r.mascara} salva em ${r.salvoEm.length} sistema${r.salvoEm.length > 1 ? 's' : ''}${
-          r.avisos?.length ? ' — ' + r.avisos.join(' ') : ''}. ${r.teste?.mensagem || ''}` });
+          r.avisos?.length ? ': ' + r.avisos.join(' ') : ''}. ${r.teste?.mensagem || ''}` });
       toast('✅ Chave do CodeWords trocada');
       await carregarChaveCW();
       await carregarCodeWords();
@@ -4365,7 +4407,7 @@ async function carregarFluxos() {
 
     if (lista.length && !idDeEnvio) {
       el.insertAdjacentHTML('beforeend',
-        '<p class="aviso">Nenhum fluxo está marcado como o de envio — preencha o Service ID acima.</p>');
+        '<p class="aviso">Nenhum fluxo está marcado como o de envio: preencha o Service ID acima.</p>');
     }
   } catch (err) {
     el.innerHTML = `<div class="vazio">Não consegui ler os fluxos: ${esc(err.message)}</div>`;
@@ -4509,8 +4551,9 @@ function graficoBarras({ rotulos, series, linha = null, altura = 300, unidadeBar
       + `font-size="12" fill="${COR_EIXO}">${esc(cortar(r, 16))}</text>`);
   });
 
-  return `<div class="grafico${n > 16 ? ' rolagem' : ''}">
-    <svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
+  const descB = descGrafico('Gráfico de barras', [series.map(s => `${s.nome}, total ${num(s.valores.reduce((t, v) => t + (Number(v) || 0), 0))}${unidadeBarra}`).join('; '), linha ? `linha de ${linha.nome}` : '', rotulos.length ? `de ${rotulos[0]} a ${rotulos[rotulos.length - 1]}` : '']);
+  return `<div class="grafico${n > 16 ? ' rolagem' : ''}" ${rolavel('Gráfico de barras')}>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${descB}" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
 }
 
 /* ---------- Linha simples (tempos médios por dia) ---------- */
@@ -4553,9 +4596,16 @@ function graficoLinha({ rotulos, valores, amostras = [], cor, nome, altura = 250
     p.push(`<text x="${x(i).toFixed(1)}" y="${H - MB + 20}" text-anchor="middle" font-size="12" fill="${COR_EIXO}">${esc(r)}</text>`);
   });
 
-  return `<div class="grafico${n > 16 ? ' rolagem' : ''}">
-    <svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
+  const comValor = limpos.filter(v => v !== null);
+  const descL = descGrafico('Gráfico de linha', [nome, comValor.length ? `de ${num(Math.min(...comValor))} a ${num(Math.max(...comValor))}` : 'sem dados no período', rotulos.length ? `de ${rotulos[0]} a ${rotulos[rotulos.length - 1]}` : '']);
+  return `<div class="grafico${n > 16 ? ' rolagem' : ''}" ${rolavel('Gráfico de linha')}>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${descL}" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
 }
+
+/* Rodada 9: todo gráfico leva um resumo em texto (leitor de tela) e, quando rola para o lado,
+   recebe foco pelo teclado. */
+const descGrafico = (tipo, partes) => esc(cortar(`${tipo}: ${partes.filter(Boolean).join("; ")}`, 260));
+const rolavel = rotulo => `tabindex="0" role="group" aria-label="${esc(rotulo)} (role para o lado com as setas)"`;
 
 /* ---------- Barras horizontais (etiquetas) ---------- */
 function graficoBarrasH({ itens, cor = COR.roxo }) {
@@ -4572,7 +4622,8 @@ function graficoBarrasH({ itens, cor = COR.roxo }) {
       + `<title>${esc(it.rotulo)}: ${esc(num(v))}</title></rect>`
       + `<text x="${(ME + Math.max(2, (v / max) * larg) + 9).toFixed(1)}" y="${y + 20}" font-size="13" fill="${COR_EIXO}">${esc(num(v))}</text>`;
   }).join('');
-  return `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${p}</svg></div>`;
+  const descH = descGrafico('Gráfico de barras', itens.slice(0, 8).map(it => `${it.rotulo} ${num(Number(it.valor) || 0)}`));
+  return `<div class="grafico" ${rolavel('Gráfico de barras')}><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${descH}" preserveAspectRatio="xMidYMid meet">${p}</svg></div>`;
 }
 
 /* ---------- Rosca (atendimentos por canal) ---------- */
@@ -4591,7 +4642,7 @@ function graficoRosca({ fatias }) {
   }).join('');
 
   return `<div class="rosca-linha">
-    <div class="grafico"><svg viewBox="0 0 200 200" role="img" preserveAspectRatio="xMidYMid meet">${arcos}
+    <div class="grafico"><svg viewBox="0 0 200 200" role="img" aria-label="${descGrafico('Gráfico de rosca', fatias.filter(f => Number(f.valor) > 0).map(f => `${f.rotulo} ${num(f.valor)}`).concat(`total ${num(total)}`))}" preserveAspectRatio="xMidYMid meet">${arcos}
       <text x="100" y="98" text-anchor="middle" font-size="34" font-weight="700" fill="${COR_TOTAL}">${esc(num(total))}</text>
       <text x="100" y="120" text-anchor="middle" font-size="12" fill="${COR_EIXO}">no período</text>
     </svg></div>
@@ -4615,16 +4666,19 @@ function mapaCalorSvg({ matriz }) {
       const opacidade = v ? (0.18 + 0.82 * (v / max)).toFixed(3) : '0.05';
       p.push(`<rect x="${ME + h * cel}" y="${MT + s * cel}" width="${cel - 3}" height="${cel - 3}" rx="4" `
         + `fill="${COR.azul}" fill-opacity="${opacidade}">`
-        + `<title>${esc(DIA_SEMANA[s])}, ${esc(String(h).padStart(2,'0'))}h — ${esc(num(v))} `
+        + `<title>${esc(DIA_SEMANA[s])}, ${esc(String(h).padStart(2,'0'))}h: ${esc(num(v))} `
         + `${v === 1 ? 'mensagem' : 'mensagens'}</title></rect>`);
     }
   }
-  return `<div class="grafico rolagem"><svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
+  let pico = { v: 0, s: 0, h: 0 };
+  matriz.forEach((dia, s) => dia.forEach((v, h) => { if (v > pico.v) pico = { v, s, h }; }));
+  const descM = descGrafico('Mapa de mensagens por dia da semana e hora', [pico.v ? `pico em ${DIA_SEMANA[pico.s]} às ${pico.h}h, com ${num(pico.v)} ${pico.v === 1 ? 'mensagem' : 'mensagens'}` : 'sem mensagens no período']);
+  return `<div class="grafico rolagem" ${rolavel('Mapa de mensagens')}><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${descM}" preserveAspectRatio="xMidYMid meet">${p.join('')}</svg></div>`;
 }
 
 /* ---------- Tabelas e CSV ---------- */
 function tabelaHtml({ colunas, linhas, rodape = null }) {
-  return `<div class="tabela-caixa"><table class="tabela">
+  return `<div class="tabela-caixa" ${rolavel(`Tabela: ${colunas.slice(0, 4).join(', ')}`)}><table class="tabela">
     <thead><tr>${colunas.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${linhas.map(l => `<tr>${l.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
     ${rodape ? `<tfoot><tr>${rodape.map(c => `<td>${esc(c)}</td>`).join('')}</tr></tfoot>` : ''}
@@ -4688,7 +4742,7 @@ async function carregarRelatorios() {
   const corpo = $('#relCorpo');
   const de = $('#relDe').value, ate = $('#relAte').value;
   if (!de || !ate) { corpo.innerHTML = semDados('Escolha as duas datas do período.'); return; }
-  if (de > ate) { corpo.innerHTML = semDados('A data inicial está depois da final — troque as duas.'); return; }
+  if (de > ate) { corpo.innerHTML = semDados('A data inicial está depois da final: troque as duas.'); return; }
   const minha = ++geracaoRelatorio;     // trocou o período no meio: a resposta velha não pinta por cima
 
   corpo.innerHTML = esqueletoRelatorios();
@@ -4751,7 +4805,7 @@ function desenharRelatorios(r) {
                      { nome:'Ganhos', cor:COR.verde, valores: r.porDia.map(d => d.ganhos) }],
             linha: { nome:'Conversão', cor:COR.laranja, formato:'%', valores: r.porDia.map(d => d.conversao) },
           })
-      : semDados('Sem dados no período — nenhum lead foi criado entre essas datas.')));
+      : semDados('Sem dados no período: nenhum lead foi criado entre essas datas.')));
 
   /* (c) origem do lead */
   partes.push(bloco('Origem do lead', 'De onde vieram os leads e quantos viraram serviço.',
@@ -4767,7 +4821,7 @@ function desenharRelatorios(r) {
             colunas: ['Origem', 'Volume', 'Ganhos', 'Perdidos', 'Conversão'],
             linhas: r.origens.map(o => [o.rotulo, num(o.volume), num(o.ganhos), num(o.perdidos), pct(o.conversao)]),
           })
-      : semDados('Sem dados no período — nenhum lead com origem registrada.')));
+      : semDados('Sem dados no período: nenhum lead com origem registrada.')));
 
   /* (d) leads por atendente */
   partes.push(bloco('Leads por atendente',
@@ -4778,7 +4832,7 @@ function desenharRelatorios(r) {
           linhas: r.leadsPorAtendente.map(a => [a.atendente, num(a.volume), num(a.ganhos), num(a.perdidos), pct(a.conversao)]),
           rodape: ['Total', num(r.resumo.leads), num(r.resumo.ganhos), num(r.resumo.perdidos), pct(r.resumo.conversao)],
         })
-      : semDados('Sem dados no período — nenhum lead criado.'),
+      : semDados('Sem dados no período: nenhum lead criado.'),
     r.leadsPorAtendente.length ? botaoCsv('csvLeadsAtendente') : ''));
 
   /* (e) capacidade de atendimento */
@@ -4799,7 +4853,7 @@ function desenharRelatorios(r) {
                      { nome:'Resolvidas', cor:COR.verde, valores: r.capacidade.porDia.map(d => d.resolvidas) }],
             linha: { nome:'Pendentes', cor:COR.laranja, valores: r.capacidade.porDia.map(d => d.pendentes) },
           })
-      : semDados('Sem dados no período — nenhuma conversa aberta ou resolvida entre essas datas.')));
+      : semDados('Sem dados no período: nenhuma conversa aberta ou resolvida entre essas datas.')));
 
   /* (f) tempo de espera */
   partes.push(bloco('Tempo de espera',
@@ -4809,7 +4863,7 @@ function desenharRelatorios(r) {
           em ${esc(num(r.espera.amostras))} ${r.espera.amostras === 1 ? 'conversa' : 'conversas'}.</p>`
         + graficoLinha({ rotulos: dias, cor: COR.laranja, nome: 'espera média',
             valores: r.espera.porDia.map(d => d.minutos), amostras: r.espera.porDia.map(d => d.amostras) })
-      : semDados('Sem dados no período — nenhuma conversa teve a primeira resposta registrada.')));
+      : semDados('Sem dados no período: nenhuma conversa teve a primeira resposta registrada.')));
 
   /* (g) duração do atendimento */
   partes.push(bloco('Duração do atendimento',
@@ -4819,7 +4873,7 @@ function desenharRelatorios(r) {
           em ${esc(num(r.duracao.amostras))} ${r.duracao.amostras === 1 ? 'conversa' : 'conversas'}.</p>`
         + graficoLinha({ rotulos: dias, cor: COR.laranja, nome: 'duração média',
             valores: r.duracao.porDia.map(d => d.minutos), amostras: r.duracao.porDia.map(d => d.amostras) })
-      : semDados('Sem dados no período — nenhuma conversa foi marcada como resolvida.')));
+      : semDados('Sem dados no período: nenhuma conversa foi marcada como resolvida.')));
 
   /* (h) atendimentos por canal */
   const totalCanais = r.canais.reduce((s, c) => s + c.total, 0);
@@ -4829,13 +4883,13 @@ function desenharRelatorios(r) {
     totalCanais
       ? graficoRosca({ fatias: r.canais.map((c, i) => ({ rotulo: c.canal, valor: c.total,
           cor: PALETA_CANAL[i % PALETA_CANAL.length] })) })
-      : semDados('Sem dados no período — nenhuma conversa aberta entre essas datas.')));
+      : semDados('Sem dados no período: nenhuma conversa aberta entre essas datas.')));
 
   /* (i) etiquetas */
   partes.push(bloco('Etiquetas', 'Quantas conversas do período receberam cada etiqueta.',
     r.etiquetas.length
       ? graficoBarrasH({ itens: r.etiquetas.map(e => ({ rotulo: e.nome, valor: e.total, cor: e.cor || COR.roxo })) })
-      : semDados('Sem dados no período — nenhuma conversa recebeu etiqueta.')));
+      : semDados('Sem dados no período: nenhuma conversa recebeu etiqueta.')));
 
   /* (j) atendentes */
   partes.push(bloco('Atendentes', 'Fila e tempo médio de cada pessoa no período.',
@@ -4845,7 +4899,7 @@ function desenharRelatorios(r) {
           linhas: r.atendentes.map(a => [a.nome, num(a.novas), num(a.resolvidas), num(a.backlog),
             minutosTexto(a.primeiraResposta), minutosTexto(a.resolucao)]),
         })
-      : semDados('Sem dados no período — nenhuma conversa movimentada.'),
+      : semDados('Sem dados no período: nenhuma conversa movimentada.'),
     r.atendentes.length ? botaoCsv('csvAtendentes') : ''));
 
   /* (k) equipes */
@@ -4856,7 +4910,7 @@ function desenharRelatorios(r) {
           linhas: r.equipes.map(e => [e.nome, num(e.novas), num(e.resolvidas), num(e.backlog),
             minutosTexto(e.primeiraResposta), minutosTexto(e.resolucao)]),
         })
-      : semDados('Sem dados no período — nenhuma conversa movimentada.'),
+      : semDados('Sem dados no período: nenhuma conversa movimentada.'),
     r.equipes.length ? botaoCsv('csvEquipes') : ''));
 
   /* (l) volume diário */
@@ -4866,10 +4920,10 @@ function desenharRelatorios(r) {
     r.mapaCalor.total
       ? mapaCalorSvg({ matriz: r.mapaCalor.matriz })
         + `<p class="pico">Horário de pico: <b>${esc(DIA_SEMANA[pico.semana])} às
-           ${esc(String(pico.hora).padStart(2, '0'))}h</b> — ${esc(num(pico.total))}
+           ${esc(String(pico.hora).padStart(2, '0'))}h</b>: ${esc(num(pico.total))}
            ${pico.total === 1 ? 'mensagem' : 'mensagens'}. Total no período:
            <b>${esc(num(r.mapaCalor.total))}</b>.</p>`
-      : semDados('Sem dados no período — nenhuma mensagem recebida entre essas datas.')));
+      : semDados('Sem dados no período: nenhuma mensagem recebida entre essas datas.')));
 
   /* (z) mensagens automáticas do Comunicar — só números, sem texto de cliente */
   if (r.comunicar) {
@@ -4967,7 +5021,7 @@ function aplicarTema(tema, { salvar = true } = {}) {
   }
 
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', claro ? '#eaecf0' : '#0a0a0b');
+  if (meta) meta.setAttribute('content', claro ? '#f6f7f9' : '#0d1220');
 
   const ico = $('#temaIco'), txt = $('#temaTxt');
   if (ico) ico.textContent = claro ? '☀️' : '🌙';
@@ -5059,6 +5113,20 @@ if (typeof ResizeObserver === 'function') {
    por uma hora — mas volta se o problema continuar.
    ============================================================ */
 var SAUDE_ATUAL = null;
+/* Rodada 9: o selo do cartão CodeWords não diz "ligado" enquanto a chave está recusada (a faixa de cima
+   dizia "o WhatsApp parou" e o cartão, logo abaixo, dizia que estava tudo ligado). */
+var CW_ATIVO = null;
+function textoDoSeloCodeWords(ativo, problema) {
+  if (ativo && /codewords/.test(problema || '')) return { texto: 'chave recusada', classe: 'selo off' };
+  return { texto: ativo ? 'ligado' : 'desligado', classe: 'selo ' + (ativo ? 'on' : '') };
+}
+function pintarSeloCodeWords() {
+  const selo = document.getElementById('seloCW');
+  if (!selo || CW_ATIVO === null) return;
+  const t = textoDoSeloCodeWords(CW_ATIVO, SAUDE_ATUAL?.problema);
+  selo.textContent = t.texto;
+  selo.className = t.classe;
+}
 const SAUDE_DISPENSA_KEY = 'indycar_saude_dispensada';
 function saudeDispensada(problema) {
   try {
@@ -5070,6 +5138,7 @@ function mostrarSaude(s) {
   const faixa = document.getElementById('faixaSaude');
   if (!faixa) return;
   SAUDE_ATUAL = s;
+  pintarSeloCodeWords();
   const temProblema = !!s?.problema;
   const chaveRecusada = /codewords/.test(s?.problema || '');
   faixa.classList.toggle('saude-codewords', chaveRecusada);
@@ -5119,7 +5188,7 @@ async function verConexao({ silencioso = true } = {}) {
     const r = await fetch('/api/whatsapp/status', { headers: await authCabecalhos() });
     // servidor acordando: não dá para saber do WhatsApp — não acende alarme nenhum
     if (r.headers.get('x-indycar-sintetica')) {
-      if (!silencioso && texto) { texto.textContent = 'O sistema está acordando — confiro já já.'; if (bolinha) bolinha.className = 'conexao-bolinha'; }
+      if (!silencioso && texto) { texto.textContent = 'O sistema está acordando: confiro já já.'; if (bolinha) bolinha.className = 'conexao-bolinha'; }
       return;
     }
     /* 401 aqui quase sempre é sessão órfã: o token ainda não venceu, mas o
@@ -5149,12 +5218,13 @@ async function verConexao({ silencioso = true } = {}) {
      topo da lateral.
      Chamada direta, não em requestAnimationFrame: em aba de fundo o rAF não
      roda, e a tarja acabava aparecendo sobreposta ao voltar para a aba. */
-  reservarEspacoDaTarja();
   if (tt) {
     tt.textContent = meio
       ? 'O WhatsApp está conectado, mas as mensagens não estão chegando no painel.'
-      : 'O WhatsApp da oficina está desconectado — nenhuma mensagem entra nem sai.';
+      : 'WhatsApp desconectado. Mensagens não entram nem saem. Abra Integrações para verificar a conexão.';
   }
+
+  reservarEspacoDaTarja();
 
   if (bolinha && texto) {
     bolinha.className = 'conexao-bolinha ' + (caiu ? 'ruim' : meio ? 'meio' : est.conectado ? 'ok' : '');
@@ -5192,7 +5262,7 @@ async function pedirPareamento() {
     const tique = () => {
       if (!prazo) return;
       prazo.textContent = resta > 0
-        ? `Vale por mais ${resta}s — se expirar, é só pedir outro.`
+        ? `Vale por mais ${resta}s, se expirar, é só pedir outro.`
         : 'Este código expirou. Toque em “Reconectar WhatsApp” para gerar outro.';
       if (resta <= 0) clearInterval(pareamentoTimer);
       resta--;
@@ -5328,6 +5398,8 @@ function restaurarPreferenciasDaLista() {
   if (doLink && FILTROS_URL.includes(doLink)) filtroStatus = doLink;
   $$('#aba-conversas .filtros-status .chip').forEach(x => {
     const ativo = (x.dataset.status || '') === filtroStatus;
+    const extras = x.closest('#filtrosExtras');
+    if (ativo && extras) extras.open = true;
     x.classList.toggle('ativo', ativo);
     x.setAttribute('aria-pressed', ativo ? 'true' : 'false');
   });
@@ -5578,7 +5650,7 @@ function renderDonoDoChat() {
   if (!conversaAtual) { el.innerHTML = ''; return; }
   el.innerHTML = conversaAtual.atribuida_a ? donoHtml(conversaAtual)
     : `<button type="button" class="dono pegar" data-pegar="${esc(conversaAtual.id)}"
-         title="Ninguém responsável — um clique e o cliente é seu (Alt+M)">★ Pegar para mim</button>`
+         title="Ninguém responsável: um clique e o cliente é seu (Alt+M)">★ Pegar para mim</button>`
       + (ehGestorAqui() ? `<button type="button" class="dono pegar rodizio" data-rodizio-conv="${esc(conversaAtual.id)}"
          title="Dar dono pelo rodízio (quem está recebendo clientes e com menos carga)">🎯 Rodízio</button>` : '');
 }
@@ -5617,6 +5689,7 @@ function avisarConversaAberta(conv) {
 
 /** Fecha a conversa (voltar para a lista, não lida, excluída). */
 function fecharConversa({ focarLista = false } = {}) {
+  aberturaConversa++;
   const tinha = conversaAtual;
   conversaAtual = null;
   conversaRenderizada = null;
@@ -5727,7 +5800,7 @@ async function abrirPeloEndereco() {
   // ninguém com esse número ainda: já deixa a "Nova conversa" preenchida
   $('#novaTelefone').value = telefoneBonito(digitos);
   abrirModalNova();
-  toast('Nenhuma conversa com ' + telefoneBonito(digitos) + ' ainda — confira e abra uma nova.');
+  toast('Nenhuma conversa com ' + telefoneBonito(digitos) + ' ainda: confira e abra uma nova.');
 }
 
 /* ---------------- Copiar (link da conversa, telefone, mensagem) ---------------- */
@@ -6065,29 +6138,6 @@ function pintarDeltas() {
   });
 }
 
-/* ---------------- Equipe: quem está com quantos clientes ---------------- */
-async function pintarCargaDaEquipe() {
-  const alvos = $$('#listaEquipe [data-carga]');
-  if (!alvos.length) return;
-  try {
-    const { data, error } = await sb.from('conversas').select('atribuida_a,nao_lidas,aguardando_consultor')
-      .eq('tipo', 'atendimento').is('desfecho', null).not('atribuida_a', 'is', null).limit(5000);
-    if (error) throw error;
-    const por = new Map();
-    for (const c of data || []) {
-      const p = por.get(c.atribuida_a) || { total: 0, naoLidas: 0, espera: 0 };
-      p.total++; if (c.nao_lidas > 0) p.naoLidas++; if (c.aguardando_consultor) p.espera++;
-      por.set(c.atribuida_a, p);
-    }
-    alvos.forEach(el => {
-      const p = por.get(el.dataset.carga);
-      el.innerHTML = !p ? '<span class="carga-zero">nenhum cliente em aberto</span>'
-        : `<b>${esc(String(p.total))}</b> cliente${p.total > 1 ? 's' : ''} em aberto${
-            p.naoLidas ? ` · <b class="carga-alerta">${esc(String(p.naoLidas))}</b> sem ler` : ''}${
-            p.espera ? ` · <b class="carga-alerta">${esc(String(p.espera))}</b> esperando consultor` : ''}`;
-    });
-  } catch { alvos.forEach(el => { el.textContent = ''; }); }
-}
 
 /* ---------------- Atalhos favoritos (por pessoa, neste navegador) ---------------- */
 const chaveFavoritos = () => `indycar_atalhos_fav_${perfil?.id || 'anon'}`;
@@ -6098,7 +6148,7 @@ function alternarFavorito(id) {
   const s = favoritosAtalhos();
   s.has(id) ? s.delete(id) : s.add(id);
   try { localStorage.setItem(chaveFavoritos(), JSON.stringify([...s])); } catch { /* ignora */ }
-  toast(s.has(id) ? '★ Favorito — aparece primeiro no menu' : '☆ Saiu dos favoritos');
+  toast(s.has(id) ? '★ Favorito: aparece primeiro no menu' : '☆ Saiu dos favoritos');
 }
 /* ⚡ abre as respostas rápidas sem digitar "/" */
 $('#btnRespostas')?.addEventListener('click', () => {
@@ -6176,7 +6226,7 @@ function pintarAvisos() {
   if (b) {
     b.textContent = ligado ? '🔔' : '🔕';
     b.setAttribute('aria-pressed', ligado ? 'true' : 'false');
-    b.title = ligado ? 'Avisos ligados (notificação/som em segundo plano) — clique para desligar' : 'Ligar aviso de mensagem nova';
+    b.title = ligado ? 'Avisos ligados (notificação/som em segundo plano): clique para desligar' : 'Ligar aviso de mensagem nova';
   }
   if ($('#cfgNotificacao')) $('#cfgNotificacao').checked = a.notificacao;
   if ($('#cfgSom')) $('#cfgSom').checked = a.som;
@@ -6188,7 +6238,7 @@ function pintarAvisos() {
   }
 }
 async function pedirPermissaoNotificacao() {
-  if (!('Notification' in window)) { toast('Este navegador não mostra notificações — fica só o som.'); return false; }
+  if (!('Notification' in window)) { toast('Este navegador não mostra notificações: fica só o som.'); return false; }
   if (Notification.permission === 'granted') return true;
   if (Notification.permission === 'denied') { toast('⚠️ Notificações bloqueadas. Libere no cadeado ao lado do endereço.'); return false; }
   return (await Notification.requestPermission()) === 'granted';
@@ -6211,7 +6261,7 @@ $('#btnTestarAviso')?.addEventListener('click', () => {
   if (!a.notificacao && !a.som) return toast('Ligue a notificação ou o som primeiro.');
   if (a.som) tocarSom();
   if (a.notificacao && 'Notification' in window && Notification.permission === 'granted') {
-    new Notification('💬 Teste — IndyCar Atendimento', { body: 'É assim que a mensagem nova aparece.', icon: '/icon-192.png', tag: 'teste' });
+    new Notification('💬 Teste: IndyCar Atendimento', { body: 'É assim que a mensagem nova aparece.', icon: new URL('icon-192.png', document.baseURI).href, tag: 'teste' });
   }
 });
 $('#btnVerAtalhosTeclado')?.addEventListener('click', () => abrirAjudaTeclado());
@@ -6246,7 +6296,7 @@ function avisarMensagemNova(m) {
     try {
       const n = new Notification(`💬 ${m.nome || telefoneBonito(m.telefone) || 'Cliente'}`, {
         body: String(m.corpo || (m.anexo ? '📎 anexo' : 'mensagem nova')).slice(0, 140),
-        icon: '/icon-192.png', tag: 'conv-' + (m.conversa_id || ''), renotify: true,
+        icon: new URL('icon-192.png', document.baseURI).href, tag: 'conv-' + (m.conversa_id || ''), renotify: true,
       });
       n.onclick = () => { window.focus(); if (m.conversa_id) irParaConversa(m.conversa_id); n.close(); };
     } catch { /* alguns navegadores só notificam pelo service worker */ }
@@ -6263,7 +6313,7 @@ function aplicarModoFoco(ligar) {
 $('#btnFoco')?.addEventListener('click', () => {
   const ligar = !$('#telaApp').classList.contains('modo-foco');
   aplicarModoFoco(ligar);
-  toast(ligar ? '⛶ Modo foco — Alt+Z ou ⛶ para voltar' : 'Modo foco desligado');
+  toast(ligar ? '⛶ Modo foco: Alt+Z ou ⛶ para voltar' : 'Modo foco desligado');
 });
 try { if (localStorage.getItem('indycar_foco') === '1') aplicarModoFoco(true); } catch { /* ignora */ }
 
@@ -6393,7 +6443,7 @@ function pintarFaixaOffline() {
   f.hidden = !fora && !n;
   f.classList.toggle('na-fila', !fora && n > 0);
   $('#faixaOfflineTexto').textContent = fora
-    ? `Sem internet. ${n ? `${n} mensage${n > 1 ? 'ns' : 'm'} na fila — ` : 'O que você enviar fica na fila e '}sai sozinho quando a conexão voltar.`
+    ? `Sem internet. ${n ? `${n} mensage${n > 1 ? 'ns' : 'm'} na fila: ` : 'O que você enviar fica na fila e '}sai sozinho quando a conexão voltar.`
     : `Enviando ${n} mensage${n > 1 ? 'ns' : 'm'} da fila…`;
 }
 window.addEventListener('offline', pintarFaixaOffline);
@@ -6533,7 +6583,7 @@ document.addEventListener('keydown', (e) => {
   if (m) {
     e.preventDefault();
     const etapa = etapasAtivas()[Number(m[1]) - 1];
-    if (!etapa) return toast(`Não há etapa ${m[1]} — são ${etapasAtivas().length}.`);
+    if (!etapa) return toast(`Não há etapa ${m[1]}: são ${etapasAtivas().length}.`);
     if (etapa.id === conversaAtual.etapa_id) return toast(`Já está em ${etapa.nome}`);
     trocarEtapa(conversaAtual, etapa.id);
   }
@@ -6563,20 +6613,7 @@ function ajustarNaoLidas(delta) {
   atualizarTituloDaAba(naoLidasBanco);
 }
 
-/* Chips numa linha só: a roda do mouse rola para o lado, e o chip ativo
-   (vindo do link ?filtro= ou de um clique) sempre fica à vista. */
-(() => {
-  const barra = $('#aba-conversas .filtros-status');
-  if (!barra) return;
-  barra.addEventListener('wheel', ev => {
-    if (Math.abs(ev.deltaY) <= Math.abs(ev.deltaX) || barra.scrollWidth <= barra.clientWidth) return;
-    ev.preventDefault();
-    barra.scrollLeft += ev.deltaY;
-  }, { passive: false });
-  const mostrarAtivo = () => $('.chip.ativo', barra)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  barra.addEventListener('click', () => setTimeout(mostrarAtivo, 0));
-  window.addEventListener('load', () => setTimeout(mostrarAtivo, 300));
-})();
+
 
 /* Rodada 3: o servidor agora manda CSP sem 'unsafe-inline' para scripts — atributo
    onclick="…" no HTML gerado deixou de rodar. Os botões "Tentar de novo" e
@@ -6758,7 +6795,7 @@ const IaFunil = (() => {
         + (j.fila ? `<div class="ia-total"><b>${esc(String((j.fila.pendente || 0) + (j.fila.processando || 0)))}</b><span>na fila agora</span></div>` : '');
       $('#iaHojeQuando').textContent = j.desde ? 'desde ' + new Date(j.desde).toLocaleDateString('pt-BR') : '';
       const btnFila = $('#btnIaFilaRodar'); if (btnFila) btnFila.hidden = !ehGestorAqui() || !((j.fila?.pendente || 0) + (j.fila?.processando || 0));
-      if (!j.conversas?.length) { lista.innerHTML = '<div class="vazio estado-vazio"><span class="vazio-ico" aria-hidden="true">✨</span><p>A IA ainda não agiu hoje. Quando um cliente escrever, o que ela fizer aparece aqui — com desfazer.</p></div>'; return; }
+      if (!j.conversas?.length) { lista.innerHTML = '<div class="vazio estado-vazio"><span class="vazio-ico" aria-hidden="true">✨</span><p>A IA ainda não agiu hoje. Quando um cliente escrever, o que ela fizer aparece aqui, com desfazer.</p></div>'; return; }
       lista.innerHTML = j.conversas.map(c => `<div class="ia-conv">
         <div class="ia-conv-topo"><strong>${esc(c.nome || telefoneBonito(c.telefone) || 'Cliente')}</strong>
           <span>${c.conversa_id ? `<button type="button" class="link" data-abrir="${esc(c.conversa_id)}">abrir conversa ›</button>` : ''}${RESPONDENDO.has(c.conversa_id) ? ' <span class="tag ia-respondendo"><i class="girando"></i> respondendo</span>' : ''}</span></div>
@@ -6806,7 +6843,7 @@ function abrirAbaPeloEndereco() {
   botao.click();
   if (aba !== 'integracoes') return;
   if (perfil?.papel !== 'admin') {
-    toast('🔑 Trocar a chave do CodeWords é só do administrador — peça ao gestor.');
+    toast('🔑 Trocar a chave do CodeWords é só do administrador: peça ao gestor.');
     return;
   }
   setTimeout(() => {
