@@ -130,8 +130,12 @@ function readBodyGrande(req, limite = 21 * 1024 * 1024) {
       partes.push(c);
     });
     req.on('end', () => {
-      try { resolve(JSON.parse(Buffer.concat(partes).toString('utf8') || '{}')); }
-      catch { reject(new SEG.ErroHttp(400, 'JSON inválido no corpo da requisição.', 'json_invalido')); }
+      let v;
+      try { v = JSON.parse(Buffer.concat(partes).toString('utf8') || '{}'); }
+      catch { return reject(new SEG.ErroHttp(400, 'JSON inválido no corpo da requisição.', 'json_invalido')); }
+      // null, lista, número ou texto solto não são um envio de arquivo (antes viravam erro 500 mais adiante)
+      if (v === null || typeof v !== 'object' || Array.isArray(v)) return reject(new SEG.ErroHttp(400, 'O corpo precisa ser um objeto JSON.', 'json_invalido'));
+      resolve(v);
     });
     req.on('error', reject);
   });
@@ -2677,11 +2681,21 @@ const handler = async (req, res) => {
 
       const telefone   = texto1(bruto.telefone, 40);
       const nomeArq    = (texto1(bruto.nome_arquivo, 150) || 'documento').replace(/[\\/:*?"<>|]/g, '_');
-      const mime       = texto1(bruto.mime, 100) || 'application/octet-stream';
+      /* Rodada 10: o tipo vai para o cabeçalho do Storage e para o aparelho. Fora do formato
+         "tipo/subtipo" vira arquivo comum (antes um tipo torto fazia a cópia falhar calada). */
+      const mimeBruto  = texto1(bruto.mime, 100).trim().toLowerCase();
+      const mime       = /^[a-z0-9][a-z0-9.+-]{0,40}[/][a-z0-9][a-z0-9.+-]{0,60}$/.test(mimeBruto) ? mimeBruto : 'application/octet-stream';
       const legenda    = texto1(bruto.legenda, 1000);
       const conversaId = texto1(bruto.conversaId, 60) || null;
       const b64 = typeof bruto.base64 === 'string' ? bruto.base64 : '';
       if (!telefone || !b64) return json(res, 400, { erro: 'informe telefone e o arquivo' });
+      /* A conversa entra no caminho da cópia (anexos/<conversa>/…), gravada com a chave de serviço:
+         só id de verdade. "../outro-balde" escreveria fora da pasta dos anexos. */
+      if (conversaId && !ehUuid(conversaId)) return json(res, 400, { erro: 'Conversa inválida. Abra a conversa de novo e tente outra vez.', codigo: 'conversa_invalida' });
+      const digitosArq = COM.normalizarTelefone(telefone);
+      if (digitosArq.length < 10 || digitosArq.length > 11) {
+        return json(res, 400, { erro: 'Telefone inválido: precisa de DDD + número (10 ou 11 dígitos).' });
+      }
 
       let arquivo;
       try { arquivo = Buffer.from(b64, 'base64'); }
@@ -2729,7 +2743,7 @@ const handler = async (req, res) => {
           try {
             caminhoAnexo = `${conversaId || 'avulso'}/${Date.now()}-${nomeArq}`;
             const up = await fetch(
-              `${process.env.SUPABASE_URL}/storage/v1/object/anexos/${encodeURI(caminhoAnexo)}`,
+              `${process.env.SUPABASE_URL}/storage/v1/object/anexos/${caminhoAnexo.split('/').map(encodeURIComponent).join('/')}`,
               { method: 'POST',
                 headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
                            'Content-Type': mime, 'x-upsert': 'true' },
@@ -2750,11 +2764,16 @@ const handler = async (req, res) => {
           anexo: caminhoAnexo, anexo_mime: caminhoAnexo ? mime : null,
         });
 
-        if (!ok) return json(res, 502, { erro: `o aparelho recusou o envio: ${texto.slice(0, 200)}` });
+        if (!ok) {
+          console.error('enviar arquivo: o aparelho respondeu', resposta.status, texto.slice(0, 300));
+          return json(res, 502, { erro: 'O aparelho do WhatsApp não aceitou o arquivo. Confira a conexão em Configurações e tente de novo.', codigo: 'aparelho_recusou' });
+        }
         return json(res, 200, { ok: true, nome: nomeArq });
       } catch (e) {
+        if (e.name !== 'TimeoutError') console.error('enviar arquivo:', e.message, e.cause?.code || '');
         return json(res, 502, { erro: e.name === 'TimeoutError'
-          ? 'O envio demorou demais — arquivo muito grande ou conexão lenta.' : e.message });
+          ? 'O envio demorou demais: arquivo muito grande ou conexão lenta.'
+          : 'Não consegui falar com o aparelho do WhatsApp agora. Tente de novo em instantes.', codigo: 'aparelho_fora' });
       }
     }
 
