@@ -18,3 +18,13 @@ test('faltaLigar: qualquer conexão parada, sem conta, sem rastreio ou com Whats
   assert.equal(faltaLigar({ ...tudoOk, google: undefined }), true);
   assert.equal(faltaLigar(null), true);
 });
+
+import { seloDoRitmo } from '../js/hoje-logica.js';
+test('seloDoRitmo: "acima" diz se já passou ou se vai passar da verba; "abaixo" diz que vai sobrar', () => {
+  assert.deepEqual(seloDoRitmo({ situacao: 'acima', gasto_ate_hoje: 2341, orcamento_mes: 3000 }), ['atencao', 'Vai passar da verba']);
+  assert.deepEqual(seloDoRitmo({ situacao: 'acima', gasto_ate_hoje: 3010, orcamento_mes: 3000 }), ['atencao', 'Passou da verba']);
+  assert.deepEqual(seloDoRitmo({ situacao: 'no_ritmo' }), ['bom', 'No ritmo da verba']);
+  assert.deepEqual(seloDoRitmo({ situacao: 'abaixo' }), ['espera', 'Vai sobrar verba']);
+  assert.equal(seloDoRitmo({ situacao: 'sem_meta' }), null);
+  assert.equal(seloDoRitmo(null), null);
+});

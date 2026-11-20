@@ -13,7 +13,7 @@ import { selo, setores, origem as marcaDaOrigem, barra, botaoDaAcao, vazio, semD
 import { rotuloDaEtapa } from '../setores.js';
 import * as Estados from './estados.js';
 import { mostrarAviso } from '../aviso.js';
-import { faltaLigar } from '../hoje-logica.js';
+import { faltaLigar, seloDoRitmo } from '../hoje-logica.js';
 
 const ICONE_DA_DIRECAO = { sobe: 'sobe', desce: 'desce', igual: 'igual' };
 const LEITURA_DO_TOM = { bom: 'bom sinal', atencao: 'pede atenção' };
@@ -142,7 +142,6 @@ function fazer(ctx, d) {
 
 /* ------------------------------ ritmo ------------------------------ */
 
-const SITUACAO = { acima: ['atencao', 'Acima da verba'], no_ritmo: ['bom', 'No ritmo da verba'], abaixo: ['espera', 'Abaixo da verba'] };
 
 function ritmo(d) {
   const r = d.ritmo || {};
@@ -150,7 +149,7 @@ function ritmo(d) {
   const doMes = !d.periodo || d.periodo.rotulo === 'Este mês';
   const dias = (r.dias || []).map((x) => ({ data: x.data, total: x.contatos, marca: x.contatos_anuncio }));
   const temVerba = ehNumero(r.orcamento_mes) && r.orcamento_mes > 0 && ehNumero(r.gasto_ate_hoje);
-  const situacao = SITUACAO[r.situacao];
+  const situacao = seloDoRitmo(r);
   const partes = [];
   if (temVerba) {
     const fracao = (v) => Math.max(0, Math.min(1, v / r.orcamento_mes));
@@ -163,7 +162,7 @@ function ritmo(d) {
         ehNumero(r.esperado_ate_hoje) ? h('span', { class: 'verba-risco', 'aria-hidden': 'true', style: { '--v': fracao(r.esperado_ate_hoje).toFixed(4) } }) : null),
       h('p', { class: 'verba-pe' },
         situacao ? selo(situacao[0], situacao[1]) : null,
-        ehNumero(r.esperado_ate_hoje) ? h('span', { class: 'apoio' }, 'O risco marca o esperado até hoje: ' + dinheiro(r.esperado_ate_hoje) + '.') : null)));
+        ehNumero(r.esperado_ate_hoje) ? h('span', { class: 'apoio' }, 'A marca na barra é o esperado até hoje: ' + dinheiro(r.esperado_ate_hoje) + '.') : null)));
   } else if (estado.gasto === 'sem_conta' || estado.gasto === 'sem_dados') {
     partes.push(h('p', { class: 'suave' }, 'Sem conta de anúncio ligada, não há gasto para acompanhar. Por enquanto, o ritmo é o dos contatos.'));
   } else if (ehNumero(r.gasto_ate_hoje)) {
