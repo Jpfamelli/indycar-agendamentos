@@ -377,3 +377,9 @@ test('seus apps: número de pendências no canto do cartão (o nome comprido nã
   assert.match(css, /\.app \.app-selo \{ position: absolute; top: 10px; right: 10px; margin: 0; \}/);
   assert.match(css, /\.app \{ position: relative; \}/);
 });
+
+test('busca com erro: aviso falado (role alert) e botão "tentar de novo" que busca outra vez', () => {
+  const s = semComentarios(ler('busca.js'));
+  assert.match(s, /<p class="vazio vazio-erro" role="alert">\$\{navigator\.onLine \? 'A busca não respondeu agora\.' : 'Sem internet\.'\} <button type="button" class="btn-link" data-busca-de-novo>tentar de novo<\/button><\/p>/);
+  assert.match(s, /if \(e\.target\.closest\('\[data-busca-de-novo\]'\)\) \{ buscar\(inp\.value\); inp\.focus\(\); return; \}/);
+});

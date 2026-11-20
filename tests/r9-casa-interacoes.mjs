@@ -248,6 +248,19 @@ try {
   conferir('esqueci: pedir de novo no mesmo minuto não envia e diz para olhar o spam', (await pedidos()) === 1 && /spam/.test(aviso), aviso.slice(0, 70));
   await e.page.close();
   });
+
+  // 17. busca que falhou tem "tentar de novo" (antes só apagando e digitando de novo)
+  await passo("17. busca com erro oferece tentar de novo", async () => {
+  const b = await abrir({ papel: 'admin', falhar: ['r6_busca_global'] }, 1440);
+  await b.page.click('#bBusca'); await espera(150);
+  await b.page.type('#buscaInput', 'gabi'); await espera(900);
+  const erro = await b.page.$eval('#buscaLista', (l) => ({ texto: l.innerText, alerta: !!l.querySelector('[role="alert"]'), botao: !!l.querySelector('[data-busca-de-novo]') }));
+  conferir('busca com erro: aviso falado e botão tentar de novo', erro.alerta && erro.botao, erro.texto.slice(0, 60));
+  await b.page.click('[data-busca-de-novo]'); await espera(600);
+  const depois = await b.page.evaluate(() => [document.activeElement && document.activeElement.id, !!document.querySelector('#buscaLista [data-busca-de-novo]')]);
+  conferir('tentar de novo busca outra vez e o foco volta ao campo', depois[0] === 'buscaInput' && depois[1], JSON.stringify(depois));
+  await b.page.close();
+  });
 } finally {
   await browser.close();
 }
