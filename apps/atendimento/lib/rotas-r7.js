@@ -43,7 +43,14 @@ function criarRotasR7({ getSb, usuarioLogado, dentroDoLimite, readBody, retomada
     }
     if (pathname === '/api/r7/retomada/iniciar' && req.method === 'POST') {
       if (!limitar('r7-iniciar', 6)) return true;
-      const corpo = (await readBody(req).catch(() => ({}))) || {};
+      /* Rodada 10: corpo quebrado não pode virar "sem ids" (= reenviar tudo o que está parado).
+         Sem corpo continua valendo como "tudo"; JSON inválido é 400 e `ids` tem de ser lista. */
+      let corpo;
+      try { corpo = (await readBody(req)) || {}; }
+      catch (e) { return enviar(req, res, e?.status || 400, { ok: false, erro: e?.erro || 'Não consegui ler o pedido.', codigo: e?.codigo || 'corpo_ilegivel' }); }
+      if (corpo.ids !== undefined && corpo.ids !== null && !Array.isArray(corpo.ids)) {
+        return enviar(req, res, 400, { ok: false, erro: 'A lista de mensagens veio em formato errado. Atualize a página e tente de novo.', codigo: 'ids_invalidos' });
+      }
       const r = await RET().iniciar({ perfil: quem, ids: Array.isArray(corpo.ids) ? corpo.ids.slice(0, 200) : null });
       return enviar(req, res, r.ok ? 200 : (r.status || 500), r);
     }

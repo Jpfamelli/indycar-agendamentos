@@ -723,6 +723,14 @@ async function receberDoCodeWords(req, body) {
   const enviado  = req.headers['x-codewords-token'] || req.headers['x-webhook-token'] || body.token;
   const esperado = typeof cfg?.token_webhook === 'string' ? cfg.token_webhook.trim() : '';
   if (erroCfg || !esperado || !segredosIguais(enviado, esperado)) {
+    /* Rodada 10: quem chuta o token não enche o banco. Do mesmo endereço, as 10 primeiras
+       tentativas erradas em 10 min ficam registradas; dali em diante é 429 sem gravar nada.
+       Quem manda o token certo passa sempre (a conferência do token vem antes). */
+    const ip = IP_DE(req);
+    if (LIMITE.contar(`webhook-token:${ip}`, 10 * 60_000) > 10) {
+      return { status: 429, espera: LIMITE.espera(`webhook-token:${ip}`),
+        corpo: { ok: false, codigo: 'muitas_tentativas', erro: 'Muitas tentativas com token inválido. Espere alguns minutos.' } };
+    }
     await registrarEvento(sb, { direcao:'entrada', sucesso:false,
       resumo: esperado ? 'token inválido' : 'webhook sem token configurado',
       erro: erroCfg ? 'não consegui ler a configuração'
@@ -747,6 +755,14 @@ async function receberDoCodeWords(req, body) {
     return { status: 400, corpo: { ok: false, codigo: 'faltou-campo',
              erro: `Faltou ${!telefone ? 'o telefone (campo telefone/phone/from)' : 'o texto (campo mensagem/message/text)'} na mensagem recebida.`,
              recebido: Object.keys(body).slice(0, 20) } };
+  }
+  /* Rodada 10: telefone de verdade tem de 10 a 15 dígitos. Texto solto ("abc"), número curto e
+     grupo (18 dígitos ou mais, "@g.us") não viram conversa nem lead. */
+  const digitosTel = soDigitos(telefone.replace(/@.*$/, ''));
+  if (digitosTel.length < 10 || digitosTel.length > 15 || /@g\.us/i.test(telefone)) {
+    await registrarEvento(sb, { direcao:'entrada', sucesso:false, resumo:'telefone inválido', payload: recortarPayload(body) });
+    return { status: 400, corpo: { ok: false, codigo: 'telefone-invalido',
+             erro: 'O telefone da mensagem recebida não é válido: mande DDD + número (10 a 15 dígitos).' } };
   }
 
   const { error } = await sb.from('whatsapp_mensagens').insert({
@@ -2380,6 +2396,10 @@ const handler = async (req, res) => {
     }
 
     if (pathname.startsWith('/api/')) {
+      /* Rodada 10: "%" torto no endereço (ex.: /api/clientes/%E0%A4%A/ficha) fazia o
+         decodeURIComponent das rotas lançar e virava erro 500 com código para o suporte. */
+      try { decodeURIComponent(pathname); }
+      catch { return json(res, 400, { erro: 'Endereço inválido.', codigo: 'endereco_invalido' }); }
       // CORS só para os apps do ecossistema, em todas as rotas de API
       SEG.aplicarCabecalhos(res, SEG.cabecalhosCors(req.headers.origin));
       if (req.method === 'OPTIONS') {
@@ -2626,6 +2646,7 @@ const handler = async (req, res) => {
       }
       if (req.method === 'POST') {
         const r = await receberDoCodeWords(req, await readBody(req));
+        if (r.espera) res.setHeader('Retry-After', String(r.espera));
         return json(res, r.status, r.corpo);
       }
       return json(res, 405, { erro: 'use POST' });
@@ -2655,7 +2676,7 @@ const handler = async (req, res) => {
       }
       /* Com mensagemId (a linha já gravada em whatsapp_mensagens), repetir o
          pedido não manda duas vezes — ver lib/entrega.js. */
-      const r = await ENTREGADOR.entregar(dados, bruto.mensagemId ? texto1(bruto.mensagemId, 60) : null);
+      const r = await ENTREGADOR.entregar(dados, bruto.mensagemId ? texto1(bruto.mensagemId, 60) : null, { conferirTelefone: true });
       if (r.status === 400 || r.status === 409) return json(res, r.status, r);
       // "desligado" não é erro: a mensagem fica registrada aqui mesmo assim
       return json(res, r.ok || r.desligado ? 200 : 502, r);
@@ -2964,6 +2985,10 @@ const handler = async (req, res) => {
         return json(res, 403, { erro: 'Só o administrador pode religar a conexão.' });
       }
       await readBody(req);
+      // rodada 10: cada pedido é uma ida ao CodeWords que mexe na inscrição do aparelho
+      if (!dentroDoLimite(`reinscrever:${quem.id}`, 6, 300_000)) {
+        return json(res, 429, { erro: 'Muitas tentativas de religar seguidas. Espere alguns minutos.', codigo: 'muitas_tentativas' });
+      }
       const r = await reinscreverNoFluxo();
       await auditar({ perfil: quem.id, acao: 'whatsapp.reinscrever', tabela: 'codewords_config', detalhes: { ok: !!r.ok } });
       return json(res, r.ok ? 200 : 502, r);
@@ -3059,6 +3084,10 @@ const handler = async (req, res) => {
         return json(res, 403, { erro: 'Só o administrador pode testar a conexão.' });
       }
       await readBody(req);   // consome o corpo; o número de destino é fixo de propósito
+      // rodada 10: cada teste é um WhatsApp de verdade no celular do dono e gasta cota
+      if (!dentroDoLimite(`testar-envio:${quem.id}`, 5, 600_000)) {
+        return json(res, 429, { erro: 'Muitos testes seguidos. Espere alguns minutos.', codigo: 'muitas_tentativas' });
+      }
       const r = await enviarPeloCodeWords({
         telefone: TELEFONE_DO_TESTE,
         corpo: '🏁 Teste de conexão do painel de atendimento da IndyCar.',
