@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { confereMock } from './confere-mock-r10.mjs';
 
 // Rode os dois scripts mock-server.mjs nas portas abaixo antes de abrir o Chrome.
 const require = createRequire(import.meta.url);
@@ -10,6 +11,9 @@ const portas = [
   ['atendimento', Number(process.env.PORTA_MOCK_ATD || 3470)],
   ['comunicar', Number(process.env.PORTA_MOCK_COM || 3471)],
 ];
+for (const [app, port] of portas) {
+  await confereMock(`http://localhost:${port}`, app);
+}
 const browser = await puppeteer.launch({
   protocolTimeout: 45_000,
   executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',

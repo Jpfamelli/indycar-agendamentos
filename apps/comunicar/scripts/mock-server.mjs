@@ -478,6 +478,10 @@ function c360Mock(c, tel) {
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
+  if (req.method === 'GET' && url.pathname === '/__qa/mock') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ mock: 'comunicar' }));
+  }
   const p = url.pathname, m = req.method;
   if (!p.startsWith('/api/')) {
     if (p === '/' || p === '/index.html') {
