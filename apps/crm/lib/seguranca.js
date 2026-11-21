@@ -40,8 +40,8 @@ function cspPagina({ hashes = [], supabaseUrl = '' } = {}) {
   return [
     "default-src 'self'",
     `script-src 'self' https://cdn.jsdelivr.net ${hashes.join(' ')}`.trim(),
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
+    "style-src 'self' 'unsafe-inline'",   // rodada 11: fontes do padrão vêm da Central (/casa/), nada do Google
+    "font-src 'self' data:",
     "img-src 'self' data: blob:",
     `connect-src 'self' ${sb}`.trim(),
     "manifest-src 'self'", "worker-src 'self'",
