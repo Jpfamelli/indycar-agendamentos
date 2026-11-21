@@ -953,7 +953,7 @@ async function handler(req, res) {
         if (bruto.cargo != null && typeof bruto.cargo !== 'string') return json(res, 400, { erro: 'Informe o cargo em texto.' });
 
         const nome  = texto1(bruto.nome, 80).trim();
-        const email = texto1(bruto.email, 160).trim().toLowerCase();
+        const email = typeof bruto.email === 'string' ? bruto.email.trim().toLowerCase() : '';
         if (typeof bruto.senha !== 'string' || bruto.senha.length > 200) {
           return json(res, 400, { erro: 'Informe uma senha de até 200 caracteres.' });
         }
@@ -961,13 +961,14 @@ async function handler(req, res) {
           return json(res, 400, { erro: 'Informe se a pessoa precisa trocar a senha.' });
         }
         const senha = bruto.senha;
-        const papel = U.PAPEIS.includes(bruto.papel) ? bruto.papel : 'atendente'; // 'agenda' = so presenca
+        if ('papel' in bruto && !U.PAPEIS.includes(bruto.papel)) return json(res, 400, { erro: 'Escolha uma função válida.' });
+        const papel = bruto.papel ?? 'atendente';
         if (bruto.apps !== undefined && (!Array.isArray(bruto.apps) || bruto.apps.some(a => !U.APPS.includes(a)))) return json(res, 400, { erro: `Apps válidos: ${U.APPS.join(', ')}.` });
         const apps = papel === 'agenda' ? ['agenda'] : (Array.isArray(bruto.apps) ? [...new Set(bruto.apps)] : U.APPS);
         const cargo = texto1(bruto.cargo, 60).trim() || null;
 
         if (!nome) return json(res, 400, { erro: 'Informe o nome da pessoa.' });
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
           return json(res, 400, { erro: 'Esse e-mail não parece válido.' });
         }
         if (senha.length < 8) {

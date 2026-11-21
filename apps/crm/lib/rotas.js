@@ -196,7 +196,7 @@ async function rotasR3(c) {
     exigirAdmin('Só o administrador muda os apps de alguém.');
     const sb = precisa(c.sb, 'Equipe');
     const b = await lerCorpo();
-    if (!ehUuid(b.id)) throw falha(400, 'Informe quem você quer alterar.');
+    if (typeof b.id !== 'string' || !ehUuid(b.id)) throw falha(400, 'Informe quem você quer alterar.');
     if (!Array.isArray(b.apps) || b.apps.some(a => !U.APPS.includes(a))) throw falha(400, `Apps válidos: ${U.APPS.join(', ')}.`);
     const { data: alvo } = await sb.from('perfis').select('id,papel,apps').eq('id', b.id).maybeSingle();
     if (!alvo) throw falha(404, 'Pessoa não encontrada.');
@@ -212,7 +212,7 @@ async function rotasR3(c) {
     exigirGestor('Só um gestor muda quem recebe leads.');
     const sb = precisa(c.sb, 'Equipe');
     const b = await lerCorpo();
-    if (!ehUuid(b.id) || typeof b.recebe_leads !== 'boolean') throw falha(400, 'Informe id e recebe_leads (true/false).');
+    if (typeof b.id !== 'string' || !ehUuid(b.id) || typeof b.recebe_leads !== 'boolean') throw falha(400, 'Informe id e recebe_leads (true/false).');
     const { data, error } = await sb.from('perfis').update({ recebe_leads: b.recebe_leads }).eq('id', b.id).select('id,recebe_leads').maybeSingle();
     if (error) throw falha(503, 'Não consegui salvar.');
     if (!data) throw falha(404, 'Pessoa não encontrada.');
@@ -225,7 +225,7 @@ async function rotasR3(c) {
     const sb = precisa(c.sb, 'Equipe');
     frear('senha-temp', 5, 600_000);
     const b = await lerCorpo();
-    if (!ehUuid(b.id)) throw falha(400, 'Informe quem vai receber a senha.');
+    if (typeof b.id !== 'string' || !ehUuid(b.id)) throw falha(400, 'Informe quem vai receber a senha.');
     if (b.id === quem.id) throw falha(400, 'Para a sua própria senha, use "Trocar senha" no seu perfil.');
     const { data: alvo } = await sb.from('perfis').select('id,ativo').eq('id', b.id).maybeSingle();
     if (!alvo) throw falha(404, 'Pessoa não encontrada.');
