@@ -170,13 +170,21 @@
   /** Nome da aba de cada app (window.open(url, nome)): a Casa nunca vira o app e clicar de novo volta para a aba dele. */
   const nomeDaAba = (k) => 'indycar-' + k;
 
+  /**
+   * Rodada 11: o Orçador vai morar DENTRO do Atendimento (aba Orçador). O dia em que isso for publicado, troque só esta
+   * linha para true: o cartão da Casa, a busca, o sino e os links de orçamento passam a abrir /atendimento/ na aba Orçador.
+   */
+  const ORCADOR_NO_ATENDIMENTO = false;
+  const ORCADOR_NO_ATENDIMENTO_URL = '/atendimento/?aba=orcador';
+
   /** Endereços configuráveis: o servidor manda `apps` em /api/central/config (PATIO_URL, ORCADOR_URL); sem isso, produção. */
-  function bases(cfgApps) {
+  function bases(cfgApps, orcadorNoAtendimento = ORCADOR_NO_ATENDIMENTO) {
     const out = {};
     for (const [k, a] of Object.entries(APPS)) out[k] = a.base;
     const ok = (u) => typeof u === 'string' && /^https:\/\/[a-z0-9.-]+(\/|$)/i.test(u);
     if (cfgApps && ok(cfgApps.patio)) out.patio = cfgApps.patio.replace(/\/*$/, '/');
     if (cfgApps && ok(cfgApps.orcador)) out.orcador = cfgApps.orcador.replace(/\/*$/, '/');
+    if (orcadorNoAtendimento) out.orcador = ORCADOR_NO_ATENDIMENTO_URL;
     return out;
   }
   const q = (obj) => {
@@ -204,7 +212,11 @@
       patioTv: () => b.patio + '?tv=1',
       orcamento: (id) => b.orcador + (ehUuid(id) ? '#/historico/' + id : '#/historico'),
       orcamentosLista: (filtro) => b.orcador + '#/historico' + (filtro ? '?busca=' + encodeURIComponent(filtro) : ''),
-      novoOrcamento: (o = {}) => b.orcador + q({ tel: telefoneE164(o.telefone), nome: String(o.nome || '').slice(0, 80), cliente: ehUuid(o.cliente) ? o.cliente : '' }),
+      /* com o Orçador dentro do Atendimento a base já tem "?aba=orcador": os dados entram depois de "&" */
+      novoOrcamento: (o = {}) => {
+        const s = q({ tel: telefoneE164(o.telefone), nome: String(o.nome || '').slice(0, 80), cliente: ehUuid(o.cliente) ? o.cliente : '' });
+        return b.orcador + (b.orcador.includes('?') ? s.replace(/^\?/, '&') : s);
+      },
     };
   }
 
@@ -525,32 +537,8 @@
     };
   }
 
-  /* ---------------- atalhos de teclado ---------------- */
-  /* rodada 9: o Tráfego só abria pelo 7; agora também pelo "g depois f" (a ordem aqui é a da dica que aparece no canto) */
-  const ATALHOS_G = { a: 'agenda', t: 'atendimento', c: 'crm', m: 'comunicar', p: 'patio', o: 'orcador', f: 'ads' };
-  const AJUDA_ATALHOS = [
-    ['Ctrl+K  ou  /', 'Buscar por telefone, nome ou placa em tudo'],
-    ['g  depois  a', 'Abrir a Agenda'],
-    ['g  depois  t', 'Abrir o Atendimento (conversas)'],
-    ['g  depois  c', 'Abrir o CRM'],
-    ['g  depois  m', 'Abrir o Comunicar'],
-    ['g  depois  p', 'Abrir o Pátio'],
-    ['g  depois  o', 'Abrir o Orçador'],
-    ['g  depois  f', 'Abrir o Tráfego (anúncios)'],
-    ['1 … 7', 'Abrir o app da posição (1 Agenda, 2 Atendimento, 3 CRM, 4 Comunicar, 5 Pátio, 6 Orçador, 7 Tráfego)'],
-    ['>', 'Na busca: comandos (novo horário, nova entrada, tema…)'],
-    ['j  ou  k', 'Descer / subir na lista “Pede atenção agora” (Enter abre)'],
-    ['d', 'Alternar Operação / Visão do dono'],
-    ['h', 'Abrir ou fechar a saúde dos sistemas (WhatsApp, Pátio, Orçador…)'],
-    ['e', 'Recolher ou abrir todos os cartões do Agora'],
-    ['t', 'Ir para as minhas tarefas'],
-    ['Shift+Enter', 'Na busca: abrir a ficha do cliente'],
-    ['n', 'Nova tarefa para mim'],
-    ['s', 'Abrir o sino de avisos'],
-    ['r', 'Atualizar o painel agora'],
-    ['?', 'Mostrar esta ajuda'],
-    ['Esc', 'Fechar o que estiver aberto'],
-  ];
+  /* rodada 11: a ajuda de atalhos e as teclas de letra e número saíram (o João pediu para tirar toda ajuda). Fica só
+     Ctrl+K ou "/" para buscar, que mora em busca.js. */
   const ehCampo = (el) => !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
 
   root.CasaLogica = Object.freeze({
@@ -558,6 +546,6 @@
     duracao, quando, hojeSP, diaDe, hora5, saudacao, ETAPAS, ETAPA, rotuloEtapa, tomDaEtapa, previsao, STATUS_ORC, rotuloOrc, numeroOrc,
     STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
     contagemPorApp, tituloDaAba, tempoDoAviso, atencao, gargalos, conversao, barras, diaCurto, classificarBusca, GRUPOS_BUSCA, linhasDaBusca, filtrarPorPermissao,
-    ATALHOS_G, AJUDA_ATALHOS, ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca,
+    ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca, ORCADOR_NO_ATENDIMENTO, ORCADOR_NO_ATENDIMENTO_URL,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
