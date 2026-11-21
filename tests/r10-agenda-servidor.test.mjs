@@ -436,7 +436,8 @@ test('R10-AGE-031: endereço que não é arquivo devolve a casca comprimida e co
   const cru1 = await pedir({});
   const br = await pedir({ 'Accept-Encoding': 'br' });
   assert.equal(br.status, 200); assert.equal(br.cab['content-encoding'], 'br'); assert.ok(br.cab.etag, 'tem ETag');
-  assert.ok(cru1.bytes > 20000, 'a casca crua tem mais de 20 kB: ' + cru1.bytes);
+  // rodada 11: sem a barra lateral e o topo antigo, a casca crua caiu de 21,8 kB para uns 13 kB
+  assert.ok(cru1.bytes > 10000 && cru1.bytes < 16000, 'a casca crua tem de 10 a 16 kB: ' + cru1.bytes);
   assert.ok(br.bytes < 7000, 'comprimida fica abaixo de 7 kB: ' + br.bytes);
   const de_novo = await pedir({ 'Accept-Encoding': 'br', 'If-None-Match': br.cab.etag });
   assert.equal(de_novo.status, 304); assert.equal(de_novo.bytes, 0);

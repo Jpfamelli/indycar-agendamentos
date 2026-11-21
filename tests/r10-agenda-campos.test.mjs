@@ -27,23 +27,18 @@ test('R9-AGE-017 a 019 e 026 a 029: as buscas são campo de pesquisa, com a tecl
     assert.match(c, /type="search"/, id); assert.match(c, /enterkeyhint="search"/, id); assert.ok(c.includes(`aria-label="${nome}"`), id);
   }
   assert.match(campo(app, 'qAgenda'), /placeholder="Cliente, placa ou telefone"/);
-  const servico = campo(app, 'qServ');
-  assert.match(servico, /type="search"/); assert.match(servico, /aria-label="Buscar serviço, categoria ou escopo"/);
-  assert.match(app, /Digite pelo menos 2 caracteres\. Atalho: Ctrl\+K\./);
+  // rodada 11: a tela de Serviços (só leitura, o catálogo é do CRM) saiu, e o "Atalho: Ctrl+K" explicado também
+  assert.ok(!/id="qServ"/.test(app), 'a busca da tela de Serviços saiu');
+  assert.match(app, /Digite pelo menos 2 caracteres\.<\/p>/);
+  assert.ok(!app.includes('Atalho: Ctrl+K'));
 });
 
 test('R9-AGE-020 a 023 e 031 a 036: campos de configuração com rótulo ligado e o teclado certo', () => {
-  for (const id of ['of_nome', 'cn_whk', 'cfg_pnid', 'cfg_num', 'cfg_waba', 'cfg_ver', 'cfg_verify', 'cw_base']) assert.ok(temRotulo(app, id), 'rótulo de ' + id);
-  assert.match(campo(app, 'cn_whk'), /inputmode="url"/);
-  assert.match(campo(app, 'cw_base'), /inputmode="url"/);
-  assert.match(campo(app, 'cfg_pnid'), /inputmode="numeric"/);
-  assert.match(campo(app, 'cfg_waba'), /inputmode="numeric"/);
-  assert.match(campo(app, 'cfg_num'), /type="tel"/);
+  assert.ok(temRotulo(app, 'of_nome'), 'rótulo de of_nome');
   assert.match(campo(app, 'of_tel'), /type="tel"[^>]*autocomplete="tel"/);
-  assert.match(campo(app, 'cfg_ver'), /spellcheck="false"/);
-  assert.match(campo(app, 'cfg_verify'), /spellcheck="false"/);
-  assert.match(campo(app, 'cn_ics'), /aria-label="Link do calendário iCal"[^>]*readonly/);
-  assert.match(app, /<label for="cfg_waba">ID da conta do WhatsApp \(WABA\)<\/label>/);
+  // rodada 11: Conectores (webhook, iCal) e a tela de WhatsApp (Cloud API, CodeWords) saíram da Agenda;
+  // a conexão do WhatsApp mora no Atendimento › Integrações
+  for (const id of ['cn_whk', 'cn_ics', 'cfg_pnid', 'cfg_num', 'cfg_waba', 'cfg_ver', 'cfg_verify', 'cw_base']) assert.ok(!new RegExp(`id="${id}"`).test(app), id + ' saiu');
 });
 
 test('R9-AGE-024, 025 e 030: placa em maiúsculas sem corretor e nome da equipe com preenchimento de nome', () => {
@@ -52,5 +47,6 @@ test('R9-AGE-024, 025 e 030: placa em maiúsculas sem corretor e nome da equipe 
     assert.match(c, /autocapitalize="characters"/, id); assert.match(c, /spellcheck="false"/, id); assert.match(c, /text-transform:uppercase/, id);
     assert.ok(temRotulo(app, id), 'rótulo de ' + id);
   }
-  assert.match(campo(app, 'eq_nome'), /maxlength="80"[^>]*autocomplete="name"/);
+  // rodada 11: "Equipe e acessos" saiu das Configurações da Agenda (mora no Atendimento › Equipe)
+  assert.ok(!/id="eq_nome"/.test(app), 'eq_nome saiu');
 });

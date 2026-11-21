@@ -21,7 +21,9 @@ test('R9 lote 6: a folha rodada9.css entra na página e na casca guardada (cache
 });
 
 test('R9 lote 6: alvo de toque de 44 px nos controles do dia a dia (só em toque ou tela estreita)', () => {
-  for (const s of ['.btn,.btn.mini', '.btn-novo', '.pilula', '.tab', '.act', '.search input', 'a.badge-pill', 'button.badge-pill', '.tema-toggle'])
+  // rodada 11: o botão de tema da barra lateral saiu (o tema mora no menu da pessoa)
+  assert.ok(!toque.includes('.tema-toggle'));
+  for (const s of ['.btn,.btn.mini', '.btn-novo', '.pilula', '.tab', '.act', '.search input', 'a.badge-pill', 'button.badge-pill'])
     assert.match(regra(toque, s), /min-height:var\(--alvo\)/, s);
   for (const s of ['.icon-btn', '.copiar', '.avatar-bottom', '.sem-nav .icon-btn'])
     assert.match(regra(toque, s), /width:var\(--alvo\);height:var\(--alvo\)/, s);
@@ -51,12 +53,12 @@ test('R9 lote 6: contraste AA no tema claro e nas peças que esmaeciam o texto',
   assert.match(regra(css9, '.qd-dia.fechado'), /opacity:1/);
   assert.match(regra(css9, '.qd-card.s-nao_veio,.qd-card.s-cancelado,.qd-card.s-nao_fechou'), /opacity:1/);
   assert.match(regra(css9, '.qd-card.s-concluido'), /opacity:1/);
-  assert.match(regra(css9, '.r7r-delta.bom'), /var\(--green-txt\)/);
-  assert.match(regra(css9, '.r7r-delta.ruim,.r7r-ruim'), /var\(--red-txt\)/);
+  // rodada 11: os Relatórios do dono saíram da Agenda (moram no CRM e na Central), e as cores deles junto
+  assert.ok(!css9.includes('.r7r-'));
   assert.ok(css9.includes(':root:not([data-tema="claro"]) .bp-gray{color:#a3abbe}'));
   // o verde vivo do WhatsApp não fica mais fixo no título (1,73 no claro)
   assert.doesNotMatch(app, /color:#25d366/);
-  assert.equal(app.split('class="titulo-wa"').length - 1, 2);
+  assert.equal(app.split('class="titulo-wa"').length - 1, 1);   // rodada 11: só o "Enviar WhatsApp"; a tela de WhatsApp saiu
 });
 
 /** contraste WCAG entre duas cores #rrggbb */
@@ -97,20 +99,22 @@ test('R9 lote 6: Quadro com linhas de verdade para o leitor de tela', () => {
 });
 
 test('R9 lote 6: tabelas que rolam de lado recebem foco e têm nome; webhook com rótulo; fechar com nome', () => {
-  assert.equal(app.split('<div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo">').length - 1, 5);
+  // rodada 11: saíram o Histórico e o CRM (com a "Tabela por consultor") e a tela de WhatsApp (com o webhook)
+  assert.equal(app.split('<div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo">').length - 1, 4);
   assert.ok(!app.includes('<div class="tabela-rolagem">'));
-  assert.ok(app.includes('class="panel-body tabela-rola" tabindex="0" role="region" aria-label="Tabela por consultor"'));
+  assert.ok(!app.includes('aria-label="Tabela por consultor"'));
   assert.ok(ler('public/agenda-planejada.js').includes('class="sem-tabela" tabindex="0" role="region" aria-label="Tabela: ${esc(titulo)}"'));
-  assert.ok(app.includes('<label for="cfg_webhook">URL do Webhook'));
+  assert.ok(!app.includes('cfg_webhook'));
   for (const m of app.matchAll(/<button[^>]*class="modal-close"[^>]*>/g)) assert.match(m[0], /aria-label="Fechar"/, m[0]);
 });
 
 test('R9 lote 6: Início no celular, avisos numa fila e rótulos do menu sem quebrar', () => {
   assert.ok(app.includes('<div class="hero-chips">${c.semTelefone30d > 0'));
-  assert.ok(app.includes('Horários falados no WhatsApp</button></div>'));
+  // rodada 11: "Horários falados no WhatsApp" saiu do Hoje (a conversa mora no Atendimento) e o menu lateral também
+  assert.ok(!app.includes('Horários falados no WhatsApp'));
   const cel = css9.slice(css9.indexOf('@media (max-width:640px){'));
   assert.match(regra(cel, '.hero-chips'), /flex-wrap:nowrap;overflow-x:auto/);
-  assert.match(regra(cel, '.nav-item span'), /font-size:9px;overflow-wrap:normal;white-space:nowrap/);
+  assert.ok(!css9.includes('.nav-item span'));
   assert.match(regra(css9, '.hero-dia > div:first-child'), /min-width:0/);
 });
 
@@ -124,15 +128,10 @@ test('R9 lote 6: sem faixa grossa na lateral dos cartões (Quadro, confirmaçõe
 });
 
 test('R9 lote 6: textos (endereço sem travessão, etiqueta do Início, horários por extenso, vírgula decimal)', () => {
-  assert.ok(html.includes('id="empresaEndereco">Av. Bandeirantes, 875, Taubaté/SP<'));
-  assert.ok(html.includes('id="pageTag">INÍCIO<'));
-  // a mesma troca que a tela faz com o endereço que vem do cadastro
-  const m = app.match(/String\(state\.empresa\.endereco \|\| ''\)\.replace\((\/.+?\/g), ', '\)/);
-  assert.ok(m, 'o endereço do cadastro passa pela troca');
-  const re = new RegExp(m[1].slice(1, -2), 'g');
-  assert.equal('Av. Bandeirantes, 875 — Parque Paduan, Taubaté/SP'.replace(re, ', '), 'Av. Bandeirantes, 875, Parque Paduan, Taubaté/SP');
-  assert.equal('Rua A, 10 – Centro'.replace(re, ', '), 'Rua A, 10, Centro');
-  assert.ok(ler('public/rodada7r.js').includes("${escH(d.marcados)} ${d.marcados === 1 ? 'horário' : 'horários'}"));
+  // rodada 11: o topo com nome, endereço e etiqueta da tela deu lugar ao topo padrão "IndyCar Agenda"
+  assert.ok(!html.includes('id="empresaEndereco"') && !html.includes('id="pageTag"'));
+  assert.ok(html.includes('<span class="ic-nome">IndyCar <b>Agenda</b></span>'));
+  assert.ok(!fs.existsSync(new URL('../public/rodada7r.js', import.meta.url)), 'os Relatórios do dono saíram');
   assert.ok(ler('public/agenda-planejada.js').includes('String(Math.round(oc.cargaMin / 6) / 10).replace(".", ",")} h de serviço'));
 });
 
@@ -155,7 +154,7 @@ function semComentarios(arquivo) {
   return saida;
 }
 const TELAS = ['public/index.html', 'public/app.js', 'public/apps.js', 'public/conta.js', 'public/planejamento.js', 'public/agenda-planejada.js',
-  'public/rodada6.js', 'public/rodada6b.js', 'public/rodada6c.js', 'public/rodada6d.js', 'public/rodada7.js', 'public/rodada7r.js'];
+  'public/rodada6.js', 'public/rodada6b.js', 'public/rodada6c.js', 'public/rodada6d.js', 'public/rodada7.js'];
 
 test('R9 lote 7: nenhum texto de tela com travessão no meio da frase (o traço sozinho de "sem dado" continua)', () => {
   for (const f of TELAS) {
@@ -174,7 +173,7 @@ test('R9 lote 7: recados do servidor sem travessão (erros, motivos, tarefas e a
 test('R9 lote 7: frases que ficaram em duas (não só trocaram o traço por vírgula)', () => {
   assert.ok(app.includes("'Sem internet. Assim que a conexão voltar eu continuo de onde parou…'"));
   assert.ok(app.includes('Entre de novo. O que você estava digitando ficou guardado.'));
-  assert.ok(app.includes('Follow-up: retornos pendentes</h2>'));
+  assert.ok(!app.includes('Follow-up'));   // rodada 11: o follow-up mora no Comunicar
   assert.ok(app.includes('${esc(j.inicio)} às ${esc(j.fim)}'));
   assert.ok(app.includes('<option value="">sem login ligado</option>') && app.includes('<option value="">Mensagem livre</option>'));
   assert.ok(html.includes('Sem internet. O que você marcar agora fica guardado no aparelho'));
@@ -186,7 +185,8 @@ test('R9 lote 7: sem o brilho de enfeite nos botões; a Ajuda cita o botão pelo
   assert.ok(app.includes('>Horários livres</button>'));
   assert.ok(app.includes('id="vf_usar" >Usar ${esc(P.reais(s.valor))}</button>'));
   assert.ok(app.includes('aria-label="Sugerir valor para ${esc(a.cliente_nome)}">${svg(I.money)}</button>'));
-  assert.ok(app.includes('Use "Horários livres" para ver as vagas do dia e "Achar pelo nome" para o telefone.'));
+  // rodada 11: a Ajuda saiu inteira (com o tour e os atalhos explicados)
+  assert.ok(!app.includes('renderAjuda') && !app.includes('abrirTour') && !app.includes('ATALHOS'));
   assert.ok(!app.includes('Sugerir horário'));
 });
 
@@ -194,12 +194,12 @@ test('R9 lote 7: fontes do próprio app (Archivo e Barlow Condensed), sem Inter 
   assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(html));
   for (const f of ['public/styles.css', 'public/conta.css', 'public/rodada4.css', 'public/planejamento.css', 'public/rodada5.css', 'public/rodada7.css']) assert.ok(!/['"]Inter['"]/.test(ler(f)), f);
   assert.match(ler('public/styles.css'), /font-family:'Archivo',system-ui,sans-serif/);
-  for (const arq of ['archivo-variavel.woff2', 'barlow-condensed-600.woff2', 'barlow-condensed-700.woff2']) {
-    assert.ok(fs.statSync(new URL('../public/fontes/' + arq, import.meta.url)).size > 10_000, arq);
-    assert.ok(css9.includes(`url('./fontes/${arq}') format('woff2')`), arq);
-    assert.ok(ler('public/sw.js').includes(`'fontes/${arq}'`), arq + ' na casca guardada');
-  }
-  assert.ok(html.includes('<link rel="preload" href="./fontes/archivo-variavel.woff2" as="font" type="font/woff2" crossorigin />'));
+  // rodada 11: as fontes vêm do padrão IndyCar (/casa/indycar.css), as mesmas de todos os apps; a Agenda não tem @font-face próprio
+  assert.match(html, /<link rel="stylesheet" href="\/casa\/indycar\.css" \/>\s*<link rel="stylesheet" href="\.\/styles\.css" \/>/);
+  for (const f of ['public/styles.css', 'public/rodada9.css', 'public/rodada11.css', 'public/conta.css']) assert.ok(!ler(f).includes('@font-face'), f);
+  assert.ok(!ler('public/sw.js').includes('fontes/'));
+  for (const arq of ['archivo-variavel.woff2', 'barlow-condensed-600.woff2', 'barlow-condensed-700.woff2'])
+    assert.ok(ler('casa/indycar.css').includes(`url('/casa/${arq}')`), arq);
   const srv = ler('server.js') + ler('regras.js');   // rodada 10: a política de conteúdo mora em regras.js (politicaDeConteudo)
   assert.ok(srv.includes(`"font-src 'self'",`) && srv.includes(`"style-src 'self' 'unsafe-inline'",`));
   assert.ok(!/fonts\.googleapis|fonts\.gstatic/.test(srv));
@@ -246,7 +246,7 @@ test('R9 lote 8: data por extenso em português certo ("20 de novembro de 2026")
 });
 
 test('R9 lote 8: "carro", nunca "veículo", na tela de Serviços, nas planilhas e no Google Agenda', () => {
-  assert.ok(app.includes('meta.push(`Carro: ${esc(s.tipo_veiculo)}`)'));
+  assert.ok(!app.includes('tipo_veiculo'));   // rodada 11: a tela de Serviços saiu (o catálogo é do CRM)
   const srv = ler('server.js');
   assert.ok(srv.includes("gerarCSV(['id','cliente','telefone','carro','placa','servico',"));
   assert.ok(srv.includes("gerarCSV(['id','nome','telefone','carro','placa','modelo','origem','criado_em'], rows)"));
@@ -259,8 +259,9 @@ test('R9 lote 8: a caixa do "Buscar em tudo" não estica na altura', () => {
 });
 
 test('R9 lote 8: menu com "Mais" aberto rola em vez de encolher os itens; Remarcar diz o horário atual sem repetir "hoje"', () => {
-  assert.match(regra(css9, '.nav > *,.nav-mais-itens > *'), /flex-shrink:0/);
-  assert.match(ler('public/styles.css'), /\.nav\{[^}]*overflow-y:auto/);
+  // rodada 11: o menu lateral com "Mais" saiu; são até 5 abas no topo
+  assert.ok(!css9.includes('.nav-mais') && !html.includes('nav-mais'));
+  assert.equal(html.split('class="nav-item').length - 1, 5);
   assert.ok(app.includes('<small class="muted">Horário atual: ${esc(rotuloDia(a.data, agoraSP().data))} às'));
   assert.ok(!app.includes('Hoje marcado para'));
 });
