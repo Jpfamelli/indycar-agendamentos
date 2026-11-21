@@ -1473,3 +1473,7 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-047** · conserto · Distribuição em lote rejeita toda a seleção quando há um identificador inválido (teste R10-CRM-047 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
 - **R10-CRM-048** · conserto · Rodízio exige um período finito de 1 a 8760 horas (teste R10-CRM-048 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
 - **R10-CRM-049** · conserto · Rodízio exige limite inteiro de 1 a 200 leads (teste R10-CRM-049 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
+- **R10-CRM-050** · segurança · Execução individual e em lote exige confirmação de faturamento booleana quando informada (teste R10-CRM-050 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
+- **R10-CRM-051** · conserto · Resumo da IA rejeita período desconhecido antes de gerar o relatório (teste R10-CRM-051 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
+- **R10-CRM-052** · conserto · Triagem rejeita janelas fora de 1 a 60 dias (teste R10-CRM-052 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
+- **R10-CRM-053** · conserto · Triagem rejeita limites fora de 1 a 30 leads (teste R10-CRM-053 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
