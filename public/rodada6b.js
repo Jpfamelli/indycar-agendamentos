@@ -539,9 +539,7 @@
 
   if (typeof ROUTES !== 'undefined') {
     ROUTES.quadro = renderQuadro;
-    if (typeof TAGS !== 'undefined') TAGS.quadro = 'QUADRO';
     if (typeof TITULOS !== 'undefined') TITULOS.quadro = 'Quadro';
-    if (typeof ATALHOS_TELA !== 'undefined') ATALHOS_TELA.q = 'quadro';
   }
 
   window.R6b = { decorarPre, ehPre, blocoLembreteNaFicha, inicio, espera, renderQuadro, estado: _q, mover: (a, hora, consultorId, data) => moverPara(a, emMin(hora), consultorId || null, data), redesenhar: () => { if (_q.dados) desenhar(_q.dados); } };

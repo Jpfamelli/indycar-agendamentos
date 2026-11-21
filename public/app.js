@@ -222,16 +222,8 @@ const STATUS_LABEL = { aguardando:'Aguardando', confirmado:'Confirmado', em_aten
   compareceu:'Compareceu', nao_veio:'Não veio', concluido:'Concluído', nao_fechou:'Não fechou',
   cancelado:'Cancelado' };
 
-/* ---------------------------------------------------------------------------
-   ECOSSISTEMA INDYCAR — os apps da oficina. O seletor da barra lateral marca
-   este (a Agenda) e abre os outros numa aba nova.
-   --------------------------------------------------------------------------- */
-/* Os endereços moram em apps.js (IndyCarApps) — a Central troca por caminhos relativos. */
+/* Os endereços dos outros apps moram em apps.js (IndyCarApps); a Central troca por caminhos relativos. */
 const ICO_PATIO_APP = '<path d="M3 21V9l9-6 9 6v12"/><path d="M7 21v-6h10v6"/><path d="M9 18h6"/>';
-const ECOSSISTEMA = [['agenda', I.calendar], ['crm', I.flag], ['atendimento', I.wa], ['comunicar', I.send], ['patio', ICO_PATIO_APP], ['orcador', I.money], ['site', I.loja]]
-  .map(([chave, ico]) => ({ chave, ico, ...(window.IndyCarApps?.apps?.[chave] || {}), url: urlDoApp(chave) }))
-  .filter(a => a.url);
-const APP_ATUAL = 'agenda';
 
 /* Horário real da oficina: seg–sáb, 8h às 17h30. Fora disso a tela AVISA ao
    marcar (sem bloquear — o dono pode abrir exceção). */
@@ -470,8 +462,7 @@ function linkConversa(a) {
      Não veio          → status 'nao_veio'   → CRM: volta para Contato + aviso de ausência no WhatsApp
      Veio e não fechou → status 'nao_fechou' → CRM: Não fechou
    Quem recebe um desfecho de VISITA sai do Início — o lugar dele passa a ser o CRM.
-   opts.comWhatsapp: só o Follow-up passa true — aquela tela existe para mandar
-   mensagem. (O 2º argumento de .map é o índice, um número: por isso o teste de
+   (O 2º argumento de .map é o índice, um número: por isso o teste de
    tipo abaixo, que deixa os .map(appointmentCard) funcionando.) */
 function appointmentCard(a, opts) {
   const o = (opts && typeof opts === 'object') ? opts : {};
@@ -483,7 +474,6 @@ function appointmentCard(a, opts) {
         <button class="act orange" data-act="nao_fechou"
                 title="Veio, mas não fechou o serviço: vai para o CRM como Não fechou">${svg(I.flag)} Veio e não fechou</button>
         <span class="act-fim">
-        ${o.comWhatsapp === true ? `<button class="act wa" data-act="whatsapp">${svg(I.wa)} WhatsApp</button>` : ''}
         ${podePedirConfirmacao(a) ? `<button class="act ico pedir-conf" data-act="confirmar" title="Pedir confirmação ao cliente (link pelo WhatsApp)" aria-label="Pedir confirmação de ${esc(a.cliente_nome)}">${svg(I.check)}</button>` : ''}
         ${linkConversa(a)}
         <button class="act ico" data-act="remarcar" title="Remarcar (outro dia ou hora)" aria-label="Remarcar ${esc(a.cliente_nome)}">${svg(I.calendar)}</button>
@@ -523,7 +513,7 @@ window.pedirConfirmacao = async function (id) {
 /* O cartão some desta lista depois do desfecho? Depende de ONDE ele está:
    data-saida="tudo"      → agenda de hoje: qualquer desfecho tira o cartão da aba
    data-saida="desfecho"  → Últimos / lista da Agenda: sai quem veio; "Não veio" fica
-   sem data-saida         → busca e Follow-up: nada sai, a tela só se atualiza. */
+   sem data-saida         → busca: nada sai, a tela só se atualiza. */
 function cartaoVaiSair(card, act) {
   const box = card.closest('[data-saida]');
   if (!box) return false;
@@ -707,7 +697,6 @@ function bindApptActions(root) {
         if (act === 'remarcar') return abrirRemarcar(id);
         if (act === 'confirmar') return pedirConfirmacao(id);
         if (act === 'motivo') return window.R7?.pedirMotivo(id, card.querySelector('.appt-nome, .nome')?.textContent || '');
-        if (act === 'whatsapp') return openWhatsappModal(id);
         if (act === 'excluir') {
           if (!confirm('Excluir este agendamento?')) return;
           await api('DELETE', `/agendamentos/${id}`);
@@ -914,7 +903,7 @@ function repintarSePuder() {
 setInterval(repintarSePuder, 60000);
 document.addEventListener('visibilitychange', repintarSePuder);
 
-const CHAVES_CARDS = ['totalHoje', 'compareceram', 'naoVieram', 'naoFechou'];
+const CHAVES_CARDS = ['totalHoje', 'compareceram', 'naoVieram'];
 
 /* VELOCIDADE DO INÍCIO (rodada 4): o último painel carregado fica guardado
    nesta ABA (sessionStorage — some ao fechar a aba e ao sair da conta) por até
@@ -976,17 +965,6 @@ function pintarInicio(d, opts = {}) {
     : !d.agendaHoje.length ? 'Nenhum agendamento para hoje.' : '';
   const relProx = prox ? quandoRel(prox, agora) : null;
 
-  // a divisão A seguir / Já passaram é recalculada AQUI: ela muda com o relógio
-  const ultimos = porProximidade(d.ultimos, agora);
-  const proximos = ultimos.filter(a => a.secao === 'proximos');
-  const passados = ultimos.filter(a => a.secao !== 'proximos');
-  const htmlUltimos = !ultimos.length
-    ? vazio(I.calendar, 'Nada pendente', 'Quem já veio está no CRM. Os próximos horários marcados aparecem aqui.')
-    : (proximos.length ? `<div class="lista-sep">A seguir <em>${proximos.length}</em></div>`
-        + proximos.map(a => appointmentCard(a, { agora })).join('') : '')
-    + (passados.length ? `<div class="lista-sep">Já passaram <em>${passados.length}</em></div>`
-        + passados.map(a => appointmentCard(a, { agora })).join('') : '');
-
   view.innerHTML = `
     <div class="hero-dia">
       <div>
@@ -996,9 +974,7 @@ function pintarInicio(d, opts = {}) {
         <div class="hero-chips">${c.semTelefone30d > 0 ? `<button type="button" class="chip-aviso" id="chipSemTel"
             title="Sem telefone o cliente não recebe lembrete nem pós-venda. Toque para ver e corrigir.">
             ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
-        <span class="chips-gestor" id="chipsGestor"></span>
-        <span class="chips-gestor" id="chipsEquipe"></span>
-        <button class="btn" type="button" id="chipConversasSemHorario">Horários falados no WhatsApp</button></div>
+        <span class="chips-gestor" id="chipsGestor"></span></div>
         ${opts.doCache ? '<small class="marca-cache" aria-live="polite">Atualizando os horários. A lista ainda pode mudar.</small>' : ''}
       </div>
       ${prox ? `<div class="hero-prox">
@@ -1007,15 +983,13 @@ function pintarInicio(d, opts = {}) {
           <b>${esc(prox.cliente_nome)} · ${esc(prox.servico)}</b></div>
       </div>` : ''}
     </div>
-    <!-- Pedido do dono (2026-09-16): só 4 números do DIA, numa linha. A classe
-         row2 já é a grade de 4 colunas (com os mesmos pontos de quebra). -->
-    <div class="stat-grid row2">
+    <!-- Rodada 11: 3 números do dia ("vieram e não fecharam" é venda, mora no CRM) -->
+    <div class="stat-grid row2 tres">
       ${statCard('red',    c.totalHoje,    'Agendamentos hoje',       I.calendar)}
       ${statCard('green',  c.compareceram, 'Chegaram hoje',       I.check)}
       ${statCard('orange', c.naoVieram,    'Não vieram hoje',         I.x)}
-      ${statCard('purple', c.naoFechou,    'Vieram e não fecharam', I.flag)}
     </div>
-    <div class="cols cols-dia">
+    <div class="cols cols-dia so-hoje">
       <div class="panel">
         <div class="panel-head">
           <h2>Horários de hoje</h2>
@@ -1029,12 +1003,6 @@ function pintarInicio(d, opts = {}) {
                ${svg(ico)} ${rotulo} <em class="tab-num">${grupos[chave].length}</em></button>`).join('')}
         </div>
         <div class="panel-body lista" id="agendaHoje" data-saida="tudo" role="tabpanel" tabindex="0"></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Últimos agendamentos</h2>
-        </div>
-        <div class="panel-body lista" id="ultimos" data-saida="desfecho"></div>
       </div>
     </div>`;
 
@@ -1055,8 +1023,6 @@ function pintarInicio(d, opts = {}) {
   ligarAbas($('#tabsHoje'), (k) => { state.hojeTab = k; pintarHoje(true); moverTinta($('#tabsHoje')); });
   pintarHoje(!opts.quieto);
   moverTinta($('#tabsHoje'), true);
-  pintarLista($('#ultimos'), htmlUltimos, !opts.quieto);
-  bindApptActions($('#ultimos'));
   // Folha do dia: a impressão (styles.css › @media print) mostra só a agenda de hoje,
   // em ordem de horário, com os três grupos — sem botões, sem menu, sem números.
   $('#btnImprimir')?.addEventListener('click', () => abrirImpressao(d));
@@ -1071,46 +1037,10 @@ function pintarInicio(d, opts = {}) {
   } else if (!opts.quieto) animarNumeros(view);
   state._cards = c;
   if (state.contagens) pintarContagens(state.contagens);   // chips do gestor sem esperar outra chamada
-  pintarAniversarios();                                     // 🎂 da semana (equipe toda)
   window.R6b?.inicio();
-  window.R6?.inicio(d);                                     // 🔗 pátio ao vivo + orçamentos aprovados esperando horário
+  window.R6?.inicio(d);                                     // orçamentos aprovados esperando horário
 }
 
-/* RODADA 5 — ANIVERSÁRIOS da semana (clientes.nascimento): um chip no Início; toque
-   abre a lista com o WhatsApp pronto ("Parabéns"). Quem manda a mensagem
-   automática é o Comunicar — aqui é o lembrete humano, para quem quiser ligar. */
-let _anivEm = 0;
-async function pintarAniversarios() {
-  const box = $('#chipsEquipe'); if (!box || emPresenca()) return;
-  if (!state.aniversarios || Date.now() - _anivEm > 10 * 60_000) {
-    try { state.aniversarios = (await api('GET', '/aniversarios?dias=7', null, { repetir: false })).itens || []; _anivEm = Date.now(); }
-    catch { return; }
-  }
-  const l = state.aniversarios, hoje = l.filter(x => x.em === 0).length;
-  if (!$('#chipsEquipe')) return;
-  $('#chipsEquipe').innerHTML = l.length ? `<button type="button" class="chip-aviso chip-aniv" id="chipAniv" title="Clientes que fazem aniversário nos próximos 7 dias">
-    ${svg(I.bolo)} ${hoje ? `${hoje} ${hoje === 1 ? 'aniversário hoje' : 'aniversários hoje'}` : `${l.length} ${l.length === 1 ? 'aniversário' : 'aniversários'} esta semana`}</button>` : '';
-  $('#chipAniv')?.addEventListener('click', abrirAniversarios);
-}
-function abrirAniversarios() {
-  const l = state.aniversarios || [];
-  const parabens = (c) => {
-    const tel = String(c.telefone || '').replace(/\D/g, ''); if (tel.length < 10) return '';
-    const txt = `Oi ${String(c.nome || '').trim().split(/\s+/)[0]}! Aqui é da IndyCar 🏁 Passando para desejar um feliz aniversário! Que o seu dia seja ótimo. 🎉`;
-    return `https://wa.me/${tel.length <= 11 ? '55' + tel : tel}?text=${encodeURIComponent(txt)}`;
-  };
-  openModal(`
-    <div class="modal-head"><h3>${svg(I.bolo)} Aniversários da semana</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
-    <div class="modal-body">
-      ${l.length ? `<ul class="aniv-lista">${l.map(c => `<li class="${c.em === 0 ? 'hoje' : ''}"><div><b>${esc(c.nome)}</b>
-          <small>${c.em === 0 ? 'hoje' : c.em === 1 ? 'amanhã' : `em ${c.em} dias`} · ${esc(dataBR(c.data))}${c.idade ? ` · ${c.idade} anos` : ''}${c.veiculo ? ' · ' + esc(c.veiculo) : ''}${c.aceita_mensagens === 0 ? ' · 🔕 não recebe mensagem automática' : ''}</small></div>
-          <div class="actions">${parabens(c) ? `<a class="icon-btn wa" href="${esc(parabens(c))}" target="_blank" rel="noopener" title="Mandar parabéns pelo WhatsApp" aria-label="Parabéns para ${esc(c.nome)}">${svg(I.wa)}</a>` : ''}
-            <button type="button" class="icon-btn" data-cli="${esc(c.id)}" title="Abrir ficha" aria-label="Abrir ficha de ${esc(c.nome)}">${svg(I.user)}</button></div></li>`).join('')}</ul>`
-        : '<p class="muted">Nenhum aniversário nos próximos 7 dias.</p>'}
-      <small class="muted">A mensagem automática de aniversário é do Comunicar. Aqui é para quem quiser ligar ou mandar um parabéns pessoal.</small>
-    </div>`);
-  $$('[data-cli]', modal).forEach(b => b.addEventListener('click', () => openClienteModal(b.dataset.cli)));
-}
 /* FOLHA DO DIA (rodada 4): escolhe o dia (hoje, amanhã ou outra data) e se vai
    telefone; a folha sai numerada, em ordem de hora, com consultor, observação
    curta e as colunas "Chegou?" e "Fechou?" para marcar à mão. Cabeçalho da
@@ -1246,8 +1176,7 @@ async function renderAgenda(opts = {}) {
     <div class="toolbar">
       <!-- sem botão "Novo agendamento" aqui: o do topo da página já faz isso -->
       <div class="search larga">${svg(I.search)}<input id="qAgenda" type="search" enterkeyhint="search" placeholder="Cliente, placa ou telefone" value="${esc(q0)}" aria-label="Buscar agendamento"></div>
-      <button type="button" class="btn" id="btnVerSemana" title="Ver a semana em grade, com ocupação por dia (tecla S)">${svg(I.calendar)} Semana</button>
-      <button type="button" class="btn" id="btnEsperaAgenda" title="Quem quer um horário e ainda não achou (tecla E)">${svg(I.relogio)} Espera${state.contagens?.espera ? ` <em class="tab-num">${state.contagens.espera}</em>` : ''}</button>
+      <button type="button" class="btn" id="btnVerSemana" title="Ver a semana em grade, com ocupação por dia">${svg(I.calendar)} Semana</button>
       <button type="button" class="icon-btn so-tela" id="btnImprimirAgenda" title="Imprimir a folha de um dia" aria-label="Imprimir a folha de um dia">${svg(I.imprimir)}</button>
       ${meuConsultor ? `<button type="button" class="btn filtro-meus${state.minhaAgenda ? ' ativo' : ''}" id="btnMinhaAgenda" aria-pressed="${!!state.minhaAgenda}"
         title="Só os horários em que você é o consultor">${svg(I.user)} Minha agenda</button>` : ''}
@@ -1261,7 +1190,6 @@ async function renderAgenda(opts = {}) {
   $('#btnSemTel').addEventListener('click', () => { state.agendaSemTel = !state.agendaSemTel; route(); });
   $('#btnSemConf').addEventListener('click', () => { state.agendaSemConf = !state.agendaSemConf; route(); });
   $('#btnVerSemana').addEventListener('click', () => route('semana'));
-  $('#btnEsperaAgenda').addEventListener('click', () => route('espera'));
   $('#btnImprimirAgenda').addEventListener('click', () => abrirImpressao(null));
   $('#btnMinhaAgenda')?.addEventListener('click', () => {
     state.minhaAgenda = !state.minhaAgenda;
@@ -1368,8 +1296,8 @@ async function renderEquipe() {
   const maxDia = Math.max(1, ...Object.entries(carga).filter(([k]) => k !== 'datas').flatMap(([, v]) => v));
   const barras = (id) => `<span class="carga-semana" role="img" aria-label="Próximos 7 dias: ${carga.datas.map((d, i) => `${rotuloDia(d, hoje)} ${de(id, i)}`).join(', ')}">
       ${carga.datas.map((d, i) => `<i style="--h:${Math.round(de(id, i) / maxDia * 100)}%" title="${esc(rotuloDia(d, hoje))}: ${de(id, i)}"></i>`).join('')}</span>`;
-  view.innerHTML = `
-    <div class="toolbar"><div class="left"><h2 style="font-size:18px">Equipe / Consultores</h2>
+  view.innerHTML = `${pilulasConfig('equipe')}
+    <div class="toolbar"><div class="left">
       ${semHoje ? `<span class="badge-pill bp-orange" title="Horários de hoje sem consultor">${semHoje} hoje sem consultor</span>` : ''}</div>
       <div class="left">
         ${gestor && (semHoje || semAmanha) ? `<button class="btn" id="btnDistribuir" title="Dá os horários sem consultor para quem tem menos carros (sem dois no mesmo horário)">${svg(I.user)} Distribuir ${semHoje + semAmanha} sem consultor</button>` : ''}
@@ -1394,9 +1322,8 @@ async function renderEquipe() {
         </div></td></tr>`).join('')
         : `<tr><td colspan="7">${vazio(I.user, 'Nenhum consultor', 'Cadastre quem atende no balcão para ligar cada agendamento a uma pessoa.')}</td></tr>`}
       ${carga.sem.some(Boolean) ? `<tr class="muted"><td><b>Sem consultor</b></td><td>—</td><td>${semHoje}</td><td>${semAmanha}</td><td>${barras('sem')}</td><td></td><td></td></tr>` : ''}
-      </tbody></table></div></div>
-    <small class="muted">Ligue cada consultor ao login dele: o modal de agendamento já sugere o de menor carga no horário,
-      e quem é consultor ganha o botão "Minha agenda".</small>`;
+      </tbody></table></div></div>`;
+  ligarPilulasConfig();
   $$('tr[data-id]', view).forEach(tr => {
     const id = tr.dataset.id; // uuid (string)
     tr.querySelector('[data-act="edit"]')?.addEventListener('click', () => openConsultorModal(id));
@@ -1430,48 +1357,6 @@ async function renderEquipe() {
       esquecerDias(); renderEquipe();
     } catch (e) { b.disabled = false; toast(e.message, 'err'); }
   });
-}
-
-async function renderCrm() {
-  const gestor = document.body.classList.contains('gestor');
-  const [d, conf] = await Promise.all([api('GET', '/crm'), gestor ? api('GET', '/confirmacoes/resumo?dias=30', null, { repetir: false }).catch(() => null) : null]);
-  const maxOri = Math.max(1, ...d.porOrigem.map(o => o.total));
-  view.innerHTML = `
-    ${conf && conf.enviadas ? `<div class="panel faixa-faturamento"><div class="panel-body fat-linha">
-      <div><small>Confirmação pelo link · ${esc(conf.dias)} dias</small><b>${conf.taxa_resposta}%</b>
-        <span class="muted">${conf.enviadas} ${conf.enviadas === 1 ? 'pedido' : 'pedidos'} · ${conf.confirmaram} confirmaram · ${conf.remarcar} pediram remarcar · ${conf.nao_vem} avisaram que não vêm · ${conf.sem_resposta} sem resposta</span></div>
-      <div class="fat-buraco ${conf.sem_resposta ? '' : 'ok'}"><b>${conf.abertas}</b> ${conf.abertas === 1 ? 'abriu o link' : 'abriram o link'}</div>
-    </div></div>` : ''}
-    <div class="kpi-row">
-      ${statCard('blue',   d.total,               'Total de agendamentos', I.calendar)}
-      ${statCard('green',  d.taxaComparecimento+'%','Taxa de comparecimento', I.check)}
-      ${statCard('purple', d.taxaConversao+'%',    'Taxa de conversão', I.flag)}
-      ${statCard('orange', d.concluidos,          'Concluídos', I.flag)}
-    </div>
-    ${d.faturamento ? `<div class="panel faixa-faturamento">
-      <div class="panel-body fat-linha">
-        <div><small>Faturamento registrado na Agenda</small><b>${esc(P.reais(d.faturamento.soma))}</b>
-          <span class="muted">${d.faturamento.comValor} ${d.faturamento.comValor === 1 ? 'serviço' : 'serviços'} com valor · ticket médio ${esc(P.reais(d.faturamento.ticketMedio))}</span></div>
-        ${d.faturamento.semValor ? `<div class="fat-buraco"><b>${d.faturamento.semValor}</b> ${d.faturamento.semValor === 1 ? 'concluído sem valor' : 'concluídos sem valor'}
-          ${document.body.classList.contains('gestor') ? '<button type="button" class="btn mini primary" id="btnPreencherValores">Preencher</button>'
-            : '<small class="muted">o gestor completa em Pendências</small>'}</div>` : '<div class="fat-buraco ok">Todo concluído tem valor 🏁</div>'}
-      </div></div>` : ''}
-    <div class="cols">
-      <div class="panel"><div class="panel-head"><h2>${svg(I.pin)} Origem dos clientes</h2></div>
-        <div class="panel-body">${d.porOrigem.length ? d.porOrigem.map(o => `
-          <div class="origem-linha"><div class="origem-topo">
-            <span>${esc(o.origem||'—')}</span><b>${o.total}</b></div>
-            <div class="bar"><i style="width:${(o.total/maxOri*100).toFixed(0)}%"></i></div>
-            ${o.faltas !== undefined ? `<small class="origem-taxas"><span class="${o.taxaFalta >= 30 ? 'alerta' : ''}" title="Dos que já tiveram desfecho, quantos não vieram">falta ${o.taxaFalta}%</span> · fecha ${o.taxaFechamento}% de quem veio</small>` : ''}
-          </div>`).join('')
-          : '<div class="empty">Sem dados.</div>'}</div></div>
-      <div class="panel"><div class="panel-head"><h2>${svg(I.user)} Desempenho por consultor</h2></div>
-        <div class="panel-body tabela-rola" tabindex="0" role="region" aria-label="Tabela por consultor"><table class="table"><thead><tr><th scope="col">Consultor</th><th scope="col">Agend.</th><th scope="col">Vieram</th><th scope="col">Faltas</th><th scope="col">Fecharam</th><th scope="col">Fechamento</th><th scope="col">Faturado</th></tr></thead>
-        <tbody>${d.porConsultor.map(c => `<tr><th scope="row">${esc(c.nome)}${c.ativo === 0 ? ' <small class="muted">(inativo)</small>' : ''}</th><td>${c.total}</td><td>${c.vieram ?? '—'}</td><td>${c.faltas ?? '—'}</td><td>${c.concluidos||0}</td><td>${c.taxaFechamento ?? 0}%</td><td>${c.faturamento ? esc(P.reais(c.faturamento)) : '—'}</td></tr>`).join('')}
-        ${d.semConsultor ? `<tr class="muted"><th scope="row">Sem consultor</th><td>${d.semConsultor}</td><td colspan="5">escolha o consultor no agendamento para contar aqui</td></tr>` : ''}
-        </tbody></table></div></div>
-    </div>`;
-  $('#btnPreencherValores')?.addEventListener('click', () => route('pendencias'));
 }
 
 /* ============================================================================
@@ -1593,191 +1478,6 @@ async function renderPendencias(opts = {}) {
   }));
 }
 
-/* ============================================================================
-   AJUDA E TOUR (rodada 4) — mais gente usando no dia a dia.
-   · Tour de boas-vindas curto, POR PAPEL, na primeira vez que a pessoa entra
-     (recepção: 4 passos; equipe: 5; gestor: +1). Fica marcado no perfil
-     (preferencias.agenda_tour) e no aparelho; a Ajuda abre de novo.
-   · Página de Ajuda: "como faço…" do papel, atalhos e o que pedir ao gestor.
-   ============================================================================ */
-const TOURS = {
-  presenca: [
-    { alvo: '#tabsHoje', titulo: 'Esta é a agenda de hoje', texto: 'Quem vai chegar fica em "Agendados". Quem chegou vai para "Já chegaram".' },
-    { alvo: '#agendaHoje [data-marca="compareceu"]', titulo: 'O cliente chegou?', texto: 'Toque em "Chegou". Errou? O recado embaixo tem "Desfazer".' },
-    { alvo: '#agendaHoje [data-marca="nao_veio"]', titulo: 'Não veio?', texto: 'Toque em "Não veio" e confirme. O cliente recebe uma mensagem de WhatsApp, por isso pede confirmação.' },
-    { alvo: '#recBusca', titulo: 'Procurar alguém', texto: 'Digite o nome ou a placa para achar o cliente rápido.' },
-    { alvo: '#recLetra', titulo: 'Letra maior', texto: 'Aumente a letra se estiver longe da tela. A escolha fica guardada.' },
-    { alvo: '#recResumo', titulo: 'Quem está na casa', texto: '"Na casa" conta os carros dentro da oficina agora; "chegam hoje" é quem ainda vai aparecer; e o próximo a chegar.' },
-  ],
-  equipe: [
-    { alvo: '#btnNovo', titulo: 'Novo agendamento', texto: 'Marque um horário por aqui (ou tecla N). O sistema sugere horário livre e consultor.' },
-    { alvo: '#agendaHoje', titulo: 'Agenda de hoje', texto: 'Cada cartão tem os 3 desfechos: Veio e fechou, Não veio, Veio e não fechou. Quem tem desfecho sai daqui e vai para o CRM.' },
-    { alvo: '#agendaHoje [data-act="concluido"]', titulo: 'Veio e fechou', texto: 'Pede o valor do serviço (opcional) com uma sugestão. É ele que alimenta o faturamento do CRM.' },
-    { alvo: '[data-route="espera"]', titulo: 'Lista de espera', texto: 'Não achou horário? Guarde o pedido aqui. Quando vagar, o recado avisa e "Encaixar" marca com um toque.' },
-    { alvo: '#btnBusca', titulo: 'Buscar em tudo', texto: 'Ctrl+K acha agendamentos e clientes pelo nome, telefone, placa ou serviço.' },
-    { alvo: '#btnTarefas', titulo: 'Suas tarefas', texto: '"Confirmar com o cliente" e "Reagendar" chegam aqui sozinhas. O sino avisa atrasos.' },
-  ],
-  gestor: [
-    { alvo: '[data-route="pendencias"]', titulo: 'Pendências (só gestor)', texto: 'Concluídos sem valor e horários antigos sem desfecho. Complete por aqui para o CRM fechar a conta.' },
-  ],
-};
-const chaveTour = () => `indycar_tour_${state.perfil?.id || 'x'}`;
-function tourVisto() {
-  if (state.perfil?.preferencias?.agenda_tour) return true;
-  try { return localStorage.getItem(chaveTour()) === '1'; } catch { return false; }
-}
-function marcarTourVisto() {
-  try { localStorage.setItem(chaveTour(), '1'); } catch { /* ok */ }
-  if (state.perfil) state.perfil.preferencias = { ...(state.perfil.preferencias || {}), agenda_tour: true };
-  api('PUT', '/perfil', { preferencias: { agenda_tour: true } }, { repetir: false }).catch(() => { /* fica só no aparelho */ });
-}
-function passosDoTour() {
-  if (emPresenca()) return TOURS.presenca;
-  return [...TOURS.equipe, ...(document.body.classList.contains('gestor') ? TOURS.gestor : [])];
-}
-function talvezMostrarTour() {
-  if (tourVisto() || new URLSearchParams(location.search).get('tour') === '0') return;
-  setTimeout(() => { if (!modalAberto() && !document.body.classList.contains('deslogado')) abrirTour(); }, 900);
-}
-window.abrirTour = function abrirTour() {
-  fecharTour();
-  const passos = passosDoTour();
-  let i = 0;
-  const caixa = document.createElement('div');
-  caixa.className = 'tour'; caixa.id = 'tour';
-  caixa.setAttribute('role', 'dialog'); caixa.setAttribute('aria-labelledby', 'tourTitulo'); caixa.setAttribute('aria-describedby', 'tourTexto');
-  document.body.append(caixa);
-  const visivel = (el) => el && el.offsetParent !== null && el.getBoundingClientRect().width > 0;
-  const pintar = () => {
-    $$('.tour-alvo').forEach(x => x.classList.remove('tour-alvo'));
-    const p = passos[i];
-    const alvo = $(p.alvo);
-    const temAlvo = visivel(alvo);
-    if (temAlvo) { alvo.classList.add('tour-alvo'); alvo.scrollIntoView({ block: 'nearest', behavior: 'auto' }); }
-    caixa.innerHTML = `<div class="tour-passo">${i + 1} de ${passos.length}</div>
-      <h3 id="tourTitulo">${esc(p.titulo)}</h3><p id="tourTexto">${esc(p.texto)}</p>
-      <div class="tour-botoes"><button type="button" class="btn" id="tourPular">Pular</button>
-        ${i ? '<button type="button" class="btn" id="tourVoltar">Voltar</button>' : ''}
-        <button type="button" class="btn primary" id="tourProx">${i === passos.length - 1 ? 'Entendi 🏁' : 'Próximo'}</button></div>`;
-    // posiciona perto do alvo (embaixo, ou em cima se não couber); sem alvo, no centro
-    caixa.classList.toggle('centro', !temAlvo);
-    caixa.style.left = caixa.style.top = '';
-    if (temAlvo) {
-      const r = alvo.getBoundingClientRect(), w = Math.min(340, innerWidth - 24);
-      const x = Math.max(12, Math.min(innerWidth - w - 12, r.left + r.width / 2 - w / 2));
-      const embaixo = r.bottom + 12 + 190 < innerHeight;
-      caixa.style.width = w + 'px';
-      caixa.style.left = x + 'px';
-      caixa.style.top = (embaixo ? r.bottom + 12 : Math.max(12, r.top - 12 - (caixa.offsetHeight || 180))) + 'px';
-    }
-    $('#tourPular').addEventListener('click', () => { marcarTourVisto(); fecharTour(); });
-    $('#tourVoltar')?.addEventListener('click', () => { i--; pintar(); });
-    $('#tourProx').addEventListener('click', () => {
-      if (i === passos.length - 1) { marcarTourVisto(); fecharTour(); toast('Pronto! A Ajuda (tecla ?) mostra isso de novo.'); return; }
-      i++; pintar();
-    });
-    $('#tourProx').focus({ preventScroll: true });
-  };
-  caixa.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.stopPropagation(); marcarTourVisto(); fecharTour(); }
-    if (e.key === 'Tab') {                                     // foco preso na caixa do tour
-      const itens = $$('button', caixa); const k = itens.indexOf(document.activeElement);
-      if (e.shiftKey && k <= 0) { e.preventDefault(); itens[itens.length - 1].focus(); }
-      else if (!e.shiftKey && k === itens.length - 1) { e.preventDefault(); itens[0].focus(); }
-    }
-  });
-  pintar();
-};
-function fecharTour() {
-  $$('.tour-alvo').forEach(x => x.classList.remove('tour-alvo'));
-  $('#tour')?.remove();
-}
-
-const AJUDA = {
-  presenca: [
-    ['O cliente chegou', 'Toque em "Chegou" no cartão dele. Ele vai para "Já chegaram" e o Pátio abre a ordem (o recado mostra o nº da OS e "Abrir no Pátio").'],
-    ['Quem está na casa agora', 'O número "Na casa" no topo conta os carros dentro da oficina, inclusive os que chegaram outro dia. A aba "Já chegaram" lista todos.'],
-    ['Marquei "Chegou" errado', 'Toque em "Desfazer" no recado que aparece embaixo, logo depois de marcar.'],
-    ['O cliente não veio', 'Toque em "Não veio" e confirme. Ele recebe uma mensagem de WhatsApp da oficina.'],
-    ['Não acho o cliente', 'Digite o nome ou a placa na busca do topo. Se não estiver na agenda de hoje, chame o atendimento.'],
-    ['A letra está pequena', 'Use os botões A / A+ / A++ no topo da tela.'],
-    ['Imprimir a folha do dia', 'Toque no ícone de impressora. Sai a lista do dia com a coluna "Chegou?" para marcar à mão.'],
-    ['Apareceu "sem conexão"', 'Pode continuar marcando: fica guardado no aparelho e é enviado quando o sistema voltar.'],
-  ],
-  equipe: [
-    ['Marcar um horário', 'Botão "Novo agendamento" (ou tecla N). Use "Horários livres" para ver as vagas do dia e "Achar pelo nome" para o telefone.'],
-    ['Registrar o que aconteceu', 'No cartão: "Veio e fechou" (pede o valor, opcional), "Não veio" ou "Veio e não fechou". Quem tem desfecho sai do Início e vai para o CRM.'],
-    ['Fechei sem o valor', 'Tudo bem: o gestor completa em Pendências. Se souber depois, peça para ele.'],
-    ['Remarcar', 'Ícone de calendário no cartão (mostra todos os horários livres do dia), ou arraste o cartão para outro dia na Semana. No modo Dia, arraste para a hora. Depois, "Avisar o cliente" manda o aviso pela fila do Comunicar.'],
-    ['Pedir confirmação ao cliente', 'Ícone ✓ verde no cartão (ou "Pedir confirmação" no horário aberto): manda um link pelo WhatsApp; ele toca em Confirmo / Remarcar / Não vou e o cartão mostra a resposta.'],
-    ['Não achei horário para o cliente', 'Lista de espera (tecla E, ou o botão no Novo agendamento). Quando alguém não vem ou cancela, o recado diz quem da lista serve para o dia; "Encaixar" marca com um toque.'],
-    ['Ver tudo de um cliente', 'Na ficha (ou no agendamento), "Visão 360": conversa, carro no pátio, leads, orçamentos, mensagens do Comunicar, tarefas e indicações, tudo pelo telefone.'],
-    ['Ver a semana e a ocupação', 'Menu SEMANA (tecla S): Dia · Semana · Mês, com relatório e CSV.'],
-    ['Imprimir a folha do dia', 'Ícone de impressora em "Agenda de hoje": escolha hoje ou amanhã.'],
-    ['Apagar, exportar ou mudar configuração', 'Só o gestor ou o administrador. Se precisar, peça ao gestor.'],
-    ['Sem conexão no meio do uso', 'Os desfechos ficam guardados no aparelho (faixa laranja) e saem sozinhos quando o sistema voltar.'],
-  ],
-  gestor: [
-    ['Completar valores e horários antigos', 'Menu PENDÊNCIAS: valor dos concluídos (Enter salva e pula para o próximo) e "Não veio (sem avisar)" para os antigos.'],
-    ['Ligar consultor ao login', 'Menu EQUIPE: o botão "Ligar a …" aparece quando o sistema reconhece a pessoa. Assim "Minha agenda", tarefas e avisos vão para ela.'],
-    ['Ver o dia por consultor', 'Menu QUADRO (tecla Q): uma coluna por consultor, linhas de 30 min. Arraste o cartão (ou toque em ⇄ Mover) para uma célula verde; "Chegou", "Faltou" e o lembrete estão no próprio cartão.'],
-    ['O cliente recebeu o lembrete?', 'Abra o horário: o bloco "Lembrete" diz se está na fila, enviado ou se o cliente respondeu, e deixa mandar agora. No Início, "Lembrar os que faltam" cuida do dia seguinte de uma vez.'],
-    ['Distribuir horários sem consultor', 'Menu EQUIPE › "Distribuir": dá os horários do dia sem consultor para quem tem menos carros.'],
-  ],
-};
-const ATALHOS_TELA = { i: 'inicio', a: 'agenda', q: 'quadro', e: 'espera', c: 'clientes', f: 'followup', h: 'historico', p: 'pendencias', r: 'dono' };
-const ATALHOS = [['N', 'novo agendamento'], ['Ctrl + K', 'buscar em tudo (↑ ↓ e Enter nos resultados)'], ['I', 'início'], ['A', 'agenda'], ['S', 'semana'], ['Q', 'quadro por consultor'], ['E', 'lista de espera'],
-  ['C', 'clientes'], ['F', 'follow-up'], ['H', 'histórico'], ['P', 'pendências (gestor)'], ['/', 'ir para a busca da tela'], ['?', 'esta ajuda'], ['Esc', 'fechar janela']];
-
-async function renderAjuda() {
-  const lista = emPresenca() ? AJUDA.presenca : [...AJUDA.equipe, ...(document.body.classList.contains('gestor') ? AJUDA.gestor : [])];
-  const papel = PAPEL_LABEL[state.perfil?.papel] || state.perfil?.papel || '';
-  view.innerHTML = `
-    <div class="toolbar"><div class="left"><h2>Ajuda</h2>${papel ? `<span class="badge-pill bp-gray">${esc(papel)}</span>` : ''}</div>
-      <div class="left">${emPresenca() ? `<button type="button" class="btn" id="btnVoltarRecepcao">← Voltar para a recepção</button>` : ''}
-      <button type="button" class="btn primary" id="btnRefazerTour">▶ Ver o tour de novo</button></div></div>
-    <div class="cols">
-      <div class="panel"><div class="panel-head"><h2>${svg(I.flag)} Como faço…</h2></div>
-        <div class="panel-body ajuda-lista">${lista.map(([p, r]) => `<details class="ajuda-item"><summary>${esc(p)}</summary><p>${esc(r)}</p></details>`).join('')}</div></div>
-      <div class="panel"><div class="panel-head"><h2>${svg(I.relogio)} ${emPresenca() ? 'Dicas' : 'Atalhos do teclado'}</h2></div>
-        <div class="panel-body">
-          ${emPresenca() ? '<p>A tela se atualiza sozinha a cada 2 minutos. Para ver um agendamento novo na hora, toque em "Atualizar".</p>'
-            : `<table class="table atalhos"><tbody>${ATALHOS.map(([k, d]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(d)}</td></tr>`).join('')}</tbody></table>`}
-          <p class="muted">Não achou o que precisava? ${document.body.classList.contains('gestor') ? 'Fale com o administrador.' : 'Peça ao gestor: algumas coisas (apagar, exportar, configurar) são só dele.'}</p>
-        </div></div>
-    </div>`;
-  $('#btnVoltarRecepcao')?.addEventListener('click', () => route('dia'));
-  $('#btnRefazerTour').addEventListener('click', () => {
-    // o tour mostra a tela de uso diário: volta para ela e começa
-    route(emPresenca() ? 'dia' : 'inicio').then(() => setTimeout(() => window.abrirTour(), 300));
-  });
-}
-
-async function renderFollowup() {
-  const list = await api('GET', '/followup');
-  view.innerHTML = `
-    <div class="toolbar"><div class="left"><h2 style="font-size:18px">Follow-up: retornos pendentes</h2>
-      ${list.length ? `<span class="badge-pill bp-orange">${list.length} para ligar</span>` : ''}</div></div>
-    <div class="panel"><div class="panel-body lista">
-      ${list.length ? list.map(a => appointmentCard(a, { comWhatsapp: true })).join('')
-        : vazio(I.check, 'Tudo em dia! 🏁', 'Quem não veio ou não fechou aparece aqui para você chamar de volta.')}
-    </div></div>`;
-  bindApptActions(view);
-}
-
-async function renderHistorico() {
-  const list = await api('GET', '/historico');
-  view.innerHTML = `
-    <div class="panel"><div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table"><thead><tr>
-      <th scope="col">Data</th><th scope="col">Hora</th><th scope="col">Cliente</th><th scope="col">Serviço</th><th scope="col">Consultor</th><th scope="col">Status</th>
-    </tr></thead><tbody>
-      ${list.length ? list.map(a => `<tr>
-        <td>${dataBR(a.data)}</td><td>${esc(a.hora)}</td><td><b>${esc(a.cliente_nome)}</b></td>
-        <td>${esc(a.servico)}</td><td>${esc(a.consultor_nome||'—')}</td>
-        <td><span class="badge-pill ${statusClass(a.status)}">${esc(STATUS_LABEL[a.status]||a.status)}</span></td>
-      </tr>`).join('') : `<tr><td colspan="6">${vazio(I.relogio, 'Sem histórico ainda', 'Cada agendamento marcado aparece aqui, do mais recente para o mais antigo.')}</td></tr>`}
-    </tbody></table></div></div>`;
-}
 function statusClass(s){return {concluido:'bp-purple',compareceu:'bp-green',confirmado:'bp-green',
   nao_veio:'bp-red',nao_fechou:'bp-orange',em_atendimento:'bp-blue',aguardando:'bp-orange'}[s]||'bp-gray';}
 
@@ -1785,99 +1485,25 @@ function statusClass(s){return {concluido:'bp-purple',compareceu:'bp-green',conf
 //  de agendamento e o contexto da IA, sem preços nem duração.)
 
 // ============================================================================
-// SERVIÇOS — catálogo compartilhado (catalogo_servicos), SOMENTE LEITURA.
-// Quem cadastra e corrige é o CRM; aqui é consulta de balcão.
-// ============================================================================
-async function renderServicos() {
-  const lista = await api('GET', '/catalogo');
-  const fazemos = lista.filter(s => s.fazemos === 1).length;
-  view.innerHTML = `
-    <div class="toolbar">
-      <div class="left">
-        <h2>Catálogo de serviços</h2>
-        <span class="badge-pill bp-gray">${lista.length} no total</span>
-        <span class="badge-pill bp-green">${fazemos} a oficina faz</span>
-      </div>
-      <div class="search">${svg(I.search)}
-        <input id="qServ" type="search" aria-label="Buscar serviço, categoria ou escopo" placeholder="Buscar serviço, categoria ou escopo…" autocomplete="off"></div>
-    </div>
-    <div class="aviso-leitura">${svg(I.cadeado)}
-      <div><b>Só leitura nesta tela.</b> Este é o catálogo que a IA do WhatsApp consulta para
-      dizer o que a oficina faz e o que não faz. Para <b>incluir, alterar ou remover</b> um
-      serviço, use o <b>CRM</b>, os três sistemas leem a mesma lista.</div></div>
-    <div class="cat-lista" id="servLista"></div>`;
-
-  const pintar = (termo) => {
-    const t = String(termo || '').trim().toLowerCase();
-    const filtrada = !t ? lista : lista.filter(s =>
-      [s.servico, s.categoria, s.escopo, s.tipo_veiculo, s.observacao]
-        .some(c => String(c || '').toLowerCase().includes(t)));
-    const box = $('#servLista');
-    box.innerHTML = filtrada.length
-      ? catalogoHtml(filtrada)
-      : '<div class="panel"><div class="empty">Nenhum serviço encontrado com esse termo.</div></div>';
-  };
-  pintar('');
-  $('#qServ').addEventListener('input', debounce(e => pintar(e.target.value), 160));
-}
-
-function catalogoHtml(lista) {
-  const grupos = new Map();
-  for (const s of lista) {
-    if (!grupos.has(s.categoria)) grupos.set(s.categoria, []);
-    grupos.get(s.categoria).push(s);
-  }
-  return [...grupos.entries()].map(([categoria, itens]) => `
-    <div class="panel">
-      <div class="panel-head cat-head">
-        <h3>${esc(categoria)}</h3>
-        <span class="badge-pill bp-gray">${itens.length} ${itens.length === 1 ? 'serviço' : 'serviços'}</span>
-      </div>
-      <div class="panel-body">
-        <div class="serv-grid">${itens.map(servicoCard).join('')}</div>
-      </div>
-    </div>`).join('');
-}
-
-function servicoCard(s) {
-  const faz = s.fazemos === 1;
-  const meta = [];
-  if (s.tipo_veiculo) meta.push(`Carro: ${esc(s.tipo_veiculo)}`);
-  if (s.observacao)   meta.push(esc(s.observacao));
-  return `<div class="serv${faz ? '' : ' nao'}">
-    <div class="serv-topo">
-      <div class="serv-nome">${esc(s.servico)}</div>
-      <span class="badge-pill ${faz ? 'bp-green' : 'bp-gray'}">${faz ? 'Fazemos' : 'Não fazemos'}</span>
-    </div>
-    ${s.escopo ? `<div class="serv-escopo">${esc(s.escopo)}</div>` : ''}
-    ${meta.length ? `<div class="serv-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>` : ''}
-  </div>`;
-}
-
-// ============================================================================
 // CONFIGURAÇÕES — "Minha conta", "Oficina" e "Equipe e acessos"
 // Cuidado com o nome: o item EQUIPE do menu lateral é outra coisa (consultores
 // que atendem o cliente). Aqui é quem tem LOGIN — o mesmo dos três sistemas.
 // ============================================================================
-const CFG_SECOES = { conta: cfgConta, oficina: cfgOficina, equipe: cfgEquipe };
+/* Rodada 11: Configurações ficou só com o que é da Agenda: Oficina (dados e janelas) e Consultores.
+   "Minha conta" mora no menu da pessoa (canto de cima) e "Equipe e acessos" no Atendimento › Equipe. */
+function pilulasConfig(ativa) {
+  const p = (rota, rotulo) => `<button type="button" class="pilula ${ativa === rota ? 'ativa' : ''}" data-cfg-rota="${rota}">${rotulo}</button>`;
+  return `<div class="toolbar"><div class="left"><h2>Configurações</h2></div></div>
+    <div class="pilulas" id="cfgPilulas">${p('configuracoes', 'Oficina')}${p('equipe', 'Consultores')}</div>`;
+}
+function ligarPilulasConfig() {
+  $$('#cfgPilulas [data-cfg-rota]', view).forEach(b => b.addEventListener('click', () => route(b.dataset.cfgRota)));
+}
 
 async function renderConfiguracoes() {
-  const secao = CFG_SECOES[state.cfgSecao] ? state.cfgSecao : 'conta';
-  const pilula = (chave, rotulo) =>
-    `<button type="button" class="pilula ${secao === chave ? 'ativa' : ''}" data-secao="${chave}">${rotulo}</button>`;
-  view.innerHTML = `
-    <div class="toolbar"><div class="left"><h2>Configurações</h2></div></div>
-    <div class="pilulas" id="cfgPilulas">
-      ${pilula('conta', 'Minha conta')}
-      ${pilula('oficina', 'Oficina')}
-      ${pilula('equipe', 'Equipe e acessos')}
-    </div>
-    <div id="cfgConteudo">${esqueletoFormulario()}</div>`;
-  $$('#cfgPilulas .pilula', view).forEach(b => b.addEventListener('click', () => {
-    state.cfgSecao = b.dataset.secao;
-    renderConfiguracoes().catch(e => toast(e.message, 'err'));
-  }));
-  await CFG_SECOES[secao]($('#cfgConteudo'));
+  view.innerHTML = `${pilulasConfig('configuracoes')}<div id="cfgConteudo">${esqueletoFormulario()}</div>`;
+  ligarPilulasConfig();
+  await cfgOficina($('#cfgConteudo'));
 }
 
 /** Recado embaixo do formulário: verde quando deu certo, vermelho quando não. */
@@ -1889,54 +1515,6 @@ function recado(seletor, texto, ok) {
   el.hidden = false;
 }
 
-async function cfgConta(box) {
-  const p = await api('GET', '/perfil');
-  state.perfil = { ...state.perfil, ...p };
-  aplicarPerfilNaTela();
-  const { data } = sb?.auth?.mfa ? await sb.auth.mfa.listFactors().catch(() => ({ data: null })) : { data: null };
-  const comMfa = (data?.totp || []).some((f) => f.status === 'verified');
-  box.innerHTML = `
-    <div class="cols">
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.user)} Minha conta</h2>
-          <span class="badge-pill bp-gray">${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}</span></div>
-        <div class="panel-body">
-          <div class="perfil-topo"><span class="perfil-avatar" style="background:${esc(p.avatar_cor || '#e50914')}">${esc(iniciais(p.nome) || 'IC')}</span>
-            <span><b>${esc(p.nome || 'Sem nome')}</b><small>${esc([p.cargo, p.email].filter(Boolean).join(' · '))}</small>
-            ${p.consultor_nome ? `<small>Consultor na agenda: <b>${esc(p.consultor_nome)}</b></small>` : ''}</span></div>
-          <small class="muted">É o mesmo login da Agenda, do CRM e do Atendimento. Função, apps e e-mail são do administrador.</small>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn primary" id="cf_perfil">${svg(I.edit)} Editar meu perfil</button>
-            <button class="btn" id="cf_notif">🔔 Notificações</button>
-          </div>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.cadeado)} Segurança</h2>
-          <span class="badge-pill ${comMfa ? 'bp-green' : 'bp-gray'}">${comMfa ? 'duas etapas ligada' : 'só senha'}</span></div>
-        <div class="panel-body">
-          <small class="muted">Senha nova vale em todos os apps. A verificação em duas etapas pede um código do celular depois da senha.</small>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn" id="cf_senha">${svg(I.cadeado)} Trocar senha</button>
-            <button class="btn" id="cf_mfa">${svg(I.chave)} ${comMfa ? 'Duas etapas: gerenciar' : 'Ligar duas etapas'}</button>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn" id="cf_sair">Sair</button>
-            <button class="btn" id="cf_sair_todos">Sair de todos os aparelhos</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  $('#cf_perfil').addEventListener('click', () => contaModalPerfil());
-  $('#cf_notif').addEventListener('click', () => contaModalNotif());
-  $('#cf_senha').addEventListener('click', () => contaModalSenha());
-  $('#cf_mfa').addEventListener('click', () => contaModalMfa());
-  $('#cf_sair').addEventListener('click', () => contaSair(false));
-  $('#cf_sair_todos').addEventListener('click', () => {
-    if (confirm('Sair de TODOS os aparelhos? Quem estiver logado com a sua conta vai precisar entrar de novo.')) contaSair(true);
-  });
-}
-
 async function cfgOficina(box) {
   const [empresa, janelas] = await Promise.all([
     api('GET', '/empresa'), api('GET', '/janelas'),
@@ -1946,7 +1524,6 @@ async function cfgOficina(box) {
       <div class="panel">
         <div class="panel-head"><h2>${svg(I.loja)} Dados da oficina</h2></div>
         <div class="panel-body">
-          <small class="muted">É o que aparece no topo desta tela e no convite do Google Agenda.</small>
           <div class="field"><label for="of_nome">Nome *</label>
             <input id="of_nome" value="${esc(empresa.nome)}" placeholder="IndyCar Centro Automotivo"></div>
           <div class="field"><label>Endereço</label>
@@ -1964,10 +1541,7 @@ async function cfgOficina(box) {
         <div class="panel-head"><h2>${svg(I.relogio)} Janelas de agendamento</h2>
           <span class="badge-pill bp-gray">${janelas.length} janelas</span></div>
         <div class="panel-body">
-          <div class="aviso-leitura">${svg(I.bot)}
-            <div><b>É daqui que a IA tira o horário que oferece no WhatsApp.</b> Para cada tipo de
-            serviço ela só propõe dia e hora dentro destas faixas. Fora delas, ela não agenda.
-            Esta tabela é <b>só leitura</b>, a lista é a mesma para os três sistemas.</div></div>
+          <p class="muted">Os horários que a IA oferece no WhatsApp. Só leitura.</p>
           <div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo">
             <table class="table">
               <thead><tr><th>Tipo de serviço</th><th>Dias</th><th>Faixa de horário</th><th>Observação</th></tr></thead>
@@ -1996,587 +1570,11 @@ async function cfgOficina(box) {
         slogan:   $('#of_slogan').value.trim(),
         telefone: $('#of_tel').value.trim(),
       });
-      await loadEmpresa();                 // atualiza o cabeçalho na hora
+      await loadEmpresa();
       recado('#of_msg', 'Dados da oficina salvos.', true);
       toast('Dados da oficina salvos');
     } catch (e) { recado('#of_msg', 'Não consegui salvar: ' + e.message, false); }
     finally { btn.disabled = false; }
-  });
-}
-
-/* ---------------------------------------------------------------------------
-   EQUIPE E ACESSOS — quem consegue entrar
-   Um cadastro só: a mesma conta abre a Agenda, o CRM e o Atendimento. Tirar o
-   acesso não apaga nada, só fecha a porta.
-   Todas as travas de verdade estão no servidor (só admin mexe; ninguém rebaixa
-   nem desliga o último administrador). A tela apenas evita mostrar botão que
-   não iria funcionar.
-   --------------------------------------------------------------------------- */
-
-/* O seletor oferece só Atendente e Administrador, que é o que o servidor
-   aceita. Se alguém tiver outra função herdada (ex.: gestor), ela aparece como
-   opção própria — assim a lista não mostra a pessoa como se fosse atendente. */
-function opcoesDePapel(papel) {
-  const conhecido = ['admin', 'gestor', 'atendente', 'agenda'].includes(papel);
-  const outra = conhecido ? ''
-    : `<option value="${esc(papel)}" selected>${esc(PAPEL_LABEL[papel] || papel || '—')}</option>`;
-  return `${outra}
-    <option value="atendente"${papel === 'atendente' ? ' selected' : ''}>Atendente</option>
-    <option value="gestor"${papel === 'gestor' ? ' selected' : ''}>Gestor</option>
-    <option value="agenda"${papel === 'agenda' ? ' selected' : ''}>Só presença (agenda)</option>
-    <option value="admin"${papel === 'admin' ? ' selected' : ''}>Administrador</option>`;
-}
-
-/* Apps que cada pessoa usa (perfis.apps). Admin entra em todos; o papel
-   "só presença" usa só a Agenda — nos dois casos não há o que escolher. */
-const APPS_EQUIPE = [['agenda', 'Agenda'], ['atendimento', 'Atendimento'], ['crm', 'CRM'], ['comunicar', 'Comunicar'], ['orcador', 'Orçador'], ['ads', 'Tráfego']];
-function chipsDeApps(p) {
-  if (p.papel === 'admin') return '<div class="equipe-apps equipe-meta">Entra em todos os apps</div>';
-  if (p.papel === 'agenda') return '<div class="equipe-apps equipe-meta">Só a Agenda (marca presença)</div>';
-  const apps = Array.isArray(p.apps) ? p.apps : [];
-  return `<div class="equipe-apps" data-apps="${esc(p.id)}">${APPS_EQUIPE.map(([k, r]) =>
-    `<label><input type="checkbox" value="${k}"${apps.includes(k) ? ' checked' : ''}> ${r}</label>`).join('')}</div>`;
-}
-
-function linhaEquipe(p, souAdmin, meuId) {
-  const souEu = p.id === meuId;
-  const funcao = souAdmin
-    ? `<select class="equipe-papel" data-papel="${esc(p.id)}" aria-label="Função de ${esc(p.nome || 'pessoa')}"
-               title="O que esta pessoa pode fazer">${opcoesDePapel(p.papel)}</select>`
-    : `<span class="equipe-papel-txt">${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}</span>`;
-  // Ninguém tira o próprio acesso — o servidor recusa, então nem oferecemos.
-  const botao = souAdmin && !souEu
-    ? `<button class="btn" data-membro="${esc(p.id)}" data-ativar="${p.ativo ? '0' : '1'}">
-         ${p.ativo ? 'Tirar acesso' : 'Devolver acesso'}</button>`
-    : '';
-  const senha = souAdmin && !souEu && p.ativo
-    ? `<button class="btn" data-senha-temp="${esc(p.id)}" data-nome="${esc(p.nome || '')}" title="Gera uma senha provisória para entregar em mãos">Senha temporária</button>` : '';
-  const acesso = p.ultimo_acesso_em
-    ? `último acesso ${esc(dataCurtaBR(p.ultimo_acesso_em))}${p.ultimo_app ? ' (' + esc(p.ultimo_app) + ')' : ''}` : 'ainda não entrou';
-  return `
-    <div class="equipe-item${p.ativo ? '' : ' inativo'}">
-      <span class="equipe-avatar">${esc(iniciais(p.nome) || '?')}</span>
-      <div class="equipe-txt">
-        <strong>${esc(p.nome || 'Sem nome')}</strong>${souEu ? ' <em class="voce">(você)</em>' : ''}
-        <small>${esc(p.email || '—')}${p.ativo ? '' : ' · sem acesso'}${p.precisa_trocar_senha ? ' · vai criar a senha no 1º login' : ''}</small>
-        <small class="equipe-meta">${acesso}</small>
-      </div>
-      ${funcao}${senha}${botao}
-      ${souAdmin ? chipsDeApps(p) : ''}
-    </div>`;
-}
-
-async function cfgEquipe(box) {
-  const { equipe, souAdmin, meuId } = await api('GET', '/equipe');
-  box.innerHTML = `
-    <div class="cols">
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.user)} Quem tem acesso</h2>
-          <span class="badge-pill bp-gray">${equipe.length} ${equipe.length === 1 ? 'pessoa' : 'pessoas'}</span>
-        </div>
-        <div class="panel-body">
-          <small class="muted">${souAdmin
-            ? 'Administrador mexe em tudo; gestor também apaga, exporta e mexe na configuração; atendente usa o dia a dia; '
-              + '"só presença" marca se o cliente veio. Os quadradinhos dizem em quais apps a pessoa entra. '
-              + 'Tirar o acesso não apaga nada, você pode devolver depois.'
-            : 'Só o administrador vê a equipe inteira e mexe nos acessos. Abaixo está o seu cadastro.'}
-          </small>
-          <div class="equipe">${equipe.length
-            ? equipe.map(p => linhaEquipe(p, souAdmin, meuId)).join('')
-            : '<div class="empty">Ninguém cadastrado ainda.</div>'}</div>
-          <p class="form-msg" id="eq_msg" hidden></p>
-        </div>
-      </div>
-
-      ${souAdmin ? `
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.chave)} Dar acesso a alguém</h2></div>
-        <div class="panel-body">
-          <small class="muted">Você escolhe uma senha provisória e entrega para a pessoa, no primeiro login ela cria
-            a dela. O e-mail não precisa existir de verdade, mas não pode repetir o de outra pessoa.</small>
-          <div class="field"><label for="eq_nome">Nome</label>
-            <input id="eq_nome" maxlength="80" placeholder="Ex.: Maria Souza" autocomplete="name"></div>
-          <div class="field"><label for="eq_email">E-mail</label>
-            <input id="eq_email" type="email" placeholder="maria@indycartaubate.com" autocomplete="off"></div>
-          <div class="field"><label for="eq_senha">Senha provisória</label>
-            <input id="eq_senha" type="password" minlength="8" autocomplete="new-password"
-                   placeholder="pelo menos 8 caracteres"></div>
-          <div class="field"><label for="eq_papel">Função</label>
-            <select id="eq_papel">
-              <option value="atendente" selected>Atendente</option>
-              <option value="gestor">Gestor</option>
-              <option value="agenda">Só presença (agenda)</option>
-              <option value="admin">Administrador</option>
-            </select></div>
-          <label class="pref"><input type="checkbox" id="eq_trocar" checked>
-            <span><b>Pedir para criar a senha no primeiro login</b><small>recomendado: a senha provisória deixa de valer</small></span></label>
-          <div><button class="btn primary" id="eq_criar">${svg(I.plus)} Criar acesso</button></div>
-          <p class="form-msg" id="eq_msg2" hidden></p>
-        </div>
-      </div>` : ''}
-    </div>`;
-
-  /* Troca de função. O servidor recusa (409) rebaixar o último administrador:
-     sem essa trava dá para se trancar para fora do próprio sistema, porque a
-     tela de primeiro acesso não reabre enquanto existirem cadastros. */
-  $$('select[data-papel]', box).forEach(sel => {
-    sel.dataset.antes = sel.value;                  // para desfazer se o servidor recusar
-    sel.addEventListener('change', async () => {
-      sel.disabled = true;
-      try {
-        await api('POST', '/equipe/papel', { id: sel.dataset.papel, papel: sel.value });
-        toast(`Agora é ${(PAPEL_LABEL[sel.value] || sel.value).toLowerCase()}`);
-        // mudar a PRÓPRIA função muda o que você enxerga: recarrega tudo
-        if (sel.dataset.papel === meuId) { location.reload(); return; }
-        await cfgEquipe(box);
-      } catch (e) {
-        sel.value = sel.dataset.antes;
-        sel.disabled = false;
-        recado('#eq_msg', e.message, false);
-      }
-    });
-  });
-
-  // Apps de cada pessoa: grava ao marcar/desmarcar
-  $$('[data-apps]', box).forEach(grupo => grupo.addEventListener('change', async () => {
-    const apps = $$('input:checked', grupo).map(i => i.value);
-    $$('input', grupo).forEach(i => { i.disabled = true; });
-    try {
-      await api('POST', '/equipe/apps', { id: grupo.dataset.apps, apps });
-      toast(apps.includes('agenda') ? 'Apps atualizados' : 'Apps atualizados. Sem a Agenda, a pessoa não entra aqui');
-    } catch (e) { recado('#eq_msg', e.message, false); await cfgEquipe(box); return; }
-    $$('input', grupo).forEach(i => { i.disabled = false; });
-  }));
-
-  // Senha temporária: aparece UMA vez para entregar em mãos
-  $$('button[data-senha-temp]', box).forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm(`Gerar uma senha temporária para ${btn.dataset.nome || 'esta pessoa'}? A senha atual dela deixa de valer.`)) return;
-    btn.disabled = true;
-    try {
-      const r = await api('POST', '/equipe/senha-temporaria', { id: btn.dataset.senhaTemp });
-      openModal(`
-        <div class="modal-head"><h3>${svg(I.chave)} Senha temporária</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
-        <div class="modal-body">
-          <p class="info-campo">Entregue esta senha para <b>${esc(btn.dataset.nome || 'a pessoa')}</b>. No primeiro login ela cria a dela.
-            <b>Ela não aparece de novo</b> depois que você fechar.</p>
-          <div class="senha-temp" id="st_senha">${esc(r.senha)}</div>
-        </div>
-        <div class="modal-foot"><button class="btn" id="st_copiar">${svg(I.copiar)} Copiar</button>
-          <button class="btn primary" onclick="closeModal()">Pronto</button></div>`);
-      $('#st_copiar').addEventListener('click', () => copiarTexto(r.senha));
-      await cfgEquipe(box);
-    } catch (e) { btn.disabled = false; recado('#eq_msg', e.message, false); }
-  }));
-
-  // Tirar / devolver o acesso de alguém
-  $$('button[data-membro]', box).forEach(btn => btn.addEventListener('click', async () => {
-    const devolver = btn.dataset.ativar === '1';
-    if (!devolver && !confirm('Tirar o acesso desta pessoa? Ela não vai mais entrar na Agenda, '
-        + 'no CRM nem no Atendimento. Nada é apagado e você pode devolver depois.')) return;
-    btn.disabled = true;
-    try {
-      await api('POST', '/equipe/ativo', { id: btn.dataset.membro, ativo: devolver });
-      toast(devolver ? 'Acesso devolvido' : 'Acesso removido');
-      await cfgEquipe(box);
-    } catch (e) { btn.disabled = false; recado('#eq_msg', e.message, false); }
-  }));
-
-  $('#eq_criar', box)?.addEventListener('click', async () => {
-    const nome  = $('#eq_nome', box).value.trim();
-    const email = $('#eq_email', box).value.trim().toLowerCase();
-    const senha = $('#eq_senha', box).value;
-    if (!nome)  return recado('#eq_msg2', 'Escreva o nome da pessoa.', false);
-    if (!email) return recado('#eq_msg2', 'Escreva o e-mail que ela vai usar para entrar.', false);
-    if (senha.length < 8) return recado('#eq_msg2', 'A senha precisa ter pelo menos 8 caracteres.', false);
-    const btn = $('#eq_criar', box); btn.disabled = true;
-    try {
-      const r = await api('POST', '/equipe', { nome, email, senha, papel: $('#eq_papel', box).value, trocar_senha: $('#eq_trocar', box).checked });
-      toast('Acesso criado');
-      // Redesenha ANTES do recado: o redesenho limpa o formulário e levaria a
-      // mensagem junto. E é ela que diz o que o administrador tem de entregar.
-      await cfgEquipe(box);
-      recado('#eq_msg2', r.aviso
-        || `Pronto. Entregue a ${nome} o e-mail ${email} e a senha que você acabou de escolher.`,
-        !r.aviso);
-    } catch (e) { recado('#eq_msg2', e.message, false); btn.disabled = false; }
-  });
-}
-
-// ============================================================================
-// CONECTORES (instalar app, Google Agenda, webhook, exportações)
-// ============================================================================
-/* Baixa um arquivo da API com o token do login (um <a href> comum iria sem ele). */
-async function baixarComLogin(caminho, nome, botao) {
-  if (botao) botao.disabled = true;
-  try {
-    const r = await fetch(RAIZ + 'api' + caminho, { headers: await authCabecalhos() });
-    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.erro || 'Não consegui baixar.'); }
-    const url = URL.createObjectURL(await r.blob());
-    const a = Object.assign(document.createElement('a'), { href: url, download: nome });
-    document.body.append(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast('Arquivo baixado');
-  } catch (e) { toast(e.message, 'err'); }
-  finally { if (botao) botao.disabled = false; }
-}
-
-async function renderConectores() {
-  if (!document.body.classList.contains('gestor')) {
-    view.innerHTML = vazio(I.cadeado, 'Só para gestor', 'Conectores, Google Agenda e exportações ficam com o gestor ou o administrador.');
-    return;
-  }
-  const it = await api('GET', '/integracoes');
-  const icsUrl = new URL(RAIZ + 'api/agenda.ics?t=' + encodeURIComponent(it.ics_token || ''), location.origin).href;
-  view.innerHTML = `
-    <div class="cols">
-      <div class="panel"><div class="panel-head"><h2>📱 Instalar como aplicativo</h2></div>
-        <div class="panel-body">
-          <div class="tpl"><div class="tpl-body">Use o IndyCar como <b>app de verdade</b> no celular e no computador: ícone próprio, tela cheia e abertura rápida.</div></div>
-          <button class="btn primary" id="cn_install">📲 Instalar aplicativo</button>
-          <small class="muted">Se o botão não fizer nada: no <b>Chrome (PC)</b> use o ícone de instalação na barra de endereço; no <b>Android</b>: menu ⋮ → "Adicionar à tela inicial"; no <b>iPhone</b>: Compartilhar → "Adicionar à Tela de Início".</small>
-        </div></div>
-      <div class="panel"><div class="panel-head"><h2>📅 Google Agenda</h2></div>
-        <div class="panel-body">
-          <div class="field"><label>URL do calendário (assine no Google Agenda)</label>
-            <input id="cn_ics" aria-label="Link do calendário iCal" value="${esc(icsUrl)}" readonly onclick="this.select()"></div>
-          <div style="display:flex;gap:8px">
-            <button class="btn primary" id="cn_copy">📋 Copiar URL</button>
-            <a class="btn" href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl" target="_blank" rel="noopener">Abrir Google Agenda</a>
-          </div>
-          <div class="tpl"><div class="tpl-body"><b>Como conectar (1 vez):</b>
-1. Copie a URL acima.
-2. No Google Agenda → ⚙️ Configurações → <b>Adicionar agenda → Do URL</b>.
-3. Cole e clique em <b>Adicionar agenda</b>. ✅
-Todos os agendamentos aparecem na sua agenda Google e <b>se atualizam sozinhos</b> (o Google sincroniza periodicamente).</div></div>
-        </div></div>
-    </div>
-    <div class="cols">
-      <div class="panel"><div class="panel-head"><h2>🔗 Webhook de saída (Zapier · Make · n8n)</h2></div>
-        <div class="panel-body">
-          <div class="field"><label class="switch"><input type="checkbox" id="cn_whk_on" ${it.webhook_ativo?'checked':''}> <span>Enviar eventos para outro sistema</span></label>
-            <small class="muted">Dispara um POST JSON quando um agendamento é <b>criado</b> ou muda de <b>status</b>. Ligue em Zapier/Make/n8n e conecte a milhares de apps (planilhas, e-mail, CRM…).</small></div>
-          <div class="field"><label for="cn_whk">URL do webhook</label><input id="cn_whk" inputmode="url" value="${esc(it.webhook_url||'')}" placeholder="https://hooks.zapier.com/..."></div>
-          <div style="display:flex;gap:8px">
-            <button class="btn primary" id="cn_whk_save">${svg(I.check)} Salvar</button>
-            <button class="btn" id="cn_whk_test">${svg(I.send)} Testar</button>
-          </div>
-          <div id="cn_whk_result"></div>
-        </div></div>
-      <div class="panel"><div class="panel-head"><h2>📤 Exportar dados</h2></div>
-        <div class="panel-body">
-          <div class="tpl"><div class="tpl-body">Baixe seus dados em <b>CSV</b> (abre direto no Excel/Planilhas Google).</div></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button type="button" class="btn primary" data-baixar="agendamentos">📥 Agendamentos (CSV)</button>
-            <button type="button" class="btn" data-baixar="clientes">📥 Clientes (CSV)</button>
-          </div>
-          <small class="muted">Outros conectores já ativos: <b>WhatsApp + IA Carlos</b> (CodeWords) na aba WHATSAPP, e importação automática de agendamentos.</small>
-        </div></div>
-    </div>`;
-
-  $$('[data-baixar]', view).forEach(b => b.addEventListener('click', () => baixarComLogin(`/export/${b.dataset.baixar}.csv`, `${b.dataset.baixar}.csv`, b)));
-  $('#cn_copy').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(icsUrl); toast('URL copiada ✅'); }
-    catch { $('#cn_ics').select(); document.execCommand('copy'); toast('URL copiada ✅'); }
-  });
-  $('#cn_install').addEventListener('click', async () => {
-    if (state.installPrompt) { state.installPrompt.prompt(); const r = await state.installPrompt.userChoice;
-      if (r.outcome === 'accepted') { toast('Aplicativo instalado! 🏁'); state.installPrompt = null; } }
-    else toast('Use o menu do navegador para instalar (veja a dica abaixo do botão)', 'err');
-  });
-  $('#cn_whk_save').addEventListener('click', async () => {
-    try { await api('PUT','/integracoes',{ webhook_url: $('#cn_whk').value.trim(), webhook_ativo: $('#cn_whk_on').checked });
-      toast('Webhook salvo ✅'); } catch(e){ toast(e.message,'err'); }
-  });
-  $('#cn_whk_test').addEventListener('click', async () => {
-    const r = $('#cn_whk_result'); r.innerHTML = '<div class="muted" style="margin-top:8px">Testando…</div>';
-    try { const res = await api('POST','/integracoes/testar-webhook',{ webhook_url: $('#cn_whk').value.trim() });
-      r.innerHTML = res.ok
-        ? `<div class="tpl" style="margin-top:8px;border-color:rgba(34,197,94,.4)"><div class="tpl-body">✅ Webhook respondeu (HTTP ${res.status}).</div></div>`
-        : `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(res.erro || ('HTTP ' + res.status))}</div></div>`;
-    } catch(e){ r.innerHTML = `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(e.message)}</div></div>`; }
-  });
-}
-
-// ============================================================================
-// WHATSAPP
-// ============================================================================
-async function renderWhatsapp() {
-  if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
-  const tab = state.waTab || 'config';
-  const cfg = await api('GET', '/whatsapp/config');
-  const badge = cfg.ativo
-    ? '<span class="badge-pill bp-green">Cloud API ativa</span>'
-    : '<span class="badge-pill bp-orange">Modo link (wa.me)</span>';
-  view.innerHTML = `
-    <div class="toolbar">
-      <div class="left"><h2 class="titulo-wa" style="font-size:18px;display:flex;align-items:center;gap:8px">${svg(I.wa)} WhatsApp</h2>${badge}</div>
-      <button class="btn green" onclick="openWhatsappModal()">${svg(I.send)} Enviar mensagem</button>
-    </div>
-    <div class="tabs">
-      <button class="tab ${tab==='config'?'active':''}" data-tab="config">${svg(I.gear)} Configuração</button>
-      <button class="tab ${tab==='conexao'?'active':''}" data-tab="conexao">${svg(I.phone)} Conexão</button>
-      <button class="tab ${tab==='ia'?'active':''}" data-tab="ia">${svg(I.bot)} Integração</button>
-      <button class="tab ${tab==='modelos'?'active':''}" data-tab="modelos">${svg(I.edit)} Modelos</button>
-      <button class="tab ${tab==='mensagens'?'active':''}" data-tab="mensagens">${svg(I.wa)} Mensagens</button>
-    </div>
-    <div id="waContent">${esqueletoFormulario()}</div>`;
-  $$('.tab', view).forEach(b => b.addEventListener('click', () => { state.waTab = b.dataset.tab; renderWhatsapp(); }));
-  const box = $('#waContent');
-  if (tab === 'config') await waConfig(box, cfg);
-  else if (tab === 'conexao') await waConexao(box);
-  else if (tab === 'ia') await waIA(box);
-  else if (tab === 'modelos') await waModelos(box);
-  else await waMensagens(box);
-}
-
-/* Tela de conexão — SÓ MOSTRA, não conecta.
-   Antes daqui saía um QR e dava para cadastrar um Device ID próprio. Com o
-   painel de atendimento fazendo o mesmo, dava para acabar com dois aparelhos
-   diferentes e ninguém sabia qual valia. E o CodeWords aposentou o QR: agora
-   é código de pareamento. Quem conecta é o atendimento; aqui é vitrine. */
-async function waConexao(box) {
-  box.innerHTML = `
-    <div class="wa-grid">
-      <div class="panel"><div class="panel-head"><h2>${svg(I.phone)} WhatsApp da empresa</h2>
-        <span class="badge-pill bp-gray" id="cx_status">—</span></div>
-        <div class="panel-body" style="align-items:center;text-align:center">
-          <div id="cx_qr" style="padding:22px 14px;width:100%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700">
-            <span style="color:#888">Verificando…</span>
-          </div>
-          <div id="cx_info" class="muted" style="font-size:12.5px;margin-top:4px;max-width:340px">
-            É por este número que o lembrete e o aviso de falta saem.
-          </div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="btn" id="cx_refresh">Verificar agora</button>
-          </div>
-        </div></div>
-      <div class="panel"><div class="panel-head"><h2>${svg(I.gear)} Onde se reconecta</h2></div>
-        <div class="panel-body">
-          <p style="margin:0 0 10px;font-size:13.5px;line-height:1.6">
-            A conexão do WhatsApp é feita num lugar só: o <b>painel de atendimento</b>.
-            Se ela fosse feita aqui também, daria para acabar com dois aparelhos
-            conectados e mensagens saindo por linhas diferentes.
-          </p>
-          <p style="margin:0 0 14px;font-size:13.5px;line-height:1.6">
-            Lá em <b>Configurações › Equipe e sistema › Conexão do WhatsApp</b>,
-            o botão <b>Reconectar WhatsApp</b> gera um código de 8 letras para
-            digitar no celular da oficina.
-          </p>
-          <a class="btn primary" href="${esc(urlDoApp('atendimento') || '#')}" target="_blank" rel="noopener">
-            ${svg(I.wa)} Abrir o painel de atendimento
-          </a>
-          <div class="tpl" style="margin-top:14px"><div class="tpl-body"><b>Status:</b> <span id="cx_status2">—</span></div></div>
-        </div></div>
-    </div>`;
-
-  const setStatus = (txt, cls) => {
-    const a = $('#cx_status'); a.textContent = txt; a.className = 'badge-pill ' + cls;
-    const b = $('#cx_status2'); if (b) b.textContent = txt;
-  };
-  const painel = (html) => { $('#cx_qr').innerHTML = html; };
-
-  async function tick() {
-    try {
-      const s = await api('GET','/whatsapp/conexao');
-      if (!s.configurado) {
-        setStatus('não configurado','bp-orange');
-        $('#cx_info').textContent = s.erro || 'Falta a chave do CodeWords (aba IA).';
-        painel('<span style="color:#888">—</span>');
-        return;
-      }
-      if (!s.ok) {
-        setStatus('erro','bp-red');
-        $('#cx_info').textContent = s.erro || 'Erro ao consultar.';
-        painel('<span style="color:#888">—</span>');
-        return;
-      }
-      if (s.conectado && s.recebendo) {
-        setStatus('conectado ✅','bp-green');
-        painel(`<span style="color:#16a34a">✅ ${esc(s.numero||'')} conectado</span>`);
-        $('#cx_info').textContent = 'Lembretes e avisos de falta saem por este número.';
-        return;
-      }
-      /* Pareado sem inscrição é o pior caso: parece ligado e não recebe nada.
-         Merece cor de alerta, não de sucesso. */
-      if (s.conectado) {
-        setStatus('sem receber','bp-orange');
-        painel('<span style="color:#d97706">⚠ Conectado, mas não está recebendo</span>');
-        $('#cx_info').textContent = s.aviso || 'Religue no painel de atendimento.';
-        return;
-      }
-      setStatus('desconectado','bp-red');
-      painel('<span style="color:#dc2626">✖ WhatsApp desconectado</span>');
-      $('#cx_info').textContent = s.onde_reconectar
-        ? `Reconecte em: ${s.onde_reconectar}`
-        : 'Reconecte pelo painel de atendimento.';
-    } catch(e) { setStatus('erro','bp-red'); }
-  }
-
-  $('#cx_refresh').addEventListener('click', () => tick());
-
-  tick();
-  /* De 30 em 30s. Antes era de 4 em 4 porque estava esperando um QR ser lido;
-     agora é só acompanhamento e não vale bater no CodeWords o tempo todo. */
-  state._cxTimer = setInterval(tick, 30000);
-}
-
-async function waConfig(box, cfg) {
-  const webhook = new URL(RAIZ + 'api/whatsapp/webhook', location.origin).href;
-  box.innerHTML = `
-    <div class="cols">
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.gear)} Credenciais da Cloud API (Meta)</h2></div>
-        <div class="panel-body">
-          <div class="field"><label class="switch"><input type="checkbox" id="cfg_ativo" ${cfg.ativo?'checked':''}> <span>Enviar mensagens automaticamente pela Cloud API</span></label>
-            <small class="muted">Desligado: o sistema registra a mensagem e abre o WhatsApp pelo link <b>wa.me</b>.</small></div>
-          <div class="field"><label for="cfg_pnid">ID do número *</label><input id="cfg_pnid" inputmode="numeric" value="${esc(cfg.phone_number_id||'')}" placeholder="Ex.: 123456789012345"></div>
-          <div class="field"><label>Access Token ${cfg.tem_token?`<span class="chip">salvo: ${esc(cfg.token_mask)}</span>`:''} *</label>
-            <input id="cfg_token" type="password" autocomplete="off" placeholder="${cfg.tem_token?'•••• deixe em branco para manter o atual':'Cole o token permanente'}"></div>
-          <div class="grid2">
-            <div class="field"><label for="cfg_waba">ID da conta do WhatsApp (WABA)</label><input id="cfg_waba" inputmode="numeric" value="${esc(cfg.business_account_id||'')}"></div>
-            <div class="field"><label for="cfg_ver">Versão da API</label><input id="cfg_ver" spellcheck="false" value="${esc(cfg.api_version||'v21.0')}"></div>
-          </div>
-          <div class="field"><label for="cfg_num">Número exibido</label><input id="cfg_num" type="tel" value="${esc(cfg.numero_exibicao||'')}" placeholder="+55 12 99999-0000"></div>
-          <div style="display:flex;gap:10px;margin-top:4px">
-            <button class="btn primary so-gestor" id="cfg_save">${svg(I.check)} Salvar</button>
-            <button class="btn green" id="cfg_test">${svg(I.send)} Testar conexão</button>
-          </div>
-          <div id="cfg_result"></div>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.wa)} Webhook & ajuda</h2></div>
-        <div class="panel-body">
-          <div class="field"><label for="cfg_webhook">URL do Webhook (cole na Meta)</label>
-            <input id="cfg_webhook" value="${esc(webhook)}" readonly onclick="this.select()"></div>
-          <div class="field"><label for="cfg_verify">Token de verificação</label><input id="cfg_verify" spellcheck="false" value="${esc(cfg.verify_token||'')}" placeholder="Crie um com 12 letras ou mais, sem espaço"></div>
-          <!-- Lembretes de agendamento saíram daqui (09/10): quem manda é o Comunicar,
-               com a régua dele e o "aceita mensagens" de cada cliente. -->
-          <div class="aviso-leitura" style="margin-top:4px">${svg(I.send)}
-            <div><b>Lembretes de agendamento são do Comunicar.</b> A régua (quando avisar, o
-            texto, quem pediu para não receber) fica lá. Aqui o cartão só mostra
-            "lembrete enviado" e "respondeu 👍".
-            <a href="${esc(urlDoApp('comunicar') || '#')}" target="_blank" rel="noopener">Abrir o Comunicar</a></div></div>
-          <div class="tpl"><div class="tpl-body"><b>Como conectar em 5 passos:</b>
-1. Crie um app no <b>Meta for Developers</b> e ative o produto <b>WhatsApp</b>.
-2. Copie o <b>Phone Number ID</b> e gere um <b>Access Token</b> permanente.
-3. Cole ao lado, marque "Enviar pela Cloud API" e clique em <b>Salvar</b>.
-4. Em <i>WhatsApp › Configuração › Webhooks</i>, use a URL e o token acima.
-5. Assine o campo <b>messages</b>. Teste a conexão. ✅</div></div>
-          <small class="muted">O webhook exige que o app esteja acessível pela internet (deploy ou túnel, ex.: ngrok).</small>
-        </div>
-      </div>
-    </div>`;
-  $('#cfg_save').addEventListener('click', async () => {
-    const p = { ativo:$('#cfg_ativo').checked, phone_number_id:$('#cfg_pnid').value.trim(),
-      access_token:$('#cfg_token').value.trim(), business_account_id:$('#cfg_waba').value.trim(),
-      api_version:$('#cfg_ver').value.trim()||'v21.0', verify_token:$('#cfg_verify').value.trim(),
-      numero_exibicao:$('#cfg_num').value.trim() };
-    if (p.ativo && (!p.phone_number_id || (!p.access_token && !cfg.tem_token)))
-      return toast('Para ativar a Cloud API, informe Phone Number ID e Access Token','err');
-    try { await api('PUT','/whatsapp/config',p); toast('Configuração salva ✅'); renderWhatsapp(); }
-    catch(e){ toast(e.message,'err'); }
-  });
-  $('#cfg_test').addEventListener('click', async () => {
-    const r = $('#cfg_result'); r.innerHTML = '<div class="muted" style="margin-top:12px">Testando conexão…</div>';
-    try {
-      const res = await api('POST','/whatsapp/testar',{ phone_number_id:$('#cfg_pnid').value.trim(),
-        access_token:$('#cfg_token').value.trim(), api_version:$('#cfg_ver').value.trim()||'v21.0' });
-      r.innerHTML = res.ok
-        ? `<div class="tpl" style="margin-top:12px;border-color:rgba(34,197,94,.45)"><div class="tpl-body">✅ <b>Conectado!</b> Número: ${esc(res.numero||'—')}${res.nome?` · ${esc(res.nome)}`:''}${res.qualidade?` · qualidade ${esc(res.qualidade)}`:''}</div></div>`
-        : `<div class="tpl" style="margin-top:12px;border-color:rgba(230,25,46,.45)"><div class="tpl-body">❌ <b>Falhou:</b> ${esc(res.erro)}</div></div>`;
-    } catch(e){ r.innerHTML = `<div class="tpl" style="margin-top:12px;border-color:rgba(230,25,46,.45)"><div class="tpl-body">❌ ${esc(e.message)}</div></div>`; }
-  });
-}
-
-async function waModelos(box) {
-  const templates = await api('GET','/whatsapp/templates');
-  box.innerHTML = `
-    <div class="panel"><div class="panel-head"><h2>Modelos de mensagem</h2>
-      <button class="btn" onclick="openTemplateModal()">${svg(I.plus)} Novo modelo</button></div>
-      <div class="panel-body">
-        ${templates.map(t => `<div class="tpl" data-id="${t.id}">
-          <div class="tpl-head"><strong>${esc(t.nome)}</strong><span class="chip">${esc(t.gatilho)}</span></div>
-          <div class="tpl-body">${esc(t.corpo)}</div>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn" data-act="usar">${svg(I.send)} Usar</button>
-            <button class="icon-btn" data-act="edit" title="Editar" aria-label="Editar modelo ${esc(t.nome)}">${svg(I.edit)}</button>
-            <button class="icon-btn red so-gestor" data-act="del" title="Excluir" aria-label="Excluir modelo ${esc(t.nome)}">${svg(I.trash)}</button>
-          </div></div>`).join('')}
-      </div></div>`;
-  $$('.tpl[data-id]', box).forEach(el => {
-    const id = el.dataset.id; // uuid (string)
-    el.querySelector('[data-act="usar"]')?.addEventListener('click', () => openWhatsappModal(null, null, id));
-    el.querySelector('[data-act="edit"]')?.addEventListener('click', () => openTemplateModal(id));
-    el.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
-      if (!confirm('Excluir modelo?')) return;
-      try { await api('DELETE', `/whatsapp/templates/${id}`); toast('Modelo excluído'); waModelos(box); }
-      catch (e) { toast(e.message, 'err'); }
-    });
-  });
-}
-
-async function waMensagens(box) {
-  const msgs = await api('GET','/whatsapp/mensagens');
-  box.innerHTML = `
-    <div class="panel"><div class="panel-head"><h2>Histórico de mensagens</h2><span class="date">${msgs.length} registros</span></div>
-      <div class="panel-body" style="gap:0">
-        ${msgs.length ? msgs.map(m => `
-          <div class="msg ${m.direcao==='saida'?'saida':'entrada'}">
-            <div class="dir">${m.direcao==='saida'?'↗':'↙'}</div>
-            <div class="c"><div class="who">${esc(m.nome||m.telefone)} <span class="muted">· ${m.direcao==='saida'?'saída':'entrada'}</span></div>
-              <div class="txt">${esc(m.corpo)}</div>
-              <div class="meta">${esc(dataHoraBR(m.created_at))} · ${statusMsg(m.status)}${m.erro?` · ${esc(m.erro)}`:''}</div></div>
-          </div>`).join('') : '<div class="empty">Nenhuma mensagem ainda.</div>'}
-      </div></div>`;
-}
-function statusMsg(s){ return {enviado:'enviado ✅',entregue:'entregue ✅✅',lido:'lido 👁️',recebido:'recebido',falhou:'falhou ❌',pendente:'pendente'}[s]||esc(s); }
-async function waIA(box) {
-  const cfg = await api('GET','/whatsapp/ia/config');
-  box.innerHTML = `
-    <div class="wa-grid">
-      <div class="panel"><div class="panel-head"><h2>${svg(I.bot)} Integração WhatsApp (CodeWords)</h2>
-        <span class="badge-pill ${cfg.tem_cw_chave?'bp-green':'bp-orange'}">${cfg.tem_cw_chave?'Configurada':'Falta a chave'}</span></div>
-        <div class="panel-body">
-          <div class="tpl" style="border-color:rgba(37,211,102,.35)"><div class="tpl-body">🟢 <b>Como funciona:</b> a IA já cadastrada no seu WhatsApp atende os clientes. A Agenda faz 3 coisas:
-1. <b>Puxa os agendamentos</b> que a IA fecha e coloca na agenda (sozinha).
-2. No <b>"Não veio"</b>, manda o <b>aviso de falta</b> na hora, pelo WhatsApp da empresa.
-3. Mostra a <b>conexão do número</b> (aba Conexão).
-Lembrete, aniversário e revisão são do <b>Comunicar</b>.</div></div>
-          <div class="field"><label>Chave do CodeWords ${cfg.tem_cw_chave?`<span class="chip">salva: ${esc(cfg.cw_chave_mask)}</span>`:''}</label>
-            <input id="cw_key" type="password" autocomplete="off" placeholder="${cfg.tem_cw_chave?'•••• deixe em branco para manter':'cwk-...'}"></div>
-          <div class="field"><label>Workflow do atendente (vincula o número)</label><input id="cw_sid" value="${esc(cfg.cw_service_id||'')}" placeholder="indycar_carlos_whatsapp_..."></div>
-          <div class="field"><label>Workflow do banco de agendamentos (importação)</label><input id="cw_db" value="${esc(cfg.cw_db_service_id||'')}" placeholder="indycar_agendamentos_db_..."></div>
-          <div class="field"><label>Workflow de follow-up de ausência (IA)</label><input id="cw_noshow" value="${esc(cfg.cw_noshow_service_id||'')}" placeholder="indycar_noshow_notifier_..."></div>
-          <div class="field"><label for="cw_base">Endereço base do CodeWords</label><input id="cw_base" inputmode="url" value="${esc(cfg.cw_base_url||'https://runtime.codewords.ai')}"></div>
-          <button class="btn primary so-gestor" id="ia_save">${svg(I.check)} Salvar</button>
-        </div></div>
-      <div class="panel"><div class="panel-head"><h2>${svg(I.calendar)} Agendamentos da IA</h2></div>
-        <div class="panel-body">
-          <div class="tpl"><div class="tpl-body">Os agendamentos que a IA fecha no WhatsApp entram <b>sozinhos</b> na agenda (a cada poucos minutos e sempre que o painel abre). Se quiser forçar agora:</div></div>
-          <button class="btn green" id="cw_sync">${svg(I.calendar)} Sincronizar agendamentos agora</button>
-          <div id="cw_sync_result"></div>
-          <small class="muted" style="display:block;margin-top:10px">O aviso de falta aparece na aba <b>Mensagens</b> sempre que você marcar <b>Não veio</b>, com "enviado" ou o motivo da falha.</small>
-        </div></div>
-    </div>`;
-
-  $('#ia_save').addEventListener('click', async () => {
-    const p = { motor:'codewords', ativo:false,
-      cw_api_key:$('#cw_key').value.trim(), cw_service_id:$('#cw_sid').value.trim(),
-      cw_db_service_id:$('#cw_db').value.trim(), cw_noshow_service_id:$('#cw_noshow').value.trim(),
-      cw_base_url:$('#cw_base').value.trim()||'https://runtime.codewords.ai' };
-    try { await api('PUT','/whatsapp/ia/config',p); toast('Integração salva ✅'); renderWhatsapp(); }
-    catch(e){ toast(e.message,'err'); }
-  });
-  $('#cw_sync').addEventListener('click', async () => {
-    const r = $('#cw_sync_result'); r.innerHTML = '<div class="muted" style="margin-top:8px">Sincronizando…</div>';
-    try {
-      const res = await api('POST','/codewords/importar', {});
-      r.innerHTML = res.ok
-        ? `<div class="tpl" style="margin-top:8px;border-color:rgba(34,197,94,.4)"><div class="tpl-body">✅ ${res.importados} novo(s) de ${res.encontrados} encontrado(s).</div></div>`
-        : `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(res.erro)}</div></div>`;
-      if (res.ok && res.importados) toast(`${res.importados} agendamento(s) importado(s)`);
-    } catch(e){ r.innerHTML = `<div class="tpl" style="margin-top:8px;border-color:rgba(230,25,46,.4)"><div class="tpl-body">❌ ${esc(e.message)}</div></div>`; }
   });
 }
 
@@ -2995,32 +1993,6 @@ window.abrirRemarcar = async function(id) {
    Achou UM horário pendente → abre ele. Achou a ficha → abre a ficha (com o
    histórico e o "Agendar de novo"). Vários pendentes sem ficha → Agenda
    filtrada pelo telefone. Nada → "Novo agendamento" já com o telefone. */
-document.addEventListener('click', async e => {
-  const botao = e.target.closest('#chipConversasSemHorario');
-  if (!botao || botao.disabled || emPresenca()) return;
-  botao.disabled = true;
-  try {
-    const itens = await api('GET', '/conversas-sem-horario');
-    if (!botao.isConnected) return;
-    openModal('<div class="modal-head"><h3>Horários falados no WhatsApp</h3>' +
-      '<button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>' +
-      '<div class="modal-body"><p>Conversas recentes sem horário na Agenda. Confira com o cliente antes de salvar.</p>' +
-      (itens.length ? '<ul>' + itens.map((c, i) =>
-        '<li><button class="btn" data-horario-whatsapp="' + i + '">Agendar para ' +
-        esc(c.nome || c.telefone) + '</button></li>').join('') + '</ul>' :
-        '<p>Nenhuma conversa encontrada nos últimos sete dias.</p>') + '</div>');
-    document.querySelectorAll('[data-horario-whatsapp]').forEach(b => b.addEventListener('click', () => {
-      const c = itens[Number(b.dataset.horarioWhatsapp)];
-      closeModal();
-      abrirEntrada({ tel: c.telefone, nome: c.nome, novo: true });
-    }));
-  } catch (err) {
-    toast('Não consegui buscar as conversas. ' + err.message, 'err');
-  } finally {
-    botao.disabled = false;
-  }
-});
-
 async function abrirEntrada(e) {
   if (!e || emPresenca()) return;
   try {
@@ -3063,8 +2035,7 @@ window.abrirBuscaGlobal = function() {
     <div class="modal-head"><h3>${svg(I.search)} Buscar em tudo</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="search larga">${svg(I.search)}<input id="bgQ" type="search" enterkeyhint="search" placeholder="Nome, telefone, placa, carro ou serviço" aria-label="Buscar agendamentos e clientes" autocomplete="off"></div>
-      <div id="bgRes" class="busca-res" aria-live="polite"><p class="muted">Digite pelo menos 2 caracteres. Atalho: Ctrl+K.</p></div>
-      <p class="busca-dica"><kbd class="mini">↑</kbd> <kbd class="mini">↓</kbd> escolhe · <kbd class="mini">Enter</kbd> abre · telefone com ou sem DDD, placa com ou sem hífen</p>
+      <div id="bgRes" class="busca-res" aria-live="polite"><p class="muted">Digite pelo menos 2 caracteres.</p></div>
     </div>`);
   let vez = 0;
   /* rodada 5: setas andam pelos resultados; Enter abre o marcado (ou o primeiro). */
@@ -3622,29 +2593,6 @@ window.openConsultorModal = async function(id){
   });
 };
 
-window.openTemplateModal = async function(id){
-  let t = {nome:'',gatilho:'manual',corpo:''};
-  if (id) t = await api('GET','/whatsapp/templates').then(l=>l.find(x=>x.id===id)) || t;
-  openModal(`
-    <div class="modal-head"><h3>${svg(I.wa)} ${id?'Editar':'Novo'} modelo</h3><button type="button" class="modal-close" aria-label="Fechar" onclick="closeModal()">×</button></div>
-    <div class="modal-body">
-      <div class="grid2">
-        <div class="field"><label for="t_nome">Nome *</label><input id="t_nome" value="${esc(t.nome)}"></div>
-        <div class="field"><label for="t_gat">Gatilho</label><select id="t_gat">${['manual','confirmacao','lembrete','followup','pos_servico'].map(g=>`<option ${g==t.gatilho?'selected':''}>${g}</option>`).join('')}</select></div>
-      </div>
-      <div class="field"><label for="t_corpo">Mensagem *</label><textarea id="t_corpo" style="min-height:120px">${esc(t.corpo)}</textarea>
-        <small class="muted">Variáveis: {nome} {servico} {data} {hora} {veiculo} {placa}</small></div>
-    </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn primary" id="t_save">${svg(I.check)} Salvar</button></div>`);
-  $('#t_save').addEventListener('click', async () => {
-    const p={nome:$('#t_nome').value.trim(),gatilho:$('#t_gat').value,corpo:$('#t_corpo').value.trim()};
-    if(!p.nome||!p.corpo) return toast('Preencha nome e mensagem','err');
-    try{ if(id) await api('PUT',`/whatsapp/templates/${id}`,p); else await api('POST','/whatsapp/templates',p);
-      toast('Modelo salvo'); closeModal(); renderWhatsapp(); }catch(e){toast(e.message,'err');}
-  });
-};
-
 // Modal de envio de WhatsApp (a partir de agendamento, cliente ou template)
 window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
   const [templates, cfg] = await Promise.all([ api('GET','/whatsapp/templates'), api('GET','/whatsapp/config') ]);
@@ -3696,7 +2644,7 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
         toast('Mensagem registrada, abrindo WhatsApp');
         window.open(r.link, '_blank');
       }
-      closeModal(); if (state.route==='whatsapp') { state.waTab='mensagens'; renderWhatsapp(); }
+      closeModal();
     }catch(e){toast(e.message,'err');}
   });
 };
@@ -3793,7 +2741,6 @@ async function renderDia(opts = {}) {
         <button type="button" class="rec-ferr" id="recImprimir" title="Imprimir a folha do dia" aria-label="Imprimir a folha do dia">${svg(I.imprimir)}</button>
         ${'wakeLock' in navigator ? `<button type="button" class="rec-ferr" id="recAcesa" aria-pressed="${!!state.telaAcesa}" title="Não deixa a tela apagar (tablet do balcão)">☀ <span>Tela acesa</span></button>` : ''}
         ${document.fullscreenEnabled ? '<button type="button" class="rec-ferr" id="recCheia" title="Tela cheia" aria-label="Tela cheia">⛶</button>' : ''}
-        <button type="button" class="rec-ferr" id="recAjuda" title="Ajuda" aria-label="Ajuda">?</button>
         <label class="rec-ferr r7-auto-rec" title="Ao marcar Chegou, abre sozinho a entrada pronta no Pátio"><input type="checkbox" data-r7-auto ${window.R7 && window.R7.entradaAuto() ? 'checked' : ''}> entrada do Pátio sozinha</label>
       </div>
     </div>
@@ -3848,7 +2795,6 @@ async function renderDia(opts = {}) {
   $$('[data-letra]', view).forEach(b => b.addEventListener('click', () => { trocarLetra(b.dataset.letra); pintar(false); }));
   $('#recAtualizar').addEventListener('click', () => route());
   $('#recImprimir').addEventListener('click', () => imprimirFolha(state._recLista || [], agoraSP().data, { telefone: false }));
-  $('#recAjuda').addEventListener('click', () => route('ajuda'));
   $('#recAcesa')?.addEventListener('click', async (e) => {
     state.telaAcesa = !state.telaAcesa;
     const ok = await manterTelaAcesa(state.telaAcesa);
@@ -4082,18 +3028,13 @@ window.openEsperaModal = async function (id, pre = {}) {
 // ============================================================================
 // ROTEAMENTO
 // ============================================================================
-const ROUTES = { inicio:renderInicio, agenda:renderAgenda, crm:renderCrm, clientes:renderClientes,
-  servicos:renderServicos, whatsapp:renderWhatsapp, followup:renderFollowup, equipe:renderEquipe,
-  historico:renderHistorico, conectores:renderConectores, configuracoes:renderConfiguracoes,
-  dia:renderDia, semana:(o) => renderSemana(o), pendencias:renderPendencias, ajuda:renderAjuda, espera:renderEspera };
-const TAGS = { inicio:'INÍCIO', agenda:'AGENDA', crm:'CRM', clientes:'CLIENTES',
-  servicos:'SERVIÇOS', whatsapp:'WHATSAPP', followup:'FOLLOW-UP', equipe:'EQUIPE',
-  historico:'HISTÓRICO', conectores:'CONECTORES', configuracoes:'CONFIGURAÇÕES',
-  dia:'RECEPÇÃO', semana:'SEMANA', pendencias:'PENDÊNCIAS', ajuda:'AJUDA', espera:'LISTA DE ESPERA' };
+/* Rodada 11: só as telas da Agenda. WhatsApp mora no Atendimento, retornos no Comunicar, CRM e relatórios
+   no CRM e na Central; Ajuda, tour, Histórico, Serviços e Conectores saíram. */
+const ROUTES = { inicio:renderInicio, agenda:renderAgenda, clientes:renderClientes, equipe:renderEquipe,
+  configuracoes:renderConfiguracoes, dia:renderDia, semana:(o) => renderSemana(o), pendencias:renderPendencias, espera:renderEspera };
 /* Título da aba do navegador (e o que o leitor de tela anuncia ao trocar de tela). */
-const TITULOS = { inicio:'Início', agenda:'Agenda', crm:'CRM', clientes:'Clientes', servicos:'Serviços', whatsapp:'WhatsApp',
-  followup:'Follow-up', equipe:'Equipe', historico:'Histórico', conectores:'Conectores', configuracoes:'Configurações',
-  dia:'Recepção', semana:'Semana', pendencias:'Pendências', ajuda:'Ajuda', espera:'Lista de espera' };
+const TITULOS = { inicio:'Hoje', agenda:'Agenda', clientes:'Clientes', equipe:'Consultores', configuracoes:'Configurações',
+  dia:'Recepção', semana:'Semana', pendencias:'Pendências', espera:'Lista de espera', quadro:'Quadro' };
 
 /* Enquanto os dados não chegam, a tela mostra o próprio FORMATO (esqueleto) em
    vez de um "Carregando…" solto: nada pula de lugar quando o conteúdo entra.
@@ -4110,7 +3051,7 @@ function esqueleto(rota) {
       <div class="skel" style="height:32px;width:min(460px,80vw);margin-top:10px"></div></div></div>
     <div class="stat-grid row2">${'<div class="skel skel-stat"></div>'.repeat(4)}</div>
     <div class="cols">${painel(2)}${painel(3)}</div>`
-    : (rota === 'agenda' || rota === 'dia' || rota === 'followup' || rota === 'semana') ? painel(4)
+    : (rota === 'agenda' || rota === 'dia' || rota === 'semana') ? painel(4)
     : `<div class="panel"><div class="panel-body">
     <div class="skel" style="height:16px;width:38%"></div><div class="skel" style="height:12px;width:72%"></div>
     <div class="skel" style="height:12px;width:64%"></div><div class="skel" style="height:12px;width:48%"></div></div></div>`;
@@ -4137,19 +3078,16 @@ async function route(r, opts = {}){
   if (state._cxTimer) { clearInterval(state._cxTimer); state._cxTimer = null; }
   const quieto = !r && opts.quieto !== false && state._pintou === true;
   if (r) state.route = r;
-  if (emPresenca() && state.route !== 'ajuda') state.route = 'dia';     // papel 'agenda': a recepção (e a ajuda)
+  if (emPresenca()) state.route = 'dia';     // papel 'agenda': só a recepção
   const vez = state._vez = (state._vez || 0) + 1;
   $$('.nav-item').forEach(n => {
     const ativa = n.dataset.route === state.route;
     n.classList.toggle('active', ativa);
     if (ativa) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current');
   });
-  const grupoAtivo = $('.nav-item.active')?.closest('details');
-  if (grupoAtivo) grupoAtivo.open = true;
-  $('#pageTag').textContent = TAGS[state.route] || 'AGENDA';
-  document.title = `${TITULOS[state.route] || 'Início'} · IndyCar Agenda`;
+  document.title = `${TITULOS[state.route] || 'Hoje'} · IndyCar Agenda`;
   // troca de tela anunciada para quem usa leitor de tela (a região é invisível)
-  if (!quieto) { const av = $('#anuncioTela'); if (av) av.textContent = `Tela ${TITULOS[state.route] || 'Início'}`; }
+  if (!quieto) { const av = $('#anuncioTela'); if (av) av.textContent = `Tela ${TITULOS[state.route] || 'Hoje'}`; }
   if (!quieto) {
     state._repintar = null;                  // o relógio da tela não repinta uma tela que está saindo
     view.classList.add('entrando');
@@ -4178,13 +3116,12 @@ async function route(r, opts = {}){
   refreshBadge(quieto);
 }
 
-/* Selos do menu (follow-up; pendências do gestor) e os chips do Início.
-   RODADA 4: UMA chamada barata (/api/contagens = só COUNT no banco) no lugar da
-   lista inteira do follow-up a cada troca de tela — e no máximo a cada 30 s,
+/* Selo da aba Espera e os chips do Hoje (pendências do gestor, sem confirmação).
+   UMA chamada barata (/api/contagens = só COUNT no banco), no máximo a cada 30 s,
    a não ser que alguém tenha acabado de gravar algo (forcar). */
 let _contagensEm = 0, _contagensVez = null;
 async function refreshBadge(forcar = false){
-  if (emPresenca()) return;                  // follow-up não existe para esse papel
+  if (emPresenca()) return;                  // a recepção não tem abas nem chips
   if (!forcar && state.contagens && Date.now() - _contagensEm < 30_000) return pintarContagens(state.contagens);
   if (_contagensVez) return _contagensVez;
   _contagensVez = api('GET', '/contagens', null, { repetir: false }).then((c) => {
@@ -4194,8 +3131,6 @@ async function refreshBadge(forcar = false){
 }
 function pintarContagens(c) {
   const selo = (el, n) => { if (!el) return; el.textContent = n > 99 ? '99+' : String(n || 0); el.style.display = n ? 'flex' : 'none'; };
-  selo($('#badgeFollowup'), c?.followup);
-  selo($('#badgePendencias'), (c?.semValor || 0) + (c?.antigas || 0) + (c?.entregues || 0));
   selo($('#badgeEspera'), c?.espera);
   // chips do Início (só o gestor recebe esses números do servidor)
   const box = $('#chipsGestor'); if (!box) return;
@@ -4220,10 +3155,7 @@ function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f
 
 async function loadConsultores(){ state.consultores = await api('GET','/consultores'); }
 async function loadEmpresa(){
-  state.empresa = await api('GET','/empresa');
-  $('#empresaNome').textContent = state.empresa.nome;
-  $('#empresaEndereco').textContent = String(state.empresa.endereco || '').replace(/\s+[—–]\s+/g, ', ');   // sem travessão na tela
-  $('#empresaSlogan').textContent = state.empresa.slogan;
+  state.empresa = await api('GET','/empresa');   // o nome vai na folha impressa; o topo é o padrão IndyCar
 }
 /* Perfil de quem entrou — só para as iniciais do rodapé e a aba Configurações.
    Falhar aqui não pode impedir o app de abrir: por isso o catch silencioso. */
@@ -4259,14 +3191,10 @@ $('#nav').addEventListener('keydown', e => {
 $('#btnNovo').addEventListener('click', () => openAgendamentoModal());
 $('#btnBusca')?.addEventListener('click', () => abrirBuscaGlobal());
 
-/* ATALHOS DE TECLADO (fora de campo de texto):
-     N  → novo agendamento        /  → foca a busca da tela
-     Esc → fecha o modal (ou o popover dos apps) */
+/* Teclado: Esc fecha a janela; Ctrl+K busca; N abre um horário novo; / vai para a busca da tela. */
 const digitando = (el) => el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    if ($('#tour')) { marcarTourVisto(); return fecharTour(); }
-    if ($('#ecoPop') && !$('#ecoPop').hidden) return fecharEco();
     return closeModal();
   }
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K') && !emPresenca()
@@ -4274,11 +3202,7 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey || modalAberto() || document.body.classList.contains('deslogado')) return;
   if (digitando(e.target)) return;
   const k = e.key.toLowerCase();
-  if (e.key === '?') { e.preventDefault(); route('ajuda'); }
-  else if (k === 'n' && !emPresenca()) { e.preventDefault(); openAgendamentoModal(); }
-  else if (k === 's' && !emPresenca()) { e.preventDefault(); route('semana'); }
-  // rodada 5: uma letra leva à tela (como os apps de e-mail)
-  else if (!emPresenca() && ATALHOS_TELA[k] && (ATALHOS_TELA[k] !== 'pendencias' || document.body.classList.contains('gestor'))) { e.preventDefault(); route(ATALHOS_TELA[k]); }
+  if (k === 'n' && !emPresenca()) { e.preventDefault(); openAgendamentoModal(); }
   else if (e.key === '/') {
     const busca = $('.view .search input');
     if (busca) { e.preventDefault(); busca.focus(); busca.select(); }
@@ -4289,39 +3213,10 @@ document.addEventListener('keydown', e => {
 if ('serviceWorker' in navigator) navigator.serviceWorker.register(RAIZ + 'sw.js').catch(()=>{});
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); state.installPrompt = e; });
 
-/* ============================================================
-   FAIXA DE SAÚDE — o vigia carimba em vigia_estado o problema atual do
-   sistema; aqui vira uma faixa discreta no topo. Hoje: 'codewords-fora'
-   (chave do CodeWords recusada → nenhum WhatsApp automático sai).
-   ============================================================ */
-const TEXTO_PROBLEMA = {
-  'codewords-fora': 'WhatsApp automático parado: a chave do CodeWords foi recusada. '
-    + 'Nenhum lembrete ou aviso sai até o gestor trocar a chave em Atendimento › Integrações.',
-};
 function dataCurtaBR(ts) {
   const d = new Date(ts); if (isNaN(d)) return '';
   return d.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit' });
 }
-async function carregarSaude() {
-  const faixa = $('#faixaSaude'); if (!faixa) return;
-  let s;
-  try { s = await api('GET', '/saude'); } catch { return; }          // sem leitura = sem alarme
-  state.saude = s;
-  if (!s || !s.problema) { faixa.hidden = true; return; }
-  const texto = TEXTO_PROBLEMA[s.problema] || s.resumo || `Problema no sistema: ${s.problema}.`;
-  faixa.textContent = '';
-  const ico = document.createElement('span'); ico.className = 'faixa-ico'; ico.innerHTML = svg(I.alerta);
-  const txt = document.createElement('span'); txt.className = 'faixa-txt';
-  txt.textContent = texto + (s.desde ? ` (desde ${dataCurtaBR(s.desde)})` : '');
-  faixa.append(ico, txt);
-  if (s.problema === 'codewords-fora') {
-    const a = document.createElement('a'); a.href = urlDoApp('atendimento') || '#'; a.target = '_blank'; a.rel = 'noopener';
-    a.className = 'faixa-link'; a.textContent = 'Abrir Atendimento';
-    faixa.append(a);
-  }
-  faixa.hidden = false;
-}
-setInterval(() => { if (!document.hidden && !document.body.classList.contains('deslogado')) carregarSaude(); }, 5 * 60 * 1000);
 
 /* ============================================================
    SEM INTERNET — faixa enquanto estiver offline; recado quando voltar.
@@ -4332,50 +3227,11 @@ function marcarRede() {
 }
 window.addEventListener('offline', marcarRede);
 window.addEventListener('online', () => {
-  marcarRede(); carregarSaude();
+  marcarRede();
   if (lerFila().length && !document.body.classList.contains('deslogado')) enviarFila();
   else toast('Conexão de volta, tudo normal de novo');
 });
 marcarRede();
-
-/* ============================================================
-   ECOSSISTEMA INDYCAR — popover ao lado da barra lateral com os outros apps
-   da oficina; este (Agenda) vem marcado "você está aqui".
-   ============================================================ */
-function desenharEco() {
-  const pop = $('#ecoPop'); if (!pop) return;
-  pop.innerHTML = `<p class="eco-titulo">Ecossistema IndyCar</p>` + ECOSSISTEMA.map(app => {
-    const atual = app.chave === APP_ATUAL;
-    return `<a class="eco-item${atual ? ' atual' : ''}" role="menuitem" href="${esc(app.url)}"
-      ${atual ? 'aria-current="page"' : 'target="_blank" rel="noopener"'}>
-      <span class="eco-ico">${svg(app.ico)}</span>
-      <span class="eco-txt"><b>${esc(app.nome)}</b><small>${atual ? 'você está aqui' : esc(app.desc)}</small></span>
-      ${atual ? '' : '<span class="eco-seta" aria-hidden="true">↗</span>'}</a>`;
-  }).join('');
-}
-function abrirEco() {
-  const pop = $('#ecoPop'), btn = $('#btnEco'); if (!pop || !btn) return;
-  if (!pop.innerHTML) desenharEco();
-  const r = btn.getBoundingClientRect();
-  // ancora ao lado do botão; em tela estreita (≤640) vira folha no pé da tela (CSS)
-  pop.style.setProperty('--eco-x', `${r.right + 10}px`);
-  pop.style.setProperty('--eco-y', `${Math.max(12, r.bottom - 8)}px`);
-  pop.hidden = false; btn.setAttribute('aria-expanded', 'true');
-  // setTimeout, não rAF: em aba oculta o rAF não roda e o popover ficaria invisível (opacity 0)
-  setTimeout(() => pop.classList.add('aberto'), 10);
-  ($('.eco-item:not(.atual)', pop) || pop).focus?.();
-}
-function fecharEco() {
-  const pop = $('#ecoPop'), btn = $('#btnEco'); if (!pop || pop.hidden) return;
-  pop.classList.remove('aberto'); pop.hidden = true; btn?.setAttribute('aria-expanded', 'false'); btn?.focus();
-}
-$('#btnEco')?.addEventListener('click', () => ($('#ecoPop').hidden ? abrirEco() : fecharEco()));
-document.addEventListener('click', e => {
-  const pop = $('#ecoPop');
-  if (!pop || pop.hidden) return;
-  if (!pop.contains(e.target) && !e.target.closest('#btnEco')) fecharEco();
-});
-window.addEventListener('resize', debounce(() => { if ($('#ecoPop') && !$('#ecoPop').hidden) abrirEco(); }, 120));
 
 /* ============================================================
    LOGIN — nada da Agenda aparece antes de entrar
@@ -4479,8 +3335,7 @@ async function abrirApp(){
   // sem a Agenda nos apps → "você não tem acesso"; senha provisória → troca antes de entrar
   if (typeof contaPortaoDoPerfil === 'function' && !(await contaPortaoDoPerfil(state.perfil))) return;
   esconderLogin();
-  carregarSaude();                           // faixa no topo, sem segurar a abertura
-  if (typeof contaIniciarTopo === 'function') contaIniciarTopo();   // sino, minhas tarefas, menu do perfil
+  if (typeof contaIniciarTopo === 'function') contaIniciarTopo();   // menu da pessoa (o sino e as tarefas moram na Central)
   if (emPresenca()) {
     // papel 'agenda' (só presença): menu e botão de novo agendamento somem;
     // o servidor recusaria tudo isso de qualquer jeito.
@@ -4492,7 +3347,6 @@ async function abrirApp(){
     await route('dia');
     await pEmpresa;
     desenharFila(); enviarFila();
-    talvezMostrarTour();
     return;
   }
   /* RODADA 4 (velocidade): o Início é pedido JUNTO com a oficina e os
@@ -4503,7 +3357,6 @@ async function abrirApp(){
   await route(r0 && ROUTES[r0] ? r0 : 'inicio');
   await pBase;
   desenharFila(); enviarFila();               // marcações feitas sem internet numa visita anterior
-  talvezMostrarTour();
   if (state.entrada) { const e = state.entrada; state.entrada = null; await abrirEntrada(e); }
   else if (qs.get('novo') === '1') openAgendamentoModal();
 }
