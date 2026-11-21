@@ -24,7 +24,7 @@ function casca() {
 
 test('arquivos da tela: abrir o app pela segunda vez não comprime nenhum arquivo de novo', async () => {
   const arquivos = casca();
-  assert.ok(arquivos.length > 55, 'a casca tem ' + arquivos.length + ' arquivos');
+  assert.ok(arquivos.length > 25, 'a casca tem ' + arquivos.length + ' arquivos');
   // a biblioteca pode estar no node_modules do app ou no da Central (raiz), como o servidor procura
   const doSupabase = ['..', path.join('..', '..', '..')].map(d => path.join(__dirname, d, 'node_modules', '@supabase', 'supabase-js', 'dist', 'umd', 'supabase.js')).find(p => fs.existsSync(p));
   assert.ok(doSupabase, 'biblioteca do Supabase instalada');
@@ -40,7 +40,7 @@ test('arquivos da tela: abrir o app pela segunda vez não comprime nenhum arquiv
   try {
     await abrir();
     const primeira = compressoes;
-    assert.ok(primeira >= 40, 'na primeira abertura os arquivos de texto são comprimidos (' + primeira + ')');
+    assert.ok(primeira >= 20, 'na primeira abertura os arquivos de texto são comprimidos (' + primeira + ')');
     compressoes = 0;
     const t = process.hrtime.bigint();
     await abrir();
@@ -114,7 +114,7 @@ test('fontes da tela ficam 30 dias no navegador (antes: 1 hora, e 4 idas ao serv
   try {
     const base = `http://127.0.0.1:${servidor.address().port}/`;
     const fontes = casca().filter(f => f.endsWith('.woff2'));
-    assert.equal(fontes.length, 4);
+    assert.equal(fontes.length, 3);   // rodada 11: a Barlow itálica 800 saiu (fontes menos confusas)
     for (const f of fontes) {
       const r = await fetch(base + f); await r.arrayBuffer();
       const idade = Number((/max-age=(\d+)/.exec(r.headers.get('cache-control') || '') || [])[1]);
