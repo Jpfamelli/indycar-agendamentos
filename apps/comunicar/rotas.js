@@ -373,11 +373,23 @@ export function criarApi(deps) {
   // ---- rodada 5: segmentos salvos ----
   rota('GET', '/api/segmentos/salvos', async ({ res }) => ok(res, await dados.listarSegmentosSalvos()));
   rota('POST', '/api/segmentos/salvos', async ({ res, usuario, body }) => {
-    if (!segmentoValido(String(body.filtro || ''))) return bad(res, 'Segmento desconhecido.');
+    if (typeof body.filtro !== 'string' || !segmentoValido(body.filtro)) {
+      return bad(res, 'Segmento desconhecido.', { campo: 'filtro' });
+    }
+    const segmento = dados.SEGMENTOS?.find((item) => item.id === body.filtro);
+    const valor = body.valor;
+    if (segmento?.unidade === 'texto' && valor != null &&
+        (typeof valor !== 'string' || valor.trim().length > 60)) {
+      return bad(res, 'Informe um termo de até 60 caracteres.', { campo: 'valor' });
+    }
+    if (['dias', 'meses'].includes(segmento?.unidade) && valor != null && valor !== '' &&
+        ((typeof valor !== 'string' && typeof valor !== 'number') || !Number.isInteger(Number(valor)) || Number(valor) < 1)) {
+      return bad(res, 'Informe um período inteiro maior que zero.', { campo: 'valor' });
+    }
     const nome = typeof body.nome === 'string' ? body.nome.trim().replace(/\s+/g, ' ') : '';
     if (nome.length < 2 || nome.length > 60) return bad(res, 'Dê um nome ao segmento (2 a 60 caracteres).');
     try {
-      const s = await dados.salvarSegmento({ nome: body.nome, filtro: String(body.filtro || ''), valor: body.valor, criado_por: usuario.id, criado_por_nome: usuario.nome || usuario.email });
+      const s = await dados.salvarSegmento({ nome, filtro: body.filtro, valor, criado_por: usuario.id, criado_por_nome: usuario.nome || usuario.email });
       auditar(usuario, 'segmento_salvo', 'comunicar_segmentos', s?.id, { nome: s?.nome, filtro: s?.filtro, valor: s?.valor });
       esquecerCache('seg-salvos');
       return ok(res, s);
@@ -397,7 +409,7 @@ export function criarApi(deps) {
   rota('GET', '/api/clientes/360', async ({ res, url }) => {
     const bruto = String(url.searchParams.get('tel') || '').replace(/\D/g, '');
     const tel = dados.telefoneNacional?.(bruto) || bruto; // com ou sem 55: a coluna normalizada não tem o DDI
-    if (!tel || tel.length < 10) return bad(res, 'Informe o telefone com DDD.');
+    if (!tel || ![10, 11].includes(tel.length)) return bad(res, 'Informe o telefone com DDD.', { campo: 'tel' });
     const c360 = await dados.cliente360(tel).catch((e) => { const err = new Error('Não consegui ler a ficha 360 agora.'); err.causa = e; throw err; });
     return ok(res, { telefone: tel, ligacoes: dados.montarLigacoes(c360), cliente: c360?.cliente || null, resumo: c360?.resumo || null });
   });
@@ -411,7 +423,8 @@ export function criarApi(deps) {
   rota('GET', '/api/previa/mensagem', async ({ res, url }) => {
     const id = url.searchParams.get('cliente_id');
     const regua = url.searchParams.get('regua') || 'campanha';
-    const corpo = String(url.searchParams.get('corpo') || '').slice(0, 2000);
+    const corpo = url.searchParams.get('corpo') || '';
+    if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).', { campo: 'corpo' });
     if (!dados.ehUuid(id)) return bad(res, 'Escolha o cliente.');
     const c = await dados.obterCliente(id);
     if (!c) return naoAchou(res);
@@ -431,6 +444,9 @@ export function criarApi(deps) {
     const corpo = (body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');
     if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).');
+    if (body.enviar_em != null && typeof body.enviar_em !== 'string') {
+      return bad(res, 'Informe a data de envio em texto.', { campo: 'enviar_em' });
+    }
     const destinos = await resolverDestinos(body);
     if (destinos === null) return bad(res, 'Segmento desconhecido.');
     if (!destinos.length) return bad(res, 'Escolha pelo menos um cliente.');

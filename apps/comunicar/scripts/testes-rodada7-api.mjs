@@ -486,3 +486,20 @@ for (const [id, campo, valor] of [
     } finally { await s.fechar(); }
   });
 }
+for (const [id, metodo, caminho, corpo, campo] of [
+  ['076', 'GET', '/api/clientes/360?tel=129999900001234', undefined, 'tel'],
+  ['077', 'POST', '/api/segmentos/salvos', { nome: 'Clientes', filtro: ['todos'] }, 'filtro'],
+  ['078', 'POST', '/api/segmentos/salvos', { nome: 'Serviços', filtro: 'servico', valor: { nome: 'óleo' } }, 'valor'],
+  ['079', 'POST', '/api/segmentos/salvos', { nome: 'Atendidos', filtro: 'atendidos', valor: true }, 'valor'],
+  ['080', 'GET', '/api/previa/mensagem?corpo=' + 'x'.repeat(2001), undefined, 'corpo'],
+  ['081', 'POST', '/api/campanhas/previa', { corpo: 'Teste', enviar_em: 1, destinos: [{ telefone: '12999990000' }] }, 'enviar_em'],
+]) {
+  test(`R10-COM-${id}: rejeita ${campo} inválido em ${metodo}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', metodo, caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
