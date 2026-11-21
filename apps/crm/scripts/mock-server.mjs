@@ -27,6 +27,7 @@ const CrmUtils = createRequire(import.meta.url)('../public/crm-utils.js');
 // Rodada 5: MOCK_PREFIXO=/crm serve o app montado num prefixo, como a IndyCar Central
 const PREFIXO = (p => p ? '/' + p : '')(String(process.env.MOCK_PREFIXO || '').trim().replace(/^\/+|\/+$/g, ''));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
+const CASA = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../casa');
 const statuses = ['novo','contato','orcamento','agendado','em_servico','concluido','perdido'];
 const origens = ['meta','google','organico','whatsapp','indicacao','passagem'];
 const DIA = 86400000;
@@ -343,6 +344,12 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
   const filtros = new Map();      // papel → filtros salvos (rodada 5)
   const campanhas = [];
   return http.createServer(async (req, res) => {
+    // rodada 11: o padrão comum (/casa/indycar.css, fontes e logo) mora na Central; o falso lê da pasta casa/ do repositório
+    if (req.method === 'GET' && /^\/casa\/[\w.-]+$/.test(req.url.split('?')[0])) {
+      const f = path.join(CASA, req.url.split('?')[0].slice(6));
+      try { const tipo = {'.css': 'text/css;charset=utf-8', '.woff2': 'font/woff2', '.png': 'image/png'}[path.extname(f)]; if (!tipo) throw 0; res.writeHead(200, {'Content-Type': tipo}); return res.end(fs.readFileSync(f)); }
+      catch { res.writeHead(404); return res.end(); }
+    }
     if (PREFIXO) {
       if (req.url === PREFIXO) { res.writeHead(308, {Location: PREFIXO + '/'}); return res.end(); }
       if (!req.url.startsWith(PREFIXO + '/')) { res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'}); return res.end('fora do prefixo ' + PREFIXO); }

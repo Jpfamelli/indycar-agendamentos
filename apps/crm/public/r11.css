@@ -1,0 +1,55 @@
+/* Rodada 11 (21/11/2026): o CRM no padrão IndyCar (/casa/indycar.css).
+   Fontes: só Archivo (texto) e Barlow Condensed (títulos e números). Cores: as do padrão.
+   Carrega por último: as variáveis antigas do CRM passam a apontar para as do padrão. */
+[hidden]{display:none!important}
+:root, :root[data-tema="claro"]{
+  --font-cond: var(--ic-titulo); --font: var(--ic-texto-f); --font-body: var(--ic-texto-f);
+  --black: var(--ic-bg); --graphite: var(--ic-painel-2); --card: var(--ic-painel); --card-2: var(--ic-painel-2);
+  --sidebar: var(--ic-painel); --line: var(--ic-borda);
+  --red: var(--ic-vermelho); --ok: var(--ic-verde); --warn: var(--ic-laranja);
+  --texto: var(--ic-texto); --texto-forte: var(--ic-forte); --white: var(--ic-texto); --gray: var(--ic-apagado);
+  --pop-1: var(--ic-painel); --pop-2: var(--ic-painel); --pop-solid: var(--ic-painel);
+}
+
+/* sem barra lateral: o topo comum fica em cima e o conteúdo embaixo */
+body{display:block;background-image:none;font-family:var(--ic-texto-f)}
+.main{padding:20px 24px 60px;max-width:1440px;margin:0 auto}
+.crm-cab{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.crm-cab .ic-titulo{outline:none}
+
+/* abas do topo: os botões levam .nav-item (é o que a tela usa para trocar de aba) */
+.ic-abas .nav-item{position:relative;gap:6px;border-radius:0;letter-spacing:0;font-family:var(--ic-texto-f);font-weight:600;font-size:15px;padding:0 12px}
+.ic-abas .nav-item:hover{background:none;color:var(--ic-forte)}
+.ic-abas .nav-item.active,.ic-abas .nav-item[aria-current="page"]{background:none;box-shadow:none;color:var(--ic-forte);border-bottom-color:var(--ic-vermelho);font-weight:600}
+.ic-abas .nav-item[data-badge]:not([data-badge=""])::after{content:attr(data-badge);position:static;display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin:0;border-radius:9px;background:var(--ic-vermelho);color:#fff;font-size:.68rem;font-weight:700;line-height:1}
+
+/* menu da pessoa */
+.ic-pessoa .menu-perfil{top:calc(100% + 8px)}
+.menu-perfil [data-view][data-badge]:not([data-badge=""])::after{content:attr(data-badge);margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--ic-vermelho);color:#fff;font-size:.68rem;font-weight:700;display:inline-grid;place-items:center}
+
+/* sem gradiente e sem borda grossa lateral */
+.login-capa{background-image:none}
+.btn-primary,.btn-entrar,.filtro-pill.ativo,.etapa-btn[aria-pressed="true"]{background:var(--ic-vermelho);background-image:none}
+.kpi,.modal,.kb-card,dialog.dlg{background-image:none;background-color:var(--ic-painel)}
+.fm-fill{background-image:none;background-color:var(--fm-cor,var(--ic-apagado))}
+.meta-barra>div,.rk-barra i{background-image:none;background-color:var(--ic-vermelho)}
+.fm-fill.perda{background-color:var(--ic-apagado)}
+.toast{border-left-width:1px}
+.cia{--cia-brilho:none}
+.cia-lead::before{display:none}
+.cia-btn-forte,.cia-btn-forte:hover:not(:disabled){background:var(--ic-vermelho)}
+.cia-texto,.r7-mov,.tarefa.atrasada,.kb-card{border-left-width:1px}
+::-webkit-scrollbar-thumb{background:var(--ic-borda)}
+.login-marca{display:flex;align-items:center;gap:10px;margin:0 0 4px;font-size:inherit;letter-spacing:normal;color:var(--ic-forte)}
+.login-caixa h1.login-marca{font:inherit;margin:0 0 4px}
+
+@media (max-width:860px){
+  .main{padding:14px 16px 60px}
+  .ic-abas .nav-item{padding:0 10px}
+}
+@media (max-width:480px){
+  .crm-cab .topbar-actions{width:100%}
+  .crm-cab .search{flex:1 1 100%;order:3}
+  .crm-cab .search input{width:100%}
+  .ic-pessoa .menu-perfil{position:fixed;top:64px;right:12px;left:12px;width:auto}
+}

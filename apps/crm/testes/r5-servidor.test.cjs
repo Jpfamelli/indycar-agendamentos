@@ -18,11 +18,11 @@ test('server.js exporta { handler, iniciar } e nada escuta sozinho ao importar',
   assert.match(codigo, /module\.exports = \{ handler, iniciar/);
   assert.match(codigo, /if \(require\.main === module\) iniciar\(\);/);
   assert.ok(!/^server\.listen\(/m.test(codigo), 'listen só dentro de iniciar()');
-  // nada da tela começa com "/" na raiz (a Central monta em /crm/)
+  // nada da tela começa com "/" na raiz (a Central monta em /crm/); só o padrão comum /casa/ (rodada 11) e o link da marca para a Central
   for (const arq of ['index.html', 'app.js', 'acesso.js', 'rodada4.js', 'rodada5.js', 'crm-ia.js', 'equipe.js', 'melhorias.js']) {
     const s = fs.readFileSync(path.join(__dirname, '..', 'public', arq), 'utf8');
     assert.ok(!/\bfetch\(\s*['"`]\//.test(s), `${arq}: fetch com caminho absoluto`);
-    assert.ok(!/(href|src)="\/[a-z]/.test(s), `${arq}: href/src absoluto`);
+    assert.ok(!/(href|src)="\/(?!casa\/)[a-z]/.test(s), `${arq}: href/src absoluto`);
   }
   const sw = fs.readFileSync(path.join(__dirname, '..', 'public', 'sw.js'), 'utf8');
   assert.match(sw, /self\.registration/); assert.ok(!/'\/api\/'/.test(sw));

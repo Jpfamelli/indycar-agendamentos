@@ -126,15 +126,9 @@ test('relatório: funil, origem, vendedor, motivos e intervalo', () => {
   assert.throws(() => R.intervaloDatas('2020-01-01', '2026-10-01'), /2 anos/);
 });
 
-test('tour e ajuda por papel', () => {
-  const at = R.passosTour('atendente'), ge = R.passosTour('gestor');
-  assert.ok(ge.length > at.length);
-  assert.ok(ge.some(p => p.alvo.includes('distribuir')) && !at.some(p => p.alvo.includes('distribuir')));
-  assert.equal(at.at(-1).alvo, '#btnAjuda');
-  for (const p of [...at, ...ge]) { assert.ok(p.titulo && p.texto.length < 200); assert.doesNotMatch(p.texto, /prezad|efetuar|comparecer|veículo/i); }
-  const aj = R.perguntasAjuda('atendente'), ag = R.perguntasAjuda('admin');
-  assert.ok(ag.length > aj.length);
-  assert.ok(aj.some(q => /acordando/.test(q.pergunta)));
+test('rodada 11: tour e ajuda saíram do CRM', () => {
+  assert.equal(R.passosTour, undefined);
+  assert.equal(R.perguntasAjuda, undefined);
 });
 
 test('busca com índice guardado continua achando nome, placa e telefone', () => {

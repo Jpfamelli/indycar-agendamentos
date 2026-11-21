@@ -30,15 +30,9 @@ function baixarCsv(lista, nome) {
   const rows = [['Nome','Telefone','Carro','Placa','Serviço','Origem','Fonte (utm)','Mídia (utm)','Campanha','Status','Motivo da perda','Responsável','Orçado','Pago','Entrada','Dias na etapa'], ...lista.map(l => [l.nome, l.telefone, l.carro_modelo, l.placa, l.servico, LABEL_ORIGEM[l.origem] || l.origem, l.utm_source || '', l.utm_medium || '', l.utm_campaign, LABEL_STATUS[l.status] || l.status, l.status === 'perdido' ? (U.motivoPadrao(U.motivoPerda(l.observacoes)) || '') : '', nomeResponsavel(l.responsavel_id), l.valor_orcado, l.valor_pago, l.created_at, U.diasNaEtapa(l)])];
   const url = URL.createObjectURL(new Blob([U.csv(rows)], {type: 'text/csv;charset=utf-8'}));
   const a = document.createElement('a'); a.href = url; a.download = nome + '-' + new Date().toISOString().slice(0, 10) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  toast(`${lista.length} lead${lista.length === 1 ? '' : 's'} exportado${lista.length === 1 ? '' : 's'}`);
+  toast(`${lista.length} contato${lista.length === 1 ? '' : 's'} exportado${lista.length === 1 ? '' : 's'}`);
 }
-$('#exportarLeads').addEventListener('click', () => baixarCsv(LEADS, 'leads'));
-$('#ecossistema').addEventListener('change', e => { if (e.target.value) window.open(e.target.value, '_blank', 'noopener,noreferrer'); e.target.value = ''; });
-async function carregarSaude() {
-  const el = $('#saudeSistema');
-  try { const r = await api('/api/saude'); el.hidden = !r.avisos?.length; el.textContent = r.avisos?.length ? 'Atenção no ecossistema: ' + r.avisos.map(x => x.problema).join(' · ') : ''; }
-  catch { el.hidden = false; el.textContent = 'Não foi possível conferir a saúde do ecossistema agora.'; }
-}
+$('#exportarLeads').addEventListener('click', () => baixarCsv(LEADS, 'contatos'));
 
 /* ---------------- diálogos: foco preso, Esc, fundo inerte ---------------- */
 const focos = new WeakMap();
@@ -47,11 +41,11 @@ function ativarDialogo(bg, titulo) {
   if (!focos.has(bg) || !bg.contains(document.activeElement)) focos.set(bg, document.activeElement);
   const caixa = bg.firstElementChild; caixa.setAttribute('role', 'dialog'); caixa.setAttribute('aria-modal', 'true');
   if (titulo) caixa.setAttribute('aria-labelledby', titulo.slice(1)); else caixa.setAttribute('aria-label', 'Ficha 360 do cliente');
-  $('.sidebar').setAttribute('inert', ''); $('main').setAttribute('inert', '');
+  $('.ic-topo').setAttribute('inert', ''); $('main').setAttribute('inert', '');
   caixa.scrollTop = 0; (caixa.querySelector('.modal-x') || caixa.querySelector('button,input:not([type=hidden])'))?.focus();
 }
 function restaurarFoco(bg) {
-  if (!$('.modal-bg.open')) { $('.sidebar').removeAttribute('inert'); $('main').removeAttribute('inert'); }
+  if (!$('.modal-bg.open')) { $('.ic-topo').removeAttribute('inert'); $('main').removeAttribute('inert'); }
   const f = focos.get(bg); focos.delete(bg); if (f && document.contains(f)) f.focus();
 }
 /* <dialog> nativo para perguntas rápidas: devolve uma Promise com a resposta (ou null). */
@@ -80,7 +74,7 @@ $('#formPerda').addEventListener('submit', e => {
   $('#dlgPerda')._ok({ codigo: sel, texto });
 });
 function perguntarPerda(nome) {
-  $('#dlgPerdaNome').textContent = nome ? `Lead: ${nome}` : ''; $('#perdaErro').textContent = '';
+  $('#dlgPerdaNome').textContent = nome ? `Contato: ${nome}` : ''; $('#perdaErro').textContent = '';
   $$('input[name=motivoPerda]').forEach(r => { r.checked = false; }); $('#perdaOutro').value = ''; $('#perdaOutroL').hidden = true;
   return abrirDlg($('#dlgPerda'));
 }
@@ -131,7 +125,7 @@ function refiltrar() {
 }
 function redesenhar() {
   refiltrar(); renderTabelaLeads(); renderKanban(); if (STATS) renderPainel();
-  $('#leadCount').textContent = `${LEADS.length} registro${LEADS.length === 1 ? '' : 's'}`;
+  $('#leadCount').textContent = `${LEADS.length} contato${LEADS.length === 1 ? '' : 's'}`;
   if (LEAD_ABERTO && modal.classList.contains('open')) { const l = TODOS.find(x => String(x.id) === String(LEAD_ABERTO)); if (l) renderFichaLead(l); }
 }
 /* Rodada 4: mudança de etapa/valor sem servidor não trava a tela. Tenta rápido
@@ -187,7 +181,7 @@ async function moverEtapa(id, novo, {anunciar} = {}) {
 
 /* ---------------- lista de leads: colunas, seleção, lote, páginas ---------------- */
 let PAG_LEADS = 1; const SEL = new Set();
-let COLUNAS = U.colunasValidas(lerLS('indycar_crm_colunas', null));
+const COLUNAS = U.COLUNAS_PADRAO.slice();   // rodada 11: sem menu de colunas, a lista é a mesma para todos
 const ROTULO_COLUNA = {cliente: 'Cliente', carro: 'Carro', servico: 'Serviço', origem: 'Origem', fonte: 'Fonte (utm)', valor: 'Valor', status: 'Status', responsavel: 'Responsável', etapa: 'Na etapa', entrada: 'Entrada', campanha: 'Campanha'};
 function celula(c, l, agora) {
   switch (c) {
@@ -211,13 +205,13 @@ function linhaLead(l, {selecao = false, cols = COLUNAS, agora = Date.now()} = {}
     ${selecao ? `<td class="col-sel"><input type="checkbox" class="sel-lead" aria-label="Selecionar ${esc(l.nome)}" ${marcado ? 'checked' : ''}></td>` : ''}
     ${cols.map(c => celula(c, l, agora)).join('')}</tr>`;
 }
-const VAZIO_LEADS = '<tbody><tr><td class="vazio-celula"><strong>Nenhum lead encontrado.</strong><br>Limpe os filtros ou use <kbd>N</kbd> / + Novo Lead para começar.</td></tr></tbody>';
+const VAZIO_LEADS = '<tbody><tr><td class="vazio-celula"><strong>Nenhum contato encontrado.</strong><br>Limpe os filtros ou use <kbd>N</kbd> / + Novo Contato para começar.</td></tr></tbody>';
 /* Estado vazio que ensina (rodada 4): diz por que está vazio e o próximo passo. */
 function vazioLeads() {
   const r = $('#fResp')?.value, filtros = $('#fStatus').value || $('#fOrigem').value || $('#search').value.trim() || $('#soParados').checked || $('#soSemValor')?.checked;
-  if (!TODOS.length) return '<tbody><tr><td class="vazio-celula"><strong>Ainda não há leads.</strong><br>Os contatos do WhatsApp entram sozinhos. Para cadastrar à mão: <kbd>N</kbd> ou "+ Novo Lead".</td></tr></tbody>';
+  if (!TODOS.length) return '<tbody><tr><td class="vazio-celula"><strong>Ainda não há contatos.</strong><br>Os contatos do WhatsApp entram sozinhos. Para cadastrar à mão: <kbd>N</kbd> ou "+ Novo Contato".</td></tr></tbody>';
   if ($('#soSemValor')?.checked) return '<tbody><tr><td class="vazio-celula"><strong>Nenhum concluído sem valor. 🏁</strong><br>Faturamento em dia.</td></tr></tbody>';
-  if (r === 'meus' && !filtros) return `<tbody><tr><td class="vazio-celula"><strong>Nenhum lead com você ainda.</strong><br>Veja os <button type="button" class="link-btn" data-vazio="sem">leads sem responsável</button> e use "Pegar para mim" na ficha${SOU_GESTOR ? ', ou divida em <button type="button" class="link-btn" data-vazio="distribuir">Distribuir</button>' : ', ou peça ao gestor para distribuir'}.</td></tr></tbody>`;
+  if (r === 'meus' && !filtros) return `<tbody><tr><td class="vazio-celula"><strong>Nenhum contato com você ainda.</strong><br>Veja os <button type="button" class="link-btn" data-vazio="sem">contatos sem responsável</button> e use "Pegar para mim" na ficha${SOU_GESTOR ? ', ou divida em <button type="button" class="link-btn" data-vazio="distribuir">Distribuir</button>' : ', ou peça ao gestor para distribuir'}.</td></tr></tbody>`;
   return VAZIO_LEADS;
 }
 function renderTabela(sel, rows, {selecao = false, cols = COLUNAS} = {}) {
@@ -253,7 +247,7 @@ function renderPaginacao(nav, p, ir) {
   };
 }
 // um único ouvinte por tabela (antes: um por linha a cada render)
-for (const sel of ['#tblLeads', '#tblRecent']) {
+for (const sel of ['#tblLeads']) {
   $(sel).addEventListener('click', e => {
     if (e.target.id === 'selPagina') { const p = U.paginar(LEADS, PAG_LEADS, 50); p.itens.forEach(l => e.target.checked ? SEL.add(String(l.id)) : SEL.delete(String(l.id))); renderTabelaLeads(); return; }
     const cb = e.target.closest('.sel-lead'); const tr = e.target.closest('tbody tr[data-id]');
@@ -267,18 +261,17 @@ function atualizarLote() {
   $('#loteQtd').textContent = `${n} selecionado${n === 1 ? '' : 's'}`;
 }
 $('#loteLimpar').addEventListener('click', () => { SEL.clear(); renderTabelaLeads(); });
-$('#loteExportar').addEventListener('click', () => baixarCsv(TODOS.filter(l => SEL.has(String(l.id))), 'leads-selecionados'));
 async function emLote(ids, corpoDe, rotulo) {
   const marcados = TODOS.filter(l => ids.includes(String(l.id)));
   const alvos = marcados.filter(l => !travaLead(l)), deOutros = marcados.length - alvos.length;
-  if (!alvos.length) { toast(`🔒 ${deOutros === 1 ? 'Esse lead é' : 'Esses leads são'} de colegas: só o responsável ou o gestor muda.`, 6000); return; }
+  if (!alvos.length) { toast(`🔒 ${deOutros === 1 ? 'Esse contato é' : 'Esses contatos são'} de colegas: só o responsável ou o gestor muda.`, 6000); return; }
   const antes = alvos.map(l => ({id: l.id, corpo: {status: l.status, origem: l.origem, valor_pago: l.valor_pago ?? 0, observacoes: l.observacoes ?? '', motivo_perda: l.motivo_perda ?? null, motivo_perda_obs: l.motivo_perda_obs ?? null}}));
   let ok = 0; const falhas = [];
   for (const l of alvos) { try { substituirLocal(await patchLead(l.id, corpoDe(l))); ok++; } catch (e) { falhas.push(l.nome + ': ' + e.message); } }
   SEL.clear(); redesenhar();
   const pulados = deOutros ? ` · ${deOutros} de colega${deOutros === 1 ? '' : 's'} ficou de fora` : '';
   if (falhas.length) toast(`⚠️ ${ok} atualizados, ${falhas.length} com erro — ${falhas[0]}${pulados}`, 6000);
-  else toastAcao(`${ok} lead${ok === 1 ? '' : 's'} ${rotulo}${pulados}`, 'Desfazer', async () => {
+  else toastAcao(`${ok} contato${ok === 1 ? '' : 's'} ${rotulo}${pulados}`, 'Desfazer', async () => {
     for (const a of antes) substituirLocal(await patchLead(a.id, a.corpo)); redesenhar(); toast('Ação em lote desfeita');
   }, 9000);
 }
@@ -294,14 +287,6 @@ $('#loteOrigem').addEventListener('change', async e => {
   const o = e.target.value; e.target.value = ''; if (!o || !SEL.size) return;
   await emLote([...SEL], () => ({origem: o}), `com origem ${LABEL_ORIGEM[o] ?? o}`);
 });
-// colunas configuráveis
-function montarColunas() {
-  $('#painelColunas').innerHTML = U.COLUNAS_LEADS.map(c => `<label><input type="checkbox" value="${c}" ${COLUNAS.includes(c) ? 'checked' : ''} ${c === 'cliente' ? 'disabled' : ''}> ${ROTULO_COLUNA[c]}</label>`).join('') + '<button type="button" class="btn btn-ghost sm" id="colunasPadrao">Voltar ao padrão</button>';
-}
-$('#btnColunas').addEventListener('click', () => { const p = $('#painelColunas'), abrir = p.hidden; if (abrir) montarColunas(); p.hidden = !abrir; $('#btnColunas').setAttribute('aria-expanded', String(abrir)); if (abrir) p.querySelector('input:not([disabled])')?.focus(); });
-$('#painelColunas').addEventListener('change', () => { COLUNAS = U.colunasValidas(['cliente', ...$$('#painelColunas input:checked').map(i => i.value)]); gravarLS('indycar_crm_colunas', COLUNAS); renderTabelaLeads(); });
-$('#painelColunas').addEventListener('click', e => { if (e.target.id === 'colunasPadrao') { COLUNAS = U.COLUNAS_PADRAO.slice(); gravarLS('indycar_crm_colunas', COLUNAS); montarColunas(); renderTabelaLeads(); } });
-document.addEventListener('click', e => { if (!e.target.closest('.colunas-menu') && !$('#painelColunas').hidden) { $('#painelColunas').hidden = true; $('#btnColunas').setAttribute('aria-expanded', 'false'); } });
 
 /* ---------------- funil (kanban) ---------------- */
 const LIMITE_CARTOES = 40; const COLUNAS_ABERTAS = new Set();
@@ -324,14 +309,14 @@ function renderKanban() {
     const its = TODOS.filter(l => l.status === st && U.filtroResponsavel(l, rf, eu) && U.buscar(l, busca));
     const r = U.resumoColuna(its, agora); total += r.qtd; parados += r.parados;
     const mostrar = COLUNAS_ABERTAS.has(st) ? its : its.slice(0, LIMITE_CARTOES);
-    return `<div class="kb-col" data-etapa="${esc(st)}" role="group" aria-label="${esc(LABEL_STATUS[st] ?? st)}: ${r.qtd} leads, ${esc(brl(r.valor))}">
+    return `<div class="kb-col" data-etapa="${esc(st)}" role="group" aria-label="${esc(LABEL_STATUS[st] ?? st)}: ${r.qtd} contatos, ${esc(brl(r.valor))}">
       <div class="kb-head"><span>${esc(LABEL_STATUS[st] ?? st)}</span><span class="kb-count">${r.qtd}</span></div>
-      <div class="kb-soma"><b>${brl(r.valor)}</b>${r.parados ? `<span class="kb-parados" title="Leads parados nesta etapa">⚠ ${r.parados} parado${r.parados === 1 ? '' : 's'}</span>` : ''}</div>
+      <div class="kb-soma"><b>${brl(r.valor)}</b>${r.parados ? `<span class="kb-parados" title="Contatos parados nesta etapa">⚠ ${r.parados} parado${r.parados === 1 ? '' : 's'}</span>` : ''}</div>
       <div class="kb-lista">${mostrar.map(l => cartaoKanban(l, agora)).join('') || '<p class="kb-vazio">Solte um cartão aqui</p>'}
       ${its.length > mostrar.length ? `<button type="button" class="btn btn-ghost sm kb-mais" data-etapa="${esc(st)}">Mostrar mais ${its.length - mostrar.length}</button>` : ''}</div>
     </div>`;
   }).join('');
-  $('#kbResumo').textContent = `${total} lead${total === 1 ? '' : 's'} no funil${parados ? ` · ${parados} parado${parados === 1 ? '' : 's'}` : ''}`;
+  $('#kbResumo').textContent = `${total} contato${total === 1 ? '' : 's'} no funil${parados ? ` · ${parados} parado${parados === 1 ? '' : 's'}` : ''}`;
 }
 const kanban = $('#kanban');
 let arrastou = false;
@@ -445,50 +430,31 @@ function renderPainel() {
   const emAberto = abertos.reduce((s, l) => s + U.valorLead(l), 0);
   const kpi = (rotulo, valor, delta, extra = '') => `<div class="kpi"><div class="kpi-label">${rotulo}</div><div class="kpi-value">${valor}</div><div class="kpi-delta">${delta}${extra}</div></div>`;
   $('#kpis').innerHTML =
-    kpi('Leads novos', a.entradas, setaDelta(U.comparar(a.entradas, b.entradas))) +
+    kpi('Contatos novos', a.entradas, setaDelta(U.comparar(a.entradas, b.entradas))) +
     kpi('Faturamento', brl(a.faturamento), setaDelta(U.comparar(a.faturamento, b.faturamento))) +
     kpi('Conversão', a.conversao.toLocaleString('pt-BR') + '%', setaDelta(Math.round(a.conversao - b.conversao) || 0, ' p.p.'), `<span class="flat"> · ${a.ganhos} fechados, ${a.perdidos} perdidos</span>`) +
-    kpi('Ticket médio', brl(a.ticket), setaDelta(U.comparar(a.ticket, b.ticket))) +
-    kpi('Tempo até fechar', a.cicloMedio === null ? '—' : a.cicloMedio.toLocaleString('pt-BR') + ' d', a.cicloMedio === null || b.cicloMedio === null ? '<span class="flat">média de dias da entrada ao concluído</span>' : setaDelta(U.comparar(a.cicloMedio, b.cicloMedio), '%', true)) +
-    kpi('Em aberto', brl(emAberto), `<span class="${parados.length ? 'down' : 'flat'}">${abertos.length} leads · ${parados.length} parado${parados.length === 1 ? '' : 's'}</span>`);
-  $$('#kpis .kpi').forEach(k => k.addEventListener('pointermove', e => { const r = k.getBoundingClientRect(); k.style.setProperty('--mx', `${e.clientX - r.left}px`); k.style.setProperty('--my', `${e.clientY - r.top}px`); }));
+    kpi('Em aberto', brl(emAberto), `<span class="${parados.length ? 'down' : 'flat'}">${abertos.length} contatos · ${parados.length} parado${parados.length === 1 ? '' : 's'}</span>`);
   renderMetas();
-  // precisam de atenção
-  $('#paradosCount').textContent = parados.length ? `${parados.length} parado${parados.length === 1 ? '' : 's'}` : '';
-  const lista = parados.sort((x, y) => U.diasNaEtapa(y, agora) - U.diasNaEtapa(x, agora)).slice(0, 7);
-  $('#listaParados').innerHTML = lista.length ? lista.map(l => `<button type="button" class="item-curto" data-lead="${esc(l.id)}">
-      <span><strong>${esc(l.nome)}</strong><small>${esc(LABEL_STATUS[l.status] ?? l.status)} · ${esc(l.servico) || 'serviço n/d'}</small></span>
-      <span class="parado-txt">${esc(U.textoDias(U.diasNaEtapa(l, agora)))}</span></button>`).join('') + (parados.length > lista.length ? `<button type="button" class="btn btn-ghost sm" id="verParados">Ver todos os ${parados.length}</button>` : '')
-    : '<p class="vazio-curto">Tudo em dia. Nenhum lead parado. 🏁</p>';
   // funil do período
   const entradas = TODOS.filter(l => { const t = Date.parse(l.created_at); return t >= +P.ini && t < +P.fim; });
   const f = U.funilPassagem(entradas), max = Math.max(1, ...f.map(x => x.chegaram));
   $('#funnelMini').innerHTML = entradas.length ? f.map(x => `<div class="fm-row" data-etapa="${esc(x.etapa)}"><span class="fm-name">${esc(LABEL_STATUS[x.etapa])}</span>
       <div class="fm-bar"><div class="fm-fill" style="width:${(x.chegaram / max) * 100}%"></div></div>
       <span class="fm-num">${x.chegaram}</span><span class="fm-taxa" title="Passaram da etapa anterior">${x.taxa}%</span></div>`).join('')
-    : '<p class="vazio-curto">Nenhum lead entrou neste período.</p>';
+    : '<p class="vazio-curto">Nenhum contato entrou neste período.</p>';
   // conversão por origem
   const o = a.porOrigem;
-  $('#tblOrigemPainel').innerHTML = o.length ? `<thead><tr><th>Origem</th><th class="num">Leads</th><th class="num">Fechou</th><th class="num">Conversão</th><th class="num">Faturou</th></tr></thead><tbody>${o.map(x => `<tr class="sem-clique">
+  $('#tblOrigemPainel').innerHTML = o.length ? `<thead><tr><th>Origem</th><th class="num">Contatos</th><th class="num">Fechou</th><th class="num">Conversão</th><th class="num">Faturou</th></tr></thead><tbody>${o.map(x => `<tr class="sem-clique">
       <td><span class="origin-name"><span class="dot" style="background:${COR_ORIGEM[x.origem] || '#888'}"></span>${esc(LABEL_ORIGEM[x.origem] ?? x.origem)}</span></td>
       <td class="num">${x.leads}</td><td class="num">${x.ganhos}</td><td class="num">${x.conversao}%</td><td class="num">${brl(x.faturamento)}</td></tr>`).join('')}</tbody>`
-    : '<tbody><tr><td class="vazio-celula">Sem leads neste período.</td></tr></tbody>';
+    : '<tbody><tr><td class="vazio-celula">Sem contatos neste período.</td></tr></tbody>';
   // motivos de perda
   const mx = Math.max(1, ...a.motivos.map(m => m.qtd));
   $('#motivosPerda').innerHTML = a.motivos.length ? a.motivos.map(m => `<div class="motivo-row"><span>${esc(m.motivo)}</span><div class="fm-bar"><div class="fm-fill perda" style="width:${m.qtd / mx * 100}%"></div></div><b>${m.qtd}</b></div>`).join('')
     : '<p class="vazio-curto">Nenhuma perda neste período.</p>';
-  renderTabela('#tblRecent', TODOS.slice(0, 8), {cols: ['cliente', 'carro', 'servico', 'origem', 'valor', 'status', 'entrada']});
-  renderTarefas();
 }
-$('#listaParados').addEventListener('click', e => {
-  const b = e.target.closest('[data-lead]'); if (b) return abrirModal(b.dataset.lead);
-  if (e.target.id === 'verParados') { $('#soParados').checked = true; $('#ordemLeads').value = 'parado'; irPara('leads'); refiltrarTela(); }
-});
 
-/* Metas do mês, tarefas (tabela tarefas) e responsável do lead: equipe.js (rodada 3).
- Lembretes antigos guardados no aparelho (indycar_crm_tarefas_<id>) são oferecidos para importar uma vez. */
-const chaveTarefas = () => 'indycar_crm_tarefas_' + (PERFIL?.id || 'anon');
-const lerTarefas = () => { const t = lerLS(chaveTarefas(), []); return Array.isArray(t) ? t : []; };
+/* Metas do mês, tarefas do contato (tabela tarefas) e responsável: equipe.js (rodada 3). */
 
 /* ---------------- ficha do lead (gaveta) ---------------- */
 let LEAD_ABERTO = null, LT_GERACAO = 0;
@@ -502,10 +468,10 @@ function renderFichaLead(l) {
       <div class="lf-tags"><span class="badge b-${esc(l.status)}">${esc(LABEL_STATUS[l.status] ?? l.status)}</span><span class="tag">${esc(LABEL_ORIGEM[l.origem] ?? l.origem ?? '')}</span>${seloArea(l)}${seloDono(l)}
         <span class="lf-tempo${p ? ' alerta' : ''}">${p ? '⚠ parado há ' + esc(U.textoDias(d)) : d ? 'na etapa há ' + esc(U.textoDias(d)) : 'mexido hoje'}</span>${motivo ? `<span class="tag">Perda: ${esc(motivo)}</span>` : ''}</div></div>
     <div class="lf-valor"><span>${l.status === 'concluido' ? 'Pago' : 'Orçado'}</span><b>${brl(U.valorLead(l))}</b>${l.servico ? `<small>${esc(l.servico)}</small>` : ''}</div>`;
-  $('#lfAcoes').innerHTML = botaoAcao(U.linkConversa(l.telefone), 'Abrir conversa', '💬') + botaoAcao(U.linkWhatsApp(l.telefone), 'WhatsApp', '🟢') +
+  // rodada 11: WhatsApp direto e "Copiar telefone" saíram (a conversa mora no Atendimento: "Abrir conversa")
+  $('#lfAcoes').innerHTML = botaoAcao(U.linkConversa(l.telefone), 'Abrir conversa', '💬') +
     botaoAcao(U.linkLigar(l.telefone), 'Ligar', '📞') + botaoAcao(U.linkAgenda(l.telefone), 'Agendar', '📅') + botaoAcao(U.linkComunicar(l.telefone), 'Mandar mensagem', '✉️') +
-    `<button type="button" class="acao" data-acao="copiar"><span aria-hidden="true">📋</span>Copiar telefone</button>` +
-    ((l.cliente_id || U.telE164(l.telefone)) ? `<button type="button" class="acao" data-acao="ficha360"><span aria-hidden="true">🪪</span>Ficha 360</button>` : '');
+    ((l.cliente_id || U.telE164(l.telefone)) ? `<button type="button" class="acao" data-acao="ficha360"><span aria-hidden="true">🪪</span>Ficha do cliente</button>` : '');
   renderRespFicha(l);
   const trava = travaLead(l);
   $('#lfEtapas').innerHTML = STATUSES.map(s => `<button type="button" class="etapa-btn" data-etapa="${esc(s)}" aria-pressed="${s === l.status}"${trava ? ` disabled title="${esc(trava)}"` : ''}>${esc(LABEL_STATUS[s] ?? s)}</button>`).join('');
@@ -514,7 +480,6 @@ function renderFichaLead(l) {
 $('#lfAcoes').addEventListener('click', async e => {
   const b = e.target.closest('[data-acao]'); if (!b) return;
   const l = TODOS.find(x => String(x.id) === String(LEAD_ABERTO)); if (!l) return;
-  if (b.dataset.acao === 'copiar') { try { await navigator.clipboard.writeText(U.telE164(l.telefone) || l.telefone); toast('Telefone copiado'); } catch { toast('Não consegui copiar. Telefone: ' + l.telefone); } }
   if (b.dataset.acao === 'ficha360') { fecharModal(true); abrirFichaCliente(l.cliente_id || { tel: U.telE164(l.telefone) }); }
 });
 $('#lfEtapas').addEventListener('click', async e => {
@@ -543,14 +508,14 @@ const ICONE_TL = {patio: '🔧', indicacao: '🤝', satisfacao: '⭐', mensagem:
 async function carregarLinhaTempo(l) {
   const ger = ++LT_GERACAO, alvo = $('#linhaTempo');
   alvo.innerHTML = '<li class="skeleton" aria-label="Carregando linha do tempo"></li>'.repeat(3);
-  const reserva = [{tipo: 'entrada', quando: l.created_at, titulo: 'Lead entrou', detalhe: [LABEL_ORIGEM[l.origem] ?? l.origem, l.servico, l.utm_campaign && 'campanha ' + l.utm_campaign].filter(Boolean).join(' · ')}];
+  const reserva = [{tipo: 'entrada', quando: l.created_at, titulo: 'Contato entrou', detalhe: [LABEL_ORIGEM[l.origem] ?? l.origem, l.servico, l.utm_campaign && 'campanha ' + l.utm_campaign].filter(Boolean).join(' · ')}];
   if (l.closed_at) reserva.push({tipo: 'fechamento', quando: l.closed_at, titulo: l.status === 'perdido' ? 'Perdido' : 'Concluído', detalhe: l.status === 'perdido' ? (U.motivoPerda(l.observacoes) || '') : brl(l.valor_pago)});
   else if (l.updated_at && l.updated_at !== l.created_at) reserva.push({tipo: 'status', quando: l.updated_at, titulo: 'Última mudança · ' + (LABEL_STATUS[l.status] ?? l.status), detalhe: ''});
   let ctx = null, fonte = 'servidor';
   try { ctx = await api('/api/ia/lead/' + encodeURIComponent(l.id) + '/contexto'); }
   catch {
     fonte = 'reserva';
-    if (l.cliente_id) { try { const f = await api('/api/clientes/' + encodeURIComponent(l.cliente_id)); ctx = {agendamentos: (f.agendamentos || []).map(a => ({...a, status: LABEL_AGENDAMENTO[a.status] ?? a.status})), eventos: [...(f.eventos || []), ...(f.leads || []).filter(x => String(x.id) !== String(l.id)).map(x => ({tipo: 'evento', quando: x.created_at, titulo: 'Outro lead · ' + (LABEL_STATUS[x.status] ?? x.status), detalhe: x.servico || ''}))]}; } catch { /* sem reserva extra */ } }
+    if (l.cliente_id) { try { const f = await api('/api/clientes/' + encodeURIComponent(l.cliente_id)); ctx = {agendamentos: (f.agendamentos || []).map(a => ({...a, status: LABEL_AGENDAMENTO[a.status] ?? a.status})), eventos: [...(f.eventos || []), ...(f.leads || []).filter(x => String(x.id) !== String(l.id)).map(x => ({tipo: 'evento', quando: x.created_at, titulo: 'Outro contato · ' + (LABEL_STATUS[x.status] ?? x.status), detalhe: x.servico || ''}))]}; } catch { /* sem reserva extra */ } }
   }
   if (ger !== LT_GERACAO) return;
   // rótulos em português para status vindos do banco (agendamento e etapas do lead)
@@ -559,7 +524,7 @@ async function carregarLinhaTempo(l) {
     for (const k of ['historico', 'etapas', 'mudancas']) if (Array.isArray(ctx[k])) ctx = {...ctx, [k]: ctx[k].map(h => ({...h, para: LABEL_STATUS[h.para] ?? h.para, status: LABEL_STATUS[h.status] ?? h.status, de: LABEL_STATUS[h.de] ?? h.de}))};
   }
   // outros leads do mesmo cliente entram como marcos da história
-  if (ctx && fonte === 'servidor' && Array.isArray(ctx.leads)) for (const x of ctx.leads) if (String(x.id) !== String(l.id)) reserva.push({tipo: 'evento', quando: x.created_at, titulo: 'Outro lead · ' + (LABEL_STATUS[x.status] ?? x.status), detalhe: x.servico || ''});
+  if (ctx && fonte === 'servidor' && Array.isArray(ctx.leads)) for (const x of ctx.leads) if (String(x.id) !== String(l.id)) reserva.push({tipo: 'evento', quando: x.created_at, titulo: 'Outro contato · ' + (LABEL_STATUS[x.status] ?? x.status), detalhe: x.servico || ''});
   if (ctx && fonte === 'servidor') {
     const tags = $('#lfTopo .lf-tags');
     const os = (ctx.patio || []).find(o => !['entregue', 'cancelado'].includes(o.etapa));
@@ -604,7 +569,7 @@ $('#fTelefone').addEventListener('blur', () => {
   $('#avisoDuplicado')?.remove();
   if (editId || !U.telE164(v)) return;
   const dup = TODOS.find(l => U.ABERTAS.includes(l.status) && U.telE164(l.telefone) === U.telE164(v));
-  if (dup) $('#fTelefone').closest('label').insertAdjacentHTML('beforeend', `<small class="aviso-dup" id="avisoDuplicado">Já existe lead aberto deste telefone (${esc(dup.nome)}). <button type="button" data-lead="${esc(dup.id)}">Abrir</button></small>`);
+  if (dup) $('#fTelefone').closest('label').insertAdjacentHTML('beforeend', `<small class="aviso-dup" id="avisoDuplicado">Já existe contato aberto deste telefone (${esc(dup.nome)}). <button type="button" data-lead="${esc(dup.id)}">Abrir</button></small>`);
 });
 $('#leadForm').addEventListener('click', e => { const b = e.target.closest('#avisoDuplicado [data-lead]'); if (b) { const id = b.dataset.lead; fecharModal(true); abrirModal(id); } });
 $('#fPlaca').addEventListener('input', e => { const p = e.target.selectionStart; e.target.value = e.target.value.toUpperCase(); e.target.setSelectionRange(p, p); });
@@ -630,10 +595,7 @@ function montarPreferencias(c) {
   });
 }
 
-/* ---------------- teclado: foco preso, atalhos, ajuda "?" ---------------- */
-let prefixoG = 0;
-const abrirAtalhos = () => { if (!$('#dlgAtalhos').open) abrirDlg($('#dlgAtalhos')); };
-$('#btnAtalhos').addEventListener('click', abrirAtalhos);
+/* ---------------- teclado: foco preso na ficha, N (novo contato) e / (buscar) ---------------- */
 document.addEventListener('keydown', e => {
   if (document.body.classList.contains('deslogado') || $('dialog[open]')) return;
   const aberto = $('.modal-bg.open');
@@ -646,16 +608,12 @@ document.addEventListener('keydown', e => {
   }
   if (aberto || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
-  if (prefixoG && Date.now() - prefixoG < 1200 && U.ATALHOS_ABA[k]) { e.preventDefault(); prefixoG = 0; const v = U.ATALHOS_ABA[k]; if (!$(`.nav-item[data-view="${v}"]`)?.hidden) { irPara(v); if (k === 't') { $('#cardTarefas').scrollIntoView({block: 'start'}); $('#tarefaTexto').focus(); } else $('#viewTitle').focus(); } return; }
-  prefixoG = 0;
-  if (k === 'g') { prefixoG = Date.now(); return; }
-  if (e.key === '?') { e.preventDefault(); (window.abrirAjuda || abrirAtalhos)(); return; }
   if (k === 'n') { e.preventDefault(); abrirModal(null); }
   if (e.key === '/') { e.preventDefault(); irPara('leads'); $('#search').focus(); }
 });
 document.addEventListener('keydown', e => {
   if (e.defaultPrevented || e.repeat || e.target.closest('input,select,textarea,button,a[href],[contenteditable]')) return;
-  const tr = e.target.closest('#tblLeads tr[data-id],#tblRecent tr[data-id],.kb-card');
+  const tr = e.target.closest('#tblLeads tr[data-id],.kb-card');
   if (tr && !e.shiftKey && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrirModal(tr.dataset.id); }
 });
 $('#viewTitle').tabIndex = -1;
@@ -686,7 +644,7 @@ window.IndyCar = Object.freeze({
 /* Link direto vindo de outro app (Atendimento, Comunicar, Agenda):
    /?lead=<id> · /?cliente=<uuid>&tel=<telefone> · /?tel=<telefone>
    Abre o lead MAIS RECENTE do cliente (pelo cliente_id; senão pelo telefone, com ou sem 55).
-   Sem lead: mostra a ficha do cliente com o botão "Criar lead". */
+   Sem lead: mostra a ficha do cliente com o botão "Criar contato". */
 const EH_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const maisRecente = lista => [...lista].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] || null;
 async function abrirPorLink() {
@@ -704,7 +662,7 @@ async function abrirPorLink() {
   }
   if (l) return abrirModal(l.id);
   const alvoCli = cliOk || clienteServidor;
-  if (alvoCli) { await abrirFichaCliente(alvoCli, {criarLead: true}); toast('Este cliente ainda não tem lead. Use “Criar lead”.'); return; }
-  if (t) { abrirModal(null, {telefone: t}); toast('Nenhum cliente com esse telefone. Cadastre o lead.'); }
+  if (alvoCli) { await abrirFichaCliente(alvoCli, {criarLead: true}); toast('Este cliente ainda não tem contato. Use “Criar contato”.'); return; }
+  if (t) { abrirModal(null, {telefone: t}); toast('Nenhum cliente com esse telefone. Cadastre o contato.'); }
   else toast('Link sem cliente válido.');
 }

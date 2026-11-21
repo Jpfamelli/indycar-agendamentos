@@ -52,7 +52,7 @@ function pintarConexoes6(c, l) {
       ${carro.link ? `<button type="button" class="acao" data-r6c="abrir" data-app="patio" data-url="${esc(carro.link)}">Abrir no Pátio</button>` : ''}${carro.link_cliente ? `<button type="button" class="acao" data-r6c="copiar" data-txt="${esc(carro.link_cliente)}" title="Link para o cliente acompanhar o carro">📋 Copiar link de acompanhar</button>` : ''}
       ${(carro.extras_pendentes || []).length ? `<div class="r6c-extras"><b>${carro.extras_pendentes.length} extra${carro.extras_pendentes.length === 1 ? '' : 's'} esperando o cliente decidir:</b> ${carro.extras_pendentes.map(x => esc(x.descricao || 'extra') + (x.valor != null ? ' (' + brl(x.valor) + ')' : '')).join(' · ')}</div>` : ''}</div>`);
   } else if (site.carro_no_patio) {
-    partes.push(`<div class="r6c-faixa suave" role="status"><b>🚗 O site avisou: carro no pátio</b>${site.carro_no_patio.os_numero ? ' (ordem nº ' + esc(site.carro_no_patio.os_numero) + (site.carro_no_patio.etapa_rotulo ? ', ' + esc(site.carro_no_patio.etapa_rotulo) : '') + ')' : ''} quando o lead chegou. <span class="muted">Hoje o carro não está mais no Pátio.</span></div>`);
+    partes.push(`<div class="r6c-faixa suave" role="status"><b>🚗 O site avisou: carro no pátio</b>${site.carro_no_patio.os_numero ? ' (ordem nº ' + esc(site.carro_no_patio.os_numero) + (site.carro_no_patio.etapa_rotulo ? ', ' + esc(site.carro_no_patio.etapa_rotulo) : '') + ')' : ''} quando o contato chegou. <span class="muted">Hoje o carro não está mais no Pátio.</span></div>`);
   }
   if (site.cliente_ja_cadastrado && !carro) partes.push('<div class="r6c-faixa suave">👤 O site reconheceu este telefone: <b>cliente já cadastrado na oficina</b>.</div>');
   if (site.horario_escolhido) partes.push(`<div class="r6c-faixa suave">🕘 Horário que o cliente escolheu no site: <b>${esc(site.horario_escolhido)}</b></div>`);
@@ -69,7 +69,7 @@ function pintarConexoes6(c, l) {
         <div class="r6c-linha-acao">${s.acao ? `<small class="muted">👉 ${esc(s.acao)}</small>` : ''}<button type="button" class="acao" data-r6c="abrir" data-app="orcador" data-url="${esc(o.link_equipe)}">Abrir no Orçador</button>${o.link_cliente ? `<button type="button" class="acao" data-r6c="copiar" data-txt="${esc(o.link_cliente)}">📋 Copiar link do cliente</button>` : ''}</div></li>`;
     }).join('')}</ul></div>`);
   } else if (orc.consultou_orcador) {
-    partes.push(`<div class="r6c-bloco vazio"><small class="muted">🧾 Nenhum orçamento deste cliente no Orçador ainda.</small>${c.links?.novo_orcamento && !trava ? ` <button type="button" class="acao" data-r6c="abrir" data-app="orcador" data-url="${esc(c.links.novo_orcamento)}">Criar orçamento com os dados do lead</button>` : ''}</div>`);
+    partes.push(`<div class="r6c-bloco vazio"><small class="muted">🧾 Nenhum orçamento deste cliente no Orçador ainda.</small>${c.links?.novo_orcamento && !trava ? ` <button type="button" class="acao" data-r6c="abrir" data-app="orcador" data-url="${esc(c.links.novo_orcamento)}">Criar orçamento com os dados do contato</button>` : ''}</div>`);
   }
   const acoes = (c.acoes_sugeridas || []).filter(a => a.link);
   if (acoes.length) partes.push(`<div class="r6c-bloco"><h4>👉 O que a casa sugere <small>pelo histórico do cliente</small></h4><ul class="r6c-acoes">${acoes.map(a => `<li><div><b>${esc(a.titulo)}</b>${a.motivo ? `<div class="cell-sub">${esc(a.motivo)}</div>` : ''}</div><button type="button" class="acao" data-r6c="abrir" data-app="${esc(a.app || '')}" data-url="${esc(a.link)}">Abrir${a.app ? ' no ' + esc(A6.NOMES[a.app] || a.app) : ''}</button></li>`).join('')}</ul></div>`);
@@ -155,8 +155,8 @@ renderHoje6 = function () {
   const resumo = $('#hojeResumo');
   if (resumo) resumo.insertAdjacentHTML('beforeend', `${d.total > (d.mostrando || d.itens.length) ? ` <span class="muted">· mostrando os ${d.mostrando} mais urgentes de ${d.total}</span>` : ''}${escondidos ? ` <button type="button" class="r6-chip-btn" data-h6c="mostrar">🙈 ${escondidos} oculto${escondidos === 1 ? '' : 's'} por hoje · mostrar</button>` : ''} <button type="button" class="r6-chip-btn" data-h6c="copiar-lista" title="Copia nome, telefone e motivo para colar onde você anota as ligações">📋 Copiar lista para ligar</button>`);
   if (!d.itens.length && todos.length) $('#hojeLista').innerHTML = '<p class="vazio-curto"><strong>Você escondeu a fila toda por hoje.</strong><br>Clique em “mostrar” acima para ver de novo.</p>';
-  else if (!todos.length && d.escopo === 'sem') $('#hojeLista').innerHTML = '<p class="vazio-curto"><strong>Nenhum lead sem responsável pedindo ação. 🏁</strong><br>Quem chega sem dono aparece aqui.</p>';
-  else if (!todos.length && d.escopo === 'meus') $('#hojeLista').innerHTML = '<p class="vazio-curto"><strong>Seus leads estão em dia. 🏁</strong><br>Troque para “Sem responsável” para pegar leads parados de ninguém.</p>';
+  else if (!todos.length && d.escopo === 'sem') $('#hojeLista').innerHTML = '<p class="vazio-curto"><strong>Nenhum contato sem responsável pedindo ação. 🏁</strong><br>Quem chega sem dono aparece aqui.</p>';
+  else if (!todos.length && d.escopo === 'meus') $('#hojeLista').innerHTML = '<p class="vazio-curto"><strong>Seus contatos estão em dia. 🏁</strong><br>Troque para “Sem responsável” para pegar contatos parados de ninguém.</p>';
 };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-h6c]'); if (!b) return;
@@ -174,23 +174,15 @@ async function carregarCarrosSemLead6() {
   const alvo = $('#hojeCarros'); if (!alvo) return;
   try { C6.carros = await api6('/api/patio/carros'); } catch { alvo.innerHTML = ''; return; }
   const c = C6.carros;
-  alvo.innerHTML = c.sem_lead_total ? `<h4>🚗 Carros na oficina sem lead no CRM (${c.sem_lead_total})</h4><p class="muted mini-nota">O cliente está com o carro aí dentro e ninguém acompanha como venda. Crie o lead para o resto do funil enxergar.</p>` + c.sem_lead.map(x => `<div class="r6-linha"><div><strong>${esc(x.nome || 'Cliente sem nome')}</strong> <span class="muted">${esc(x.placa || '')}</span><div class="cell-sub">Ordem nº ${esc(x.numero ?? '')} · ${esc(x.etapa_rotulo)}${x.telefone ? ' · ' + esc(U.formatarTelefone(x.telefone)) : ''}</div></div>
-    <div class="r6-acoes">${x.link ? `<button type="button" class="acao" data-r6c="abrir" data-app="patio" data-url="${esc(x.link)}">🔧 Pátio</button>` : ''}<button type="button" class="acao acao-forte" data-h6c="criar-lead" data-tel="${esc(x.telefone || '')}" data-nome="${esc(x.nome || '')}" data-placa="${esc(x.placa || '')}" data-os="${esc(x.numero ?? '')}">Criar lead</button></div></div>`).join('') : '';
+  alvo.innerHTML = c.sem_lead_total ? `<h4>🚗 Carros na oficina sem contato no CRM (${c.sem_lead_total})</h4><p class="muted mini-nota">O cliente está com o carro aí dentro e ninguém acompanha como venda. Crie o contato para o resto do funil enxergar.</p>` + c.sem_lead.map(x => `<div class="r6-linha"><div><strong>${esc(x.nome || 'Cliente sem nome')}</strong> <span class="muted">${esc(x.placa || '')}</span><div class="cell-sub">Ordem nº ${esc(x.numero ?? '')} · ${esc(x.etapa_rotulo)}${x.telefone ? ' · ' + esc(U.formatarTelefone(x.telefone)) : ''}</div></div>
+    <div class="r6-acoes">${x.link ? `<button type="button" class="acao" data-r6c="abrir" data-app="patio" data-url="${esc(x.link)}">🔧 Pátio</button>` : ''}<button type="button" class="acao acao-forte" data-h6c="criar-lead" data-tel="${esc(x.telefone || '')}" data-nome="${esc(x.nome || '')}" data-placa="${esc(x.placa || '')}" data-os="${esc(x.numero ?? '')}">Criar contato</button></div></div>`).join('') : '';
 }
 document.addEventListener('click', e => { const b = e.target.closest('#hojeCarros [data-r6c]'); if (b && b.dataset.r6c === 'abrir') abrirSeguro6(b.dataset.url, b.dataset.app); });
 (function montarHoje6c() {
   const lista = $('#hojeLista'); if (lista && !$('#hojeCarros')) lista.insertAdjacentHTML('afterend', '<div id="hojeCarros" class="r6c-carros"></div>');
 })();
-document.addEventListener('indycar:aba', e => { if (e.detail.aba === 'hoje') carregarCarrosSemLead6(); if (e.detail.aba === 'dono') carregarAgora6(); });
+document.addEventListener('indycar:aba', e => { if (e.detail.aba === 'hoje') carregarCarrosSemLead6(); });
 
-/* título da aba mostra quantos pedem ação (ajuda a quem deixa o CRM aberto em outra aba) */
-const _renderSeloHoje6c = renderSeloHoje6;
-renderSeloHoje6 = function () {
-  _renderSeloHoje6c();
-  const c = R6.contagem, n = (c.esperando || 0) + (c.followup_vencido || 0) + (c.primeiro_contato || 0) + (c.entregue_fechar || 0) + (c.pre_agendamento || 0);
-  const base = document.title.replace(/^\(\d+\)\s*/, '');
-  document.title = n ? `(${n}) ${base}` : base;
-};
 
 /* ================= contato em lote ================= */
 (function montarLote6c() {
@@ -205,85 +197,18 @@ renderSeloHoje6 = function () {
       const r = await post6('/api/leads/contato-lote', { ids, tipo, resultado });
       SEL.clear(); redesenhar(); carregarSinais6(true);
       for (const id of r.ids) substituirLocal({ id, ultimo_contato_em: new Date().toISOString() });
-      toast(`📞 Contato registrado em ${r.registrados} lead${r.registrados === 1 ? '' : 's'}` + (r.de_colegas ? ` · ${r.de_colegas} de colega ficou de fora` : '') + (r.fechados ? ` · ${r.fechados} já fechado` : ''), 7000);
+      toast(`📞 Contato registrado em ${r.registrados} contato${r.registrados === 1 ? '' : 's'}` + (r.de_colegas ? ` · ${r.de_colegas} de colega ficou de fora` : '') + (r.fechados ? ` · ${r.fechados} já fechado` : ''), 7000);
     } catch (e) { toast('⚠️ ' + e.message, 6000); }
   });
 })();
 
-/* ================= busca (Ctrl+K) também nos outros sistemas ================= */
-const ROTULO_GRUPO6 = { clientes: 'Clientes', conversas: 'Conversas (Atendimento)', leads: 'Leads', agendamentos: 'Agenda', patio: 'Pátio', orcamentos: 'Orçador' };
 const ICONE_GRUPO6 = { clientes: '🪪', conversas: '💬', leads: '🎯', agendamentos: '📅', patio: '🔧', orcamentos: '🧾' };
-let busca6c = { ger: 0, itens: [] };
-function montarBusca6c() {
-  if ($('#buscaOutros')) return;
-  $('#buscaResultados').insertAdjacentHTML('afterend', '<div id="buscaOutros" class="bg-resultados r6c-busca" aria-label="Resultados em outros sistemas"></div>');
-  $('#buscaOutros').addEventListener('click', e => { const b = e.target.closest('[data-bo]'); if (!b) return; const it = busca6c.itens[Number(b.dataset.bo)]; if (it) { $('#dlgBusca').close(); abrirSeguro6(it.link, it.app); } });
-}
-async function buscarOutros6() {
-  montarBusca6c();
-  const alvo = $('#buscaOutros'), q = $('#buscaGlobal').value.trim(), ger = ++busca6c.ger;
-  if (q.replace(/\s/g, '').length < 2) { alvo.innerHTML = ''; return; }
-  alvo.innerHTML = '<p class="bg-nota">Procurando no Pátio, Orçador, Agenda e Atendimento…</p>';
-  try {
-    const r = await api6('/api/busca-tudo?q=' + encodeURIComponent(q) + '&limite=4');
-    if (ger !== busca6c.ger) return;
-    const itens = [];
-    let html = '';
-    for (const g of ['patio', 'orcamentos', 'agendamentos', 'conversas']) {
-      const lista = (r.grupos[g] || []).filter(i => i.link);
-      if (!lista.length) continue;
-      html += `<h4 class="bg-grupo">${ICONE_GRUPO6[g]} ${ROTULO_GRUPO6[g]}</h4>` + lista.map(i => { itens.push(i); return `<button type="button" class="bg-item" role="option" data-bo="${itens.length - 1}"><span class="bg-ico" aria-hidden="true">${ICONE_GRUPO6[g]}</span><span class="bg-txt2"><strong>${esc(i.titulo || i.nome)}</strong><small>${esc(i.detalhe || '')}</small></span><span class="bg-meta">${i.status ? `<span class="tag">${esc(i.status)}</span>` : ''}<small>abre no ${esc(A6.NOMES[i.app] || i.app)} ↗</small></span></button>`; }).join('');
-    }
-    busca6c.itens = itens;
-    alvo.innerHTML = html || '<p class="bg-nota">Nada nos outros sistemas.</p>';
-  } catch (err) { if (ger === busca6c.ger) alvo.innerHTML = `<p class="bg-nota">Não consegui procurar nos outros sistemas agora (${esc(err.message)}).</p>`; }
-}
-$('#buscaGlobal').addEventListener('input', () => { clearTimeout(busca6c.t); busca6c.t = setTimeout(buscarOutros6, 350); });
-$('#btnBuscaGlobal').addEventListener('click', () => { montarBusca6c(); $('#buscaOutros').innerHTML = ''; });
-document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { montarBusca6c(); $('#buscaOutros').innerHTML = ''; } }, true);
 
-/* ================= Dono: Agora na casa, tempo até o primeiro contato, ligações quebradas ================= */
-async function carregarAgora6() {
-  if (!SOU_GESTOR) return;
-  let blo = $('#donoAgora'); const corpo = $('#donoCorpo'); if (!corpo) return;
-  if (!blo) { blo = document.createElement('div'); blo.id = 'donoAgora'; blo.className = 'ficha-bloco'; corpo.before(blo); }
-  blo.innerHTML = '<h4>Agora na casa</h4><div class="skeleton"></div>';
-  try {
-    const a = C6.agora = await api6('/api/agora'), k = a.kpis;
-    const kpi = (t, v, alerta) => `<div class="ficha-kpi${alerta && v ? ' alerta' : ''}"><span>${t}</span><b>${v}</b></div>`;
-    blo.innerHTML = `<h4>Agora na casa <small class="muted">Pátio · Orçador · Atendimento · Agenda, ao vivo</small></h4>
-      <div class="ficha-kpis">${kpi('Carros no pátio', k.carros_no_patio)}${kpi('Atrasados na etapa', k.carros_atrasados, true)}${kpi('Extras esperando o cliente', k.extras_pendentes, true)}${kpi('Prontos para retirar', k.prontos_esperando_retirada)}
-        ${kpi('Orçamentos esperando', k.orcamentos_esperando)}${kpi('Aprovados sem horário', k.orcamentos_aprovados_sem_horario, true)}${kpi('Conversas sem resposta', k.conversas_sem_resposta, true)}${kpi('Horários hoje', k.agendamentos_hoje)}</div>
-      ${a.valor_orcamentos_esperando ? `<p class="muted mini-nota">Orçamentos esperando resposta somam ${brl(a.valor_orcamentos_esperando)}.</p>` : ''}
-      ${a.atencao.length ? `<ul class="r6-insights">${a.atencao.map(i => `<li class="${esc(i.nivel)}">${esc(i.texto)}</li>`).join('')}</ul>` : '<p class="muted mini-nota">Nada fora do normal agora. 🏁</p>'}`;
-  } catch (e) { blo.innerHTML = `<h4>Agora na casa</h4><p class="vazio-curto">Não consegui ver a casa agora: ${esc(e.message)}</p>`; }
-}
-const _renderDono6c = renderDono6;
-renderDono6 = function () {
-  _renderDono6c();
-  carregarAgora6();
-  const d = D6.dados, pc = d?.primeiro_contato, alvo = $('#donoQualidade')?.closest('.ficha-bloco');
-  if (alvo && pc && !$('#donoPrimeiro')) alvo.insertAdjacentHTML('beforebegin', `<div class="ficha-bloco" id="donoPrimeiro"><h4>Quanto demoramos para falar com o lead novo <small class="muted">últimos 14 dias</small></h4>
-    <p>${pc.mediana_h != null ? `Metade dos leads recebe o primeiro contato em até <b>${pc.mediana_h} h</b>` : 'Ainda sem contato registrado nos leads recentes'} · <b>${pc.sem_contato}</b> de ${pc.leads} ainda sem contato.</p>
-    ${pc.por_pessoa.length ? `<ul class="f360-lista">${pc.por_pessoa.map(x => `<li>${esc(x.nome)} · ${x.mediana_h != null ? x.mediana_h + ' h' : '—'} (${x.leads} lead${x.leads === 1 ? '' : 's'})</li>`).join('')}</ul>` : ''}</div>`);
-  if (alvo && !$('#donoLigacoes')) alvo.insertAdjacentHTML('beforeend', '<div id="donoLigacoes"><button type="button" class="link-btn" id="donoLigBtn">Conferir ligações quebradas entre os sistemas</button></div>');
-  $('#donoLigBtn')?.addEventListener('click', carregarLigacoes6);
-};
-async function carregarLigacoes6() {
-  const el = $('#donoLigacoes'); el.innerHTML = '<div class="skeleton"></div>';
-  try {
-    const r = await api6('/api/ligacoes-quebradas');
-    const ruins = r.verificacoes.filter(v => v.quantidade);
-    el.innerHTML = ruins.length ? `<h4>Ligações quebradas entre os sistemas (${r.total_problemas})</h4><ul class="f360-lista">${ruins.map(v => `<li><b>${v.quantidade}</b> · ${esc(v.descricao)} <span class="tag">${esc(v.app)}</span></li>`).join('')}</ul>` : '<p>Todas as ligações entre Agenda, Pátio, Orçador e CRM estão em ordem. 🏁</p>';
-  } catch (e) { el.innerHTML = `<p class="vazio-curto">${esc(e.message)}</p>`; }
-}
-
-/* ================= lote 2: Dono (Orçador), novo lead sabe do resto da casa, "não atendeu" num clique, atalhos na ficha ================= */
+/* ================= lote 2: novo contato sabe do resto da casa, "não atendeu" num clique, atalhos na ficha ================= */
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-h6c]'); if (!b) return;
   const a = b.dataset.h6c;
   if (a === 'recarregar') carregarHoje6();
-  if (a === 'recarregar-dono') carregarDono6();
   if (a === 'nao-atendeu') {
     const l = leadPorId6(b.dataset.id); if (!l) return;
     const trava = travaLead(l); if (trava) { toast('🔒 ' + trava, 6000); return; }
@@ -301,24 +226,6 @@ renderHoje6 = function () {
   });
 };
 
-/* Dono: o que o Orçador diz (funil, perdas, retorno) */
-async function carregarOrcadorDono6() {
-  if (!SOU_GESTOR) return;
-  const ref = $('#donoPrimeiro') || $('#donoQualidade')?.closest('.ficha-bloco'); if (!ref) return;
-  let blo = $('#donoOrcador');
-  if (!blo) { blo = document.createElement('div'); blo.id = 'donoOrcador'; blo.className = 'ficha-bloco'; ref.before(blo); }
-  blo.innerHTML = '<h4>Orçador · 30 dias</h4><div class="skeleton"></div>';
-  try {
-    const f = await api6('/api/orcador/funil?dias=30');
-    const kpi = (t, v, sub, alerta) => `<div class="ficha-kpi${alerta ? ' alerta' : ''}"><span>${t}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
-    blo.innerHTML = `<h4>Orçador · últimos ${f.periodo_dias} dias <small class="muted">enviado → aberto → decidido</small></h4>
-      <div class="ficha-kpis">${kpi('Enviados', f.enviados, brl(f.valor_enviado))}${kpi('Abertos pelo cliente', f.taxa_visto != null ? f.taxa_visto + '%' : '—', f.vistos + ' de ' + f.enviados)}${kpi('Aprovados', f.aprovados, brl(f.valor_aprovado))}${kpi('Recusados', f.recusados, brl(f.valor_perdido), f.recusados > f.aprovados)}${kpi('Esperando resposta', f.em_espera, brl(f.valor_em_espera))}${kpi('Mediana para decidir', f.mediana_decidir_h != null ? f.mediana_decidir_h + ' h' : '—')}</div>
-      ${f.insights.length ? `<ul class="r6-insights">${f.insights.map(i => `<li class="atencao">${esc(i)}</li>`).join('')}</ul>` : ''}
-      ${f.por_motivo.length ? `<p class="muted mini-nota">Por que recusam: ${esc(f.por_motivo.map(m => `${m.rotulo} (${m.quantidade})`).join(' · '))}</p>` : ''}`;
-  } catch (err) { blo.innerHTML = `<h4>Orçador</h4><p class="vazio-curto">${esc(err.message)}</p>`; }
-}
-const _renderDono6c2 = renderDono6;
-renderDono6 = function () { _renderDono6c2(); setTimeout(carregarOrcadorDono6, 0); };
 
 /* Novo lead: o telefone e a placa já aparecem em outro sistema? (Pátio, Orçador, Atendimento, Agenda) */
 async function avisarOutrosSistemas6(campo) {
@@ -353,11 +260,11 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase(), c = C6.lead === l.id ? C6.con : null;
   if (k === 'c') { e.preventDefault(); registrarContato6(l.id); }
   if (k === 'w') { const t = U.telE164(l.telefone); if (t) { e.preventDefault(); window.open('https://wa.me/55' + t, '_blank', 'noopener'); } }
-  if (k === 'p') { e.preventDefault(); const car = c?.patio?.carros?.[0]; if (car?.link) abrirSeguro6(car.link, 'patio'); else toast('Esse lead não tem carro no Pátio agora.'); }
-  if (k === 'q') { e.preventDefault(); const o = c?.orcamentos?.itens?.[0]; if (o) abrirSeguro6(o.link_equipe, 'orcador'); else toast('Esse lead não tem orçamento no Orçador.'); }
+  if (k === 'p') { e.preventDefault(); const car = c?.patio?.carros?.[0]; if (car?.link) abrirSeguro6(car.link, 'patio'); else toast('Esse contato não tem carro no Pátio agora.'); }
+  if (k === 'q') { e.preventDefault(); const o = c?.orcamentos?.itens?.[0]; if (o) abrirSeguro6(o.link_equipe, 'orcador'); else toast('Esse contato não tem orçamento no Orçador.'); }
 }, true);
 
-/* ================= lote 3: mensagens prontas com os links da casa, lista de qualidade, atalhos documentados ================= */
+/* ================= lote 3: mensagens prontas com os links da casa ================= */
 const primeiroNome6c = n => { const p = String(n || '').trim().split(/\s+/)[0]; return p && !/família|familia|cliente/i.test(p) ? p : ''; };
 const waLink6 = (l, texto) => { const t = U.telE164(l.telefone); return t ? 'https://wa.me/55' + t + '?text=' + encodeURIComponent(texto) : null; };
 /** Textos sem preço e no vocabulário da casa; quem manda é a pessoa (abre o WhatsApp já escrito). */
@@ -381,28 +288,3 @@ pintarConexoes6 = function (c, l) {
   $('#r6cPainel').insertAdjacentHTML('beforeend', `<div class="r6c-bloco"><h4>💬 Mensagens prontas <small>abrem o WhatsApp já escritas; você revisa e envia</small></h4><div class="r6c-linha-acao">${msgs.map(x => `<a class="acao" href="${esc(x.href)}" target="_blank" rel="noopener">${esc(x.rotulo)}</a>`).join('')}</div></div>`);
 };
 if (C6.con && C6.lead) pintarConexoes6(C6.con, leadPorId6(C6.lead));
-
-/* Qualidade dos dados: "ver" mostra a lista (antes abria só o primeiro lead) */
-const _carregarQualidade6c = carregarQualidade6;
-carregarQualidade6 = async function () {
-  await _carregarQualidade6c();
-  const el = $('#donoQualidade'); if (!el) return;
-  el.onclick = async ev => {
-    const b = ev.target.closest('[data-q6]'); if (!b) return;
-    let q; try { q = await api6('/api/qualidade'); } catch (e) { toast('⚠️ ' + e.message); return; }
-    const k = b.dataset.q6, lista = k === 'duplicados' ? q.duplicados.grupos.flatMap(g => g.leads) : (q[k]?.exemplos || []);
-    el.querySelector('.r6c-qlista')?.remove();
-    el.insertAdjacentHTML('beforeend', `<div class="r6c-qlista"><b>${esc(b.closest('li').textContent.replace(/\bver\b\s*$/, '').trim())}</b><ul class="f360-lista">${lista.slice(0, 20).map(x => `<li><button type="button" class="link-btn" data-q6lead="${esc(x.id)}">${esc(x.nome)}</button> <span class="muted">${esc(x.status || '')}${x.telefone ? ' · ' + esc(U.formatarTelefone(x.telefone)) : ''}</span></li>`).join('')}</ul>${lista.length > 20 ? '<p class="muted mini-nota">Mostrando os 20 primeiros.</p>' : ''}</div>`);
-    el.querySelector('.r6c-qlista').onclick = e2 => { const x = e2.target.closest('[data-q6lead]'); if (x) abrirModal(x.dataset.q6lead); };
-  };
-};
-
-/* Atalhos de teclado: a lista da tela não tinha nada da rodada 6; agora tem tudo */
-(function atalhos6c() {
-  const dl = $('#dlgAtalhos .atalhos'); if (!dl || dl.dataset.r6c) return; dl.dataset.r6c = '1';
-  const linhas = [['<kbd>G</kbd> <kbd>H</kbd>', 'Hoje: a fila de quem contatar agora'], ['<kbd>G</kbd> <kbd>K</kbd>', 'Resumo do dono (gestor)'], ['<kbd>1</kbd> … <kbd>7</kbd>', 'No cartão do funil: mover para a etapa'],
-    ['<kbd>C</kbd>', 'No cartão, na fila Hoje ou na ficha do lead: registrar um contato'], ['<kbd>A</kbd>', 'No cartão ou na fila: combinar quando falar de novo'], ['<kbd>J</kbd> <kbd>K</kbd>', 'Na fila Hoje: próxima e anterior'],
-    ['<kbd>P</kbd>', 'Abrir o carro no Pátio (cartão ou ficha)'], ['<kbd>Q</kbd>', 'Abrir o orçamento no Orçador (cartão ou ficha)'], ['<kbd>W</kbd>', 'Na ficha do lead: abrir o WhatsApp'], ['<kbd>Ctrl</kbd> <kbd>Enter</kbd>', 'No registro de contato: salvar']];
-  const fim = [...dl.children].find(x => x.tagName === 'DT' && /Esc/.test(x.textContent)) || null;
-  for (const [t, d] of linhas) { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.innerHTML = t; dd.textContent = d; dl.insertBefore(dt, fim); dl.insertBefore(dd, fim); }
-})();

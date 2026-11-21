@@ -311,7 +311,7 @@
   /* ============================================================
      PERGUNTE AO CRM  +  TRIAGEM  (dashboard, aba IA e gaveta)
      ============================================================ */
-  const EXEMPLOS = ['Quantos leads do Google fecharam este mês?', 'Quem está esperando orçamento há mais de 3 dias?', 'Qual canal trouxe mais clientes que fecharam?'];
+  const EXEMPLOS = ['Quantos contatos do Google fecharam este mês?', 'Quem está esperando orçamento há mais de 3 dias?', 'Qual canal trouxe mais clientes que fecharam?'];
 
   function htmlPergunte() {
     return `<section class="cia cia-bloco" aria-label="Pergunte ao CRM">
@@ -337,8 +337,8 @@
       <div class="cia-titulo-linha"><h3 class="cia-titulo"><span aria-hidden="true">🧹</span> Triagem de hoje</h3>
         <label class="cia-dias">parado há <select data-dias aria-label="Dias parado"><option value="3">3+ dias</option><option value="7">7+ dias</option><option value="15">15+ dias</option></select></label>
         <button type="button" class="cia-btn cia-btn-forte" data-rodar>Rodar triagem</button></div>
-      <p class="cia-dica" data-tri-info>A IA olha os leads parados e sugere o que fazer com cada um. Nada muda sem o seu clique.</p>
-      <div class="cia-lote" data-lote hidden><label><input type="checkbox" data-todos /> Todas</label><button type="button" class="cia-btn" data-exec-lote>Executar selecionadas (<span data-nsel>0</span>)</button><button type="button" class="cia-btn" data-tarefas-lote title="Vira tarefa para o responsável de cada lead">📝 Virar tarefas</button></div>
+      <p class="cia-dica" data-tri-info>A IA olha os contatos parados e sugere o que fazer com cada um. Nada muda sem o seu clique.</p>
+      <div class="cia-lote" data-lote hidden><label><input type="checkbox" data-todos /> Todas</label><button type="button" class="cia-btn" data-exec-lote>Executar selecionadas (<span data-nsel>0</span>)</button><button type="button" class="cia-btn" data-tarefas-lote title="Vira tarefa para o responsável de cada contato">📝 Virar tarefas</button></div>
       <ul class="cia-lista cia-tri" data-tri></ul>
     </section>`;
   }
@@ -347,7 +347,7 @@
     return `<li class="cia-tri-item" data-card="${esc(it.id)}">
       ${prop && !sugerir() ? `<input type="checkbox" class="cia-sel" data-sel="${esc(it.id)}" aria-label="Selecionar ${esc(l.nome || 'lead')}" />` : '<span></span>'}
       <div class="cia-tri-corpo">
-        <div class="cia-tri-top"><button type="button" class="cia-link" data-lead="${esc(it.lead_id || l.id || '')}">${esc(l.nome || 'Lead')}</button>
+        <div class="cia-tri-top"><button type="button" class="cia-link" data-lead="${esc(it.lead_id || l.id || '')}">${esc(l.nome || 'Contato')}</button>
           <span class="cia-tag">${esc(REGRA[p.regra] || p.regra || '')}${p.dias != null ? ` · ${esc(p.dias)} d` : ''}</span>
           <span class="cia-prio p-${esc(p.prioridade)}">${esc(p.prioridade || '')}</span></div>
         <p><span aria-hidden="true">${(ACAO[p.acao] || {}).ico || '✨'}</span> <b>${esc(nomeAcao(p))}</b>${fat(p) ? ' <span class="cia-fat" title="Mexe em faturamento">R$</span>' : ''} — ${esc(p.justificativa || '')}</p>
@@ -370,7 +370,7 @@
       lote.hidden = !raiz.querySelector('[data-sel]');
     };
     const pintar = itens => {
-      lista.innerHTML = itens.length ? itens.map(htmlItemTriagem).join('') : '<li class="cia-vazio">Nenhum lead parado. 🎉</li>';
+      lista.innerHTML = itens.length ? itens.map(htmlItemTriagem).join('') : '<li class="cia-vazio">Nenhum contato parado. 🎉</li>';
       atualizarLote();
     };
 
@@ -408,12 +408,12 @@
       if (b.dataset.ex) { const inp = $('[data-perg] input', raiz); inp.value = b.dataset.ex; $('[data-perg]', raiz).requestSubmit(); return; }
       if (b.dataset.lead) { if (typeof IC().abrirLead === 'function') { fecharGaveta(); IC().abrirLead(b.dataset.lead); } return; }
       if (b.hasAttribute('data-rodar')) {
-        carregando(b, true, 'Olhando os leads…');
+        carregando(b, true, 'Olhando os contatos…');
         try {
           const r = await post('/api/ia/triagem', { dias: Number($('[data-dias]', raiz).value) || 3 });
           pintar(r.itens || []);
-          info.textContent = r.novos ? `${r.novos} nova${r.novos > 1 ? 's' : ''} sugest${r.novos > 1 ? 'ões' : 'ão'}${r.porIA ? '' : ' pelas regras (IA indisponível agora)'} · ${r.total} lead${r.total === 1 ? '' : 's'} parado${r.total === 1 ? '' : 's'} no total.`
-            : (r.itens?.length ? 'Estas sugestões ainda esperam você.' : 'Nenhum lead parado. 🎉');
+          info.textContent = r.novos ? `${r.novos} nova${r.novos > 1 ? 's' : ''} sugest${r.novos > 1 ? 'ões' : 'ão'}${r.porIA ? '' : ' pelas regras (IA indisponível agora)'} · ${r.total} contato${r.total === 1 ? '' : 's'} parado${r.total === 1 ? '' : 's'} no total.`
+            : (r.itens?.length ? 'Estas sugestões ainda esperam você.' : 'Nenhum contato parado. 🎉');
         } catch (e) { toast(e.message); }
         finally { carregando(b, false); }
         return;

@@ -6,7 +6,7 @@
 [hidden]{display:none!important}
 
 .cia{--cia-brilho:linear-gradient(135deg,rgba(229,9,20,.14),rgba(229,9,20,0) 60%);
-  font-family:var(--font-body,var(--font,'DM Sans',sans-serif));color:var(--texto);min-width:0}
+  font-family:var(--font-body,var(--font,'Archivo',sans-serif));color:var(--texto);min-width:0}
 .cia *{box-sizing:border-box}
 
 /* ---------- bloco do lead ---------- */

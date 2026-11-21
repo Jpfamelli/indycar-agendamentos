@@ -1,7 +1,7 @@
 /* ============================================================
    IndyCar CRM — rodada 4 (14/10/2026): funções puras da tela.
    Confiabilidade (servidor acordando), rascunho, fila offline,
-   valor pago, distribuição em lote, relatórios, tour e ajuda.
+   valor pago e distribuição em lote.
    Sem DOM aqui: tudo testável no Node (testes/r4-utils.test.cjs).
    ============================================================ */
 (function (root) {
@@ -93,7 +93,7 @@
     if (itens.length > 300) throw new Error('No máximo 300 por vez.');
     return itens.map(x => {
       const id = String(x && x.id || '');
-      if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Lead inválido na lista.');
+      if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error('Contato inválido na lista.');
       if (x.cortesia === true) return { id, valor_pago: 0, cortesia: true };
       const v = Number(x.valor_pago);
       if (!Number.isFinite(v) || v <= 0 || v > 10000000) throw new Error('Valor entre R$ 0,01 e R$ 10 milhões (ou marque cortesia).');
@@ -196,52 +196,11 @@
     return { ini: a, fim: new Date(b.getFullYear(), b.getMonth(), b.getDate() + 1) };
   }
 
-  /* ---------------- tour de boas-vindas e ajuda ---------------- */
-  function passosTour(papel) {
-    const gestor = papel === 'admin' || papel === 'gestor';
-    const base = [
-      { alvo: '#cardTarefas', titulo: 'Seu dia começa aqui', texto: 'Tarefas atrasadas e de hoje ficam no topo. Marque a caixinha quando fizer.' },
-      { alvo: '.nav-item[data-view="leads"]', titulo: 'Seus leads', texto: 'A lista já abre em "Meus leads". Busque por nome, telefone ou placa com a tecla /.' },
-      { alvo: '.nav-item[data-view="pipeline"]', titulo: 'Funil', texto: 'Arraste o cartão para a próxima etapa. Ao concluir, o CRM pergunta quanto o cliente pagou.' },
-      { alvo: '#btnSino', titulo: 'Avisos', texto: 'Lead passado para você, cliente esperando e tarefas novas chegam no sino.' },
-    ];
-    const extra = gestor ? [
-      { alvo: '.nav-item[data-view="distribuir"]', titulo: 'Leads sem dono', texto: 'Quem está sem responsável, com um rodízio sugerido para aplicar em um clique (auditado, com desfazer) e a distribuição manual com prévia.' },
-      { alvo: '.nav-item[data-view="relatorios"]', titulo: 'Relatórios', texto: 'Funil, conversão por origem e por vendedor, tempo de resposta e motivos de perda — com exportação.' },
-      { alvo: '#cardSemValor', titulo: 'Vendas sem valor', texto: 'Concluídos sem o valor pago deixam o faturamento vazio. Preencha vários de uma vez por aqui.' },
-    ] : [];
-    return [...base, ...extra, { alvo: '#btnAjuda', titulo: 'Precisa de ajuda?', texto: 'Aqui tem atalhos, "como faço…" e este tour de novo quando quiser.' }];
-  }
-  function perguntasAjuda(papel) {
-    const gestor = papel === 'admin' || papel === 'gestor';
-    const lista = [
-      ['Como cadastro um lead?', 'Botão "+ Novo Lead" (ou tecla N). Nome e telefone com DDD bastam; o resto dá para completar depois.'],
-      ['Como passo o lead para a próxima etapa?', 'Arraste o cartão no Funil, use os botões de etapa na ficha ou, no teclado, Shift + setas.'],
-      ['O que pôr no "valor pago"?', 'O que o cliente pagou de fato. O CRM sugere o orçado; se foi cortesia, marque "cortesia".'],
-      ['Como pego um lead sem dono?', 'Abra o lead e clique em "Pegar para mim".'],
-      ['Como crio um lembrete?', 'Na ficha do lead, aba Tarefas, ou no card "Minhas tarefas" do Dashboard.'],
-      ['O sistema mostrou "acordando". E agora?', 'O servidor gratuito dorme quando ninguém usa. Espere: ele tenta sozinho por até 3 minutos e o que você digitou não se perde.'],
-      ['Não consigo apagar um lead.', 'Apagar é só do gestor. Peça a ele, ou marque como perdido com o motivo.'],
-      ['Como acho um cliente rápido?', 'Ctrl+K abre a busca global: digite parte do nome, o final do telefone ou a placa. Procura em leads e na base de clientes.'],
-      ['Como vejo tudo de um cliente?', 'Clientes › clique na pessoa (ou Ficha 360 no lead): conversa, horários, carro no pátio, orçamentos, mensagens do Comunicar, tarefas e indicações, tudo numa tela.'],
-      ['Como guardo um filtro que uso sempre?', 'Na lista de leads, monte os filtros e clique em "Salvar filtro". Ele aparece em "Filtros salvos" em qualquer aparelho.'],
-      ['Como mando uma mensagem para vários leads?', 'Selecione na lista e use "Campanha no Comunicar". A campanha nasce como proposta; o gestor aprova lá antes de sair.'],
-    ];
-    if (gestor) lista.push(
-      ['Como divido os leads antigos?', 'Menu "Distribuir": filtre, marque quem recebe, confira a prévia e grave. Dá para desfazer.'],
-      ['Como preencho os valores que faltam?', 'No Dashboard, card "Vendas sem valor" → "Preencher agora".'],
-      ['Como exporto os números?', 'Menu "Relatórios": escolha o período e use "Exportar CSV" ou "Imprimir".'],
-      ['E os leads sem dono?', 'Menu "Leads sem dono": veja quantos são, por etapa e idade, e aplique o rodízio sugerido com um clique (auditado, com desfazer).'],
-    );
-    return lista.map(([p, r]) => ({ pergunta: p, resposta: r }));
-  }
-
   const api = { esperasAcordar, totalEspera, ehAcordando, deveRepetir, textoAcordando, novaChave, naoEhNossa,
     chaveRascunho, rascunhoValido, filaAdicionar, textoFila,
     ehCortesia, comCortesia, semValor, semValorPago, sugestoesValor, validarValores,
     IDADES, idadeDias, filtrarDistribuir, planoDistribuicao, gruposDoPlano,
-    ETAPAS, FUNIL, relatorio, textoMinutos, intervaloDatas, motivoDe,
-    passosTour, perguntasAjuda };
+    ETAPAS, FUNIL, relatorio, textoMinutos, intervaloDatas, motivoDe };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CrmR4 = api;
 })(typeof window !== 'undefined' ? window : globalThis);

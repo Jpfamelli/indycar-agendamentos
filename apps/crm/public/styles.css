@@ -45,8 +45,8 @@
   --ciano-txt:#4dd6e8;
   --neutro-txt:#a0a0aa;
 
-  --font-cond:'Barlow Condensed',sans-serif; --font:'DM Sans',sans-serif;
-  --font-body:'DM Sans',sans-serif;
+  --font-cond:'Barlow Condensed',sans-serif; --font:'Archivo',sans-serif;   /* rodada 11: só as fontes do padrão (/casa/indycar.css) */
+  --font-body:'Archivo',sans-serif;
   --radius:14px; --ease:cubic-bezier(.22,1,.36,1);
 
   color-scheme:var(--scheme);

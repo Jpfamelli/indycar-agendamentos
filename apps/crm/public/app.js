@@ -133,43 +133,34 @@ let PERFIL = null, SOU_ADMIN = false, SOU_GESTOR = false;
 let CATALOGO = [];              // os 138 serviços, como vieram do banco
 
 /* ---------------- Navegação ---------------- */
+/* Rodada 11: 5 abas no topo (Hoje, Contatos, Funil, Clientes, Painel). Equipe, Sem responsável e
+   Serviços abrem pelo menu da pessoa. Origem, Relatórios, Dono, Integrações, IA e Configurações saíram:
+   anúncios moram no Tráfego, a conta na Central e a equipe no Atendimento. */
 const TITULOS = {
-  dashboard:     ['Painel', 'Visão geral da operação comercial'],
-  leads:         ['Contatos', ''],
-  clientes:      ['Clientes', 'A base compartilhada com a agenda e o atendimento'],
-  pipeline:      ['Funil de Vendas', 'Acompanhe cada lead até o fechamento'],
-  origem:        ['Origem dos Leads', 'De onde vem cada cliente — e quanto rende'],
-  servicos:      ['Serviços', 'O catálogo que a IA usa para responder o cliente'],
-  integracoes:   ['Integrações', 'Meta Ads, Google Ads e o ROI de cada canal'],
-  ia:            ['IA', 'Pergunte ao CRM, triagem e o resumo da semana'],
-  equipe:        ['Equipe e metas', 'Metas do mês, ranking e funil de cada vendedor'],
-  distribuir:    ['Distribuir contatos', 'Confira quem está sem responsável e revise a distribuição antes de aplicar.'],
-  relatorios:    ['Relatórios', 'Funil, conversão, tempo de resposta e perdas do período, com exportação'],
-  configuracoes: ['Configurações', 'Sua conta, sua senha e a equipe'],
+  hoje:       ['Hoje'],
+  leads:      ['Contatos'],
+  pipeline:   ['Funil'],
+  clientes:   ['Clientes'],
+  dashboard:  ['Painel'],
+  equipe:     ['Equipe e metas'],
+  distribuir: ['Contatos sem responsável'],
+  servicos:   ['Serviços'],
 };
-// a busca do topo só filtra estas abas — nas outras ela ficava visível e inerte
-// (Clientes e Serviços têm a própria busca, dentro da aba)
+// a busca do topo só filtra estas abas (Clientes e Serviços têm a própria busca, dentro da aba)
 const ABAS_COM_BUSCA = new Set(['leads', 'pipeline']);
-// "+ Novo Lead" não faz sentido no catálogo nem nas configurações
-const ABAS_SEM_NOVO = new Set(['servicos', 'configuracoes', 'equipe', 'distribuir', 'relatorios', 'hoje', 'dono']);
+const ABAS_SEM_NOVO = new Set(['servicos', 'equipe', 'distribuir', 'hoje']);
 
 function irPara(v) {
   if (!TITULOS[v]) return;
-  if ($(`.nav-item[data-view="${v}"]`)?.hidden) v = 'dashboard';   // aba escondida para o papel: não abre por atalho nem link
+  if ($(`[data-view="${v}"]`)?.hidden) v = 'dashboard';   // aba escondida para o papel: não abre por atalho nem link
   $$('.nav-item').forEach(x => { x.classList.toggle('active', x.dataset.view === v); if (x.dataset.view === v) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current'); });
   $$('.view').forEach(x => x.classList.remove('active'));
   $(`#view-${v}`)?.classList.add('active');
   $('#viewTitle').textContent = TITULOS[v][0];
-  const abaAtiva = $('.nav-item.active')?.closest('details');
-  if (abaAtiva) abaAtiva.open = true;
-  $('#viewSub').textContent = TITULOS[v][1];
-  $('#viewSub').hidden = !TITULOS[v][1];
   $('.search').style.display = ABAS_COM_BUSCA.has(v) ? '' : 'none';
   $('#btnNovo').style.display = ABAS_SEM_NOVO.has(v) ? 'none' : '';
-  if (v === 'integracoes')   carregarIntegracoes();
   if (v === 'clientes')      carregarClientes();
   if (v === 'servicos')      carregarCatalogo();
-  if (v === 'configuracoes') carregarConfiguracoes();
   if (v === 'equipe')        carregarEquipeMetas();
   document.dispatchEvent(new CustomEvent('indycar:aba', { detail: { aba: v } }));   // rodada4.js monta Distribuir e Relatórios
   try { sessionStorage.setItem('indycar_crm_aba', v); } catch { /* ignora */ }
@@ -202,15 +193,8 @@ function aplicarTema(tema) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', claro ? '#eaecf0' : '#0a0a0b');
 
-  const ico = $('#temaIco'), txt = $('#temaTxt');
-  if (ico) ico.textContent = claro ? '☀️' : '🌙';
-  if (txt) txt.textContent = claro ? 'Tema claro' : 'Tema escuro';
-
   try { localStorage.setItem(TEMA_KEY, claro ? 'claro' : 'escuro'); } catch { /* ignora */ }
 }
-
-$('#btnTema')?.addEventListener('click', () =>
-  aplicarTema(temaAtual() === 'claro' ? 'escuro' : 'claro'));
 
 // deixa o botão e o meta coerentes com o que o script do <head> já aplicou
 aplicarTema(temaAtual());
@@ -242,18 +226,12 @@ async function carregar() {
   aplicarPapelNaTela();
   iniciarSessao();
 
-  /* Esconde o que só admin usa. É só apresentação — o servidor devolve 403
-     de qualquer forma; isto evita o atendente clicar e levar erro na cara.
-     O "Dados de exemplo" APAGA todos os leads: fora da vista de quem não pode. */
-  const navInteg = $('.nav-item[data-view="integracoes"]');
-  if (navInteg) navInteg.hidden = !SOU_ADMIN;
-
   try {
     const primeira = !STATS;
     if (primeira) {
       $('#kpis').innerHTML = '<div class="skeleton" aria-label="Carregando indicadores"></div>'.repeat(6);
       $('#kanban').innerHTML = '<div class="kb-col"><div class="skeleton alto" aria-label="Carregando funil"></div></div>'.repeat(4);
-      $('#tblLeads').innerHTML = '<tbody><tr><td><div class="skeleton" aria-label="Carregando leads"></div></td></tr></tbody>';
+      $('#tblLeads').innerHTML = '<tbody><tr><td><div class="skeleton" aria-label="Carregando contatos"></div></td></tr></tbody>';
     }
     /* Rodada 4: as etapas e origens são fixas (enums do banco) — não precisa mais
        pedir /api/stats (que lia a base inteira) só para saber delas. O painel e a
@@ -263,13 +241,10 @@ async function carregar() {
     if (!STATS) STATS = { dominios: { STATUSES, ORIGENS } };
     preencherSelects();
     await carregarLeads();
-    carregarSaude();
     renderPainel();
-    renderOrigem();
-    renderHowto();
     if (primeira) {
       let aba = null; try { aba = sessionStorage.getItem('indycar_crm_aba'); } catch { /* ignora */ }
-      const atalho = Object.hasOwn(TITULOS, aba) && [...document.querySelectorAll('.nav-item')].find(item => item.dataset.view === aba);
+      const atalho = Object.hasOwn(TITULOS, aba) && [...document.querySelectorAll('[data-view]')].find(item => item.dataset.view === aba);
       irPara(atalho && !atalho.hidden ? aba : 'leads');
       abrirPorLink();
     }
@@ -293,6 +268,7 @@ async function carregarLeads() {
   TODOS = Array.isArray(todos) ? todos : [];
   if (ind && Array.isArray(ind.indicacoes)) INDICADOS = new Map(ind.indicacoes.filter(i => i.lead_id).map(i => [String(i.lead_id), i]));
   refiltrar(); salvarFiltros();
+  $('#leadCount').textContent = `${LEADS.length} contato${LEADS.length === 1 ? '' : 's'}`;   // antes ficava "0 registros" até mexer num filtro
   renderTabelaLeads();
   renderKanban();               // sempre sobre TODOS
 }
@@ -324,40 +300,6 @@ function preencherSelects() {
 
 /* Dashboard, tabelas e funil: renderPainel, renderTabela e renderKanban em melhorias.js */
 
-/* ---------------- Origem ---------------- */
-function renderOrigem() {
-  // últimos 7 dias, calculado aqui com os leads da tela (antes vinha de /api/stats)
-  const fim = new Date(), ini = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate() - 6);
-  const o = CrmUtils.metricas(TODOS, ini, new Date(fim.getTime() + 60000)).porOrigem;
-  const el = $('#tblOrigem');
-  if (!o.length) { el.innerHTML = '<tbody><tr><td class="muted" style="padding:26px;text-align:center">Sem dados na semana.</td></tr></tbody>'; return; }
-  el.innerHTML = `<thead><tr><th>Canal</th><th>Leads</th><th>Fechados</th><th>Conversão</th><th>Faturamento</th><th>R$ por lead</th></tr></thead>
-    <tbody>${o.map(x => {
-      const conv = x.leads ? (x.ganhos / x.leads) * 100 : 0;
-      return `<tr>
-        <td><span class="origin-name"><span class="dot" style="background:${COR_ORIGEM[x.origem] || '#888'}"></span>${esc(LABEL_ORIGEM[x.origem] ?? x.origem)}</span></td>
-        <td class="num">${x.leads}</td><td class="num">${x.ganhos}</td>
-        <td class="num">${conv.toFixed(0)}%</td><td class="num">${brl(x.faturamento)}</td>
-        <td class="num">${brl(x.leads ? x.faturamento / x.leads : 0)}</td></tr>`;
-    }).join('')}</tbody>`;
-}
-
-function renderHowto() {
-  $('#howto').innerHTML = `
-    <div class="howto-step"><span class="howto-n">1</span><p>
-      <strong>Marque seus anúncios com UTM.</strong> No Meta Ads e no Google Ads, adicione parâmetros ao link do site:
-      <br><code>indycartaubateoficial.com.br/?utm_source=facebook&utm_medium=cpc&utm_campaign=cambio-automatico</code></p></div>
-    <div class="howto-step"><span class="howto-n">2</span><p>
-      <strong>O site repassa a origem para o WhatsApp.</strong> A landing page lê a UTM e inclui um código na mensagem —
-      assim você sabe de qual anúncio veio antes mesmo de responder.</p></div>
-    <div class="howto-step"><span class="howto-n">3</span><p>
-      <strong>Cadastre o lead aqui com a origem certa.</strong> Ao salvar, escolha o canal em <em>Origem</em>.
-      O CRM cruza tudo e mostra qual anúncio traz cliente que <strong>realmente fecha</strong>.</p></div>
-    <div class="howto-step"><span class="howto-n">4</span><p>
-      <strong>Integração automática (próxima fase).</strong> Com as credenciais das APIs do Meta e do Google Ads,
-      dá pra puxar custo e cliques por campanha e calcular o <strong>ROI real de cada anúncio</strong> automaticamente.</p></div>`;
-}
-
 /* ---------------- Modal ---------------- */
 const modal = $('#modalBg');
 let editId = null;
@@ -375,7 +317,7 @@ async function abrirModal(id, pre = {}) {
     if (!l) {
       try { const r = await api('/api/leads/' + encodeURIComponent(id)); l = r && r.id ? r : null; } catch { l = null; }
     }
-    if (!l) { toast('Lead não encontrado — atualize a página.'); return; }
+    if (!l) { toast('Contato não encontrado — atualize a página.'); return; }
   }
   editId = l ? l.id : null;
   LEAD_ABERTO = l ? l.id : null;
@@ -409,7 +351,6 @@ $('#btnCancelar').addEventListener('click', fecharModal);
 modal.addEventListener('click', e => { if (e.target === modal) fecharModal(); });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape' || $('dialog[open]')) return;
-  if (!$('#painelColunas').hidden) { $('#painelColunas').hidden = true; $('#btnColunas').setAttribute('aria-expanded', 'false'); $('#btnColunas').focus(); return; }
   if (modalCli.classList.contains('open')) fecharFichaCliente(); else fecharModal();
 });
 
@@ -443,8 +384,8 @@ $('#leadForm').addEventListener('submit', async e => {
                            : await api('/api/leads', { method: 'POST', body: JSON.stringify(payload) });
     fecharModal(true);
     substituirLocal(salvo); redesenhar();
-    if (editando) toast('✅ Lead atualizado');
-    else toastAcao('✅ Lead cadastrado', 'Abrir', () => abrirModal(salvo.id));
+    if (editando) toast('✅ Contato atualizado');
+    else toastAcao('✅ Contato cadastrado', 'Abrir', () => abrirModal(salvo.id));
     carregar().catch(() => {});   // números do servidor (estatísticas) em segundo plano
   } catch (err) {
     // erro do servidor não pode mais virar "sucesso"; a gaveta fica aberta com tudo o que foi digitado
@@ -456,11 +397,11 @@ $('#leadForm').addEventListener('submit', async e => {
 
 $('#btnExcluir').addEventListener('click', async () => {
   const l = TODOS.find(x => String(x.id) === String(editId));
-  if (!editId || !confirm(`Excluir o lead ${l?.nome || ''}? Essa ação não pode ser desfeita.`)) return;
+  if (!editId || !confirm(`Excluir o contato ${l?.nome || ''}? Essa ação não pode ser desfeita.`)) return;
   try {
     await api(`/api/leads/${encodeURIComponent(editId)}`, { method: 'DELETE' });
     fecharModal(true);
-    toast('🗑️ Lead excluído');
+    toast('🗑️ Contato excluído');
     await carregar();
   } catch (err) {
     toast('⚠️ ' + err.message);
@@ -470,225 +411,12 @@ $('#btnExcluir').addEventListener('click', async () => {
 /* ---------------- Filtros ---------------- */
 let buscaT;
 // a busca filtra o que já está na tela: sem ir ao servidor a cada letra
-$('#search').addEventListener('input', () => { clearTimeout(buscaT); buscaT = setTimeout(() => { PAG_LEADS = 1; refiltrar(); renderTabelaLeads(); renderKanban(); $('#leadCount').textContent = `${LEADS.length} registro${LEADS.length === 1 ? '' : 's'}`; }, 200); });
+$('#search').addEventListener('input', () => { clearTimeout(buscaT); buscaT = setTimeout(() => { PAG_LEADS = 1; refiltrar(); renderTabelaLeads(); renderKanban(); $('#leadCount').textContent = `${LEADS.length} contato${LEADS.length === 1 ? '' : 's'}`; }, 200); });
 // rodada 4: filtros só refazem a lista na tela (antes cada troca baixava todos os leads de novo)
-const refiltrarTela = () => { PAG_LEADS = 1; refiltrar(); salvarFiltros(); renderTabelaLeads(); $('#leadCount').textContent = `${LEADS.length} registro${LEADS.length === 1 ? '' : 's'}`; };
+const refiltrarTela = () => { PAG_LEADS = 1; refiltrar(); salvarFiltros(); renderTabelaLeads(); $('#leadCount').textContent = `${LEADS.length} contato${LEADS.length === 1 ? '' : 's'}`; };
 $('#fStatus').addEventListener('change', refiltrarTela);
 $('#fOrigem').addEventListener('change', refiltrarTela);
 
-/* ---------------- IA ---------------- */
-/* Converte o markdown da IA em HTML. Processa BLOCO A BLOCO — a versão antiga
-   fundia uma lista com marcadores e uma numerada num único <ul>, e ainda
-   aninhava esse <ul> dentro de um <p> (HTML inválido). O texto é escapado
-   antes, então a resposta da IA nunca injeta HTML na página. */
-function markdownSimples(md) {
-  const inline = t => esc(t)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`(.+?)`/g, '<code>$1</code>');
-
-  return String(md ?? '').split(/\n{2,}/).map(bloco => {
-    const linhas = bloco.split('\n').map(l => l.trim()).filter(Boolean);
-    if (!linhas.length) return '';
-
-    // bloco inteiro de lista (marcadores OU numerada — nunca misturados)
-    const ehItem = l => /^([-*]|\d+\.)\s+/.test(l);
-    if (linhas.every(ehItem)) {
-      const numerada = /^\d+\.\s+/.test(linhas[0]);
-      const tag = numerada ? 'ol' : 'ul';
-      return `<${tag}>` + linhas.map(l =>
-        `<li>${inline(l.replace(/^([-*]|\d+\.)\s+/, ''))}</li>`).join('') + `</${tag}>`;
-    }
-
-    // heading (#, ## ou ###) na primeira linha
-    const h = linhas[0].match(/^(#{1,3})\s+(.+)$/);
-    if (h) {
-      const nivel = h[1].length === 1 ? 2 : h[1].length;   // # vira h2 (h1 é da página)
-      const resto = linhas.slice(1);
-      return `<h${nivel}>${inline(h[2])}</h${nivel}>` +
-             (resto.length ? `<p>${resto.map(inline).join('<br>')}</p>` : '');
-    }
-
-    return `<p>${linhas.map(inline).join('<br>')}</p>`;
-  }).join('');
-}
-
-$('#btnIA').addEventListener('click', async () => {
-  const btn = $('#btnIA'), out = $('#iaOut');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Analisando a semana…';
-  out.innerHTML = '<p class="muted"><span class="spinner"></span>A IA está lendo os dados do CRM…</p>';
-  try {
-    const r = await api('/api/resumo-ia', { method: 'POST' });
-    if (r.ok && (r.resumo || '').trim()) {
-      out.innerHTML =
-        (r.truncado ? '<div class="alert">⚠️ O resumo foi cortado por limite de tamanho. Gere de novo se faltar conteúdo.</div>' : '') +
-        markdownSimples(r.resumo) +
-        `<p class="muted" style="margin-top:18px;font-size:.8rem">Gerado por ${esc(r.modelo)} · ${new Date(r.geradoEm).toLocaleString('pt-BR')}</p>`;
-      toast('✨ Resumo gerado');
-    } else {
-      out.innerHTML = `<div class="alert"><strong>IA não configurada.</strong><br>${esc(r.erro || 'A IA devolveu uma resposta vazia.')}
-        ${r.instrucao ? `<br><br>${esc(r.instrucao)}` : ''}</div>
-        <p class="muted" style="margin-top:16px">Enquanto isso, este é o briefing que seria enviado para a IA:</p>
-        <div class="briefing">${esc(r.briefing || '')}</div>`;
-    }
-  } catch (err) {
-    out.innerHTML = `<div class="alert">Erro ao gerar o resumo: ${esc(err.message)}</div>`;
-  }
-  btn.disabled = false;
-  btn.textContent = '✨ Gerar resumo da semana';
-});
-
-/* O botão de "repovoar com exemplos" foi removido.
-   Ele apagava TODOS os leads para inserir 10 inventados — e foi o que encheu
-   o CRM de 56 cadastros falsos (o mesmo nome com telefones diferentes,
-   "Aline Gomes" três vezes). Com a oficina atendendo de verdade, um clique
-   errado apagaria cliente real, no banco que o Atendimento e a Agenda também
-   usam. Dado de exemplo não tem lugar em sistema em produção. */
-
-/* ============================================================
-   INTEGRAÇÕES — Meta Ads / Google Ads + ROI por canal
-   ============================================================ */
-const ROTULO_CANAL = { meta:'Meta Ads', google:'Google Ads' };
-
-/** Preenche um formulário com o que veio da API. Segredos NUNCA chegam aqui —
- *  o campo fica vazio e a máscara aparece embaixo como confirmação. */
-function preencherFormIntegracao(dados) {
-  const form = $(`.int-form[data-canal="${dados.canal}"]`);
-  if (!form) return;
-
-  for (const campo of Object.keys(dados)) {
-    const input = form.querySelector(`[name="${campo}"]`);
-    if (!input || input.type === 'checkbox') continue;
-    if (input.dataset.secreto) { input.value = ''; continue; }
-    input.value = dados[campo] ?? '';
-  }
-  form.querySelector('[name="ativo"]').checked = !!dados.ativo;
-
-  // máscara sob cada segredo
-  form.querySelectorAll('.int-mask').forEach(el => {
-    const campo = el.dataset.for;
-    el.textContent = dados[`${campo}_definido`]
-      ? `Salvo: ${dados[`${campo}_mask`]} — deixe em branco para manter.`
-      : '';
-  });
-
-  // selo de status
-  const selo = $(dados.canal === 'meta' ? '#stMeta' : '#stGoogle');
-  if (dados.conectado)      { selo.textContent = 'Conectado';  selo.className = 'int-status on'; }
-  else if (dados.faltando.length && dados.faltando.length < OBRIG_TOTAL(dados.canal))
-                            { selo.textContent = 'Incompleto'; selo.className = 'int-status pend'; }
-  else if (!dados.faltando.length && !dados.ativo)
-                            { selo.textContent = 'Desativado'; selo.className = 'int-status pend'; }
-  else                      { selo.textContent = 'Não configurado'; selo.className = 'int-status'; }
-}
-const OBRIG_TOTAL = canal => (canal === 'meta' ? 2 : 5);
-
-async function carregarIntegracoes() {
-  try {
-    const r = await api('/api/integracoes');
-    r.canais.forEach(preencherFormIntegracao);
-    if (!$('#mesROI').value) $('#mesROI').value = new Date().toISOString().slice(0, 7);
-    if (!$('#mCanal').options.length) {
-      $('#mCanal').innerHTML = ORIGENS.map(o =>
-        `<option value="${o}">${esc(LABEL_ORIGEM[o] ?? o)}</option>`).join('');
-    }
-    await carregarROI();
-  } catch (err) { toast('⚠️ ' + err.message); }
-}
-
-async function carregarROI() {
-  try {
-    const mes = $('#mesROI').value || undefined;
-    const r = await api('/api/roi' + (mes ? `?competencia=${mes}` : ''));
-    const t = r.totais;
-    const fmtRoi = v => v === null ? '—' : `${v.toFixed(2)}x`;
-
-    $('#roiKpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Investido no mês</div>
-        <div class="kpi-value">${brl(t.investimento)}</div>
-        <div class="kpi-delta"><span class="flat">${t.leads} leads captados</span></div></div>
-      <div class="kpi"><div class="kpi-label">Faturamento atribuído</div>
-        <div class="kpi-value">${brl(t.faturamento)}</div>
-        <div class="kpi-delta"><span class="flat">${t.ganhos} serviços fechados</span></div></div>
-      <div class="kpi"><div class="kpi-label">Resultado</div>
-        <div class="kpi-value">${brl(t.lucro)}</div>
-        <div class="kpi-delta"><span class="${t.lucro >= 0 ? 'up' : 'down'}">
-          ${t.lucro >= 0 ? '▲ lucro' : '▼ prejuízo'}</span></div></div>
-      <div class="kpi"><div class="kpi-label">Retorno geral</div>
-        <div class="kpi-value">${fmtRoi(t.roi)}</div>
-        <div class="kpi-delta"><span class="flat">por real investido</span></div></div>`;
-
-    const el = $('#tblROI');
-    if (!r.linhas.length) {
-      el.innerHTML = '<tbody><tr><td class="muted" style="padding:26px;text-align:center">Sem dados neste mês. Cadastre o investimento acima.</td></tr></tbody>';
-      return;
-    }
-    el.innerHTML = `<thead><tr><th>Canal</th><th>Investido</th><th>Leads</th><th>Fechou</th>
-        <th>Faturamento</th><th>Custo/lead</th><th>Custo/venda</th><th>Retorno</th></tr></thead>
-      <tbody>${r.linhas.map(l => `<tr>
-        <td><span class="origin-name"><span class="dot" style="background:${COR_ORIGEM[l.canal] || '#888'}"></span>${esc(LABEL_ORIGEM[l.canal] ?? l.canal)}</span></td>
-        <td class="num">${l.investimento ? brl(l.investimento) : '—'}</td>
-        <td class="num">${l.leads}</td>
-        <td class="num">${l.ganhos}</td>
-        <td class="num">${brl(l.faturamento)}</td>
-        <td class="num">${l.custoPorLead ? brl(l.custoPorLead) : '—'}</td>
-        <td class="num">${l.custoPorVenda ? brl(l.custoPorVenda) : '—'}</td>
-        <td class="num ${l.roi === null ? '' : l.roi >= 1 ? 'roi-pos' : 'roi-neg'}">${fmtRoi(l.roi)}</td>
-      </tr>`).join('')}</tbody>`;
-  } catch (err) { toast('⚠️ ' + err.message); }
-}
-
-// salvar credenciais de um canal
-$$('.int-form').forEach(form => {
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
-    const canal = form.dataset.canal;
-    const payload = {};
-    form.querySelectorAll('input').forEach(i => {
-      if (i.name === 'ativo') payload.ativo = i.checked;
-      else if (i.value.trim()) payload[i.name] = i.value.trim();   // vazio = "não mexi neste campo"
-    });
-    const btn = form.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    try {
-      const r = await api(`/api/integracoes/${canal}`, { method: 'PATCH', body: JSON.stringify(payload) });
-      preencherFormIntegracao(r);
-      toast(r.conectado ? `✅ ${ROTULO_CANAL[canal]} conectado`
-                        : `💾 Salvo — falta: ${r.faltando.join(', ') || 'ativar o canal'}`);
-    } catch (err) { toast('⚠️ ' + err.message); }
-    finally { btn.disabled = false; }
-  });
-
-  form.querySelector('[data-acao="limpar"]').addEventListener('click', async () => {
-    const canal = form.dataset.canal;
-    if (!confirm(`Apagar as credenciais do ${ROTULO_CANAL[canal]}?`)) return;
-    try {
-      preencherFormIntegracao(await api(`/api/integracoes/${canal}`, { method: 'DELETE' }));
-      toast('🗑️ Credenciais apagadas');
-    } catch (err) { toast('⚠️ ' + err.message); }
-  });
-});
-
-// salvar investimento do mês
-$('#formMetrica').addEventListener('submit', async e => {
-  e.preventDefault();
-  const f = e.target;
-  const payload = {
-    canal: f.canal.value,
-    competencia: $('#mesROI').value || undefined,
-    investimento: f.investimento.value || 0,
-    cliques: f.cliques.value || 0,
-    impressoes: f.impressoes.value || 0,
-  };
-  try {
-    await api('/api/metricas', { method: 'POST', body: JSON.stringify(payload) });
-    toast('💰 Investimento registrado');
-    f.investimento.value = f.cliques.value = f.impressoes.value = '';
-    await carregarROI();
-  } catch (err) { toast('⚠️ ' + err.message); }
-});
-
-$('#mesROI').addEventListener('change', carregarROI);
 
 /* ============================================================
    CLIENTES — a base compartilhada com a Agenda e o Atendimento
@@ -726,20 +454,6 @@ async function carregarClientes() {
     if (!atual()) return;
     CLIENTES = r.clientes || []; PAG_CLI = 1;
 
-    $('#cliKpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">${r.filtrado ? 'Clientes encontrados' : 'Clientes na base'}</div>
-        <div class="kpi-value">${r.total.toLocaleString('pt-BR')}</div>
-        <div class="kpi-delta"><span class="flat">${r.filtrado
-          ? `de ${r.totalBase.toLocaleString('pt-BR')} na base` : 'compartilhada com a agenda'}</span></div></div>
-      <div class="kpi"><div class="kpi-label">Já faturado</div>
-        <div class="kpi-value">${brl(r.faturamento)}</div>
-        <div class="kpi-delta"><span class="flat">${r.filtrado
-          ? `de ${brl(r.faturamentoBase)} no total`
-          : 'serviços concluídos, sem contar duas vezes'}</span></div></div>
-      <div class="kpi"><div class="kpi-label">Ticket por cliente</div>
-        <div class="kpi-value">${brl(r.total ? r.faturamento / r.total : 0)}</div>
-        <div class="kpi-delta"><span class="flat">média ${r.filtrado
-          ? 'de quem apareceu na busca' : 'da base inteira'}</span></div></div>`;
     renderClientes();
   } catch (err) {
     if (!atual()) return;
@@ -809,7 +523,7 @@ async function abrirFichaCliente(id, opcoes = {}) {
     const f = await api('/api/clientes/' + encodeURIComponent(id));
     const c = f.cliente, r = f.resumo;
 
-    const linhasLeads = f.leads.length ? f.leads.map(l => `<tr data-lead="${esc(l.id)}" tabindex="0" class="clicavel" aria-label="Abrir lead ${esc(l.servico || '')}">
+    const linhasLeads = f.leads.length ? f.leads.map(l => `<tr data-lead="${esc(l.id)}" tabindex="0" class="clicavel" aria-label="Abrir contato ${esc(l.servico || '')}">
         <td><div class="cell-main">${esc(l.servico) || 'Serviço não informado'}</div>
             <div class="cell-sub">${esc(LABEL_ORIGEM[l.origem] ?? l.origem ?? '')} · ${dtAno(l.created_at)}</div></td>
         <td><span class="badge b-${esc(l.status)}">${esc(LABEL_STATUS[l.status] ?? l.status)}</span></td>
@@ -840,13 +554,13 @@ async function abrirFichaCliente(id, opcoes = {}) {
         <div class="ficha-kpi"><span>Serviços feitos</span><b>${r.servicosFeitos}</b></div>
         <div class="ficha-kpi"><span>Ticket médio</span><b>${brl(r.ticket)}</b></div>
         <div class="ficha-kpi"><span>Em aberto</span><b>${brl(r.emAberto)}</b></div>
-        <div class="ficha-kpi"><span>Leads</span><b>${r.leads}</b></div>
+        <div class="ficha-kpi"><span>Contatos</span><b>${r.leads}</b></div>
         <div class="ficha-kpi"><span>Agendamentos</span><b>${r.agendamentos}</b></div>
         <div class="ficha-kpi"><span>Faltas</span><b>${esc(r.faltas ?? 0)}</b></div>
         <div class="ficha-kpi"><span>Último serviço</span><b>${esc(dtAno(r.ultimoServico))}</b></div>
       </div>
-      <div class="lf-acoes">${botaoAcao(U.linkConversa(c.telefone), 'Abrir conversa', '💬') + botaoAcao(U.linkWhatsApp(c.telefone), 'WhatsApp', '🟢') + botaoAcao(U.linkLigar(c.telefone), 'Ligar', '📞') + botaoAcao(U.linkAgenda(c.telefone), 'Agendar', '📅') + botaoAcao(U.linkComunicar(c.telefone), 'Mandar mensagem', '✉️')}
-        <button type="button" class="acao acao-forte" id="novoLeadCliente"><span aria-hidden="true">＋</span>Criar lead</button></div>
+      <div class="lf-acoes">${botaoAcao(U.linkConversa(c.telefone), 'Abrir conversa', '💬') + botaoAcao(U.linkLigar(c.telefone), 'Ligar', '📞') + botaoAcao(U.linkAgenda(c.telefone), 'Agendar', '📅') + botaoAcao(U.linkComunicar(c.telefone), 'Mandar mensagem', '✉️')}
+        <button type="button" class="acao acao-forte" id="novoLeadCliente"><span aria-hidden="true">＋</span>Criar contato</button></div>
 
       <div class="ficha-bloco">
         <h4>Serviços já feitos</h4>
@@ -857,9 +571,9 @@ async function abrirFichaCliente(id, opcoes = {}) {
       </div>
 
       <div class="ficha-bloco">
-        <h4>Últimos leads</h4>
+        <h4>Últimos contatos</h4>
         ${linhasLeads ? `<table class="mini-tabela"><tbody>${linhasLeads}</tbody></table>`
-                      : '<p class="muted" style="font-size:.88rem">Sem leads registrados.</p>'}
+                      : '<p class="muted" style="font-size:.88rem">Sem contatos registrados.</p>'}
       </div>
 
       <div class="ficha-bloco">
@@ -880,7 +594,7 @@ async function abrirFichaCliente(id, opcoes = {}) {
       ${(f.indicacoes?.feitas || []).length || (f.indicacoes?.recebidas || []).length ? `<div class="ficha-bloco">
         <h4>Indicações</h4>
         ${(f.indicacoes.recebidas || []).map(i => `<p class="ficha-sub">🤝 Veio por indicação${i.indicado_por_nome ? ' de <b>' + esc(i.indicado_por_nome) + '</b>' : ''} · ${esc(STATUS_INDICACAO[i.status] || i.status)}</p>`).join('')}
-        ${(f.indicacoes.feitas || []).length ? `<table class="mini-tabela"><tbody>${f.indicacoes.feitas.map(i => `<tr${i.lead_id ? ` data-lead="${esc(i.lead_id)}" tabindex="0" class="clicavel" aria-label="Abrir o lead de ${esc(i.nome)}"` : ''}>
+        ${(f.indicacoes.feitas || []).length ? `<table class="mini-tabela"><tbody>${f.indicacoes.feitas.map(i => `<tr${i.lead_id ? ` data-lead="${esc(i.lead_id)}" tabindex="0" class="clicavel" aria-label="Abrir o contato de ${esc(i.nome)}"` : ''}>
           <td><div class="cell-main">🤝 ${esc(i.nome)}</div><div class="cell-sub">indicou em ${dtAno(i.created_at)}</div></td>
           <td><span class="badge b-ind-${esc(i.status)}">${esc(STATUS_INDICACAO[i.status] || i.status)}</span></td></tr>`).join('')}</tbody></table>` : ''}
       </div>` : ''}
@@ -1016,196 +730,9 @@ $$('#filtrosServico .filtro-pill').forEach(b => b.addEventListener('click', () =
   renderCatalogo();
 }));
 
-/* ============================================================
-   CONFIGURAÇÕES — minha conta · equipe e sistema
-   ============================================================ */
+/* Rodada 11: a conta (perfil, senha, duas etapas) e a equipe saíram do CRM.
+   Senha fica na Central; equipe e duas etapas, no Atendimento. */
 const LABEL_PAPEL = CrmUtils.ROTULO_PAPEL;
-
-/* Seletor interno: "Minha conta" x "Equipe e sistema" */
-$$('#configTabs .config-pilula').forEach(b => b.addEventListener('click', () => {
-  const secao = b.dataset.secao;
-  $$('#configTabs .config-pilula').forEach(x => {
-    x.classList.toggle('ativo', x === b);
-    x.setAttribute('aria-pressed', String(x === b));
-  });
-  $$('.config-secao').forEach(s => s.classList.toggle('ativa', s.id === `config-${secao}`));
-}));
-
-async function carregarConfiguracoes() {
-  try {
-    PERFIL = await carregarPerfil();
-    SOU_ADMIN = PERFIL?.papel === 'admin'; SOU_GESTOR = CrmUtils.ehGestor(PERFIL?.papel);
-    preencherMinhaConta();
-  } catch (err) { if (!err.codigo || err.codigo === 'rede') toast('⚠️ ' + err.message); }
-
-  renderSistemaInfo();
-  await carregarEquipe();
-}
-
-function renderSistemaInfo() {
-  $('#sistemaInfo').innerHTML = `
-    <div class="howto-step"><span class="howto-n">1</span><p>
-      <strong>Banco único.</strong> CRM, Agenda e Atendimento gravam nas mesmas tabelas.
-      O cliente é reconhecido pelo <strong>telefone</strong> nos três.</p></div>
-    <div class="howto-step"><span class="howto-n">2</span><p>
-      <strong>Login único.</strong> O mesmo e-mail e senha entram nos três sistemas.
-      Tirar o acesso aqui tira em todos.</p></div>
-    <div class="howto-step"><span class="howto-n">3</span><p>
-      <strong>Catálogo é a boca da IA.</strong> A aba <strong>Serviços</strong> define o que a IA
-      oferece no WhatsApp. Mudou lá, muda no atendimento.</p></div>
-    <div class="howto-step"><span class="howto-n">4</span><p>
-      <strong>Chave da IA fica no servidor.</strong> Ela vive no arquivo <code>.env</code>,
-      em <code>ANTHROPIC_API_KEY</code>. Por segurança, esta tela não pede nem aceita a chave.</p></div>`;
-}
-
-async function carregarEquipe() {
-  const el = $('#listaEquipe');
-  el.innerHTML = '<p class="muted"><span class="spinner"></span>Carregando a equipe…</p>';
-  try {
-    const r = await api('/api/equipe');
-    const lista = r.equipe || [];
-    SOU_ADMIN = !!r.souAdmin;
-    $('#blocoCadastro').hidden = !SOU_ADMIN;
-    $('#avisoCadastro').hidden = SOU_ADMIN;
-
-    el.innerHTML = lista.length ? lista.map(p => {
-      const papel = CrmUtils.PAPEIS.includes(p.papel) ? p.papel : 'atendente';
-      return `
-      <div class="equipe-item${p.ativo ? '' : ' inativo'}">
-        <span class="avatar" style="--cor-avatar:${esc(CrmUtils.corAvatar(p))}">${esc(iniciais(p.nome))}</span>
-        <div class="equipe-txt">
-          <strong>${esc(p.nome)}</strong>${p.id === r.meuId ? ' <em class="voce">(você)</em>' : ''}<br>
-          <small>${esc(p.email)}${p.ativo ? '' : ' · sem acesso'}${p.ultimo_acesso_em ? ' · visto ' + esc(CrmUtils.tempoRelativo(p.ultimo_acesso_em)) : ''}</small>
-        </div>
-        ${SOU_ADMIN
-          ? `<select class="equipe-papel" data-papel="${esc(p.id)}" data-antes="${esc(papel)}"
-                title="O que esta pessoa pode fazer" aria-label="Função de ${esc(p.nome)}">
-               ${CrmUtils.PAPEIS.map(x => `<option value="${x}"${x === papel ? ' selected' : ''}>${esc(LABEL_PAPEL[x])}</option>`).join('')}
-             </select>`
-          : `<span class="equipe-papel-txt">${esc(LABEL_PAPEL[papel])}</span>`}
-        ${SOU_ADMIN && p.id !== r.meuId
-          ? `<button type="button" class="btn btn-ghost sm" data-membro="${esc(p.id)}"
-                data-ativar="${p.ativo ? '0' : '1'}">${p.ativo ? 'Tirar acesso' : 'Devolver acesso'}</button>`
-          : ''}
-      </div>`;
-    }).join('')
-      : '<div class="vazio">Só você por enquanto.</div>';
-
-    /* Trocar a função de alguém. O servidor recusa rebaixar o último
-       administrador — sem isso dá para se trancar para fora do próprio CRM. */
-    $$('#listaEquipe [data-papel]').forEach(s => s.addEventListener('change', async () => {
-      const antes = s.dataset.antes;
-      s.disabled = true;
-      try {
-        await api('/api/equipe/papel', { method: 'POST',
-          body: JSON.stringify({ id: s.dataset.papel, papel: s.value }) });
-        toast('✅ Agora é ' + (LABEL_PAPEL[s.value] || s.value).toLowerCase());
-        // mudar o próprio papel muda o que a tela mostra: recarrega tudo
-        if (s.dataset.papel === r.meuId) { location.reload(); return; }
-        await carregarEquipe();
-      } catch (err) {
-        toast('⚠️ ' + err.message);
-        s.value = antes; s.disabled = false;      // volta para a função que era antes
-      }
-    }));
-
-    // ligar/desligar o acesso de alguém
-    $$('#listaEquipe [data-membro]').forEach(b => b.addEventListener('click', async () => {
-      const ativar = b.dataset.ativar === '1';
-      if (!ativar && !confirm('Tirar o acesso desta pessoa? Ela não conseguirá mais entrar '
-        + 'no CRM, na agenda nem no atendimento.')) return;
-      b.disabled = true;
-      try {
-        await api('/api/equipe/ativo', { method: 'POST',
-          body: JSON.stringify({ id: b.dataset.membro, ativo: ativar }) });
-        toast(ativar ? '✅ Acesso devolvido' : '🔒 Acesso removido');
-        await carregarEquipe();
-      } catch (err) { toast('⚠️ ' + err.message); b.disabled = false; }
-    }));
-  } catch (err) {
-    el.innerHTML = `<div class="alert">Não consegui carregar a equipe: ${esc(err.message)}</div>`;
-  }
-}
-
-/* Salvar o próprio nome. O servidor pega o id do token — o corpo só leva o nome. */
-$('#formPerfil').addEventListener('submit', async e => {
-  e.preventDefault();
-  const nome = $('#perfilNome').value.trim();
-  const msg = $('#perfilMsg'), btn = $('#btnSalvarPerfil');
-  const mostrar = (texto, ok) => {
-    msg.textContent = texto;
-    msg.className = 'form-msg ' + (ok ? 'ok' : 'erro');
-    msg.hidden = false;
-  };
-  if (!nome) return mostrar('Escreva o seu nome.', false);
-  const tel = $('#perfilTelefone').value.trim();
-  if (tel && !U.telE164(tel)) return mostrar('Telefone com DDD, ex.: (12) 99999-0000.', false);
-
-  btn.disabled = true;
-  try {
-    await salvarMeuPerfil({ nome, cargo: $('#perfilCargo').value.trim().slice(0, 60), telefone: tel ? U.telE164(tel) : null,
-      avatar_cor: $('input[name=corAvatar]:checked')?.value || null });
-    mostrar('✅ Perfil salvo.', true);
-    toast('✅ Perfil salvo');
-    await carregarEquipe();
-  } catch (err) {
-    mostrar('⚠️ Não consegui salvar: ' + err.message, false);
-  } finally { btn.disabled = false; }
-});
-
-/* Trocar a própria senha — direto no Supabase Auth, sem passar pelo servidor.
-   Regras: mínimo 8 caracteres e as duas iguais. */
-$('#formSenha').addEventListener('submit', async e => {
-  e.preventDefault();
-  const s1 = $('#senhaNova').value, s2 = $('#senhaNova2').value;
-  const msg = $('#senhaMsg'), btn = $('#btnTrocarSenha');
-  const mostrar = (texto, ok) => {
-    msg.textContent = texto;
-    msg.className = 'form-msg ' + (ok ? 'ok' : 'erro');
-    msg.hidden = false;
-  };
-  const falha = CrmUtils.validarNovaSenha(s1, s2, PERFIL?.email);
-  if (falha) return mostrar(falha, false);
-  if (!sb)           return mostrar('Conexão com o Supabase não configurada.', false);
-
-  btn.disabled = true; btn.textContent = 'Trocando…';
-  try {
-    const { error } = await sb.auth.updateUser({ password: s1 });
-    if (error) throw error;
-    $('#formSenha').reset();
-    mostrar('✅ Senha trocada. Use a nova da próxima vez que entrar.', true);
-    toast('✅ Senha alterada com sucesso');
-  } catch (err) {
-    mostrar('⚠️ ' + CrmUtils.mensagemLogin(err), false);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Trocar senha';
-  }
-});
-
-/* Cadastro feito pelo SERVIDOR: no plano free o Supabase limita o e-mail de
-   confirmação, então signUp pela tela trava. E cadastro aberto num sistema com
-   dado de cliente seria porta destrancada — entra quem o dono cadastrou. */
-$('#formNovoMembro').addEventListener('submit', async e => {
-  e.preventDefault();
-  const f = e.target, btn = $('#btnNovoMembro');
-  btn.disabled = true; btn.textContent = 'Cadastrando…';
-  try {
-    const r = await api('/api/equipe', { method: 'POST', body: JSON.stringify({
-      nome:  f.nome.value.trim(),
-      email: f.email.value.trim(),
-      senha: f.senha.value,
-      papel: f.papel.value,
-    }) });
-    toast(`✅ ${r.nome} cadastrado — entregue o e-mail e a senha para a pessoa`);
-    if (r.aviso) toast('⚠️ ' + r.aviso);
-    f.reset();
-    await carregarEquipe();
-  } catch (err) {
-    toast('⚠️ ' + err.message);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Cadastrar';
-  }
-});
 
 /* ============================================================
    LOGIN, sessão, perfil, sino e tarefas ficam em acesso.js (rodada 3):
