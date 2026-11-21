@@ -1,6 +1,6 @@
 # Rodada 10 do CRM
 
-62 de 125 melhorias registradas em `apps/crm/MELHORIAS.md`. O commit `387f5ac` preserva acentos no cadastro de contatos quando o JSON chega em blocos HTTP (`apps/crm/testes/r10-json.test.cjs`).
+68 de 125 melhorias registradas em `apps/crm/MELHORIAS.md`. O commit `387f5ac` preserva acentos no cadastro de contatos quando o JSON chega em blocos HTTP (`apps/crm/testes/r10-json.test.cjs`).
 
 A regressão com banco fictício gravava `Jo��o` antes e grava `João` depois. A suíte completa passou de 328/328 para 329/329, patamar confirmado nesta retomada.
 
@@ -14,7 +14,7 @@ No commit `802154f`, R10-CRM-003 passou de HTTP 201 com gravação para HTTP 415
 
 O commit `4911a42` valida telefone com letras, valor booleano, placa em lista e motivo de perda em lista. As quatro regressões falharam antes e passaram depois. A suíte do CRM passou 335/335 com Supabase fictício.
 
-Agenda e Atendimento ficaram sob responsabilidade do Claude. A rodada 10 do CRM continua em R10-CRM-063.
+Agenda e Atendimento ficaram sob responsabilidade do Claude. A rodada 10 do CRM continua em R10-CRM-069.
 
 O commit `60fc802` valida quatro campos do perfil. Os testes retornavam HTTP 200 antes e passaram a exigir HTTP 400 preservando cada campo. Suíte isolada: 339/339. A matriz de Chrome e a medição feita nesta retomada constam abaixo.
 O commit `e8f518b` rejeita papel desconhecido, alteração de acesso sem booleano, senha temporária acima do limite e opção de troca de senha com tipo inválido. As cinco regressões retornavam 200 ou 201 antes. Agora retornam 400, preservam os perfis da equipe e não geram auditoria de alteração. A suíte isolada passou de 339/339 para 344/344.
@@ -33,7 +33,7 @@ Os commits 4d738e7 e a139891 cobrem data de cadastro, valores monetários e tipo
 
 O teste 4d81988 mediu a mudança no commit f40c469. O axe-core executou 60 verificações sem violações sérias ou críticas no Chrome, a 375 e 1440 px, em claro e escuro. A matriz usou somente leituras no mock local, com tráfego externo bloqueado. Log local em apps/crm/qa-out/r10-axe-matriz.log.
 
-Faltam 63 melhorias para a meta. Agenda e Atendimento ficam com Claude, na outra cópia. A decisão sobre os termos “Novo Lead” e “Leads novos” segue com João.
+Faltam 57 melhorias para a meta. Agenda e Atendimento ficam com Claude, na outra cópia. A decisão sobre os termos “Novo Lead” e “Leads novos” segue com João.
 
 Os commits 96474a4, 293e192 e dc312ee completam as melhorias 032 a 045. O lote valida cadastro da equipe, metas, rodízio, auditoria de exportação, automações e ações da IA. As seis regressões de IA retornavam HTTP 200 antes da correção e passaram a retornar 400, preservando as tarefas e ações fictícias. A suíte completa passou de 360/360 para 374/374 com Supabase fictício. A matriz anterior de Chrome se refere às melhorias até 031.
 
@@ -43,4 +43,6 @@ O commit b1ad921 registra as melhorias 050 a 053. Cinco regressões falharam ant
 
 O commit 840701e cobre as melhorias 054 a 056. Quatro regressões falharam antes e passaram depois no Supabase fictício. Suíte completa 387/387. Esse lote encerrou no ID 056.
 
-O commit e861ca9 cobre 057 a 062. Sete regressões falharam antes e passaram depois. A suíte passou 394/394. Os testes confirmam que operações inválidas preservam leads, campanhas, resumos, atividades, tarefas e auditoria no Supabase fictício. Próximo ID 063.
+O commit e861ca9 cobre 057 a 062. Sete regressões falharam antes e passaram depois. A suíte passou 394/394. Os testes confirmam que operações inválidas preservam leads, campanhas, resumos, atividades, tarefas e auditoria no Supabase fictício. Esse lote encerrou no ID 062.
+
+O commit effab13 cobre 063 a 068. Seis regressões falharam antes e passaram depois. A suíte completa passou 400/400 com Supabase fictício. O lote 050 a 068 somou 19 melhorias e 22 regressões. Próximo ID 069.

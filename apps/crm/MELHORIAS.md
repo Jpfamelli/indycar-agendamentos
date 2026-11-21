@@ -1486,3 +1486,9 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-060** · segurança · Reabordagem rejeita toda a seleção com identificador inválido (teste R10-CRM-060 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
 - **R10-CRM-061** · segurança · Aplicação e reversão de movimentos rejeitam lotes inválidos antes de mudar qualquer lead (teste R10-CRM-061 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
 - **R10-CRM-062** · conserto · Resumo do dono rejeita tipo inválido antes de guardar relatório (teste R10-CRM-062 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-063** · segurança · Preenchimento de valores em lote recusa valor booleano antes de alterar o faturamento (teste R10-CRM-063 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-064** · conserto · Preenchimento de valores exige cortesia booleana quando informada (teste R10-CRM-064 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-065** · conserto · Preenchimento de valores recusa quantias inferiores a um centavo (teste R10-CRM-065 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-066** · conserto · Desfazer valores preserva observações editadas depois do lote (teste R10-CRM-066 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-067** · segurança · Lote de retornos rejeita toda a seleção com identificador inválido (teste R10-CRM-067 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-068** · conserto · Lote de retornos exige opção booleana para limpar a data (teste R10-CRM-068 em testes/r10-valores-retornos.test.cjs) · `effab13`
