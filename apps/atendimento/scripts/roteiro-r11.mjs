@@ -193,6 +193,14 @@ for (const [largura, altura] of [[1440, 900], [375, 812]]) {
 }
 
 {
+  // ?aba=orcador (link da Casa e volta do login do Orçador) já abre na aba Orçador
+  const { page, erros, ctx } = await abrir(1440, 900);
+  await page.goto(`${BASE}/atendimento/?papel=admin&saude=ok&aba=orcador`, { waitUntil: 'networkidle2' });
+  const abriu = await ate(() => page.evaluate(() => document.getElementById('aba-orcador').classList.contains('ativa') && /\/orcador\/$/.test(document.getElementById('orcadorMoldura').src)));
+  conferir('[1440] /atendimento/?aba=orcador abre direto na aba Orçador', abriu && erros.length === 0, erros.join(' | '));
+  await ctx.close();
+}
+{
   // o Orçador aberto sozinho na Central (/orcador/): o topo comum, com a marca que volta para a Central
   const { page, erros, ctx } = await abrir(1440, 900);
   await page.goto(`${BASE}/orcador/`, { waitUntil: 'networkidle2' });

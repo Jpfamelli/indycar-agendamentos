@@ -301,7 +301,7 @@ async function entrarNoApp(user) {
   ligarTempoReal();
   Recuperador.buscar('boot');           // marca o ponto de partida para recuperar o que chegar com o tempo real fora
   abrirPeloEndereco();                // ?conversa=<uuid> ou ?tel=<telefone> (links da Agenda, CRM, Comunicar)
-  abrirAbaPeloEndereco();             // rodada 5: ?aba=integracoes (botão "Colar a chave no Atendimento" do Comunicar)
+  abrirAbaPeloEndereco();             // rodada 5: ?aba=integracoes (Comunicar); rodada 11: ?aba=orcador (Casa e a volta do login do Orçador)
   publicarApiIndyCar();
   filaOfflineProcessar();
   setTimeout(() => Entregas.retomar('boot'), 2500);   // entregas que ficaram pela metade na última vez
@@ -315,7 +315,6 @@ async function entrarNoApp(user) {
   Tarefas.iniciar();           // sino, minhas tarefas, presença na conversa
   IaFunil.iniciar();           // rodada 5: fila da IA do funil (quem está sendo respondido agora)
   Equipe.iniciar();            // telas Equipe e Auditoria (gestor/admin)
-  if (location.hash === '#orcador') AbaOrcador.mostrar();   // rodada 11: voltou do login da Central para a aba Orçador
 }
 /* Para os módulos de fora (ajuda.js): quem está logado e o cliente do banco. */
 function perfilAtual() { return perfil; }
