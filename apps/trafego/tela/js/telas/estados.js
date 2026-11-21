@@ -12,17 +12,7 @@ const osso = (classe) => h('span', { class: 'esqueleto ' + classe });
 const repetir = (n, fn) => Array.from({ length: n }, (_, i) => fn(i));
 
 const FORMAS = {
-  hoje: () => [
-    h('div', { class: 'esq-frase' }, osso('esq-frase-1'), osso('esq-frase-2'), osso('esq-frase-3')),
-    h('div', { class: 'esq-numeros' }, repetir(4, () => h('div', { class: 'esq-numero' }, osso('esq-rotulo'), osso('esq-valor'), osso('esq-apoio')))),
-    h('div', { class: 'esq-linhas' }, repetir(4, () => osso('esq-linha'))),
-  ],
-  jornada: () => [
-    osso('esq-titulo'),
-    h('div', { class: 'esq-fichas' }, repetir(4, () => osso('esq-ficha'))),
-    h('div', { class: 'esq-linhas' }, repetir(8, () => osso('esq-linha'))),
-  ],
-  lista: () => [h('div', { class: 'esq-linhas' }, repetir(8, () => osso('esq-linha')))],
+  lista: () => [osso('esq-titulo'), h('div', { class: 'esq-linhas' }, repetir(5, () => osso('esq-linha')))],
   painel: () => [osso('esq-titulo'), h('div', { class: 'esq-linhas' }, repetir(5, () => osso('esq-linha')))],
 };
 
@@ -91,7 +81,6 @@ export function semSessao(alvo, { href }) {
   trocar(alvo,
     h('section', { class: 'vazio' },
       h('h1', { class: 'vazio-titulo' }, 'Entre pela Central para abrir o Tráfego'),
-      h('p', null, 'O login é um só para todos os apps da IndyCar. Depois de entrar, você volta para cá.'),
       h('a', { class: 'botao botao-forte', href }, 'Entrar pela Central', icone('seta', 'icone-seta'))));
 }
 

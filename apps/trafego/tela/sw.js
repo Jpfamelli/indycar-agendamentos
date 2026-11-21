@@ -11,22 +11,18 @@
    - Tudo relativo ao lugar do próprio arquivo: funciona em /trafego/ e na raiz.
    ============================================================================ */
 
-const VERSAO = 'indycar-trafego-r9-1';
+const VERSAO = 'indycar-trafego-r11-1';
 const PREFIXO = 'indycar-trafego-';
 const TEMPO_REDE_MS = 6000;
+/* Rodada 11: três abas só. O /casa/indycar.css (topo comum) é da Central e fica fora desta lista. */
 const CASCA = [
   './', 'index.html', 'tema.js', 'manifest.json', 'img/logo.png', 'img/icone-192.png', 'vendor/supabase.js',
-  'ds/tokens.css', 'ds/base.css', 'ds/componentes.css', 'css/ajustes.css', 'css/campanhas.css',
-  'css/casca.css', 'css/gestor.css', 'css/hoje.css', 'css/jornada.css', 'css/relatorios.css',
-  'fontes/archivo-variavel.woff2', 'fontes/barlow-condensed-600.woff2', 'fontes/barlow-condensed-700.woff2', 'fontes/barlow-condensed-800-italic.woff2',
-  'js/acoes-logica.js', 'js/api.js', 'js/app.js', 'js/aviso.js', 'js/campanhas-logica.js',
-  'js/contatos.js', 'js/desfazer.js', 'js/dom.js', 'js/ecossistema.js', 'js/filtros.js',
-  'js/fluxo.js', 'js/formatacao.js', 'js/formato.js', 'js/frase.js', 'js/hoje-logica.js', 'js/icones.js',
-  'js/mapa.js', 'js/pecas.js', 'js/rede.js', 'js/relatorios-logica.js', 'js/rotas.js',
-  'js/sessao.js', 'js/setores.js', 'js/telas/ajustes.js', 'js/telas/apresentacao.js', 'js/telas/campanhas.js',
-  'js/telas/detalhe.js', 'js/telas/estados.js', 'js/telas/fila.js', 'js/telas/folha.js', 'js/telas/gavetas/chaves.js',
-  'js/telas/gavetas/conexoes.js', 'js/telas/gavetas/devolucao.js', 'js/telas/gavetas/metas.js', 'js/telas/gavetas/origem.js', 'js/telas/gavetas/relatorios.js',
-  'js/telas/gestor.js', 'js/telas/gravar.js', 'js/telas/hoje.js', 'js/telas/jornada.js', 'js/telas/respostas.js',
+  'ds/tokens.css', 'ds/base.css', 'ds/componentes.css', 'css/trafego.css',
+  'fontes/archivo-variavel.woff2', 'fontes/barlow-condensed-600.woff2', 'fontes/barlow-condensed-700.woff2',
+  'js/api.js', 'js/app.js', 'js/dom.js', 'js/ecossistema.js', 'js/formato.js', 'js/icones.js',
+  'js/pecas.js', 'js/rede.js', 'js/resumo-logica.js', 'js/rotas.js', 'js/sessao.js',
+  'js/telas/ajustes.js', 'js/telas/campanhas.js', 'js/telas/estados.js', 'js/telas/periodo.js', 'js/telas/resumo.js',
+  'js/telas/gavetas/conexoes.js', 'js/telas/gavetas/metas.js',
 ];
 const ESCOPO = new URL('./', self.location.href);
 const endereco = (rel) => new URL(rel, ESCOPO).href;
