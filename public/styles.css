@@ -132,82 +132,15 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 
 /* Foco visível por teclado — acessibilidade, sem poluir o clique de mouse */
 :where(a,button,input,select,textarea,.nav-item,.tab,.act,.icon-btn,.btn,.pilula,
-       .tema-toggle,.modal-close):focus-visible{
+       .modal-close):focus-visible{
   outline:2px solid var(--red-2);outline-offset:2px;border-radius:8px}
 
-.app{display:flex;min-height:100vh}
-
-/* ============================== SIDEBAR ============================== */
-.sidebar{
-  width:98px;flex-shrink:0;background:linear-gradient(180deg,var(--sidebar-1),var(--sidebar-2));
-  border-right:1px solid var(--border);
-  display:flex;flex-direction:column;align-items:center;
-  padding:16px 0 12px;position:sticky;top:0;height:100vh;
-  transition:background .18s ease,border-color .18s ease;
-  /* ROLA: sem isto, em tela baixa o rodape (tema e usuario) some fora da vista */
-  overflow-y:auto;overscroll-behavior:contain;
-}
-.sidebar::-webkit-scrollbar{width:5px}
-.sidebar::-webkit-scrollbar-thumb{background:transparent;border-radius:5px}
-.sidebar:hover::-webkit-scrollbar-thumb{background:var(--border)}
-.logo{
-  width:54px;height:54px;border-radius:50%;
-  background:radial-gradient(circle at 50% 30%, #ff3145, var(--red));
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  font-weight:800;font-size:11px;line-height:1;color:#fff;letter-spacing:.5px;
-  box-shadow:0 6px 18px rgba(230,25,46,.5), inset 0 0 0 2px rgba(255,255,255,.12);
-  margin-bottom:16px;flex-shrink:0;
-}
-.logo span:first-child{font-size:12px}
-/* Um menu de 11 itens não cabe em tela baixa: a lista rola, o rodapé fica. */
-.nav{display:flex;flex-direction:column;gap:14px;width:100%;align-items:center;
-  flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:2px 0 6px}
-.nav::-webkit-scrollbar{width:0}
-.nav-grupo{display:flex;flex-direction:column;gap:3px;width:100%;align-items:center}
-.nav-rotulo{
-  font-size:8px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
-  color:var(--muted-2);opacity:.75;margin-bottom:3px;text-align:center;
-  width:78px;padding-bottom:5px;border-bottom:1px solid var(--border);
-}
-.nav-item{
-  width:78px;padding:9px 4px;border-radius:14px;cursor:pointer;position:relative;
-  display:flex;flex-direction:column;align-items:center;gap:5px;
-  color:var(--muted-2);text-decoration:none;transition:background .15s,color .15s,box-shadow .15s;
-}
-.nav-item span{font-size:9.5px;font-weight:700;letter-spacing:.4px;text-align:center}
-.nav-item svg{width:21px;height:21px}
-.nav-item:hover{background:var(--surface);color:var(--text)}
-.nav-item.active{
-  background:linear-gradient(180deg,var(--red-soft),rgba(230,25,46,.05));
-  color:var(--nav-ativo-txt);box-shadow:inset 0 0 0 1px rgba(230,25,46,.35);
-}
-.nav-item.active span{font-weight:800}
-.nav-item.active svg{color:var(--red-2);filter:drop-shadow(0 0 6px rgba(230,25,46,.45))}
-.nav-item.active::before{
-  content:"";position:absolute;left:-1px;top:18%;height:64%;width:3px;border-radius:3px;background:var(--red-2);
-}
 .badge{
   position:absolute;top:4px;right:12px;background:var(--red);color:#fff;
   font-size:9px;font-weight:800;font-style:normal;min-width:16px;height:16px;
   border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;
   box-shadow:0 0 0 2px var(--sidebar);
 }
-.rodape-lateral{
-  width:100%;display:flex;flex-direction:column;align-items:center;gap:10px;
-  padding-top:10px;border-top:1px solid var(--border);flex-shrink:0;
-  /* grudado no fim: o botao de tema fica sempre a vista */
-  margin-top:auto;position:sticky;bottom:-12px;
-  background:var(--sidebar-2);padding-bottom:12px;margin-bottom:-12px;z-index:2;
-}
-.tema-toggle{
-  display:flex;flex-direction:column;align-items:center;gap:3px;width:78px;
-  padding:8px 4px;border-radius:12px;border:1px solid var(--border-2);
-  background:transparent;color:var(--muted);cursor:pointer;font-family:inherit;
-  transition:background .15s,color .15s;
-}
-.tema-toggle:hover{background:var(--surface);color:var(--text)}
-.tema-ico{font-size:15px;line-height:1}
-.tema-txt{font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
 .avatar-bottom{
   width:38px;height:38px;border-radius:50%;background:var(--panel-3);border:1px solid var(--border-2);
   display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:var(--muted);
@@ -216,25 +149,6 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 
 /* ============================== MAIN ============================== */
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;gap:16px;
-  padding:18px 26px;border-bottom:1px solid var(--border);
-  background:linear-gradient(180deg,var(--topbar),transparent);
-  position:sticky;top:0;z-index:20;backdrop-filter:blur(8px);
-}
-.company{display:flex;align-items:center;gap:14px}
-.company-logo{
-  width:46px;height:46px;border-radius:12px;background:var(--panel-3);border:1px solid var(--border-2);
-  display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--muted);font-size:14px;
-}
-.company-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.company-title h1{font-size:21px;font-weight:800;letter-spacing:-.3px}
-.tag-dashboard{
-  background:var(--red);color:#fff;font-size:10px;font-weight:800;letter-spacing:1px;
-  padding:4px 9px;border-radius:6px;box-shadow:0 2px 10px rgba(230,25,46,.4);
-}
-.company-sub{display:flex;align-items:center;gap:10px;margin-top:3px;font-size:12.5px;color:var(--muted)}
-.company-sub em{color:var(--red-2);font-style:italic;font-weight:600}
 .btn-novo{
   display:flex;align-items:center;gap:8px;border:none;cursor:pointer;
   background:linear-gradient(180deg,var(--red-2),var(--red));color:#fff;
@@ -466,7 +380,6 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-l
 .tab.active .tab-num{background:var(--red-soft);color:var(--red-txt)}
 /* modo presença (papel 'agenda', ex.: Franklin): só a agenda do dia */
 body.portaria .nav-item{display:none!important}
-body.portaria .nav-rotulo{display:none!important}
 body.portaria .btn-novo{display:none!important}
 .switch{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--text)!important;cursor:pointer}
 .switch input{width:18px;height:18px;accent-color:var(--red);flex-shrink:0}
@@ -596,13 +509,8 @@ body.portaria .btn-novo{display:none!important}
 /* ============================== RESPONSIVE ============================== */
 @media (max-width:1024px){.stat-grid{grid-template-columns:repeat(3,1fr)}.stat-grid.row2{grid-template-columns:repeat(2,1fr)}.cols,.wa-grid{grid-template-columns:1fr}}
 @media (max-width:640px){
-  .sidebar{width:68px}
-  .nav-item,.nav-rotulo,.tema-toggle{width:58px}
-  .nav-item span,.tema-txt{display:none}
-  .nav-rotulo{font-size:7px;letter-spacing:.6px}
   .stat-grid,.stat-grid.row2{grid-template-columns:repeat(2,1fr)}
   .grid2,.grid3,.kpi-row{grid-template-columns:1fr}
-  .topbar{flex-direction:column;align-items:flex-start}
   .view{padding:18px 16px 36px}
 }
 
@@ -657,7 +565,7 @@ body.portaria .btn-novo{display:none!important}
 }
 .login-link:hover{color:var(--text)}
 /* Enquanto não entrar, o app fica escondido atrás da capa */
-body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidden}
+body.deslogado .ic-topo,body.deslogado .main,body.deslogado main{visibility:hidden}
 
 /* ================= EQUIPE E ACESSOS (Configurações) =================
    Lista de quem entra no sistema. Numa janela estreita a linha quebra em duas
@@ -697,15 +605,12 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
    2) Toda transição aqui morre durante a troca de tema (:root[data-trocando-tema]),
       senão o Chrome congela a cor antiga — ver o comentário no topo do arquivo. */
 ::selection{background:rgba(230,25,46,.22)}
-.btn,.btn-novo,.act,.icon-btn,.pilula,.tab,.tema-toggle,.nav-item,.toast-acao{-webkit-tap-highlight-color:transparent}
+.btn,.btn-novo,.act,.icon-btn,.pilula,.tab,.nav-item,.toast-acao{-webkit-tap-highlight-color:transparent}
 .btn,.icon-btn,.pilula{transition:background .16s var(--ease),color .16s var(--ease),border-color .16s var(--ease),
   transform .12s var(--ease),filter .16s var(--ease),box-shadow .16s var(--ease)}
 .btn:active,.icon-btn:active,.pilula:active,.btn-entrar:active{transform:scale(.97)}
 .btn-novo{transition:transform .18s var(--ease),filter .18s var(--ease),box-shadow .18s var(--ease)}
-.btn-novo:hover{box-shadow:0 12px 28px rgba(230,25,46,.5)}
 .btn-novo:active{transform:scale(.97)}
-.nav-item.active::before{animation:navTraco .32s var(--ease-out) backwards}
-@keyframes navTraco{from{transform:scaleY(0);opacity:0}}
 .table td{transition:background .15s var(--ease)}
 .modal{animation:pop .28s var(--ease-out)}
 .modal-overlay.open{animation:veu .2s ease}
@@ -764,12 +669,6 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
   .kpi-row .stat .ico{display:none}
 }
 @media (max-width:640px){
-  /* topo compacto: no celular o endereco e o slogan comiam meia tela */
-  .topbar{padding:12px 16px;gap:10px}
-  .company-logo{width:38px;height:38px;border-radius:10px;font-size:12px}
-  .company-title h1{font-size:16.5px}
-  .company-sub{display:none}
-  .btn-novo{width:100%;justify-content:center;padding:10px 14px}
   .hero-titulo{font-size:24px}
   .hero-prox{width:100%}
   .hero-prox .h{font-size:32px}
@@ -821,14 +720,7 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
 .faixa-link{flex-shrink:0;font-weight:800;color:var(--orange-txt);text-decoration:underline;text-underline-offset:2px}
 .faixa-offline{background:var(--red-soft);border-bottom-color:rgba(230,25,46,.35)}
 
-/* ---- Ecossistema IndyCar (popover ao lado da barra lateral) ---- */
-.eco-toggle{margin-bottom:-2px}
-.eco-pop{position:fixed;left:var(--eco-x,110px);bottom:calc(100vh - var(--eco-y,200px));z-index:60;
-  width:260px;padding:8px;border-radius:16px;border:1px solid var(--border-2);background:var(--pop);
-  box-shadow:var(--shadow);opacity:0;transform:translateY(6px) scale(.98);
-  transition:opacity .18s var(--ease),transform .22s var(--ease-out)}
-.eco-pop.aberto{opacity:1;transform:none}
-.eco-titulo{padding:6px 10px 8px;font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted-2)}
+/* ---- itens do menu da pessoa (conta.js) ---- */
 .eco-item{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:11px;text-decoration:none;color:var(--text);
   transition:background .15s var(--ease)}
 .eco-item:hover{background:var(--surface)}
@@ -841,9 +733,6 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
 .eco-txt small{font-size:11.5px;color:var(--muted)}
 .eco-item.atual .eco-txt small{color:var(--red-txt);font-weight:700}
 .eco-seta{color:var(--muted-2);font-size:13px}
-@media (max-width:640px){
-  .eco-pop{left:12px;right:12px;width:auto;bottom:12px}
-}
 
 /* ---- telefone com ligar + copiar ---- */
 .tel{display:inline-flex;align-items:center;gap:5px;min-width:0}
@@ -892,7 +781,7 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
   @page{margin:14mm}
   body.imprimindo-folha{background:#fff!important;color:#000}
   body.imprimindo-folha .app,body.imprimindo-folha .toast,body.imprimindo-folha .modal-overlay,
-  body.imprimindo-folha .faixa,body.imprimindo-folha .eco-pop,body.imprimindo-folha #telaLogin{display:none!important}
+  body.imprimindo-folha .faixa,body.imprimindo-folha #telaLogin{display:none!important}
   body.imprimindo-folha .folha{display:block;font-family:'Archivo',system-ui,sans-serif;color:#000}
   .folha h1{font-size:20px;font-weight:800;margin:0 0 4px}
   .folha-sub{font-size:12px;color:#444;margin:0 0 14px}
@@ -904,7 +793,7 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
   .folha tr{break-inside:avoid}
   .folha-pe{margin-top:18px;font-size:11px;color:#666;font-style:italic}
   /* impressão comum (Ctrl+P sem a folha): esconde o que não é conteúdo */
-  .sidebar,.btn-novo,.appt-actions,.so-tela,.toast,.faixa,.eco-pop{display:none!important}
+  .ic-topo,.btn-novo,.appt-actions,.so-tela,.toast,.faixa{display:none!important}
   .main{display:block}
   .view{padding:0}
 }
@@ -965,15 +854,6 @@ body.deslogado .sidebar,body.deslogado .main,body.deslogado main{visibility:hidd
 :root{--raio-controle:6px;--raio-painel:10px;--alvo:44px;--foco:#a7c9ff}
 :root[data-tema="claro"]{--foco:#2357a9;--muted-2:#626874}
 body{background:var(--bg)}
-.sidebar,.topbar{background:var(--panel)}
-.nav{gap:4px}
-.nav-item,.nav-mais summary{min-height:var(--alvo);border-radius:var(--raio-controle)}
-.nav-item{color:var(--muted)}
-.nav-item.active{background:var(--red-soft);box-shadow:none}
-.nav-mais{width:100%;color:var(--text)}
-.nav-mais summary{cursor:pointer;padding:12px 4px;text-align:center;font-size:.81rem}
-.nav-mais-itens{display:grid;justify-items:center;gap:4px}
-body.portaria .nav-mais{display:none}
 .hero-dia{align-items:center;padding:0;gap:16px}
 .hero-titulo{font:700 2.75rem/1 var(--font-num);letter-spacing:0;text-transform:uppercase;margin:0}
 .hero-data{margin:6px 0 10px;color:var(--muted);letter-spacing:.04em}
@@ -994,10 +874,9 @@ body.portaria .nav-mais{display:none}
 .cols-dia :is(.act.ico, .icon-btn){min-width:var(--alvo)}
 .appt .chegou-dia{background:var(--red);color:#fff;border-color:var(--red);font-weight:800}
 .appt .chegou-dia:hover{background:var(--red-txt);color:var(--bg)}
-:is(.nav, .hero-dia, .cols-dia) :focus-visible{outline:2px solid var(--foco);outline-offset:2px}
+:is(.ic-abas, .hero-dia, .cols-dia) :focus-visible{outline:2px solid var(--foco);outline-offset:2px}
 @media (max-width:1100px){.cols-dia{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:640px){
-  .nav-item span{display:block;font-size:8px;letter-spacing:0;overflow-wrap:anywhere}
   .hero-titulo{font-size:2rem}
   .stat-grid.row2{grid-template-columns:repeat(2,minmax(0,1fr))}
   .cols-dia .appt-actions{gap:6px}

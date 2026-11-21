@@ -180,7 +180,9 @@ test('estáticos: /confirmar/ serve a página do cliente; a casca não tem camin
   const pg = await (await fetch(base + '/confirmar/?t=abc')).text();
   assert.match(pg, /Confirmar horário/); assert.match(pg, /\.\.\/api\/publico\/confirmacao/);
   const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-  assert.doesNotMatch(html, /(href|src)="\/[a-z]/, 'index.html só com caminhos relativos');
+  // rodada 11: o único caminho absoluto é o padrão IndyCar que a Central serve (/casa/...) e a marca que volta para a Central (/)
+  assert.doesNotMatch(html, /(href|src)="\/(?!casa\/)[a-z]/, 'index.html só com caminhos relativos (fora o /casa/ do padrão)');
+  assert.match(html, /<link rel="stylesheet" href="\/casa\/indycar\.css" \/>/);
   assert.match(html, /apps\.js/); assert.match(html, /rodada5\.css/);
   const sw = await (await fetch(base + '/sw.js')).text();
   assert.match(sw, /self\.registration\.scope/); assert.match(sw, /indycar-agenda-v\d+/); assert.doesNotMatch(sw, /'\/api\/'/);

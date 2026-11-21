@@ -1,0 +1,45 @@
+/* ============================================================================
+   Rodada 11 (21/11/2026): o padrão IndyCar. O topo, as fontes e as cores vêm de /casa/indycar.css
+   (carregado antes de tudo); aqui só o encaixe da Agenda nele. Sem gradiente, sem barra lateral.
+   ============================================================================ */
+:root{ --font-num: var(--ic-titulo); }
+body{ font-family: var(--ic-texto-f); background: var(--bg); }
+
+/* uma coluna só: o topo em cima, o conteúdo embaixo */
+.app{ display:block; min-height:calc(100vh - 56px); }
+.main{ display:block; }
+.view{ max-width:1320px; margin:0 auto; width:100%; }
+body.deslogado .ic-topo{ visibility:hidden; }
+
+/* abas do topo: o número da Espera ao lado do nome, não pendurado no canto */
+.ic-abas .nav-item{ position:relative; gap:6px; }
+.ic-abas .nav-item.active{ color:var(--ic-forte); border-bottom-color:var(--ic-vermelho); }
+.ic-abas .nav-item:focus-visible{ outline:2px solid var(--ic-vermelho); outline-offset:-2px; }
+.ic-abas .badge{ position:static; box-shadow:none; min-width:18px; height:18px; border-radius:9px; font-size:11px;
+  background:var(--surface-2); color:var(--ic-texto); }
+/* a recepção (papel só presença) não troca de tela: as abas somem */
+body.portaria .ic-abas{ visibility:hidden; }
+
+/* ações do topo: buscar, novo agendamento (chapado, sem brilho) e a pessoa */
+.ic-acoes .btn-novo{ background:var(--ic-vermelho); box-shadow:none; min-height:44px; padding:0 16px; border-radius:10px; font:700 14px/1 var(--ic-texto-f); }
+.ic-acoes .btn-novo:hover{ transform:none; filter:brightness(1.08); }
+.ic-acoes .btn-busca{ width:44px; height:44px; }
+.ic-acoes .avatar-bottom{ width:40px; height:40px; }
+/* o menu da pessoa abre embaixo do avatar, alinhado à direita */
+.pop-perfil{ left:auto!important; right:12px; }
+
+/* Hoje: 3 números e a lista do dia na largura toda */
+.stat-grid.row2.tres{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+.cols-dia.so-hoje{ grid-template-columns:minmax(0,1fr); }
+
+@media (max-width:600px){
+  .ic-acoes{ gap:6px; }
+  .ic-acoes .btn-novo{ padding:0; width:44px; justify-content:center; }
+  .ic-acoes .btn-novo-txt{ display:none; }
+  .ic-abas .nav-item{ padding:0 10px; font-size:14px; }
+  .stat-grid.row2.tres{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .stat-grid.row2.tres .num{ font-size:1.9rem; }
+  .stat-grid.row2.tres .lbl{ font-size:10px; letter-spacing:.02em; overflow-wrap:anywhere; }
+  .stat-grid.row2.tres .stat{ padding:10px; }
+}
+@media print{ .ic-topo{ display:none!important; } }

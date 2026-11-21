@@ -345,7 +345,6 @@ function contaAbrirPop(id, botao) {
   const r = botao.getBoundingClientRect();
   p.style.setProperty('--pop-x', `${Math.max(12, Math.min(window.innerWidth - 12 - 360, r.right - 360))}px`);
   p.style.setProperty('--pop-y', `${r.bottom + 8}px`);
-  if (id === 'popPerfil') { p.style.setProperty('--pop-x', `${r.right + 10}px`); p.style.setProperty('--pop-y', `${Math.max(12, r.top - 260)}px`); }
   p.hidden = false; botao.setAttribute('aria-expanded', 'true');
   setTimeout(() => p.classList.add('aberto'), 10);
   setTimeout(() => p.querySelector('button,a,input')?.focus(), 30);
@@ -496,7 +495,7 @@ function contaDesenharMenuPerfil() {
     <button type="button" class="eco-item" role="menuitem" data-menu="perfil"><span class="eco-txt"><b>Meu perfil</b><small>nome, cargo, telefone e cor</small></span></button>
     <button type="button" class="eco-item" role="menuitem" data-menu="senha"><span class="eco-txt"><b>Trocar senha</b><small>vale em todos os apps</small></span></button>
     <button type="button" class="eco-item" role="menuitem" data-menu="mfa"><span class="eco-txt"><b>Verificação em duas etapas</b><small>código do celular depois da senha</small></span></button>
-    <button type="button" class="eco-item" role="menuitem" data-menu="notif"><span class="eco-txt"><b>Notificações</b><small>atrasos, tarefas e som</small></span></button>
+    ${['admin', 'gestor'].includes(p.papel) && typeof route === 'function' ? '<button type="button" class="eco-item" role="menuitem" data-menu="config"><span class="eco-txt"><b>Configurações</b><small>oficina e consultores</small></span></button>' : ''}
     <button type="button" class="eco-item" role="menuitem" data-menu="tema"><span class="eco-txt"><b>Tema ${temaAtual() === 'claro' ? 'escuro' : 'claro'}</b><small>trocar as cores da tela</small></span></button>
     <div class="perfil-sep"></div>
     <button type="button" class="eco-item" role="menuitem" data-menu="sair"><span class="eco-txt"><b>Sair</b><small>só neste aparelho</small></span></button>
@@ -507,7 +506,7 @@ function contaDesenharMenuPerfil() {
     if (acao === 'perfil') return contaModalPerfil();
     if (acao === 'senha') return contaModalSenha();
     if (acao === 'mfa') return contaModalMfa();
-    if (acao === 'notif') return contaModalNotif();
+    if (acao === 'config') return route('configuracoes');
     if (acao === 'tema') return aplicarTema(temaAtual() === 'claro' ? 'escuro' : 'claro');
     if (acao === 'sair') return contaSair(false);
     if (acao === 'sair-todos' && confirm('Sair de TODOS os aparelhos? Você e quem estiver logado com a sua conta precisarão entrar de novo.')) return contaSair(true);
@@ -630,35 +629,12 @@ async function contaModalMfa() {
   });
 }
 
-function contaModalNotif() {
-  const p = contaPrefs();
-  const linha = (k, t, d) => `<label class="pref"><input type="checkbox" data-pref="${k}" ${p[k] ? 'checked' : ''}>
-    <span><b>${t}</b><small>${d}</small></span></label>`;
-  openModal(`
-    <div class="modal-head"><h3>🔔 Notificações</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
-    <div class="modal-body">
-      ${linha('notif_atraso', 'Atrasos', 'Cliente 30 min atrasado e sem desfecho')}
-      ${linha('notif_tarefas', 'Tarefas novas', 'Mostra um recado quando chega tarefa para você')}
-      ${linha('notif_som', 'Som', 'Um bipe curto quando chega notificação')}
-      <p class="form-msg" id="pn_msg" hidden></p>
-    </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn primary" id="pn_salvar">${svg(I.check)} Salvar</button></div>`);
-  document.getElementById('pn_salvar').addEventListener('click', async () => {
-    const preferencias = {};
-    document.querySelectorAll('#modal [data-pref]').forEach((c) => { preferencias[c.dataset.pref] = c.checked; });
-    try {
-      state.perfil = { ...state.perfil, ...(await api('PUT', '/perfil', { preferencias })) };
-      closeModal(); toast('Preferências salvas'); contaCarregarNotificacoes();
-    } catch (e) { recado('#pn_msg', e.message, false); }
-  });
-}
-
 /** Liga sino, tarefas e menu do perfil depois que o app abriu. */
 function contaIniciarTopo() {
-  if (contaEstado.ligado) { contaCarregarNotificacoes(); contaCarregarTarefas(); return; }
-  contaEstado.ligado = true;
   const sino = document.getElementById('btnSino'), tar = document.getElementById('btnTarefas'), av = document.getElementById('avatarPerfil');
+  const temSino = !!(sino || tar);   // rodada 11: a Agenda não tem mais sino nem tarefas (moram na Central)
+  if (contaEstado.ligado) { if (temSino) { contaCarregarNotificacoes(); contaCarregarTarefas(); } return; }
+  contaEstado.ligado = true;
   sino?.addEventListener('click', () => contaAbrirPop('popSino', sino));
   tar?.addEventListener('click', () => contaAbrirPop('popTarefas', tar));
   av?.addEventListener('click', () => { contaDesenharMenuPerfil(); contaAbrirPop('popPerfil', av); });
@@ -672,6 +648,7 @@ function contaIniciarTopo() {
     contaFecharPops();
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') contaFecharPops(); });
+  if (!temSino) return;
   contaCarregarNotificacoes(); contaCarregarTarefas();
   // a cada minuto (e ao voltar para a aba); o tempo real abaixo adianta quando der
   contaEstado.timer = setInterval(() => { if (!document.hidden) { contaCarregarNotificacoes(true); contaCarregarTarefas(); } }, 60_000);

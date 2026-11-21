@@ -91,10 +91,11 @@ test('R10-AGE-038: modo presença no celular (até 560 px): relógio, ferramenta
   assert.match(bloco, /@media \(max-width:560px\)\{/);
   assert.match(bloco, /body\.recepcao :is\(\.rec-ferramentas,\.rec-resumo,\.rec-abas\)\{flex-wrap:nowrap;overflow-x:auto/);
   assert.match(bloco, /body\.recepcao \.rec-relogio b\{font-size:calc\(30px \* var\(--rec,1\)\)\}/, 'o relógio encolhe mas continua seguindo o tamanho da letra');
-  assert.match(bloco, /body\.recepcao \.topbar \.company-logo,body\.recepcao \.topbar \.company-sub\{display:none\}/);
-  assert.match(bloco, /body\.recepcao \.topbar\{[^}]*flex-direction:row/);
+  // rodada 11: o cabeçalho antigo (empresa, endereço, etiqueta) saiu; o topo é o .ic-topo padrão, que já cabe numa linha
+  assert.doesNotMatch(bloco, /\.topbar|\.company/);
+  assert.match(ler('public/index.html'), /<header class="ic-topo">/);
   assert.match(bloco, /body\.recepcao \.rec-btn\{[^}]*min-height:56px/, 'Chegou e Não veio continuam grandes');
   // fora do celular nada muda: todas as regras novas estão dentro do @media
   assert.doesNotMatch(bloco.slice(0, bloco.indexOf('@media')), /\{[^}]*\}/);
-  assert.ok(Number(ler('public/sw.js').match(/indycar-agenda-v(\d+)/)[1]) >= 38, 'casca guardada com versão nova');
+  assert.ok(Number(ler('public/sw.js').match(/indycar-agenda-v(\d+)/)[1]) >= 39, 'casca guardada com versão nova');
 });

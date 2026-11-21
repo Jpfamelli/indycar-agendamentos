@@ -28,8 +28,6 @@
   .faixa-link,.r6-mais{display:inline-flex;align-items:center;min-height:var(--alvo)}
   /* selos que abrem o Pátio e o Orçador: 23 px */
   a.badge-pill{display:inline-flex;align-items:center;min-height:var(--alvo)}
-  /* rodapé do menu (Apps, tema, conta): 33 a 38 px */
-  .tema-toggle{min-height:var(--alvo);justify-content:center}
   .avatar-bottom{width:var(--alvo);height:var(--alvo)}
   /* campos de busca: o campo tinha 16 px dentro da caixa */
   .search input{min-height:var(--alvo)}
@@ -65,9 +63,6 @@
 .qd-card.s-nao_veio,.qd-card.s-cancelado,.qd-card.s-nao_fechou{opacity:1;background:var(--panel-3)}
 .qd-card.s-nao_veio .qd-nome,.qd-card.s-cancelado .qd-nome,.qd-card.s-nao_fechou .qd-nome{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
 .qd-serv{opacity:1;color:var(--muted)}
-/* Relatórios do dono: verde e vermelho fixos (3,44 e 4,04) passam a seguir o tema */
-.r7r-delta.bom{color:var(--green-txt)}
-.r7r-delta.ruim,.r7r-ruim{color:var(--red-txt)}
 /* WhatsApp: título em verde vivo sobre fundo claro (1,73) */
 .titulo-wa{color:var(--wa-txt)}
 
@@ -106,10 +101,6 @@
      agora ficam numa fila que rola de lado, e os horários aparecem sem rolar */
   .hero-chips{flex-wrap:nowrap;overflow-x:auto;margin:10px -16px 0;padding:2px 16px 6px;scrollbar-width:thin}
   .hero-chips :is(.chip-aviso,.btn,.chip-gestor,button,a){flex:0 0 auto;white-space:nowrap}
-  /* menu do celular: o rótulo tinha 8 px e "PENDÊNCIAS" quebrava em duas linhas */
-  .sidebar{width:74px}
-  .nav-item,.nav-rotulo,.tema-toggle{width:66px}
-  .nav-item span{font-size:9px;overflow-wrap:normal;white-space:nowrap}
 }
 /* a fila de avisos não pode alargar a página: a coluna do título encolhe até a tela */
 .hero-dia > div:first-child{min-width:0;max-width:100%}
@@ -143,10 +134,7 @@
 #qdData{background:var(--panel-3);border:1px solid var(--border-2);border-radius:10px;padding:8px 10px;color:var(--text);font:inherit;color-scheme:var(--scheme)}
 #qdData:focus-visible{outline:2px solid var(--foco);outline-offset:2px}
 
-/* ---- fontes do próprio app (as mesmas do guia visual: Archivo no texto, Barlow Condensed nos números) ---- */
-@font-face{font-family:'Archivo';font-style:normal;font-weight:100 900;font-stretch:62% 125%;font-display:swap;src:url('./fontes/archivo-variavel.woff2') format('woff2')}
-@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url('./fontes/barlow-condensed-600.woff2') format('woff2')}
-@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url('./fontes/barlow-condensed-700.woff2') format('woff2')}
+/* ---- fontes: rodada 11, vêm do padrão IndyCar (/casa/indycar.css), as mesmas de todos os apps ---- */
 
 /* ---- botões principais chapados, sem gradiente (guia visual) ---- */
 .btn.primary,.btn-novo,.pilula.ativa{background:var(--red)}
@@ -160,9 +148,6 @@
 
 /* ---- "Buscar em tudo": a caixa de busca tomava 320 px de ALTURA (a base de largura valia como altura na janela em coluna) ---- */
 .modal-body > .search.larga{flex:0 0 auto}
-
-/* ---- menu: com "Mais" aberto os itens encolhiam (ícone de 21 px virava 14) em vez de o menu rolar ---- */
-.nav > *,.nav-mais-itens > *{flex-shrink:0}
 
 /* ---- janelas, recados, login e popovers: o que a medida das janelas achou (scripts/qa-r9-modais.mjs) ---- */
 @media (max-width:720px),(pointer:coarse){
@@ -208,14 +193,6 @@
 @media (max-width:560px){
   body.recepcao .faixa{padding:6px 12px;font-size:12px;gap:8px}
   body.recepcao .faixa > :is(span,div,p):not(.faixa-ico){display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  body.recepcao .topbar{padding:8px 12px;gap:8px;flex-direction:row;align-items:center;flex-wrap:nowrap}
-  body.recepcao .topbar .company{flex:1 1 0;min-width:0;gap:8px}
-  body.recepcao .topbar .company > div{min-width:0;flex:1 1 0}
-  body.recepcao .topbar .company-logo,body.recepcao .topbar .company-sub{display:none}
-  body.recepcao .topbar .company-title{flex-wrap:nowrap;min-width:0}
-  body.recepcao .topbar .company-title h1{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  body.recepcao .topbar .topo-acoes{flex:0 0 auto;width:auto}
-  body.recepcao .topbar .tag-dashboard{flex:0 0 auto}
   body.recepcao .view{padding:10px 12px 24px}
   body.recepcao .rec-topo{gap:8px;margin-bottom:8px}
   body.recepcao .rec-relogio{gap:8px;flex-wrap:nowrap;min-width:0}

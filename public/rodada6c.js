@@ -2,7 +2,7 @@
    Agenda — Rodada 6 / C1c (21/10/2026): o Quadro e o balcão para quem marca 30 horários por dia.
      · PURO (testado em tests/c1c-agenda.test.mjs, sem navegador): duração no cartão, cauda do serviço nas linhas
        seguintes, filtro do Quadro, texto do dia para copiar, link de WhatsApp dos atrasados, "marcar rápido".
-     · TELA: ferramentas do Quadro (busca, só quem falta, copiar, imprimir, tour, atrasados com WhatsApp, faixa
+     · TELA: ferramentas do Quadro (busca, só quem falta, copiar, imprimir, atrasados com WhatsApp, faixa
        da semana) e, no Novo agendamento, avisos de contexto (já tem horário? carro no pátio? orçamento?) e a
        linha "marcar rápido".
    ============================================================================ */
@@ -171,9 +171,6 @@
   const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
   const semAcesso = () => (typeof emPresenca === 'function' && emPresenca()) || (typeof state !== 'undefined' && state.perfil && state.perfil.papel === 'agenda');
   const Q = () => (root.R6b && root.R6b.estado) || {};
-  const LS_TOUR = 'indycar_tour_quadro_v1';
-  const lerLS = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
-  const gravarLS = (k, v) => { try { localStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
 
   /** Pedaço de HTML da duração no cartão: "~1h30 · até 10:30". */
   function duracaoHtml(a, duracoes) {
@@ -194,8 +191,7 @@
       <label class="qd-opt"><input type="checkbox" id="qdSoFalta" ${q.soFalta ? 'checked' : ''}> só quem falta chegar</label>
       <button type="button" class="btn mini" id="qdAtrasados" hidden></button>
       <button type="button" class="btn mini" id="qdCopiar" title="Copia a agenda do dia em texto, pronta para o WhatsApp da equipe">📋 Copiar o dia</button>
-      <button type="button" class="btn mini" id="qdImprimir" title="Imprime o quadro do dia">🖨 Imprimir</button>
-      <button type="button" class="btn mini" id="qdTour" title="Mostra de novo o tour do Quadro">? Tour</button>`;
+      <button type="button" class="btn mini" id="qdImprimir" title="Imprime o quadro do dia">🖨 Imprimir</button>`;
     antes.parentNode.insertBefore(box, antes);
     const faixa = document.createElement('div'); faixa.id = 'qdSemana'; faixa.className = 'qd-semana'; faixa.setAttribute('role', 'group'); faixa.setAttribute('aria-label', 'Próximos dias');
     box.parentNode.insertBefore(faixa, box);
@@ -206,7 +202,6 @@
     $('#qdSoFalta').addEventListener('change', (e) => { Q().soFalta = e.target.checked; redesenhar(); });
     $('#qdCopiar').addEventListener('click', copiarDia);
     $('#qdImprimir').addEventListener('click', () => { document.body.classList.add('imprimindo-quadro'); setTimeout(() => { window.print(); setTimeout(() => document.body.classList.remove('imprimindo-quadro'), 300); }, 50); });
-    $('#qdTour').addEventListener('click', () => tourDoQuadro(true));
     $('#qdAtrasados').addEventListener('click', () => { painel.hidden = !painel.hidden; });
   }
 
@@ -237,7 +232,6 @@
     }
     desenharSemana(d.data);
     if (root.R6d) root.R6d.aposDesenhar(d);
-    if (!lerLS(LS_TOUR)) setTimeout(() => { if (state.route === 'quadro' && !document.querySelector('#tour, .modal-backdrop:not([hidden])')) tourDoQuadro(); }, 700);
   }
 
   /* ---------- faixa da semana ---------- */
@@ -261,44 +255,6 @@
     }));
   }
 
-  /* ---------- tour curto do Quadro ---------- */
-  const PASSOS_TOUR = [
-    { alvo: '#qdSemana', titulo: 'A semana de relance', texto: 'Cada botão é um dia com o número de horários e a barra de lotação. Toque para ir direto.' },
-    { alvo: '.qd-grade', titulo: 'Uma coluna por consultor', texto: 'Linhas de 30 min. O cartão mostra a duração do serviço e as linhas de baixo ficam marcadas até o fim dele.' },
-    { alvo: '.qd-card [data-qd="mover"]', titulo: 'Remarcar sem abrir nada', texto: 'Arraste o cartão ou toque em ⇄ Mover: as células verdes são as que cabem. Errou? "Desfazer" no recado.' },
-    { alvo: '#qdBusca', titulo: 'Achar alguém', texto: 'Digite nome, placa ou telefone: o quadro mostra só quem combina.' },
-    { alvo: '#qdCopiar', titulo: 'Passar o dia para a equipe', texto: 'Copia a agenda do dia em texto, por consultor, pronta para o WhatsApp.' },
-  ];
-  function tourDoQuadro(forcar) {
-    if (semAcesso()) return;
-    if (!forcar && lerLS(LS_TOUR)) return;
-    $('#tour')?.remove();
-    const passos = PASSOS_TOUR.filter((p) => { const e = $(p.alvo); return e && e.offsetParent !== null; });
-    if (!passos.length) return;
-    let i = 0;
-    const caixa = document.createElement('div');
-    caixa.className = 'tour'; caixa.id = 'tour'; caixa.setAttribute('role', 'dialog'); caixa.setAttribute('aria-labelledby', 'tourTitulo');
-    document.body.append(caixa);
-    const fecha = () => { gravarLS(LS_TOUR, '1'); $$('.tour-alvo').forEach((x) => x.classList.remove('tour-alvo')); caixa.remove(); };
-    const pinta = () => {
-      $$('.tour-alvo').forEach((x) => x.classList.remove('tour-alvo'));
-      const p = passos[i], alvo = $(p.alvo);
-      if (alvo) { alvo.classList.add('tour-alvo'); alvo.scrollIntoView({ block: 'nearest', behavior: 'auto' }); }
-      caixa.innerHTML = `<div class="tour-passo">${i + 1} de ${passos.length}</div><h3 id="tourTitulo">${esc(p.titulo)}</h3><p>${esc(p.texto)}</p>
-        <div class="tour-botoes"><button type="button" class="btn" id="tqPular">Pular</button>${i ? '<button type="button" class="btn" id="tqVoltar">Voltar</button>' : ''}
-        <button type="button" class="btn primary" id="tqProx">${i === passos.length - 1 ? 'Entendi 🏁' : 'Próximo'}</button></div>`;
-      const w = Math.min(340, innerWidth - 24), r = alvo ? alvo.getBoundingClientRect() : null;
-      caixa.style.width = w + 'px';
-      caixa.classList.toggle('centro', !r);
-      if (r) { caixa.style.left = Math.max(12, Math.min(innerWidth - w - 12, r.left + r.width / 2 - w / 2)) + 'px'; caixa.style.top = (r.bottom + 12 + 190 < innerHeight ? r.bottom + 12 : Math.max(12, r.top - 12 - 190)) + 'px'; }
-      $('#tqPular').addEventListener('click', fecha);
-      $('#tqVoltar')?.addEventListener('click', () => { i--; pinta(); });
-      $('#tqProx').addEventListener('click', () => { if (i === passos.length - 1) return fecha(); i++; pinta(); });
-      $('#tqProx').focus({ preventScroll: true });
-    };
-    caixa.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); fecha(); } });
-    pinta();
-  }
 
   /* ---------- Novo agendamento: "marcar rápido" e avisos de contexto ---------- */
   function preencher(campo, valor) {
@@ -357,6 +313,6 @@
   const nacionalDe = (t) => { const d = String(t || '').replace(/\D/g, ''); return (d.length === 12 || d.length === 13) && d.startsWith('55') ? d.slice(2) : d; };
   const placaDe = (p) => String(p || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-  root.R6c = { montarFerramentas, aposDesenhar, duracaoHtml, tourDoQuadro, aoAbrirFormulario, PURO,
+  root.R6c = { montarFerramentas, aposDesenhar, duracaoHtml, aoAbrirFormulario, PURO,
     filtrar: (lista) => filtrarCartoes(lista, { busca: Q().busca || '', soFalta: !!Q().soFalta }) };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

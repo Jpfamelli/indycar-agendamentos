@@ -74,8 +74,6 @@
 
 /* ---- busca Ctrl+K com teclado ---- */
 .busca-item.ativo{outline:2px solid var(--red);outline-offset:-2px;background:var(--red-soft)}
-.busca-dica{font-size:11.5px;color:var(--muted-2);margin:6px 0 0}
-kbd.mini{min-width:20px;padding:1px 5px;font-size:10.5px}
 
 /* ---- toast com dois botões e a ação secundária ---- */
 .toast .toast-acao.secundaria{opacity:.85}
@@ -99,8 +97,6 @@ kbd.mini{min-width:20px;padding:1px 5px;font-size:10.5px}
 .remarcar-conf .de-para small{color:var(--muted)}
 .remarcar-conf .de-para .seta{font-size:22px;color:var(--red-txt)}
 
-/* ---- atalhos novos na Ajuda ---- */
-.atalhos td:first-child{white-space:nowrap}
 
 /* ---- menu: badge da espera ---- */
 #badgeEspera{background:var(--orange)}

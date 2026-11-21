@@ -258,6 +258,13 @@ http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': MIME['.html'] }); return res.end(html);
     }
     if (p === '/sw.js') { res.writeHead(200, { 'Content-Type': MIME['.js'] }); return res.end('/* sem service worker no modo de teste */'); }
+    // rodada 11: o padrão IndyCar (/casa/indycar.css, fontes e logo) vem da pasta casa/, como a Central serve
+    if (p.startsWith('/casa/')) {
+      const casa = path.join(PUBLIC, '..', 'casa'), alvo = path.join(casa, path.normalize(p.slice(6)));
+      if (!alvo.startsWith(casa) || !fs.existsSync(alvo) || fs.statSync(alvo).isDirectory()) { res.writeHead(404); return res.end('Not Found'); }
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(alvo)] || 'application/octet-stream', 'Cache-Control':'no-store' });
+      return fs.createReadStream(alvo).pipe(res);
+    }
     // rodada 5: a página pública do cliente (/confirmar/)
     const arq = path.join(PUBLIC, path.normalize(p === '/confirmar/' || p === '/confirmar' ? '/confirmar/index.html' : p));
     if (!arq.startsWith(PUBLIC) || !fs.existsSync(arq) || fs.statSync(arq).isDirectory()) { res.writeHead(404); return res.end('Not Found'); }
