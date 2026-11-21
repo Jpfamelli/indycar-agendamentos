@@ -74,9 +74,10 @@ ia.definirClienteIA({
 });
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const CASA = path.join(PUBLIC, '..', '..', '..', 'casa');
 const PORT = Number(process.env.PORT || 3511);
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8',
-  '.json':'application/json', '.png':'image/png', '.svg':'image/svg+xml' };
+  '.json':'application/json', '.png':'image/png', '.svg':'image/svg+xml', '.woff2':'font/woff2' };
 
 let seq = 0;
 const uuid = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`;
@@ -502,8 +503,11 @@ http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': MIME['.html'] }); return res.end(html);
     }
     if (p === '/sw.js') { res.writeHead(200, { 'Content-Type': MIME['.js'] }); return res.end('/* sem service worker no modo de teste */'); }
-    const arq = path.join(PUBLIC, path.normalize(p));
-    if (!arq.startsWith(PUBLIC) || !fs.existsSync(arq) || fs.statSync(arq).isDirectory()) { res.writeHead(404); return res.end('Not Found'); }
+    // rodada 11: o padrão IndyCar (/casa/indycar.css, logo e fontes) mora na Casa, na raiz do repositório
+    const naCasa = p.startsWith('/casa/');
+    const base = naCasa ? CASA : PUBLIC;
+    const arq = path.join(base, path.normalize(naCasa ? p.slice(5) : p));
+    if (!arq.startsWith(base) || !fs.existsSync(arq) || fs.statSync(arq).isDirectory()) { res.writeHead(404); return res.end('Not Found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(arq)] || 'application/octet-stream', 'Cache-Control':'no-store' });
     return fs.createReadStream(arq).pipe(res);
   }

@@ -342,7 +342,12 @@ test('apps.js: um lugar só para os endereços; LINKS montam o registro certo e 
 test('frontend: nenhum caminho absoluto para o próprio app (api, sw, manifest, ícones, scripts)', () => {
   const pub = (n) => readFileSync(join(RAIZ, 'public', n), 'utf8');
   const html = pub('index.html');
-  assert.doesNotMatch(html, /(href|src)="\/(?!\/)/, 'index.html sem href="/…"');
+  // rodada 11: só o padrão da Casa (/casa/…) e a marca que volta para a Central (href="/") são absolutos
+  assert.doesNotMatch(html, /(href|src)="\/(?!\/|casa\/|")/, 'index.html sem href="/…" do próprio app');
+  assert.match(html, /<link rel="stylesheet" href="\/casa\/indycar\.css" \/>\s*<link rel="stylesheet" href="styles\.css/, 'padrão IndyCar antes do CSS do app');
+  assert.match(html, /<a class="ic-marca" href="\/"[^>]*>[\s\S]*<span class="ic-nome">IndyCar <b>Comunicar<\/b><\/span>/, 'topo padrão com o nome do app');
+  assert.equal((html.match(/data-route="/g) || []).length, 5, 'até 5 abas');
+  assert.doesNotMatch(html, /fonts\.googleapis|btnAjuda|btnSino|btnTarefas|btnEco|data-route="inicio"|data-route="satisfacao"/, 'sem fonte do Google, ajuda, sino, tarefas, menu de apps, Início e Satisfação');
   assert.match(html, /src="apps\.js\?v=/); assert.match(html, /src="rodada5\.js\?v=/); assert.match(html, /src="rodada6\.js\?v=7\.0\.0/); assert.match(html, /src="rodada7\.js\?v=7\.0\.0/);
   for (const f of ['app.js', 'conta.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'acordar.js']) {
     const s = pub(f);
