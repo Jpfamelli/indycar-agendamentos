@@ -18,20 +18,11 @@
   const qq = (s, r = document) => [...r.querySelectorAll(s)];
   const escH = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  /* Rodada 5: os endereços dos apps vêm de apps.js (um lugar só para o ecossistema). */
-  const APPS_URL = Object.fromEntries(Object.entries((window.IndyApps && window.IndyApps.APPS) || {}).map(([k, v]) => [k, v.url]).filter(([, u]) => u));
   const RAIZ_APP = () => new URL('./', location.href).href; // '/' sozinho, '/comunicar/' na Central
   const CHAVE_EMAIL = 'indycar_email_lembrado';
   const CHAVE_ERROS = 'indycar_comunicar_erros_login';
   const PAPEL = { admin: 'Administrador', gestor: 'Gestor', atendente: 'Atendente' };
   const CORES = ['#e6192e', '#f59e0b', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899', '#64748b'];
-  const TIPOS_AVISO = [
-    ['reclamacao', 'Cliente reclamou', 'na hora, com o texto do cliente'],
-    ['aprovacao', 'Campanha esperando aprovação', 'quando um atendente propõe'],
-    ['falhas', 'Régua com falhas', '3 mensagens falharam em 24 h'],
-    ['resumo_semanal', 'Resumo da semana', 'toda segunda de manhã'],
-  ];
-  const ICONE_AVISO = { reclamacao: '😞', aprovacao: '📣', campanha: '✅', falhas: '⚠️', resumo_semanal: '📊', tarefa: '☑️', aguardando: '⏳', conversa: '💬' };
 
   const local = {
     ler(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -333,9 +324,6 @@
       <hr>
       <button type="button" class="eco-item" role="menuitem" data-conta="sair">↩ <span><b>Sair</b></span></button>
       <button type="button" class="eco-item perigo" role="menuitem" data-conta="sair-todos">⏻ <span><b>Sair de todos os aparelhos</b><small>celulares e computadores</small></span></button>`;
-    const r = b.getBoundingClientRect();
-    el.style.setProperty('--eco-x', `${r.right + 10}px`);
-    el.style.setProperty('--eco-y', `${Math.max(12, r.bottom)}px`);
     el.hidden = false; b.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => el.classList.add('aberto'));
     q('.eco-item', el)?.focus();
@@ -365,8 +353,6 @@
 
   function abrirMeuPerfil() {
     const p = state.perfil; if (!p) return;
-    const gestor = ['admin', 'gestor'].includes(p.papel);
-    const tipos = TIPOS_AVISO.filter(([k]) => gestor || k === 'reclamacao' || k === 'aprovacao');
     openModal(`<div class="modal-head"><h3>👤 Meu perfil</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
       <div class="modal-body">
         <div class="campos-linha">
@@ -380,9 +366,6 @@
         <div class="field"><span class="rot">Cor do avatar</span>
           <div class="cores" role="radiogroup" aria-label="Cor do avatar">${CORES.map((c) => `<button type="button" class="cor${p.avatar_cor === c ? ' ativa' : ''}" role="radio" aria-checked="${p.avatar_cor === c}" aria-label="Cor ${c}" data-cor="${c}" style="background:${c}"></button>`).join('')}
             <button type="button" class="cor sem${!p.avatar_cor ? ' ativa' : ''}" role="radio" aria-checked="${!p.avatar_cor}" aria-label="Sem cor" data-cor="">∅</button></div></div>
-        <div class="field"><span class="rot">Avisos do Comunicar no sino</span>
-          <div class="avisos-lista">${tipos.map(([k, rot, sub]) => `<label class="sw"><input type="checkbox" data-aviso="${k}" ${p.notificacoes?.[k] === false ? '' : 'checked'}><span class="tr"></span><span class="sw-txt">${escH(rot)} <small class="muted">· ${escH(sub)}</small></span></label>`).join('')}</div>
-          <small>Tarefas que passam para você e clientes esperando consultor sempre avisam.</small></div>
         <p class="dica">Papel: <b>${escH(PAPEL[p.papel] || p.papel)}</b>. Papel e apps liberados só o administrador muda.</p>
       </div>
       <div class="modal-foot"><button type="button" class="btn" data-fechar>Cancelar</button><button type="button" class="btn primary" id="pf_salvar">${svg(I.check)} Salvar</button></div>`);
@@ -392,10 +375,9 @@
     }));
     q('#pf_salvar').addEventListener('click', async (e) => {
       const btn = e.currentTarget; btn.disabled = true;
-      const notificacoes = Object.fromEntries(qq('[data-aviso]', modal).map((x) => [x.dataset.aviso, x.checked]));
       try {
-        const r = await api('PUT', '/perfil', { nome: q('#pf_nome').value, cargo: q('#pf_cargo').value, telefone: soDigitos(q('#pf_tel').value), avatar_cor: cor || null, preferencias: { notificacoes } });
-        Object.assign(state.perfil, { nome: r.nome, cargo: r.cargo, telefone: r.telefone, avatar_cor: r.avatar_cor, notificacoes: r.notificacoes });
+        const r = await api('PUT', '/perfil', { nome: q('#pf_nome').value, cargo: q('#pf_cargo').value, telefone: soDigitos(q('#pf_tel').value), avatar_cor: cor || null });
+        Object.assign(state.perfil, { nome: r.nome, cargo: r.cargo, telefone: r.telefone, avatar_cor: r.avatar_cor });
         pintarAvatar(state.perfil); closeModal(); toast('Perfil salvo.');
       } catch (err) { toast(err.message, 'err'); btn.disabled = false; }
     });
@@ -475,170 +457,9 @@
     } catch (err) { corpo.innerHTML = `<p class="form-msg erro">${escH(mensagemDoErro(err))}</p>`; }
   }
 
-  // ============================================================================
-  // SINO DE NOTIFICAÇÕES
-  // ============================================================================
-  let _sino = { lista: [], naoLidas: 0 }, _timerSino = null, _canal = null;
-  const btnSino = () => q('#btnSino'), popSino = () => q('#sinoPop');
-
-  async function carregarSino() {
-    try {
-      _sino = await api('GET', '/notificacoes?limite=30');
-      const c = q('#contSino'); const n = _sino.naoLidas || 0;
-      c.textContent = n > 99 ? '99+' : String(n); c.hidden = !n;
-      btnSino()?.setAttribute('aria-label', n ? `Notificações: ${n} não lida${n === 1 ? '' : 's'}` : 'Notificações');
-      if (!popSino().hidden) pintarSino();
-    } catch { /* sem sino agora */ }
-  }
-  function pintarSino() {
-    const el = popSino(); const l = _sino.lista || [];
-    el.innerHTML = `<div class="sino-head"><b>Notificações</b>${_sino.naoLidas ? `<button type="button" class="btn btn-mini ghost" data-sino="todas">Marcar todas como lidas</button>` : ''}
-        <button type="button" class="modal-close" data-sino="fechar" aria-label="Fechar notificações">×</button></div>
-      <div class="sino-lista">${l.length ? l.map((n) => `<button type="button" class="sino-item${n.lida_em ? '' : ' nova'}" data-notif="${escH(n.id)}">
-          <span class="s-ico" aria-hidden="true">${ICONE_AVISO[n.tipo] || '🔔'}</span>
-          <span class="s-txt"><b>${escH(n.titulo)}</b>${n.corpo ? `<small>${escH(n.corpo)}</small>` : ''}<i>${escH(relativo(n.created_at))}${n.app && n.app !== 'comunicar' ? ` · ${escH(n.app)}` : ''}</i></span>
-          ${n.lida_em ? '' : '<span class="s-ponto" aria-label="não lida"></span>'}</button>`).join('')
-        : '<div class="vazio"><b>Nada por aqui</b><p>Reclamações, campanhas para aprovar e tarefas novas aparecem aqui.</p></div>'}</div>`;
-  }
-  function abrirSino() {
-    fecharMenu(false);
-    pintarSino();
-    popSino().hidden = false; btnSino().setAttribute('aria-expanded', 'true');
-    requestAnimationFrame(() => popSino().classList.add('aberto'));
-    (q('.sino-item', popSino()) || q('.modal-close', popSino()))?.focus();
-    carregarSino();
-  }
-  function fecharSino(devolver = true) {
-    const el = popSino(); if (!el || el.hidden) return false;
-    el.classList.remove('aberto'); el.hidden = true; btnSino()?.setAttribute('aria-expanded', 'false');
-    if (devolver) btnSino()?.focus();
-    return true;
-  }
-  btnSino()?.addEventListener('click', () => (popSino().hidden ? abrirSino() : fecharSino()));
-  popSino()?.addEventListener('click', async (e) => {
-    const acao = e.target.closest('[data-sino]')?.dataset.sino;
-    if (acao === 'fechar') return fecharSino();
-    if (acao === 'todas') { await api('POST', '/notificacoes/lidas', {}).catch(() => null); return carregarSino(); }
-    const it = e.target.closest('[data-notif]'); if (!it) return;
-    const n = (_sino.lista || []).find((x) => x.id === it.dataset.notif); if (!n) return;
-    if (!n.lida_em) api('POST', `/notificacoes/${n.id}/lida`, {}).then(carregarSino).catch(() => null);
-    fecharSino(false);
-    abrirLinkDaNotificacao(n);
-  });
   document.addEventListener('click', (e) => {
-    if (popSino() && !popSino().hidden && !popSino().contains(e.target) && !e.target.closest('#btnSino')) fecharSino(false);
     if (pop() && !pop().hidden && !pop().contains(e.target) && !e.target.closest('#avatarPerfil')) fecharMenu(false);
   });
-
-  /** Link da notificação: relativo ao app de origem (comunicar abre aqui dentro). */
-  function abrirLinkDaNotificacao(n) {
-    if (!n.link) return;
-    const app = n.app || 'comunicar';
-    if (app === 'comunicar') {
-      const qs = new URLSearchParams(String(n.link).split('?')[1] || '');
-      return window.abrirLinkInterno?.(qs);
-    }
-    const base = APPS_URL[app]; if (!base) return;
-    window.open(base + (String(n.link).startsWith('/') ? n.link : `/${n.link}`), '_blank', 'noopener');
-  }
-
-  function iniciarSino(perfil) {
-    btnSino().hidden = false;
-    carregarSino();
-    clearInterval(_timerSino);
-    _timerSino = setInterval(() => { if (document.visibilityState === 'visible') carregarSino(); }, 60_000);
-    if (!iniciarSino.ligado) {
-      iniciarSino.ligado = true;
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { carregarSino(); carregarTarefas(); } });
-    }
-    // tempo real: a notificação nova chega sem esperar o minuto (RLS: só as minhas)
-    try {
-      if (sb?.channel && perfil?.id && !_canal) {
-        _canal = sb.channel(`notif-comunicar-${perfil.id}`)
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificacoes', filter: `perfil_id=eq.${perfil.id}` }, (m) => {
-            carregarSino();
-            if (m?.new?.titulo) toast(`🔔 ${m.new.titulo}`, 'ok', 5000);
-            if (m?.new?.tipo === 'tarefa') carregarTarefas();
-          })
-          .subscribe();
-      }
-    } catch { /* sem tempo real: fica a reserva de 60 s */ }
-  }
-  function pararSino() {
-    clearInterval(_timerSino);
-    try { if (_canal) sb?.removeChannel?.(_canal); } catch { /* ignora */ }
-    _canal = null;
-  }
-
-  // ============================================================================
-  // MINHAS TAREFAS
-  // ============================================================================
-  let _tarefas = [];
-  async function carregarTarefas() {
-    try {
-      _tarefas = await api('GET', '/tarefas');
-      const c = q('#contTarefas'); const n = _tarefas.length;
-      const vencidas = _tarefas.filter((t) => t.vence_em && new Date(t.vence_em) < new Date()).length;
-      c.textContent = n > 99 ? '99+' : String(n); c.hidden = !n; c.classList.toggle('vencida', vencidas > 0);
-      q('#btnTarefas')?.setAttribute('aria-label', n ? `Minhas tarefas: ${n} aberta${n === 1 ? '' : 's'}${vencidas ? `, ${vencidas} vencida${vencidas === 1 ? '' : 's'}` : ''}` : 'Minhas tarefas');
-      if (q('#listaTarefas')) pintarTarefas();
-    } catch { /* sem tarefas agora */ }
-  }
-  function htmlTarefa(t) {
-    const vencida = t.vence_em && new Date(t.vence_em) < new Date();
-    return `<div class="tarefa${vencida ? ' vencida' : ''}${t.prioridade === 1 ? ' alta' : ''}" data-tarefa="${escH(t.id)}">
-      <button type="button" class="t-ok" data-concluir="${escH(t.id)}" aria-label="Concluir: ${escH(t.titulo)}" title="Concluir">${svg(I.check)}</button>
-      <div class="t-txt"><b>${escH(t.titulo)}</b>
-        ${t.descricao ? `<small class="t-desc">${escH(t.descricao)}</small>` : ''}
-        <span class="t-meta">${t.prioridade === 1 ? '<span class="badge-pill bp-red">alta</span>' : ''}
-          ${t.vence_em ? `<span class="${vencida ? 't-venc' : ''}">${svg(I.clock)} ${vencida ? 'venceu' : 'até'} ${escH(dataHoraBR(t.vence_em))}</span>` : ''}
-          ${t.cliente_id ? `<button type="button" class="cli-nome" data-tficha="${escH(t.cliente_id)}">${svg(I.user)} ${escH(t.cliente_nome || 'cliente')}</button>` : ''}
-          <span class="muted">${escH(t.origem === 'comunicar' ? 'Comunicar' : t.origem || '')}</span></span></div></div>`;
-  }
-  function pintarTarefas() {
-    const box = q('#listaTarefas'); if (!box) return;
-    box.innerHTML = _tarefas.length ? _tarefas.map(htmlTarefa).join('')
-      : '<div class="vazio"><b>Nenhuma tarefa aberta</b><p>Quando um cliente pedir horário, reclamar ou quiser orçamento, a tarefa aparece aqui.</p></div>';
-  }
-  function abrirTarefas(pre = null) {
-    openModal(`<div class="modal-head"><h3>☑️ Minhas tarefas</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
-      <div class="modal-body">
-        <form class="nova-tarefa" id="formTarefa">
-          <div class="campos-linha">
-            <div class="field"><label for="tf_titulo">Nova tarefa</label><input id="tf_titulo" maxlength="200" placeholder="Ex.: ligar para o cliente sobre o freio" value="${escH(pre?.titulo || '')}"></div>
-            <div class="field curto"><label for="tf_prazo">Prazo</label><input id="tf_prazo" type="datetime-local"></div>
-          </div>
-          ${pre?.cliente_id ? `<small class="dica">${svg(I.user)} ligada ao cliente desta ficha</small>` : ''}
-          <button type="submit" class="btn primary btn-mini">${svg(I.plus)} Criar</button>
-        </form>
-        <div class="lista-tarefas" id="listaTarefas"><div class="skel" style="height:60px"></div></div>
-      </div>
-      <div class="modal-foot"><button type="button" class="btn" data-fechar>Fechar</button></div>`, { larga: true });
-    pintarTarefas(); carregarTarefas();
-    q('#formTarefa').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const titulo = q('#tf_titulo').value.trim();
-      if (titulo.length < 2) return toast('Escreva o que precisa ser feito.', 'err');
-      const prazo = q('#tf_prazo').value;
-      try {
-        await api('POST', '/tarefas', { titulo, vence_em: prazo ? new Date(prazo).toISOString() : null, cliente_id: pre?.cliente_id || null });
-        q('#tf_titulo').value = ''; q('#tf_prazo').value = ''; pre = null;
-        toast('Tarefa criada.'); carregarTarefas();
-      } catch (err) { toast(err.message, 'err'); }
-    });
-    q('#listaTarefas').addEventListener('click', async (e) => {
-      const f = e.target.closest('[data-tficha]'); if (f) { closeModal(); return abrirFicha(f.dataset.tficha); }
-      const b = e.target.closest('[data-concluir]'); if (!b) return;
-      b.disabled = true;
-      try {
-        await api('POST', `/tarefas/${b.dataset.concluir}/concluir`, {});
-        b.closest('.tarefa')?.classList.add('feita');
-        toast('Tarefa concluída. ✅');
-        setTimeout(carregarTarefas, 350);
-      } catch (err) { toast(err.message, 'err'); b.disabled = false; }
-    });
-  }
-  q('#btnTarefas')?.addEventListener('click', () => abrirTarefas());
 
   // ============================================================================
   // INÍCIO DA SESSÃO
@@ -648,9 +469,6 @@
     pintarAvatar(p);
     if (p.precisa_trocar_senha) await abrirSenhaNova('obrigatoria');
     capa(false);
-    q('#btnTarefas').hidden = false;
-    iniciarSino(p);
-    carregarTarefas();
     return true;
   }
 
@@ -659,14 +477,13 @@
     try {
       cliente?.auth?.onAuthStateChange?.((evento) => {
         if (evento === 'PASSWORD_RECOVERY') abrirSenhaNova('recuperacao');
-        if (evento === 'SIGNED_OUT') pararSino();
       });
     } catch { /* sem eventos */ }
   }
 
   window.Conta = {
     painel, aviso, tratarRecusa, depoisDoPerfil, depoisDoLogin, precisaSegundoFator, ligar, sair,
-    fecharPops: () => fecharSino() || fecharMenu(), novaTarefa: abrirTarefas, abrirTarefas, carregarSino, carregarTarefas,
+    fecharPops: () => fecharMenu(),
     abrirSenhaNova, mostrarSemAcesso,
     // puros (testes)
     esperaDepoisDeErros, validarSenha, forcaDaSenha, mensagemDoErro,

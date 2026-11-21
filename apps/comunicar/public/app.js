@@ -80,9 +80,6 @@ const VARS_COMUNS = ['nome', 'primeiro_nome', 'carro', 'placa', 'servico'];
 /* Rodada 5: variáveis de LINK nas réguas — {link_os} (acompanhar a ordem do Pátio do horário) para as
    réguas que nascem de um agendamento; {link_area} (Área do Cliente, um link por cliente) em todas. */
 const VARS_LINK = { lembrete:['link_os'], posvenda:['link_os', 'link_area'], retorno:['link_area'], nao_fechou:['link_area'], aniversario:['link_area'], orcamento:['link_area'], reativacao:['link_area'], avaliacao:[] };
-/* Ordem de saída quando a fila acumula (espelho de carteiro.js › PRIORIDADE) e quem respeita a janela de silêncio. */
-const PRIORIDADE = { patio_pronto:1, patio_extra:2, lembrete:3, remarcacao:3, patio_entrada:4, avaliacao:5, posvenda:6, area_cliente:7, avulsa:8, retorno:9, orcamento:10, nao_fechou:11, aniversario:12, reativacao:13, campanha:14 };
-const RESPEITA_SILENCIO = new Set(['aniversario', 'retorno', 'reativacao', 'orcamento', 'nao_fechou', 'campanha', 'avulsa']);
 const STATUS_ENVIO = {
   pendente:['Na fila', 'bp-orange'], enviado:['Enviada', 'bp-green'], falhou:['Falhou', 'bp-red'],
   cancelado:['Cancelada', 'bp-gray'], pulado:['Pulada', 'bp-blue'],
@@ -102,23 +99,11 @@ const AGENDA_URL = APPS_ECO.agenda?.url || 'https://indycar-agendamentos.onrende
 const PATIO_URL = APPS_ECO.patio?.url || 'https://indycar-patio.netlify.app';
 const API = 'api';
 
-/* Ecossistema IndyCar — os apps da oficina; este (Comunicar) vem marcado. */
-const ECOSSISTEMA = [
-  { chave:'agenda',      nome:'Agenda',      desc:'horários e presença',   url:AGENDA_URL,                                  ico:I.calendar },
-  { chave:'crm',         nome:'CRM',         desc:'leads e funil',         url:CRM_URL,                                     ico:I.flag },
-  { chave:'atendimento', nome:'Atendimento', desc:'conversas do WhatsApp', url:ATENDIMENTO_URL,                             ico:I.wa },
-  { chave:'comunicar',   nome:'Comunicar',   desc:'lembretes e réguas',    url:APPS_ECO.comunicar?.url || './',             ico:I.send },
-  { chave:'patio',       nome:'Pátio',       desc:'carro na oficina',      url:PATIO_URL,                                   ico:I.car },
-  { chave:'orcador',     nome:'Orçador',     desc:'orçamentos com IA',     url:APPS_ECO.orcador?.url || 'https://indycar-orcador.netlify.app', ico:I.money },
-  { chave:'site',        nome:'Site',        desc:'indycar-taubate',       url:APPS_ECO.site?.url || 'https://indycar-taubate.netlify.app', ico:I.loja },
-];
-const APP_ATUAL = 'comunicar';
-
 /* Cliente de exemplo das prévias — ninguém de verdade. */
 const EXEMPLO = { nome:'Maria Aparecida Souza', carro:'HB20 2019', placa:'FHR6F16', servico:'troca de óleo', quando:'amanhã às 09:00' };
 
 // ---- estado -----------------------------------------------------------------
-const state = { route:'inicio', perfil:null, cfg:null, cfgEdit:{}, regras:null, modelos:null, segmentos:null,
+const state = { route:'reguas', perfil:null, cfg:null, cfgEdit:{}, regras:null, modelos:null, segmentos:null,
   msg:{ status:'todas', tipo:'todos', q:'', de:'', ate:'', intencao:'todas', origem:'todas' }, cliQ:'', saude:null };
 
 // ---- API --------------------------------------------------------------------
@@ -265,14 +250,9 @@ const pillStatus = (s) => { const [r, c] = STATUS_ENVIO[s] || [s, 'bp-gray']; re
 // ROTEAMENTO
 // ============================================================================
 const view = $('#view');
-const TAGS = { inicio:'COMUNICAR', reguas:'RÉGUAS', mensagens:'MENSAGENS', campanhas:'CAMPANHAS', clientes:'CLIENTES', satisfacao:'SATISFAÇÃO' };
-
 function esqueleto(rota) {
-  const stats = (n) => `<div class="stat-grid${n === 4 ? ' row4' : ''}">${'<div class="skel skel-stat"></div>'.repeat(n)}</div>`;
   const cartoes = (n) => Array.from({ length:n }, () => `<div class="skel-cartao"><div class="skel" style="width:46px;height:46px;border-radius:12px"></div>
     <div class="skel-linhas"><div class="skel" style="height:14px;width:45%"></div><div class="skel" style="height:12px;width:80%"></div><div class="skel" style="height:12px;width:60%"></div></div></div>`).join('');
-  if (rota === 'inicio') return `<div class="esqueleto"><div class="skel" style="height:44px;width:min(420px,80%)"></div>${stats(5)}${cartoes(2)}</div>`;
-  if (rota === 'satisfacao') return `<div class="esqueleto">${stats(4)}${cartoes(2)}</div>`;
   return `<div class="esqueleto"><div class="skel" style="height:40px;width:min(380px,90%)"></div>${cartoes(3)}</div>`;
 }
 
@@ -281,13 +261,11 @@ async function route(r, opts = {}) {
   if (quieto && view.getAttribute('aria-busy') === 'true') return;
   if (r) state.route = r;
   const vez = state._vez = (state._vez || 0) + 1;
-  $$('.nav-item').forEach(n => { const ativo = n.dataset.route === state.route; n.classList.toggle('active', ativo);
-    if (ativo) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); });
-  $('#pageTag').textContent = TAGS[state.route] || 'COMUNICAR';
+  $$('.nav-item').forEach(n => { if (n.dataset.route === state.route) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); });
   const mudouDeTela = !quieto && state._rotaAnunciada !== state.route;
   if (!quieto) { view.classList.add('entrando'); view.innerHTML = esqueleto(state.route); view.setAttribute('aria-busy', 'true'); }
   try {
-    await (ROUTES[state.route] || renderInicio)({ quieto, vez });
+    await (ROUTES[state.route] || renderReguas)({ quieto, vez });
     if (vez === state._vez && !quieto) {
       clearTimeout(state._entraTimer);
       state._entraTimer = setTimeout(() => view.classList.remove('entrando'), 1200);
@@ -305,7 +283,7 @@ async function route(r, opts = {}) {
   }
   if (vez !== state._vez) return;
   /* acessibilidade (rodada 4): título da aba, aviso para leitor de tela e foco no título da tela nova */
-  const nomeTela = NOMES_TELA[state.route] || 'Início';
+  const nomeTela = NOMES_TELA[state.route] || 'Réguas';
   document.title = `${nomeTela} · IndyCar Comunicar`;
   if (mudouDeTela) {
     state._rotaAnunciada = state.route;
@@ -313,174 +291,8 @@ async function route(r, opts = {}) {
     if (state._focarTela) { const h = $('h2', view); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll:true }); } }
     state._focarTela = true;
   }
-  if (state.route !== 'inicio') refreshBadge();
 }
-const NOMES_TELA = { inicio:'Início', reguas:'Réguas', mensagens:'Mensagens', campanhas:'Campanhas', clientes:'Clientes', satisfacao:'Satisfação' };
-
-/* Selo da fila: só a contagem (antes baixava até 500 mensagens para contar). */
-async function refreshBadge(pendentes) {
-  try {
-    const n = Number.isFinite(pendentes) ? pendentes : (await api('GET', '/fila/contagem')).pendentes;
-    const b = $('#badgeFila'); b.textContent = n > 99 ? '99+' : n; b.hidden = !n;
-    b.setAttribute('aria-label', `${n} na fila`);
-  } catch { /* sem badge */ }
-}
-
-// ============================================================================
-// INÍCIO
-// ============================================================================
-async function renderInicio({ quieto } = {}) {
-  const vez = state._vez;
-  /* O status do WhatsApp consulta o CodeWords (pode levar segundos): a tela
-     pinta primeiro com "verificando…" e o item é preenchido quando chegar. */
-  const waPromise = api('GET', '/whatsapp/status').catch(() => ({ ok:false, erro:'sem resposta' }));
-  const [r, saude] = await Promise.all([api('GET', '/resumo'), api('GET', '/saude').catch(() => null)]);
-  if (vez !== state._vez) return;
-  const detalhesAbertos = quieto && $('.inicio-detalhes', view)?.open;
-  const acoesAbertas = quieto && $('.inicio-mais-acoes', view)?.open;
-  const s = r.satisfacao || {};
-  const hoje = new Date();
-
-  let titulo;
-  if (r.pausaGeral) titulo = `Envios pausados <span>· ligue de novo em Réguas › Envio</span>`;
-  else if (r.pendentes) titulo = `${plural(r.pendentes, 'mensagem', 'mensagens')} na fila <span>· ${r.enviadosHoje} saíram hoje</span>`;
-  else titulo = `Fila limpa <span>· ${plural(r.enviadosHoje, 'mensagem saiu', 'mensagens saíram')} hoje</span>`;
-
-  // WhatsApp: conectado / desconectado / chave recusada / sem resposta
-  const htmlWhatsapp = (wa) => {
-    if (!wa) return '<span class="dot"></span><span>WhatsApp <b>verificando…</b></span>';
-    let dot = 'off', txt = 'WhatsApp <b>desconectado</b>';
-    if (wa.chaveRecusada) { txt = 'WhatsApp <b>parado: chave recusada</b>. Troque a chave em Atendimento › Configurações › Integrações.'; }
-    else if (wa.conectado) { dot = 'on'; txt = `WhatsApp <b>conectado</b>${wa.numero ? ` · ${esc(telBR(wa.numero))}` : ''}`; }
-    else if (wa.ok === false) { dot = 'warn'; txt = 'WhatsApp <b>sem resposta</b>'; }
-    return `<span class="dot ${dot}"></span><span>${txt}</span>`;
-  };
-  const ultima = saude?.ultimaRodada?.em
-    ? `carteiro rodou <b>${esc(relativo(saude.ultimaRodada.em))}</b>${saude.ultimaRodada.resultado?.enviados ? ` · ${saude.ultimaRodada.resultado.enviados} enviadas` : ''}`
-    : (r.carteiroConfigurado ? 'carteiro <b>ainda não rodou</b> desde que o servidor acordou' : 'carteiro externo <b>não configurado</b>');
-  refreshBadge(r.pendentes);
-  const janela = `envia das <b>${r.janela?.inicio}h às ${r.janela?.fim}h</b>${r.janela?.domingo ? '' : ' · sem domingo'}`;
-  const ligadas = (r.reguasLigadas || []);
-  const chips = ligadas.length
-    ? ligadas.map(t => `<span class="chip on" title="${esc(TIPO[t]?.rotulo || t)}">${TIPO[t]?.emoji || ''} ${esc(TIPO[t]?.rotulo || t)}</span>`).join('')
-    : '<span class="chip">nenhuma régua ligada</span>';
-
-  const porRegua = Object.entries(r.porRegua || {});
-  const linhasRegua = porRegua.length ? porRegua.map(([tipo, v]) => `<div class="pr-l${v.ligada === false ? ' off' : ''}">
-      <span class="pr-n"><span class="tipo-ico" aria-hidden="true">${TIPO[tipo]?.emoji || '✉️'}</span><b>${esc(v.rotulo || TIPO[tipo]?.rotulo || tipo)}</b>
-        ${v.ligada === true ? '<span class="chip on">ligada</span>' : v.ligada === false ? '<span class="chip">desligada</span>' : ''}</span>
-      <span class="num${v.enviadas ? '' : ' zero'}">${v.enviadas}</span>
-      <span class="num${v.respondidas ? '' : ' zero'}">${v.respondidas}${v.pararam ? `<small>${v.pararam} pediu p/ parar</small>` : ''}</span>
-      <span class="num${v.agendaram ? '' : ' zero'}">${v.agendaram}</span>
-    </div>`).join('') : vazio(I.regua, 'Nada enviado nos últimos 30 dias', 'Confira a conexão do WhatsApp e as réguas.');
-
-  const aniv = r.aniversariantesDoMes || [];
-  const mesNome = hoje.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', month:'long' });
-
-  view.innerHTML = `
-    <div class="hero-dia">
-      <div><h2 class="hero-titulo">${titulo}</h2></div>
-      <div class="hero-acoes">
-        <button type="button" class="btn primary" id="btnPrevia">Prévia de hoje</button>
-        <details class="inicio-mais-acoes"${acoesAbertas ? ' open' : ''}>
-          <summary>Mais ações</summary>
-        <button type="button" class="btn" id="btnMes">${svg(I.calendar)} Próximos 30 dias</button>
-        ${pode('rodar') ? `<button type="button" class="btn" id="btnRodar">${svg(I.play)} Rodar agora</button>` : ''}
-        </details>
-      </div>
-    </div>
-    <div class="faixa-equipe" id="faixaEquipe" hidden></div>
-    <div id="painelPronto"></div>
-
-    <div class="situacao${r.pausaGeral ? ' pausada' : ''}" role="status">
-      ${r.pausaGeral ? `<span class="item"><span class="dot off"></span><b style="color:var(--red-txt)">PAUSA GERAL ligada</b></span><span class="sep"></span>` : ''}
-      <span class="item" id="waItem">${htmlWhatsapp(null)}</span>
-      <span class="sep"></span><button type="button" class="item item-btn" id="btnCarteiro" title="Ver as últimas rodadas do carteiro">${svg(I.clock)} <span>${ultima}</span></button>
-      <span class="sep"></span><span class="item">${janela}</span>
-      ${r.falhas ? `<span class="sep"></span><span class="item" title="${esc(r.ultimoErro || '')}"><span class="dot warn"></span><span><b>${r.falhas}</b> falharam em 30 dias</span></span>` : ''}
-      <span class="sep"></span><span class="item chips">${chips}</span>
-    </div>
-
-    <div class="stat-grid">
-      ${statCard('orange', r.pendentes, 'Na fila', I.clock, { sub: r.vencidos ? `<span style="color:var(--orange-txt)">${plural(r.vencidos, 'atrasada', 'atrasadas')} há mais de 2 h</span>` : 'tudo no horário' })}
-      ${statCard('green', r.semana?.enviadas ?? 0, 'Enviadas · 7 dias', I.send, { sub:`${r.enviadosHoje} hoje` })}
-      ${statCard('blue', r.semana?.respondidas ?? 0, 'Responderam · 7 dias', I.wa, { sub: r.semana?.enviadas ? `${Math.round((r.semana.respondidas / r.semana.enviadas) * 100)}% das enviadas` : 'ninguém ainda' })}
-      ${statCard('purple', r.mes30?.agendaram ?? 0, 'Agendaram pela mensagem · 30 dias', I.calendar, { sub: r.mes30?.receita ? `${esc(dinheiro(r.mes30.receita))} em serviços concluídos` : (r.mes30?.concluidos ? `${r.mes30.concluidos} já concluídos` : 'retorno das réguas') })}
-      ${statCard('wa', s.pct === null || s.pct === undefined ? '—' : s.pct, 'Satisfação', I.smile, { sufixo:'%', sub: s.notaMedia ? `nota média ${String(s.notaMedia).replace('.', ',')} · ${s.total} respostas` : `${s.total || 0} respostas` })}
-    </div>
-
-    <details class="inicio-detalhes"${detalhesAbertos ? ' open' : ''}>
-      <summary>Mais indicadores</summary>
-    <div class="cols ia-cols" id="iaLinha">
-      <div class="panel ia-panel-resumo"><div class="panel-head"><h2><span class="ia-selo">✨ IA</span> Resumo da semana</h2><span class="panel-sub">cache de 6 h</span></div>
-        <div class="panel-body" id="iaResumo"><div class="skel" style="height:72px"></div></div></div>
-      <div class="panel"><div class="panel-head"><h2><span class="ia-selo">✨ IA</span> Quem respondeu</h2><span class="panel-sub">7 dias</span></div>
-        <div class="panel-body" id="iaIntencoes"><div class="skel" style="height:72px"></div></div></div>
-    </div>
-
-    <div class="cols larga">
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.regua)} Por régua</h2><span class="panel-sub">últimos 30 dias</span><button type="button" class="btn btn-mini" id="btnRelatorio">📊 Relatório</button></div>
-        <div class="pr"><div class="pr-h"><span>Régua</span><span><i class="l">Enviadas</i><i class="c">Env.</i></span><span><i class="l">Responderam</i><i class="c">Resp.</i></span><span><i class="l">Agendaram</i><i class="c">Agend.</i></span></div>
-          ${linhasRegua}</div>
-      </div>
-      <div class="pilha">
-        <div class="panel">
-          <div class="panel-head"><h2>${svg(I.clock)} Próximas 48 h</h2></div>
-          <div class="panel-body">
-            <div class="destaque"><span class="n ${r.proximos48h ? 'red' : ''}">${r.proximos48h ?? 0}</span>
-              <div class="t"><b>${plural(r.proximos48h ?? 0, 'horário marcado', 'horários marcados')}</b>
-              <small>${ligadas.includes('lembrete') ? `cada um recebe o lembrete ${state.cfg?.horas_lembrete || ''}${state.cfg?.horas_lembrete ? ' h' : ''} antes` : 'a régua <b>Lembrete de horário</b> está desligada'}</small></div></div>
-            ${r.foraDaLista ? `<div class="dica">${svg(I.user)} ${plural(r.foraDaLista, 'cliente pediu', 'clientes pediram')} para não receber mensagens — eles ficam fora de tudo.</div>` : ''}
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><h2>${svg(I.gift)} Aniversariantes de ${esc(mesNome)}</h2><span class="badge-pill bp-gray">${aniv.length}</span></div>
-          <div class="panel-body lista" id="listaAniv">
-            ${aniv.length ? aniv.slice(0, 8).map(a => `<div class="ag-linha"><span class="d">${String(a.dia).padStart(2, '0')}</span>
-                <span class="s"><b>${esc(a.nome)}</b></span><small class="muted">${esc(telBR(a.telefone))}</small></div>`).join('')
-              + (aniv.length > 8 ? `<button type="button" class="btn ghost btn-mini" data-ir="clientes">ver todos os ${aniv.length} em Clientes ${svg(I.seta)}</button>` : '')
-              : vazio(I.gift, 'Nenhum aniversário este mês', 'Cadastre as datas em Clientes — dá para importar da planilha.')}
-          </div>
-        </div>
-      </div>
-    </div>
-    </details>`;
-
-  animarNumeros(view);
-  carregarLinhaIA();
-  $('#btnRelatorio')?.addEventListener('click', () => abrirRelatorio('todas'));
-  const waItem = $('#waItem', view);
-  waPromise.then(wa => {
-    if (waItem?.isConnected) waItem.innerHTML = htmlWhatsapp(wa);
-  });
-  $('#btnRodar')?.addEventListener('click', rodarAgora);
-  $('#btnPrevia').addEventListener('click', () => abrirPrevia());
-  $('#btnMes').addEventListener('click', () => window.R4?.abrirMes());
-  $('#btnCarteiro').addEventListener('click', () => window.R4?.abrirCarteiro());
-  pintarFaixaEquipe();
-  window.R4?.pintarInicio();
-  window.R5?.pintarSaude();
-  window.R6?.pintarInicio();
-  window.R7?.pintarInicio();
-  $$('[data-ir]', view).forEach(b => b.addEventListener('click', () => route(b.dataset.ir)));
-}
-
-async function rodarAgora() {
-  const btn = $('#btnRodar'); if (!btn) return;
-  btn.disabled = true; btn.innerHTML = `${svg(I.refresh)} Rodando…`;
-  try {
-    const res = await api('POST', '/rodar-agora');
-    const g = res.gerado || {};
-    const partes = [];
-    partes.push(g.criados ? plural(g.criados, 'mensagem nova na fila', 'mensagens novas na fila') : 'nada novo para gerar');
-    if (res.enviados) partes.push(plural(res.enviados, 'enviada', 'enviadas'));
-    if (res.falhas) partes.push(plural(res.falhas, 'falhou', 'falharam'));
-    if (g.pulados) partes.push(plural(g.pulados, 'pulada', 'puladas'));
-    toast(partes.join(' · ') + (res.aviso ? ` — ${res.aviso}` : ''), res.falhas || res.aviso ? 'err' : 'ok', 6000);
-    await route(null, { quieto:true });
-  } catch (e) { toast(e.message, 'err'); if (btn.isConnected) { btn.disabled = false; btn.innerHTML = `${svg(I.play)} Rodar agora`; } }
-}
+const NOMES_TELA = { reguas:'Réguas', mensagens:'Mensagens', campanhas:'Campanhas', clientes:'Clientes', ajustes:'Ajustes' };
 
 /* Prévia: o que as réguas enfileirariam agora, sem gravar nada. */
 async function abrirPrevia(regua = null) {
@@ -521,137 +333,34 @@ async function abrirPrevia(regua = null) {
 }
 
 // ============================================================================
-// RÉGUAS — réguas automáticas + envio
+// RÉGUAS (ligar, ver a mensagem, próxima saída) e AJUSTES (envio, prazos, cuidado)
+// As duas telas mexem na mesma configuração e salvam do mesmo jeito.
 // ============================================================================
-async function renderReguas({ vez = state._vez } = {}) {
+async function carregarConfig(vez) {
   const [cfg, regras] = await Promise.all([api('GET', '/comunicar/config'), api('GET', '/regras-retorno').catch(() => null)]);
-  if (vez !== state._vez) return;
+  if (vez !== state._vez) return false;
   state.cfg = cfg; state.cfgEdit = {}; state.regras = regras;
-  const regrasHtml = regras ? htmlRegras(regras, ehGestor()) : '<p role="status">Não deu para carregar os prazos por serviço.</p><button type="button" class="btn" id="btnRecarregarRegras">Tentar de novo</button>';
   /* rodada 4: alterações que não foram salvas (aba fechada, servidor dormindo) voltam */
   const rascunho = ehGestor() ? window.R4?.lerRascunhoReguas(cfg) : null;
   if (rascunho && Object.keys(rascunho).length) { state.cfgEdit = rascunho; state._rascunhoRestaurado = Object.keys(rascunho).length; }
-  const gestor = ehGestor();
-  const v = (campo) => state.cfgEdit[campo] !== undefined ? state.cfgEdit[campo] : cfg[campo];
-  const horas = Array.from({ length:25 }, (_, i) => i);
-
-  const cartao = (tipo) => {
-    const t = TIPO[tipo]; const ativo = !!v(`ativo_${tipo}`);
-    const vars = [...VARS_COMUNS, ...(t.vars || []), ...(VARS_LINK[tipo] || [])];
-    const p = t.param;
-    const silencio = RESPEITA_SILENCIO.has(tipo);
-    return `<article class="regua c-${t.cor}${ativo ? '' : ' off'}" data-regua="${tipo}">
-      <div class="regua-head">
-        <div class="regua-titulo"><span class="regua-ico" aria-hidden="true">${t.emoji}</span>
-          <div><h3>${esc(t.rotulo)}</h3><p>${esc(t.desc)}</p>
-            <div class="regua-meta"><span class="chip" title="Quando a fila acumula (WhatsApp voltou), sai nesta ordem: pátio pronto › lembrete › pós-venda › … › campanha">prioridade ${PRIORIDADE[tipo] || '—'}</span>${silencio ? `<span class="chip chip-sil" title="Não sai para quem recebeu outra mensagem de relacionamento há menos de ${esc(v('intervalo_minimo_dias'))} dias (janela de silêncio)">silêncio ${esc(v('intervalo_minimo_dias'))} d</span>` : '<span class="chip on" title="Sai na hora certa, mesmo que o cliente tenha recebido outra mensagem há pouco">não espera silêncio</span>'}</div></div></div>
-        <label class="sw"><input type="checkbox" data-cfg="ativo_${tipo}" ${ativo ? 'checked' : ''} ${gestor ? '' : 'disabled'} aria-label="Ligar ${esc(t.rotulo)}"><span class="tr"></span><span class="sw-txt">${ativo ? 'Ligada' : 'Desligada'}</span></label>
-      </div>
-      <div class="regua-corpo">
-        ${p ? `<div class="param"><span>${esc(p.antes)}</span>
-          <input type="number" inputmode="numeric" min="${p.min}" max="${p.max}" step="1" value="${esc(v(p.campo))}" data-cfg="${p.campo}" aria-label="${esc(p.antes + ' ' + p.depois)}" ${gestor ? '' : 'disabled'}>
-          <span>${esc(p.depois)}</span><span class="faixa-dica">${p.min}–${p.max}</span></div>` : ''}
-        ${tipo === 'avaliacao' ? `<div class="field"><label for="cfg_link">Link da avaliação no Google</label>
-          <input id="cfg_link" type="url" placeholder="https://g.page/r/…" value="${esc(v('link_avaliacao'))}" data-cfg="link_avaliacao" ${gestor ? '' : 'disabled'}></div>
-          <div class="regua-nota">${svg(I.alerta)}<span>Dispara sozinha, uns minutos depois de o cliente responder bem ao pós-venda. Sem o link, não sai.</span></div>` : ''}
-        <div class="field"><label for="msg_${tipo}">Mensagem</label>
-          <textarea id="msg_${tipo}" data-cfg="msg_${tipo}" maxlength="1000" ${gestor ? '' : 'disabled'}>${esc(v(`msg_${tipo}`))}</textarea>
-          <div class="var-chips" aria-label="Variáveis: clique para inserir">${vars.map(x => `<button type="button" class="var-chip${(t.vars || []).includes(x) ? ' esp' : ''}${(VARS_LINK[tipo] || []).includes(x) ? ' link' : ''}" data-var="${x}" data-alvo="msg_${tipo}" ${gestor ? '' : 'disabled'} title="${x === 'link_os' ? 'Link para o cliente acompanhar a ordem do Pátio deste horário (sem ordem, a mensagem não sai)' : x === 'link_area' ? 'Link da Área do Cliente — um link só dele (sem cadastro, a mensagem não sai)' : ''}">{${x}}</button>`).join('')}
-            <button type="button" class="var-chip ia-chip" data-ia="${tipo}" ${gestor ? '' : 'disabled'} title="Gera 3 opções no tom da casa">✨ Escrever com IA</button></div>
-          <div class="ia-box" data-ia-box="${tipo}" hidden></div></div>
-        <div class="previa"><small>Prévia · como a ${esc(EXEMPLO.nome.split(' ')[0])} vê no celular <button type="button" class="link-mini" data-previa-real="${tipo}" title="Escolher um cliente de verdade e ver a mensagem dele (com os links dele)">ver como um cliente real</button></small>${celularWA(`<div class="bolha wa-rec" data-previa="${tipo}"></div>`)}</div>
-        ${tipo === 'retorno' ? `<div class="regras" id="regrasBox">${regrasHtml}</div>` : ''}
-        <div class="regua-acoes">
-          ${tipo !== 'avaliacao' ? `<button type="button" class="btn" data-quem="${tipo}">${svg(I.olho)} Quem receberia hoje</button>` : ''}
-          <button type="button" class="btn wa" data-teste="${tipo}" ${gestor ? '' : 'disabled'}>${svg(I.wa)} Mandar teste para mim</button>
-          <button type="button" class="btn" data-relatorio="${tipo}">📊 Relatório</button>
-          ${tipo === 'aniversario' ? `<button type="button" class="btn" id="btnAnivBase">${svg(I.gift)} Puxar do CRM</button>` : ''}
-        </div>
-      </div>
-    </article>`;
-  };
-
-  view.innerHTML = `
-    <div class="toolbar">
-      <div class="left"><h2>Réguas automáticas</h2>
-        ${gestor ? '' : `<span class="so-gestor">${svg(I.alerta)} Só gestor altera as réguas — você pode olhar.</span>`}</div>
+  return true;
+}
+const valorCfg = (campo) => (state.cfgEdit[campo] !== undefined ? state.cfgEdit[campo] : state.cfg[campo]);
+const travado = () => (ehGestor() ? '' : 'disabled');
+const topoConfig = (titulo) => `<div class="toolbar">
+      <div class="left"><h2>${titulo}</h2>
+        ${ehGestor() ? '' : '<span class="so-gestor">Só gestor altera.</span>'}</div>
       <div class="right"><button type="button" class="btn primary" id="btnSalvarTopo" disabled>${svg(I.check)} Salvar</button></div>
-    </div>
-
-    <section class="panel envio-cfg">
-      <div class="panel-head"><h2>${svg(I.send)} Envio</h2><span class="panel-sub">vale para todas as réguas</span></div>
-      <div class="panel-body">
-        <div class="campos-linha">
-          <div class="field curto"><label for="cfg_hora">Hora de envio</label><input id="cfg_hora" type="time" value="${esc(v('hora_envio'))}" data-cfg="hora_envio" ${gestor ? '' : 'disabled'}></div>
-          <div class="field"><label for="cfg_ji">Janela (nunca fora dela)</label>
-            <div class="janela"><select id="cfg_ji" data-cfg="janela_inicio" ${gestor ? '' : 'disabled'} aria-label="Início da janela">${horas.slice(0, 24).map(h => `<option value="${h}" ${h === Number(v('janela_inicio')) ? 'selected' : ''}>${h}h</option>`).join('')}</select>
-              <i>até</i><select data-cfg="janela_fim" ${gestor ? '' : 'disabled'} aria-label="Fim da janela">${horas.slice(1).map(h => `<option value="${h}" ${h === Number(v('janela_fim')) ? 'selected' : ''}>${h}h</option>`).join('')}</select></div></div>
-          <div class="field curto"><label for="cfg_int">Intervalo mínimo</label>
-            <input id="cfg_int" type="number" inputmode="numeric" min="0" max="60" value="${esc(v('intervalo_minimo_dias'))}" data-cfg="intervalo_minimo_dias" ${gestor ? '' : 'disabled'}>
-            <small>dias entre duas mensagens de relacionamento para o mesmo cliente</small></div>
-          <div class="field curto"><label for="cfg_lim">Limite por hora</label>
-            <input id="cfg_lim" type="number" inputmode="numeric" min="1" max="500" value="${esc(v('limite_por_hora') ?? 60)}" data-cfg="limite_por_hora" ${gestor ? '' : 'disabled'}>
-            <small>mensagens no máximo — sem cara de disparo</small></div>
-          <div class="field curto"><label for="cfg_min">Por minuto</label>
-            <input id="cfg_min" type="number" inputmode="numeric" min="1" max="60" value="${esc(v('limite_por_minuto') ?? 10)}" data-cfg="limite_por_minuto" ${gestor ? '' : 'disabled'}>
-            <small>cadência entre uma mensagem e outra</small></div>
-          <div class="field curto"><label for="cfg_dia">Por dia</label>
-            <input id="cfg_dia" type="number" inputmode="numeric" min="1" max="5000" value="${esc(v('limite_por_dia') ?? 300)}" data-cfg="limite_por_dia" ${gestor ? '' : 'disabled'}>
-            <small>campanha maior é escalonada nos dias seguintes</small></div>
-          <div class="field curto"><label for="cfg_mc">Mesmo cliente</label>
-            <input id="cfg_mc" type="number" inputmode="numeric" min="0" max="1440" value="${esc(v('intervalo_mesmo_cliente_min') ?? 60)}" data-cfg="intervalo_mesmo_cliente_min" ${gestor ? '' : 'disabled'}>
-            <small>minutos entre dois avisos para a mesma pessoa</small></div>
-          <div class="field curto"><span class="rot">Só horário da loja</span>
-            <label class="sw" style="padding:9px 0" title="Seg–sáb, 8h às 17h30: fora disso o carteiro espera a loja abrir"><input type="checkbox" aria-label="Limitar ao horário da loja" data-cfg="so_horario_comercial" ${v('so_horario_comercial') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('so_horario_comercial') ? 'Seg–sáb 8h–17h30' : 'Janela acima'}</span></label></div>
-          <div class="field"><label for="cfg_tel">Telefone de teste</label><input id="cfg_tel" type="tel" inputmode="tel" placeholder="(12) 99999-9999" value="${esc(telBR(v('telefone_teste')) === '—' ? '' : telBR(v('telefone_teste')))}" data-cfg="telefone_teste" ${gestor ? '' : 'disabled'}></div>
-          <div class="field curto"><span class="rot">Domingo</span>
-            <label class="sw" style="padding:9px 0"><input type="checkbox" aria-label="Enviar aos domingos" data-cfg="envia_domingo" ${v('envia_domingo') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('envia_domingo') ? 'Envia' : 'Não envia'}</span></label></div>
-        </div>
-        <div class="pausa${v('pausa_geral') ? ' ligada' : ''}" id="pausaBox">
-          <div class="p-txt"><b>${svg(I.pausa)} Pausa geral</b><small>Segura TODOS os envios automáticos. A fila continua se formando; nada sai até desligar.</small></div>
-          <label class="sw vermelho"><input type="checkbox" aria-label="Pausa geral de envios" data-cfg="pausa_geral" ${v('pausa_geral') ? 'checked' : ''} ${gestor ? '' : 'disabled'}><span class="tr"></span><span class="sw-txt">${v('pausa_geral') ? 'Pausado' : 'Enviando'}</span></label>
-        </div>
-      </div>
-    </section>
-
-    <div class="reguas-grid">${REGUAS.map(cartao).join('')}</div>
-    <div class="barra-salvar" id="barraSalvar" hidden>
+    </div>`;
+const barraSalvar = () => `<div class="barra-salvar" id="barraSalvar" hidden>
       <div class="b-txt" role="status"><span class="n" id="nAlteracoes">0</span><span id="txtAlteracoes">alterações sem salvar</span></div>
       <div class="b-acoes"><button type="button" class="btn" id="btnDescartar">Descartar</button><button type="button" class="btn primary" id="btnSalvar">${svg(I.check)} Salvar</button></div>
     </div>`;
-
-  REGUAS.forEach(atualizarPrevia);
+function ligarSalvar(rota) {
   ligarCamposConfig();
-  ligarRegras();
-  $('#btnRecarregarRegras')?.addEventListener('click', async (btnEvent) => {
-    const btn = btnEvent.currentTarget;
-    btn.disabled = true;
-    try {
-      const lista = await api('GET', '/regras-retorno');
-      if (!btn.isConnected) return;
-      state.regras = lista;
-      $('#regrasBox').innerHTML = htmlRegras(lista, gestor);
-      ligarRegras();
-      $('#regrasBox').querySelector('input:not(:disabled), button:not(:disabled)')?.focus();
-    } catch {
-      if (btn.isConnected) toast('Ainda não deu para carregar os prazos por serviço.', 'err');
-    } finally { btn.disabled = false; }
-  });
-  $$('[data-quem]', view).forEach(b => b.addEventListener('click', () => abrirPrevia(b.dataset.quem)));
-  $$('[data-teste]', view).forEach(b => b.addEventListener('click', () => mandarTeste(b)));
   $('#btnSalvar').addEventListener('click', salvarConfig);
   $('#btnSalvarTopo').addEventListener('click', salvarConfig);
-  $('#btnDescartar').addEventListener('click', () => {
-    window.R4?.guardarRascunhoReguas({});
-    route('reguas');
-  });
-  $$('[data-ia]', view).forEach(b => b.addEventListener('click', () => {
-    const tipo = b.dataset.ia, ta = $(`#msg_${tipo}`);
-    painelEscreverIA($(`[data-ia-box="${tipo}"]`, view), { regua: tipo, lerTexto: () => ta.value,
-      aplicar: (t) => { ta.value = t; ta.dispatchEvent(new Event('input', { bubbles:true })); ta.focus(); } });
-  }));
-  $$('[data-relatorio]', view).forEach(b => b.addEventListener('click', () => abrirRelatorio(b.dataset.relatorio)));
-  $('#btnAnivBase')?.addEventListener('click', () => (window.R4 ? window.R4.abrirAniversarios() : abrirAniversariosBase()));
+  $('#btnDescartar').addEventListener('click', () => { window.R4?.guardarRascunhoReguas({}); route(rota); });
   if (state._rascunhoRestaurado) {
     // a tela nasceu com os valores salvos: reaplica o rascunho nos campos e mostra a barra
     for (const [campo, valor] of Object.entries(state.cfgEdit)) {
@@ -662,10 +371,108 @@ async function renderReguas({ vez = state._vez } = {}) {
     toast(`Voltaram ${plural(state._rascunhoRestaurado, 'alteração', 'alterações')} que você não tinha salvado.`, 'ok', 5000);
     state._rascunhoRestaurado = 0;
   }
+  atualizarBarra();
+}
+
+async function renderReguas({ vez = state._vez } = {}) {
+  if (!(await carregarConfig(vez))) return;
+  const v = valorCfg, trava = travado();
+  const cartao = (tipo) => {
+    const t = TIPO[tipo]; const ativo = !!v(`ativo_${tipo}`);
+    const vars = [...VARS_COMUNS, ...(t.vars || []), ...(VARS_LINK[tipo] || [])];
+    const p = t.param;
+    return `<article class="regua${ativo ? '' : ' off'}" data-regua="${tipo}">
+      <div class="regua-head">
+        <div class="regua-titulo"><span class="regua-ico" aria-hidden="true">${t.emoji}</span>
+          <div><h3>${esc(t.rotulo)}</h3><p>${esc(t.desc)}</p>
+            <p class="regua-proxima" data-proxima="${tipo}">${ativo ? 'Próxima saída: calculando…' : 'Desligada: nada sai.'}</p></div></div>
+        <label class="sw"><input type="checkbox" data-cfg="ativo_${tipo}" ${ativo ? 'checked' : ''} ${trava} aria-label="Ligar ${esc(t.rotulo)}"><span class="tr"></span><span class="sw-txt">${ativo ? 'Ligada' : 'Desligada'}</span></label>
+      </div>
+      <div class="regua-corpo">
+        ${p ? `<div class="param"><span>${esc(p.antes)}</span>
+          <input type="number" inputmode="numeric" min="${p.min}" max="${p.max}" step="1" value="${esc(v(p.campo))}" data-cfg="${p.campo}" aria-label="${esc(p.antes + ' ' + p.depois)}" ${trava}>
+          <span>${esc(p.depois)}</span></div>` : ''}
+        ${tipo === 'avaliacao' ? `<div class="field"><label for="cfg_link">Link da avaliação no Google (sem ele, não sai)</label>
+          <input id="cfg_link" type="url" placeholder="https://g.page/r/…" value="${esc(v('link_avaliacao'))}" data-cfg="link_avaliacao" ${trava}></div>` : ''}
+        <div class="previa">${celularWA(`<div class="bolha wa-rec" data-previa="${tipo}"></div>`, { mini:true })}</div>
+        <details class="regua-editar"><summary>Editar mensagem</summary>
+          <div class="field"><label for="msg_${tipo}">Mensagem</label>
+          <textarea id="msg_${tipo}" data-cfg="msg_${tipo}" maxlength="1000" ${trava}>${esc(v(`msg_${tipo}`))}</textarea>
+          <div class="var-chips" aria-label="Variáveis: clique para inserir">${vars.map(x => `<button type="button" class="var-chip" data-var="${x}" data-alvo="msg_${tipo}" ${trava}>{${x}}</button>`).join('')}</div></div>
+        </details>
+        <div class="regua-acoes">
+          ${tipo !== 'avaliacao' ? `<button type="button" class="btn btn-mini" data-quem="${tipo}">Quem receberia hoje</button>` : ''}
+          <button type="button" class="btn btn-mini" data-teste="${tipo}" ${trava}>Mandar teste para mim</button>
+        </div>
+      </div>
+    </article>`;
+  };
+
+  view.innerHTML = `
+    ${topoConfig('Réguas automáticas')}
+    <div class="reguas-grid">${REGUAS.map(cartao).join('')}</div>
+    ${barraSalvar()}`;
+
+  REGUAS.forEach(atualizarPrevia);
+  $$('[data-quem]', view).forEach(b => b.addEventListener('click', () => abrirPrevia(b.dataset.quem)));
+  $$('[data-teste]', view).forEach(b => b.addEventListener('click', () => mandarTeste(b)));
+  window.R6?.pintarReguas('reguas');
+  window.R7?.pintarReguas('reguas');
+  ligarSalvar('reguas');
   window.R4?.pintarReguas();
-  window.R5?.pintarReguas();
-  window.R6?.pintarReguas();
-  window.R7?.pintarReguas();
+}
+
+async function renderAjustes({ vez = state._vez } = {}) {
+  if (!(await carregarConfig(vez))) return;
+  const v = valorCfg, trava = travado();
+  const regras = state.regras;
+  const regrasHtml = regras ? htmlRegras(regras, ehGestor()) : '<p role="status">Não deu para carregar os prazos por serviço.</p><button type="button" class="btn" id="btnRecarregarRegras">Tentar de novo</button>';
+  const horas = Array.from({ length:25 }, (_, i) => i);
+  view.innerHTML = `
+    ${topoConfig('Ajustes')}
+    <section class="panel envio-cfg">
+      <div class="panel-head"><h2>Envio</h2></div>
+      <div class="panel-body">
+        <div class="pausa${v('pausa_geral') ? ' ligada' : ''}" id="pausaBox">
+          <div class="p-txt"><b>Pausa geral</b><small>Segura todos os envios automáticos até desligar.</small></div>
+          <label class="sw vermelho"><input type="checkbox" aria-label="Pausa geral de envios" data-cfg="pausa_geral" ${v('pausa_geral') ? 'checked' : ''} ${trava}><span class="tr"></span><span class="sw-txt">${v('pausa_geral') ? 'Pausado' : 'Enviando'}</span></label>
+        </div>
+        <div class="campos-linha">
+          <div class="field curto"><label for="cfg_hora">Hora de envio</label><input id="cfg_hora" type="time" value="${esc(v('hora_envio'))}" data-cfg="hora_envio" ${trava}></div>
+          <div class="field"><label for="cfg_ji">Janela (nunca fora dela)</label>
+            <div class="janela"><select id="cfg_ji" data-cfg="janela_inicio" ${trava} aria-label="Início da janela">${horas.slice(0, 24).map(h => `<option value="${h}" ${h === Number(v('janela_inicio')) ? 'selected' : ''}>${h}h</option>`).join('')}</select>
+              <i>até</i><select data-cfg="janela_fim" ${trava} aria-label="Fim da janela">${horas.slice(1).map(h => `<option value="${h}" ${h === Number(v('janela_fim')) ? 'selected' : ''}>${h}h</option>`).join('')}</select></div></div>
+          <div class="field curto"><span class="rot">Domingo</span>
+            <label class="sw" style="padding:9px 0"><input type="checkbox" aria-label="Enviar aos domingos" data-cfg="envia_domingo" ${v('envia_domingo') ? 'checked' : ''} ${trava}><span class="tr"></span><span class="sw-txt">${v('envia_domingo') ? 'Envia' : 'Não envia'}</span></label></div>
+          <div class="field curto"><label for="cfg_int">Dias entre duas mensagens</label>
+            <input id="cfg_int" type="number" inputmode="numeric" min="0" max="60" value="${esc(v('intervalo_minimo_dias'))}" data-cfg="intervalo_minimo_dias" ${trava}></div>
+          <div class="field"><label for="cfg_tel">Telefone de teste</label><input id="cfg_tel" type="tel" inputmode="tel" placeholder="(12) 99999-9999" value="${esc(telBR(v('telefone_teste')) === '—' ? '' : telBR(v('telefone_teste')))}" data-cfg="telefone_teste" ${trava}></div>
+        </div>
+      </div>
+    </section>
+    <section class="panel"><div class="panel-head"><h2>Prazo de revisão por serviço</h2></div>
+      <div class="panel-body"><div class="regras" id="regrasBox">${regrasHtml}</div></div></section>
+    <div class="reguas-grid" hidden></div>
+    ${barraSalvar()}`;
+
+  ligarRegras();
+  $('#btnRecarregarRegras')?.addEventListener('click', async (btnEvent) => {
+    const btn = btnEvent.currentTarget;
+    btn.disabled = true;
+    try {
+      const lista = await api('GET', '/regras-retorno');
+      if (!btn.isConnected) return;
+      state.regras = lista;
+      $('#regrasBox').innerHTML = htmlRegras(lista, ehGestor());
+      ligarRegras();
+      $('#regrasBox').querySelector('input:not(:disabled), button:not(:disabled)')?.focus();
+    } catch {
+      if (btn.isConnected) toast('Ainda não deu para carregar os prazos por serviço.', 'err');
+    } finally { btn.disabled = false; }
+  });
+  window.R6?.pintarReguas('ajustes');
+  window.R7?.pintarReguas('ajustes');
+  ligarSalvar('ajustes');
 }
 
 /* Lê o valor de um campo de configuração do jeito que o servidor espera. */
@@ -692,9 +499,7 @@ function ligarCamposConfig() {
       if (campo.startsWith('ativo_')) { card.classList.toggle('off', !novo); $('.sw-txt', card).textContent = novo ? 'Ligada' : 'Desligada'; }
       if (campo === 'pausa_geral') { $('#pausaBox').classList.toggle('ligada', novo); $('#pausaBox .sw-txt').textContent = novo ? 'Pausado' : 'Enviando'; }
       if (campo === 'envia_domingo') el.closest('.sw').querySelector('.sw-txt').textContent = novo ? 'Envia' : 'Não envia';
-      if (campo === 'so_horario_comercial') el.closest('.sw').querySelector('.sw-txt').textContent = novo ? 'Seg–sáb 8h–17h30' : 'Janela acima';
       if (campo === 'hora_envio') REGUAS.forEach(atualizarPrevia);
-      if (campo === 'intervalo_minimo_dias') $$('.regua-meta .chip-sil', view).forEach(ch => { ch.textContent = `silêncio ${novo} d`; });
       if (campo === 'telefone_teste' && ev === 'input') { const f = telBR(novo); if (f !== '—' && soDigitos(novo).length >= 10) el.value = f; }
       if (card) { card.classList.toggle('alterada', Object.keys(state.cfgEdit).some(k => k.endsWith('_' + card.dataset.regua) || k === TIPO[card.dataset.regua]?.param?.campo || (card.dataset.regua === 'avaliacao' && k === 'link_avaliacao'))); atualizarPrevia(card.dataset.regua); }
       atualizarBarra();
@@ -760,8 +565,8 @@ async function salvarConfig() {
     if (vez !== state._vez) return;
     state.cfg = cfg; state.cfgEdit = {};
     window.R4?.guardarRascunhoReguas({});
-    toast('Réguas salvas — valem a partir da próxima rodada.');
-    await route('reguas', { quieto:true });
+    toast('Salvo. Vale a partir da próxima rodada.');
+    await route(state.route, { quieto:true });
   } catch (e) {
     toast(e.status === 403 ? 'Só gestor altera as réguas. Use "Pedir ao gestor".' : `${e.message} Suas alterações continuam guardadas neste aparelho.`, 'err', 6000);
   } finally {
@@ -773,7 +578,7 @@ async function salvarConfig() {
 async function mandarTeste(btn) {
   const tipo = btn.dataset.teste;
   const cfg = { ...state.cfg, ...state.cfgEdit };
-  if (!soDigitos(cfg.telefone_teste) || soDigitos(cfg.telefone_teste).length < 10) { $('#cfg_tel')?.focus(); return toast('Preencha o telefone de teste em Envio (e salve).', 'err'); }
+  if (!soDigitos(cfg.telefone_teste) || soDigitos(cfg.telefone_teste).length < 10) { $('#cfg_tel')?.focus(); return toast('Preencha o telefone de teste em Ajustes (e salve).', 'err'); }
   if (state.cfgEdit.telefone_teste !== undefined) return toast('Salve o telefone de teste antes de mandar o teste.', 'err');
   const corpo = $(`#msg_${tipo}`)?.value?.trim();
   if (!corpo) return toast('Escreva a mensagem antes de testar.', 'err');
@@ -806,8 +611,7 @@ function htmlRegras(regras, gestor) {
       <input class="meses" type="number" min="1" max="36" placeholder="12" data-campo="meses" aria-label="Meses da nova regra">
       <span></span>
       <div class="acoes"><button type="button" class="btn btn-mini primary" data-adicionar>${svg(I.plus)} Adicionar</button></div>
-    </div>` : ''}
-    <div class="dica">O serviço do agendamento é comparado com as palavras (sem acento, sem maiúscula). A primeira regra que casar vence; sem regra, vale o padrão acima.</div>`;
+    </div>` : ''}`;
 }
 function ligarRegras() {
   const box = $('#regrasBox'); if (!box) return;
@@ -919,18 +723,8 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
         <select id="tipoMsg" class="inp" style="width:auto" aria-label="Filtrar por tipo">${tipos.map(t => `<option value="${t}" ${f.tipo === t ? 'selected' : ''}>${t === 'todos' ? 'Todos os tipos' : `${TIPO[t]?.emoji || ''} ${TIPO[t]?.rotulo || t}`}</option>`).join('')}</select>
       </div>
     </div>
-    <div class="filtros-linha">
-      <label class="periodo"><span>De</span><input type="date" id="deMsg" class="inp" value="${esc(f.de)}" aria-label="Desde o dia"></label>
-      <label class="periodo"><span>até</span><input type="date" id="ateMsg" class="inp" value="${esc(f.ate)}" aria-label="Até o dia"></label>
-      <button type="button" class="btn btn-mini ghost" id="limparPeriodo" ${f.de || f.ate ? '' : 'hidden'}>${svg(I.x)} limpar período</button>
-      <select id="intMsg" class="inp" style="width:auto" aria-label="Filtrar pela intenção lida pela IA">
-        <option value="todas">✨ Qualquer resposta</option><option value="qualquer" ${f.intencao === 'qualquer' ? 'selected' : ''}>✨ Lidas pela IA</option>
-        ${Object.entries(INTENCAO).map(([k, x]) => `<option value="${k}" ${f.intencao === k ? 'selected' : ''}>${x[0]} ${esc(x[1])}</option>`).join('')}</select>
-      <select id="origemMsg" class="inp" style="width:auto" aria-label="Filtrar pelo sistema de onde veio">${[['todas', 'Qualquer origem'], ['agenda', '📅 Da Agenda'], ['patio', '🚗 Do Pátio'], ['orcador', '🧾 Do Orçador'], ['crm', '🎯 Do CRM']].map(([k, r]) => `<option value="${k}" ${f.origem === k ? 'selected' : ''}>${r}</option>`).join('')}</select>
-      ${pode('exportar') ? `<button type="button" class="btn btn-mini" id="btnCSV" style="margin-left:auto">${svg(I.upload)} Exportar CSV</button>` : ''}
-    </div>
     <div class="pilulas" role="tablist">
-      ${pilula('todas', 'Todas')}${pilula('pendente', '🕒 Na fila')}${pilula('enviado', '✅ Enviadas')}${pilula('falhou', '❌ Falharam')}${pilula('sem_confirmacao', '❓ Sem confirmação')}${pilula('cancelado', 'Canceladas')}${pilula('pulado', '⏭ Puladas')}
+      ${pilula('todas', 'Todas')}${pilula('pendente', 'Na fila')}${pilula('enviado', 'Enviadas')}${pilula('falhou', 'Falharam')}${pilula('cancelado', 'Canceladas')}
     </div>
     <div class="panel"><div class="panel-body lista lista-anim" id="listaEnvios">${htmlLista()}</div>
       <div class="mais-linha"><button type="button" class="btn" id="maisMsg" ${state._msgFim ? 'hidden' : ''}>Carregar mais 100</button></div></div>`;
@@ -956,25 +750,7 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
     state.msg.q = e.target.value.trim();
     route(null, { quieto:true });
   }, 300));
-  const mudarPeriodo = () => {
-    const de = $('#deMsg').value, ate = $('#ateMsg').value;
-    $('#limparPeriodo').hidden = !(de || ate);
-    if (de && ate && de > ate) { toast('A data inicial precisa vir antes da final.', 'err'); return; }
-    state.msg.de = de; state.msg.ate = ate;
-    route(null, { quieto:true });
-  };
-  $('#deMsg').addEventListener('change', mudarPeriodo); $('#ateMsg').addEventListener('change', mudarPeriodo);
-  $('#limparPeriodo').addEventListener('click', () => { $('#deMsg').value = ''; $('#ateMsg').value = ''; mudarPeriodo(); });
-  $('#intMsg').addEventListener('change', e => { state.msg.intencao = e.target.value; route(null, { quieto:true }); });
-  $('#origemMsg').addEventListener('change', e => { state.msg.origem = e.target.value; route(null, { quieto:true }); });
-  $('#btnCSV')?.addEventListener('click', async (e) => {
-    const b = e.currentTarget; b.disabled = true;
-    try { await baixarCSV(state._qMsg || new URLSearchParams()); toast('CSV baixado — abre direto no Excel.'); }
-    catch (err) { toast(err.message, 'err'); } finally { b.disabled = false; }
-  });
   ligarAcoesEnvio($('#listaEnvios'));
-  window.R6?.barraMensagens();
-  window.R7?.barraMensagens();
 }
 
 /* Quem mandou: nome de quem clicou (criado_por guarda o nome; criado_por_id, o perfil) ou 'automática'. */
@@ -1001,7 +777,7 @@ function cartaoEnvio(e) {
       <div class="envio-quem"><span class="linha" style="gap:8px"><span class="tipo-ico" aria-hidden="true">${t.emoji}</span>
         ${e.cliente_id ? `<button type="button" class="cli-nome" data-ficha="${esc(e.cliente_id)}"><b>${esc(e.nome || e.telefone)}</b></button>` : `<b>${esc(e.nome || e.telefone)}</b>`}</span>
         <small>${esc(telBR(e.telefone))}${quemMandou(e)}</small></div>
-      <div class="envio-chips">${pillTipo(e.tipo)}${duvida ? `<span class="badge-pill bp-orange" title="Não sabemos se chegou">❓ Sem confirmação</span>` : pillStatus(e.status)}${e.intencao ? pillIntencao(e.intencao, e.intencao_resumo) : ''}${e.agendou_depois_id ? `<span class="selo-agendou">${svg(I.calendar)} agendou depois</span>` : ''}${e.mensagem_id ? '<span class="selo-hist" title="Aparece no histórico da conversa do Atendimento">💬 no histórico</span>' : ''}</div>
+      <div class="envio-chips">${pillTipo(e.tipo)}${duvida ? `<span class="badge-pill bp-orange" title="Não sabemos se chegou">❓ Sem confirmação</span>` : pillStatus(e.status)}${e.intencao ? pillIntencao(e.intencao, e.intencao_resumo) : ''}${e.agendou_depois_id ? `<span class="selo-agendou">${svg(I.calendar)} agendou depois</span>` : ''}</div>
     </div>
     <div class="envio-corpo">${esc(e.corpo)}</div>
     ${resposta}
@@ -1017,8 +793,6 @@ function cartaoEnvio(e) {
         ${podeReenviar ? `<button type="button" class="btn btn-mini" data-reenviar="${esc(e.id)}"${duvida ? ' data-duvida="1"' : ''}>${svg(I.refresh)} Reenviar</button>` : ''}
         ${e.intencao && CHAMA_CONSULTOR.has(e.intencao) ? (e.encaminhado_em ? '<span class="badge-pill bp-green">✓ no Atendimento</span>' : `<button type="button" class="btn btn-mini primary" data-encaminhar="${esc(e.id)}">${svg(I.wa)} Passar ao Atendimento</button>`) : ''}
         ${e.status === 'enviado' || e.resposta || duvida ? `<a class="btn btn-mini ghost" href="${esc(linkConversa(e.telefone))}" target="_blank" rel="noopener">${svg(I.externo)} Abrir conversa</a>` : ''}
-        ${window.R5 ? window.R5.botaoLigacoes(e.id) : ''}
-        ${window.R6 ? window.R6.botoesEnvio(e, meu) : ''}${window.R7 ? window.R7.botoesEnvio(e, meu) : ''}
       </div>
     </div>
   </article>`;
@@ -1036,7 +810,7 @@ function ligarAcoesEnvio(root) {
         const id = c.dataset.cancelar;
         await api('POST', `/envios/${id}/cancelar`); route(null, { quieto:true });
         toastAcao('Mensagem cancelada.', 'Desfazer', async () => {
-          await api('POST', `/envios/${id}/desfazer-cancelamento`); toast('Voltou para a fila.'); refreshBadge(); route(null, { quieto:true });
+          await api('POST', `/envios/${id}/desfazer-cancelamento`); toast('Voltou para a fila.'); route(null, { quieto:true });
         });
       }
       catch (err) { toast(err.message, 'err'); c.disabled = false; }
@@ -1105,7 +879,6 @@ async function renderCampanhas({ vez = state._vez } = {}) {
     catch (e) { toast(e.message || 'Não consegui cancelar agora.', 'err'); b.disabled = false; }
   }));
   pintarAprovacoes();
-  window.R6?.pintarCampanhas();
   window.R7?.pintarCampanhas();
 }
 
@@ -1408,7 +1181,7 @@ window.openCampanhaModal = async function (pre = {}) {
       }
       toast(`${plural(r.enfileirados, 'mensagem', 'mensagens')} na fila${r.pulados ? ` · ${r.pulados} pulada(s) (pediu para parar ou recebeu outra há pouco)` : ''}${r.dias > 1 ? ` · escalonadas em ${r.dias} dias (limite de ${r.limitePorDia}/dia)` : ''}.`, 'ok', 6000);
       if (campanhaAberta()) closeModal();
-      refreshBadge();
+     
       if (state.route === 'campanhas' || state.route === 'mensagens') route(null, { quieto:true });
     } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
   });
@@ -1422,10 +1195,8 @@ async function renderClientes({ vez = state._vez } = {}) {
   const lista = await api('GET', '/clientes' + (state.cliQ ? `?q=${encodeURIComponent(state.cliQ)}` : ''));
   if (vez !== state._vez) return;
   const contagem = (clientes) => {
-    const comNasc = clientes.filter(c => c.nascimento).length;
     const fora = clientes.filter(c => c.aceita_mensagens === false).length;
     return `<span class="badge-pill bp-gray">${clientes.length}${state.cliQ ? ' encontrados' : ''}</span>
-      <span class="badge-pill bp-green">🎂 ${comNasc} com aniversário</span>
       ${fora ? `<span class="badge-pill bp-red">🚫 ${fora} fora da lista</span>` : ''}`;
   };
   view.innerHTML = `
@@ -1586,7 +1357,6 @@ async function abrirFicha(id, quieto = false) {
   const hoje = hojeSP();
   const rev = f.proximaRevisao;
   const atrasada = rev && rev.data < hoje;
-  const stars = (n) => n ? '⭐'.repeat(n) : '';
 
   g.innerHTML = `
     <div class="gaveta-head">
@@ -1604,12 +1374,6 @@ async function abrirFicha(id, quieto = false) {
       ${rev ? `<div class="revisao${atrasada ? ' atrasada' : ''}"><span class="data">${esc(dataCurta(rev.data))}</span>
           <div class="t"><small>${atrasada ? 'revisão vencida' : 'próxima revisão'}</small><b>${esc(rev.servico || 'serviço')} · ${rev.meses} meses</b><span>regra: ${esc(rev.regra)} · feito em ${esc(dataBR(f.ultimoServico?.data))}</span></div></div>`
         : `<div class="revisao" style="border-color:var(--border)"><span class="data" style="color:var(--muted-2)">—</span><div class="t"><small>próxima revisão</small><b>Sem serviço concluído ainda</b><span>a revisão é calculada a partir do último serviço</span></div></div>`}
-      <div class="ficha-resumo">
-        <div class="ficha-item"><small>Serviços</small><b>${r.servicos_feitos ?? 0}</b><span>${r.ultimo_servico_em ? `último ${esc(dataBR(r.ultimo_servico_em))}` : 'nenhum concluído'}</span></div>
-        <div class="ficha-item${r.faltas ? ' atrasada' : ''}"><small>Faltas</small><b>${r.faltas ?? 0}</b><span>${r.proximo_horario ? `próximo ${esc(dataBR(r.proximo_horario))}` : 'sem horário marcado'}</span></div>
-        <div class="ficha-item"><small>Satisfação</small><b>${f.respostas?.length ? Math.round((f.respostas.filter(x => x.satisfeito).length / f.respostas.length) * 100) + '%' : '—'}</b><span>${f.respostas?.length ? plural(f.respostas.length, 'resposta', 'respostas') : 'sem resposta'}</span></div>
-      </div>
-      ${window.R5 ? window.R5.htmlLigacoes(f.ligacoes, c) : ''}
       ${window.R6 ? window.R6.htmlProgramadas(f.programadas) : ''}
       <div class="g-sec"><h4>Mensagens <small>${plural(f.envios?.length || 0, 'recente', 'recentes')}</small></h4>
         ${f.envios?.length ? f.envios.map(e => `<div class="mini-envio"><div class="m-top"><span>${TIPO[e.tipo]?.emoji || '✉️'} ${esc(TIPO[e.tipo]?.rotulo || e.tipo)} · ${esc(dataHoraBR(e.enviado_em || e.enviar_em))}</span>${pillStatus(e.status)}${e.agendou_depois_id ? `<span class="selo-agendou">${svg(I.calendar)} agendou depois</span>` : ''}</div>
@@ -1617,18 +1381,14 @@ async function abrirFicha(id, quieto = false) {
             ${e.resposta ? `<div class="resposta ${esc(e.resposta_tipo || 'neutra')}"><span class="r-ico">💬</span><span class="r-txt">${esc(e.resposta)}</span></div>` : ''}</div>`).join('')
           : '<div class="dica">Nenhuma mensagem para este cliente ainda.</div>'}
       </div>
-      ${f.respostas?.length ? `<div class="g-sec"><h4>Satisfação</h4>${f.respostas.map(x => `<div class="sat-linha"><span>${x.satisfeito ? '😊' : '😞'} ${stars(x.nota)}</span><span class="com">${esc(x.comentario || '')}</span><span class="origem ${esc(x.origem || 'manual')}">${x.origem === 'whatsapp' ? 'WhatsApp' : 'manual'}</span><small class="muted">${esc(dataBR(x.created_at))}</small></div>`).join('')}</div>` : ''}
-      ${f.agendamentos?.length ? `<div class="g-sec"><h4>Agendamentos <small>últimos ${f.agendamentos.length}</small></h4>${f.agendamentos.map(a => `<div class="ag-linha"><span class="d">${esc(dataCurta(a.data))}</span><span class="s">${esc(a.servico || '—')}</span>${pillAg(a.status)}</div>`).join('')}</div>` : ''}
     </div>
     <div class="gaveta-foot">
       <label class="sw" style="margin-right:auto"><input type="checkbox" id="gAceita" ${c.aceita_mensagens === false ? '' : 'checked'} ${travaReligar(c)}><span class="tr"></span><span class="sw-txt">Aceita mensagens</span></label>
       <button type="button" class="btn" id="gNasc">${svg(I.gift)} Aniversário</button>
-      <button type="button" class="btn" id="gTarefa" title="Criar uma tarefa ligada a este cliente">${svg(I.check)} Tarefa</button>
       <button type="button" class="btn primary" id="gMandar" ${c.aceita_mensagens === false || !c.telefone ? 'disabled' : ''}>${svg(I.send)} Mandar mensagem</button>
     </div>`;
   $('#gAceita').addEventListener('change', e => mudarAceite(c, e.target.checked, e.target));
   $('#gNasc').addEventListener('click', () => openNascimentoModal(c));
-  $('#gTarefa').addEventListener('click', () => window.Conta?.novaTarefa({ cliente_id: c.id, titulo: `Falar com ${c.nome}` }));
   $('#gMandar').addEventListener('click', () => { fecharGaveta(); openCampanhaModal({ cliente:c }); });
   const novoFoco = focoAtual?.id && document.getElementById(focoAtual.id);
   if (focoAtual) (novoFoco && !novoFoco.disabled ? novoFoco : $('[data-fechar-gaveta]', g))?.focus({ preventScroll:true });
@@ -1713,101 +1473,6 @@ function lerPlanilha(texto) {
 }
 
 // ============================================================================
-// SATISFAÇÃO
-// ============================================================================
-async function renderSatisfacao({ vez = state._vez } = {}) {
-  const [respostas, resumo] = await Promise.all([api('GET', '/satisfacao'), api('GET', '/resumo').catch(() => null)]);
-  if (vez !== state._vez) return;
-  const s = resumo?.satisfacao || (() => { const total = respostas.length, felizes = respostas.filter(r => r.satisfeito).length;
-    const notas = respostas.map(r => Number(r.nota)).filter(n => n >= 1 && n <= 5);
-    return { total, satisfeitos:felizes, insatisfeitos:total - felizes, pct: total ? Math.round((felizes / total) * 100) : null,
-      notaMedia: notas.length ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 10) / 10 : null }; })();
-  const auto = respostas.filter(r => r.origem === 'whatsapp').length;
-
-  view.innerHTML = `
-    <div class="stat-grid row4">
-      ${statCard('green', s.satisfeitos ?? 0, 'Satisfeitos', I.smile, { sub: `${auto} vieram do WhatsApp sozinhos` })}
-      ${statCard('red', s.insatisfeitos ?? 0, 'Insatisfeitos', I.sad, { sub: s.insatisfeitos ? 'vale ligar para esses' : 'ninguém reclamou' })}
-      ${statCard('wa', s.pct ?? '—', 'Satisfação', I.check, { sufixo:'%', sub: `${s.total ?? 0} respostas` })}
-      ${statCard('orange', s.notaMedia ? String(s.notaMedia).replace('.', ',') : '—', 'Nota média', I.estrela, { sub: 'de 1 a 5, quando há nota' })}
-    </div>
-    <div class="cols">
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.smile)} Registrar retorno</h2><span class="panel-sub">manual</span></div>
-        <div class="panel-body">
-          <p class="dica">A resposta ao pós-venda pelo WhatsApp entra sozinha. Aqui você anota o que o cliente disse no balcão ou por telefone.</p>
-          <div class="field"><label for="sat_busca">Cliente</label><div class="search" style="max-width:none">${svg(I.search)}<input id="sat_busca" placeholder="Nome, telefone ou placa…" autocomplete="off"></div>
-            <div class="sugestoes" id="sat_sug" hidden></div><div id="sat_escolhido"></div></div>
-          <div class="field"><span class="rot">Como o cliente ficou?</span>
-            <div class="sat-botoes"><button type="button" class="btn sat-opcao" data-sat="1" aria-pressed="false">${svg(I.smile)} Satisfeito</button><button type="button" class="btn sat-opcao" data-sat="0" aria-pressed="false">${svg(I.sad)} Insatisfeito</button></div></div>
-          <div class="field"><span class="rot">Nota (opcional)</span><div class="estrelas" role="radiogroup" aria-label="Nota de 1 a 5">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="estrela" data-nota="${n}" role="radio" aria-checked="false" aria-label="${n} ${n === 1 ? 'estrela' : 'estrelas'}">★</button>`).join('')}</div></div>
-          <div class="field"><label for="sat_coment">Comentário (opcional)</label><textarea id="sat_coment" placeholder="O que o cliente disse…"></textarea></div>
-          <div><button type="button" class="btn primary" id="sat_salvar">${svg(I.check)} Registrar</button></div>
-          <p class="form-msg" id="sat_msg" role="status" hidden></p>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>${svg(I.lista)} Últimos retornos</h2><span class="badge-pill bp-gray">${respostas.length}</span></div>
-        <div class="panel-body lista lista-anim">
-          ${respostas.length ? respostas.map(r => `<article class="envio s-${r.satisfeito ? 'enviado' : 'falhou'}">
-              <div class="envio-topo"><div class="envio-quem"><b>${esc(r.cliente_nome || '—')}</b><small>${esc(telBR(r.cliente_telefone))}</small></div>
-                <div class="envio-chips">${r.nota ? `<span class="badge-pill bp-orange">${'⭐'.repeat(r.nota)}</span>` : ''}
-                  <span class="badge-pill ${r.satisfeito ? 'bp-green' : 'bp-red'}">${r.satisfeito ? '😊 Satisfeito' : '😞 Insatisfeito'}</span>
-                  <span class="origem ${esc(r.origem || 'manual')}">${r.origem === 'whatsapp' ? '💬 WhatsApp automático' : '✍️ manual'}</span></div></div>
-              ${r.comentario ? `<div class="envio-corpo">${esc(r.comentario)}</div>` : ''}
-              <div class="envio-rodape"><div class="meta"><span>${svg(I.clock)} ${esc(dataHoraBR(r.created_at))}${r.registrado_por ? ` · ${esc(r.registrado_por)}` : ''}</span></div>
-                <div class="envio-acoes">${pode('satisfacao_apagar') ? `<button type="button" class="icon-btn red" data-apagar="${esc(r.id)}" aria-label="Apagar registro">${svg(I.trash)}</button>` : ''}</div></div>
-            </article>`).join('') : vazio(I.smile, 'Nenhum retorno ainda', 'Com a régua Pós-venda ligada, a resposta do cliente aparece aqui sozinha.')}
-        </div>
-      </div>
-    </div>`;
-  animarNumeros(view);
-
-  let escolha = null, nota = null, cliente = null;
-  const inp = $('#sat_busca'), sug = $('#sat_sug');
-  let busca = 0;
-  const pesquisar = debounce(async (q, consulta) => {
-    if (!inp.isConnected || consulta !== busca || q.length < 2) return;
-    const r = await api('GET', `/clientes?q=${encodeURIComponent(q)}`).catch(() => null);
-    if (!inp.isConnected || consulta !== busca) return;
-    if (!r) {
-      sug.innerHTML = '<p class="dica" role="alert">Não deu para buscar o cliente. Edite a busca para tentar de novo.</p>';
-      sug.hidden = false;
-      return;
-    }
-    sug.innerHTML = r.length ? r.slice(0, 8).map(x => `<button type="button" class="sugestao" data-id="${esc(x.id)}"><b>${esc(x.nome)}</b><small>${esc(telBR(x.telefone))}</small></button>`).join('') : '<div class="dica" style="padding:8px">Ninguém com esse nome.</div>';
-    sug.hidden = false;
-    $$('.sugestao', sug).forEach(b => b.addEventListener('click', () => { ++busca; cliente = r.find(y => y.id === b.dataset.id); inp.value = cliente.nome; sug.hidden = true;
-      $('#sat_escolhido').innerHTML = `<div class="cli-escolhido" style="margin-top:6px"><span><b>${esc(cliente.nome)}</b><small>${esc(telBR(cliente.telefone))}</small></span></div>`; }));
-  }, 250);
-  inp.addEventListener('input', () => {
-    cliente = null;
-    $('#sat_escolhido').replaceChildren();
-    sug.hidden = true;
-    pesquisar(inp.value.trim(), ++busca);
-  });
-  $$('.sat-opcao').forEach(b => b.addEventListener('click', () => { escolha = b.dataset.sat === '1'; $$('.sat-opcao').forEach(x => { x.classList.toggle('ativa', x === b); x.classList.toggle('feliz', x === b && escolha); x.setAttribute('aria-pressed', String(x === b)); }); }));
-  $$('.estrela').forEach(b => b.addEventListener('click', () => { nota = Number(b.dataset.nota); $$('.estrela').forEach(x => { const on = Number(x.dataset.nota) <= nota; x.classList.toggle('on', on); x.setAttribute('aria-checked', String(Number(x.dataset.nota) === nota)); }); }));
-  $('#sat_salvar').addEventListener('click', async () => {
-    const msg = (t, okk) => { const el = $('#sat_msg'); el.textContent = t; el.className = 'form-msg ' + (okk ? 'ok' : 'erro'); el.hidden = false; };
-    if (!cliente) { inp.focus(); return msg('Escolha um cliente da lista.', false); }
-    if (escolha === null) { $('[data-sat]', view).focus(); return msg('Diga se ele ficou satisfeito ou não.', false); }
-    const btn = $('#sat_salvar'); btn.disabled = true;
-    try {
-      await api('POST', '/satisfacao', { cliente_id: cliente.id, satisfeito: escolha, nota, comentario: $('#sat_coment').value.trim() || null });
-      toast('Retorno registrado.');
-      if (btn.isConnected) route(null, { quieto:true });
-    } catch (e) { if (btn.isConnected) msg(e.message, false); }
-    finally { btn.disabled = false; }
-  });
-  $$('[data-apagar]', view).forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('Apagar este registro de satisfação?')) return;
-    try { await api('DELETE', `/satisfacao/${b.dataset.apagar}`); toast('Registro apagado.'); route(null, { quieto:true }); }
-    catch (e) { toast(e.message, 'err'); }
-  }));
-}
-
-// ============================================================================
 // MODAL — foco preso, Esc fecha, devolve o foco a quem abriu
 // ============================================================================
 const overlay = $('#modalOverlay'), modal = $('#modal');
@@ -1848,7 +1513,7 @@ $('#gavetaOverlay').addEventListener('keydown', e => { if (e.key === 'Tab' && ga
 // ============================================================================
 // ROTAS + TECLADO + PWA
 // ============================================================================
-const ROUTES = { inicio:renderInicio, reguas:renderReguas, mensagens:renderMensagens, campanhas:renderCampanhas, clientes:renderClientes, satisfacao:renderSatisfacao };
+const ROUTES = { reguas:renderReguas, mensagens:renderMensagens, campanhas:renderCampanhas, clientes:renderClientes, ajustes:renderAjustes };
 
 $('#nav').addEventListener('click', e => { const item = e.target.closest('.nav-item'); if (item) route(item.dataset.route); });
 $('#nav').addEventListener('keydown', e => {
@@ -1856,90 +1521,27 @@ $('#nav').addEventListener('keydown', e => {
   const item = e.target.closest('.nav-item'); if (!item) return;
   e.preventDefault(); route(item.dataset.route);
 });
-$('#btnNova').addEventListener('click', () => openCampanhaModal());
 
 const digitando = (el) => el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (window.Conta?.fecharPops()) return;
-    if ($('#ecoPop') && !$('#ecoPop').hidden) return fecharEco();
     if (modalAberto()) return closeModal();
     if (gavetaAberta()) return fecharGaveta();
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey || modalAberto() || gavetaAberta() || document.body.classList.contains('deslogado')) return;
   if (digitando(e.target)) return;
-  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openCampanhaModal(); }
-  else if (e.key === '?') { e.preventDefault(); abrirAjuda(); }
-  else if (e.key === '/') { const busca = $('.view .search input'); if (busca) { e.preventDefault(); busca.focus(); busca.select(); } }
+  if (e.key === '/') { const busca = $('.view .search input'); if (busca) { e.preventDefault(); busca.focus(); busca.select(); } }
 });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-/* ============================================================
-   FAIXA DE SAÚDE — o vigia carimba em vigia_estado o problema atual.
-   Aparece em TODAS as telas enquanto houver problema.
-   ============================================================ */
-const TEXTO_PROBLEMA = {
-  'codewords-fora': 'WhatsApp parado: a chave do CodeWords foi recusada. Troque em Atendimento › Configurações › Integrações.',
-};
-function dataCurtaBR(ts) { const d = new Date(ts); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR', { timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit' }); }
-async function carregarSaude() {
-  const faixa = $('#faixaSaude'); if (!faixa) return;
-  let s;
-  try { s = await api('GET', '/saude'); } catch { return; }
-  state.saude = s;
-  if (!s || !s.problema) { faixa.hidden = true; return; }
-  const texto = TEXTO_PROBLEMA[s.problema] || s.resumo || `Problema no sistema: ${s.problema}.`;
-  faixa.textContent = '';
-  const ico = document.createElement('span'); ico.className = 'faixa-ico'; ico.innerHTML = svg(I.alerta);
-  const txt = document.createElement('span'); txt.className = 'faixa-txt';
-  txt.textContent = texto + (s.desde ? ` (desde ${dataCurtaBR(s.desde)})` : '');
-  faixa.append(ico, txt);
-  if (s.whatsappParado || s.problema === 'codewords-fora') {
-    const a = document.createElement('a'); a.href = ATENDIMENTO_URL; a.target = '_blank'; a.rel = 'noopener';
-    a.className = 'faixa-link'; a.textContent = 'Abrir Atendimento'; faixa.append(a);
-  }
-  faixa.hidden = false;
-}
-setInterval(() => { if (!document.hidden && !document.body.classList.contains('deslogado')) carregarSaude(); }, 5 * 60 * 1000);
-
 /* sem internet: faixa enquanto estiver offline */
 function marcarRede() { const f = $('#faixaOffline'); if (f) f.hidden = navigator.onLine !== false; }
 window.addEventListener('offline', marcarRede);
-window.addEventListener('online', () => { marcarRede(); toast('Conexão de volta.'); carregarSaude(); });
+window.addEventListener('online', () => { marcarRede(); toast('Conexão de volta.'); });
 marcarRede();
-
-/* ============================================================
-   ECOSSISTEMA INDYCAR — popover com os outros apps da oficina
-   ============================================================ */
-function desenharEco() {
-  const pop = $('#ecoPop'); if (!pop) return;
-  pop.innerHTML = `<p class="eco-titulo">Ecossistema IndyCar</p>` + ECOSSISTEMA.map(app => {
-    const atual = app.chave === APP_ATUAL;
-    return `<a class="eco-item${atual ? ' atual' : ''}" role="menuitem" href="${esc(app.url)}" ${atual ? 'aria-current="page"' : 'target="_blank" rel="noopener"'}>
-      <span class="eco-ico">${svg(app.ico)}</span>
-      <span class="eco-txt"><b>${esc(app.nome)}</b><small>${atual ? 'você está aqui' : esc(app.desc)}</small></span>
-      ${atual ? '' : '<span class="eco-seta" aria-hidden="true">↗</span>'}</a>`;
-  }).join('');
-}
-function abrirEco() {
-  const pop = $('#ecoPop'), btn = $('#btnEco'); if (!pop || !btn) return;
-  if (!pop.innerHTML) desenharEco();
-  const r = btn.getBoundingClientRect();
-  pop.style.setProperty('--eco-x', `${r.right + 10}px`);
-  pop.style.setProperty('--eco-y', `${Math.max(12, r.bottom - 8)}px`);
-  pop.hidden = false; btn.setAttribute('aria-expanded', 'true');
-  requestAnimationFrame(() => pop.classList.add('aberto'));
-  ($('.eco-item:not(.atual)', pop) || pop).focus?.();
-}
-function fecharEco() {
-  const pop = $('#ecoPop'), btn = $('#btnEco'); if (!pop || pop.hidden) return;
-  pop.classList.remove('aberto'); pop.hidden = true; btn?.setAttribute('aria-expanded', 'false'); btn?.focus();
-}
-$('#btnEco')?.addEventListener('click', () => ($('#ecoPop').hidden ? abrirEco() : fecharEco()));
-document.addEventListener('click', e => { const pop = $('#ecoPop'); if (!pop || pop.hidden) return; if (!pop.contains(e.target) && !e.target.closest('#btnEco')) fecharEco(); });
-window.addEventListener('resize', debounce(() => { if ($('#ecoPop') && !$('#ecoPop').hidden) abrirEco(); }, 120));
 
 /* ============================ LOGIN ============================
    As telas de entrar, senha nova, duas etapas e "sem acesso" moram em conta.js. */
@@ -1966,11 +1568,9 @@ async function abrirApp() {
   if (window.Conta) await window.Conta.depoisDoPerfil(p); else esconderLogin();
   if (_appAberto) return route(null, { quieto:true });
   _appAberto = true;
-  carregarSaude();
-  await route('inicio');
+  await route('reguas');
   await abrirPorLink();
   window.R5?.abrirAtalho();
-  window.R4?.talvezTour();
 }
 
 /* Link vindo de outro app (Atendimento, CRM, Agenda) ou do sino:
@@ -2135,157 +1735,6 @@ function painelEscreverIA(box, { regua, lerTexto, aplicar, exemplo }) {
   setTimeout(() => $('[data-ia-pedido]', box)?.focus(), 30);
 }
 
-/* ---- INÍCIO: resumo da semana pela IA + respostas lidas pela IA ---- */
-async function carregarLinhaIA() {
-  const box = $('#iaLinha'); if (!box) return;
-  const [resumo, intencoes, st] = await Promise.all([
-    api('GET', '/ia/resumo').catch(() => null), api('GET', '/intencoes?dias=7').catch(() => null), api('GET', '/ia/status').catch(() => null),
-  ]);
-  if (!$('#iaLinha')) return;
-  pintarResumoIA(resumo, st);
-  pintarIntencoes(intencoes, st);
-}
-function pintarResumoIA(r, st) {
-  const el = $('#iaResumo'); if (!el) return;
-  const semIA = st && (!st.ativo || !st.temChave);
-  el.innerHTML = r?.texto
-    ? `<p class="ia-texto">${esc(r.texto)}</p><div class="ia-rodape"><small class="muted">gerado ${esc(relativo(r.em))}${r.valido ? '' : ' · pode estar velho'}</small>
-        <button type="button" class="btn btn-mini" id="btnResumoIA" data-forcar="1">${svg(I.refresh)} Atualizar</button></div>`
-    : `<div class="ia-vazio"><p>${semIA ? 'A IA está desligada ou sem chave.' : 'Um parágrafo da IA sobre a semana: o que funcionou, quem respondeu e o que fazer.'}</p>
-        <button type="button" class="btn ia" id="btnResumoIA" ${semIA ? 'disabled' : ''}>✨ Gerar resumo da semana</button></div>`;
-  $('#btnResumoIA')?.addEventListener('click', async (e) => {
-    const b = e.currentTarget; b.disabled = true;
-    el.querySelector('.ia-texto')?.classList.add('carregando');
-    if (!el.querySelector('.ia-texto')) el.querySelector('.ia-vazio p').innerHTML = '<span class="ia-pontos"><i></i><i></i><i></i></span> lendo os números da semana…';
-    try { pintarResumoIA(await api('POST', '/ia/resumo', { forcar: b.dataset.forcar === '1' }), st); }
-    catch (err) { toast(err.message, 'err', 5000); b.disabled = false; el.querySelector('.ia-texto')?.classList.remove('carregando'); }
-  });
-}
-function pintarIntencoes(r, st) {
-  const el = $('#iaIntencoes'); if (!el) return;
-  const lista = r?.lista || [], cont = r?.contagem || {};
-  const quer = (cont.quer_agendar || 0), orc = (cont.quer_orcamento || 0), recl = (cont.reclamacao || 0);
-  const manchete = quer || orc || recl
-    ? [quer && `<b class="verde">${plural(quer, 'cliente quer', 'clientes querem')} agendar</b>`, orc && `<b class="laranja">${plural(orc, 'quer', 'querem')} orçamento</b>`, recl && `<b class="vermelho">${plural(recl, 'reclamou', 'reclamaram')}</b>`].filter(Boolean).join(' · ')
-    : (lista.length ? 'Ninguém pediu horário nem reclamou nesta semana.' : 'Nenhuma resposta lida pela IA nos últimos 7 dias.');
-  const modo = st?.autonomia === 'automatico' ? 'a IA passa sozinha ao consultor' : 'um clique passa ao consultor';
-  el.innerHTML = `<div class="ia-manchete">${manchete}</div>
-    ${Object.keys(cont).length ? `<div class="chips-linha">${Object.entries(cont).map(([k, n]) => `<span class="badge-pill ${INTENCAO[k]?.[2] || 'bp-gray'}">${INTENCAO[k]?.[0] || ''} ${esc(INTENCAO[k]?.[1] || k)} · <b>${n}</b></span>`).join('')}</div>` : ''}
-    <div class="lista-intencoes">${lista.slice(0, 6).map(e => `<div class="li-int">
-        <div class="li-topo"><button type="button" class="cli-nome" ${e.cliente_id ? `data-ficha="${esc(e.cliente_id)}"` : 'disabled'}><b>${esc(e.nome || telBR(e.telefone))}</b></button>${pillIntencao(e.intencao, e.intencao_resumo)}<small class="muted">${esc(relativo(e.respondido_em))}</small></div>
-        <div class="li-resp">“${esc(e.resposta || '')}”</div>
-        <div class="li-acoes"><a class="btn btn-mini ghost" href="${esc(linkConversa(e.telefone))}" target="_blank" rel="noopener">${svg(I.externo)} Abrir conversa</a>
-          ${CHAMA_CONSULTOR.has(e.intencao) ? (e.encaminhado_em ? '<span class="badge-pill bp-green">✓ no Atendimento</span>' : `<button type="button" class="btn btn-mini primary" data-encaminhar="${esc(e.id)}">${svg(I.wa)} Passar ao Atendimento</button>`) : ''}</div>
-      </div>`).join('')}</div>
-    <div class="ia-rodape"><small class="muted">Neutras e negativas passam pela IA (barata) no carteiro · ${esc(modo)} · nunca responde sozinha.</small>
-      ${ehGestor() ? `<button type="button" class="btn btn-mini" id="btnLerAgora">${svg(I.refresh)} Ler respostas agora</button>` : ''}</div>`;
-  el.onclick = (ev) => {
-    const f = ev.target.closest('[data-ficha]'); if (f) return abrirFicha(f.dataset.ficha);
-    const b = ev.target.closest('[data-encaminhar]'); if (b) return encaminhar(b.dataset.encaminhar, b);
-  };
-  $('#btnLerAgora')?.addEventListener('click', async (ev) => {
-    const b = ev.currentTarget; b.disabled = true;
-    try {
-      const x = await api('POST', '/ia/ler-respostas');
-      toast(x.lidas ? `${plural(x.lidas, 'resposta lida', 'respostas lidas')}${x.chamaram ? ` · ${x.chamaram} passou ao consultor` : ''}${x.propostas ? ` · ${x.propostas} esperando seu clique` : ''}` : 'Nenhuma resposta nova para ler.');
-      pintarIntencoes(await api('GET', '/intencoes?dias=7'), st);
-    } catch (err) { toast(err.message, 'err', 5000); b.disabled = false; }
-  });
-}
-
-/* ---- RELATÓRIO por régua (gráfico simples de 8 semanas) ---- */
-async function abrirRelatorio(regua = 'todas') {
-  if (window.R5?.abrirRelatorio) return window.R5.abrirRelatorio(regua); // rodada 5: período e por régua
-  const titulo = regua === 'todas' ? 'Relatório · todas as mensagens' : `Relatório · ${TIPO[regua]?.rotulo || regua}`;
-  openModal(`<div class="modal-head"><h3>📊 ${esc(titulo)}</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
-    <div class="modal-body"><div class="field"><label for="relRegua">Régua</label><select id="relRegua">
-      <option value="todas">Todas</option>${[...REGUAS, 'campanha', 'avulsa', ...TIPOS_PATIO].map(t => `<option value="${t}" ${t === regua ? 'selected' : ''}>${TIPO[t]?.emoji || ''} ${esc(TIPO[t]?.rotulo || t)}</option>`).join('')}</select></div>
-      <div id="relCorpo"><div class="skel" style="height:220px"></div></div></div>`, { larga:true });
-  const pintar = async (r) => {
-    const box = $('#relCorpo'); if (!box) return;
-    box.innerHTML = '<div class="skel" style="height:220px"></div>';
-    let d; try { d = await api('GET', `/relatorio?regua=${encodeURIComponent(r)}`); } catch (e) { box.innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
-    const max = Math.max(1, ...d.semanas.map(s => s.enviadas));
-    const pct = (n) => Math.round((n / max) * 100);
-    box.innerHTML = `
-      <div class="rel-nums">
-        <div><b>${d.total.enviadas}</b><small>enviadas</small></div>
-        <div class="b"><b>${d.taxaResposta ?? '—'}${d.taxaResposta !== null ? '%' : ''}</b><small>responderam</small></div>
-        <div class="g"><b>${d.total.agendaram}</b><small>agendaram${d.taxaAgendamento ? ` · ${d.taxaAgendamento}%` : ''}</small></div>
-      </div>
-      <div class="grafico" role="img" aria-label="${esc(d.semanas.map(s => `semana de ${dataCurta(s.inicio)}: ${s.enviadas} enviadas, ${s.respondidas} responderam, ${s.agendaram} agendaram`).join('; '))}">
-        ${d.semanas.map(s => `<div class="g-sem" title="semana de ${esc(dataCurta(s.inicio))}: ${s.enviadas} enviadas · ${s.respondidas} responderam · ${s.agendaram} agendaram">
-          <div class="g-barras"><i class="b-env" style="height:${pct(s.enviadas)}%"></i><i class="b-resp" style="height:${pct(s.respondidas)}%"></i><i class="b-ag" style="height:${pct(s.agendaram)}%"></i></div>
-          <span class="g-rot">${esc(dataCurta(s.inicio))}</span></div>`).join('')}
-      </div>
-      <div class="g-legenda"><span><i class="b-env"></i>enviadas</span><span><i class="b-resp"></i>responderam</span><span><i class="b-ag"></i>agendaram</span></div>
-      ${Object.keys(d.intencoes || {}).length ? `<div class="lista-sep">O que a IA leu nas respostas</div><div class="chips-linha">${Object.entries(d.intencoes).map(([k, n]) => `<span class="badge-pill ${INTENCAO[k]?.[2] || 'bp-gray'}">${INTENCAO[k]?.[0] || ''} ${esc(INTENCAO[k]?.[1] || k)} · <b>${n}</b></span>`).join('')}</div>` : ''}
-      ${d.total.enviadas ? '' : '<p class="dica">Nada enviado nessas 8 semanas — o gráfico enche quando a régua estiver ligada e o WhatsApp saindo.</p>'}`;
-  };
-  $('#relRegua').addEventListener('change', e => pintar(e.target.value));
-  pintar(regua);
-}
-
-/* ---- ANIVERSÁRIOS da base (a mesma do CRM) ---- */
-async function abrirAniversariosBase() {
-  openModal(`<div class="modal-head"><h3>${svg(I.gift)} Aniversários na base do CRM</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
-    <div class="modal-body" id="anivCorpo"><div class="skel" style="height:160px"></div></div>
-    <div class="modal-foot"><button type="button" class="btn" id="anivPlanilha">${svg(I.upload)} Importar planilha</button><button type="button" class="btn primary" data-fechar>Pronto</button></div>`, { larga:true });
-  $('#anivPlanilha').addEventListener('click', () => { closeModal(); openImportarModal(); });
-  const corpo = $('#anivCorpo');
-  corpo.setAttribute('aria-busy', 'true');
-  let d;
-  try { d = await api('GET', '/aniversarios'); }
-  catch {
-    if (!modalAberto() || !corpo.isConnected) return;
-    corpo.innerHTML = '<p class="form-msg erro" role="alert">Não consegui carregar os aniversários.</p><button type="button" class="btn">Tentar novamente</button>';
-    $('button', corpo).addEventListener('click', abrirAniversariosBase);
-    return;
-  } finally {
-    corpo.removeAttribute('aria-busy');
-  }
-  if (!modalAberto() || !corpo.isConnected) return;
-  const pctData = d.total ? Math.round((d.comData / d.total) * 100) : 0;
-  corpo.innerHTML = `
-    <div class="rel-nums"><div><b>${d.comData}</b><small>com aniversário</small></div><div><b>${d.total}</b><small>clientes com telefone</small></div><div class="g"><b>${d.proximos.length}</b><small>nos próximos 30 dias</small></div></div>
-    <div class="barra-prog" role="progressbar" aria-valuenow="${pctData}" aria-valuemin="0" aria-valuemax="100" aria-label="Clientes com aniversário"><i style="width:${Math.max(pctData, d.comData ? 2 : 0)}%"></i></div>
-    <p class="dica">O CRM, a Agenda e o Atendimento usam a <b>mesma</b> ficha de cliente: quem já tem data aparece aqui sozinho e entra na régua Aniversário. ${d.comData ? '' : 'Ainda ninguém tem data — cadastre pelos atendidos abaixo ou importe a planilha.'}</p>
-    ${d.proximos.length ? `<div class="lista-sep">Próximos 30 dias <em>${d.proximos.length}</em></div>${d.proximos.map(p => `<div class="ag-linha"><span class="d">${esc(dataCurta(p.data))}</span><span class="s"><b>${esc(p.nome)}</b>${p.aceita ? '' : ' <span class="selo">não quer mensagens</span>'}</span><small class="muted">${p.em_dias === 0 ? 'hoje 🎂' : `em ${plural(p.em_dias, 'dia', 'dias')}`}</small></div>`).join('')}` : ''}
-    ${d.semDataRecentes.length ? `<div class="lista-sep">Atendidos há pouco, sem data <em>${d.semDataRecentes.length}</em></div>${d.semDataRecentes.map(c => `<div class="ag-linha"><span class="s"><b>${esc(c.nome)}</b> <small class="muted">${esc(telBR(c.telefone))}</small></span><button type="button" class="btn btn-mini" data-nasc-base="${esc(c.id)}">${svg(I.gift)} Pôr data</button></div>`).join('')}` : ''}`;
-  $$('[data-nasc-base]').forEach(b => b.addEventListener('click', () => { const c = d.semDataRecentes.find(x => x.id === b.dataset.nascBase); closeModal(); openNascimentoModal(c); }));
-}
-
-/* ---- AJUDA curta (a da rodada 4, por papel, mora em rodada4.js) ---- */
-function abrirAjuda() {
-  if (window.R4) return window.R4.abrirAjuda();
-  return abrirAjudaAntiga();
-}
-function abrirAjudaAntiga() {
-  openModal(`<div class="modal-head"><h3>❔ Como o Comunicar funciona</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
-    <div class="modal-body ajuda">
-      <div class="ajuda-item"><span>🏁</span><div><b>Réguas</b><p>Mensagens automáticas (lembrete, pós-venda, revisão, aniversário…). Ligou, o carteiro gera e envia sozinho dentro da janela, no máximo o limite por hora.</p></div></div>
-      <div class="ajuda-item"><span>✨</span><div><b>IA</b><p>Escreve as mensagens (3 opções), lê as respostas e avisa quem quer agendar, quer orçamento ou reclamou, sugere para quem mandar campanha e resume a semana. <b>Nunca responde o cliente sozinha.</b></p></div></div>
-      <div class="ajuda-item"><span>🤝</span><div><b>Respeito ao cliente</b><p>Quem responde PARAR sai de tudo. Se o cliente está conversando com alguém (mensagem sem resposta há menos de 2 h ou esperando consultor), a régua espera 3 h. Feriado nacional segura as réguas de relacionamento.</p></div></div>
-      <div class="ajuda-item"><span>🔁</span><div><b>Falhas</b><p>Erro passageiro tenta de novo sozinho (até 3 vezes, com espera). Chave do WhatsApp recusada para a rodada e devolve a mensagem para a fila.</p></div></div>
-      <div class="ajuda-item"><span>💬</span><div><b>Atendimento</b><p>O que sai daqui aparece no histórico da conversa. "Abrir conversa" leva direto ao cliente no Atendimento.</p></div></div>
-      <div class="ajuda-item"><span>👥</span><div><b>Equipe</b><p>Atendente manda mensagem para um cliente; campanha para um grupo vai para o gestor aprovar. Cliente que pediu horário, quer orçamento ou reclamou vira <b>tarefa</b> para quem cuida da conversa; reclamação avisa o gestor no 🔔 na hora. Réguas, teste, CSV e importar: só gestor.</p></div></div>
-      <div class="ajuda-item"><span>⌨️</span><div><b>Atalhos</b><p><kbd>N</kbd> nova campanha · <kbd>/</kbd> buscar · <kbd>?</kbd> esta ajuda · <kbd>Esc</kbd> fecha</p></div></div>
-    </div>
-    <div class="modal-foot"><button type="button" class="btn primary" data-fechar>Entendi</button></div>`);
-}
-$('#btnAjuda')?.addEventListener('click', abrirAjuda);
-
-/* ---- baixar CSV (precisa do login: vem por fetch e vira arquivo) ---- */
-async function baixarCSV(params) {
-  const r = await fetch(API + '/envios.csv' + (params.toString() ? `?${params}` : ''), { headers: await authCabecalhos() });
-  if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.erro || 'Não deu para exportar.'); }
-  const blob = await r.blob();
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `comunicar-mensagens-${hojeSP()}.csv`;
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
 /** Cartão da sugestão de público (campanha › passo 1). */
 function htmlSugestao(sg) {
   return `<div class="ia-sugestao">
@@ -2325,30 +1774,6 @@ function htmlSugestao(sg) {
    RODADA 3 — equipe: faixa "para você" no Início e aprovação de campanhas
    ============================================================================ */
 
-/* Início: o que é da pessoa agora — tarefas abertas e campanhas para aprovar. */
-async function pintarFaixaEquipe() {
-  const box = $('#faixaEquipe'); if (!box) return;
-  const [tarefas, camp] = await Promise.all([
-    api('GET', '/tarefas').catch(() => []),
-    api('GET', '/campanhas/aprovacao?status=aguardando').catch(() => ({ lista: [], aguardando: 0 })),
-  ]);
-  if (!$('#faixaEquipe')) return;
-  const vencidas = tarefas.filter(t => t.vence_em && new Date(t.vence_em) < new Date()).length;
-  const gestor = pode('campanha_aprovar');
-  const itens = [];
-  if (tarefas.length) itens.push(`<button type="button" class="fe-item${vencidas ? ' alerta' : ''}" data-fe="tarefas">${svg(I.check)}
-      <span><b>${plural(tarefas.length, 'tarefa sua', 'tarefas suas')}</b><small>${vencidas ? `${plural(vencidas, 'vencida', 'vencidas')} · ` : ''}${esc(tarefas[0].titulo)}</small></span></button>`);
-  if (camp.aguardando) itens.push(`<button type="button" class="fe-item roxo" data-fe="aprovar">${svg(I.megafone)}
-      <span><b>${gestor ? plural(camp.aguardando, 'campanha esperando sua aprovação', 'campanhas esperando sua aprovação') : plural(camp.aguardando, 'campanha sua esperando o gestor', 'campanhas suas esperando o gestor')}</b>
-      <small>${esc(renderTemplate(camp.lista.find(c => c.status === 'aguardando')?.corpo || '', EXEMPLO))}</small></span></button>`);
-  box.innerHTML = itens.join('');
-  box.hidden = !itens.length;
-  box.onclick = (e) => {
-    const b = e.target.closest('[data-fe]'); if (!b) return;
-    if (b.dataset.fe === 'tarefas') window.Conta?.abrirTarefas(); else route('campanhas');
-  };
-}
-
 const STATUS_CAMP = { aguardando:['Aguardando aprovação', 'bp-orange'], aprovada:['Aprovada', 'bp-green'], recusada:['Recusada', 'bp-red'], cancelada:['Cancelada', 'bp-gray'] };
 
 /* Campanhas: propostas de atendentes. Gestor aprova/recusa; atendente vê as dele e pode cancelar. */
@@ -2384,7 +1809,7 @@ async function pintarAprovacoes() {
     if (ap) {
       if (!confirm('Aprovar esta campanha? As mensagens entram na fila agora (quem pediu para parar fica fora).')) return;
       ap.disabled = true;
-      try { const x = await api('POST', `/campanhas/${ap.dataset.aprovar}/aprovar`, {}); toast(`Aprovada: ${plural(x.enfileirados, 'mensagem', 'mensagens')} na fila${x.pulados ? ` · ${x.pulados} pulada(s)` : ''}.`, 'ok', 5000); refreshBadge(); route(null, { quieto:true }); }
+      try { const x = await api('POST', `/campanhas/${ap.dataset.aprovar}/aprovar`, {}); toast(`Aprovada: ${plural(x.enfileirados, 'mensagem', 'mensagens')} na fila${x.pulados ? ` · ${x.pulados} pulada(s)` : ''}.`, 'ok', 5000); route(null, { quieto:true }); }
       catch (err) { toast(err.message, 'err'); ap.disabled = false; }
     }
     if (rc) {
