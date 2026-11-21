@@ -363,7 +363,7 @@ test('Casa: aviso do Tráfego no sino leva para dentro de /trafego/ (antes caía
   assert.equal(L.linkDaNotificacao({ app: 'ads', link: 'https://site-de-fora.example/x' }, b, ORIGEM_CENTRAL), '/trafego/');
 });
 
-test('Casa: a grade desenha o Tráfego por último (as posições 1 a 6 dos atalhos não mudam) e a página pede os arquivos novos', () => {
+test('Casa: a grade desenha o Tráfego por último e a página pede os arquivos novos', () => {
   const ordem = JSON.parse(/const ORDEM_APPS = (\[[^\]]+\]);/.exec(lerCasa('casa.js'))[1].replace(/'/g, '"'));
   assert.deepEqual(ordem, ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador', 'ads']);
   for (const k of ordem) assert.equal(L.APPS[k]?.k, k, `${k} existe na lista de apps (senão a grade quebra ao desenhar)`);

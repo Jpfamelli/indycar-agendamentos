@@ -38,7 +38,7 @@ test('aviso da Casa: "ok"/"err" não viram 0 ms (o aviso sumia na hora); com bot
   const casa = ler('casa.js');
   assert.match(casa, /L\.tempoDoAviso\(opcao, !!acao\)/);
   assert.match(casa, /t\.dataset\.tom = opcao === 'err'/);
-  assert.doesNotMatch(ler('tarefas.js'), /desfazerTimer/, 'o "Desfazer" usa o relógio único do aviso');
+  assert.ok(!existsSync(join(CASA, 'tarefas.js')), 'rodada 11: a lista de tarefas saiu da Casa');
 });
 
 test('sino: "marcar todas como lidas" só marca o que está na tela (filtro de app, busca, sem adiados)', () => {
@@ -61,16 +61,12 @@ test('sino: carregando, erro com "tentar de novo" e aviso sozinho sem a caixinha
   assert.match(sino, /<span class="n-nova">não lido<\/span>/);
 });
 
-test('tarefas: carregando, erro com "tentar de novo", trava do Criar, título vazio explica, título editável pelo teclado', () => {
-  const t = semComentarios(ler('tarefas.js'));
-  assert.match(t, /Carregando suas tarefas/);
-  assert.match(t, /Não consegui ler as tarefas agora/);
-  assert.match(t, /data-tarefas-de-novo/);
-  assert.match(t, /if \(criando\) return;/);
-  assert.match(t, /botao\.disabled = true/);
-  assert.match(t, /Escreva o que precisa ser feito/);
-  assert.match(t, /<button type="button" class="t-texto" data-editar=/);
-  assert.doesNotMatch(t, /<span class="t-texto" data-editar=/);
+test('rodada 11: a lista de tarefas saiu da Casa; o aviso de tarefas vencidas abre a aba Tarefas do Atendimento', () => {
+  assert.ok(!existsSync(join(CASA, 'tarefas.js')));
+  const html = ler('index.html');
+  assert.doesNotMatch(html, /id="tTarefas"|id="fTarefa"|id="listaTarefas"|Minhas tarefas/);
+  assert.deepEqual(N.acaoDoAviso({ tipo: 'tarefas_vencidas' }, L.bases(), 'http://central.local/'), { acao: 'abrir', url: '/atendimento/?tarefas' });
+  for (const f of ['casa.js', 'sino.js', 'painel.js', 'comando.js']) assert.doesNotMatch(semComentarios(ler(f)), /#tTarefas|C\.tarefas/, f);
 });
 
 test('meta do mês: aceita como a pessoa escreve (R$ 80.000, 80 mil, 80k)', () => {
@@ -81,7 +77,7 @@ test('meta do mês: aceita como a pessoa escreve (R$ 80.000, 80 mil, 80k)', () =
   assert.ok(Number.isNaN(M.valorDaMeta('abc')));
   assert.ok(Number.isNaN(M.valorDaMeta('-5')));
   assert.ok(Number.isNaN(M.valorDaMeta('999999999')));
-  assert.match(ler('painel.js'), /window\.CasaLogica2\.valorDaMeta\(texto\)/);
+  assert.doesNotMatch(ler('painel.js'), /valorDaMeta|donoMeta/, 'rodada 11: a meta do mês saiu com a visão do dono');
 });
 
 test('busca: contagem certa quando só acha pessoas (antes "2 resultados em 0 sistema")', () => {
@@ -101,7 +97,7 @@ test('busca: sem a lista falsa de opções (axe acusava erro crítico); o item m
   assert.match(html, /id="buscaAnuncio" class="sr-only" aria-live="polite"/);
   assert.match(html, /id="buscaDica" class="busca-dica" aria-live="polite"/);
   assert.match(b, /\$\('#buscaAnuncio'\)/);
-  assert.match(b, /'orcador', 'ads'\]\.filter/, 'o Tráfego aparece no "Ir para"');
+  assert.doesNotMatch(b, /Ir para|blocoComandos|C\.comandos/, 'rodada 11: sem "Ir para" (repetia os cartões) e sem paleta de comandos');
 });
 
 test('ficha: erro dos links em português, sem "Failed to fetch", com tentar de novo', () => {
@@ -152,14 +148,15 @@ test('saúde: a faixa do Vigia usa faixaDoVigia, selo "Urgente" com ícone e pal
   assert.doesNotMatch(s, /aviso\.resumo \|\|/, 'o texto cru não é mais o título');
 });
 
-test('atalhos: 7 abre o Tráfego, e a ajuda diz isso', () => {
-  assert.equal(M.ATALHOS_NUMERO[7], 'ads');
-  assert.equal(M.ATALHOS_NUMERO[6], 'orcador');
-  assert.match(semComentarios(ler('atalhos.js')), /\/\^\[1-7\]\$\/\.test\(k\)/);
-  const ajuda = L.AJUDA_ATALHOS.find(([k]) => /^1 … /.test(k));
-  assert.equal(ajuda[0], '1 … 7');
-  assert.match(ajuda[1], /7 Tráfego/);
-  for (let i = 1; i <= 7; i++) assert.ok(L.APPS[M.ATALHOS_NUMERO[i]], 'app da tecla ' + i);
+test('rodada 11: sem ajuda de atalhos e sem teclas de letra ou número; Ctrl+K e "/" abrem a busca', () => {
+  assert.ok(!existsSync(join(CASA, 'atalhos.js')));
+  assert.equal(L.AJUDA_ATALHOS, undefined); assert.equal(L.ATALHOS_G, undefined); assert.equal(M.ATALHOS_NUMERO, undefined);
+  const html = ler('index.html');
+  assert.doesNotMatch(html, /id="ajuda"|id="bAjuda"|Atalhos do teclado|class="busca-pe"|<kbd/);
+  const b = semComentarios(ler('busca.js'));
+  assert.match(b, /String\(e\.key\)\.toLowerCase\(\) === 'k'/);
+  assert.match(b, /e\.key === '\/'[^\n]*!L\.ehCampo\(e\.target\)/);
+  assert.match(b, /document\.removeEventListener\('keydown', teclado\)/);
 });
 
 test('textos da tela: sem travessão e sem "lead" (palavra que a oficina não usa)', () => {
@@ -170,39 +167,25 @@ test('textos da tela: sem travessão e sem "lead" (palavra que a oficina não us
     if (/(?<![.\w$])leads?\b(?![_:.?])/i.test(t.replace(/\$\{[^}]*\}/g, ''))) ruins.push(f + ': lead em "' + t.slice(0, 80) + '"');
   }
   assert.deepEqual(ruins, []);
-  assert.match(ler('index.html'), /<span class="agora-rotulo">Contatos novos<\/span>/);
+  assert.match(semComentarios(ler('painel.js')), /'contatos novos sem dono'/);
   assert.equal(L.GRUPOS_BUSCA.find((g) => g.k === 'leads').nome, 'Contatos (CRM)');
 });
 
-test('"não sei" é "sem dado": cartão com erro e conversão sem base não mostram traço', () => {
+test('"não sei" não vira traço nem zero: cartão de app sem número esconde o número (rodada 11)', () => {
   const p = semComentarios(ler('painel.js'));
-  assert.match(p, /num: 'sem dado'/);
-  assert.match(p, /v === null \? 'sem dado'/);
-  assert.match(p, /classList\.toggle\('num-texto'/);
+  assert.match(p, /if \(!v \|\| !Number\.isFinite\(Number\(v\[0\]\)\)\) \{ el\.hidden = true;/);
   assert.doesNotMatch(ler('index.html'), /data-num>—</);
 });
 
-test('"Ontem e amanhã": o bloco da manhã não repete a saudação', () => {
-  assert.match(ler('index.html'), /<h2 id="manhaTitulo" class="atencao-titulo">Ontem e amanhã<\/h2>/);
-  assert.match(semComentarios(ler('manha.js')), /\$\('#manhaTitulo'\)\.textContent = 'Ontem e amanhã'/);
+test('rodada 11: o bloco "Ontem e amanhã" saiu da Casa (repetia a Agenda)', () => {
+  assert.ok(!existsSync(join(CASA, 'manha.js')));
+  assert.doesNotMatch(ler('index.html'), /manhaTitulo|Ontem e amanhã/);
 });
 
-test('acessibilidade: abas da visão com setas, ajuda prende o Tab, relógio não fala a cada 5 s, filtro de hoje dentro do item', () => {
+test('acessibilidade: a Casa enxuta não tem abas de visão nem relógio falante; a busca do topo tem nome', () => {
   const html = ler('index.html');
-  assert.match(html, /role="tab" id="abaOperacao"[^>]*aria-controls="visaoOperacao" tabindex="0"/);
-  assert.match(html, /role="tab" id="abaDono"[^>]*aria-controls="visaoDono" tabindex="-1"/);
-  assert.match(html, /id="visaoDono" class="dono" role="tabpanel" aria-labelledby="abaDono"/);
-  assert.doesNotMatch(html, /class="vivo" aria-live/);
-  assert.match(html, /id="vivoAviso" class="sr-only" role="status"/);
-  const p = semComentarios(ler('painel.js'));
-  assert.match(p, /\$\('#seletorVisao'\)\.onkeydown/);
-  assert.match(p, /e\.key === 'ArrowRight'/);
-  assert.match(p, /<li class="filtro-hoje"><div class="filtro-hoje-grupo" role="group"/);
-  assert.match(p, /class="tabela-rolavel" tabindex="0" role="region"/);
-  assert.match(p, /aria-label="Orçar: criar orçamento/);
-  assert.match(semComentarios(ler('atalhos.js')), /if \(aberta && e\.key === 'Tab'\)/);
+  assert.doesNotMatch(html, /role="tab"|id="visaoDono"|id="vivoAviso"|class="vivo"/);
   assert.match(html, /aria-label="Buscar telefone, nome ou placa em todos os sistemas"/);
-  assert.match(html, /<kbd class="kbd-css" aria-hidden="true" data-tecla="Ctrl K"><\/kbd>/);
 });
 
 test('fontes da casa: servidas pela Central, sem Google; @font-face para cada arquivo; no cache offline', () => {
@@ -227,7 +210,7 @@ test('visual: fundo liso, sem barra colorida de lado, barra de faturamento sem d
   assert.match(css, /\.barra-fill \{ background: var\(--cor-dado\); \}/);
   assert.doesNotMatch(css, /gradient/);
   assert.match(css, /--cor-grave: #ff4d5e/); assert.match(css, /--cor-grave: #c20f22/);
-  assert.match(semComentarios(ler('painel.js')), /\$\{b\.dia === hojeB \? 'hoje' :/);
+  assert.doesNotMatch(ler('index.html'), /donoBarras/, 'rodada 11: o gráfico de faturamento saiu com a visão do dono');
   assert.match(semComentarios(ler('painel.js')), /a-selo-3"><span aria-hidden="true">⚠<\/span> Urgente/);
 });
 
@@ -258,12 +241,9 @@ test('app instalado: barra na cor do topo (escura, como a meta theme-color) e de
   assert.match(m.description, /Tráfego/);
 });
 
-test('visão do dono vazia: gráfico de 7 dias explica o vazio e a projeção não diz "fecha em R$ 0,00"', () => {
-  const p = semComentarios(ler('painel.js'));
-  assert.match(ler('index.html'), /<p id="donoBarrasVazio" class="vazio-mini" hidden>Nenhum fechamento com valor nos últimos 7 dias/);
-  assert.match(p, /vazio7\.hidden = bs\.some\(\(b\) => b\.valor > 0\)/);
-  assert.match(p, /Ainda sem faturamento marcado neste mês/);
-  assert.match(semComentarios(ler('r9.css')), /\.conv-linha b \{ white-space: nowrap; \}/);
+test('rodada 11: a visão do dono saiu da Casa (faturamento, conversão, meta e desempenho moram nos apps)', () => {
+  assert.doesNotMatch(ler('index.html'), /visaoDono|seletorVisao|donoTiles|donoConv|donoConsultores|donoGargalos|donoLigacoes/);
+  assert.doesNotMatch(semComentarios(ler('painel.js')), /r6_c1_painel_dono|r6_c1b_painel_consultores|casa_metas/);
 });
 
 test('sair: buscas recentes (nome e telefone de cliente) e avisos adiados saem do aparelho; tema e e-mail lembrado ficam', () => {
@@ -293,9 +273,7 @@ test('mecânico sem carro: texto dos carros dele (não o da oficina inteira, nem
   assert.ok(v && v.texto && v.dica);
   assert.match(v.texto, /para você/);
   assert.doesNotMatch(v.texto + v.dica, /Nova entrada|—/);
-  const p = semComentarios(ler('painel.js'));
-  assert.match(p, /vazio: V\.soMeusCarros \? 'cPatioMeus' : 'cPatio'/);
-  assert.match(p, /VAZIOS\[vazio \|\| el\.id\]/);
+  assert.match(semComentarios(ler('painel.js')), /V\.soMeusCarros \? plural\(d\.patio\.total, 'carro seu no pátio', 'carros seus no pátio'\)/, 'rodada 11: o cartão do Pátio conta os carros dele');
 });
 
 test('listas dos cartões: coluna minmax(0, 1fr) (valor e tempo não saem do cartão) e nome desce de linha no celular', () => {
@@ -306,7 +284,6 @@ test('listas dos cartões: coluna minmax(0, 1fr) (valor e tempo não saem do car
 
 test('gráfico de 7 dias: valor curto em cima da barra (cabe nos 40 px do celular), vazio quando o dia não tem valor', () => {
   assert.deepEqual([0, null, 850, 999.6, 1750, 12500, 1234567].map(N.rotuloDaBarra), ['', '', '850', '1 mil', '1,8 mil', '12,5 mil', '1,2 mi']);
-  assert.match(semComentarios(ler('painel.js')), /rotuloDaBarra\(b\.valor\)/);
 });
 
 test('ligações entre sistemas: resumo diz "registros soltos para arrumar" (não "casos em 1 tipo") e explica o que é solto', () => {
@@ -314,15 +291,12 @@ test('ligações entre sistemas: resumo diz "registros soltos para arrumar" (nã
   assert.equal(N.textoDasLigacoes({ total: 1, tipos: 1, alta: 1 }), '1 registro solto para arrumar · 1 assunto grave');
   assert.equal(N.textoDasLigacoes({ total: 0 }), 'Nenhum registro solto.');
   assert.match(N.EXPLICA_LIGACOES, /não acha no outro/);
-  const s = semComentarios(ler('saude.js'));
-  assert.doesNotMatch(s, /tipo\$\{/);
-  assert.match(s, /N\.textoDasLigacoes\(r\)/);
+  assert.doesNotMatch(semComentarios(ler('saude.js')), /r7_x3_ligacoes_quebradas/, 'rodada 11: as ligações saíram da Casa com a visão do dono');
 });
 
 test('visão do dono sem palavra difícil: nada de "ticket" nem "subestimado" na tela', () => {
   const ruins = frasesDaTela().filter(([, t]) => /\bticket\b|subestimad/i.test(t));
   assert.deepEqual(ruins, []);
-  assert.match(ler('painel.js'), /média de \$\{C\.esc\(L\.brl\(f\.ticket_semana\)\)\} por carro/);
 });
 
 test('busca: botão de fechar diz "Fechar" (não "Esc"); no toque some a cola de teclado', () => {
@@ -369,7 +343,7 @@ test('logo do topo: leitor de tela ouve o problema dos sistemas; o ponto de prob
   assert.equal(N.rotuloDoLogo({ tom: 'ruim', texto: 'WhatsApp com problema' }), 'IndyCar Central, início. WhatsApp com problema');
   assert.equal(N.rotuloDoLogo({ tom: 'aviso', texto: 'Pátio pede atenção' }), 'IndyCar Central, início. Pátio pede atenção');
   assert.match(semComentarios(ler('saude.js')), /topo\.setAttribute\('aria-label', N\.rotuloDoLogo\(r\)\)/);
-  assert.match(ler('r9.css'), /\.topo-marca\[data-saude="ruim"\]::after \{ content: '!';/);
+  assert.match(ler('r9.css'), /\.ic-marca\[data-saude="ruim"\]::after \{ content: '!';/);
 });
 
 test('seus apps: número de pendências no canto do cartão (o nome comprido não desce de linha por causa dele)', () => {
@@ -384,32 +358,15 @@ test('busca com erro: aviso falado (role alert) e botão "tentar de novo" que bu
   assert.match(s, /if \(e\.target\.closest\('\[data-busca-de-novo\]'\)\) \{ buscar\(inp\.value\); inp\.focus\(\); return; \}/);
 });
 
-test('meta do mês: campo no próprio bloco (sem window.prompt), com rótulo, ajuda, erro no campo e Esc que cancela', () => {
+test('rodada 11: sem o campo da meta do mês na Casa (e nunca window.prompt)', () => {
   const s = semComentarios(ler('painel.js'));
-  assert.doesNotMatch(s, /window\.prompt\(/);
-  assert.match(s, /<label for="metaValor">Meta de faturamento do mês<\/label>/);
-  assert.match(s, /aria-describedby="metaAjuda\$\{erroMeta \? ' metaErro' : ''\}"/);
-  assert.match(s, /<p id="metaErro" class="vazio-erro" role="alert">/);
-  assert.match(s, /e\.key === 'Escape' && editandoMeta/);
-  assert.match(s, /const valor = erroMeta \? rascunhoMeta :/);
+  assert.doesNotMatch(s, /window\.prompt\(|metaValor/);
 });
 
-test('recolher cartão: o nome do botão diz a ação e o cartão de agora (mecânico ouvia "Carros no pátio", não "Meus carros")', () => {
+test('rodada 11: comando.js só confere se o Pátio e o Orçador estão no ar (saíram clima, Meu dia, recolher, paleta e resumo)', () => {
   const s = semComentarios(ler('comando.js'));
-  const f = s.slice(s.indexOf('function aplicarRecolhidos('), s.indexOf('function ligarRecolher('));
-  assert.match(f, /el\.querySelector\('\.agora-rotulo'\)\?\.textContent/);
-  assert.match(f, /\(fechado \? 'Mostrar a lista de ' : 'Esconder a lista de '\) \+ rot/);
-  assert.match(s, /C\.aoAgora = \(d\) => \{ pintarMeuDia\(d\); ligarRecolher\(\); \};/, 'refaz depois de cada desenho do painel');
-});
-
-test('tarefas: o foco não se perde (concluir vai para a próxima, adiar fica na mesma); botões de adiar dizem quanto', () => {
-  const s = semComentarios(ler('tarefas.js'));
-  assert.match(s, /focar\(proxima \? seletorDe\('data-tarefa', proxima\) : '#tTitulo'\);/);
-  assert.match(s, /focar\(seletorDe\(dias > 1 \? 'data-adiar-mais' : 'data-adiar', id\)\);/);
-  assert.match(s, />adiar 1 dia<\/button>/);
-  assert.match(s, />adiar 3 dias<\/button>/);
-  assert.doesNotMatch(s, />adiar ›<|>\+3 dias</);
-  for (const [vis, nome] of [['adiar 1 dia', 'Adiar 1 dia útil: '], ['adiar 3 dias', 'Adiar 3 dias úteis: ']]) assert.ok(nome.toLowerCase().startsWith(vis), 'o nome falado começa pelo texto que se vê: ' + vis);
+  assert.doesNotMatch(s, /recolher|pintarMeuDia|climaDaOficina|C\.comandos|copiarResumo/);
+  assert.match(s, /fetch\('\/api\/central\/saude-apps'/);
 });
 
 test('entrada: erro aponta o campo (aria-invalid, foco e texto selecionado) e o campo lê a mensagem de erro', () => {
@@ -432,11 +389,8 @@ test('biblioteca do Supabase (CDN) com integrity sha384: arquivo trocado no CDN 
   for (const f of ['r9-casa-browser.mjs', 'r9-casa-interacoes.mjs']) assert.match(readFileSync(join(RAIZ, 'tests', f), 'utf8'), /replace\(\/ integrity="\[\^"\]\*"\/g, ''\)/, f + ': o teste tira o integrity só para usar o Supabase de mentira');
 });
 
-test('"dispensar por hoje" do Ontem e amanhã: aviso com Desfazer, foco no conteúdo e marcas de dias velhos apagadas', () => {
-  const s = semComentarios(ler('manha.js'));
-  assert.match(s, /C\.toast\('Escondido até amanhã\.', 6000, \{ rotulo: 'Desfazer', fazer:/);
-  assert.match(s, /x\.startsWith\('indycar_manha_'\) && x !== k\) localStorage\.removeItem\(x\)/);
-  assert.match(s, /const alvo = \$\('#miolo'\); if \(alvo\) alvo\.focus\(\{ preventScroll: true \}\);/);
+test('rodada 11: sem "dispensar por hoje" (o bloco Ontem e amanhã saiu); o miolo continua alvo de foco', () => {
+  assert.ok(!existsSync(join(CASA, 'manha.js')));
   assert.match(ler('index.html'), /<main id="miolo" class="miolo" tabindex="-1">/);
 });
 
@@ -456,7 +410,7 @@ test('janelas da busca e da ficha sem marco duplicado (o pé e o cabeçalho dela
   const ficha = h.slice(h.indexOf('<div id="ficha"'), h.indexOf('</div>\n  </div>', h.indexOf('<div id="ficha"')) + 20);
   assert.doesNotMatch(busca, /<footer|<header/);
   assert.doesNotMatch(ficha, /<footer|<header/);
-  assert.match(busca, /<div class="busca-pe">/);
+  assert.doesNotMatch(busca, /busca-pe/, 'rodada 11: a cola de teclas saiu');
   assert.match(ficha, /<div class="ficha-cab">/);
 });
 
@@ -468,27 +422,20 @@ test('"ir para" leva o foco junto e só anima a rolagem para quem não pediu men
   assert.match(c, /el\.setAttribute\('tabindex', '-1'\)/);
   assert.match(c, /el\.focus\(\{ preventScroll: true \}\)/);
   assert.match(c, /\$: \(s\) => document\.querySelector\(s\), irPara,/);
-  for (const f of ['atalhos.js', 'comando.js', 'sino.js']) assert.match(semComentarios(ler(f)), /C\.irPara\('#tTarefas'\)/, f + ' vai para as tarefas pelo irPara');
-  assert.match(semComentarios(ler('tarefas.js')), /C\.irPara\('#tTitulo', \{ bloco: 'center' \}\)/);
+  for (const f of ['comando.js', 'sino.js']) assert.doesNotMatch(semComentarios(ler(f)), /#tTarefas/, f + ': rodada 11, sem lista de tarefas na Casa');
   for (const f of readdirSync(CASA).filter((x) => x.endsWith('.js') && x !== 'casa.js')) {
     assert.doesNotMatch(semComentarios(ler(f)), /behavior: 'smooth'/, f + ': rolagem animada fixa ignorava o "menos movimento"');
   }
 });
 
-test('"g depois f" abre o Tráfego e a dica do g só lista os apps que a pessoa pode abrir', () => {
-  assert.equal(L.ATALHOS_G.f, 'ads');
-  assert.deepEqual(Object.keys(L.ATALHOS_G), ['a', 't', 'c', 'm', 'p', 'o', 'f'], 'ordem da dica igual à da ajuda');
-  assert.ok(L.AJUDA_ATALHOS.some(([k, d]) => k === 'g  depois  f' && /Tráfego/.test(d)));
-  for (const app of Object.values(L.ATALHOS_G)) assert.ok(L.APPS[app], app + ' existe na lista de apps');
-  const s = semComentarios(ler('atalhos.js'));
-  assert.match(s, /Object\.entries\(L\.ATALHOS_G\)\.filter\(\(\[, app\]\) => C\.podeUsar\(app\)\)/);
-  assert.match(s, /dica\(dicaDoG\(\)\)/);
-  assert.doesNotMatch(s, /g…  a Agenda · t Atendimento/, 'dica fixa com todos os apps saiu');
+test('rodada 11: sem "g depois letra" (atalho escondido que ninguém usava)', () => {
+  assert.equal(L.ATALHOS_G, undefined);
+  assert.doesNotMatch(semComentarios(ler('busca.js')), /esperandoG|dicaDoG/);
 });
 
 test('atalho de app fora do ar diz "fora do ar" (antes só a borda tracejada mostrava)', () => {
   assert.match(ler('r9.css'), /\.acao-fora::after \{ content: '· fora do ar';/);
-  assert.match(semComentarios(ler('comando.js')), /el\.title = fora\.has\(k\) \? 'Este app não está respondendo agora\. Clique só se precisar\.' : '';/);
+  assert.match(semComentarios(ler('comando.js')), /el\.title = f \? 'Este app não está respondendo agora\. Clique só se precisar\.' : '';/);
   assert.match(readFileSync(join(RAIZ, 'tests', 'r9-casa-browser.mjs'), 'utf8'), /nome: 'foradoar', cenario: \{ papel: 'admin', foraDoAr: \['patio', 'orcador'\] \}/, 'o Chrome mede a tela com Pátio e Orçador fora');
 });
 
@@ -507,10 +454,6 @@ test('faturamento da semana: a comparação diz "a mais" / "a menos" em palavras
   assert.deepEqual(N.textoDaVariacao(L.variacao(1000, 1000)), { classe: '', seta: '', texto: 'igual' });
   assert.equal(N.textoDaVariacao(L.variacao(500, 0)).texto, 'a semana passada estava zerada');
   assert.equal(N.textoDaVariacao(L.variacao(0, 0)), null, 'as duas zeradas: não compara');
-  const p = semComentarios(ler('painel.js'));
-  assert.match(p, /<span aria-hidden="true">\$\{t\.seta\}<\/span>/, 'a seta não é lida; a palavra é');
-  assert.doesNotMatch(p, /vs\. mesma altura|>novo</);
-  assert.match(p, /comparado com a semana passada até este mesmo dia/);
 });
 
 test('saúde: sistemas que mudam juntos viram um aviso só (antes um por sistema, e só o último ficava na tela)', () => {
@@ -540,7 +483,6 @@ test('busca: as buscas recentes entram nas setas (antes pulavam direto para os c
 });
 
 test('filtros das tarefas e do sino: depois de filtrar, o foco fica no filtro escolhido (antes ia para o começo da página)', () => {
-  assert.match(semComentarios(ler('tarefas.js')), /filtro = b\.dataset\.filtroT; desenhar\(\); \[\.\.\.document\.querySelectorAll\('#tFiltros \[data-filtro-t\]'\)\]\.find\(\(x\) => x\.dataset\.filtroT === filtro\)\?\.focus\(\);/);
   assert.match(semComentarios(ler('sino.js')), /filtro = f\.dataset\.filtro; desenhar\(\); \[\.\.\.document\.querySelectorAll\('#sinoFiltros \[data-filtro\]'\)\]\.find\(\(x\) => x\.dataset\.filtro === filtro\)\?\.focus\(\); return;/);
 });
 
@@ -550,6 +492,5 @@ test('busca: "limpar" as recentes devolve o foco ao campo e avisa o leitor de te
 });
 
 test('"tentar de novo" das tarefas e do sino deixa o foco perto da lista (antes o botão sumia e o foco ia para o corpo da página)', () => {
-  assert.match(semComentarios(ler('tarefas.js')), /\[data-tarefas-de-novo\]'\)\) \{ leitura = 'carregando'; desenhar\(\); carregar\(\); const h = \$\('#tTarefas'\); if \(h\) \{ h\.setAttribute\('tabindex', '-1'\); h\.focus\(\{ preventScroll: true \}\); \} \}/);
   assert.match(semComentarios(ler('sino.js')), /\[data-sino-de-novo\]'\)\) \{ leitura = 'carregando'; desenhar\(\); carregar\(\); \$\('#sinoBusca'\)\?\.focus\(\); return; \}/);
 });

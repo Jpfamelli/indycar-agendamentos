@@ -1,4 +1,4 @@
-// Casa (rodada 7, C1): conferências estáticas — nada de a Casa virar o app, tudo no cache, ajuda de atalhos em dia, CSP sem inline.
+// Casa (rodada 7, C1): conferências estáticas — nada de a Casa virar o app, tudo no cache, sem ajuda de atalhos (rodada 11), CSP sem inline.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -52,20 +52,15 @@ test('index.html: sem style=, onclick= ou script inline (a CSP da Casa não deix
 test('os arquivos novos de CSS tratam [hidden] com !important', () => {
   for (const f of readdirSync(CASA).filter((x) => x.endsWith('.css'))) assert.match(ler(f), /\[hidden\]\s*\{\s*display:\s*none\s*!important/, f);
 });
-test('ajuda de atalhos e teclado andam juntos: toda tecla do handler está na ajuda e vice-versa', () => {
-  const ajuda = L.AJUDA_ATALHOS.map(([k]) => k).join(' ');
-  const handler = semComentarios(ler('atalhos.js'));
-  const teclas = new Set([...handler.matchAll(/k === '([a-zA-Z/?])'/g)].map((m) => m[1].toLowerCase()));
-  assert.ok(teclas.size >= 10, 'achou as teclas do handler: ' + [...teclas].join(''));
-  for (const t of teclas) {
-    const aparece = t === '/' ? /Ctrl\+K\s+ou\s+\//.test(ajuda) : t === 'g' ? /g\s+depois/.test(ajuda) : new RegExp('(^|\\s)' + t.replace('?', '\\?') + '(\\s|$)', 'i').test(ajuda.replace(/\s{2,}/g, ' '));
-    assert.ok(aparece, 'tecla ' + t + ' está na ajuda');
-  }
-  for (const [k] of L.AJUDA_ATALHOS) assert.ok(typeof k === 'string' && k.length < 24);
-  assert.ok(L.AJUDA_ATALHOS.length >= 20);
+test('rodada 11: sem ajuda de atalhos (o João pediu para tirar toda ajuda); só Ctrl+K e "/" para a busca', () => {
+  assert.equal(L.AJUDA_ATALHOS, undefined);
+  assert.ok(!existsSync(join(CASA, 'atalhos.js')));
+  const b = semComentarios(ler('busca.js'));
+  const teclas = new Set([...b.matchAll(/e\.key === '([^']+)'/g)].map((m) => m[1]));
+  for (const t of teclas) assert.ok(['/', 'ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(t), 'tecla que sobrou: ' + t);
 });
-test('atalhos não disparam com janela aberta (busca, ficha, ajuda)', () => {
-  assert.match(ler('atalhos.js'), /classList\.contains\('modal-aberto'\)/);
+test('a tecla "/" não dispara com janela aberta (busca, ficha) nem dentro de campo', () => {
+  assert.match(ler('busca.js'), /!L\.ehCampo\(e\.target\) && !document\.body\.classList\.contains\('modal-aberto'\)/);
   assert.match(ler('ficha.js'), /classList\.add\('modal-aberto'\)/);
 });
 test('service worker: versão do cache subiu e os arquivos novos estão no CORE', () => {
@@ -83,7 +78,7 @@ test('módulos que mexem na tela se registram e se desmontam (nada de ouvinte va
   assert.match(parar, /removeEventListener\('click', aoClicar, true\)/); assert.match(parar, /obs\.disconnect\(\)/);
 });
 test('o texto da Casa nova não usa as palavras que a oficina não usa (veículo, prezado, efetuar, comparecer)', () => {
-  for (const f of ['logica4.js', 'parar.js', 'saude.js', 'ficha.js', 'tarefas.js', 'sino.js']) {
+  for (const f of ['logica4.js', 'parar.js', 'saude.js', 'ficha.js', 'painel.js', 'comando.js', 'sino.js']) {
     const s = semComentarios(ler(f));
     const textos = [...s.matchAll(/'([^'\n]{12,})'|`([^`\n]{12,})`/g)].map((m) => m[1] || m[2]).join(' ');
     assert.doesNotMatch(textos, /\b(prezado|efetuar|comparecer)\b/i, f);
