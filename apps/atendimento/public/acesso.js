@@ -803,9 +803,8 @@ const Acesso = (() => {
       const b = e.target.closest('[data-mp]');
       if (!b) return;
       const acao = b.dataset.mp;
-      if (acao === 'tema') { $('#btnTema').click(); $('#mpTemaTxt').textContent = document.documentElement.getAttribute('data-tema') === 'claro' ? 'Tema escuro' : 'Tema claro'; return; }
+      if (acao === 'tema') { aplicarTema(temaAtual() === 'claro' ? 'escuro' : 'claro'); $('#mpTemaTxt').textContent = document.documentElement.getAttribute('data-tema') === 'claro' ? 'Tema escuro' : 'Tema claro'; return; }
       fecharMenuPerfil();
-      if (acao === 'ajuda') return window.Ajuda?.abrir('como');
       if (acao === 'sair') return pedirSair();
       if (acao === 'sair-todos') return pedirSairDeTodos();
       irParaCartao({ perfil: 'cartaoPerfil', senha: 'cartaoSenha', mfa: 'cartaoMfa', avisos: 'cartaoPrefs' }[acao]);

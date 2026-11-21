@@ -120,7 +120,7 @@ function semComentarios(texto, html) {
 }
 
 test('R9 texto: nenhuma frase de tela com travessão', () => {
-  const arquivos = ['index.html', 'app.js', 'equipe.js', 'tarefas.js', 'acesso.js', 'ajuda.js', 'copiloto.js', 'r6-tela.js', 'r6c5.js', 'r7c4.js', 'rede.js'];
+  const arquivos = ['index.html', 'app.js', 'equipe.js', 'tarefas.js', 'acesso.js', 'copiloto.js', 'r6-tela.js', 'r6c5.js', 'r7c4.js', 'rede.js'];
   for (const arq of arquivos) {
     const limpo = semComentarios(pub(arq), arq.endsWith('.html'));
     const achados = limpo.split('\n').filter(l => / — | —$/.test(l)).map(l => l.trim().slice(0, 90));

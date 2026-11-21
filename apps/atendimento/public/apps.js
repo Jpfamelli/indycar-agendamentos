@@ -88,6 +88,8 @@
     return null;
   }
   function abrir(app, endereco) {
+    // rodada 11: dentro da Central o Orçador abre na aba Orçador do Atendimento (mesma sessão), não em outra janela
+    if (app === 'orcador' && raiz.AbaOrcador && raiz.AbaOrcador.abrir(endereco || '')) return raiz;
     const alvo = endereco ? enderecoSeguro(endereco) : (apps[app] && apps[app].url);
     if (!alvo) return null;
     try {

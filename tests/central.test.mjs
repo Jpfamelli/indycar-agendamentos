@@ -84,7 +84,7 @@ test('rodada 6: /?busca=<termo> é da Casa (200), qualquer outra consulta segue 
   assert.equal(r.headers.get('cross-origin-opener-policy'), 'same-origin-allow-popups');
 });
 
-test('rodada 6: X-Request-Id (devolve o do proxy se for simples, senão cria) e /patio, /orcador levam ao app de verdade', async () => {
+test('rodada 6: X-Request-Id (devolve o do proxy se for simples, senão cria) e /patio, /orcador levam ao app de verdade (o Orçador agora aqui dentro)', async () => {
   let r = await pega('/api/ping');
   assert.match(r.headers.get('x-request-id'), /^[0-9a-f-]{36}$/);
   r = await pega('/api/ping', { headers: { 'x-request-id': 'abc-123_XYZ' } });
@@ -94,9 +94,10 @@ test('rodada 6: X-Request-Id (devolve o do proxy se for simples, senão cria) e 
   r = await pega('/patio/?os=abc');
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('location'), 'https://indycar-patio.netlify.app/?os=abc');
-  r = await pega('/orcador');
-  assert.equal(r.status, 302);
-  assert.equal(r.headers.get('location'), 'https://indycar-orcador.netlify.app');
+  // rodada 11: o Orçador mora dentro da Central (apps/orcador/); /orcador vira /orcador/ como os outros apps
+  r = await pega('/orcador?tel=1');
+  assert.equal(r.status, 308);
+  assert.equal(r.headers.get('location'), '/orcador/?tel=1');
   r = await pega('/patiozinho');
   assert.notEqual(r.status, 302, 'só /patio e /patio/…');
 });

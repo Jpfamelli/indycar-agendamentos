@@ -58,8 +58,9 @@ function politicaCSP({ supabaseUrl = '', hashes = [] } = {}) {
   const dir = {
     'default-src': ["'self'"],
     'script-src': ["'self'", 'https://cdn.jsdelivr.net', ...hashes],
-    'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-    'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+    // rodada 11: as fontes vêm do /casa/indycar.css da Central (nada do Google)
+    'style-src': ["'self'", "'unsafe-inline'"],
+    'font-src': ["'self'", 'data:'],
     'img-src': ["'self'", 'data:', 'blob:', sb].filter(Boolean),
     'media-src': ["'self'", 'blob:', 'data:', sb].filter(Boolean),
     // rodada 10: a CDN saiu daqui; ela só serve o <script> de reserva (script-src), a tela não faz pedido para lá
@@ -67,7 +68,8 @@ function politicaCSP({ supabaseUrl = '', hashes = [] } = {}) {
     'worker-src': ["'self'"],
     'manifest-src': ["'self'"],
     'frame-ancestors': ["'none'"],
-    'frame-src': ["'none'"],
+    // rodada 11: a aba Orçador é uma moldura do próprio site (/orcador/ na Central)
+    'frame-src': ["'self'"],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'form-action': ["'self'"],

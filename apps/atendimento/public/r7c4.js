@@ -28,6 +28,8 @@
 
   /** Só abre os sistemas da casa (https e domínio conhecido). */
   function abrir(url, rotulo) {
+    // rodada 11: o Orçador abre na aba Orçador do Atendimento
+    if (rotulo === 'indycar-orcador' && url && window.AbaOrcador?.abrir(url)) return true;
     if (!url || !ALLOW.test(url)) { if (typeof toast === 'function') toast('⚠️ Link indisponível agora.'); return false; }
     window.open(url, rotulo || '_blank', 'noopener');
     return true;

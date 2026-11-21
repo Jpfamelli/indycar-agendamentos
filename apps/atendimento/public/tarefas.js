@@ -70,6 +70,7 @@ const Tarefas = (() => {
   function pintarSino() {
     const nao = visiveis().filter(n => !n.lida_em).length;
     const num = $('#sinoNum');
+    if (!num) return;   // rodada 11: o sino mora na Central
     num.hidden = !nao;
     num.textContent = nao > 99 ? '99+' : String(nao);
     $('#btnSino').setAttribute('aria-label', nao ? `Notificações: ${nao} não lida${nao > 1 ? 's' : ''}` : 'Notificações');
@@ -110,7 +111,7 @@ const Tarefas = (() => {
   }
   function fecharSino() {
     const p = $('#painelSino');
-    if (p.hidden) return;
+    if (!p || p.hidden) return;
     p.hidden = true;
     $('#btnSino').setAttribute('aria-expanded', 'false');
   }
@@ -150,7 +151,8 @@ const Tarefas = (() => {
     if (!Acesso.prefAviso(n.tipo) && ['tarefa', 'conversa', 'aguardando', 'lead'].includes(n.tipo)) return;
     toast(`🔔 ${n.titulo}${n.corpo ? ': ' + n.corpo : ''}`);
     if (Acesso.prefAviso('som')) { try { tocarSom(); } catch { /* sem som */ } }
-    $('#btnSino').classList.remove('balanca'); void $('#btnSino').offsetWidth; $('#btnSino').classList.add('balanca');
+    const sino = $('#btnSino');
+    if (sino) { sino.classList.remove('balanca'); void sino.offsetWidth; sino.classList.add('balanca'); }
   }
 
   /* ---------------- Tarefas: dados ---------------- */
@@ -185,6 +187,7 @@ const Tarefas = (() => {
   function pintarBadges() {
     const minhas = MINHAS.filter(t => t.responsavel_id === eu());
     const b = $('#badgeTarefas');
+    if (!b) return;   // rodada 11: a lista de tarefas mora na Central
     b.hidden = !minhas.length;
     b.textContent = String(minhas.length);
     b.classList.toggle('atrasada', minhas.some(atrasada));
@@ -276,7 +279,8 @@ const Tarefas = (() => {
       el.innerHTML = l.length ? agrupar(l) : `<div class="estado-vazio"><span class="vazio-ico">✅</span><p>${filtroPessoa ? 'Essa pessoa não tem tarefa aberta.' : 'A equipe não tem tarefa aberta.'}</p></div>`;
     }
   }
-  function irParaTarefas() { $('.nav-item[data-aba="tarefas"]')?.click(); }
+  /* rodada 11: a lista de tarefas mora na Central (a ficha da conversa continua mostrando e criando as do cliente) */
+  function irParaTarefas() { const b = $('.nav-item[data-aba="tarefas"]'); if (b) b.click(); else location.href = new URL('../', location.href).href; }
   function abrirAba() {
     renderTarefas();
     carregarTarefas();
@@ -621,6 +625,10 @@ const Tarefas = (() => {
 
   /* ---------------- Ligações ---------------- */
   function ligar() {
+    if ($('#btnSino')) ligarSino();   // rodada 11: o sino saiu do Atendimento (mora na Central)
+    ligarResto();
+  }
+  function ligarSino() {
     $('#btnSino').addEventListener('click', (e) => { e.stopPropagation(); $('#painelSino').hidden ? abrirSino() : fecharSino(); });
     document.addEventListener('click', (e) => { if (!e.target.closest('#painelSino') && !e.target.closest('#btnSino')) fecharSino(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#painelSino').hidden) { fecharSino(); $('#btnSino').focus(); } });
@@ -646,6 +654,8 @@ const Tarefas = (() => {
       if (ids.length) { marcarLidas(ids); toast('✓ Tudo lido'); }
     });
     $('#btnSinoTarefas').addEventListener('click', () => { fecharSino(); irParaTarefas(); });
+  }
+  function ligarResto() {
 
     $$('[data-tarefas-ver]').forEach(b => b.addEventListener('click', () => {
       ver = b.dataset.tarefasVer;

@@ -6,6 +6,7 @@
 //   /comunicar/    → Comunicar    (apps/comunicar — o carteiro roda aqui)
 //   /atendimento/  → Atendimento  (apps/atendimento — sincronia, automações e IA do funil)
 //   /trafego/      → Tráfego      (apps/trafego — anúncios e de onde vêm os clientes; rodada 8, 19/11/2026)
+//   /orcador/      → Orçador      (apps/orcador — build pronto do repositório indycar-orcador; rodada 11, 21/11/2026)
 //   /api/ping      → saúde da Central (versões de cada app, memória)
 //
 // Como monta cada app: tira o prefixo de req.url e põe req.prefixo ('/crm' etc.) —
@@ -22,9 +23,9 @@
 import http from 'node:http';
 import { createRequire } from 'node:module';
 import { createHash, randomUUID } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join, extname } from 'node:path';
+import { dirname, join, extname, normalize, sep } from 'node:path';
 import zlib from 'node:zlib';
 import { criarLinksCliente, podar } from './casa-servidor.js';
 
@@ -272,6 +273,80 @@ function redirecionar(res, para) {
 }
 
 /* ---------------------------------------------------------------------------
+   Orçador (/orcador/, rodada 11): o build pronto mora em apps/orcador/ (a Central publica sem passo de build).
+   Refazer: no repositório indycar-orcador, "npm run build:central -- <pasta deste monorrepo>".
+   Ele usa a MESMA sessão da Casa (mesmo endereço, mesmo Supabase) e abre numa moldura do próprio site (a aba
+   Orçador do Atendimento): por isso frame-ancestors 'self' e X-Frame-Options SAMEORIGIN, só aqui.
+   --------------------------------------------------------------------------- */
+const ORCADOR_DIR = join(__dirname, 'apps', 'orcador');
+const MIME_ORCADOR = { ...MIME, '.webmanifest': 'application/manifest+json; charset=utf-8', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
+const ORCADOR_CACHE = new Map();   // arquivo -> { tipo, buf, br, gz, etag }
+let orcadorTem = null;
+export function orcadorLocal() {
+  if (orcadorTem === null) orcadorTem = existsSync(join(ORCADOR_DIR, 'index.html'));
+  return orcadorTem;
+}
+export function cspDoOrcador(env = process.env) {
+  const banco = (cspDaCasa(env).match(/connect-src 'self' (\S+ \S+)/) || [])[1] || 'https://*.supabase.co wss://*.supabase.co';
+  return [
+    "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "img-src 'self' data: blob:",
+    `connect-src 'self' ${banco}`, "worker-src 'self'", "manifest-src 'self'", "media-src 'self' blob:",
+    "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'",
+  ].join('; ');
+}
+/** '/assets/x.js' -> arquivo dentro de apps/orcador, ou null (fora da pasta, oculto ou inexistente). */
+export function arquivoDoOrcador(resto, dir = ORCADOR_DIR) {
+  let r = String(resto || '/');
+  try { r = decodeURIComponent(r); } catch { return null; }
+  if (r === '/' || r === '') r = '/index.html';
+  if (/[\\\0]/.test(r) || r.split('/').some((p) => p === '..' || (p.startsWith('.') && p.length > 1))) return null;
+  const alvo = normalize(join(dir, r));
+  if (!alvo.startsWith(dir + sep)) return null;
+  try { return statSync(alvo).isFile() ? alvo : null; } catch { return null; }
+}
+function servirOrcador(req, res, resto) {
+  const cab = (extra = {}) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=(), usb=(), microphone=(self)');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    res.setHeader('Content-Security-Policy', cspDoOrcador());
+    res.setHeader('X-IndyCar-App', 'orcador');
+    for (const [k, v] of Object.entries(extra)) res.setHeader(k, v);
+  };
+  const erro = (status, texto, extra = {}) => {
+    cab({ 'Cache-Control': 'no-store', ...extra });
+    const corpo = JSON.stringify({ erro: texto });
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(corpo) });
+    return res.end(corpo);
+  };
+  if (req.method !== 'GET' && req.method !== 'HEAD') return erro(405, 'Use GET.', SO_LEITURA);
+  const arquivo = arquivoDoOrcador(resto);
+  if (!arquivo) return erro(404, 'Arquivo do Orçador não encontrado.');
+  let item = ORCADOR_CACHE.get(arquivo);
+  if (!item) {
+    const tipo = MIME_ORCADOR[extname(arquivo)] || 'application/octet-stream';
+    const buf = readFileSync(arquivo);
+    const texto = /^(text\/|application\/(manifest\+)?json)/.test(tipo) || tipo === 'image/svg+xml';
+    item = { tipo, buf, etag: '"' + createHash('sha1').update(buf).digest('base64url').slice(0, 20) + '"', br: texto ? zlib.brotliCompressSync(buf) : null, gz: texto ? zlib.gzipSync(buf) : null };
+    if (ORCADOR_CACHE.size < 400) ORCADOR_CACHE.set(arquivo, item);
+  }
+  // os arquivos de assets/ têm a marca do conteúdo no nome: ficam guardados 1 ano; o index sempre confere
+  const fixo = arquivo.includes(sep + 'assets' + sep);
+  cab({ ETag: item.etag, Vary: 'Accept-Encoding', 'Cache-Control': fixo ? 'public, max-age=31536000, immutable' : arquivo.endsWith('index.html') ? 'no-cache' : 'public, max-age=86400' });
+  const inm = String(req.headers['if-none-match'] || '').replace(/^W\//, '');
+  if (inm && inm === item.etag) { res.writeHead(304); return res.end(); }
+  const ae = String(req.headers['accept-encoding'] || '');
+  let corpo = item.buf;
+  if (item.br && /\bbr\b/.test(ae)) { corpo = item.br; res.setHeader('Content-Encoding', 'br'); }
+  else if (item.gz && /\bgzip\b/.test(ae)) { corpo = item.gz; res.setHeader('Content-Encoding', 'gzip'); }
+  res.writeHead(200, { 'Content-Type': item.tipo, 'Content-Length': corpo.length });
+  return res.end(req.method === 'HEAD' ? undefined : corpo);
+}
+
+/* ---------------------------------------------------------------------------
    Roteador
    --------------------------------------------------------------------------- */
 const mb = (n) => Math.round(n / 1048576);
@@ -358,7 +433,13 @@ export async function handler(req, res) {
   }
   if (caminho === '/api/central' || caminho.startsWith('/api/central/')) return json(res, 404, { erro: 'Essa rota da Central não existe.' });
 
-  // 1b) rodada 6: /patio e /orcador moram em outro domínio (Netlify) — quem digita o atalho na Central cai no lugar certo
+  // 1a') rodada 11: o Orçador mora aqui dentro (apps/orcador/, aberto também na aba Orçador do Atendimento)
+  if ((caminho === '/orcador' || caminho.startsWith('/orcador/')) && orcadorLocal()) {
+    if (caminho === '/orcador') return redirecionar(res, '/orcador/' + busca);
+    return servirOrcador(req, res, caminho.slice('/orcador'.length));
+  }
+
+  // 1b) rodada 6: /patio (e /orcador, se o build não estiver aqui) moram em outro domínio (Netlify) — quem digita o atalho na Central cai no lugar certo
   for (const [nome, base] of [['patio', urlDeApp(process.env.PATIO_URL, PATIO_PADRAO)], ['orcador', urlDeApp(process.env.ORCADOR_URL, ORCADOR_PADRAO)]]) {
     const p = '/' + nome;
     if (base && (caminho === p || caminho.startsWith(p + '/'))) {

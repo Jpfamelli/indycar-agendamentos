@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR" data-tema="escuro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="robots" content="noindex, nofollow" />
+    <!-- iPhone: não transformar números (valores, placas, nº do orçamento) em link de ligação. -->
+    <meta name="format-detection" content="telephone=no" />
+    <meta
+      name="description"
+      content="Orçador IndyCar: orçamentos de oficina com IA. A IA entende o pedido, o sistema calcula o preço."
+    />
+    <meta name="application-name" content="Orçador IndyCar" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Orçador" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Orçador IndyCar</title>
+    <link rel="manifest" href="/orcador/manifest.webmanifest" />
+    <link rel="icon" href="/orcador/icone.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/orcador/apple-touch-icon.png" />
+    <!-- As fontes mais usadas começam a baixar junto com a página: quem as pede é o tema-inicial.js (cada tela só as suas). -->
+    <!-- Tema salvo aplicado antes de pintar (arquivo próprio: a CSP não aceita script embutido). -->
+    <script src="/orcador/tema-inicial.js"></script>
+    <!-- Padrão IndyCar (rodada 11): o mesmo topo, as mesmas fontes e as mesmas cores dos outros apps. -->
+    <link rel="stylesheet" href="/orcador/casa/indycar.css" />
+    <script type="module" crossorigin src="/orcador/assets/index-BneAjdd4.js"></script>
+    <link rel="modulepreload" crossorigin href="/orcador/assets/react-DhJymlAB.js">
+    <link rel="modulepreload" crossorigin href="/orcador/assets/rota-EjIjgiBV.js">
+    <link rel="modulepreload" crossorigin href="/orcador/assets/apps--9E4oqWM.js">
+    <link rel="modulepreload" crossorigin href="/orcador/assets/ecossistema-BuwFZp5r.js">
+    <link rel="modulepreload" crossorigin href="/orcador/assets/preload-helper-Cclj8CIH.js">
+    <link rel="stylesheet" crossorigin href="/orcador/assets/index-IF3rdtRI.css">
+  </head>
+  <body>
+    <!-- Casca inicial (rodada 4): aparece no primeiro quadro, antes do JavaScript; o React troca pelo app. -->
+    <div id="app"><div class="casca-inicial" role="status"><span class="casca-inicial-marca">INDY<b>CAR</b></span><span class="casca-inicial-barra" aria-hidden="true"></span><span class="casca-inicial-texto">Abrindo o Orçador…</span></div></div>
+    <noscript>Ative o JavaScript do navegador para usar o Orçador IndyCar.</noscript>
+  </body>
+</html>

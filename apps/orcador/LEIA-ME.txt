@@ -1,0 +1,2 @@
+Build pronto do Orçador para a Central (/orcador/). NÃO edite aqui: o código mora no repositório indycar-orcador.
+Para refazer: no indycar-orcador, "npm run build:central" (ou "npm run build:central -- <pasta deste monorrepo>").

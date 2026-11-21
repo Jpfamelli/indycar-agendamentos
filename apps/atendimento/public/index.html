@@ -23,14 +23,14 @@
     })();
   </script>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet" />
+  <!-- Padrão IndyCar (rodada 11): o mesmo topo, as mesmas fontes e as mesmas cores dos outros apps. -->
+  <link rel="stylesheet" href="../casa/indycar.css" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="copiloto.css" />
   <link rel="stylesheet" href="r6.css" />
   <link rel="stylesheet" href="r6c5.css" />
   <link rel="stylesheet" href="r7c4.css" />
+  <link rel="stylesheet" href="r11.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar Atendimento" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -159,18 +159,6 @@
     </div>
   </div>
 
-  <aside class="login-lado">
-    <div class="lado-conteudo">
-      <h2>Central de<br><span class="vermelho">Atendimento</span></h2>
-      <p>Todas as conversas do WhatsApp num lugar só: já ligadas ao cadastro
-         do cliente, ao funil do CRM e à agenda da oficina.</p>
-      <ul class="lado-lista">
-        <li>Histórico completo de cada cliente</li>
-        <li>Vê o horário marcado sem sair da conversa</li>
-        <li>Sugestão de resposta com IA</li>
-      </ul>
-    </div>
-  </aside>
 </div>
 
 <!-- ============ APLICAÇÃO ============ -->
@@ -201,113 +189,47 @@
     <span id="faixaOfflineTexto">Sem internet. O que você enviar fica na fila e sai sozinho quando a conexão voltar.</span>
   </div>
 
-  <!-- Barra lateral -->
-  <nav class="sidebar" aria-label="Telas do Atendimento">
-    <div class="marca">
-      <span class="logo-caixa">
-        <img class="logo-img" src="logo.png" alt="IndyCar Centro Automotivo" width="225" height="225" />
-      </span>
-      <span class="marca-sub">Atendimento</span>
+  <!-- Topo comum IndyCar (rodada 11): Conversas, Orçador e Ajustes. Sino e tarefas moram na Central. -->
+  <header class="ic-topo topo-atd">
+    <a class="ic-marca" href="../" title="Voltar para a Central">
+      <img src="../casa/logo.png" alt="" width="32" height="32" />
+      <span class="ic-nome">IndyCar <b>Atendimento</b></span>
+    </a>
+    <nav class="ic-abas" aria-label="Seções">
+      <button class="nav-item ativo" data-aba="conversas" aria-current="page"><span>Conversas</span> <b class="badge" id="badgeNaoLidas" hidden>0</b></button>
+      <button class="nav-item" data-aba="orcador" id="navOrcador"><span>Orçador</span></button>
+      <button class="nav-item" data-aba="config" id="navAjustes"><span>Ajustes</span></button>
+    </nav>
+    <div class="ic-acoes">
+      <!-- avatar = menu do perfil (Meu perfil, senha, duas etapas, tema, sair) -->
+      <button type="button" class="usuario" id="usuarioBox" aria-haspopup="menu" aria-expanded="false"
+              aria-controls="menuPerfil" title="Meu perfil e sair">
+        <span class="avatar" id="usuarioAvatar">?</span>
+        <span class="usuario-txt">
+          <strong id="usuarioNome">—</strong>
+          <small id="usuarioPapel">—</small>
+        </span>
+      </button>
     </div>
+  </header>
 
-    <div class="nav-grupo">Atendimento</div>
-    <button class="nav-item ativo" data-aba="conversas" aria-current="page">
-      <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2z" fill="currentColor"/></svg>
-      <span>Conversas</span>
-      <b class="badge" id="badgeNaoLidas" hidden>0</b>
-    </button>
-    <button class="nav-item" data-aba="funil">
-      <svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v7l-4 2v-9L3 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>
-      <span>Funil</span>
-    </button>
-    <button class="nav-item" data-aba="atalhos">
-      <svg viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11l-1 8.5 9.5-12.5H13l0-7.5z" fill="currentColor"/></svg>
-      <span>Atalhos <b class="atalho-dica">/</b></span>
-    </button>
-    <button class="nav-item" data-aba="tarefas" id="navTarefas">
-      <svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-      <span>Tarefas</span>
-      <b class="badge" id="badgeTarefas" hidden>0</b>
-    </button>
-
-    <div class="nav-grupo">Inteligência</div>
-    <button class="nav-item" data-aba="ia">
-      <svg viewBox="0 0 24 24"><path d="M12 2l2.4 6.2L21 9.3l-4.8 4.3 1.3 6.4L12 16.8 6.5 20l1.3-6.4L3 9.3l6.6-1.1L12 2z" fill="currentColor"/></svg>
-      <span>Inteligência Artificial</span>
-    </button>
-    <button class="nav-item" data-aba="relatorios">
-      <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-      <span>Relatórios</span>
-    </button>
-
-    <div class="nav-grupo" id="navGrupoEquipe" hidden>Pessoas</div>
-    <button class="nav-item" data-aba="equipe" id="navEquipe" hidden>
-      <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" stroke="currentColor" stroke-width="2" fill="none"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M16 4.6a3.4 3.4 0 010 6.8M18 14.3c1.8.8 3 2.6 3 4.7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-      <span>Equipe</span>
-    </button>
-    <button class="nav-item" data-aba="auditoria" id="navAuditoria" hidden>
-      <svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-      <span>Auditoria</span>
-    </button>
-
-    <div class="nav-grupo">Sistema</div>
-    <button class="nav-item" data-aba="integracoes">
-      <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7L12.2 19" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-      <span>Integrações</span>
-    </button>
-    <button class="nav-item" data-aba="etapas">
-      <svg viewBox="0 0 24 24"><path d="M4 6h11l3 3-3 3H4zM4 15h9l3 3-3 3H4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M4 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>Etapas</span>
-    </button>
-    <button class="nav-item" data-aba="config">
-      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 003.6 15a1.65 1.65 0 00-1.51-1H2a2 2 0 110-4h.09A1.65 1.65 0 003.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 008 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-      <span>Configurações</span>
-    </button>
-
-    <div class="nav-grupo">Ecossistema IndyCar</div>
-    <!-- Um seletor só, em vez de um link por sistema: escolhe e abre noutra
-         aba. O sistema atual aparece marcado e não leva a lugar nenhum. -->
-    <label class="eco-seletor" title="Abrir outro sistema da IndyCar">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="currentColor"/></svg>
-      <select id="ecoSeletor" aria-label="Ecossistema IndyCar: abrir outro sistema">
-        <option value="https://indycar-agendamentos.onrender.com">Agenda</option>
-        <option value="https://indycar-crm.onrender.com">CRM</option>
-        <option value="https://indycar-atendimento.onrender.com" data-atual="1" selected>● Atendimento (aqui)</option>
-        <option value="https://indycar-posvenda.onrender.com">Comunicar</option>
-        <option value="https://indycar-orcador.netlify.app">Orçador</option>
-        <option value="https://indycar-taubate.netlify.app">Site</option>
-      </select>
-      <svg class="ico-sai" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9M19 14v6a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1h6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-    </label>
-
-    <div class="sidebar-fim">
-      <div class="usuario-linha">
-        <!-- avatar = menu do perfil (Meu perfil, senha, duas etapas, tema, sair) -->
-        <button type="button" class="usuario" id="usuarioBox" aria-haspopup="menu" aria-expanded="false"
-                aria-controls="menuPerfil" title="Meu perfil e sair">
-          <span class="avatar" id="usuarioAvatar">?</span>
-          <span class="usuario-txt">
-            <strong id="usuarioNome">—</strong>
-            <small id="usuarioPapel">—</small>
-          </span>
-          <span class="usuario-seta" aria-hidden="true">▾</span>
-        </button>
-        <button type="button" class="sino" id="btnSino" aria-haspopup="dialog" aria-expanded="false"
-                aria-controls="painelSino" title="Notificações" aria-label="Notificações">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16v-5a6 6 0 10-12 0v5l-2 2h16l-2-2zM10 20a2 2 0 004 0" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <b class="sino-num" id="sinoNum" hidden>0</b>
-        </button>
-      </div>
-      <div class="fim-acoes">
-        <button class="tema-toggle" id="btnTema" type="button"
-                title="Alternar tema claro e escuro" aria-label="Alternar tema claro e escuro">
-          <span class="tema-ico" id="temaIco">🌙</span>
-          <span class="tema-txt" id="temaTxt">Tema escuro</span>
-        </button>
-        <button class="link sair" id="btnSair">Sair</button>
-      </div>
-    </div>
+  <!-- Ajustes: as telas de configurar, numa linha só abaixo do topo (aparece só dentro de Ajustes) -->
+  <nav class="ajustes-abas" id="ajustesAbas" aria-label="Ajustes" hidden>
+    <button class="nav-item" data-aba="config"><span>Minha conta</span></button>
+    <button class="nav-item" data-aba="integracoes"><span>WhatsApp e chaves</span></button>
+    <button class="nav-item" data-aba="ia"><span>IA</span></button>
+    <button class="nav-item" data-aba="atalhos"><span>Respostas prontas</span></button>
+    <button class="nav-item" data-aba="etapas"><span>Etapas</span></button>
+    <button class="nav-item" data-aba="equipe" id="navEquipe" hidden><span>Equipe</span></button>
+    <button class="nav-item" data-aba="auditoria" id="navAuditoria" hidden><span>Auditoria</span></button>
   </nav>
+
+  <!-- ---------- ABA: ORÇADOR (rodada 11) ----------
+       O Orçador inteiro, servido pela própria Central em /orcador/, com a MESMA sessão (sem outro login).
+       Carrega só na primeira vez que a aba abre; "Fazer orçamento" na conversa abre já com o cliente. -->
+  <section class="aba" id="aba-orcador">
+    <iframe id="orcadorMoldura" class="orcador-moldura" title="Orçador" referrerpolicy="same-origin"></iframe>
+  </section>
 
   <!-- ---------- ABA: CONVERSAS ---------- -->
   <section class="aba ativa" id="aba-conversas">
@@ -402,8 +324,6 @@
         <div class="chat-vazio" id="chatVazio">
           <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2z" fill="currentColor"/></svg>
           <p>Escolha uma conversa à esquerda para começar.</p>
-          <p class="chat-vazio-dica">Dicas: <kbd>Ctrl</kbd>+<kbd>K</kbd> busca um cliente · <kbd>?</kbd> abre a ajuda ·
-            <button type="button" class="link" id="btnVazioTour">ver o tour de novo</button></p>
         </div>
 
         <div class="chat" id="chat" hidden>
@@ -443,6 +363,9 @@
               </button>
               <button class="btn btn-agendar sm" id="btnAgendar" title="Agendar este cliente">
                 📅 Agendar
+              </button>
+              <button class="btn btn-ghost sm" id="btnFazerOrcamento" title="Abrir a aba Orçador já com este cliente">
+                🧾 Fazer orçamento
               </button>
               <button class="btn btn-ghost sm" id="btnPainelCliente" title="Mostrar/ocultar ficha" aria-controls="colFicha">Ficha</button>
               <!-- o que se usa de vez em quando mora no "⋯" (antes eram 3 linhas de botões) -->
@@ -570,8 +493,6 @@
       <header class="pagina-topo">
         <div>
           <h1>Funil de atendimento</h1>
-          <p>Cada coluna é uma etapa. Arraste o cartão para mudar a etapa do cliente:
-             o CRM acompanha sozinho. No celular, segure o cartão e arraste; no teclado, ← →.</p>
         </div>
         <div class="funil-ferramentas">
           <input id="funilBusca" type="search" placeholder="Filtrar por nome, telefone ou placa…"
@@ -592,9 +513,6 @@
       <header class="pagina-topo">
         <div>
           <h1>Etapas do funil</h1>
-          <p>As plaquinhas que aparecem em cada conversa. A <b>descrição</b> e os
-             <b>gatilhos</b> são exatamente o que a IA lê para decidir a etapa:
-             escreva pensando nela.</p>
         </div>
         <button class="btn btn-primary sm" id="btnNovaEtapa">+ Nova etapa</button>
       </header>
@@ -618,8 +536,7 @@
     <div class="conteudo">
       <header class="pagina-topo">
         <div>
-          <h1>Atalhos de mensagem</h1>
-          <p>No chat, digite <b class="atalho-dica">/</b> e o nome do atalho para inserir a mensagem pronta.</p>
+          <h1>Respostas prontas</h1>
         </div>
         <button class="btn btn-primary sm" id="btnNovoAtalho">+ Novo atalho</button>
       </header>
@@ -651,8 +568,7 @@
     <div class="conteudo">
       <header class="pagina-topo">
         <div>
-          <h1>Inteligência Artificial</h1>
-          <p>A IA lê a ficha inteira (CRM, Agenda, Pátio, Comunicar) e conduz o atendimento até onde você deixar.</p>
+          <h1>IA</h1>
         </div>
         <span class="selo" id="seloIA">verificando…</span>
       </header>
@@ -736,8 +652,6 @@
       <header class="pagina-topo">
         <div>
           <h1>Relatórios</h1>
-          <p>Leads, conversão e atendimento no período escolhido. Todo número vem do banco:
-             quando não houver dado, o gráfico avisa em vez de mostrar zero.</p>
         </div>
         <div class="periodo">
           <div class="chips-periodo" id="relAtalhos">
@@ -765,9 +679,7 @@
     <div class="conteudo">
       <header class="pagina-topo">
         <div>
-          <h1>Integrações</h1>
-          <p>Os serviços de fora que este painel usa: o CodeWords, que fala com o WhatsApp,
-             e a Claude, que escreve as sugestões de resposta.</p>
+          <h1>WhatsApp e chaves</h1>
         </div>
       </header>
 
@@ -926,7 +838,6 @@
       <header class="pagina-topo">
         <div>
           <h1>Auditoria</h1>
-          <p>Quem mudou o quê, e quando: papéis, acessos, valores, exclusões e configurações.</p>
         </div>
         <button type="button" class="btn btn-ghost sm" id="btnAuditoriaCsv">⬇ Exportar CSV</button>
       </header>
@@ -976,8 +887,7 @@
     <div class="conteudo">
       <header class="pagina-topo">
         <div>
-          <h1>Configurações</h1>
-          <p>Sua conta pessoal e, para administradores, a conexão do WhatsApp e a equipe.</p>
+          <h1>Minha conta</h1>
         </div>
       </header>
 
@@ -1038,8 +948,6 @@
             <p class="aviso" id="cfgNotificacaoAviso" hidden></p>
             <div class="int-acoes">
               <button type="button" class="btn btn-ghost sm" id="btnTestarAviso">Testar aviso</button>
-              <div style="flex:1"></div>
-              <button type="button" class="btn btn-ghost sm" id="btnVerAtalhosTeclado">⌨ Atalhos de teclado</button>
             </div>
           </div>
 
@@ -1392,29 +1300,6 @@
   </div>
 </div>
 
-<!-- "?" : ajuda curta (como faço…, atalhos de teclado, tour) — rodada 4 -->
-<div class="modal-bg" id="modalAjudaBg">
-  <div class="modal modal-ajuda" role="dialog" aria-modal="true" aria-labelledby="ajudaTitulo">
-    <button class="modal-x" data-fechar="modalAjudaBg" aria-label="Fechar a ajuda">×</button>
-    <h3 id="ajudaTitulo">Ajuda</h3>
-    <div class="ajuda-abas" role="tablist" aria-label="Partes da ajuda">
-      <button type="button" role="tab" class="ajuda-aba ativa" data-ajuda-aba="como" aria-selected="true" aria-controls="ajudaComo" id="abaAjudaComo">Como faço…</button>
-      <button type="button" role="tab" class="ajuda-aba" data-ajuda-aba="teclas" aria-selected="false" aria-controls="ajudaTeclas" id="abaAjudaTeclas" tabindex="-1">Atalhos</button>
-    </div>
-    <div class="ajuda-parte" id="ajudaComo" role="tabpanel" aria-labelledby="abaAjudaComo">
-      <input type="search" class="ajuda-busca" id="ajudaBusca" placeholder="Procure: agendar, áudio, passar…" aria-label="Procurar na ajuda" autocomplete="off" />
-      <div class="ajuda-lista" id="ajudaLista"></div>
-      <p class="ajuda-nada" id="ajudaNada" hidden>Nada com essa palavra. Tente outra, ou fale com o gestor.</p>
-    </div>
-    <div class="ajuda-parte" id="ajudaTeclas" role="tabpanel" aria-labelledby="abaAjudaTeclas" hidden>
-      <dl class="teclas" id="listaTeclas"></dl>
-    </div>
-    <div class="ajuda-rodape">
-      <button type="button" class="btn btn-ghost sm" id="btnReverTour">▶ Rever o tour de boas-vindas</button>
-      <small class="ajuda-versao" id="ajudaVersao"></small>
-    </div>
-  </div>
-</div>
 
 <!-- ============ RODADA 3: perfil, sino, equipe, tarefas ============ -->
 <!-- Menu do perfil (abre no avatar) -->
@@ -1432,27 +1317,11 @@
   <button type="button" role="menuitem" class="mp-item" data-mp="mfa">🛡 <span>Verificação em duas etapas</span><em id="mpMfaSelo"></em></button>
   <button type="button" role="menuitem" class="mp-item" data-mp="avisos">🔔 <span>Preferências de aviso</span></button>
   <button type="button" role="menuitem" class="mp-item" data-mp="tema">🌓 <span id="mpTemaTxt">Tema claro</span></button>
-  <button type="button" role="menuitem" class="mp-item" data-mp="ajuda">❓ <span>Ajuda e atalhos</span><em>?</em></button>
   <div class="mp-sep" role="separator"></div>
   <button type="button" role="menuitem" class="mp-item" data-mp="sair">↩ <span>Sair</span></button>
   <button type="button" role="menuitem" class="mp-item perigo" data-mp="sair-todos">⏏ <span>Sair de todos os aparelhos</span></button>
 </div>
 
-<!-- Painel do sino -->
-<div class="painel-sino" id="painelSino" role="dialog" aria-label="Notificações" hidden>
-  <div class="ps-topo">
-    <strong>Notificações</strong>
-    <div class="ps-acoes">
-      <button type="button" class="link" id="btnSinoTodas">Marcar todas como lidas</button>
-    </div>
-  </div>
-  <div class="ps-abas" role="tablist">
-    <button type="button" role="tab" class="seg ativo" data-sino-ver="nao" aria-selected="true">Não lidas</button>
-    <button type="button" role="tab" class="seg" data-sino-ver="todas" aria-selected="false">Todas</button>
-  </div>
-  <div class="ps-lista" id="sinoLista"></div>
-  <div class="ps-rodape"><button type="button" class="link" id="btnSinoTarefas">Ver minhas tarefas →</button></div>
-</div>
 
 <!-- Sair: escolher se limpa o que ficou guardado neste aparelho -->
 <div class="modal-bg" id="modalSairBg">
@@ -1682,7 +1551,6 @@
 <script src="r6-tela.js"></script>
 <script src="r6c5.js"></script>
 <script src="r7c4.js"></script>
-<script src="ajuda.js"></script>
 <script src="copiloto.js" defer></script>
 <script src="casca.js" defer></script>
 </body>
