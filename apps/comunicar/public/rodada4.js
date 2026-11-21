@@ -1,9 +1,7 @@
 /* ===================== IndyCar Comunicar — Rodada 4 (14/10/2026) =====================
-   • "Pronto para ligar": checklist do que falta, com o que fazer em cada item
-   • Carteiro: as últimas 24 h (rodadas, 503 do Render, tempo esgotado, reforços)
-   • Próximos 30 dias: o que sairia se tudo estivesse ligado (por régua e por dia)
+   • Réguas: a próxima saída de cada régua (rodada 11; Início, carteiro e 30 dias saíram)
    • Aniversários: colar lista, arquivo CSV, procurar nas conversas e no CRM
-   • Indicadores por pessoa, "Pedir ao gestor", tour de boas-vindas e ajuda por papel
+   • "Pedir ao gestor" (ajuda e tour saíram na rodada 11)
    • Rascunhos guardados no aparelho (réguas e campanha) e aviso ao sair
    Usa as funções do app.js (api, openModal, toast, esc, svg, I, state, route…).
    Regra da casa: esc() em TODO dado que vira HTML.
@@ -63,108 +61,6 @@
   });
 
   // ======================================================================
-  // INÍCIO — "Pronto para ligar" + indicadores por pessoa
-  // ======================================================================
-  const ICO_ESTADO = { ok: ['✓', 'ok', 'pronto'], falta: ['!', 'falta', 'falta'], aviso: ['•', 'aviso', 'atenção'] };
-  function acaoDoItem(it) {
-    const a = it.acao; if (!a) return '';
-    if (a.tipo === 'rota' && a.alvo === 'reguas' && !pode('reguas'))
-      return botaoPedir(it.id === 'reguas' ? 'ligar' : 'reguas', it.titulo);
-    if (a.tipo === 'modal' && a.alvo === 'aniversarios' && !pode('importar') && it.estado !== 'ok')
-      return `<button type="button" class="btn btn-mini" data-pronto-acao="modal:aniversarios">${esc(a.rotulo)}</button>`;
-    if (a.tipo === 'link') return `<a class="btn btn-mini" href="${esc(a.alvo)}" target="_blank" rel="noopener">${esc(a.rotulo)} ↗</a>`;
-    return `<button type="button" class="btn btn-mini${it.estado === 'falta' ? ' primary' : ''}" data-pronto-acao="${esc(a.tipo)}:${esc(a.alvo)}">${esc(a.rotulo)}</button>`;
-  }
-  R4.pintarPronto = async function () {
-    const box = $('#painelPronto'); if (!box) return;
-    let r;
-    try { r = await api('GET', '/pronto'); } catch { box.innerHTML = ''; return; }
-    if (!$('#painelPronto')) return;
-    state.pronto = r;
-    const aberto = ler('comunicar_pronto_aberto');
-    const abrir = aberto === null ? !r.pronto || r.faltam > 0 : aberto;
-    const pct = Math.round((r.prontos / r.total) * 100);
-    const titulo = r.pronto && !r.faltam ? 'Tudo pronto para o Comunicar trabalhar sozinho' : r.pronto ? 'Pronto para ligar — falta pouco' : 'Pronto para ligar?';
-    box.innerHTML = `<details class="panel pronto${r.pronto ? ' tudo-ok' : ''}" ${abrir ? 'open' : ''}>
-      <summary class="pronto-topo">
-        <span class="pronto-anel" style="--p:${pct}" role="img" aria-label="${r.prontos} de ${r.total} itens prontos"><b>${r.prontos}</b><small>/${r.total}</small></span>
-        <span class="pronto-tit"><b>${esc(titulo)}</b><small>${r.faltam ? `${plural(r.faltam, 'item impede', 'itens impedem')} de funcionar` : 'nada impede de funcionar'}${r.avisos ? ` · ${plural(r.avisos, 'ponto de atenção', 'pontos de atenção')}` : ''}${r.proximo && r.proximo.estado !== 'ok' ? ` · próximo passo: ${esc(r.proximo.titulo)}` : ''}</small></span>
-        <span class="pronto-seta" aria-hidden="true">▾</span>
-      </summary>
-      <ol class="pronto-lista">${r.itens.map(it => {
-        const [ic, cls, rot] = ICO_ESTADO[it.estado] || ICO_ESTADO.aviso;
-        return `<li class="pi ${cls}"><span class="pi-ico" aria-hidden="true">${ic}</span>
-          <div class="pi-txt"><b>${esc(it.titulo)}<span class="sr-only"> — ${rot}</span>${it.essencial && it.estado !== 'ok' ? ' <em>essencial</em>' : ''}</b><p>${esc(it.texto)}</p></div>
-          <div class="pi-acao">${it.estado === 'ok' && it.id !== 'carteiro' && it.id !== 'aniversarios' ? '' : acaoDoItem(it)}</div></li>`;
-      }).join('')}</ol>
-    </details>`;
-    const det = $('details', box);
-    det.addEventListener('toggle', () => guardar('comunicar_pronto_aberto', det.open));
-    $$('[data-pronto-acao]', box).forEach(b => b.addEventListener('click', () => {
-      const [tipo, alvo] = b.dataset.prontoAcao.split(':');
-      if (tipo === 'rota') return route(alvo);
-      if (alvo === 'aniversarios') return R4.abrirAniversarios();
-      if (alvo === 'carteiro') return R4.abrirCarteiro();
-    }));
-  };
-
-  R4.pintarIndicadores = async function () {
-    const alvo = $('#iaLinha'); if (!alvo) return;
-    let r; try { r = await api('GET', '/equipe/indicadores?dias=30'); } catch { return; }
-    if (!$('#iaLinha') || $('#painelPessoas')) return;
-    const pessoas = r.pessoas || [];
-    const div = document.createElement('div');
-    div.className = 'panel pessoas'; div.id = 'painelPessoas';
-    const linhas = pessoas.length ? pessoas.map(p => `<div class="pe-l">
-        <span class="pe-n"><span class="pe-av" aria-hidden="true">${esc(iniciais(p.nome))}</span><b>${esc(p.perfil_id === state.perfil?.id ? `${p.nome} (você)` : p.nome)}</b></span>
-        <span class="num">${p.enviadas}<small>enviadas</small></span>
-        <span class="num">${p.taxaResposta === null ? '—' : `${p.taxaResposta}%`}<small>responderam</small></span>
-        <span class="num">${p.agendaram}<small>agendaram</small></span>
-        <span class="num">${p.propostas}<small>campanhas</small></span>
-      </div>`).join('')
-      : `<p class="dica">${r.gestor ? 'Ninguém da equipe mandou mensagem manual nestes 30 dias. As automáticas não entram aqui.' : 'Você ainda não mandou mensagem por aqui nestes 30 dias. Comece pela ficha de um cliente: "Mandar mensagem".'}</p>`;
-    div.innerHTML = `<div class="panel-head"><h2>${svg(I.user)} ${r.gestor ? 'Equipe' : 'Você'} · 30 dias</h2><span class="panel-sub">mensagens manuais e campanhas de cada um</span></div>
-      <div class="panel-body pe">${linhas}</div>`;
-    alvo.insertAdjacentElement('afterend', div);
-  };
-
-  R4.pintarInicio = function () { R4.pintarPronto(); R4.pintarIndicadores(); };
-
-  // ======================================================================
-  // CARTEIRO — as últimas 24 h
-  // ======================================================================
-  const SIT = { ok: ['respondeu', 'bp-green'], dormindo: ['servidor dormindo (503)', 'bp-orange'], demorou: ['demorou demais', 'bp-orange'], erro: ['erro', 'bp-red'], sem_resposta: ['sem resposta ainda', 'bp-gray'] };
-  const ORIGEM = { cron: 'a cada 15 min', reforco: 'reforço', timer: 'servidor acordado', inicio: 'servidor ligou', manual: 'Rodar agora', github: 'GitHub', desconhecido: '—' };
-  R4.abrirCarteiro = async function () {
-    openModal(`<div class="modal-head"><h3>${svg(I.clock)} Carteiro · últimas 24 h</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
-      <div class="modal-body" id="cartCorpo"><div class="skel" style="height:160px"></div></div>
-      <div class="modal-foot">${pode('rodar') ? `<button type="button" class="btn primary esq" id="cartRodar">${svg(I.play)} Rodar agora</button>` : ''}<button type="button" class="btn" data-fechar>Fechar</button></div>`, { larga:true });
-    $('#cartRodar')?.addEventListener('click', async (e) => { e.currentTarget.disabled = true; closeModal(); if (state.route !== 'inicio') await route('inicio'); rodarAgora(); });
-    let c; try { c = await api('GET', '/carteiro'); } catch (e) { $('#cartCorpo').innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
-    const agora = Date.now(), ini = agora - 24 * 3600000;
-    const pos = (ts) => Math.max(0, Math.min(100, ((new Date(ts).getTime() - ini) / (24 * 3600000)) * 100));
-    const marcas = [...(c.batidas || []).map(b => ({ x: pos(b.em), cls: b.ok ? (b.enviados ? 'env' : 'ok') : 'err', t: `${horaBR(b.em)} · ${ORIGEM[b.origem] || b.origem}${b.enviados ? ` · ${b.enviados} enviadas` : ''}${b.ok ? '' : ' · falhou'}` })),
-      ...(c.chamadas || []).filter(x => ['dormindo', 'demorou', 'erro'].includes(x.situacao)).map(x => ({ x: pos(x.em), cls: 'dorm', t: `${horaBR(x.em)} · ${SIT[x.situacao][0]}` }))];
-    $('#cartCorpo').innerHTML = `
-      <div class="rel-nums">
-        <div><b>${c.rodadas24h}</b><small>rodadas</small></div>
-        <div class="g"><b>${c.enviadas24h}</b><small>mensagens saíram</small></div>
-        <div class="${c.falhas24h ? 'p' : ''}"><b>${c.falhas24h}</b><small>chamadas sem resposta</small></div>
-        <div><b>${c.reforcosOk}</b><small>salvas pelo reforço</small></div>
-      </div>
-      <div class="cart-linha" role="img" aria-label="Linha do tempo das últimas 24 horas: ${c.rodadas24h} rodadas e ${c.falhas24h} chamadas sem resposta">
-        ${marcas.map(m => `<i class="${m.cls}" style="left:${m.x.toFixed(2)}%" title="${esc(m.t)}"></i>`).join('')}
-        <span class="cl-a">${esc(horaBR(new Date(ini)))}</span><span class="cl-z">agora</span>
-      </div>
-      <div class="g-legenda"><span><i class="b-env"></i>enviou</span><span><i class="b-resp"></i>rodou</span><span><i class="b-dorm"></i>servidor dormindo / demorou</span></div>
-      <p class="dica">O servidor gratuito dorme. O banco chama o carteiro a cada 15 min (8h–20h); se a chamada encontra o servidor dormindo, o <b>reforço</b> tenta de novo em 5 min. O que ficou para trás sai na rodada seguinte, <b>sem duplicar</b>: cada mensagem é reservada antes de sair, e o que perdeu o sentido (lembrete depois do horário) é pulado com o motivo.</p>
-      ${c.buracos?.length ? `<div class="lista-sep">Buracos no horário de envio <em>${c.buracos.length}</em></div>${c.buracos.map(b => `<div class="ag-linha"><span class="s">${esc(horaBR(b.de))} → ${esc(horaBR(b.ate))}</span><small class="muted">${b.minutos} min sem rodar</small></div>`).join('')}` : ''}
-      <div class="lista-sep">Chamadas do banco <em>${c.chamadas24h}</em></div>
-      ${(c.chamadas || []).length ? (c.chamadas || []).slice(0, 30).map(x => `<div class="ag-linha"><span class="d">${esc(horaBR(x.em))}</span><span class="s">${esc(ORIGEM[x.origem] || x.origem)}</span><span class="badge-pill ${SIT[x.situacao]?.[1] || 'bp-gray'}">${esc(SIT[x.situacao]?.[0] || x.situacao)}</span></div>`).join('')
-        : '<p class="dica">Nenhuma chamada anotada ainda (começam a aparecer na próxima chamada do banco).</p>'}`;
-  };
-
-  // ======================================================================
   // PRÓXIMOS 30 DIAS — o que sairia se tudo estivesse ligado
   // ======================================================================
   let _projecao = null;
@@ -174,60 +70,16 @@
     _projecao = { v, em: Date.now() };
     return v;
   }
-  R4.abrirMes = async function () {
-    openModal(`<div class="modal-head"><h3>${svg(I.calendar)} Próximos 30 dias</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
-      <div class="modal-body" id="mesCorpo"><div class="skel" style="height:220px"></div></div>
-      <div class="modal-foot">${pode('reguas') ? `<button type="button" class="btn esq" id="mesReguas">${svg(I.regua)} Abrir réguas</button>` : ''}<button type="button" class="btn primary" data-fechar>Pronto</button></div>`, { larga:true, classe:'modal-mes' });
-    $('#mesReguas')?.addEventListener('click', () => { closeModal(); route('reguas'); });
-    let p; try { p = await projecao(); } catch (e) { $('#mesCorpo').innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
-    const maxR = Math.max(1, ...Object.values(p.porRegua).map(r => r.total));
-    const maxD = Math.max(1, ...p.dias.map(d => d.total));
-    const sem = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-    const primeiro = new Date(p.de + 'T12:00:00').getDay();
-    $('#mesCorpo').innerHTML = `
-      <div class="mes-topo"><div class="mes-n"><b>${p.total}</b><small>mensagens sairiam de ${esc(dataCurta(p.de))} a ${esc(dataCurta(p.ate))} com as 8 réguas ligadas</small></div>
-        <div class="mes-n g"><b>${p.comAsLigadasHoje}</b><small>com as réguas ligadas hoje</small></div></div>
-      ${p.avisos?.length ? `<div class="dica alerta">${p.avisos.map(esc).join('<br>')}</div>` : ''}
-      <div class="lista-sep">Por régua</div>
-      <div class="mes-reguas">${REGUAS.map(t => { const r = p.porRegua[t] || { total:0 }; return `<div class="mr${r.ligada ? '' : ' off'}">
-          <span class="mr-n">${EMOJI(t)} <b>${esc(ROTULO(t))}</b>${r.ligada ? '<span class="chip on">ligada</span>' : '<span class="chip">desligada</span>'}</span>
-          <span class="mr-barra" aria-hidden="true"><i style="width:${(r.total / maxR) * 100}%"></i></span>
-          <span class="mr-t"><b>${r.total}</b>${r.estimados ? `<small>${r.estimados} estimad${r.estimados === 1 ? 'a' : 'as'}</small>` : ''}</span>
-          ${r.exemplos?.length ? `<span class="mr-ex">${r.exemplos.slice(0, 3).map(x => `${esc(String(x.nome || '').split(' ')[0])} ${esc(dataCurta(x.data))}`).join(' · ')}${r.total > 3 ? ' …' : ''}</span>` : ''}
-        </div>`; }).join('')}</div>
-      <div class="lista-sep">Por dia</div>
-      <div class="mes-cal" role="grid" aria-label="Mensagens por dia nos próximos 30 dias">
-        ${sem.map(d => `<span class="mc-h" role="columnheader">${d}</span>`).join('')}
-        ${'<span class="mc-vazio"></span>'.repeat(primeiro)}
-        ${p.dias.map(d => { const nivel = d.total ? Math.ceil((d.total / maxD) * 4) : 0;
-          const det = Object.entries(d.porRegua).map(([t, n]) => `${ROTULO(t)}: ${n}`).join(', ');
-          return `<button type="button" class="mc-d n${nivel}" role="gridcell" data-dia="${esc(d.data)}" aria-label="${esc(dataBR(d.data))}: ${plural(d.total, 'mensagem', 'mensagens')}${det ? ` (${esc(det)})` : ''}" title="${esc(det || 'nada')}"><span>${esc(d.data.slice(8))}</span><b>${d.total || ''}</b></button>`; }).join('')}
-      </div>
-      <div id="mesDia" class="mes-dia" aria-live="polite"></div>
-      <p class="dica">Estimativa com os dados de hoje: lembretes dos horários já marcados, pós-venda e avaliação de quem ainda vai ser atendido (<b>estimadas</b>), revisões e reativações pelos prazos, aniversários cadastrados e orçamentos parados no CRM. Já tira quem pediu para não receber, domingo, feriado e o intervalo mínimo${p.seguradosPeloIntervalo ? ` (${p.seguradosPeloIntervalo} seguradas por ele)` : ''}.</p>`;
-    $$('.mc-d', $('#mesCorpo')).forEach(b => b.addEventListener('click', () => {
-      $$('.mc-d.sel').forEach(x => x.classList.remove('sel')); b.classList.add('sel');
-      const lista = (p.itens || []).filter(i => i.data === b.dataset.dia);
-      $('#mesDia').innerHTML = `<div class="lista-sep">${esc(rotuloDia(b.dataset.dia))} <em>${lista.length}</em></div>` + (lista.length
-        ? lista.slice(0, 40).map(i => `<div class="ag-linha"><span class="s">${EMOJI(i.tipo)} <b>${esc(i.nome || 'cliente')}</b></span><small class="muted">${esc(ROTULO(i.tipo))}${i.estimado ? ' · estimada' : ''}</small></div>`).join('')
-        : '<p class="dica">Nada sairia neste dia.</p>');
-    }));
-  };
-
-  /* Réguas: alcance de cada régua + pedir ao gestor no aviso de "só gestor". */
+  /* Réguas: a próxima saída de cada régua ligada (dia e primeiro nome), pela projeção do servidor. */
   R4.pintarReguas = async function () {
-    if (!pode('reguas')) {
-      const aviso = $('.so-gestor', view);
-      if (aviso && !$('.pedir', aviso.parentElement)) aviso.insertAdjacentHTML('afterend', botaoPedir('reguas', 'Quero mudar uma régua'));
-    }
     let p; try { p = await projecao(); } catch { return; }
     if (state.route !== 'reguas') return;
     for (const t of REGUAS) {
-      const card = $(`.regua[data-regua="${t}"] .regua-titulo div`, view); if (!card || $('.alcance', card)) continue;
-      const r = p.porRegua[t] || { total: 0 };
-      card.insertAdjacentHTML('beforeend', `<button type="button" class="alcance" data-mes title="Ver os próximos 30 dias">≈ <b>${r.total}</b> ${r.total === 1 ? 'mensagem' : 'mensagens'} em 30 dias${r.estimados ? ' (estimado)' : ''}</button>`);
+      const el = $(`[data-proxima="${t}"]`, view); if (!el) continue;
+      if (!$(`[data-cfg="ativo_${t}"]`, view)?.checked) { el.textContent = 'Desligada: nada sai.'; continue; }
+      const prox = (p.porRegua?.[t]?.exemplos || []).filter(x => x.data).sort((a, b) => (a.data < b.data ? -1 : 1))[0];
+      el.textContent = prox ? `Próxima saída: ${rotuloDia(prox.data)}${prox.nome ? `, para ${String(prox.nome).split(' ')[0]}` : ''}` : 'Próxima saída: ninguém nos próximos 30 dias.';
     }
-    $$('[data-mes]', view).forEach(b => b.addEventListener('click', R4.abrirMes));
   };
 
   // ======================================================================
@@ -376,121 +228,6 @@
   // ======================================================================
   // AJUDA por papel (com busca) e TOUR de boas-vindas
   // ======================================================================
-  const AJUDA = [
-    { p: 'todos', t: 'Mandar mensagem para um cliente', d: 'Clientes › abra a ficha › "Mandar mensagem". Sai pelo WhatsApp da oficina dentro da janela de envio e aparece na conversa do Atendimento.' },
-    { p: 'todos', t: 'Ver o que saiu e o que o cliente respondeu', d: 'Mensagens: filtre por status, régua, período ou pela leitura da IA ("quer agendar", "reclamou"…). A resposta aparece no balão colorido.' },
-    { p: 'todos', t: 'Cliente pediu para não receber', d: 'Na ficha, desligue "aceita mensagens". Quem responde PARAR sai sozinho. Para voltar a mandar, só o gestor.' },
-    { p: 'todos', t: 'Cadastrar aniversários', d: 'Clientes › Aniversários: cole uma lista, suba um CSV ou procure nas conversas. Um por vez: na ficha do cliente.' },
-    { p: 'todos', t: 'Ver o que vai sair', d: 'Início › "Prévia de hoje" (o que a régua faria agora) e "Próximos 30 dias" (o mês inteiro, por régua e por dia).' },
-    { p: 'atendente', t: 'Campanha para vários clientes', d: 'Nova campanha (tecla N) › escolha o grupo › escreva › "Pedir aprovação". O gestor aprova no sino e aí entra na fila.' },
-    { p: 'atendente', t: 'Não consigo mudar uma régua', d: 'Réguas, teste, CSV e importar são do gestor. Use o botão 🙋 "Pedir ao gestor": ele recebe o aviso no sino.' },
-    { p: 'atendente', t: 'Minhas tarefas', d: 'Cliente que pediu horário, quer orçamento ou reclamou vira tarefa para quem cuida da conversa. Elas ficam no ✓ do topo.' },
-    { p: 'gestor', t: 'Ligar o Comunicar', d: 'Início › "Pronto para ligar" mostra o que falta (chave do WhatsApp, réguas, link de avaliação, telefone de teste, aniversários) e leva direto ao lugar certo.' },
-    { p: 'gestor', t: 'Ligar ou mudar uma régua', d: 'Réguas: interruptor, texto (ou ✨ 3 opções da IA), o número de dias/horas e "Mandar teste para mim". Salve na barra de baixo.' },
-    { p: 'gestor', t: 'Aprovar campanha da equipe', d: 'O sino avisa. Campanhas › "Para aprovar": Aprovar coloca na fila; Recusar avisa quem pediu, com o motivo.' },
-    { p: 'gestor', t: 'O servidor dormiu, perdi mensagens?', d: 'Não. O carteiro é chamado de 15 em 15 min e tem reforço de 5 em 5 quando a chamada falha; o que ficou para trás sai na rodada seguinte, sem duplicar. Veja em Início › "carteiro rodou…".' },
-    { p: 'gestor', t: 'Pausar tudo', d: 'Réguas › Envio › Pausa geral. A fila continua se formando; nada sai até desligar.' },
-  ];
-  R4.abrirAjuda = function () {
-    const gestor = pode('reguas');
-    const minhas = AJUDA.filter(a => a.p === 'todos' || (gestor ? a.p === 'gestor' : a.p === 'atendente'));
-    openModal(`<div class="modal-head"><h3>❔ Como faço…</h3><button type="button" class="modal-close" aria-label="Fechar">×</button></div>
-      <div class="modal-body ajuda">
-        <div class="search" style="max-width:none">${svg(I.search)}<input id="ajBusca" placeholder="Procurar na ajuda (ex.: aniversário, aprovar, parar)" aria-label="Procurar na ajuda"></div>
-        <p class="muted">Você entrou como <b>${esc({ admin:'administrador', gestor:'gestor', atendente:'atendente' }[state.perfil?.papel] || 'equipe')}</b>${gestor ? '' : ' — réguas, teste e importação são do gestor (use 🙋 "Pedir ao gestor")'}.</p>
-        <div id="ajLista">${minhas.map(a => `<details class="aj"><summary>${esc(a.t)}</summary><p>${esc(a.d)}</p></details>`).join('')}</div>
-        <div class="ajuda-item"><span>⌨️</span><div><b>Atalhos</b><p><kbd>N</kbd> nova campanha · <kbd>/</kbd> buscar · <kbd>?</kbd> esta ajuda · <kbd>Esc</kbd> fecha</p></div></div>
-      </div>
-      <div class="modal-foot"><button type="button" class="btn esq" id="ajTour">▶ Rever o tour</button>${gestor ? '' : botaoPedir('outro', 'Preciso de ajuda no Comunicar', 'Pedir ajuda ao gestor')}<button type="button" class="btn primary" data-fechar>Entendi</button></div>`);
-    $('#ajBusca').addEventListener('input', (e) => {
-      const q = semAcentoTela(e.target.value);
-      $$('#ajLista .aj').forEach(d => { const ok = !q || semAcentoTela(d.textContent).includes(q); d.hidden = !ok; if (q && ok) d.open = true; });
-    });
-    $('#ajTour').addEventListener('click', () => { closeModal(); R4.tour(true); });
-  };
-  const SEM_MARCAS = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');
-  const semAcentoTela = (s) => String(s || '').normalize('NFD').replace(SEM_MARCAS, '').toLowerCase().trim();
-
-  function passosDoTour() {
-    const gestor = pode('reguas');
-    const comum = [
-      { alvo: '[data-route="mensagens"]', t: 'Mensagens', d: 'Tudo o que saiu, está na fila ou falhou — com a resposta do cliente e o que a IA leu nela.' },
-      { alvo: '[data-route="clientes"]', t: 'Clientes', d: 'A mesma ficha do CRM e da Agenda. Aqui você manda mensagem para um cliente e cadastra aniversários.' },
-    ];
-    if (gestor) return [
-      { alvo: '#painelPronto', t: 'Pronto para ligar', d: 'O que falta para o Comunicar trabalhar sozinho. Cada item tem o botão que leva ao lugar certo.' },
-      { alvo: '[data-route="reguas"]', t: 'Réguas', d: 'As 8 mensagens automáticas. Ligue, ajuste o texto, mande um teste para você e salve.' },
-      ...comum,
-      { alvo: '[data-route="campanhas"]', t: 'Campanhas', d: 'Mensagem para um grupo. O que a equipe pede para mandar chega aqui para você aprovar.' },
-      { alvo: '#btnAjuda', t: 'Ajuda', d: 'Dúvida? "Como faço…" com busca. A tecla ? também abre.' },
-    ];
-    return [
-      { alvo: '#faixaEquipe:not([hidden]), .hero-dia', t: 'Seu dia', d: 'Aqui aparecem as suas tarefas e as campanhas que você pediu. A situação do WhatsApp fica logo abaixo.' },
-      ...comum,
-      { alvo: '[data-route="campanhas"]', t: 'Campanhas', d: 'Para um grupo de clientes: você escreve e o gestor aprova. Para um cliente só, sai direto.' },
-      { alvo: '#btnSino:not([hidden]), #btnAjuda', t: 'Avisos', d: 'O sino mostra o que é seu: tarefa nova, campanha aprovada ou recusada.' },
-      { alvo: '#btnAjuda', t: 'Ajuda', d: 'Dúvida? "Como faço…" com busca. A tecla ? também abre.' },
-    ];
-  }
-  const SEM_TOUR = new URLSearchParams(location.search).get('tour') === '0'; // roteiros de teste
-  R4.talvezTour = function () {
-    if (SEM_TOUR || !state.perfil?.id || ler(`comunicar_tour_v1_${eu()}`)) return;
-    if (window.innerHeight < 420) return; // tela muito baixa: só pela ajuda
-    setTimeout(() => R4.tour(false), 900);
-  };
-  R4.tour = function (forcado) {
-    const passos = passosDoTour().filter(p => document.querySelector(p.alvo));
-    if (!passos.length) return;
-    let i = 0;
-    const fundo = document.createElement('div'); fundo.className = 'tour-fundo';
-    const luz = document.createElement('div'); luz.className = 'tour-luz';
-    const card = document.createElement('div'); card.className = 'tour-card';
-    card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true'); card.setAttribute('aria-labelledby', 'tourTit');
-    document.body.append(fundo, luz, card);
-    const antes = document.activeElement;
-    const fechar = () => {
-      guardar(`comunicar_tour_v1_${eu()}`, { em: Date.now() });
-      fundo.remove(); luz.remove(); card.remove();
-      document.removeEventListener('keydown', teclas, true);
-      window.removeEventListener('resize', pintar);
-      antes?.focus?.();
-    };
-    const teclas = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fechar(); }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); proximo(); }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); if (i > 0) { i--; pintar(); } }
-      else if (e.key === 'Tab') { prenderTab(e, card); }
-    };
-    const proximo = () => { if (i >= passos.length - 1) return fechar(); i++; pintar(); };
-    function pintar() {
-      const p = passos[i];
-      const el = document.querySelector(p.alvo);
-      if (el) {
-        el.scrollIntoView?.({ block: 'nearest' });
-        const r = el.getBoundingClientRect();
-        Object.assign(luz.style, { left: `${r.left - 6}px`, top: `${r.top - 6}px`, width: `${r.width + 12}px`, height: `${r.height + 12}px` });
-        const larg = Math.min(320, window.innerWidth - 32);
-        let x = r.right + 16, y = r.top;
-        if (x + larg > window.innerWidth - 16) { x = Math.max(16, Math.min(r.left, window.innerWidth - larg - 16)); y = r.bottom + 14; }
-        if (y + 200 > window.innerHeight) y = Math.max(16, r.top - 214);
-        Object.assign(card.style, { left: `${x}px`, top: `${y}px`, width: `${larg}px` });
-      }
-      card.innerHTML = `<small class="tour-n">${i + 1} de ${passos.length}</small><h3 id="tourTit">${esc(p.t)}</h3><p>${esc(p.d)}</p>
-        <div class="tour-acoes"><button type="button" class="btn btn-mini ghost" data-t="pular">${forcado ? 'Fechar' : 'Pular o tour'}</button>
-          ${i ? '<button type="button" class="btn btn-mini" data-t="voltar">Voltar</button>' : ''}
-          <button type="button" class="btn btn-mini primary" data-t="prox">${i === passos.length - 1 ? 'Começar' : 'Próximo'}</button></div>`;
-      $('[data-t="prox"]', card).focus();
-    }
-    card.addEventListener('click', (e) => {
-      const t = e.target.closest('[data-t]')?.dataset.t;
-      if (t === 'pular') fechar(); else if (t === 'voltar') { i--; pintar(); } else if (t === 'prox') proximo();
-    });
-    fundo.addEventListener('click', fechar);
-    document.addEventListener('keydown', teclas, true);
-    window.addEventListener('resize', pintar);
-    pintar();
-  };
-
   // ======================================================================
   // VOLTOU / APARELHO DE VOLTA — atualiza a tela sem piscar
   // ======================================================================
@@ -498,12 +235,11 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { _escondidoEm = Date.now(); return; }
     if (_escondidoEm && Date.now() - _escondidoEm > 2 * 60000 && !document.body.classList.contains('deslogado') && state.perfil) {
-      carregarSaude(); if (!modalAberto() && !gavetaAberta() && state.route !== 'reguas') route(null, { quieto:true });
+      if (!modalAberto() && !gavetaAberta() && state.route !== 'reguas') route(null, { quieto:true });
     }
   });
   window.Acordar?.ouvir((tipo) => {
     if (tipo !== 'voltou' || !state.perfil) return;
-    carregarSaude();
     if (!modalAberto() && !gavetaAberta() && state.route !== 'reguas') setTimeout(() => route(null, { quieto:true }), 300);
   });
 
