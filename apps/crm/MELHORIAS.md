@@ -1477,3 +1477,6 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-051** · conserto · Resumo da IA rejeita período desconhecido antes de gerar o relatório (teste R10-CRM-051 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
 - **R10-CRM-052** · conserto · Triagem rejeita janelas fora de 1 a 60 dias (teste R10-CRM-052 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
 - **R10-CRM-053** · conserto · Triagem rejeita limites fora de 1 a 30 leads (teste R10-CRM-053 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
+- **R10-CRM-054** · segurança · Cadastro da equipe rejeita função desconhecida antes de criar o acesso (teste R10-CRM-054 em testes/r10-equipe.test.cjs) · `840701e`
+- **R10-CRM-055** · conserto · Cadastro rejeita e-mail extenso antes de gravar um endereço truncado (teste R10-CRM-055 em testes/r10-equipe.test.cjs) · `840701e`
+- **R10-CRM-056** · segurança · Rotas de apps, distribuição e senha temporária exigem identificador de perfil em texto (teste R10-CRM-056 em testes/r10-equipe.test.cjs) · `840701e`
