@@ -34,8 +34,8 @@
 .saude-abrir { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-decoration: none; }
 .saude-abrir:hover { color: var(--red-2); }
 .saude-pe { margin: 4px 0 0; }
-.topo-marca[data-saude="ruim"]::after, .topo-marca[data-saude="aviso"]::after { content: ''; width: 9px; height: 9px; border-radius: 50%; margin-left: 4px; background: var(--orange); align-self: flex-start; }
-.topo-marca[data-saude="ruim"]::after { background: var(--red-2); }
+.ic-marca[data-saude="ruim"]::after, .ic-marca[data-saude="aviso"]::after { content: ''; width: 9px; height: 9px; border-radius: 50%; margin-left: 4px; background: var(--orange); align-self: flex-start; }
+.ic-marca[data-saude="ruim"]::after { background: var(--red-2); }
 
 /* ---------- Ligações entre sistemas (visão do dono) ---------- */
 .ligacoes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

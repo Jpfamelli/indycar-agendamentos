@@ -2,7 +2,6 @@
    1) Faixa "Saúde dos sistemas": uma linha que diz se está tudo em ordem; ao abrir, cada sistema (Pátio, Orçador, WhatsApp, Comunicar,
       Movere, IA, backup, Central) com o que houve e o que fazer enquanto não volta. Junta a sonda do servidor (Pátio/Orçador/apps da Central),
       a RPC r7_c1_saude_sistemas (WhatsApp, Comunicar, Movere, monitor) e, para o gestor, r7_x3_saude (rotinas e gatilhos do banco).
-   2) Visão do dono: "Ligações entre sistemas" (r7_x3_ligacoes_quebradas): onde um sistema não conversa com o outro, com o link do primeiro caso.
    Só equipe vê (admin, gestor, atendente). Nada aqui grava no banco. */
 (function () {
   'use strict';
@@ -60,7 +59,7 @@
     $('#saudeHora').textContent = leituraEm ? 'lido ' + L.quando(new Date(leituraEm).toISOString()).replace('agora', 'agora há pouco') : '';
     $('#saudeBotao').setAttribute('aria-expanded', String(aberto));
     $('#saudePainel').hidden = !aberto;
-    const topo = document.querySelector('.topo-marca');
+    const topo = document.querySelector('.ic-marca');
     // rodada 9: o ponto ao lado do logo era só cor e só "title" (que o leitor de tela não lê com aria-label e o celular não mostra)
     if (topo) { topo.dataset.saude = r.tom; topo.title = r.tom === 'ok' || r.tom === 'neutro' ? '' : r.texto; topo.setAttribute('aria-label', N.rotuloDoLogo(r)); }
     $('#saudeLista').innerHTML = s.itens.map((i) => {
@@ -96,32 +95,7 @@
     if (atual === montagem) desenhar();
   }
 
-  /* ---------------- Visão do dono: ligações entre sistemas ---------------- */
-  async function carregarLigacoes() {
-    const box = $('#donoLigacoes');
-    if (!box || !C.visao().dono) return;
-    if (box.dataset.em && Date.now() - Number(box.dataset.em) < 60_000) return;
-    try {
-      const { data, error } = await C.sb.rpc('r7_x3_ligacoes_quebradas', { p_amostra: 3 });
-      if (error) throw error;
-      box.dataset.em = String(Date.now());
-      desenharLigacoes(N.resumoLigacoes(data, C.bases, location.origin));
-    } catch {
-      if (!box.dataset.ok) box.innerHTML = '<h3 class="dono-h">Ligações entre sistemas</h3><p class="vazio vazio-erro">Não deu para conferir as ligações agora. <button type="button" class="btn-link" data-recarregar-ligacoes>tentar de novo</button></p>';
-    }
-  }
-  function desenharLigacoes(r) {
-    const box = $('#donoLigacoes');
-    box.dataset.ok = '1';
-    const cab = '<h3 class="dono-h">Ligações entre sistemas</h3>';
-    if (!r.itens.length) { box.innerHTML = cab + '<p class="vazio vazio-ensina"><b>Tudo ligado. 🔗</b><span>Pátio, Orçador, Agenda, CRM e Atendimento estão se enxergando: nenhum caso solto agora.</span></p>'; return; }
-    box.innerHTML = cab + `<p class="dono-nota">${C.esc(N.textoDasLigacoes(r))}</p><p class="vazio-mini">${C.esc(N.EXPLICA_LIGACOES)}</p><ul class="ligacoes">${r.itens.map((i) => {
-      const app = C.podeUsar(i.app) ? i.app : null;
-      const alvo = i.link || (app ? C.bases[app] : '');
-      const miolo = `<span class="a-num">${i.n}</span><span class="a-txt">${C.esc(i.texto)}<small>${C.esc(i.appNome)} · ${C.esc(i.como)}</small></span><span class="a-seta" aria-hidden="true">›</span>`;
-      return `<li class="grav-${i.grav === 'alta' ? 3 : i.grav === 'media' ? 2 : 1}" data-ligacao="${C.esc(i.codigo)}">${alvo ? `<a class="atencao-item" href="${C.esc(alvo)}" target="${C.esc(L.nomeDaAba(L.appDoLink(alvo, location.origin, C.bases) || i.app))}">${miolo}</a>` : `<span class="atencao-item">${miolo}</span>`}</li>`;
-    }).join('')}</ul>`;
-  }
+  /* rodada 11: as "Ligações entre sistemas" moravam na visão do dono, que saiu da Casa junto com os números por app. */
 
   MOD.montar = function (casa) {
     montagem++;
@@ -131,13 +105,10 @@
     const equipe = ['admin', 'gestor', 'atendente'].includes(C.perfil.papel);
     if (sec) sec.hidden = true;
     if (!equipe) return;
-    const lig = $('#donoLigacoes'); if (lig) delete lig.dataset.em;
     C.aoSaudeApps = (s) => { sonda = s; desenhar(); };
-    C.saude = { atualizar: ler, abrir: (v) => { aberto = typeof v === 'boolean' ? v : !aberto; desenhar(); }, estaAberto: () => aberto, ligacoes: carregarLigacoes, dados: () => ({ rpc, sonda, banco }) };
-    C.aoDono = carregarLigacoes;
+    C.saude = { atualizar: ler, abrir: (v) => { aberto = typeof v === 'boolean' ? v : !aberto; desenhar(); }, estaAberto: () => aberto, dados: () => ({ rpc, sonda, banco }) };
     $('#saudeBotao').onclick = () => C.saude.abrir();
     $('#saudePainel').onclick = (e) => { if (e.target.closest('[data-saude-atualizar]')) { ler(); C.verificarApps && C.verificarApps({ forcar: false }); C.toast('Conferindo os sistemas…', 1400); } };
-    $('#donoLigacoes').onclick = (e) => { if (e.target.closest('[data-recarregar-ligacoes]')) { delete $('#donoLigacoes').dataset.em; carregarLigacoes(); } };
     ler();
     clearInterval(timer);
     timer = setInterval(() => { if (!document.hidden) ler(); }, 120_000);

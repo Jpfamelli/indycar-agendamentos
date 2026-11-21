@@ -1,7 +1,7 @@
 /* Casa — sino unificado (rodada 6 + 7): avisos de TODOS os apps numa lista só, com filtro por app, busca por texto,
    "só não lidas", grupos por dia, marcar uma/todas, adiar com escolha (1 h, 3 h, amanhã 8h), "carregar mais",
    aba do navegador com a contagem e aviso do sistema (opcional) quando chega coisa nova com a Central em segundo plano.
-   Aviso de "tarefas vencidas" (sem app e sem link no banco) leva para a lista de tarefas da própria Casa. */
+   Aviso de "tarefas vencidas" (sem app e sem link no banco) leva para a aba Tarefas do Atendimento (rodada 11). */
 (function () {
   'use strict';
   const MOD = { nome: 'sino' };
@@ -155,13 +155,8 @@
     if (!n) return;
     marcar([id]);
     const a = N4().acaoDoAviso(n, C.bases, location.origin);
-    if (a.acao === 'tarefas') return irParaTarefas(a.filtro);
     if (a.acao === 'abrir') return C.abrirNaAba(a.url);
     C.toast('Esse aviso não tem para onde ir.');
-  }
-  function irParaTarefas(filtroT) {
-    if (C.tarefas && C.tarefas.filtrar) C.tarefas.filtrar(filtroT);
-    C.irPara('#tTarefas');
   }
   function lerTodas() {
     // "todas" vale para o que está na tela: o filtro de app, a busca e sem os adiados (antes marcava também o que a busca escondia)
@@ -179,19 +174,13 @@
     else $('#bSino').focus();
   }
 
-  /** Resumo do que pede atenção (vem do painel) aparece no topo do sino. */
-  function mostrarAtencao(itens) {
-    const el = $('#sinoAtencao');
-    const top = (itens || []).slice(0, 3);
-    el.hidden = !top.length;
-    el.innerHTML = top.length ? '<strong>Pede atenção agora</strong>' + top.map((i) => `<a href="${C.esc(i.url)}" target="${C.esc(L.nomeDaAba(i.app))}">${C.esc(i.texto)}</a>`).join('') : '';
-  }
+  /* rodada 11: o resumo "Pede atenção agora" no topo do sino repetia a lista da própria Casa, logo abaixo: saiu. */
 
   MOD.montar = function (casa) {
     gruposAbertos.clear();
     C = casa; L = casa.L; notifs = []; filtro = ''; soNovas = false; primeiraCarga = true; buscaTexto = ''; limite = 60; adiarAberto = null; leitura = 'carregando';
     C.alternarSino = alternar;
-    C.sino = { carregar, mostrarAtencao, naoLidas: () => notifs.filter((n) => !n.lida_em).length, lista: () => notifs.slice() };
+    C.sino = { carregar, naoLidas: () => notifs.filter((n) => !n.lida_em).length, lista: () => notifs.slice() };
     $('#bLerTodas').onclick = lerTodas;
     $('#sinoSoNovas').checked = false;
     $('#sinoSoNovas').onchange = (e) => { soNovas = e.target.checked; desenhar(); };

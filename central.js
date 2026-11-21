@@ -1,6 +1,6 @@
 // IndyCar Central — UM servidor, UM endereço, UM login (rodada 5, 16/10/2026).
 //
-//   /              → Casa (login único, atalhos por papel, sino, minhas tarefas, o "agora" do dia)
+//   /              → Casa (login único, os apps com o número que importa, o sino e os avisos do sistema)
 //   /agenda/       → Agenda       (este repositório, server.js na raiz)
 //   /crm/          → CRM          (apps/crm)
 //   /comunicar/    → Comunicar    (apps/comunicar — o carteiro roda aqui)
