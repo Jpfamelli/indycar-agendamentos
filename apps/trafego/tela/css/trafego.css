@@ -1,0 +1,400 @@
+/* ============================================================================
+   IndyCar Tráfego (rodada 11): moldura da página e as três abas.
+   O topo é o .ic-topo do /casa/indycar.css; aqui só os botões do canto,
+   o Resumo, as Campanhas e os Ajustes. Fontes: Archivo e Barlow Condensed.
+   ============================================================================ */
+
+/* ------------------------------ topo: botões do canto e menu da conta ------------------------------ */
+.ic-acoes {
+  position: relative;
+}
+.botao-topo {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ic-texto);
+}
+.botao-topo:hover {
+  background-color: var(--cor-realce-forte);
+}
+.botao-topo.conta span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: var(--ic-texto);
+  color: var(--ic-painel);
+  font: 700 16px/1 var(--ic-titulo);
+}
+#menuConta {
+  right: 0;
+  top: calc(100% + 4px);
+}
+
+/* ------------------------------ moldura ------------------------------ */
+.faixas {
+  display: grid;
+  gap: var(--p-esp-2);
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+.faixas:not(:empty) {
+  padding-top: var(--p-esp-3);
+}
+.pagina {
+  display: grid;
+  gap: var(--p-esp-8);
+  max-width: 72rem;
+  margin-inline: auto;
+  padding: var(--p-esp-6) 16px var(--p-esp-12);
+}
+.pagina:focus-visible {
+  outline: none;
+}
+.pagina[aria-busy='true'] {
+  opacity: 0.6;
+}
+.abrindo {
+  padding-block: var(--p-esp-12);
+  font: 700 var(--p-letra-28) / 1 var(--fonte-titulo);
+  text-transform: uppercase;
+  color: var(--cor-tinta-3);
+}
+.esq {
+  display: grid;
+  gap: var(--p-esp-6);
+}
+.esq-titulo {
+  width: min(16rem, 60%);
+  height: 2.5rem;
+}
+.esq-linhas {
+  display: grid;
+  gap: var(--p-esp-3);
+}
+.esq-linha {
+  height: 4.5rem;
+}
+.falha-titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--p-esp-3);
+}
+.toast {
+  padding: var(--p-esp-3) var(--p-esp-5);
+}
+
+/* ------------------------------ cabeçalho de aba e período ------------------------------ */
+.r-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--p-esp-3);
+}
+.ic-titulo {
+  font-size: 36px;
+}
+.segmento {
+  min-height: 44px;
+  text-decoration: none;
+}
+.segmento[aria-current='true'] {
+  background-color: var(--cor-tinta);
+  color: var(--cor-fundo);
+  font-weight: var(--peso-forte);
+}
+.r-subtitulo {
+  margin: 0 0 var(--p-esp-4);
+  font: 700 24px/1.1 var(--fonte-titulo);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--cor-tinta);
+}
+
+/* ------------------------------ Resumo: quatro números grandes ------------------------------ */
+.r-numeros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--p-esp-3);
+}
+.r-numero {
+  display: grid;
+  align-content: start;
+  gap: var(--p-esp-1);
+  padding: var(--p-esp-4);
+  border: 1px solid var(--ic-borda);
+  border-radius: 10px;
+  background-color: var(--cor-superficie);
+}
+.r-rotulo {
+  font-size: 15px;
+  font-weight: var(--peso-forte);
+  color: var(--cor-tinta-2);
+}
+.r-valor {
+  font: 700 clamp(2.25rem, 1.5rem + 3vw, 3.5rem) / 1 var(--fonte-titulo);
+  color: var(--cor-tinta);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.r-sem {
+  font-size: 24px;
+  color: var(--cor-tinta-2);
+}
+.r-apoio {
+  font-size: 14px;
+  color: var(--cor-tinta-2);
+}
+@media (min-width: 62em) {
+  .r-numeros {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.r-aviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--p-esp-2) var(--p-esp-3);
+  color: var(--cor-tinta-2);
+}
+.r-aviso-forte {
+  color: var(--cor-tinta);
+  font-weight: var(--peso-forte);
+}
+.r-aviso .ligacao {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ------------------------------ Resumo: gráfico por semana (barras em CSS) ------------------------------ */
+.r-semanas {
+  display: grid;
+  gap: var(--p-esp-4);
+}
+.r-semana {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) 7.5rem;
+  grid-template-areas: 'nome trilho n' 'nome trilho gasto';
+  align-items: center;
+  column-gap: var(--p-esp-4);
+}
+.r-semana-nome {
+  grid-area: nome;
+  font-weight: var(--peso-forte);
+}
+.r-trilho {
+  grid-area: trilho;
+  display: block;
+  height: 1.75rem;
+  border-radius: 4px;
+  background-color: var(--cor-dado-trilho);
+  overflow: hidden;
+}
+.r-trilho i {
+  display: block;
+  height: 100%;
+  width: calc(var(--v) * 100%);
+  background-color: var(--cor-marca);
+}
+.r-semana-n {
+  grid-area: n;
+  justify-self: end;
+  font: 700 22px/1 var(--fonte-titulo);
+  color: var(--cor-tinta);
+}
+.r-semana-gasto {
+  grid-area: gasto;
+  justify-self: end;
+  font-size: 14px;
+  color: var(--cor-tinta-2);
+}
+@media (max-width: 40em) {
+  .r-semana {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'nome n' 'trilho trilho' 'gasto gasto';
+    row-gap: var(--p-esp-1);
+  }
+  .r-semana-gasto {
+    justify-self: start;
+  }
+}
+
+/* ------------------------------ Campanhas: lista simples ------------------------------ */
+.c-lista {
+  display: grid;
+  gap: var(--p-esp-3);
+}
+.c-item {
+  display: grid;
+  gap: var(--p-esp-3);
+  padding: var(--p-esp-4);
+  border: 1px solid var(--ic-borda);
+  border-radius: 10px;
+  background-color: var(--cor-superficie);
+}
+.c-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--p-esp-3);
+}
+.c-nome {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.c-nome h2 {
+  font-size: 18px;
+  font-weight: var(--peso-forte);
+  overflow-wrap: anywhere;
+}
+.c-onde {
+  font-size: 14px;
+  color: var(--cor-tinta-2);
+}
+.c-numeros,
+.c-mais {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--p-esp-3);
+}
+@media (min-width: 48em) {
+  .c-numeros,
+  .c-mais {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.c-dado dt {
+  font-size: 14px;
+  color: var(--cor-tinta-2);
+}
+.c-dado dd {
+  margin: 0;
+}
+.c-valor {
+  font: 700 28px/1.1 var(--fonte-titulo);
+  color: var(--cor-tinta);
+  white-space: nowrap;
+}
+.c-mais .c-valor {
+  font-size: 22px;
+}
+.c-sem {
+  font-size: 18px;
+  color: var(--cor-tinta-2);
+}
+.camp-detalhes > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: var(--peso-forte);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.camp-detalhes[open] > summary {
+  margin-bottom: var(--p-esp-2);
+}
+.camp-detalhes > p {
+  margin-bottom: var(--p-esp-3);
+  color: var(--cor-tinta-2);
+  max-width: var(--medida-texto);
+}
+
+/* ------------------------------ Ajustes ------------------------------ */
+.aj-parte {
+  display: grid;
+  min-width: 0;
+}
+.aj-corpo {
+  display: grid;
+  gap: var(--p-esp-5);
+  min-width: 0;
+}
+.conexoes-cartoes {
+  display: grid;
+  gap: var(--p-esp-3);
+}
+@media (min-width: 48em) {
+  .conexoes-cartoes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.conexao-cartao {
+  display: grid;
+  gap: var(--p-esp-3);
+  align-content: start;
+  min-width: 0;
+  padding: var(--p-esp-4);
+  border: 1px solid var(--ic-borda);
+  border-radius: 10px;
+  background-color: var(--cor-superficie);
+}
+.conexao-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--p-esp-2);
+}
+.conexao-problema {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--p-esp-2);
+}
+.conexao-problema .icone {
+  margin-top: 3px;
+  color: var(--cor-grave);
+}
+.conexao-acessos > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+.conexao-form {
+  display: grid;
+  gap: var(--p-esp-4);
+  padding-top: var(--p-esp-2);
+}
+.conexao-form textarea {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+}
+.conexao-botoes,
+.metas-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--p-esp-3);
+}
+.conexao-resultado {
+  display: grid;
+  gap: var(--p-esp-2);
+}
+.coleta {
+  display: grid;
+  gap: var(--p-esp-2);
+  justify-items: start;
+}
+.metas-form {
+  display: grid;
+  gap: var(--p-esp-4);
+  max-width: 40rem;
+}
+.meta-linha {
+  display: grid;
+  gap: var(--p-esp-2);
+}
+.campo > .entrada-valor {
+  font: inherit;
+  color: inherit;
+}

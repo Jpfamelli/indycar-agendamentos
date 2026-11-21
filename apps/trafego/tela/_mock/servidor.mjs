@@ -349,6 +349,16 @@ export function criar({ base = '/trafego/' } = {}) {
         ? '<p>Aqui a pessoa entra com e-mail e senha. Depois de entrar, volta para onde estava.</p><p><a id="voltar" href="' + escapar(seguro) + '">Entrar e voltar</a></p>'
         : '<p><a href="' + escapar(BASE) + '">Abrir o Tráfego</a></p>');
     }
+    // Rodada 11: o topo comum (/casa/indycar.css, logo e fontes) é da Central; aqui sai da pasta casa/ do repositório.
+    const daCasa = /^[/]casa[/]([a-z0-9-]+[.](css|png|woff2))$/.exec(url.pathname);
+    if (daCasa) {
+      const arquivo = path.resolve(TELA, '..', '..', '..', 'casa', daCasa[1]);
+      return fs.readFile(arquivo, (erro, corpo) => {
+        if (erro) { res.writeHead(404, { 'Content-Type': MIME['.txt'] }); return res.end('Não encontrado'); }
+        res.writeHead(200, { 'Content-Type': MIME['.' + daCasa[2]], 'Content-Length': corpo.length, 'Cache-Control': 'no-cache' });
+        return res.end(corpo);
+      });
+    }
     const vizinho = /^[/](agenda|crm|atendimento|comunicar)[/]/.exec(url.pathname);
     if (vizinho) return pagina(res, 200, vizinho[1][0].toUpperCase() + vizinho[1].slice(1) + ' (de mentira)', '<p>No ar de verdade, aqui abre o outro app.</p>');
     res.writeHead(404, { 'Content-Type': MIME['.txt'] });

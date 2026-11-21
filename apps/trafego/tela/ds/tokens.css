@@ -34,6 +34,13 @@
   --p-grafite-50: #f5f5f5;
   --p-branco: #ffffff;
 
+  /* rodada 11: chão e painéis iguais aos do /casa/indycar.css (o mesmo padrão em todos os apps) */
+  --p-ic-fundo-escuro: #070a14;
+  --p-ic-painel-escuro: #0d1220;
+  --p-ic-painel2-escuro: #121a2d;
+  --p-ic-fundo-claro: #eef0f4;
+  --p-ic-painel2-claro: #f6f7fa;
+
   /* vermelho da marca (500 é o da marca; 400 e 700 são os tons "de texto") */
   --p-vermelho-400: #ff4d5e;
   --p-vermelho-500: #e6192e;
@@ -94,8 +101,9 @@
   --p-letra-44: 2.75rem;
   --p-letra-56: 3.5rem;
 
-  --p-familia-condensada: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', Arial, sans-serif;
-  --p-familia-texto: 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* rodada 11: as mesmas pilhas do /casa/indycar.css */
+  --p-familia-condensada: 'Barlow Condensed', 'Archivo', system-ui, sans-serif;
+  --p-familia-texto: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --p-raio-1: 0.125rem;
   --p-raio-2: 0.375rem;
@@ -111,9 +119,9 @@
   color-scheme: dark;
 
   /* chão e superfícies */
-  --cor-fundo: var(--p-grafite-950);
-  --cor-superficie: var(--p-grafite-900);
-  --cor-superficie-2: var(--p-grafite-850);
+  --cor-fundo: var(--p-ic-fundo-escuro);
+  --cor-superficie: var(--p-ic-painel-escuro);
+  --cor-superficie-2: var(--p-ic-painel2-escuro);
   --cor-realce: var(--p-veu-claro-06);
   --cor-realce-forte: var(--p-veu-claro-10);
   --cor-linha: var(--p-grafite-800);
@@ -266,9 +274,9 @@
 :root[data-tema='claro'] {
   color-scheme: light;
 
-  --cor-fundo: var(--p-grafite-100);
+  --cor-fundo: var(--p-ic-fundo-claro);
   --cor-superficie: var(--p-branco);
-  --cor-superficie-2: var(--p-grafite-200);
+  --cor-superficie-2: var(--p-ic-painel2-claro);
   --cor-realce: var(--p-veu-escuro-05);
   --cor-realce-forte: var(--p-veu-escuro-09);
   --cor-linha: var(--p-grafite-300);

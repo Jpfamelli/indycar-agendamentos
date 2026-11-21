@@ -247,7 +247,7 @@ const { ipDe, criarLimitador } = require('../seguranca');
 const MAX_ERRADAS = 20, JANELA_ERRADAS_MS = 10 * 60_000;
 const tentativas = criarLimitador();
 
-const ENSINA = 'Envie a chave no cabeçalho "Authorization: Bearer ica_…" (crie a chave em Ajustes › Acesso da IA de fora).';
+const ENSINA = 'Envie a chave no cabeçalho "Authorization: Bearer ica_…" (o administrador cria a chave pelo POST /api/ia/chaves; veja MCP.md, parte 1).';
 
 /**
  * A porta (REST ou MCP) confere quem chama. Devolve { ok: true, chave } ou
@@ -267,13 +267,13 @@ async function autenticar(req, q, chaves = padrao()) {
   const visto = tentativas.espiar(doIp, JANELA_ERRADAS_MS);
   if (visto.n >= MAX_ERRADAS) {
     return { ok: false, status: 429, codigo: 'limite', cabecalhos: { 'Retry-After': String(visto.esperar) },
-      mensagem: `Muitas chaves erradas seguidas deste endereço. Espere ${Math.max(1, Math.ceil(visto.esperar / 60))} min e confira a chave em Ajustes › Acesso da IA de fora.` };
+      mensagem: `Muitas chaves erradas seguidas deste endereço. Espere ${Math.max(1, Math.ceil(visto.esperar / 60))} min e confira a chave.` };
   }
   const errou = () => { tentativas.permitir(doIp, MAX_ERRADAS, JANELA_ERRADAS_MS); };
   if (veio.erro) { errou(); return { ok: false, status: 401, codigo: 'chave_invalida', mensagem: `Chave em formato errado. ${ENSINA}`, cabecalhos: { 'WWW-Authenticate': 'Bearer realm="indycar-trafego", error="invalid_token"' } }; }
   const r = await chaves.conferir(veio.chave);
   if (!r.ok && r.motivo === 'indisponivel') return { ok: false, status: 503, codigo: r.sem_tabela ? 'sem_migracao' : 'indisponivel', mensagem: r.aviso, cabecalhos: { 'Retry-After': '30' } };
-  if (!r.ok) { errou(); return { ok: false, status: 401, codigo: 'chave_invalida', mensagem: 'Chave inválida ou revogada. Peça uma chave nova ao administrador (Ajustes › Acesso da IA de fora).', cabecalhos: { 'WWW-Authenticate': 'Bearer realm="indycar-trafego", error="invalid_token"' } }; }
+  if (!r.ok) { errou(); return { ok: false, status: 401, codigo: 'chave_invalida', mensagem: 'Chave inválida ou revogada. Peça uma chave nova ao administrador (MCP.md, parte 1).', cabecalhos: { 'WWW-Authenticate': 'Bearer realm="indycar-trafego", error="invalid_token"' } }; }
   const lim = chaves.limitar(r.chave.id);
   if (!lim.ok) {
     return { ok: false, status: 429, codigo: 'limite', cabecalhos: { 'Retry-After': String(lim.esperar) },

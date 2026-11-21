@@ -19,13 +19,6 @@
   font-display: swap;
   src: url('../fontes/barlow-condensed-700.woff2') format('woff2');
 }
-@font-face {
-  font-family: 'Barlow Condensed';
-  font-style: italic;
-  font-weight: 800;
-  font-display: swap;
-  src: url('../fontes/barlow-condensed-800-italic.woff2') format('woff2');
-}
 /* Archivo (variável em peso e largura): o que se lê de perto e o que se opera. */
 @font-face {
   font-family: 'Archivo';
@@ -214,13 +207,6 @@ option {
 }
 .medida {
   max-width: var(--medida-texto);
-}
-
-/* O destaque da casa: itálico pesado em vermelho, como o paralelogramo do logo. */
-.destaque {
-  font-style: italic;
-  font-weight: var(--peso-destaque);
-  color: var(--cor-marca);
 }
 
 /* ------------------------------ utilidades ------------------------------ */
