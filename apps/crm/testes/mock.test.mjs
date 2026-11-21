@@ -7,7 +7,9 @@ const j = async (r) => ({status: r.status, corpo: await r.json()});
 test('servidor falso serve interface real e mantém mutações isoladas', () => comMock(async base => {
   const html = await (await F(base)).text();
   assert.ok(html.includes('window.__MOCK_PAPEL="admin"')); assert.ok(html.includes('acesso.js') && html.includes('equipe.js')); assert.ok(html.includes('melhorias.js')); assert.ok(!html.includes('cdn.jsdelivr'));
-  for (const id of ['iaSlotLead', 'iaSlotPainel', 'iaSlotTela']) assert.match(html, new RegExp(`<section id="${id}"[^>]*aria-label="IA"`));
+  assert.match(html, /<section id="iaSlotLead"[^>]*aria-label="IA"/);
+  // rodada 11: a IA fica só na ficha do contato (a aba IA e o bloco do Painel saíram)
+  for (const id of ['iaSlotPainel', 'iaSlotTela']) assert.ok(!html.includes(`id="${id}"`), id);
   const c = (await (await F(base + '/api/clientes')).json()).clientes[0];
   const r = await F(base + '/api/clientes/' + c.id, {method: 'PATCH', body: JSON.stringify({aceita_mensagens: true, nascimento: '1904-03-12'})});
   assert.equal((await r.json()).cliente.aceita_mensagens, true); assert.equal((await F(base + '/api/saude')).status, 200);

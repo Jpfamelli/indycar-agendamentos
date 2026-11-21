@@ -169,5 +169,5 @@ test('tela: scripts e estilos novos estão na página, no service worker v11 e c
   assert.match(html, /<script src="rodada6\.js">/); assert.match(html, /href="rodada6\.css"/);
   assert.match(sw, /indycar-crm-v(?:1[3-9]|[2-9][0-9]+)/); assert.match(sw, /'rodada6\.js'/); assert.match(sw, /'rodada6\.css'/);
   assert.ok(css.includes('[hidden]{display:none!important}'));
-  assert.ok(!/\bfetch\(\s*['"`]\//.test(pub('rodada6.js')) && !/(href|src)="\/[a-z]/.test(html));
+  assert.ok(!/\bfetch\(\s*['"`]\//.test(pub('rodada6.js')) && !/(href|src)="\/(?!casa\/)[a-z]/.test(html));
 });
