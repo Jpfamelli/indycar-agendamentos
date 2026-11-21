@@ -656,10 +656,12 @@ export function criarApi(deps) {
   /* Rodada 5: "mandar para o MEU celular" — o texto da campanha chega no telefone do perfil
      de quem está escrevendo (qualquer um da equipe), fora da fila. */
   rota('POST', '/api/envios/teste-meu', async ({ res, usuario, body }) => {
+    if (typeof body.corpo !== 'string' || !body.corpo.trim() || body.corpo.trim().length > 2000) {
+      return bad(res, 'Escreva uma mensagem de até 2.000 caracteres antes de testar.', { campo: 'corpo' });
+    }
     const telefone = dados.soDigitos(usuario.telefone || '');
     if (telefone.length < 10) return bad(res, 'Cadastre seu celular em "Meu perfil" para receber o teste.', { codigo: 'sem_telefone' });
-    const texto = String(body.corpo || '').trim().slice(0, 2000);
-    if (!texto) return bad(res, 'Escreva a mensagem antes de testar.');
+    const texto = body.corpo.trim();
     const corpo = dados.renderTemplate(texto, { ...EXEMPLO_PREVIA, nome: usuario.nome || EXEMPLO_PREVIA.nome, link_area: `${patio.PATIO_URL}/minha/?c=exemplo`, link_os: `${patio.PATIO_URL}/acompanhar/?t=exemplo` });
     const r = await whatsapp.enviar(telefone, `[teste] ${corpo}`);
     await dados.enfileirar({
@@ -706,10 +708,11 @@ export function criarApi(deps) {
   rota('POST', '/api/envios/teste', async ({ res, usuario, body }) => {
     if (body.telefone != null && typeof body.telefone !== 'string') return bad(res, 'Informe o telefone em texto.', { campo: 'telefone' });
     if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
+    if (body.corpo?.length > 2000) return bad(res, 'Escreva uma mensagem de até 2.000 caracteres.', { campo: 'corpo' });
     const cfg = await dados.obterConfig();
     const telefone = dados.soDigitos(body.telefone || cfg.telefone_teste);
     if (telefone.length < 10) return bad(res, 'Informe um telefone de teste (em Réguas › Envio).');
-    const corpo = dados.renderTemplate(String(body.corpo || 'Teste do IndyCar Comunicar: se você recebeu isto, o WhatsApp está saindo. 🏁').slice(0, 2000),
+    const corpo = dados.renderTemplate(body.corpo || 'Teste do IndyCar Comunicar: se você recebeu isto, o WhatsApp está saindo. 🏁',
       { nome: usuario.nome || 'Equipe', carro: 'seu carro' });
     const r = await whatsapp.enviar(telefone, corpo);
     await dados.enfileirar({
@@ -935,13 +938,25 @@ export function criarApi(deps) {
     return ok(res, { ativo: cfg.ativo, temChave: !!chave, autonomia: cfg.autonomia, chamadasHoje: hojeN, limite: cfg.limite });
   });
   rota('POST', '/api/ia/escrever', async ({ res, usuario, body }) => {
-    if (body.pedido != null && typeof body.pedido !== 'string') return bad(res, 'Escreva o pedido em texto.', { campo: 'pedido' });
-    const regua = String(body.regua || 'campanha');
-    if (!ia?.VARIAVEIS_POR_REGUA?.[regua]) return bad(res, 'Régua desconhecida.');
-    const pedido = String(body.pedido || '').slice(0, 500), texto = String(body.texto || '').slice(0, 1500);
+    if (body.pedido != null && (typeof body.pedido !== 'string' || body.pedido.length > 500)) {
+      return bad(res, 'Escreva o pedido em texto com até 500 caracteres.', { campo: 'pedido' });
+    }
+    const regua = body.regua ?? 'campanha';
+    if (typeof regua !== 'string') {
+      return bad(res, 'Régua desconhecida.', { campo: 'regua' });
+    }
+    if (body.texto != null && (typeof body.texto !== 'string' || body.texto.length > 1500)) {
+      return bad(res, 'Informe o texto atual com até 1.500 caracteres.', { campo: 'texto' });
+    }
+    if (body.exemplo != null && (typeof body.exemplo !== 'object' || Array.isArray(body.exemplo)
+        || ['nome', 'carro', 'placa'].some((campo) => body.exemplo[campo] != null && typeof body.exemplo[campo] !== 'string'))) {
+      return bad(res, 'Informe nome, carro e placa do exemplo em texto.', { campo: 'exemplo' });
+    }
+    const pedido = body.pedido ?? '', texto = body.texto ?? '';
+    if (!Object.hasOwn(ia?.VARIAVEIS_POR_REGUA ?? {}, regua)) return bad(res, 'Régua desconhecida.', { campo: 'regua' });
     return chamadaIA(res, usuario, 'escrever_mensagem', (r) => `${r.variacoes.length} variações para ${dados.ROTULO_TIPO[regua] || regua}`, async (ctx) => {
       const r = await ia.escreverMensagem({ regua, pedido, textoAtual: texto, quantidade: 3 }, ctx);
-      const ex = body.exemplo && typeof body.exemplo === 'object' ? body.exemplo : {};
+      const ex = body.exemplo ?? {};
       const exemplo = {
         ...EXEMPLO_PREVIA,
         nome: String(ex.nome || EXEMPLO_PREVIA.nome).slice(0, 80), carro: String(ex.carro || EXEMPLO_PREVIA.carro).slice(0, 60),

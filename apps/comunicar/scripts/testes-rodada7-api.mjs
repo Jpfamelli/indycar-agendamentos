@@ -521,3 +521,20 @@ for (const [id, campo, valor] of [
     } finally { await s.fechar(); }
   });
 }
+for (const [id, caminho, corpo, campo] of [
+  ['088', '/api/envios/teste-meu', { corpo: ['Teste'] }, 'corpo'],
+  ['089', '/api/envios/teste', { telefone: '12999990000', corpo: 'x'.repeat(2001) }, 'corpo'],
+  ['090', '/api/ia/escrever', { regua: ['campanha'] }, 'regua'],
+  ['091', '/api/ia/escrever', { pedido: 'x'.repeat(501) }, 'pedido'],
+  ['092', '/api/ia/escrever', { texto: { mensagem: 'Revisar' } }, 'texto'],
+  ['093', '/api/ia/escrever', { exemplo: ['Cliente'] }, 'exemplo'],
+]) {
+  test(`R10-COM-${id}: valida ${campo} em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'POST', caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
