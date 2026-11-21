@@ -1,0 +1,49 @@
+/* Padrão IndyCar (rodada 11, 21/11/2026): o MESMO topo, as MESMAS fontes e as MESMAS cores em todos os apps.
+   Cada app inclui <link rel="stylesheet" href="/casa/indycar.css"> ANTES do CSS dele e usa o topo abaixo.
+   Não mude este arquivo dentro de um app: o que for diferente fica no CSS do próprio app.
+
+   <header class="ic-topo">
+     <a class="ic-marca" href="/" title="Voltar para a Central">
+       <img src="/casa/logo.png" alt="" width="32" height="32">
+       <span class="ic-nome">IndyCar <b>CRM</b></span>
+     </a>
+     <nav class="ic-abas" aria-label="Seções"> <a href="…" aria-current="page">…</a> … </nav>   (opcional, até 5 abas)
+     <div class="ic-acoes"> … botões do app e o menu da pessoa … </div>
+   </header>
+*/
+@font-face{font-family:'Archivo';font-style:normal;font-weight:100 900;font-stretch:62% 125%;font-display:swap;src:url('/casa/archivo-variavel.woff2') format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url('/casa/barlow-condensed-600.woff2') format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url('/casa/barlow-condensed-700.woff2') format('woff2')}
+
+:root {
+  --ic-bg: #070a14; --ic-painel: #0d1220; --ic-painel-2: #121a2d;
+  --ic-borda: rgba(255,255,255,.08); --ic-texto: #e9ecf4; --ic-forte: #fff; --ic-apagado: #8a92a7;
+  --ic-vermelho: #e6192e; --ic-verde: #22c55e; --ic-laranja: #f59e0b;
+  --ic-titulo: 'Barlow Condensed', 'Archivo', system-ui, sans-serif;   /* títulos, números grandes, nome do app */
+  --ic-texto-f: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;   /* todo o resto */
+}
+:root[data-tema="claro"] {
+  --ic-bg: #eef0f4; --ic-painel: #fff; --ic-painel-2: #f6f7fa;
+  --ic-borda: rgba(17,19,25,.10); --ic-texto: #191a20; --ic-forte: #0c0d11; --ic-apagado: #575b65;
+}
+[hidden] { display: none !important; }
+
+.ic-topo { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 16px; min-height: 56px;
+  padding: 0 16px; background: var(--ic-painel); border-bottom: 1px solid var(--ic-borda); font-family: var(--ic-texto-f); }
+.ic-marca { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; text-decoration: none; color: var(--ic-forte); flex: none; }
+.ic-marca img { width: 32px; height: 32px; border-radius: 6px; display: block; }
+.ic-nome { font: 700 21px/1 var(--ic-titulo); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.ic-nome b { color: var(--ic-vermelho); font-weight: 700; margin-left: .25em; }
+.ic-abas { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+.ic-abas a, .ic-abas button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; background: none;
+  color: var(--ic-apagado); font: 600 15px/1 var(--ic-texto-f); text-decoration: none; white-space: nowrap; cursor: pointer;
+  border-bottom: 2px solid transparent; }
+.ic-abas a[aria-current="page"], .ic-abas button[aria-selected="true"] { color: var(--ic-forte); border-bottom-color: var(--ic-vermelho); }
+.ic-acoes { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
+.ic-titulo { font: 700 28px/1.05 var(--ic-titulo); text-transform: uppercase; letter-spacing: .02em; color: var(--ic-forte); margin: 0; }
+@media (max-width: 600px) {
+  .ic-topo { gap: 8px; padding: 0 10px; }
+  .ic-nome { font-size: 18px; }
+  .ic-abas { order: 3; flex-basis: 100%; }
+  .ic-topo { flex-wrap: wrap; }
+}

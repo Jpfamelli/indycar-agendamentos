@@ -1,0 +1,1 @@
+import{n as e,s as t}from"./baseGuardada-BDFSCOdy.js";export{e as adiantarBase,t as esquecerBase};

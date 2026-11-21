@@ -1,0 +1,1 @@
+import{i as e}from"./react-DhJymlAB.js";var t=e(),n=null,r=new Set;function i(e){n=e;for(let e of r)e()}function a(e){(!e||n?.orcamentoId===e)&&i(null)}function o(){return(0,t.useSyncExternalStore)(e=>(r.add(e),()=>r.delete(e)),()=>n,()=>null)}var s=`orc:conta`;function c(e){window.dispatchEvent(new CustomEvent(s,{detail:e}))}export{o as a,a as i,c as n,i as r,s as t};

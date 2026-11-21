@@ -1,0 +1,1 @@
+import{i as e}from"./react-DhJymlAB.js";var t=e();function n(e){return window.addEventListener(`online`,e),window.addEventListener(`offline`,e),()=>{window.removeEventListener(`online`,e),window.removeEventListener(`offline`,e)}}function r(){return(0,t.useSyncExternalStore)(n,()=>navigator.onLine,()=>!0)}export{r as t};

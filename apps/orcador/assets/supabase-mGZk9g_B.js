@@ -1,0 +1,1 @@
+import"./servidor-CElkkFAk.js";import{n as e}from"./supabase-CoC8KaA9.js";export{e as supabase};
