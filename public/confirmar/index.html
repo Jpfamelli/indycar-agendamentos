@@ -7,23 +7,25 @@
   <title>Confirmar horário · IndyCar</title>
   <meta name="theme-color" content="#070a14" />
   <link rel="icon" type="image/png" sizes="192x192" href="../icon-192.png" />
+  <!-- rodada 11: as fontes do padrão IndyCar (Archivo no texto, Barlow Condensed nos títulos e números), as mesmas de todos os apps -->
+  <link rel="stylesheet" href="/casa/indycar.css" />
   <style>
     /* Página que o CLIENTE abre pelo link do WhatsApp: uma pergunta, três botões grandes, nada de login.
        Caminhos relativos (../api) para funcionar sozinha ou sob a Central (/agenda/confirmar/). */
     :root{color-scheme:dark;--bg:#070a14;--card:#0f1424;--txt:#e9ecf4;--muted:#8a92a7;--red:#e6192e;--red-txt:#ff7480;--green:#22c55e;--sobre-verde:#04170b;--orange:#f59e0b;--line:rgba(255,255,255,.08)}
     @media (prefers-color-scheme:light){:root{color-scheme:light;--bg:#eef0f4;--card:#ffffff;--txt:#191a20;--muted:#575b65;--red-txt:#b00d22;--line:rgba(0,0,0,.08)}}
     *{box-sizing:border-box}
-    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--txt);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--txt);font:16px/1.5 var(--ic-texto-f,system-ui,-apple-system,"Segoe UI",sans-serif)}
     main{max-width:480px;margin:0 auto;padding:28px 16px 48px}
     .logo{display:flex;align-items:center;gap:10px;margin-bottom:18px}
-    .logo img{width:44px;height:44px;border-radius:12px}
-    .logo b{font-size:20px;letter-spacing:-.3px}
-    .logo b span{color:var(--red)}
+    .logo img{width:40px;height:40px;border-radius:8px}
+    .logo b{font:700 22px/1 var(--ic-titulo,system-ui,sans-serif);letter-spacing:.06em;text-transform:uppercase}
+    .logo b span{color:var(--red);margin-left:.25em}
     .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 18px;box-shadow:0 18px 48px -24px rgba(0,0,0,.6)}
-    h1{font-size:22px;margin:0 0 6px;line-height:1.25}
+    h1{font:700 26px/1.1 var(--ic-titulo,system-ui,sans-serif);text-transform:uppercase;letter-spacing:.02em;margin:0 0 8px}
     p{margin:0 0 10px;color:var(--muted)}
     .hora{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:center;margin:14px 0 18px;padding:14px;border-radius:14px;background:rgba(230,25,46,.08);border:1px solid rgba(230,25,46,.25)}
-    .hora .h{font-size:40px;font-weight:800;line-height:1;letter-spacing:-.5px;grid-row:span 2}
+    .hora .h{font:700 44px/1 var(--ic-titulo,system-ui,sans-serif);font-variant-numeric:tabular-nums;grid-row:span 2}
     .hora .d{font-weight:700}
     .hora .s{color:var(--muted);font-size:14px}
     .botoes{display:grid;gap:10px}
@@ -48,7 +50,7 @@
 </head>
 <body>
   <main>
-    <div class="logo"><img src="../logo.png" alt="" width="44" height="44" /><b>INDY<span>CAR</span></b></div>
+    <div class="logo"><img src="../logo.png" alt="" width="40" height="40" /><b>IndyCar<span>Agenda</span></b></div>
     <div class="card" id="card" aria-live="polite">
       <h1 id="titulo">Um instante…</h1>
       <p id="texto">Buscando o seu horário.</p>
