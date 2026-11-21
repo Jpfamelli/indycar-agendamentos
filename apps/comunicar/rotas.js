@@ -160,6 +160,29 @@ export function criarApi(deps) {
   const pedidosRecentes = new Map(); // assinatura do pedido → instante (anti duplo clique)
   const segmentoValido = (f) => (dados.SEGMENTOS || []).some((s) => s.id === f);
 
+  function validarPedidoCampanha(body) {
+    if (body.destinos != null && (!Array.isArray(body.destinos) || body.destinos.length > 2000)) {
+      return ['destinos', 'Informe uma lista de até 2.000 destinatários.'];
+    }
+    if (body.destinos?.some((destino) => !destino || typeof destino !== 'object' || Array.isArray(destino))) {
+      return ['destinos', 'Revise os destinatários selecionados.'];
+    }
+    if (body.segmento != null && (typeof body.segmento !== 'object' || Array.isArray(body.segmento)
+        || typeof body.segmento.filtro !== 'string' || !segmentoValido(body.segmento.filtro))) {
+      return ['segmento', 'Escolha um segmento válido.'];
+    }
+    if (body.detalhe != null && (typeof body.detalhe !== 'string' || body.detalhe.length > 200)) {
+      return ['detalhe', 'Descreva a campanha em até 200 caracteres.'];
+    }
+    if (body.evitar_dias != null && (!Number.isInteger(body.evitar_dias) || body.evitar_dias < 0 || body.evitar_dias > 90)) {
+      return ['evitar_dias', 'Informe um intervalo inteiro de 0 a 90 dias.'];
+    }
+    if (body.confirmar_links_externos !== undefined && typeof body.confirmar_links_externos !== 'boolean') {
+      return ['confirmar_links_externos', 'Confirme se os links externos podem ser enviados.'];
+    }
+    return null;
+  }
+
   async function resolverDestinos(body) {
     let destinos = Array.isArray(body.destinos) ? body.destinos.slice(0, 2000) : [];
     destinos = destinos.filter((d) => d && typeof d === 'object');
@@ -539,6 +562,8 @@ export function criarApi(deps) {
   /* Avulsa (1 cliente, qualquer um da equipe), campanha (gestor: sai direto) ou
      proposta (atendente com 2+ clientes: espera o gestor aprovar). */
   rota('POST', '/api/envios', async ({ res, usuario, body }) => {
+    const invalido = validarPedidoCampanha(body);
+    if (invalido) return bad(res, invalido[1], { campo: invalido[0] });
     if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
     const corpo = (body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');

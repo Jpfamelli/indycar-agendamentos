@@ -503,3 +503,21 @@ for (const [id, metodo, caminho, corpo, campo] of [
     } finally { await s.fechar(); }
   });
 }
+for (const [id, campo, valor] of [
+  ['082', 'destinos', Array(2001).fill({ telefone: '12999990000' })],
+  ['083', 'destinos', [{ telefone: '12999990000' }, '12999990001']],
+  ['084', 'segmento', ['todos']],
+  ['085', 'detalhe', { assunto: 'Retorno' }],
+  ['086', 'evitar_dias', true],
+  ['087', 'confirmar_links_externos', 'true'],
+]) {
+  test(`R10-COM-${id}: recusa ${campo} inválido no pedido de campanha`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const corpo = { corpo: 'Mensagem de teste', destinos: [{ telefone: '12999990000' }], [campo]: valor };
+      const r = await s.chamar('gestor', 'POST', '/api/envios', corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
