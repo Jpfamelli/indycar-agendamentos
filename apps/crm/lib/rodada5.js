@@ -287,11 +287,18 @@ async function rotasR5(c) {
     precisa();
     frear('campanha', 10, 600_000);
     const b = await lerCorpo();
-    const ids = Array.isArray(b.ids) ? [...new Set(b.ids.filter(ehUuid))] : [];
+    if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+      throw falha(400, 'Escolha somente leads válidos para a campanha.');
+    }
+    const ids = [...new Set(b.ids)];
     if (!ids.length || ids.length > 300) throw falha(400, 'Escolha de 1 a 300 leads.');
-    const corpo = texto(b.corpo, 2000).trim();
+    if (typeof b.corpo !== 'string' || b.corpo.trim().length > 2000) {
+      throw falha(400, 'Escreva uma mensagem de até 2.000 caracteres.');
+    }
+    const corpo = b.corpo.trim();
     if (corpo.length < 10) throw falha(400, 'Escreva a mensagem da campanha (pelo menos 10 caracteres).');
     if (/\bprezad|\befetuar\b|\bcomparecer\b|\bve[ií]culo/i.test(corpo)) throw falha(400, 'Troque "prezado", "efetuar", "comparecer" e "veículo" por palavras da casa (ex.: "carro").');
+    if (b.detalhe != null && typeof b.detalhe !== 'string') throw falha(400, 'Informe o detalhe em texto.');
     let enviarEm = null;
     if (b.enviar_em) { const t = ms(b.enviar_em); if (!Number.isFinite(t)) throw falha(400, 'Data de envio inválida.'); if (t < Date.now() - 60_000) throw falha(400, 'A data de envio já passou.'); enviarEm = new Date(t).toISOString(); }
     const todos = await c.store.todosOsLeads();
