@@ -1,4 +1,4 @@
-﻿const { test } = require('node:test');
+const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { subirServidor, U } = require('./servidor-falso.cjs');
 
@@ -11,6 +11,11 @@ for (const [id, rota, campos] of [
   ['043', '/api/ia/triagem/tarefas', { ids: [acao.id, 'inválido'] }],
   ['044', '/api/ia/acoes/executar-lote', { ids: [U(402), 'inválido'] }],
   ['045', '/api/ia/acoes/' + acao.id + '/recusar', { motivo: ['Motivo'] }],
+  ['050', '/api/ia/acoes/' + acao.id + '/executar', { confirmarFaturamento: 'false' }],
+  ['050', '/api/ia/acoes/executar-lote', { confirmarFaturamento: 'false', ids: [acao.id] }],
+  ['051', '/api/resumo-ia', { periodo: 'ano' }],
+  ['052', '/api/ia/triagem', { dias: -1 }],
+  ['053', '/api/ia/triagem', { limite: 0 }],
 ]) {
   test(`R10-CRM-${id}: ${rota} rejeita ${Object.keys(campos)[0]} fora do contrato`, async (t) => {
     const app = await subirServidor({ tabelas: { ia_acoes: [{ ...acao }] } });

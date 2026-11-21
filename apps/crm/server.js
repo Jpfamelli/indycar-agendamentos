@@ -587,8 +587,8 @@ async function handler(req, res) {
           }
           if (pathname === '/api/ia/triagem' && req.method === 'POST') {
             const b = await readBody(req);
-            if ('dias' in b && !Number.isInteger(b.dias)) return json(res, 400, { erro: 'Informe um n?mero inteiro de dias.' });
-            if ('limite' in b && !Number.isInteger(b.limite)) return json(res, 400, { erro: 'Informe um limite inteiro.' });
+            if ('dias' in b && (!Number.isInteger(b.dias) || b.dias < 1 || b.dias > 60)) return json(res, 400, { erro: 'Informe de 1 a 60 dias.' });
+            if ('limite' in b && (!Number.isInteger(b.limite) || b.limite < 1 || b.limite > 30)) return json(res, 400, { erro: 'Informe um limite de 1 a 30 leads.' });
             if ('usarIA' in b && typeof b.usarIA !== 'boolean') return json(res, 400, { erro: 'Informe se a triagem usa IA.' });
             return json(res, 200, await ia.triagem({ dias: b.dias, limite: b.limite, usarIA: b.usarIA !== false }, quem));
           }
@@ -611,6 +611,7 @@ async function handler(req, res) {
             if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
               return json(res, 400, { erro: 'Escolha somente registros v?lidos.' });
             }
+            if ('confirmarFaturamento' in b && typeof b.confirmarFaturamento !== 'boolean') return json(res, 400, { erro: 'Informe se confirma o faturamento.' });
             const ids = [...new Set(b.ids)];
             if (!ids.length || ids.length > 30) return json(res, 400, { erro: 'Escolha de 1 a 30 ações.' });
             const resultados = [];
@@ -627,6 +628,7 @@ async function handler(req, res) {
             if (!ehUuid(id)) return json(res, 400, { erro: 'Ação inválida.' });
             const b = await readBody(req);
             if (oque === 'executar') {
+              if ('confirmarFaturamento' in b && typeof b.confirmarFaturamento !== 'boolean') return json(res, 400, { erro: 'Informe se confirma o faturamento.' });
               const r = await ia.executar(id, quem, { confirmarFaturamento: b.confirmarFaturamento === true });
               await auditar(quem, 'ia_executar', { tabela: 'ia_acoes', registro: id, detalhes: { mudou: r.mudou, tarefa: r.tarefa?.id || null, confirmouFaturamento: b.confirmarFaturamento === true } });
               return json(res, 200, r);
@@ -743,7 +745,10 @@ async function handler(req, res) {
       // POST /api/resumo-ia  → resumo semanal gerado pela Claude
       if (pathname === '/api/resumo-ia' && req.method === 'POST') {
         const b = await readBody(req);
-        const periodo = b.periodo === 'mes' ? 'mes' : 'semana';
+        if ('periodo' in b && b.periodo !== 'mes' && b.periodo !== 'semana') {
+          return json(res, 400, { erro: 'Escolha semana ou mês.' });
+        }
+        const periodo = b.periodo ?? 'semana';
         const ia = iaCrm();
         if (!ia) {
           const resultado = await gerarResumoSemanal(await store.weeklyData(), { periodo: 'semana' });
