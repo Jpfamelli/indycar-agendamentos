@@ -55,7 +55,6 @@ const Equipe = (() => {
   async function iniciar() {
     $('#navEquipe').hidden = !ehGestor();
     $('#navAuditoria').hidden = !ehAdmin();
-    $('#navGrupoEquipe').hidden = !ehGestor();
     $('#btnConvidar').hidden = !ehAdmin();
     $('#equipeSoLeitura').hidden = ehAdmin();
     await carregarTimes();

@@ -1,0 +1,41 @@
+/* Rodada 11 (21/11/2026): Atendimento no padrão IndyCar.
+   O topo é o .ic-topo do /casa/indycar.css (carregado antes de tudo): logo + "IndyCar Atendimento" (volta para a
+   Central) e as abas Conversas, Orçador e Ajustes. A barra lateral, o sino, o seletor de apps e a Ajuda saíram.
+   Fontes: só Archivo (texto) e Barlow Condensed (títulos), as do indycar.css. */
+:root{
+  --fonte:var(--ic-texto-f);
+  --fonte-cond:var(--ic-titulo);
+  --altura-topo:56px;
+}
+@media (max-width:600px){ :root{ --altura-topo:104px; } }
+
+.app{flex-direction:column}
+.app > .aba{min-height:0}
+.conversas-layout{height:calc(100vh - var(--altura-topo) - var(--topo-faixas,0px));height:calc(100dvh - var(--altura-topo) - var(--topo-faixas,0px))}
+
+/* as abas do topo e as de Ajustes usam o mesmo botão (.nav-item) que o app já sabe trocar */
+.ic-abas .nav-item,.ajustes-abas .nav-item{display:inline-flex;align-items:center;gap:6px;width:auto;margin:0;min-height:44px;
+  padding:0 12px;border:0;border-radius:0;background:none;color:var(--ic-apagado);font:600 15px/1 var(--ic-texto-f);
+  white-space:nowrap;cursor:pointer;border-bottom:2px solid transparent;box-shadow:none}
+.ic-abas .nav-item span,.ajustes-abas .nav-item span{display:inline;position:static;width:auto;height:auto;overflow:visible;clip-path:none}
+.ic-abas .nav-item.ativo,.ajustes-abas .nav-item.ativo{color:var(--ic-forte);border-bottom-color:var(--ic-vermelho);background:none}
+.ic-abas .nav-item:hover,.ajustes-abas .nav-item:hover{color:var(--ic-forte);background:none}
+.ic-abas .badge{margin:0}
+.ajustes-abas{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:0 16px;background:var(--ic-painel);
+  border-bottom:1px solid var(--ic-borda);flex:none}
+.ajustes-abas .nav-item{min-height:40px;font-size:14px}
+.ajustes-abas[hidden]{display:none}
+
+/* menu da pessoa no canto do topo: só o avatar (nome e papel ficam no menu) */
+.topo-atd .usuario{padding:4px;min-height:44px;background:none;border:0;cursor:pointer}
+.topo-atd .usuario-txt{display:none}
+
+/* aba Orçador: a moldura ocupa a tela toda abaixo do topo */
+#aba-orcador.ativa{display:flex}
+.orcador-moldura{flex:1;width:100%;min-height:0;border:0;display:block;background:var(--ic-bg)}
+
+@media (max-width:900px){
+  /* conversa aberta no celular ocupa a tela inteira, como no WhatsApp (a seta volta para a lista) */
+  .app:has(#aba-conversas.ativa .conversas-layout.vendo-chat) > .ic-topo{display:none}
+  .app:has(#aba-conversas.ativa .conversas-layout.vendo-chat) .conversas-layout{height:calc(100vh - var(--topo-faixas,0px));height:calc(100dvh - var(--topo-faixas,0px))}
+}

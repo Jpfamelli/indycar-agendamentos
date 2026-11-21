@@ -252,7 +252,7 @@ $('#formPrimeiro').addEventListener('submit', async (e) => {
 });
 
 // Sair: abre a escolha de limpar o aparelho (acesso.js)
-$('#btnSair').addEventListener('click', () => Acesso.pedirSair());
+$('#btnSair')?.addEventListener('click', () => Acesso.pedirSair());
 
 async function entrarNoApp(user) {
   usuario = user;
@@ -315,8 +315,7 @@ async function entrarNoApp(user) {
   Tarefas.iniciar();           // sino, minhas tarefas, presença na conversa
   IaFunil.iniciar();           // rodada 5: fila da IA do funil (quem está sendo respondido agora)
   Equipe.iniciar();            // telas Equipe e Auditoria (gestor/admin)
-  // rodada 4: primeira vez (ou papel novo)? tour curto de boas-vindas
-  setTimeout(() => { if (!modalAberto()) window.Ajuda?.iniciarTour(); }, 1200);
+  if (location.hash === '#orcador') AbaOrcador.mostrar();   // rodada 11: voltou do login da Central para a aba Orçador
 }
 /* Para os módulos de fora (ajuda.js): quem está logado e o cliente do banco. */
 function perfilAtual() { return perfil; }
@@ -346,6 +345,60 @@ function mostrarCartaoIA(cfg) {
 /* ============================================================
    NAVEGAÇÃO
    ============================================================ */
+const ABAS_AJUSTES = ['config', 'integracoes', 'ia', 'atalhos', 'etapas', 'equipe', 'auditoria'];
+
+/* ---------------- rodada 11: a aba Orçador ----------------
+   O Orçador inteiro numa moldura, servido pela própria Central em /orcador/ com a MESMA sessão (sem outro login).
+   Todo "Criar orçamento" / "Abrir no Orçador" do Atendimento (ficha, links prontos, Alt+O) cai aqui, em vez de
+   abrir outra aba no endereço antigo do Netlify. Só caminho do próprio Orçador entra na moldura. */
+const AbaOrcador = (() => {
+  const BASE = new URL('../orcador/', location.href);
+  let carregado = false;
+  const moldura = () => document.getElementById('orcadorMoldura');
+  /** Endereço do Orçador (antigo do Netlify, /orcador/ ou só "?tel=…"/"#/historico/…") -> endereço dentro da Central. */
+  function enderecoLocal(endereco) {
+    if (!endereco) return BASE.href;
+    let u;
+    try { u = new URL(String(endereco), BASE); } catch { return null; }
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    const antigo = window.IndyCarApps?.apps?.orcador?.url;
+    const doOrcador = u.origin === location.origin ? u.pathname.startsWith(BASE.pathname) : !!antigo && u.origin === new URL(antigo).origin;
+    if (!doOrcador) return null;
+    return BASE.href + u.search + u.hash;
+  }
+  function mostrar() { $$('.nav-item').find(b => b.dataset.aba === 'orcador')?.click(); }
+  function carregar(endereco) {
+    const m = moldura();
+    if (!m) return false;
+    if (endereco !== undefined) {
+      const alvo = enderecoLocal(endereco);
+      if (!alvo) return false;
+      m.src = alvo; carregado = true;
+    } else if (!carregado) { m.src = BASE.href; carregado = true; }
+    return true;
+  }
+  /** Abre o Orçador na aba (com o endereço pedido). Devolve false se o endereço não for do Orçador. */
+  function abrir(endereco) {
+    if (!carregar(endereco === undefined ? '' : endereco)) return false;
+    mostrar();
+    return true;
+  }
+  /** "Fazer orçamento" da conversa aberta: cotação nova já com o nome e o telefone do cliente. */
+  function daConversa(conv) {
+    if (!conv) return false;
+    const p = new URLSearchParams();
+    const tel = String(conv.telefone_e164 || conv.telefone || '').replace(/\D/g, '');
+    if (tel.length >= 10) p.set('tel', tel);
+    const nome = String(conv.nome || '').trim();
+    if (nome) p.set('nome', nome.slice(0, 80));
+    if (/^[0-9a-f-]{36}$/i.test(String(conv.id || ''))) p.set('conversa', conv.id);
+    if (!p.has('tel')) { toast('⚠️ Esta conversa não tem telefone: abri o Orçador sem cliente.'); return abrir(''); }
+    return abrir('?' + p.toString());
+  }
+  return { abrir, carregar, mostrar, daConversa, enderecoLocal };
+})();
+window.AbaOrcador = AbaOrcador;
+$('#btnFazerOrcamento')?.addEventListener('click', () => AbaOrcador.daConversa(conversaAtual));
 $$('.nav-item').forEach(b => b.addEventListener('click', () => {
   const aba = b.dataset.aba;
   // CRM e Agenda são links que abrem noutra janela: não têm aba para mostrar
@@ -358,6 +411,11 @@ $$('.nav-item').forEach(b => b.addEventListener('click', () => {
   // celular: a barra de telas rola sozinha até a tela aberta (ela ficava escondida fora da vista)
   if (window.matchMedia('(max-width:900px)').matches) b.scrollIntoView?.({ block: 'nearest', inline: 'center' });
   $$('.aba').forEach(s => s.classList.toggle('ativa', s.id === `aba-${aba}`));
+  // rodada 11: Ajustes é um grupo (Minha conta, WhatsApp e chaves, IA, Respostas prontas, Etapas, Equipe, Auditoria)
+  const deAjustes = ABAS_AJUSTES.includes(aba);
+  $('#ajustesAbas').hidden = !deAjustes;
+  if (deAjustes) { const t = $('#navAjustes'); t.classList.add('ativo'); t.setAttribute('aria-current', 'page'); }
+  if (aba === 'orcador') AbaOrcador.carregar();
   fecharMenuEtapas();
   // relatório é caro de montar: só busca quando o atendente entra na aba
   if (aba === 'relatorios' && !RELATORIO) carregarRelatorios();
@@ -5338,28 +5396,6 @@ document.addEventListener('visibilitychange', () => {
 // o servidor voltou: confere WhatsApp e saúde na hora (a tarja pode ter ficado velha)
 window.Rede?.aoMudar(d => { if (d.voltou && usuario) { verConexao(); verSaude(); } });
 
-/* ============================================================
-   ECOSSISTEMA INDYCAR — o seletor da barra lateral
-   Escolheu outro sistema: abre em nova aba e o seletor volta a marcar
-   "Atendimento", que é onde a pessoa continua.
-   ============================================================ */
-(() => {
-  const sel = document.getElementById('ecoSeletor');
-  if (!sel) return;
-  // rodada 5: as opções vêm do apps.js (um lugar só para os endereços)
-  if (window.IndyCarApps) {
-    sel.innerHTML = window.IndyCarApps.lista().map(a => a.chave === 'atendimento'
-      ? `<option value="${esc(a.url)}" data-atual="1" selected>● Atendimento (aqui)</option>`
-      : `<option value="${esc(a.url)}">${esc(a.nome)}</option>`).join('');
-  }
-  const atual = sel.querySelector('[data-atual]')?.value;
-  sel.addEventListener('change', () => {
-    const url = sel.value;
-    if (url && url !== atual) { const chave = window.IndyCarApps?.appDoEndereco(url); if (chave) window.IndyCarApps.abrir(chave, url); else window.open(url, '_blank', 'noopener'); }
-    if (atual) sel.value = atual;
-  });
-})();
-
 /* Esc: fecha o que estiver aberto por cima do chat — a gaveta da ficha no
    celular, ou o próprio chat (volta para a lista) quando a tela é estreita. */
 document.addEventListener('keydown', e => {
@@ -6261,7 +6297,6 @@ $('#btnTestarAviso')?.addEventListener('click', () => {
     new Notification('💬 Teste: IndyCar Atendimento', { body: 'É assim que a mensagem nova aparece.', icon: new URL('icon-192.png', document.baseURI).href, tag: 'teste' });
   }
 });
-$('#btnVerAtalhosTeclado')?.addEventListener('click', () => abrirAjudaTeclado());
 
 let audioCtx = null, ultimoSom = 0;
 function tocarSom() {
@@ -6501,40 +6536,6 @@ btnNova.setAttribute('aria-label', 'Nova conversa (Alt+N)');
 btnNova.title = 'Nova conversa (Alt+N)';
 btnNova.classList.add('btn-nova');
 
-/* ---------------- Atalhos de teclado ---------------- */
-const TECLAS = [
-  ['Ctrl + K  ou  /', 'Buscar conversa'],
-  ['↑ ↓  (ou J K) na lista', 'Andar entre as conversas · Enter abre'],
-  ['Alt + ↑ / ↓', 'Conversa anterior / próxima'],
-  ['Enter', 'Enviar · Shift+Enter quebra a linha'],
-  ['/  no campo', 'Respostas rápidas (★ favoritas primeiro)'],
-  ['Alt + 1 … 9', 'Marcar a etapa do funil (na ordem das colunas)'],
-  ['Alt + E', 'Abrir o menu de etapas'],
-  ['Alt + M', 'Pegar o cliente para mim'],
-  ['Alt + U', 'Marcar como não lida e voltar'],
-  ['Alt + T', 'Nova tarefa ligada a este cliente'],
-  ['Alt + F', 'Buscar dentro da conversa'],
-  ['Alt + I', 'Abrir o copiloto da IA'],
-  ['Alt + Z', 'Modo foco (só chat e ficha)'],
-  ['Alt + N', 'Nova conversa'],
-  ['Alt + P', 'Próxima da fila: abre quem precisa de você primeiro'],
-  ['Alt + O', 'Abrir o orçamento deste cliente no Orçador (sem orçamento, abre um novo)'],
-  ['Alt + L', 'Colar no campo o link para o cliente acompanhar o carro'],
-  ['Alt + R', 'Atualizar a ficha do cliente agora'],
-  ['Alt + G', 'Ver os carros da oficina que ainda não têm conversa'],
-  ['Alt + Shift + 1 … 4', 'Usar a resposta rápida “Para agora” (1 a 4)'],
-  ['Esc', 'Fechar menu, busca, gaveta ou modal'],
-  ['?', 'Ajuda: como faço… e esta lista'],
-];
-function abrirAjudaTeclado() {
-  const etapas = etapasAtivas().slice(0, 9).map((e, i) => `Alt+${i + 1} ${e.nome}`).join(' · ');
-  $('#listaTeclas').innerHTML = TECLAS.map(([k, d]) =>
-    `<dt>${k.split('  ').map(p => `<kbd>${esc(p.trim())}</kbd>`).join(' ')}</dt><dd>${esc(d)}</dd>`).join('')
-    + (etapas ? `<dt><kbd>Etapas</kbd></dt><dd>${esc(etapas)}</dd>` : '');
-  if (window.__preenchendoTeclas) return;          // a Ajuda só pediu a lista
-  if (window.Ajuda) return window.Ajuda.abrir('teclas');
-  abrirModal('modalAjudaBg');
-}
 const digitando = el => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 function irParaAbaConversas() {
   if (!abaVisivel('conversas')) $$('.nav-item').find(b => b.dataset.aba === 'conversas')?.click();
@@ -6552,12 +6553,11 @@ function conversaVizinha(passo) {
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || modalAberto()) return;
   const noCampo = digitando(e.target);
-  // Ctrl+K funciona até digitando; "/" e "?" só fora de campo
+  // Ctrl+K funciona até digitando; "/" só fora de campo
   if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
     e.preventDefault(); irParaAbaConversas(); fecharConversaNoCelular(); $('#buscaConversa').focus(); $('#buscaConversa').select(); return;
   }
   if (!noCampo && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    if (e.key === '?') { e.preventDefault(); return window.Ajuda ? window.Ajuda.abrir('como') : abrirAjudaTeclado(); }
     if (e.key === '/' && abaVisivel('conversas')) { e.preventDefault(); fecharConversaNoCelular(); $('#buscaConversa').focus(); return; }
   }
   if (!e.altKey || e.ctrlKey || e.metaKey) return;
