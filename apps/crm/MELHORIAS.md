@@ -1455,3 +1455,40 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-029** · conserto · Criação de tarefa mantém prioridade alta reservada à opção explícita (teste R10-CRM-029 em testes/r10-tarefas.test.cjs) · `a139891`
 - **R10-CRM-030** · conserto · Criação de tarefa rejeita listas no campo de prazo (teste R10-CRM-030 em testes/r10-tarefas.test.cjs) · `a139891`
 - **R10-CRM-031** · desempenho · Salvar integração passa de duas operações para uma na tabela de configuração (teste R10-CRM-031 em testes/r10-integracoes.test.cjs, commit do teste 4d81988) · `f40c469`
+- **R10-CRM-032** · conserto · Cadastro de equipe exige nome em texto (teste R10-CRM-032 em testes/r10-tipos-equipe.test.cjs) · `96474a4`
+- **R10-CRM-033** · conserto · Cadastro de equipe exige cargo em texto quando informado (teste R10-CRM-033 em testes/r10-tipos-equipe.test.cjs) · `96474a4`
+- **R10-CRM-034** · conserto · Meta de faturamento rejeita valores booleanos (teste R10-CRM-034 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-035** · conserto · Meta de vendas rejeita contagens fracionárias (teste R10-CRM-035 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-036** · segurança · Execução manual de automações rejeita regras fora da lista (teste R10-CRM-036 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-037** · segurança · Rodízio exige uma opção booleana para simulação antes de atribuir leads (teste R10-CRM-037 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-038** · conserto · Rodízio exige uma opção booleana para incluir todos os leads (teste R10-CRM-038 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-039** · conserto · Auditoria de exportação rejeita quantidade booleana (teste R10-CRM-039 em testes/r10-operacao.test.cjs) · `293e192`
+- **R10-CRM-040** · conserto · Triagem exige um número inteiro de dias (teste R10-CRM-040 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-041** · conserto · Triagem exige um limite inteiro de registros (teste R10-CRM-041 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-042** · conserto · Triagem exige uma opção booleana para usar IA (teste R10-CRM-042 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-043** · segurança · Criação de tarefas da triagem rejeita uma seleção com identificadores inválidos (teste R10-CRM-043 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-044** · segurança · Execução em lote da IA rejeita uma seleção com identificadores inválidos antes de executar ações (teste R10-CRM-044 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-045** · conserto · Recusa de ação da IA exige motivo em texto quando informado (teste R10-CRM-045 em testes/r10-tipos-ia.test.cjs) · `dc312ee`
+- **R10-CRM-046** · conserto · Atribuição de lead exige motivo em texto quando informado (teste R10-CRM-046 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
+- **R10-CRM-047** · conserto · Distribuição em lote rejeita toda a seleção quando há um identificador inválido (teste R10-CRM-047 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
+- **R10-CRM-048** · conserto · Rodízio exige um período finito de 1 a 8760 horas (teste R10-CRM-048 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
+- **R10-CRM-049** · conserto · Rodízio exige limite inteiro de 1 a 200 leads (teste R10-CRM-049 em testes/r10-distribuicao.test.cjs) · `9ccb28f`
+- **R10-CRM-050** · segurança · Execução individual e em lote exige confirmação de faturamento booleana quando informada (teste R10-CRM-050 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
+- **R10-CRM-051** · conserto · Resumo da IA rejeita período desconhecido antes de gerar o relatório (teste R10-CRM-051 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
+- **R10-CRM-052** · conserto · Triagem rejeita janelas fora de 1 a 60 dias (teste R10-CRM-052 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
+- **R10-CRM-053** · conserto · Triagem rejeita limites fora de 1 a 30 leads (teste R10-CRM-053 em testes/r10-tipos-ia.test.cjs) · `b1ad921`
+- **R10-CRM-054** · segurança · Cadastro da equipe rejeita função desconhecida antes de criar o acesso (teste R10-CRM-054 em testes/r10-equipe.test.cjs) · `840701e`
+- **R10-CRM-055** · conserto · Cadastro rejeita e-mail extenso antes de gravar um endereço truncado (teste R10-CRM-055 em testes/r10-equipe.test.cjs) · `840701e`
+- **R10-CRM-056** · segurança · Rotas de apps, distribuição e senha temporária exigem identificador de perfil em texto (teste R10-CRM-056 em testes/r10-equipe.test.cjs) · `840701e`
+- **R10-CRM-057** · segurança · Campanha recusa seleção parcial com identificador inválido antes de propor envio ao Comunicar (teste R10-CRM-057 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-058** · conserto · Detalhe da campanha deve ser texto quando informado (teste R10-CRM-058 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-059** · conserto · Campanha recusa mensagem acima do limite para evitar truncamento (teste R10-CRM-059 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-060** · segurança · Reabordagem rejeita toda a seleção com identificador inválido (teste R10-CRM-060 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-061** · segurança · Aplicação e reversão de movimentos rejeitam lotes inválidos antes de mudar qualquer lead (teste R10-CRM-061 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-062** · conserto · Resumo do dono rejeita tipo inválido antes de guardar relatório (teste R10-CRM-062 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-063** · segurança · Preenchimento de valores em lote recusa valor booleano antes de alterar o faturamento (teste R10-CRM-063 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-064** · conserto · Preenchimento de valores exige cortesia booleana quando informada (teste R10-CRM-064 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-065** · conserto · Preenchimento de valores recusa quantias inferiores a um centavo (teste R10-CRM-065 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-066** · conserto · Desfazer valores preserva observações editadas depois do lote (teste R10-CRM-066 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-067** · segurança · Lote de retornos rejeita toda a seleção com identificador inválido (teste R10-CRM-067 em testes/r10-valores-retornos.test.cjs) · `effab13`
+- **R10-CRM-068** · conserto · Lote de retornos exige opção booleana para limpar a data (teste R10-CRM-068 em testes/r10-valores-retornos.test.cjs) · `effab13`

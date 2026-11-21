@@ -587,6 +587,9 @@ async function handler(req, res) {
           }
           if (pathname === '/api/ia/triagem' && req.method === 'POST') {
             const b = await readBody(req);
+            if ('dias' in b && (!Number.isInteger(b.dias) || b.dias < 1 || b.dias > 60)) return json(res, 400, { erro: 'Informe de 1 a 60 dias.' });
+            if ('limite' in b && (!Number.isInteger(b.limite) || b.limite < 1 || b.limite > 30)) return json(res, 400, { erro: 'Informe um limite de 1 a 30 leads.' });
+            if ('usarIA' in b && typeof b.usarIA !== 'boolean') return json(res, 400, { erro: 'Informe se a triagem usa IA.' });
             return json(res, 200, await ia.triagem({ dias: b.dias, limite: b.limite, usarIA: b.usarIA !== false }, quem));
           }
           if (pathname === '/api/ia/perguntar' && req.method === 'POST') {
@@ -596,13 +599,20 @@ async function handler(req, res) {
           }
           if (pathname === '/api/ia/triagem/tarefas' && req.method === 'POST') {
             const b = await readBody(req);
+            if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+              return json(res, 400, { erro: 'Escolha somente registros v?lidos.' });
+            }
             const r = await ia.tarefasDaTriagem(b.ids, quem);
             if (r.criadas) await auditar(quem, 'ia_tarefas_triagem', { tabela: 'tarefas', detalhes: { criadas: r.criadas } });
             return json(res, 200, r);
           }
           if (pathname === '/api/ia/acoes/executar-lote' && req.method === 'POST') {
             const b = await readBody(req);
-            const ids = Array.isArray(b.ids) ? [...new Set(b.ids.filter(ehUuid))] : [];
+            if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+              return json(res, 400, { erro: 'Escolha somente registros v?lidos.' });
+            }
+            if ('confirmarFaturamento' in b && typeof b.confirmarFaturamento !== 'boolean') return json(res, 400, { erro: 'Informe se confirma o faturamento.' });
+            const ids = [...new Set(b.ids)];
             if (!ids.length || ids.length > 30) return json(res, 400, { erro: 'Escolha de 1 a 30 ações.' });
             const resultados = [];
             for (const id of ids) {           // em série: cada uma confere o lead de novo
@@ -618,11 +628,15 @@ async function handler(req, res) {
             if (!ehUuid(id)) return json(res, 400, { erro: 'Ação inválida.' });
             const b = await readBody(req);
             if (oque === 'executar') {
+              if ('confirmarFaturamento' in b && typeof b.confirmarFaturamento !== 'boolean') return json(res, 400, { erro: 'Informe se confirma o faturamento.' });
               const r = await ia.executar(id, quem, { confirmarFaturamento: b.confirmarFaturamento === true });
               await auditar(quem, 'ia_executar', { tabela: 'ia_acoes', registro: id, detalhes: { mudou: r.mudou, tarefa: r.tarefa?.id || null, confirmouFaturamento: b.confirmarFaturamento === true } });
               return json(res, 200, r);
             }
-            if (oque === 'recusar') return json(res, 200, await ia.recusar(id, quem, b.motivo));
+            if (oque === 'recusar') {
+              if ('motivo' in b && typeof b.motivo !== 'string') return json(res, 400, { erro: 'Informe o motivo em texto.' });
+              return json(res, 200, await ia.recusar(id, quem, b.motivo));
+            }
             // desfazer: quem executou, ou admin/gestor
             if (!ehGestor) {
               const dono = await ia.donoDaAcao(id);
@@ -731,7 +745,10 @@ async function handler(req, res) {
       // POST /api/resumo-ia  → resumo semanal gerado pela Claude
       if (pathname === '/api/resumo-ia' && req.method === 'POST') {
         const b = await readBody(req);
-        const periodo = b.periodo === 'mes' ? 'mes' : 'semana';
+        if ('periodo' in b && b.periodo !== 'mes' && b.periodo !== 'semana') {
+          return json(res, 400, { erro: 'Escolha semana ou mês.' });
+        }
+        const periodo = b.periodo ?? 'semana';
         const ia = iaCrm();
         if (!ia) {
           const resultado = await gerarResumoSemanal(await store.weeklyData(), { periodo: 'semana' });
@@ -936,7 +953,7 @@ async function handler(req, res) {
         if (bruto.cargo != null && typeof bruto.cargo !== 'string') return json(res, 400, { erro: 'Informe o cargo em texto.' });
 
         const nome  = texto1(bruto.nome, 80).trim();
-        const email = texto1(bruto.email, 160).trim().toLowerCase();
+        const email = typeof bruto.email === 'string' ? bruto.email.trim().toLowerCase() : '';
         if (typeof bruto.senha !== 'string' || bruto.senha.length > 200) {
           return json(res, 400, { erro: 'Informe uma senha de até 200 caracteres.' });
         }
@@ -944,13 +961,14 @@ async function handler(req, res) {
           return json(res, 400, { erro: 'Informe se a pessoa precisa trocar a senha.' });
         }
         const senha = bruto.senha;
-        const papel = U.PAPEIS.includes(bruto.papel) ? bruto.papel : 'atendente'; // 'agenda' = so presenca
+        if ('papel' in bruto && !U.PAPEIS.includes(bruto.papel)) return json(res, 400, { erro: 'Escolha uma função válida.' });
+        const papel = bruto.papel ?? 'atendente';
         if (bruto.apps !== undefined && (!Array.isArray(bruto.apps) || bruto.apps.some(a => !U.APPS.includes(a)))) return json(res, 400, { erro: `Apps válidos: ${U.APPS.join(', ')}.` });
         const apps = papel === 'agenda' ? ['agenda'] : (Array.isArray(bruto.apps) ? [...new Set(bruto.apps)] : U.APPS);
         const cargo = texto1(bruto.cargo, 60).trim() || null;
 
         if (!nome) return json(res, 400, { erro: 'Informe o nome da pessoa.' });
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
           return json(res, 400, { erro: 'Esse e-mail não parece válido.' });
         }
         if (senha.length < 8) {

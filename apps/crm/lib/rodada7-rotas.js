@@ -58,7 +58,10 @@ async function rotasR7(c) {
   if (p === '/api/funil/movimentos/aplicar' && m === 'POST') {
     precisa(); frear('movimentos-aplicar', 20);
     const b = await c.lerCorpo();
-    const pedidos = Array.isArray(b?.itens) ? b.itens.filter(x => x && ehUuid(x.id)).slice(0, 50) : [];
+    if (!Array.isArray(b.itens) || b.itens.length > 50 || b.itens.some(it => !it || typeof it.id !== 'string' || !ehUuid(it.id))) {
+      throw falha(400, 'Escolha até 50 leads válidos.');
+    }
+    const pedidos = b.itens;
     if (!pedidos.length) throw falha(400, 'Escolha de 1 a 50 leads.');
     const s = await R6.sinaisAgora(c, { forcar: true });
     const movs = R7.sugerirMovimentos(s.leads, s.sinais, { agora, prefixo });
@@ -96,7 +99,10 @@ async function rotasR7(c) {
   if (p === '/api/funil/movimentos/desfazer' && m === 'POST') {
     precisa(); frear('movimentos-desfazer', 20);
     const b = await c.lerCorpo();
-    const pedidos = Array.isArray(b?.itens) ? b.itens.filter(x => x && ehUuid(x.id)).slice(0, 50) : [];
+    if (!Array.isArray(b.itens) || b.itens.length > 50 || b.itens.some(it => !it || typeof it.id !== 'string' || !ehUuid(it.id))) {
+      throw falha(400, 'Escolha até 50 leads válidos.');
+    }
+    const pedidos = b.itens;
     if (!pedidos.length) throw falha(400, 'Nada para desfazer.');
     const voltaram = [], pulados = [];
     for (const it of pedidos) {
@@ -162,7 +168,10 @@ async function rotasR7(c) {
   if (p === '/api/perdas/reabordar' && m === 'POST') {
     precisa(); frear('perdas-reabordar', 10);
     const b = await c.lerCorpo();
-    const ids = Array.isArray(b?.ids) ? [...new Set(b.ids.filter(ehUuid))] : [];
+    if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+      throw falha(400, 'Escolha somente leads válidos para reabordar.');
+    }
+    const ids = [...new Set(b.ids)];
     if (!ids.length || ids.length > 30) throw falha(400, 'Escolha de 1 a 30 leads.');
     const todos = await c.store.todosOsLeads();
     const alvo = todos.filter(l => ids.includes(l.id));
@@ -248,7 +257,8 @@ async function rotasR7(c) {
   if (p === '/api/dono/resumo/guardar' && m === 'POST') {
     precisa(); exigirGestor('Só um gestor guarda o resumo do dono.'); frear('dono-resumo-guardar', 20);
     const b = await c.lerCorpo();
-    const tipo = R7.TIPOS_RESUMO.includes(b?.tipo) ? b.tipo : 'manha';
+    if ('tipo' in b && !R7.TIPOS_RESUMO.includes(b.tipo)) throw falha(400, 'Escolha um tipo de resumo válido.');
+    const tipo = b.tipo ?? 'manha';
     const r = await resumoPronto(tipo);
     const dia = U.diaBRT(agora);
     const { error } = await sb.from('crm_resumos_dono').upsert({ dia, tipo, texto: r.texto, dados: r.numeros, criado_por: quem.id }, { onConflict: 'dia,tipo' });

@@ -544,7 +544,11 @@ async function rotasR6(c) {
   if (p === '/api/leads/followup-lote' && m === 'POST') {
     precisa(); frear('followup-lote', 20, 60_000);
     const b = await lerCorpo();
-    const ids = Array.isArray(b.ids) ? [...new Set(b.ids.filter(ehUuid))] : [];
+    if ('limpar' in b && typeof b.limpar !== 'boolean') throw falha(400, 'Informe se quer limpar o retorno.');
+    if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+      throw falha(400, 'Escolha somente leads válidos para alterar o retorno.');
+    }
+    const ids = [...new Set(b.ids)];
     if (!ids.length || ids.length > 200) throw falha(400, 'Escolha de 1 a 200 leads.');
     const quando = b.limpar === true ? null : resolverProximo(b.proximo, agora);
     if (b.limpar !== true && quando === null) throw falha(400, 'Escolha quando falar de novo.');

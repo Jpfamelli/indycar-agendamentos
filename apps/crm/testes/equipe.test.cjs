@@ -110,7 +110,7 @@ test('rotas: responsável, reatribuir com permissão, lote, filtros "meus leads"
     // lote: só gestor
     assert.equal((await s.req('atendente', '/api/leads/responsavel-lote', { body: { ids: [L(3), L(4)], responsavel_id: ANA } })).status, 403);
     assert.equal((await s.req('gestor', '/api/leads/responsavel-lote', { body: { ids: [], responsavel_id: ANA } })).status, 400);
-    const lote = await s.req('gestor', '/api/leads/responsavel-lote', { body: { ids: [L(3), L(4), 'lixo'], responsavel_id: BRUNO } });
+    const lote = await s.req('gestor', '/api/leads/responsavel-lote', { body: { ids: [L(3), L(4)], responsavel_id: BRUNO } });
     assert.equal(lote.status, 200); assert.equal(lote.corpo.atualizados, 2);
     assert.ok(s.db.auditoria.some(a => a.acao === 'atribuir_lote' && a.detalhes.quantidade === 2));
     // filtros

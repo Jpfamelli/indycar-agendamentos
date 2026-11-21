@@ -147,9 +147,10 @@ async function rotasR4(c) {
     for (const x of itens) {
       if (!x || !ehUuid(x.id) || vistos.has(x.id)) throw falha(400, 'Lista com lead inválido ou repetido.');
       vistos.add(x.id);
+      if ('cortesia' in x && typeof x.cortesia !== 'boolean') throw falha(400, 'Informe se o serviço é cortesia.');
       if (x.cortesia === true) { limpos.push({ id: x.id, cortesia: true }); continue; }
-      const v = Number(x.valor_pago);
-      if (!Number.isFinite(v) || v <= 0 || v > 10_000_000) throw falha(400, 'Valor entre R$ 0,01 e R$ 10 milhões (ou marque cortesia).');
+      const v = typeof x.valor_pago === 'number' || typeof x.valor_pago === 'string' ? Number(x.valor_pago) : NaN;
+      if (!Number.isFinite(v) || v < 0.01 || v > 10_000_000) throw falha(400, 'Valor entre R$ 0,01 e R$ 10 milhões (ou marque cortesia).');
       limpos.push({ id: x.id, valor_pago: r2(v) });
     }
     const atuais = new Map();
@@ -185,11 +186,20 @@ async function rotasR4(c) {
     let voltaram = 0; const pulados = [];
     for (const x of itens) {
       if (!x || !ehUuid(x.id) || !x.antes || !x.depois) continue;
-      // só volta se ninguém mexeu depois (valor ainda é o que o lote gravou)
-      const { data: a } = await sb.from('leads').select('id,valor_pago').eq('id', x.id).maybeSingle();
-      if (!a || r2(a.valor_pago) !== r2(x.depois.valor_pago)) { pulados.push(x.id); continue; }
-      const { error } = await sb.from('leads').update({ valor_pago: r2(x.antes.valor_pago), observacoes: texto(x.antes.observacoes, 4000) }).eq('id', x.id);
-      if (error) pulados.push(x.id); else voltaram++;
+      const { data: atual } = await sb.from('leads').select('id,valor_pago,observacoes').eq('id', x.id).maybeSingle();
+      if (!atual || r2(atual.valor_pago) !== r2(x.depois.valor_pago) ||
+          (atual.observacoes ?? '') !== x.depois.observacoes) {
+        pulados.push(x.id);
+        continue;
+      }
+      let consulta = sb.from('leads')
+        .update({ valor_pago: r2(x.antes.valor_pago), observacoes: texto(x.antes.observacoes, 4000) })
+        .eq('id', x.id);
+      for (const campo of ['valor_pago', 'observacoes']) {
+        consulta = atual[campo] == null ? consulta.is(campo, null) : consulta.eq(campo, atual[campo]);
+      }
+      const { data, error } = await consulta.select('id').maybeSingle();
+      if (error || !data) pulados.push(x.id); else voltaram++;
     }
     await c.auditar(quem, 'valores_lote_desfeito', { tabela: 'leads', detalhes: { quantidade: voltaram, pulados: pulados.length } });
     c.limparStats?.();

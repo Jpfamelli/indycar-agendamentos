@@ -39,6 +39,7 @@ async function rotasR3(c) {
     frear('atribuir', 120, 60_000);
     const b = await lerCorpo();
     if (!('responsavel_id' in b)) throw falha(400, 'Informe responsavel_id (ou null para tirar o dono).');
+    if (b.motivo != null && typeof b.motivo !== 'string') throw falha(400, 'Informe o motivo em texto.');
     const novo = b.responsavel_id === 'eu' ? quem.id : b.responsavel_id;
     json(res, 200, await eq.atribuir(mr[1], novo === '' ? null : novo, quem, { motivo: texto(b.motivo, 200) || null }));
     c.limparStats?.();
@@ -50,6 +51,9 @@ async function rotasR3(c) {
     frear('lote', 20, 60_000);
     const b = await lerCorpo();
     if (!('responsavel_id' in b)) throw falha(400, 'Informe responsavel_id (ou null).');
+    if (!Array.isArray(b.ids) || b.ids.some(id => typeof id !== 'string' || !ehUuid(id))) {
+      throw falha(400, 'Escolha somente leads v?lidos.');
+    }
     json(res, 200, await eq.atribuirLote(b.ids, b.responsavel_id === '' ? null : b.responsavel_id, quem));
     c.limparStats?.();
     return true;
@@ -61,6 +65,12 @@ async function rotasR3(c) {
     const b = await lerCorpo();
     if ('simular' in b && typeof b.simular !== 'boolean') throw falha(400, 'Informe se é uma simulação.');
     if ('todos' in b && typeof b.todos !== 'boolean') throw falha(400, 'Informe se o rodízio inclui todos os leads.');
+    if ('horas' in b && (!Number.isFinite(b.horas) || b.horas < 1 || b.horas > 8760)) {
+      throw falha(400, 'Informe um per?odo de 1 a 8760 horas.');
+    }
+    if ('limite' in b && (!Number.isInteger(b.limite) || b.limite < 1 || b.limite > 200)) {
+      throw falha(400, 'Informe um limite inteiro de 1 a 200 leads.');
+    }
     const r = await eq.rodizio({ executar: b.simular !== true, quem, horas: b.horas, todos: b.todos === true, limite: b.limite });
     json(res, 200, r);
     c.limparStats?.();
@@ -186,7 +196,7 @@ async function rotasR3(c) {
     exigirAdmin('Só o administrador muda os apps de alguém.');
     const sb = precisa(c.sb, 'Equipe');
     const b = await lerCorpo();
-    if (!ehUuid(b.id)) throw falha(400, 'Informe quem você quer alterar.');
+    if (typeof b.id !== 'string' || !ehUuid(b.id)) throw falha(400, 'Informe quem você quer alterar.');
     if (!Array.isArray(b.apps) || b.apps.some(a => !U.APPS.includes(a))) throw falha(400, `Apps válidos: ${U.APPS.join(', ')}.`);
     const { data: alvo } = await sb.from('perfis').select('id,papel,apps').eq('id', b.id).maybeSingle();
     if (!alvo) throw falha(404, 'Pessoa não encontrada.');
@@ -202,7 +212,7 @@ async function rotasR3(c) {
     exigirGestor('Só um gestor muda quem recebe leads.');
     const sb = precisa(c.sb, 'Equipe');
     const b = await lerCorpo();
-    if (!ehUuid(b.id) || typeof b.recebe_leads !== 'boolean') throw falha(400, 'Informe id e recebe_leads (true/false).');
+    if (typeof b.id !== 'string' || !ehUuid(b.id) || typeof b.recebe_leads !== 'boolean') throw falha(400, 'Informe id e recebe_leads (true/false).');
     const { data, error } = await sb.from('perfis').update({ recebe_leads: b.recebe_leads }).eq('id', b.id).select('id,recebe_leads').maybeSingle();
     if (error) throw falha(503, 'Não consegui salvar.');
     if (!data) throw falha(404, 'Pessoa não encontrada.');
@@ -215,7 +225,7 @@ async function rotasR3(c) {
     const sb = precisa(c.sb, 'Equipe');
     frear('senha-temp', 5, 600_000);
     const b = await lerCorpo();
-    if (!ehUuid(b.id)) throw falha(400, 'Informe quem vai receber a senha.');
+    if (typeof b.id !== 'string' || !ehUuid(b.id)) throw falha(400, 'Informe quem vai receber a senha.');
     if (b.id === quem.id) throw falha(400, 'Para a sua própria senha, use "Trocar senha" no seu perfil.');
     const { data: alvo } = await sb.from('perfis').select('id,ativo').eq('id', b.id).maybeSingle();
     if (!alvo) throw falha(404, 'Pessoa não encontrada.');
