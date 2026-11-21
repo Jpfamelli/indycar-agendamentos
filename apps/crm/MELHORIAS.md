@@ -1480,3 +1480,9 @@ Foco: funil que se mexe sozinho com os eventos reais, lead → entrada no Pátio
 - **R10-CRM-054** · segurança · Cadastro da equipe rejeita função desconhecida antes de criar o acesso (teste R10-CRM-054 em testes/r10-equipe.test.cjs) · `840701e`
 - **R10-CRM-055** · conserto · Cadastro rejeita e-mail extenso antes de gravar um endereço truncado (teste R10-CRM-055 em testes/r10-equipe.test.cjs) · `840701e`
 - **R10-CRM-056** · segurança · Rotas de apps, distribuição e senha temporária exigem identificador de perfil em texto (teste R10-CRM-056 em testes/r10-equipe.test.cjs) · `840701e`
+- **R10-CRM-057** · segurança · Campanha recusa seleção parcial com identificador inválido antes de propor envio ao Comunicar (teste R10-CRM-057 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-058** · conserto · Detalhe da campanha deve ser texto quando informado (teste R10-CRM-058 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-059** · conserto · Campanha recusa mensagem acima do limite para evitar truncamento (teste R10-CRM-059 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-060** · segurança · Reabordagem rejeita toda a seleção com identificador inválido (teste R10-CRM-060 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-061** · segurança · Aplicação e reversão de movimentos rejeitam lotes inválidos antes de mudar qualquer lead (teste R10-CRM-061 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
+- **R10-CRM-062** · conserto · Resumo do dono rejeita tipo inválido antes de guardar relatório (teste R10-CRM-062 em testes/r10-operacoes-lote.test.cjs) · `e861ca9`
