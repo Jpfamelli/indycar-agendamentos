@@ -273,8 +273,6 @@
     return linhas.join('\n');
   }
 
-  /* ---------------- atalhos extras ---------------- */
-  const ATALHOS_NUMERO = { 1: 'agenda', 2: 'atendimento', 3: 'crm', 4: 'comunicar', 5: 'patio', 6: 'orcador', 7: 'ads' };
   /** Estados vazios que ensinam: o que dizer e qual o próximo passo em cada cartão. */
   const VAZIOS = {
     cPatio: { texto: 'Nenhum carro dentro da oficina agora.', dica: 'Quando um cliente chega, toque em "Chegou" na Agenda ou em "+ Nova entrada": o carro aparece aqui com a etapa ao vivo.' },
@@ -304,6 +302,6 @@
     meuDia, itemPreAgendamento, prazoDaTarefa, adiarTarefa, situacaoDaTarefa, filtrarTarefas, contagemDeTarefas, textoDoPrazo,
     iconeDoAviso, agruparAvisos, aindaAdiados, idsParaLerTodas, valorDaMeta, rotuloTipo,
     projecaoDoMes, progressoDaMeta, rankingConsultores, resumoDoDia,
-    ATALHOS_NUMERO, VAZIOS, climaDaOficina,
+    VAZIOS, climaDaOficina,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

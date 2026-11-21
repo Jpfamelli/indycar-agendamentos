@@ -43,7 +43,7 @@
 .ic-titulo { font: 700 28px/1.05 var(--ic-titulo); text-transform: uppercase; letter-spacing: .02em; color: var(--ic-forte); margin: 0; }
 @media (max-width: 600px) {
   .ic-topo { gap: 8px; padding: 0 10px; }
-  .ic-nome { font-size: 18px; }
+  .ic-nome { font-size: 19px; }   /* defeito: com 18px o vermelho do nome não passava no contraste (texto grande, em negrito, é a partir de 18,66px) */
   .ic-abas { order: 3; flex-basis: 100%; }
   .ic-topo { flex-wrap: wrap; }
 }

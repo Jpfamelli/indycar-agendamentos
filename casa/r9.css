@@ -140,7 +140,7 @@ button.t-texto:hover { text-decoration: underline dotted; }
 .toast { left: 16px; right: 16px; transform: none; width: fit-content; max-width: min(560px, calc(100vw - 32px)); margin: 0 auto; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
 
 /* sinal de saúde ao lado do logo: "!" dentro do ponto quando há problema (antes só a cor separava problema de atenção) */
-.topo-marca[data-saude="ruim"]::after { content: '!'; width: 14px; height: 14px; display: grid; place-items: center; color: #fff; font: 800 10px/1 'Archivo', system-ui, sans-serif; }
+.ic-marca[data-saude="ruim"]::after { content: '!'; width: 14px; height: 14px; display: grid; place-items: center; color: #fff; font: 800 10px/1 'Archivo', system-ui, sans-serif; }
 
 /* "Seus apps": o número de pendências ia ao lado do nome e, em nome comprido (ATENDIMENTO), descia sozinho para a
    linha de baixo. Agora fica no canto de cima do cartão, sempre no mesmo lugar, e o nome não quebra por causa dele. */

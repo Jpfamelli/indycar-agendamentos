@@ -406,10 +406,14 @@
   };
 
   /* ---------------- sino: para onde cada aviso leva ---------------- */
-  /** O aviso de "tarefas vencidas" não tem app nem link (28 no banco): leva para a lista de tarefas da própria Casa, não para uma aba. */
+  /** O aviso de "tarefas vencidas" não tem app nem link (28 no banco). Rodada 11: a lista de tarefas saiu da Casa; o aviso
+   *  leva para a aba Tarefas do Atendimento, o lugar onde a equipe conclui a tarefa. */
   function acaoDoAviso(n, bases, origem) {
     if (!n) return { acao: 'nada' };
-    if (n.tipo === 'tarefas_vencidas' || n.app === 'tarefas') return { acao: 'tarefas', filtro: 'vencidas' };
+    if (n.tipo === 'tarefas_vencidas' || n.app === 'tarefas') {
+      const b = (bases && bases.atendimento) || '/atendimento/';
+      return { acao: 'abrir', url: b + (b.includes('?') ? '&' : '?') + 'tarefas' };
+    }
     const url = L.linkDaNotificacao(n, bases, origem);
     return L.appDoLink(url, origem, bases) ? { acao: 'abrir', url } : { acao: 'nada' };
   }

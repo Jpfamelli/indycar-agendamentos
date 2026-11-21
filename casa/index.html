@@ -12,10 +12,12 @@
   <link rel="apple-touch-icon" href="/casa/icon-192.png" />
   <link rel="preload" href="/casa/archivo-variavel.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/casa/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/casa/indycar.css?v=1" />
   <link rel="stylesheet" href="/casa/casa.css?v=2" />
   <link rel="stylesheet" href="/casa/painel.css?v=9" />
   <link rel="stylesheet" href="/casa/r7.css?v=2" />
   <link rel="stylesheet" href="/casa/r9.css?v=5" />
+  <link rel="stylesheet" href="/casa/r11.css?v=1" />
 </head>
 <body>
   <!-- ======================= ENTRADA (login único) ======================= -->
@@ -28,6 +30,7 @@
     <form id="fLogin" class="cartao entrada-cartao" novalidate>
       <h1 class="entrada-titulo">Entrar na <em>Central</em></h1>
       <p class="entrada-sub">Um login só para Agenda, Atendimento, CRM, Comunicar, Tráfego, Pátio e Orçador.</p>
+      
       <label class="campo"><span>E-mail</span>
         <input id="lEmail" type="email" autocomplete="username" inputmode="email" required aria-describedby="lErro" />
       </label>
@@ -85,19 +88,16 @@
   <!-- ======================= CASA ======================= -->
   <div id="casa" class="casa" hidden>
     <a class="pular" href="#miolo">Pular para o conteúdo</a>
-    <header class="topo">
-      <a class="topo-marca" href="/" aria-label="IndyCar Central">
-        <img src="/casa/logo.png" alt="" class="topo-logo" />
-        <span class="topo-nome">Central</span>
+    <header class="ic-topo">
+      <a class="ic-marca" href="/" title="Voltar para a Central">
+        <img src="/casa/logo.png" alt="" width="32" height="32" />
+        <span class="ic-nome">IndyCar <b>Central</b></span>
       </a>
-      <button id="bBusca" class="busca-topo" type="button" aria-label="Buscar telefone, nome ou placa em todos os sistemas" aria-keyshortcuts="Control+K /">
-        <span aria-hidden="true">🔎</span>
-        <span class="busca-topo-txt">Telefone, nome ou placa…</span>
-        <kbd class="kbd-css" aria-hidden="true" data-tecla="Ctrl K"></kbd>
-      </button>
-      <div class="topo-acoes">
-        <button id="bAjuda" class="btn-ico" type="button" aria-label="Atalhos do teclado" title="Atalhos (?)">?</button>
-        <button id="bTema" class="btn-ico" type="button" aria-label="Trocar tema claro/escuro" title="Tema">◐</button>
+      <div class="ic-acoes">
+        <button id="bBusca" class="busca-topo" type="button" aria-label="Buscar telefone, nome ou placa em todos os sistemas" aria-keyshortcuts="Control+K /">
+          <span aria-hidden="true">🔎</span>
+          <span class="busca-topo-txt">Buscar cliente</span>
+        </button>
         <button id="bSino" class="btn-ico sino" type="button" aria-label="Notificações" aria-expanded="false" aria-controls="painelSino">
           <span aria-hidden="true">🔔</span><span id="sinoNum" class="sino-num" hidden>0</span>
         </button>
@@ -105,6 +105,7 @@
       </div>
       <div id="menuPerfil" class="menu" role="menu" hidden>
         <div class="menu-quem"><strong id="mpNome">…</strong><span id="mpEmail"></span><span id="mpPapel" class="selo"></span></div>
+        <button id="bTema" type="button" role="menuitem">Trocar tema claro ou escuro</button>
         <button type="button" role="menuitem" data-acao="trocar-senha">Trocar senha</button>
         <button type="button" role="menuitem" data-acao="sair">Sair</button>
         <button type="button" role="menuitem" data-acao="sair-todos">Sair de todos os aparelhos</button>
@@ -122,7 +123,6 @@
       <input id="sinoBusca" class="sino-busca" type="search" inputmode="search" autocomplete="off" maxlength="60" placeholder="Buscar nos avisos…" aria-label="Buscar nos avisos" />
       <div id="sinoFiltros" class="sino-filtros" role="group" aria-label="Filtrar por app"></div>
       <div class="avisos-vigia" data-avisos-vigia aria-live="polite" hidden></div>
-      <div id="sinoAtencao" class="sino-atencao" hidden></div>
       <div id="listaNotif" class="lista-notif"></div>
       <div id="sinoRodape" class="sino-rodape"></div>
     </aside>
@@ -131,8 +131,6 @@
       <section class="saudacao">
         <p id="hoje" class="saudacao-data"></p>
         <h1 class="saudacao-titulo"><span id="ola">Olá</span>, <em id="nomeCurto">equipe</em>.</h1>
-        <p class="saudacao-sub">Quem conhece, Indyca! 🏎</p>
-        <p id="clima" class="clima" aria-live="polite"></p>
       </section>
 
       <div id="avisoRede" class="aviso-rede" role="status" hidden></div>
@@ -147,128 +145,17 @@
         </div>
       </section>
 
-      <div class="barra-painel">
-        <div id="seletorVisao" class="seletor" role="tablist" aria-label="Visão do painel" hidden>
-          <button type="button" role="tab" id="abaOperacao" data-visao="operacao" aria-selected="true" aria-controls="visaoOperacao" tabindex="0">Operação</button>
-          <button type="button" role="tab" id="abaDono" data-visao="dono" aria-selected="false" aria-controls="visaoDono" tabindex="-1">Visão do dono</button>
-        </div>
-        <div class="vivo">
-          <span id="vivoAviso" class="sr-only" role="status"></span>
-          <span id="vivoPonto" class="vivo-ponto" aria-hidden="true"></span>
-          <span id="vivoTxt">carregando…</span>
-          <button id="bAtualizar" class="btn-link" type="button" aria-label="Atualizar o painel agora">atualizar</button>
-        </div>
-      </div>
-
-      <section id="acoes" class="acoes" aria-label="Ações rápidas"></section>
-
-      <section id="manha" class="manha" aria-labelledby="manhaTitulo" hidden>
-        <div class="manha-cab"><h2 id="manhaTitulo" class="atencao-titulo">Ontem e amanhã</h2><button id="manhaFechar" class="btn-link" type="button">dispensar por hoje</button></div>
-        <p id="manhaOntem" class="manha-frase"></p>
-        <p id="manhaAmanha" class="manha-frase"></p>
-        <ul id="manhaPend" class="atencao-lista"></ul>
-        <div id="manhaLembrar" class="manha-lembrar" hidden></div>
-        <div id="manhaBaixa" class="manha-lembrar" hidden></div>
-      </section>
-
       <section id="atencao" class="atencao" aria-label="Pede atenção agora" hidden>
         <h2 class="atencao-titulo">Pede atenção agora</h2>
         <ul id="atencaoLista" class="atencao-lista"></ul>
       </section>
 
-      <div id="visaoOperacao" role="tabpanel" aria-labelledby="abaOperacao">
-        <section id="agora" class="agora" aria-label="Agora na oficina">
-          <article id="cMeuDia" class="agora-cartao c-meudia" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Meu dia</span><span class="agora-num" data-num>…</span></header>
-            <p class="agora-det" data-det>carregando…</p>
-            <ul class="agora-lista" data-lista></ul>
-          </article>
-          <article id="cPatio" class="agora-cartao c-patio" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Carros no pátio</span><span class="agora-num" data-num>…</span></header>
-            <p class="agora-det" data-det>carregando…</p>
-            <div class="chips-etapa" data-etapas></div>
-            <ul class="agora-lista" data-lista></ul>
-            <footer class="agora-pe"><a data-abrir href="#">Abrir o Pátio ↗</a><a data-tv href="#">Modo TV ↗</a><a data-nova href="#">+ Nova entrada ↗</a></footer>
-          </article>
-          <article id="cOrc" class="agora-cartao c-orc" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Orçamentos esperando resposta</span><span class="agora-num" data-num>…</span></header>
-            <p class="agora-det" data-det>carregando…</p>
-            <ul class="agora-lista" data-lista></ul>
-            <footer class="agora-pe"><a data-abrir href="#">Abrir o Orçador ↗</a><a data-nova href="#">+ Novo orçamento ↗</a></footer>
-          </article>
-          <article id="cConversas" class="agora-cartao c-conversas" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Conversas esperando</span><span class="agora-num" data-num>…</span></header>
-            <p class="agora-det" data-det>carregando…</p>
-            <ul class="agora-lista" data-lista></ul>
-            <footer class="agora-pe"><a data-abrir href="#">Abrir o Atendimento</a></footer>
-          </article>
-          <article id="cHoje" class="agora-cartao c-hoje" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Horários de hoje</span><span class="agora-num" data-num>…</span></header>
-            <p class="agora-det" data-det>carregando…</p>
-            <ul class="agora-lista" data-lista></ul>
-            <footer class="agora-pe"><a data-abrir href="#">Abrir a Agenda</a><a data-nova href="#">+ Novo horário</a></footer>
-          </article>
-          <article id="cLeads" class="agora-cartao c-leads" hidden>
-            <header class="agora-cab"><span class="agora-rotulo">Contatos novos</span><span class="agora-num" data-num>…</span></header>
-            <p class="agora-det" data-det>carregando…</p>
-            <ul class="agora-lista" data-lista></ul>
-            <footer class="agora-pe"><a data-abrir href="#">Abrir o CRM</a></footer>
-          </article>
-        </section>
-      </div>
-
-      <section id="visaoDono" class="dono" role="tabpanel" aria-labelledby="abaDono" hidden>
-        <div id="donoTiles" class="dono-tiles"></div>
-        <div class="dono-duas">
-          <div class="cartao dono-bloco">
-            <h3 class="dono-h">Faturamento dos últimos 7 dias</h3>
-            <div id="donoBarras" class="barras" role="img" aria-label="Faturamento por dia"></div>
-            <p id="donoBarrasVazio" class="vazio-mini" hidden>Nenhum fechamento com valor nos últimos 7 dias. O valor entra quando o horário é marcado "fechou" na Agenda.</p>
-            <p id="donoNota" class="dono-nota" hidden></p>
-          </div>
-          <div class="cartao dono-bloco">
-            <h3 class="dono-h">Conversão (30 dias)</h3>
-            <div id="donoConv" class="conv"></div>
-          </div>
-        </div>
-        <div class="dono-duas">
-          <div id="donoMeta" class="cartao dono-bloco"></div>
-          <div id="donoConsultores" class="cartao dono-bloco"><p class="vazio">carregando…</p></div>
-        </div>
-        <div class="cartao dono-bloco">
-          <h3 class="dono-h">Gargalos</h3>
-          <ul id="donoGargalos" class="gargalos"></ul>
-        </div>
-        <div id="donoLigacoes" class="cartao dono-bloco"><h3 class="dono-h">Ligações entre sistemas</h3><p class="vazio">carregando…</p></div>
-      </section>
-
       <section class="bloco" aria-labelledby="tApps">
-        <h2 id="tApps" class="bloco-titulo">Seus apps</h2>
+        <h2 id="tApps" class="bloco-titulo">Apps</h2>
         <div id="gradeApps" class="grade-apps"></div>
       </section>
-
-      <section class="bloco" aria-labelledby="tTarefas">
-        <div class="bloco-cab">
-          <h2 id="tTarefas" class="bloco-titulo">Minhas tarefas</h2>
-          <span id="tarefasNum" class="selo"></span>
-        </div>
-        <div id="tFiltros" class="t-filtros" role="group" aria-label="Filtrar tarefas"></div>
-        <form id="fTarefa" class="nova-tarefa">
-          <input id="tTitulo" maxlength="200" placeholder="Nova tarefa para mim… (Enter grava)" aria-label="Nova tarefa" />
-          <select id="tQuem" aria-label="Para quem é a tarefa" hidden></select>
-          <select id="tPrazo" aria-label="Prazo da tarefa">
-            <option value="">sem prazo</option>
-            <option value="hoje">hoje até 17h30</option>
-            <option value="amanha">amanhã 9h</option>
-            <option value="semana">em 7 dias</option>
-          </select>
-          <label class="marcar marcar-mini"><input id="tUrgente" type="checkbox" /> urgente</label>
-          <button class="btn" type="submit">Criar</button>
-        </form>
-        <ul id="listaTarefas" class="lista-tarefas"></ul>
-      </section>
     </main>
-    <footer class="rodape">IndyCar Central · <span id="versao"></span> · <span id="saude">tudo em um endereço só</span></footer>
+    <footer class="rodape">IndyCar Central · <span id="versao"></span></footer>
   </div>
 
   <!-- ======================= BUSCA GLOBAL (Ctrl+K) ======================= -->
@@ -284,7 +171,6 @@
       <p id="buscaAnuncio" class="sr-only" aria-live="polite"></p>
       <div id="buscaFiltros" class="busca-filtros" role="group" aria-label="Filtrar por tipo de resultado" hidden></div>
       <div id="buscaLista" class="busca-lista" role="region" aria-label="Resultados da busca"></div>
-      <div class="busca-pe"><span><kbd>↑</kbd><kbd>↓</kbd> escolher</span><span><kbd>Enter</kbd> abrir em outra aba</span><span><kbd>Esc</kbd> fechar</span></div>
     </div>
   </div>
 
@@ -297,33 +183,21 @@
     </div>
   </div>
 
-  <!-- ======================= AJUDA DE ATALHOS ======================= -->
-  <div id="ajuda" class="modal-fundo" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ajudaTit">
-      <h2 id="ajudaTit" class="bloco-titulo">Atalhos do teclado</h2>
-      <dl id="ajudaLista" class="ajuda-lista"></dl>
-      <button id="ajudaFechar" class="btn" type="button">Fechar</button>
-    </div>
-  </div>
-
   <div id="carregando" class="carregando" role="status"><span class="giro" aria-hidden="true"></span> Abrindo a Central…</div>
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" integrity="sha384-WgXwGL6fUsYJWNaKJgVbrJKGRQwc1vieh2oy4kw9nXqpNDz3tdSsqEYUgeHD/NuF" crossorigin="anonymous"></script>
-  <script src="/casa/logica.js?v=9"></script>
-  <script src="/casa/logica2.js?v=8"></script>
+  <script src="/casa/logica.js?v=10"></script>
+  <script src="/casa/logica2.js?v=9"></script>
   <script src="/casa/logica3.js?v=3"></script>
-  <script src="/casa/logica4.js?v=6"></script>
-  <script src="/casa/sino.js?v=10"></script>
-  <script src="/casa/painel.js?v=14"></script>
-  <script src="/casa/manha.js?v=4"></script>
-  <script src="/casa/tarefas.js?v=9"></script>
+  <script src="/casa/logica4.js?v=7"></script>
+  <script src="/casa/sino.js?v=11"></script>
+  <script src="/casa/painel.js?v=15"></script>
   <script src="/casa/ficha.js?v=4"></script>
-  <script src="/casa/busca.js?v=9"></script>
-  <script src="/casa/atalhos.js?v=7"></script>
-  <script src="/casa/comando.js?v=9"></script>
-  <script src="/casa/saude.js?v=6"></script>
+  <script src="/casa/busca.js?v=10"></script>
+  <script src="/casa/comando.js?v=10"></script>
+  <script src="/casa/saude.js?v=7"></script>
   <script src="/casa/parar.js?v=1"></script>
-  <script src="/casa/casa.js?v=12"></script>
+  <script src="/casa/casa.js?v=13"></script>
 </body>
 </html>

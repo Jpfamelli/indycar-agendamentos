@@ -28,20 +28,14 @@
     if (an) an.textContent = (ls[ativo].getAttribute('aria-label') || ls[ativo].textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   }
 
-  /* comandos da paleta: ">" + palavra, ou texto que casa com o nome do comando */
-  function blocoComandos(lista, titulo) {
-    if (!lista.length) return '';
-    return `<section class="busca-grupo" aria-label="Comandos"><h3>⚡ ${C.esc(titulo)}</h3>${lista.map((c) => `<button type="button" class="busca-cmd" data-linha id="bc-${C.esc(c.id)}" data-cmd="${C.esc(c.id)}"><span>${C.esc(c.rotulo)}</span>${c.tecla ? `<kbd>${C.esc(c.tecla)}</kbd>` : ''}</button>`).join('')}</section>`;
-  }
+  /* rodada 11: a tela inicial da busca mostra só as buscas recentes. Saíram a paleta de comandos (">") e o "Ir para"
+     (repetia os cartões de app da Casa). */
   function telaInicial() {
     const r = recentes();
-    const apps = ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador', 'ads'].filter((k) => C.podeUsar(k));
-    $('#buscaDica').textContent = 'Digite um telefone, parte do nome, a placa ou o número da OS/orçamento.';
+    $('#buscaDica').textContent = '';
     $('#buscaFiltros').hidden = true; filtroBusca = '';
     $('#buscaLista').innerHTML =
-      (r.length ? `<section class="busca-grupo"><h3>Buscas recentes <button type="button" class="busca-mini" data-limpar-recentes>limpar</button></h3>${r.map((x, i) => `<button type="button" class="busca-rec" data-linha id="br-${i}" data-recente="${C.esc(x)}" aria-label="Buscar de novo: ${C.esc(x)}">🕘 ${C.esc(x)}</button>`).join('')}</section>` : '') +
-      blocoComandos(C.comandos ? C.comandos.lista().filter((c) => ['novo-horario', 'nova-entrada', 'novo-orcamento', 'nova-tarefa', 'modo-tv', 'tema'].includes(c.id)).slice(0, 5) : [], 'Comandos (digite > para ver todos)') +
-      `<section class="busca-grupo"><h3>Ir para</h3><div class="busca-ir">${apps.map((k) => `<a href="${C.esc(C.bases[k])}" target="${C.esc(L.nomeDaAba(k))}" data-linha id="bl-ir-${k}">${L.APPS[k].ico} ${C.esc(L.APPS[k].nome)}</a>`).join('')}</div></section>`;
+      (r.length ? `<section class="busca-grupo"><h3>Buscas recentes <button type="button" class="busca-mini" data-limpar-recentes>limpar</button></h3>${r.map((x, i) => `<button type="button" class="busca-rec" data-linha id="br-${i}" data-recente="${C.esc(x)}" aria-label="Buscar de novo: ${C.esc(x)}">🕘 ${C.esc(x)}</button>`).join('')}</section>` : '');
     ativo = -1;
   }
 
@@ -73,7 +67,7 @@
       $('#buscaDica').textContent = '';
       $('#buscaFiltros').hidden = true;
       lista.innerHTML = `<p class="vazio">Nada achado para “${C.esc(q)}” em nenhum sistema.</p>` + (tel ? `
-        <section class="busca-grupo"><h3>Telefone novo? Comece por aqui</h3><div class="busca-ir">
+        <section class="busca-grupo"><h3>Telefone novo</h3><div class="busca-ir">
           ${C.podeUsar('agenda') ? `<a href="${C.esc(C.links.agendaNovo({ telefone: tel }))}" target="${L.nomeDaAba('agenda')}" data-linha id="bl-n1">📅 Marcar horário</a>` : ''}
           ${C.podeUsar('atendimento') ? `<a href="${C.esc(C.links.conversaTel(tel))}" target="${L.nomeDaAba('atendimento')}" data-linha id="bl-n2">💬 Abrir conversa</a>` : ''}
           ${C.podeUsar('orcador') ? `<a href="${C.esc(C.links.novoOrcamento({ telefone: tel }))}" target="${L.nomeDaAba('orcador')}" data-linha id="bl-n3">🧾 Novo orçamento</a>` : ''}
@@ -113,14 +107,6 @@
   async function buscar(texto) {
     const q = String(texto || '').trim();
     ultimaBusca = q;
-    if (q.startsWith('>')) {
-      const cs = C.comandos ? C.comandos.filtrar(q) : [];
-      seq++;
-      $('#buscaDica').textContent = cs.length ? 'Enter executa o comando escolhido.' : '';
-      $('#buscaLista').innerHTML = cs.length ? blocoComandos(cs, 'Comandos') : `<p class="vazio">Nenhum comando parecido com “${C.esc(q.slice(1).trim())}”.</p>`;
-      ativo = -1; if (linhasNav().length) marcarAtivo(0);
-      return;
-    }
     if (q.length < 2) { telaInicial(); return; }
     const c = L.classificarBusca(q);
     if (!c.valido) { telaInicial(); return; }
@@ -131,8 +117,6 @@
       if (minha !== seq) return;     // chegou uma busca mais nova: descarta esta
       if (error) throw error;
       desenhar(L.adaptarBusca(data), q);
-      const cs = C.comandos ? C.comandos.filtrar(q).slice(0, 3) : [];
-      if (cs.length && cs.length < (C.comandos.lista().length)) $('#buscaLista').insertAdjacentHTML('beforeend', blocoComandos(cs, 'Comandos que combinam'));
     } catch (e) {
       if (minha !== seq) return;
       $('#buscaDica').textContent = '';
@@ -203,8 +187,6 @@
         return;
       }
       if (e.target.closest('[data-guardar]')) { guardarRecente($('#buscaInput').value); setTimeout(fechar, 50); return; }
-      const cmd = e.target.closest('[data-cmd]');
-      if (cmd) { const id = cmd.dataset.cmd; fechar(); setTimeout(() => C.comandos.executar(id), 60); return; }
       if (e.target.closest('[data-busca-de-novo]')) { buscar(inp.value); inp.focus(); return; }
       const rec = e.target.closest('[data-recente]');
       if (rec) { inp.value = rec.dataset.recente; buscar(inp.value); inp.focus(); return; }
@@ -221,7 +203,14 @@
         else if (!e.shiftKey && document.activeElement === u) { e.preventDefault(); p.focus(); }
       }
     };
+    document.addEventListener('keydown', teclado);
   };
-  MOD.desmontar = function () { aberta = false; seq++; $('#busca').hidden = true; document.body.classList.remove('modal-aberto'); clearTimeout(timer); };
+  /* rodada 11: das teclas de atalho, ficou só a da busca: Ctrl+K (até dentro de um campo) ou "/" fora de campo */
+  function teclado(e) {
+    if (!C || !C.perfil) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && String(e.key).toLowerCase() === 'k') { e.preventDefault(); if (aberta) fechar(); else abrir(); return; }
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !aberta && !L.ehCampo(e.target) && !document.body.classList.contains('modal-aberto')) { e.preventDefault(); abrir(); }
+  }
+  MOD.desmontar = function () { aberta = false; seq++; $('#busca').hidden = true; document.body.classList.remove('modal-aberto'); clearTimeout(timer); document.removeEventListener('keydown', teclado); };
   (window.CasaModulos = window.CasaModulos || []).push(MOD);
 })();

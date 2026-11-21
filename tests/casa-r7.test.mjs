@@ -232,10 +232,11 @@ test('sino: quando o aviso adiado volta', () => {
   assert.match(N.quandoVolta(1000 + 5 * 3600000, 1000), /^volta em 5 h/);
   assert.equal(N.quandoVolta(1000, 5000), 'volta em 1 min');
 });
-test('sino: aviso de tarefas vencidas (sem app e sem link no banco) leva para a lista de tarefas, não para uma aba', () => {
+test('sino: aviso de tarefas vencidas (sem app e sem link no banco) abre a aba Tarefas do Atendimento (rodada 11: a lista saiu da Casa)', () => {
   const a = N.acaoDoAviso({ tipo: 'tarefas_vencidas', app: null, link: null }, B, ORIGEM);
-  assert.deepEqual(a, { acao: 'tarefas', filtro: 'vencidas' });
-  assert.equal(N.acaoDoAviso({ tipo: 'x', app: 'tarefas' }, B, ORIGEM).acao, 'tarefas');
+  assert.deepEqual(a, { acao: 'abrir', url: '/atendimento/?tarefas' });
+  assert.equal(L.appDoLink(a.url, ORIGEM, B), 'atendimento', 'abre na aba do Atendimento');
+  assert.deepEqual(N.acaoDoAviso({ tipo: 'x', app: 'tarefas' }, B, ORIGEM), { acao: 'abrir', url: '/atendimento/?tarefas' });
   assert.equal(N.appDoAviso({ tipo: 'tarefas_vencidas', app: null }), 'tarefas');
   assert.equal(N.appDoAviso({ tipo: 'lead', app: 'crm' }), 'crm');
   assert.equal(N.appDoAviso({ tipo: 'qualquer', app: null }), null);

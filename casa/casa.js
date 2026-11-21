@@ -19,7 +19,7 @@
   const LS_ERROS = 'indycar_central_erros';
 
   const PAPEL = { admin: 'Administrador', gestor: 'Gestor', atendente: 'Atendente', agenda: 'Agenda (presença)', mecanico: 'Mecânico' };
-  /* ordem dos atalhos na grade (o Tráfego, chave "ads", entra por último: as teclas 1 a 6 continuam nos mesmos apps) */
+  /* ordem dos cartões de app na Casa (o Tráfego, chave "ads", por último) */
   const ORDEM_APPS = ['agenda', 'atendimento', 'crm', 'comunicar', 'patio', 'orcador', 'ads'];
 
   let sb = null, sessao = null, perfil = null, emRecuperacao = false;
@@ -103,9 +103,8 @@
   function rotularTema() {
     const b = $('#bTema'); if (!b) return;
     const claro = document.documentElement.getAttribute('data-tema') === 'claro';
-    b.setAttribute('aria-pressed', String(claro));
-    b.setAttribute('aria-label', claro ? 'Tema claro ligado. Trocar para o escuro' : 'Tema escuro ligado. Trocar para o claro');
-    b.title = claro ? 'Trocar para o tema escuro' : 'Trocar para o tema claro';
+    /* rodada 11: o tema virou uma opção do menu do perfil (o topo ficou só com busca, sino e perfil) */
+    b.textContent = claro ? 'Usar o tema escuro' : 'Usar o tema claro';
   }
   /** Fecha o sino e o menu do perfil e zera o "aberto" dos dois botões. `foco`: devolve o foco ao botão que estava aberto. */
   function fecharMenus(foco = false) {
@@ -251,17 +250,13 @@
    * dono continuavam na página (dava para ver pelas ferramentas do navegador) e as tarefas e os avisos de quem saiu
    * apareciam por um instante para quem entrasse depois no mesmo computador. Agora o conteúdo é apagado junto.
    */
-  const PARA_LIMPAR = ['#listaNotif', '#sinoAtencao', '#sinoRodape', '#atencaoLista', '#saudeLista', '#manhaOntem', '#manhaAmanha', '#manhaPend', '#manhaLembrar', '#manhaBaixa',
-    '#donoTiles', '#donoBarras', '#donoNota', '#donoConv', '#donoMeta', '#donoConsultores', '#donoGargalos', '#donoLigacoes', '#listaTarefas', '#buscaLista', '#fichaCorpo', '#fichaChips',
-    '#gradeApps', '#acoes', '#avisoApps', '#clima', '#mpNome', '#mpEmail', '#mpPapel', '#nomeCurto', '#bPerfil', '#fichaTit', '#fichaSub', '#saudeTxt', '#saudeHora', '#tarefasNum', '#sinoNum', '#toast'];
+  const PARA_LIMPAR = ['#listaNotif', '#sinoRodape', '#atencaoLista', '#saudeLista', '#buscaLista', '#fichaCorpo', '#fichaChips',
+    '#gradeApps', '#avisoApps', '#avisoRede', '#mpNome', '#mpEmail', '#mpPapel', '#nomeCurto', '#bPerfil', '#fichaTit', '#fichaSub', '#saudeTxt', '#saudeHora', '#sinoNum', '#toast'];
   function limparTela() {
     for (const s of PARA_LIMPAR) { const el = $(s); if (el) el.textContent = ''; }
-    for (const el of document.querySelectorAll('#agora [data-lista]')) el.textContent = '';
-    for (const el of document.querySelectorAll('#agora [data-num]')) el.textContent = '…';
-    for (const el of document.querySelectorAll('#agora [data-det]')) el.textContent = 'carregando…';
-    for (const s of ['#buscaInput', '#tTitulo', '#sinoBusca']) { const el = $(s); if (el) el.value = ''; }
-    const barras = $('#donoBarras'); if (barras) barras.setAttribute('aria-label', 'Faturamento por dia');
+    for (const s of ['#buscaInput', '#sinoBusca']) { const el = $(s); if (el) el.value = ''; }
     const av = $('#bPerfil'); if (av) av.style.background = '';
+    const rede = $('#avisoRede'); if (rede) rede.hidden = true;
     $('#toast').hidden = true;
   }
   async function sair(global) {
@@ -290,7 +285,7 @@
       conferindoSessao = false;
       if (!perfil) return;
       if (renovou) {
-        try { Casa.painel && Casa.painel.atualizar(); Casa.sino && Casa.sino.carregar(); Casa.tarefas && Casa.tarefas.carregar(); } catch { /* o relógio de cada bloco cobre */ }
+        try { Casa.painel && Casa.painel.atualizar(); Casa.sino && Casa.sino.carregar(); } catch { /* o relógio de cada bloco cobre */ }
         return;
       }
       desmontarModulos(); esquecerPessoa(); perfil = null; sessao = null; fecharMenus();
@@ -352,11 +347,13 @@
     const meus = ORDEM_APPS.map((k) => L.APPS[k]).filter((a) => podeUsar(perfil, a.k));
     $('#gradeApps').innerHTML = meus.length ? meus.map((a) => {
       const url = bases[a.k];
+      /* rodada 11: o cartão mostra o número que importa daquele app (painel.js preenche); sem número, a frase curta do app */
       return `
-      <a class="app${a.fora ? ' app-fora' : ''}" href="${esc(url)}" target="${esc(L.nomeDaAba(a.k))}" data-app="${esc(a.k)}">
+      <a class="app" href="${esc(url)}" target="${esc(L.nomeDaAba(a.k))}" data-app="${esc(a.k)}">
         <span class="app-ico" aria-hidden="true">${a.ico}</span>
-        <span class="app-nome">${esc(a.nome)}<span class="app-selo" data-app-selo="${esc(a.k)}" hidden></span></span>
-        <span class="app-desc">${esc(a.desc)}${a.fora ? ' · outro endereço' : ''}</span>
+        <span class="app-nome">${esc(a.nome)}</span>
+        <span class="app-num" data-app-num="${esc(a.k)}" hidden></span>
+        <span class="app-desc" data-app-desc="${esc(a.k)}" data-padrao="${esc(a.desc)}">${esc(a.desc)}</span>
       </a>`;
     }).join('') : '<p class="vazio">Nenhum app liberado para você ainda. Peça ao administrador.</p>';
   }

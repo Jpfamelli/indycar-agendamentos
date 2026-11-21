@@ -162,7 +162,7 @@ test('clima da oficina: antes, aberta, fechando, depois e domingo', () => {
 });
 test('vazios que ensinam existem para todos os cartões do Agora', () => {
   for (const k of ['cPatio', 'cOrc', 'cConversas', 'cHoje', 'cLeads']) { assert.ok(M.VAZIOS[k].texto && M.VAZIOS[k].dica.length > 20, k); }
-  assert.equal(M.ATALHOS_NUMERO[5], 'patio');
+  assert.equal(M.ATALHOS_NUMERO, undefined, 'rodada 11: as teclas de número saíram');
 });
 
 test('avisos do Orçador: aprovado e recusado têm ícone e rótulo; o link abre dentro do Orçador', () => {
