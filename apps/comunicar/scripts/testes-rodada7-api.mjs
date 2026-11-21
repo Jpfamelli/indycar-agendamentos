@@ -538,3 +538,27 @@ for (const [id, caminho, corpo, campo] of [
     } finally { await s.fechar(); }
   });
 }
+for (const [id, campo, valor] of [
+  ['094', 'nascimento', '31/02'],
+  ['095', 'telefone', ['12999990000']],
+  ['096', 'email', 'sem-arroba'],
+  ['097', 'observacoes', { texto: 'Agendar retorno' }],
+  ['098', 'motivo', 'x'.repeat(121)],
+]) {
+  test(`R10-COM-${id}: rejeita ${campo} inválido ao editar ficha`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'PUT', `/api/clientes/${ID(10)}`, { aceita_mensagens: false, [campo]: valor });
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+
+test('R10-COM-099: edição vazia de uma regra inexistente informa 404', async () => {
+  const s = await subir({ livre: true });
+  try {
+    const r = await s.chamar('gestor', 'PUT', `/api/regras-retorno/${ID(990)}`, {});
+    assert.equal(r.status, 404);
+  } finally { await s.fechar(); }
+});

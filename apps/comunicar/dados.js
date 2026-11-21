@@ -700,8 +700,9 @@ export async function atualizarRegra(id, d) {
   if (d.mensagem !== undefined) campos.mensagem = String(d.mensagem ?? '').trim().slice(0, 1000) || null;
   if (d.ativo !== undefined) campos.ativo = d.ativo === true;
   if (d.ordem !== undefined && Number.isInteger(Number(d.ordem))) campos.ordem = Number(d.ordem);
-  if (!Object.keys(campos).length) return lerRegra(await selecionarUm(T.regras, `select=*&id=eq.${id}`));
-  const r = await atualizarUm(T.regras, `id=eq.${id}&select=*`, campos);
+  const r = Object.keys(campos).length
+    ? await atualizarUm(T.regras, `id=eq.${id}&select=*`, campos)
+    : await selecionarUm(T.regras, `select=*&id=eq.${id}`);
   return r ? lerRegra(r) : null;
 }
 

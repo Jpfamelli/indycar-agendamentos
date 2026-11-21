@@ -354,6 +354,24 @@ export function criarApi(deps) {
     const mudaAceite = body.aceita_mensagens !== undefined;
     if (mudaAceite && typeof body.aceita_mensagens !== 'boolean') return bad(res, 'Informe se o cliente aceita mensagens.');
     if (body.aceita_mensagens === true && !A.pode(usuario, 'optout_religar')) return proibido(res, 'optout_religar');
+    const { nascimento, telefone, email, observacoes, motivo } = body;
+    if (nascimento != null && (typeof nascimento !== 'string' || (nascimento.trim() && !dados.dataBanco(nascimento)))) {
+      return bad(res, 'Informe uma data de aniversário válida.', { campo: 'nascimento' });
+    }
+    if (telefone != null && (typeof telefone !== 'string' ||
+        (telefone.trim() && (!/^\+?[\d ().-]+$/.test(telefone.trim()) || ![10, 11].includes(dados.telefoneNacional(telefone)?.length))))) {
+      return bad(res, 'Informe um telefone com DDD.', { campo: 'telefone' });
+    }
+    if (email != null && (typeof email !== 'string' ||
+        (email !== '' && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))))) {
+      return bad(res, 'Informe um e-mail válido.', { campo: 'email' });
+    }
+    if (observacoes != null && (typeof observacoes !== 'string' || observacoes.length > 2000)) {
+      return bad(res, 'Informe observações em até 2.000 caracteres.', { campo: 'observacoes' });
+    }
+    if (motivo != null && (typeof motivo !== 'string' || motivo.length > 120)) {
+      return bad(res, 'Informe o motivo em até 120 caracteres.', { campo: 'motivo' });
+    }
     const antes = mudaAceite ? await dados.obterCliente(id) : null;
     const c = await dados.atualizarCliente(id, body, usuario.nome || usuario.email);
     if (!c) return naoAchou(res);
