@@ -466,3 +466,23 @@ for (const [id, campo, valor] of [
     } finally { await s.fechar(); }
   });
 }
+for (const [id, campo, valor] of [
+  ['070', 'rotulo', ['Revisão']],
+  ['071', 'palavras', [{ termo: 'óleo' }]],
+  ['072', 'meses', 1.5],
+  ['073', 'mensagem', 'x'.repeat(1001)],
+  ['074', 'ativo', 'false'],
+  ['075', 'ordem', true],
+]) {
+  test(`R10-COM-${id}: valida ${campo} ao criar e editar regra de retorno`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const corpo = { rotulo: 'Óleo', palavras: ['óleo'], meses: 6, [campo]: valor };
+      for (const [metodo, caminho] of [['POST', '/api/regras-retorno'], ['PUT', `/api/regras-retorno/${ID(10)}`]]) {
+        const r = await s.chamar('gestor', metodo, caminho, corpo);
+        assert.equal(r.status, 400);
+        assert.equal(r.json.campo, campo);
+      }
+    } finally { await s.fechar(); }
+  });
+}

@@ -816,8 +816,36 @@ export function criarApi(deps) {
   rota('PUT', '/api/posvenda/config', salvarConfig);
 
   // ---- regras de retorno ----
+  function validarRegraRetorno(body) {
+    const { rotulo, palavras, meses, mensagem, ativo, ordem } = body;
+    if (rotulo !== undefined && (typeof rotulo !== 'string' || !rotulo.trim() || rotulo.trim().length > 80)) {
+      return ['rotulo', 'Informe um nome de até 80 caracteres.'];
+    }
+    if (palavras !== undefined) {
+      const termos = typeof palavras === 'string' ? palavras.split(/[,;\n]/) : palavras;
+      if (!Array.isArray(termos) || termos.some((termo) => typeof termo !== 'string')) {
+        return ['palavras', 'Informe as palavras do serviço em texto.'];
+      }
+      const preenchidos = termos.filter((termo) => termo.trim());
+      if (!preenchidos.length || preenchidos.length > 30) return ['palavras', 'Informe de 1 a 30 palavras do serviço.'];
+    }
+    if (meses !== undefined && (!Number.isInteger(meses) || meses < 1 || meses > 36)) {
+      return ['meses', 'Informe um prazo inteiro de 1 a 36 meses.'];
+    }
+    if (mensagem != null && (typeof mensagem !== 'string' || mensagem.trim().length > 1000)) {
+      return ['mensagem', 'Escreva uma mensagem de até 1.000 caracteres.'];
+    }
+    if (ativo !== undefined && typeof ativo !== 'boolean') return ['ativo', 'Informe se a regra está ativa.'];
+    if (ordem !== undefined && (!Number.isInteger(ordem) || ordem < -2147483648 || ordem > 2147483647)) {
+      return ['ordem', 'Informe a ordem como número inteiro válido.'];
+    }
+    return null;
+  }
+
   rota('GET', '/api/regras-retorno', async ({ res }) => ok(res, await dados.listarRegras()));
   rota('POST', '/api/regras-retorno', async ({ res, usuario, body }) => {
+    const invalido = validarRegraRetorno(body);
+    if (invalido) return bad(res, invalido[1], { campo: invalido[0] });
     try {
       const r = await dados.criarRegra(body);
       auditar(usuario, 'regra_retorno_criada', 'comunicar_regras_retorno', r?.id, { rotulo: r?.rotulo, meses: r?.meses });
@@ -825,6 +853,8 @@ export function criarApi(deps) {
     } catch (e) { return bad(res, e.message); }
   });
   rota('PUT', `/api/regras-retorno/${U}`, async ({ res, usuario, body, url }) => {
+    const invalido = validarRegraRetorno(body);
+    if (invalido) return bad(res, invalido[1], { campo: invalido[0] });
     const id = idDe(url.pathname);
     const r = await dados.atualizarRegra(id, body);
     if (!r) return naoAchou(res);
