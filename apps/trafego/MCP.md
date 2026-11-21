@@ -6,10 +6,12 @@ antigos (2025-03-26 a 2025-11-25: `initialize`) no mesmo endereço. Resposta sem
 As ferramentas, as regras e os erros são os mesmos da porta REST: ver `API-ia.md`.
 
 ## 1. Criar a chave
-Ajustes › **Acesso da IA de fora** (ou `POST /api/ia/chaves`, só administrador): em **Quem vai usar** dê um nome ("Claude Code do João"),
-escolha **Só ler os números** ou, se quiser que a IA deixe sugestões para você aprovar, **Ler e deixar sugestões**. Marque
-**Ver nome e conversa completa dos clientes** só se a IA precisar ler a conversa inteira. Clique **Criar a chave**. **A chave (`ica_…`) aparece uma vez só**: guarde num gerenciador de senhas.
-Uma chave por IA e por pessoa; se vazar, revogue na mesma tela (vale na hora).
+Desde a rodada 11 a criação de chave saiu da tela do Tráfego (o app ficou com três abas). A porta da IA segue igual; a chave
+se cria pelo pedido `POST /trafego/api/ia/chaves`, logado como administrador (o mesmo login da Central):
+`{ "nome": "Claude Code do João", "escopos": ["ler"], "ver_pii": false }`. Use `["ler", "propor"]` se quiser que a IA deixe
+sugestões para você aprovar, e `ver_pii: true` só se a IA precisar ler a conversa inteira. **A chave (`ica_…`) volta uma vez só**:
+guarde num gerenciador de senhas. Uma chave por IA e por pessoa; se vazar, revogue com `DELETE /trafego/api/ia/chaves/<id>`
+(vale na hora). A lista das chaves: `GET /trafego/api/ia/chaves`.
 
 Nunca ponha a chave no endereço (`?chave=` é recusado com 400). Ela vai no cabeçalho `Authorization: Bearer ica_…`.
 
@@ -33,7 +35,7 @@ para o `/mcp` com o cabeçalho da chave.
 2. Em Configurações › Desenvolvedor › Editar configuração, cole o bloco de `mcp/exemplos/claude-desktop.json`, troque o caminho
    da ponte e a chave, e reinicie o Desktop.
 3. A ponte só aceita `https://` (ou `http://localhost` para teste) e nunca imprime a chave.
-Atenção: nesse arquivo a chave fica gravada no computador. Use uma chave "Só ler os números", sem marcar "Ver nome e conversa completa dos clientes".
+Atenção: nesse arquivo a chave fica gravada no computador. Use uma chave só de leitura (`escopos: ["ler"]`, `ver_pii: false`).
 
 ## 5. claude.ai, celular e ChatGPT (próximo passo, ainda não feito)
 Esses clientes conectam pela nuvem deles e pedem **OAuth** (o claude.ai só aceita cabeçalho fixo na seção beta

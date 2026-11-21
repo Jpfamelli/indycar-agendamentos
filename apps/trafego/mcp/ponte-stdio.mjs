@@ -19,7 +19,7 @@ const CHAVE = process.env.INDYCAR_TRAFEGO_CHAVE || '';
 const ESPERA_MS = 120_000;
 
 function sair(frase) { process.stderr.write(`[indycar-trafego] ${frase}\n`); process.exit(1); }
-if (!/^ica_[A-Za-z0-9]{40}$/.test(CHAVE)) sair('Falta a variável INDYCAR_TRAFEGO_CHAVE com a chave ica_… (crie em Ajustes › Acesso da IA de fora).');
+if (!/^ica_[A-Za-z0-9]{40}$/.test(CHAVE)) sair('Falta a variável INDYCAR_TRAFEGO_CHAVE com a chave ica_… (como criar: MCP.md, parte 1).');
 let destino;
 try { destino = new URL(URL_MCP); } catch { sair('INDYCAR_TRAFEGO_URL não é um endereço válido.'); }
 const local = destino.protocol === 'http:' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(destino.hostname);

@@ -15,7 +15,7 @@ test('frases do canal de WhatsApp: "Atendimento › Integrações" (o menu de ve
   assert.match(whatsapp.PROBLEMAS_CANAL['codewords-chave-recusada'], /Atendimento › Integrações/);
 });
 
-test('passo a passo das conexões: diz o que se faz de verdade na tela (colar token, arquivo JSON, Metas e verba)', () => {
+test('passo a passo das conexões: diz o que se faz de verdade na tela (colar token, arquivo JSON, Metas)', () => {
   const passos = C.passosDeConexao({}, { orcamento: 0 });
   const como = Object.fromEntries(passos.map((p) => [p.titulo, p.como]));
   assert.match(como['WhatsApp da oficina ligado'], /Integrações \(no grupo Sistema\)/);
@@ -23,6 +23,8 @@ test('passo a passo das conexões: diz o que se faz de verdade na tela (colar to
   assert.match(como['Conta de anúncios da Meta ligada'], /token/);
   assert.doesNotMatch(como['Conta de anúncios da Meta ligada'], /entre com a conta/, 'não há "entrar com a conta da Meta": cola-se o token');
   assert.match(como['Conta do Google Ads ligada'], /arquivo JSON da conta de serviço/);
-  assert.match(como['Orçamento do mês definido'], /Metas e verba/);
+  // Rodada 11: a seção dos Ajustes se chama "Metas"; a ajuda "Como pegar o token" saiu da tela.
+  assert.match(como['Orçamento do mês definido'], /Ajustes › Metas/);
+  for (const p of passos) assert.doesNotMatch(p.como, /Metas e verba|Como pegar/);
   for (const p of passos) assert.doesNotMatch(p.como, /—/);
 });
