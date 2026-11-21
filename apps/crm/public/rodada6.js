@@ -27,7 +27,6 @@ function appDoLink6(href) {
 }
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href]'); if (!a || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
-  if (a.closest('#ecossistema')) return;
   const app = appDoLink6(a.getAttribute('href')); if (!app) return;
   if (A6.CENTRAL && ['agenda', 'atendimento', 'comunicar'].includes(app) && !a.target) return;
   e.preventDefault(); abrirNomeada6(a.href, app);
@@ -52,7 +51,7 @@ function chips6(l) {
   const s = R6.sinais[l.id]; if (!s) return '';
   const c = [];
   if (s.patio) c.push(`<span class="r6-chip patio${s.patio.etapa === 'pronto' ? ' ok' : ''}" title="Carro no Pátio${s.patio.numero ? ' · ordem ' + s.patio.numero : ''}">🔧 ${esc(ETAPA6[s.patio.etapa] || s.patio.etapa)}</span>`);
-  if (s.entregue) c.push(`<span class="r6-chip alerta" title="O carro já saiu: falta concluir o lead">🏁 entregue${s.entregue.dias ? ' há ' + s.entregue.dias + ' d' : ''}: concluir</span>`);
+  if (s.entregue) c.push(`<span class="r6-chip alerta" title="O carro já saiu: falta concluir o contato">🏁 entregue${s.entregue.dias ? ' há ' + s.entregue.dias + ' d' : ''}: concluir</span>`);
   if (s.orcamento) c.push(`<span class="r6-chip${s.flagsOrc ? '' : ''}${(s.flags || []).includes('orcamento_parado') ? ' alerta' : s.orcamento.status === 'aprovado' ? ' ok' : ''}" title="Orçamento nº ${esc(s.orcamento.numero ?? '')} no Orçador">🧾 ${s.orcamento.status === 'aprovado' ? 'aprovado' : s.orcamento.visualizado ? 'visto' : 'enviado'}${s.orcamento.dias ? ' há ' + s.orcamento.dias + ' d' : ''}${s.orcamento.total ? ' · ' + brl(s.orcamento.total) : ''}</span>`);
   if (s.esperando) c.push(`<span class="r6-chip alerta" title="Conversa esperando consultor">⏳ ${s.esperando.horas ? s.esperando.horas + ' h' : 'esperando'}</span>`);
   if (s.agendamento) c.push(`<span class="r6-chip" title="Horário na Agenda">📅 ${esc(quando6(s.agendamento.quando))}</span>`);
@@ -89,7 +88,7 @@ renderKanban = function () {
   let total = 0;
   $$('#kanban .kb-card').forEach(c => { const ok = (R6.sinais[c.dataset.id]?.flags || []).includes(R6.filtro); c.hidden = !ok; if (ok) total++; });
   $$('#kanban .kb-col').forEach(col => { const n = $$('.kb-card:not([hidden])', col).length; const ct = $('.kb-count', col); if (ct) ct.textContent = n; });
-  $('#kbResumo').textContent = `${total} lead${total === 1 ? '' : 's'} com “${R6.rotulos[R6.filtro] || R6.filtro}”`;
+  $('#kbResumo').textContent = `${total} contato${total === 1 ? '' : 's'} com “${R6.rotulos[R6.filtro] || R6.filtro}”`;
 };
 
 /* ================= registrar contato ================= */
@@ -167,10 +166,9 @@ $('#kanban').addEventListener('keydown', async e => {
   const k = e.key.toLowerCase(), s = R6.sinais[l.id] || {};
   if (/^[1-7]$/.test(k)) { e.preventDefault(); e.stopPropagation(); const novo = STATUSES[Number(k) - 1]; if (novo && await moverEtapa(l.id, novo, { anunciar: true })) $('.kb-card[data-id="' + CSS.escape(String(l.id)) + '"]')?.focus(); return; }
   if (k === 'o') { e.preventDefault(); e.stopPropagation(); abrirFichaCliente(l.cliente_id || { tel: U.telE164(l.telefone) }); }
-  if (k === 'p') { e.preventDefault(); e.stopPropagation(); if (s.patio) abrirApp6('patio', '/?os=' + s.patio.id); else toast('Esse lead não tem carro no Pátio agora.'); }
-  if (k === 'q') { e.preventDefault(); e.stopPropagation(); if (s.orcamento) abrirApp6('orcador', '/#/historico/' + s.orcamento.id); else toast('Esse lead não tem orçamento enviado.'); }
+  if (k === 'p') { e.preventDefault(); e.stopPropagation(); if (s.patio) abrirApp6('patio', '/?os=' + s.patio.id); else toast('Esse contato não tem carro no Pátio agora.'); }
+  if (k === 'q') { e.preventDefault(); e.stopPropagation(); if (s.orcamento) abrirApp6('orcador', '/#/historico/' + s.orcamento.id); else toast('Esse contato não tem orçamento enviado.'); }
 });
-if (U.ATALHOS_ABA) { U.ATALHOS_ABA.h = 'hoje'; U.ATALHOS_ABA.k = 'dono'; }
 
 /* ================= ficha do lead: ecossistema + histórico de contatos ================= */
 function r6Garantir() {
@@ -196,7 +194,7 @@ function r6Pintar(l) {
   const linha = [];
   if (s.patio) { const o = (f.patio || []).find(x => x.id === s.patio.id); const href = L.patio?.[s.patio.id] || A6.urlApp('patio', `/?os=${s.patio.id}`); linha.push(`<div class="r6-eco"><b>🔧 Carro no Pátio</b> · ${esc(ETAPA6[s.patio.etapa] || s.patio.etapa)} desde ${esc(quando6(s.patio.etapa_em))}${s.patio.previsao_entrega ? ' · previsão ' + esc(quando6(s.patio.previsao_entrega)) : ''}${s.patio.extras_pendentes ? ` · <b class="parado-txt">${s.patio.extras_pendentes} extra(s) esperando o cliente</b>` : ''}
     <span class="r6-links"><a class="acao" href="${esc(href)}">Abrir no Pátio</a>${o?.link_cliente ? `<button type="button" class="acao" data-r6p="copiar" data-txt="${esc(o.link_cliente)}">🔗 Copiar link do cliente</button>` : ''}</span></div>`); }
-  if (s.entregue) linha.push(`<div class="r6-eco alerta"><b>🏁 Carro entregue${s.entregue.dias ? ' há ' + s.entregue.dias + ' d' : ' hoje'}</b> · falta concluir o lead com o valor pago. ${trava ? '' : '<button type="button" class="acao acao-forte" data-r6p="concluir">Concluir agora</button>'}</div>`);
+  if (s.entregue) linha.push(`<div class="r6-eco alerta"><b>🏁 Carro entregue${s.entregue.dias ? ' há ' + s.entregue.dias + ' d' : ' hoje'}</b> · falta concluir o contato com o valor pago. ${trava ? '' : '<button type="button" class="acao acao-forte" data-r6p="concluir">Concluir agora</button>'}</div>`);
   if (s.orcamento) { const href = L.orcamentos?.[s.orcamento.id] || A6.urlApp('orcador', `/#/historico/${s.orcamento.id}`); linha.push(`<div class="r6-eco"><b>🧾 Orçamento nº ${esc(s.orcamento.numero ?? '')}</b> · ${esc(s.orcamento.status)} · ${brl(s.orcamento.total)}${s.orcamento.visualizado ? ' · o cliente já abriu' : ''}${s.orcamento.dias ? ' · enviado há ' + s.orcamento.dias + ' d' : ''}<span class="r6-links"><a class="acao" href="${esc(href)}">Abrir no Orçador</a></span></div>`); }
   if (s.esperando) linha.push(`<div class="r6-eco alerta"><b>⏳ Cliente esperando</b> há ${s.esperando.horas || 0} h<span class="r6-links"><a class="acao" href="${esc(L.conversa || A6.urlApp('atendimento', `/?tel=${U.telE164(l.telefone) || ''}`))}">Abrir conversa</a></span></div>`);
   if (s.agendamento) linha.push(`<div class="r6-eco"><b>📅 Horário</b> · ${esc(quando6(s.agendamento.quando))} (${esc(s.agendamento.status)})<span class="r6-links"><a class="acao" href="${esc(L.agendamentos?.[s.agendamento.id] || A6.urlApp('agenda', `/?agendamento=${s.agendamento.id}`))}">Abrir na Agenda</a></span></div>`);
@@ -252,7 +250,7 @@ const _fecharModalR6 = typeof fecharModal === 'function' ? fecharModal : null;
       const ant = r.anteriores || {};
       SEL.clear(); redesenhar(); carregarSinais6(true);
       const extra = (r.de_colegas ? ` · ${r.de_colegas} de colega ficou de fora` : '') + (r.fechados ? ` · ${r.fechados} já fechado` : '');
-      toastAcao(`⏰ Retorno combinado para ${r.atualizados} lead${r.atualizados === 1 ? '' : 's'}${extra}`, 'Desfazer', async () => {
+      toastAcao(`⏰ Retorno combinado para ${r.atualizados} contato${r.atualizados === 1 ? '' : 's'}${extra}`, 'Desfazer', async () => {
         for (const id of r.ids) { try { await post6('/api/leads/followup-lote', ant[id] ? { ids: [id], proximo: ant[id] } : { ids: [id], limpar: true }); substituirLocal({ id, proximo_contato_em: ant[id] || null }); } catch { /* segue */ } }
         redesenhar(); carregarSinais6(true); toast('Retorno desfeito');
       }, 10000);
@@ -261,19 +259,8 @@ const _fecharModalR6 = typeof fecharModal === 'function' ? fecharModal : null;
 })();
 
 /* ================= aba Hoje ================= */
-TITULOS.hoje = ['Hoje', 'Quem contatar agora, e por quê, na ordem de urgência'];
-TITULOS.dono = ['Dono', 'Meta do mês, pátio, orçamentos, anúncios e o que pede atenção'];
 const H6 = { escopo: '', dados: null, entregues: null, motivo: '' };
-function renderFaixa6() {
-  const alvo = $('#view-dashboard'); if (!alvo) return;
-  let f = $('#r6Faixa');
-  if (!f) { f = document.createElement('div'); f.id = 'r6Faixa'; f.className = 'r6-faixa'; alvo.prepend(f); f.addEventListener('click', e => { const b = e.target.closest('[data-faixa]'); if (!b) return; if (b.dataset.faixa === 'hoje') irPara('hoje'); else { R6.filtro = b.dataset.faixa; irPara('pipeline'); renderFiltroSinal6(); renderKanban(); } }); }
-  const c = R6.contagem, it = [['hoje', '⏳', (c.esperando || 0), 'esperando resposta'], ['followup_vencido', '⏰', (c.followup_vencido || 0), 'retornos vencidos'], ['entregue_fechar', '🏁', (c.entregue_fechar || 0), 'entregues para concluir'], ['orcamento_parado', '🧾', (c.orcamento_parado || 0), 'orçamentos parados'], ['pronto_retirar', '🔧', (c.pronto_retirar || 0), 'carros prontos']].filter(x => x[2]);
-  f.hidden = !it.length;
-  f.innerHTML = it.length ? '<b>Agora:</b> ' + it.map(([k, i, n, t]) => '<button type="button" class="r6-chip-btn" data-faixa="' + (k === 'hoje' ? 'hoje' : k) + '">' + i + ' ' + n + ' ' + t + '</button>').join('') : '';
-}
 function renderSeloHoje6() {
-  renderFaixa6();
   const nav = $('.nav-item[data-view="hoje"]'); if (!nav) return;
   const c = R6.contagem; const n = (c.esperando || 0) + (c.followup_vencido || 0) + (c.primeiro_contato || 0) + (c.entregue_fechar || 0);
   nav.dataset.badge = n || '';
@@ -290,9 +277,9 @@ async function carregarHoje6() {
 function renderHoje6() {
   const d = H6.dados, e = H6.entregues; if (!d) return;
   $('#hojeResumo').innerHTML = `<b>${d.total}</b> para contatar · <b>${d.feitos_hoje}</b> contato${d.feitos_hoje === 1 ? '' : 's'} registrado${d.feitos_hoje === 1 ? '' : 's'} hoje` + (H6.motivo ? ` <button type="button" class="r6-chip-btn" data-h6="motivo" data-k="">limpar filtro</button>` : '') + Object.entries(d.por_motivo).map(([k, n]) => ` <button type="button" class="r6-chip-btn${H6.motivo === k ? ' on' : ''}" data-h6="motivo" data-k="${esc(k)}" aria-pressed="${H6.motivo === k}">${esc(textoMotivo6[k] || k)} ${n}</button>`).join('');
-  const sel = $('#hojeEscopo'); if (sel && !sel.dataset.pronto) { sel.dataset.pronto = '1'; sel.innerHTML = (SOU_GESTOR ? '<option value="todos">Todos</option>' : '') + '<option value="meus">Meus leads</option><option value="sem">Sem responsável</option>'; sel.value = d.escopo; sel.onchange = () => { H6.escopo = sel.value; carregarHoje6(); }; }
+  const sel = $('#hojeEscopo'); if (sel && !sel.dataset.pronto) { sel.dataset.pronto = '1'; sel.innerHTML = (SOU_GESTOR ? '<option value="todos">Todos</option>' : '') + '<option value="meus">Meus contatos</option><option value="sem">Sem responsável</option>'; sel.value = d.escopo; sel.onchange = () => { H6.escopo = sel.value; carregarHoje6(); }; }
   const ent = (e?.itens || []).filter(x => x.pode_editar);
-  $('#hojeEntregues').innerHTML = ent.length ? `<h4>🏁 Carros entregues: falta concluir o lead (${ent.length})</h4>` + ent.map(x => `<div class="r6-linha" data-lead="${esc(x.lead.id)}"><div><strong>${esc(x.lead.nome)}</strong> <span class="muted">${esc(x.lead.carro_modelo || '')}</span><div class="cell-sub">Ordem nº ${esc(x.os.numero ?? '')} entregue há ${x.os.dias} d${x.orcamento ? ' · orçamento ' + brl(x.orcamento.total) : ''}${x.extras_aprovados ? ' + extras ' + brl(x.extras_aprovados) : ''}</div></div>
+  $('#hojeEntregues').innerHTML = ent.length ? `<h4>🏁 Carros entregues: falta concluir o contato (${ent.length})</h4>` + ent.map(x => `<div class="r6-linha" data-lead="${esc(x.lead.id)}"><div><strong>${esc(x.lead.nome)}</strong> <span class="muted">${esc(x.lead.carro_modelo || '')}</span><div class="cell-sub">Ordem nº ${esc(x.os.numero ?? '')} entregue há ${x.os.dias} d${x.orcamento ? ' · orçamento ' + brl(x.orcamento.total) : ''}${x.extras_aprovados ? ' + extras ' + brl(x.extras_aprovados) : ''}</div></div>
       <div class="r6-acoes">${x.sugestoes[0] ? `<span class="tag">sugerido ${brl(x.sugestoes[0].valor)}</span>` : ''}<button type="button" class="btn btn-primary sm" data-h6="concluir" data-id="${esc(x.lead.id)}">Concluir</button></div></div>`).join('') : '';
   const itensH = d.itens.filter(i => !H6.motivo || i.principal === H6.motivo);
   $('#hojeLista').innerHTML = itensH.length ? itensH.map(it => {
@@ -343,62 +330,8 @@ document.addEventListener('click', async e => {
 $('#fRespFunil')?.addEventListener('change', () => setTimeout(renderFiltroSinal6, 0));
 document.addEventListener('indycar:aba', e => {
   if (e.detail.aba === 'hoje') carregarHoje6();
-  if (e.detail.aba === 'dono') carregarDono6();
   if (e.detail.aba === 'pipeline') carregarSinais6();
-  if (e.detail.aba === 'origem') carregarRoiOrigem6();
 });
-
-/* ================= aba Dono ================= */
-const D6 = { dados: null };
-async function carregarDono6() {
-  if (!SOU_GESTOR) return;
-  const el = $('#donoCorpo'); el.innerHTML = '<div class="skeleton" aria-label="Montando o resumo"></div>';
-  try { D6.dados = await api6('/api/dono'); renderDono6(); } catch (e) { el.innerHTML = `<p class="vazio-curto">Não consegui montar o resumo agora: ${esc(e.message)} <button type="button" class="link-btn" data-h6c="recarregar-dono">Tentar de novo</button></p>`; }
-}
-const delta6 = (a, b) => { if (!b) return a ? '<span class="r6-up">novo</span>' : ''; const p = Math.round((a - b) / b * 100); return p === 0 ? '' : `<span class="${p > 0 ? 'r6-up' : 'r6-down'}">${p > 0 ? '▲' : '▼'} ${Math.abs(p)}%</span>`; };
-function renderDono6() {
-  const d = D6.dados, m = d.mes, r = m.ritmo || {};
-  const kpi = (t, v, sub, alerta) => `<div class="ficha-kpi${alerta ? ' alerta' : ''}"><span>${t}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
-  const meta = m.meta_loja?.faturamento ? `<div class="r6-meta"><div class="r6-meta-barra"><div style="width:${Math.min(100, r.pct || 0)}%"></div></div><p>${brl(r.realizado)} de ${brl(r.meta)} (${r.pct ?? 0}%) · projeção do mês ${brl(r.projecao)} · faltam ${brl(r.falta)} em ${r.dias_uteis_restantes} dias úteis</p></div>` : '<p class="muted">Sem meta de faturamento da loja neste mês. Defina em Equipe e metas.</p>';
-  $('#donoCorpo').innerHTML = `${meta}
-    <div class="ficha-kpis">${kpi('Leads (7 dias)', `${d.semana.leads} ${delta6(d.semana.leads, d.anterior.leads)}`)}${kpi('Vendas (7 dias)', `${d.semana.vendas} ${delta6(d.semana.vendas, d.anterior.vendas)}`)}${kpi('Faturado (7 dias)', `${brl(d.semana.faturamento)} ${delta6(d.semana.faturamento, d.anterior.faturamento)}`)}${kpi('Conversão', d.semana.conversao + '%')}
-      ${kpi('Em aberto', brl(d.abertos.valor), d.abertos.total + ' leads')}${kpi('Carros no pátio', d.patio.no_patio, `${d.patio.prontos} pronto${d.patio.prontos === 1 ? '' : 's'}`)}${kpi('Entregues sem concluir', d.patio.entregues_sem_fechar, '', d.patio.entregues_sem_fechar > 0)}${kpi('Esperando resposta', d.conversas.esperando, d.conversas.maior_espera_h ? 'maior espera ' + d.conversas.maior_espera_h + ' h' : '', d.conversas.esperando > 0)}
-      ${kpi('Orçamentos parados', d.orcamentos.parados, brl(d.orcamentos.valor_parado), d.orcamentos.parados > 0)}${kpi('Aprovados sem horário', d.orcamentos.aprovados_sem_horario, '', d.orcamentos.aprovados_sem_horario > 0)}${kpi('Faltas na agenda (30 d)', d.agenda.no_show_pct + '%')}${kpi('Nota média (30 d)', d.avaliacoes ? d.avaliacoes.media + ' ⭐' : '—', d.avaliacoes ? d.avaliacoes.total + ' avaliações' : '')}</div>
-    ${d.insights.length ? `<div class="ficha-bloco"><h4>O que pede atenção</h4><ul class="r6-insights">${d.insights.map(i => `<li class="${esc(i.nivel || '')}">${esc(i.texto)}</li>`).join('')}</ul></div>` : ''}
-    <div class="ficha-bloco"><h4>Anúncios no mês</h4><p>Gasto ${brl(d.ads.gasto_mes)} · ${d.ads.leads} leads · ${d.ads.ganhos} vendas · faturado ${brl(d.ads.faturamento)}${d.ads.roas != null ? ` · retorno ${d.ads.roas}x` : ''}${d.ads.alertas ? ` · <b class="parado-txt">${d.ads.alertas} alerta(s) do Ads</b>` : ''}</p></div>
-    ${d.vendedores.length ? `<div class="ficha-bloco"><h4>Quem vendeu no mês</h4><ul class="f360-lista">${d.vendedores.map(v => `<li>${esc(v.nome)} · ${v.vendas} venda${v.vendas === 1 ? '' : 's'} · ${brl(v.faturamento)}</li>`).join('')}</ul></div>` : ''}
-    ${d.perdas.length ? `<div class="ficha-bloco"><h4>Por que perdemos (30 dias)</h4><ul class="f360-lista">${d.perdas.map(p => `<li>${esc(p.motivo)} · ${p.qtd}</li>`).join('')}</ul></div>` : ''}
-    <div class="ficha-bloco"><h4>Resumo para o WhatsApp do dono</h4><pre class="r6-pre" id="donoTexto">${esc(d.texto_whatsapp)}</pre><button type="button" class="btn btn-ghost sm" id="donoCopiar">Copiar resumo</button></div>
-    <div class="ficha-bloco"><h4>Qualidade dos dados</h4><div id="donoQualidade"><button type="button" class="link-btn" id="donoQualBtn">Ver o que está faltando nos leads</button></div></div>`;
-  $('#donoCopiar').onclick = () => navigator.clipboard.writeText(d.texto_whatsapp).then(() => toast('Resumo copiado'), () => toast('Não consegui copiar.'));
-  $('#donoQualBtn').onclick = carregarQualidade6;
-}
-async function carregarQualidade6() {
-  const el = $('#donoQualidade'); el.innerHTML = '<div class="skeleton"></div>';
-  try {
-    const q = await api6('/api/qualidade');
-    const linha = (t, o, filtro) => o.total ? `<li><b>${o.total}</b> ${t}${o.exemplos?.length ? ` <button type="button" class="link-btn" data-q6="${filtro}">ver</button>` : ''}</li>` : '';
-    el.innerHTML = `<ul class="f360-lista">${[linha('telefones repetidos em leads abertos', { total: q.duplicados.total, exemplos: q.duplicados.grupos }, 'duplicados'), linha('sem telefone válido', q.sem_telefone_valido, 'sem_telefone_valido'), linha('do Ads sem campanha (utm)', q.ads_sem_campanha, 'ads_sem_campanha'), linha('orçamento/agendado sem valor', q.orcamento_sem_valor, 'orcamento_sem_valor'), linha('sem carro nem placa', q.sem_carro, 'sem_carro'), linha('sem responsável', q.sem_responsavel, 'sem_responsavel'), linha('parados há mais de 60 dias', q.velhos, 'velhos'), linha('concluídos sem valor pago', q.concluidos_sem_valor, 'concluidos_sem_valor')].join('') || '<li>Tudo em ordem. 🏁</li>'}</ul>`;
-    el.onclick = ev => { const b = ev.target.closest('[data-q6]'); if (!b) return; const k = b.dataset.q6; const lista = k === 'duplicados' ? q.duplicados.grupos.flatMap(g => g.leads) : q[k].exemplos; const x = lista[0]; if (x) abrirModal(x.id); };
-  } catch (e) { el.innerHTML = `<p class="vazio-curto">${esc(e.message)}</p>`; }
-}
-
-/* ================= ROI por campanha (aba Origem, gestor) ================= */
-async function carregarRoiOrigem6() {
-  if (!SOU_GESTOR) return;
-  let card = $('#r6Roi');
-  if (!card) { card = document.createElement('div'); card.className = 'card'; card.id = 'r6Roi'; $('#view-origem').prepend(card); }
-  card.innerHTML = '<h3>Retorno por campanha (mês)</h3><div class="skeleton"></div>';
-  try {
-    const r = await api6('/api/roi/campanhas');
-    const ver = { lucra: '<span class="r6-up">dá lucro</span>', prejuizo: '<span class="r6-down">gasta mais do que traz</span>', sem_venda: '<span class="r6-down">sem venda</span>', sem_lead: '<span class="muted">sem lead</span>', sem_gasto: '<span class="muted">sem gasto</span>' };
-    card.innerHTML = `<h3>Retorno por campanha (${esc(r.de)} a ${esc(r.ate)})</h3><p class="card-sub">Gasto do Ads cruzado com os leads que chegaram por cada campanha (utm). ${r.so_demonstracao ? '<b class="parado-txt">Os números do Ads ainda são de demonstração.</b>' : ''}</p>
-      ${r.campanhas.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="Resultados por campanha"><table class="table"><thead><tr><th>Campanha</th><th class="num">Gasto</th><th class="num">Leads</th><th class="num">Custo/lead</th><th class="num">Vendas</th><th class="num">Faturado</th><th class="num">Retorno</th><th></th></tr></thead><tbody>${r.campanhas.map(c => `<tr class="sem-clique"><td><div class="cell-main">${esc(c.campanha)}</div><div class="cell-sub">${esc(c.plataforma)}</div></td><td class="num">${brl(c.gasto)}</td><td class="num">${c.leads}</td><td class="num">${c.cpl != null ? brl(c.cpl) : '—'}</td><td class="num">${c.ganhos}</td><td class="num">${brl(c.faturamento)}</td><td class="num">${c.roas != null ? c.roas + 'x' : '—'}</td><td>${ver[c.veredito] || ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="vazio-curto">Sem gasto do Ads neste período.</p>'}
-      ${r.leads_do_ads_sem_campanha ? `<p class="muted mini-nota">${r.leads_do_ads_sem_campanha} lead(s) do Meta/Google chegaram sem campanha (utm): não dá para ligar ao gasto.</p>` : ''}
-      ${r.sem_campanha_no_ads.length ? `<p class="muted mini-nota">Campanhas dos leads que não aparecem no Ads: ${esc(r.sem_campanha_no_ads.slice(0, 5).map(x => `${x.campanha} (${x.leads})`).join(', '))}.</p>` : ''}
-      ${r.alertas.length ? `<ul class="f360-lista">${r.alertas.map(a => `<li>⚠️ ${esc(a.mensagem)}</li>`).join('')}</ul>` : ''}`;
-  } catch (e) { card.innerHTML = `<h3>Retorno por campanha</h3><p class="vazio-curto">Não consegui carregar: ${esc(e.message)}</p>`; }
-}
 
 /* ================= ficha 360 do cliente: segmento, nota, linha do tempo ================= */
 const _renderFicha360R6 = renderFicha360;
@@ -427,9 +360,8 @@ setInterval(() => { if (document.visibilityState === 'visible' && PERFIL?.id && 
 (function esperarPerfil6() {
   let t = 0; const iv = setInterval(() => {
     if (PERFIL?.id) {
-      clearInterval(iv); const dono = $('.nav-item[data-view="dono"]'); if (dono) dono.hidden = !SOU_GESTOR; carregarSinais6();
+      clearInterval(iv); carregarSinais6();
     } else if (++t > 120) clearInterval(iv);
   }, 500);
 })();
-$('#hojeAtualizar')?.addEventListener('click', carregarHoje6);
-$('#donoAtualizar')?.addEventListener('click', carregarDono6);
+

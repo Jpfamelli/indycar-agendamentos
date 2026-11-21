@@ -1,5 +1,5 @@
-// Rodada 4 (14/10/2026): servidor acordando, fila e rascunho, valor pago, distribuição,
-// relatórios, "você hoje", tour de boas-vindas e ajuda.
+// Rodada 4 (14/10/2026): servidor acordando, fila e rascunho, valor pago e distribuição.
+// Rodada 11: relatórios, "você hoje", tour e ajuda saíram (o Painel já mostra o período; ajuda saiu de todos os apps).
 // Carrega depois de equipe.js e usa o escopo global (api, sb, PERFIL, TODOS, U, R4, Rede…).
 'use strict';
 
@@ -42,7 +42,7 @@ async function reenviarFila() {
         substituirLocal(salvo); enviados++;
       } catch (e) {
         if (e.codigo === 'acordando') break;            // ainda dormindo: tenta depois
-        toast(`⚠️ Não deu para gravar a mudança de ${it.nome || 'um lead'}: ${e.message}`, 7000);
+        toast(`⚠️ Não deu para gravar a mudança de ${it.nome || 'um contato'}: ${e.message}`, 7000);
       }
       gravarFila(FILA_MEM.slice(1));
     }
@@ -111,37 +111,10 @@ encerrarSessaoTela = function () {
 const _aplicarPapelR3 = aplicarPapelNaTela;
 aplicarPapelNaTela = function () {
   _aplicarPapelR3();
-  for (const v of ['distribuir', 'relatorios']) { const n = $(`.nav-item[data-view="${v}"]`); if (n) n.hidden = !SOU_GESTOR; }
   $('#loteNota').hidden = SOU_GESTOR;
 };
 
-/* ================= painel: "você hoje" e vendas sem valor ================= */
-function renderVoceHoje() {
-  const el = $('#voceHoje'); if (!el || !PERFIL?.id) return;
-  const eu = String(PERFIL.id), agora = Date.now(), meus = TODOS.filter(l => String(l.responsavel_id || '') === eu);
-  const abertos = meus.filter(l => U.ABERTAS.includes(l.status)), parados = abertos.filter(l => U.parado(l, agora));
-  const ini = new Date(); ini.setDate(1); ini.setHours(0, 0, 0, 0);
-  const mes = U.metricas(meus, ini, new Date(agora + 60000));
-  const g = U.agruparTarefas(typeof MINHAS !== 'undefined' ? MINHAS : []);
-  const semValor = R4.semValorPago(meus).length, semDono = TODOS.filter(l => !l.responsavel_id && U.ABERTAS.includes(l.status)).length;
-  const item = (rot, val, dica, alvo, alerta) => `<button type="button" class="vh-item${alerta ? ' alerta' : ''}" data-vh="${alvo}" title="${esc(dica)}"><b>${esc(val)}</b><span>${esc(rot)}</span></button>`;
-  el.innerHTML = item('meus abertos', abertos.length, 'Leads com você que ainda não fecharam', 'meus')
-    + item('parados', parados.length, 'Seus leads sem mexer há dias', 'parados', parados.length > 0)
-    + item('tarefas hoje', g.atrasadas.length + g.hoje.length, 'Atrasadas + de hoje', 'tarefas', g.atrasadas.length > 0)
-    + item('vendas no mês', mes.ganhos, `Faturado: ${brl(mes.faturamento)}`, 'vendas')
-    + (semValor ? item('sem valor pago', semValor, 'Seus concluídos sem o valor pago', 'semvalor', true) : '')
-    + (SOU_GESTOR && semDono ? item('sem responsável', semDono, 'Leads abertos sem dono — distribua', 'semdono', true) : '');
-}
-$('#voceHoje').addEventListener('click', e => {
-  const b = e.target.closest('[data-vh]'); if (!b) return;
-  const v = b.dataset.vh;
-  if (v === 'tarefas') { $('#cardTarefas').scrollIntoView({block: 'start', behavior: 'smooth'}); return; }
-  if (v === 'semdono') { irPara('distribuir'); return; }
-  $('#fStatus').value = v === 'vendas' ? 'concluido' : ''; $('#fOrigem').value = ''; $('#search').value = '';
-  $('#soParados').checked = v === 'parados'; $('#soSemValor').checked = v === 'semvalor';
-  $('#fResp').value = 'meus'; salvarResp(); if (v === 'parados') $('#ordemLeads').value = 'parado';
-  irPara('leads'); refiltrarTela();
-});
+/* ================= painel: vendas sem valor ================= */
 function renderSemValor() {
   const card = $('#cardSemValor'); if (!card || !PERFIL?.id) return;
   const todos = R4.semValorPago(TODOS), meus = todos.filter(l => String(l.responsavel_id || '') === String(PERFIL.id));
@@ -149,7 +122,7 @@ function renderSemValor() {
   card.hidden = !n;
   if (!n) return;
   $('#svTitulo').textContent = `${n} venda${n === 1 ? '' : 's'} concluída${n === 1 ? '' : 's'} sem valor pago`;
-  $('#svSub').textContent = SOU_GESTOR ? 'Sem o valor, o faturamento, o ticket e o retorno dos anúncios ficam vazios. Dá para preencher várias de uma vez.'
+  $('#svSub').textContent = SOU_GESTOR ? 'Sem o valor, o faturamento fica vazio. Dá para preencher várias de uma vez.'
     : 'Abra cada uma e coloque quanto o cliente pagou (ou marque cortesia).';
   $('#svPreencher').hidden = !SOU_GESTOR;
 }
@@ -159,7 +132,7 @@ $('#svVer').addEventListener('click', () => {
 });
 $('#svPreencher').addEventListener('click', () => abrirValores());
 const _renderPainelR3 = renderPainel;
-renderPainel = function () { _renderPainelR3(); renderVoceHoje(); renderSemValor(); };
+renderPainel = function () { _renderPainelR3(); renderSemValor(); };
 
 /* ================= preencher valores em lote (gestor) ================= */
 let VALORES = [];
@@ -278,7 +251,7 @@ $('#dsIdade').addEventListener('change', () => { DS.plano = null; $('#dsResultad
 function renderGenteDs() {
   $('#dsGente').innerHTML = DS.vendedores.length ? DS.vendedores.map(v => `<label class="ds-pessoa"><input type="checkbox" value="${esc(v.id)}" ${DS.gente.has(v.id) ? 'checked' : ''}>
       ${chipResponsavel(v.id)}<small>${esc(v.abertos ?? 0)} aberto${v.abertos === 1 ? '' : 's'}${v.recebe_leads === false ? ' · não recebe no rodízio' : ''}</small></label>`).join('')
-    : '<p class="vazio-curto">Ninguém da equipe pode receber leads do CRM ainda. Libere o app CRM para os vendedores em Configurações › Equipe.</p>';
+    : '<p class="vazio-curto">Ninguém da equipe pode receber contatos do CRM ainda. Libere o app CRM para os vendedores em Configurações › Equipe.</p>';
   atualizarGenteDs();
 }
 function atualizarGenteDs() {
@@ -291,11 +264,11 @@ $$('input[name=dsModo]').forEach(r => r.addEventListener('change', () => { DS.pl
 function montarPrevia() {
   const leads = candidatosDs(), gente = DS.vendedores.filter(v => DS.gente.has(v.id));
   if (!gente.length) { toast('Escolha ao menos uma pessoa para receber.'); return; }
-  if (!leads.length) { toast('Nenhum lead sem responsável neste filtro.'); return; }
+  if (!leads.length) { toast('Nenhum contato sem responsável neste filtro.'); return; }
   const corte = leads.slice(0, 1000);
   DS.plano = R4.planoDistribuicao(corte, gente, {modo: $('input[name=dsModo]:checked').value});
   $('#dsResultado').hidden = false;
-  $('#dsPreviaTxt').textContent = `${DS.plano.total} lead${DS.plano.total === 1 ? '' : 's'} para ${gente.length} pessoa${gente.length === 1 ? '' : 's'}` + (leads.length > 1000 ? ` (os primeiros 1.000 de ${leads.length}; grave e repita para o resto)` : '');
+  $('#dsPreviaTxt').textContent = `${DS.plano.total} contato${DS.plano.total === 1 ? '' : 's'} para ${gente.length} pessoa${gente.length === 1 ? '' : 's'}` + (leads.length > 1000 ? ` (os primeiros 1.000 de ${leads.length}; grave e repita para o resto)` : '');
   $('#tblDsResumo').innerHTML = `<thead><tr><th>Pessoa</th><th class="num">Recebe</th><th>Por etapa</th><th class="num">Abertos depois</th></tr></thead>
     <tbody>${DS.plano.resumo.map(x => `<tr class="sem-clique"><td>${chipResponsavel(x.id)}</td><td class="num"><b>${x.recebe}</b></td>
       <td class="cell-sub">${Object.entries(x.porEtapa).map(([s, n]) => `${esc(LABEL_STATUS[s] ?? s)} ${n}`).join(' · ') || '—'}</td>
@@ -312,7 +285,7 @@ $('#dsPrevia').addEventListener('click', montarPrevia);
 $('#dsRefazer').addEventListener('click', () => { DS.plano = null; $('#dsResultado').hidden = true; $('#dsPrevia').focus(); });
 $('#dsGravar').addEventListener('click', async () => {
   if (!DS.plano?.total) return;
-  if (!confirm(`Passar ${DS.plano.total} lead${DS.plano.total === 1 ? '' : 's'} para ${DS.plano.resumo.length} pessoa${DS.plano.resumo.length === 1 ? '' : 's'}? Cada uma recebe um aviso só. Dá para desfazer depois.`)) return;
+  if (!confirm(`Passar ${DS.plano.total} contato${DS.plano.total === 1 ? '' : 's'} para ${DS.plano.resumo.length} pessoa${DS.plano.resumo.length === 1 ? '' : 's'}? Cada uma recebe um aviso só. Dá para desfazer depois.`)) return;
   const btn = $('#dsGravar'); btn.disabled = true; btn.textContent = 'Gravando…';
   try {
     const r = await api('/api/leads/distribuir', {method: 'POST', body: JSON.stringify({grupos: R4.gruposDoPlano(DS.plano.plano), modo: $('input[name=dsModo]:checked').value,
@@ -320,7 +293,7 @@ $('#dsGravar').addEventListener('click', async () => {
     for (const it of r.itens || []) substituirLocal({id: it.id, responsavel_id: it.para});
     DS.plano = null; $('#dsResultado').hidden = true; redesenhar(); renderFiltrosDs();
     const quem = (r.porPessoa || []).map(p => `${primeiroNome(p.nome)} ${p.recebeu}`).join(', ');
-    const msg = `✅ ${r.atualizados} lead${r.atualizados === 1 ? '' : 's'} distribuído${r.atualizados === 1 ? '' : 's'} (${quem})` + (r.pulados ? ` · ${r.pulados} já tinham dono` : '');
+    const msg = `✅ ${r.atualizados} contato${r.atualizados === 1 ? '' : 's'} distribuído${r.atualizados === 1 ? '' : 's'} (${quem})` + (r.pulados ? ` · ${r.pulados} já tinham dono` : '');
     if (r.lote) toastAcao(msg, 'Desfazer', () => desfazerDistribuicao(r.lote), 12000); else toast(msg, 7000);
     carregarHistoricoDs(); carregarDistribuirGente();
   } catch (e) { toast('⚠️ ' + e.message, 7000); }
@@ -328,7 +301,7 @@ $('#dsGravar').addEventListener('click', async () => {
 });
 async function carregarDistribuirGente() { try { const r = await api('/api/vendedores'); DS.vendedores = (r.vendedores || []).filter(v => v.papel !== 'agenda'); renderGenteDs(); } catch { /* fica a lista de antes */ } }
 async function desfazerDistribuicao(lote) {
-  if (!confirm('Desfazer esta distribuição? Os leads voltam a ficar sem responsável (menos os que já foram passados para outra pessoa).')) return;
+  if (!confirm('Desfazer esta distribuição? Os contatos voltam a ficar sem responsável (menos os que já foram passados para outra pessoa).')) return;
   const r = await api(`/api/leads/distribuicoes/${encodeURIComponent(lote)}/desfazer`, {method: 'POST', body: '{}'});
   await carregarLeads(); renderPainel(); if ($('#view-distribuir').classList.contains('active')) { renderFiltrosDs(); carregarHistoricoDs(); carregarDistribuirGente(); }
   toast(`Distribuição desfeita: ${r.voltaram} voltaram${r.ficaram ? `, ${r.ficaram} ficaram com quem pegou depois` : ''}.`, 6000);
@@ -339,105 +312,17 @@ async function carregarHistoricoDs() {
     const r = await api('/api/leads/distribuicoes');
     if (r.indisponivel) { el.innerHTML = '<p class="vazio-curto">O histórico aparece aqui quando a tabela de distribuições estiver no banco.</p>'; return; }
     const lista = r.distribuicoes || [];
-    el.innerHTML = lista.length ? `<ul class="ds-hist">${lista.map(d => `<li><div><strong>${esc(d.total)} leads</strong> · ${esc(new Date(d.em).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}))} · por ${esc(d.por)}
+    el.innerHTML = lista.length ? `<ul class="ds-hist">${lista.map(d => `<li><div><strong>${esc(d.total)} contatos</strong> · ${esc(new Date(d.em).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}))} · por ${esc(d.por)}
         <small>${d.pessoas.map(p => `${esc(primeiroNome(p.nome))} ${p.recebeu}`).join(' · ')}</small></div>
         ${d.desfeita_em ? `<span class="tag">desfeita${d.desfeita_por ? ' por ' + esc(primeiroNome(d.desfeita_por)) : ''}</span>` : `<button type="button" class="btn btn-ghost sm" data-desfazer="${esc(d.id)}">Desfazer</button>`}</li>`).join('')}</ul>`
-      : '<p class="vazio-curto">Nenhuma distribuição ainda. Escolha os leads e as pessoas acima.</p>';
+      : '<p class="vazio-curto">Nenhuma distribuição ainda. Escolha os contatos e as pessoas acima.</p>';
   } catch (e) { el.innerHTML = `<p class="vazio-curto">Não consegui ler o histórico: ${esc(e.message)}</p>`; }
 }
 $('#dsHistorico').addEventListener('click', async e => { const b = e.target.closest('[data-desfazer]'); if (!b) return; b.disabled = true; try { await desfazerDistribuicao(b.dataset.desfazer); } catch (err) { toast('⚠️ ' + err.message); } finally { b.disabled = false; } });
 
-/* ================= relatórios gerenciais (gestor) ================= */
-const REL = {chave: 'mes', de: '', ate: '', dados: null, desemp: null, carregandoDesempenho: false};
-let pedidoRelatorio = 0;
-const isoLocal = d => new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-function periodoRel() {
-  const h = new Date(), hoje = new Date(h.getFullYear(), h.getMonth(), h.getDate());
-  if (REL.chave === 'mes') return [new Date(hoje.getFullYear(), hoje.getMonth(), 1), hoje];
-  if (REL.chave === 'mes_passado') return [new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1), new Date(hoje.getFullYear(), hoje.getMonth(), 0)];
-  if (REL.chave === '30' || REL.chave === '90') return [new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - (Number(REL.chave) - 1)), hoje];
-  return null;
-}
-async function carregarRelatorios() {
-  if (!SOU_GESTOR) { irPara('dashboard'); return; }
-  const p = periodoRel();
-  if (p) { REL.de = isoLocal(p[0]); REL.ate = isoLocal(p[1]); }
-  $('#relIni').value = REL.de; $('#relFim').value = REL.ate;
-  $$('#relPeriodo [data-rel]').forEach(b => { const on = b.dataset.rel === REL.chave; b.classList.toggle('ativo', on); b.setAttribute('aria-pressed', String(on)); });
-  const pedido = ++pedidoRelatorio;
-  let iv;
-  try {
-    iv = R4.intervaloDatas(REL.de, REL.ate);
-  } catch (e) {
-    $('#relTxt').textContent = e.message;
-    REL.dados = null;
-    for (const id of ['relKpis', 'relFunil', 'relMotivos', 'tblRelOrigem', 'tblRelVendedor']) $('#' + id).replaceChildren();
-    $('#relCsv').disabled = true;
-    $('#relImprimir').disabled = true;
-    return;
-  }
-  $('#relCsv').disabled = false;
-  $('#relImprimir').disabled = false;
-  REL.desemp = null;
-  REL.carregandoDesempenho = true;
-  REL.dados = R4.relatorio(TODOS, iv.ini, iv.fim, {equipe: EQUIPE, rotuloOrigem: o => LABEL_ORIGEM[o] ?? o});
-  const fmt = s => s.split('-').reverse().join('/');
-  $('#relTxt').textContent = `De ${fmt(REL.de)} a ${fmt(REL.ate)} · entradas pela data de chegada, vendas e perdas pela data em que fecharam.`;
-  renderRelatorio();
-  let desempenho = null;
-  try { desempenho = await api(`/api/desempenho?livre=1&de=${REL.de}&ate=${REL.ate}`); } catch { /* exibe dados locais */ }
-  if (pedido !== pedidoRelatorio) return;
-  REL.desemp = desempenho;
-  REL.carregandoDesempenho = false;
-  renderRelatorio();
-}
-function renderRelatorio() {
-  const d = REL.dados; if (!d) return;
-  const t = d.totais, tr = REL.desemp?.loja?.tempo_resposta_min;
-  const kpi = (r, v, s = '') => `<div class="kpi"><div class="kpi-label">${r}</div><div class="kpi-value">${v}</div><div class="kpi-delta"><span class="flat">${s}</span></div></div>`;
-  $('#relKpis').innerHTML = kpi('Leads novos', t.leads, `${t.agendados} chegaram a agendar`) + kpi('Vendas', t.ganhos, `${t.perdidos} perdidas`)
-    + kpi('Conversão', t.conversao == null ? '—' : t.conversao.toLocaleString('pt-BR') + '%', 'vendas ÷ (vendas + perdas)') + kpi('Faturamento', brl(t.faturamento), `ticket ${brl(t.ticket)}`)
-    + kpi('Tempo de resposta', R4.textoMinutos(tr), REL.carregandoDesempenho ? 'carregando…' : REL.desemp ? 'mediana da loja' : 'dado indisponível') + kpi('Até fechar', t.cicloMedio == null ? '—' : t.cicloMedio.toLocaleString('pt-BR') + ' d', 'média da entrada à venda')
-    + (t.semValor ? kpi('Vendas sem valor', t.semValor, 'faturamento incompleto') : '');
-  const max = Math.max(1, ...d.funil.map(x => x.chegaram));
-  $('#relFunil').innerHTML = t.leads ? d.funil.map(x => `<div class="fm-row"><span class="fm-name">${esc(LABEL_STATUS[x.etapa])}</span><div class="fm-bar"><div class="fm-fill" style="width:${x.chegaram / max * 100}%"></div></div><span class="fm-num">${x.chegaram}</span><span class="fm-taxa" title="Passaram da etapa anterior">${x.taxa}%</span></div>`).join('')
-    + (t.perdidosDasEntradas ? `<p class="muted mini-nota">${t.perdidosDasEntradas} das entradas já foram perdidas.</p>` : '') : '<p class="vazio-curto">Nenhum lead entrou neste período.</p>';
-  const mx = Math.max(1, ...d.motivos.map(m => m.qtd));
-  $('#relMotivos').innerHTML = d.motivos.length ? d.motivos.map(m => `<div class="motivo-row"><span>${esc(m.motivo)}</span><div class="fm-bar"><div class="fm-fill perda" style="width:${m.qtd / mx * 100}%"></div></div><b>${m.qtd} <small>${m.pct}%</small></b></div>`).join('')
-    : '<p class="vazio-curto">Nenhuma perda neste período. 🏁</p>';
-  const conv = v => v == null ? '—' : v.toLocaleString('pt-BR') + '%';
-  $('#tblRelOrigem').innerHTML = d.porOrigem.length ? `<thead><tr><th>Origem</th><th class="num">Leads</th><th class="num">Agendaram</th><th class="num">Vendas</th><th class="num">Perdas</th><th class="num">Conversão</th><th class="num">Faturamento</th><th class="num">Ticket</th></tr></thead>
-    <tbody>${d.porOrigem.map(x => `<tr class="sem-clique"><td><span class="origin-name"><span class="dot" style="background:${COR_ORIGEM[x.chave] || '#888'}"></span>${esc(x.nome)}</span></td><td class="num">${x.leads}</td><td class="num">${x.agendados}</td><td class="num">${x.ganhos}</td><td class="num">${x.perdidos}</td><td class="num">${conv(x.conversao)}</td><td class="num">${brl(x.faturamento)}</td><td class="num">${brl(x.ticket)}</td></tr>`).join('')}</tbody>`
-    : '<tbody><tr><td class="vazio-celula">Sem movimento neste período.</td></tr></tbody>';
-  const tempos = new Map((REL.desemp?.pessoas || []).map(p => [String(p.perfil_id), p]));
-  $('#tblRelVendedor').innerHTML = d.porVendedor.length ? `<thead><tr><th>Vendedor</th><th class="num">Leads</th><th class="num">Agendaram</th><th class="num">Vendas</th><th class="num">Conversão</th><th class="num">Faturamento</th><th class="num">Resposta</th><th class="num">Sem valor</th></tr></thead>
-    <tbody>${d.porVendedor.map(x => { const tp = tempos.get(x.chave); return `<tr class="sem-clique"><td>${x.chave ? chipResponsavel(x.chave) : '<span class="resp-chip vazio">Sem responsável</span>'}</td><td class="num">${x.leads}</td><td class="num">${x.agendados}</td><td class="num">${x.ganhos}</td><td class="num">${conv(x.conversao)}</td><td class="num">${brl(x.faturamento)}</td>
-      <td class="num" title="${tp?.respostas ? esc(tp.respostas + ' conversas medidas') : 'sem conversa medida'}">${esc(R4.textoMinutos(tp?.tempo_resposta_min))}</td><td class="num">${x.semValor || '—'}</td></tr>`; }).join('')}</tbody>`
-    : '<tbody><tr><td class="vazio-celula">Sem movimento neste período.</td></tr></tbody>';
-}
-$('#relPeriodo').addEventListener('click', e => { const b = e.target.closest('[data-rel]'); if (!b) return; REL.chave = b.dataset.rel; carregarRelatorios(); });
-$('#relDatas').addEventListener('submit', e => { e.preventDefault(); REL.chave = 'livre'; REL.de = $('#relIni').value; REL.ate = $('#relFim').value; carregarRelatorios(); });
-$('#relCsv').addEventListener('click', () => {
-  const d = REL.dados; if (!d) return;
-  const tempos = new Map((REL.desemp?.pessoas || []).map(p => [String(p.perfil_id), p]));
-  const pct = v => v == null ? '' : String(v).replace('.', ',');
-  const linhas = [['Relatório IndyCar CRM', `${REL.de} a ${REL.ate}`], [],
-    ['Resumo'], ['Leads novos', d.totais.leads], ['Agendaram', d.totais.agendados], ['Vendas', d.totais.ganhos], ['Perdas', d.totais.perdidos], ['Conversão %', pct(d.totais.conversao)],
-    ['Faturamento', d.totais.faturamento], ['Ticket médio', d.totais.ticket], ['Dias até fechar', pct(d.totais.cicloMedio)], ['Tempo de resposta (min)', REL.desemp?.loja?.tempo_resposta_min ?? ''], ['Vendas sem valor', d.totais.semValor], [],
-    ['Funil do período'], ['Etapa', 'Chegaram', '% da etapa anterior', 'Estão nela agora'], ...d.funil.map(x => [LABEL_STATUS[x.etapa], x.chegaram, x.taxa, x.agora]), [],
-    ['Conversão por origem'], ['Origem', 'Leads', 'Agendaram', 'Vendas', 'Perdas', 'Conversão %', 'Faturamento', 'Ticket'], ...d.porOrigem.map(x => [x.nome, x.leads, x.agendados, x.ganhos, x.perdidos, pct(x.conversao), x.faturamento, x.ticket]), [],
-    ['Por vendedor'], ['Vendedor', 'Leads', 'Agendaram', 'Vendas', 'Perdas', 'Conversão %', 'Faturamento', 'Tempo de resposta (min)', 'Sem valor'], ...d.porVendedor.map(x => [x.nome, x.leads, x.agendados, x.ganhos, x.perdidos, pct(x.conversao), x.faturamento, tempos.get(x.chave)?.tempo_resposta_min ?? '', x.semValor]), [],
-    ['Motivos de perda'], ['Motivo', 'Quantidade', '%'], ...d.motivos.map(m => [m.motivo, m.qtd, m.pct])];
-  const url = URL.createObjectURL(new Blob([U.csv(linhas)], {type: 'text/csv;charset=utf-8'}));
-  const a = document.createElement('a'); a.href = url; a.download = `relatorio-crm-${REL.de}-a-${REL.ate}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  toast('📄 Relatório exportado');
-  api('/api/auditoria/exportacao', {method: 'POST', body: JSON.stringify({tipo: 'relatorio', quantidade: d.totais.leads, filtros: {de: REL.de, ate: REL.ate}})}).catch(() => {});
-});
-$('#relImprimir').addEventListener('click', () => { document.body.classList.add('imprimindo-rel'); window.print(); setTimeout(() => document.body.classList.remove('imprimindo-rel'), 500); });
 
 document.addEventListener('indycar:aba', e => {
   if (e.detail.aba === 'distribuir') carregarDistribuir();
-  if (e.detail.aba === 'relatorios') carregarRelatorios();
 });
 
 /* ================= estados vazios com atalho ================= */
@@ -448,7 +333,7 @@ $('#tblLeads').addEventListener('click', e => {
   if (b.dataset.vazio === 'distribuir') irPara('distribuir');
 }, true);
 
-/* link do aviso de distribuição: /?meus=1 abre "Meus leads" */
+/* link do aviso de distribuição: /?meus=1 abre "Meus contatos" */
 const _abrirPorLinkR3 = abrirPorLink;
 abrirPorLink = async function () {
   const p = new URLSearchParams(location.search);
@@ -456,80 +341,4 @@ abrirPorLink = async function () {
   return _abrirPorLinkR3();
 };
 
-/* ================= ajuda e tour ================= */
-window.abrirAjuda = function () {
-  const papel = PERFIL?.papel || 'atendente';
-  $('#ajudaPapel').textContent = `Você entrou como ${(LABEL_PAPEL[papel] || papel).toLowerCase()}.` + (SOU_GESTOR ? '' : ' Apagar leads, distribuir em lote e relatórios são do gestor: peça a ele quando precisar.');
-  $('#ajudaLista').innerHTML = R4.perguntasAjuda(papel).map(q => `<details><summary>${esc(q.pergunta)}</summary><p>${esc(q.resposta)}</p></details>`).join('');
-  if (!$('#dlgAjuda').open) abrirDlg($('#dlgAjuda'));
-};
-$('#btnAjuda').addEventListener('click', () => window.abrirAjuda());
-$('#ajudaAtalhos').addEventListener('click', () => { $('#dlgAjuda').close(); setTimeout(() => abrirDlg($('#dlgAtalhos')), 30); });
-$('#ajudaTour').addEventListener('click', () => { $('#dlgAjuda').close(); setTimeout(() => iniciarTour(true), 60); });
 
-const TOUR = {passos: [], i: 0, antes: null};
-const LS_TOUR = () => 'indycar_crm_tour_' + (PERFIL?.id || 'anon');
-function tourVisto() { return !!(PERFIL?.preferencias?.crm_tour?.visto) || !!lerLS(LS_TOUR(), null); }
-async function marcarTourVisto() {
-  gravarLS(LS_TOUR(), new Date().toISOString());
-  if (!PERFIL?.id || !sb) return;
-  // pelo servidor, que soma às preferências de agora (a cópia do login pode estar velha)
-  try { const r = await api('/api/perfil', {method: 'PATCH', body: JSON.stringify({preferencias: {crm_tour: {visto: new Date().toISOString(), papel: PERFIL.papel}}})}); if (r?.preferencias) PERFIL.preferencias = r.preferencias; } catch { /* fica no aparelho */ }
-}
-const visivel = el => !!el && el.offsetParent !== null && !el.hidden && el.getClientRects().length > 0;
-function iniciarTour(forcar = false) {
-  if (!PERFIL?.id || document.body.classList.contains('deslogado')) return;
-  if (!forcar && tourVisto()) return;
-  if ($('.modal-bg.open') || $('dialog[open]')) return;
-  if (!$('#view-dashboard').classList.contains('active')) irPara('dashboard');
-  TOUR.passos = R4.passosTour(PERFIL.papel); TOUR.i = 0; TOUR.antes = document.activeElement;
-  $('#tour').hidden = false; document.body.classList.add('em-tour');
-  $('.sidebar').setAttribute('inert', ''); $('main').setAttribute('inert', '');
-  mostrarPasso(0);
-}
-function mostrarPasso(dir) {
-  // pula passos cujo alvo não está na tela (ex.: card que só aparece com pendência)
-  while (TOUR.i >= 0 && TOUR.i < TOUR.passos.length && !visivel($(TOUR.passos[TOUR.i].alvo))) TOUR.i += dir || 1;
-  if (TOUR.i < 0) TOUR.i = 0;
-  if (TOUR.i >= TOUR.passos.length) return fecharTour(true);
-  const p = TOUR.passos[TOUR.i], alvo = $(p.alvo);
-  alvo.scrollIntoView({block: 'center', inline: 'center'});
-  const r = alvo.getBoundingClientRect(), luz = $('#tourLuz'), cx = $('#tourCaixa');
-  Object.assign(luz.style, {top: r.top - 6 + 'px', left: r.left - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 12 + 'px'});
-  const total = TOUR.passos.filter(x => visivel($(x.alvo))).length, pos = TOUR.passos.slice(0, TOUR.i + 1).filter(x => visivel($(x.alvo))).length;
-  $('#tourPasso').textContent = `${pos} de ${total}`; $('#tourTitulo').textContent = p.titulo; $('#tourTexto').textContent = p.texto;
-  $('#tourVoltar').hidden = pos <= 1; $('#tourProximo').textContent = pos >= total ? 'Começar' : 'Próximo';
-  const largura = Math.min(340, innerWidth - 32), alto = cx.offsetHeight || 180;
-  const embaixo = r.bottom + 14 + alto < innerHeight;
-  cx.style.left = Math.max(16, Math.min(innerWidth - largura - 16, r.left)) + 'px';
-  cx.style.top = (embaixo ? r.bottom + 14 : Math.max(16, r.top - alto - 14)) + 'px';
-  cx.style.width = largura + 'px';
-  $('#tourProximo').focus();
-}
-function fecharTour(terminou) {
-  $('#tour').hidden = true; document.body.classList.remove('em-tour');
-  if (!$('.modal-bg.open')) { $('.sidebar').removeAttribute('inert'); $('main').removeAttribute('inert'); }
-  marcarTourVisto();
-  if (terminou) toast('Pronto! A ajuda fica no botão "?" quando precisar.');
-  TOUR.antes?.focus?.();
-}
-$('#tourProximo').addEventListener('click', () => { TOUR.i++; mostrarPasso(1); });
-$('#tourVoltar').addEventListener('click', () => { TOUR.i--; mostrarPasso(-1); });
-$('#tourPular').addEventListener('click', () => fecharTour(false));
-document.addEventListener('keydown', e => {
-  if ($('#tour').hidden) return;
-  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); fecharTour(false); }
-  if (e.key === 'Tab') { const els = $$('#tourCaixa button').filter(b => !b.hidden); const i = els.indexOf(document.activeElement); e.preventDefault(); els[(i + (e.shiftKey ? els.length - 1 : 1)) % els.length].focus(); }
-}, true);
-window.addEventListener('resize', () => { if (!$('#tour').hidden) mostrarPasso(0); });
-
-/* depois do primeiro carregamento: tour (uma vez por pessoa) e "você hoje" */
-const _carregarR3 = carregar;
-carregar = async function () {
-  const primeira = !STATS;
-  await _carregarR3();
-  if (primeira && STATS && !document.body.classList.contains('deslogado')) setTimeout(() => iniciarTour(false), 700);
-};
-// tarefas mudaram (realtime/visibilidade): o "você hoje" acompanha
-const _renderTarefasR3 = renderTarefas;
-renderTarefas = function () { _renderTarefasR3(); if ($('#view-dashboard').classList.contains('active')) renderVoceHoje(); };
