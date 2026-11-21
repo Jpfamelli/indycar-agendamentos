@@ -750,6 +750,37 @@ export function criarApi(deps) {
   // ---- configuração (o caminho antigo /api/posvenda/config continua) ----
   const lerConfig = async ({ res }) => ok(res, await dados.obterConfig());
   const salvarConfig = async ({ res, usuario, body }) => {
+    const alternadores = [
+      'pausa_geral', 'envia_domingo', 'so_horario_comercial',
+      ...dados.REGUAS.map((regua) => `ativo_${regua}`),
+      ...(dados.BOOLEANOS_R6 || []), ...r7.BOOLEANOS_R7,
+    ];
+    for (const campo of alternadores) {
+      if (body[campo] !== undefined && typeof body[campo] !== 'boolean') {
+        return bad(res, 'Informe se a opção está ligada ou desligada.', { campo });
+      }
+    }
+    for (const regua of dados.REGUAS) {
+      const campo = `msg_${regua}`;
+      const texto = body[campo];
+      if (texto !== undefined && (typeof texto !== 'string' || !texto.trim() || texto.trim().length > 1000)) {
+        return bad(res, 'Escreva uma mensagem de até 1.000 caracteres.', { campo });
+      }
+    }
+    for (const campo of ['janela_inicio', 'janela_fim']) {
+      if (body[campo] !== undefined && !Number.isInteger(body[campo])) {
+        return bad(res, 'Informe a hora da janela como número inteiro.', { campo });
+      }
+    }
+    if (body.hora_envio !== undefined &&
+        (typeof body.hora_envio !== 'string' || !/^(?:[01]?\d|2[0-3]):[0-5]\d(?::00)?$/.test(body.hora_envio))) {
+      return bad(res, 'Informe o horário no formato HH:MM.', { campo: 'hora_envio' });
+    }
+    const link = body.link_avaliacao;
+    if (link != null && (typeof link !== 'string' ||
+        (link.trim() && (link.trim().length > 500 || !/^https?:\/\/\S+$/i.test(link.trim()) || !URL.canParse(link.trim()))))) {
+      return bad(res, 'Informe um link de avaliação válido.', { campo: 'link_avaliacao' });
+    }
     /* rodada 6: texto novo com erro NÃO é ignorado em silêncio (antes dizia "salvo" e mantinha o antigo) */
     for (const k of Object.keys(dados.TEXTOS_R6 || {})) {
       if (body?.[k] === undefined) continue;
@@ -761,9 +792,11 @@ export function criarApi(deps) {
       const erro = r7.validarTextoR7(k, body[k]);
       if (erro) return bad(res, erro, { campo: k });
     }
-    if (body.texto_rodape_parar !== undefined &&
-        (typeof body.texto_rodape_parar !== 'string' || !/parar/i.test(body.texto_rodape_parar))) {
-      return bad(res, 'O rodapé precisa dizer como sair: inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
+    if (body.texto_rodape_parar !== undefined) {
+      const rodape = typeof body.texto_rodape_parar === 'string' ? body.texto_rodape_parar.replace(/\s+/g, ' ').trim() : '';
+      if (rodape.length < 10 || rodape.length > 140 || !/\bparar\b/i.test(rodape)) {
+        return bad(res, 'Use de 10 a 140 caracteres no rodapé e inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
+      }
     }
     const antes = await dados.obterConfig();
     const depois = await dados.salvarConfig(body);

@@ -449,3 +449,20 @@ for (const [id, metodo, caminho, corpo, campo] of [
     } finally { await s.fechar(); }
   });
 }
+for (const [id, campo, valor] of [
+  ['064', 'pausa_geral', 'true'],
+  ['065', 'msg_lembrete', { corpo: 'Oi' }],
+  ['066', 'janela_inicio', [8]],
+  ['067', 'hora_envio', '08:00 inválido'],
+  ['068', 'link_avaliacao', 'javascript:alert(1)'],
+  ['069', 'texto_rodape_parar', 'PARAR'],
+]) {
+  test(`R10-COM-${id}: rejeita configuração inválida em ${campo}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'PUT', '/api/comunicar/config', { [campo]: valor });
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
