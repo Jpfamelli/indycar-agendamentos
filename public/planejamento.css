@@ -146,8 +146,6 @@ body.portaria .btn-busca{display:none!important}
 .sem-nota{font-size:12px}
 
 @media (max-width:640px){
-  .topbar .topo-acoes{width:100%}
-  .topbar .topo-acoes .btn-novo{flex:1;justify-content:center}
   .sem-grade{grid-template-columns:1fr}
   .sem-nav{flex-wrap:wrap}
   .sem-periodo{flex-basis:100%;margin:4px 0 0;white-space:normal}
@@ -166,9 +164,9 @@ body.portaria .btn-busca{display:none!important}
 /* ---- impressão do relatório da Semana ---- */
 @media print{
   body.imprimindo-semana{background:#fff!important;color:#000}
-  body.imprimindo-semana .sidebar,body.imprimindo-semana .topbar,body.imprimindo-semana .faixa,
+  body.imprimindo-semana .ic-topo,body.imprimindo-semana .faixa,
   body.imprimindo-semana .toast,body.imprimindo-semana .so-tela,body.imprimindo-semana .modal-overlay,
-  body.imprimindo-semana .eco-pop,body.imprimindo-semana [data-novo-dia],body.imprimindo-semana [data-remarcar]{display:none!important}
+  body.imprimindo-semana [data-novo-dia],body.imprimindo-semana [data-remarcar]{display:none!important}
   body.imprimindo-semana .view{padding:0}
   body.imprimindo-semana .sem-grade{grid-template-columns:repeat(3,1fr)}
   body.imprimindo-semana .sem-dia,body.imprimindo-semana .sem-item,body.imprimindo-semana .panel,
