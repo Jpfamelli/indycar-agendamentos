@@ -4,7 +4,6 @@
 const LS_EMAIL = 'indycar_crm_email', LS_FALHAS = 'indycar_crm_login_falhas', LS_ACESSO = 'indycar_crm_ultimo_acesso', LS_ESQUECI = 'indycar_crm_esqueci';
 const VEIO_DE_RECUPERACAO = /type=recovery/.test(location.hash);
 const TELAS_ACESSO = ['formLogin', 'formPrimeiro', 'formEsqueci', 'formNovaSenha', 'formMfa', 'caixaSemAcesso'];
-const TITULO_BASE = document.title;
 let SESSAO_ATIVA = false, MODO_SENHA = null, TRATANDO_ACESSO = 0;
 
 /* ---------------- telas da capa de login ---------------- */
@@ -31,11 +30,9 @@ function encerrarSessaoTela() {
   if (!SESSAO_ATIVA && !CANAIS.length) return;
   SESSAO_ATIVA = false;
   for (const c of CANAIS.splice(0)) { try { sb?.removeChannel(c); } catch { /* ignora */ } }
-  clearInterval(TIMER_SINO); TIMER_SINO = null;
   try { if (modal.classList.contains('open')) fecharModal(true); if (modalCli.classList.contains('open')) fecharFichaCliente(); } catch { /* ignora */ }
   $$('dialog[open]').forEach(d => d.close());
   fecharPops();
-  NOTIFS = []; renderSino(); document.title = TITULO_BASE;
   PERFIL = null; STATS = null;
 }
 /* Ação vinda de um 401/403 do servidor (por código) ou do portão da tela. */
@@ -236,25 +233,22 @@ $('#formMfa').addEventListener('submit', async e => {
 
 /* ---------------- sessão: papel na tela, último acesso, avatar ---------------- */
 function aplicarPapelNaTela() {
-  const nav = $('.nav-item[data-view="equipe"]'); if (nav) nav.hidden = !SOU_GESTOR;
+  for (const v of ['equipe', 'distribuir']) { const nav = $(`[data-view="${v}"]`); if (nav) nav.hidden = !SOU_GESTOR; }
   $('#btnMetas').hidden = !SOU_GESTOR;
-  const pEquipe = $('#tarefaFiltro [data-tf="equipe"]'); if (pEquipe) pEquipe.hidden = !SOU_GESTOR;
   if (modal.classList.contains('open') && editId) $('#btnExcluir').style.display = SOU_GESTOR ? 'inline-flex' : 'none';
   renderAvatar();
 }
 function renderAvatar() {
   const p = PERFIL || {}, cor = CrmUtils.corAvatar(p), ini = iniciais(p.nome || p.email || '?');
-  for (const id of ['#perfilAvatar', '#mpAvatar']) { const el = $(id); el.textContent = ini; el.style.setProperty('--cor-avatar', cor); }
+  const el = $('#perfilAvatar'); el.textContent = ini; el.style.setProperty('--cor-avatar', cor);
   $('#mpNome').textContent = p.nome || 'Sem nome';
-  $('#mpEmail').textContent = p.email || '';
   $('#mpPapel').textContent = [LABEL_PAPEL[p.papel] || p.papel, p.cargo].filter(Boolean).join(' · ');
-  $('#btnPerfil').setAttribute('aria-label', ini + ', menu do perfil de ' + (p.nome || 'você'));
+  $('#btnPerfil').setAttribute('aria-label', 'Menu de ' + (p.nome || 'você'));
 }
 function iniciarSessao() {
   if (SESSAO_ATIVA || !PERFIL?.id) return;
   SESSAO_ATIVA = true;
   gravarUltimoAcesso();
-  iniciarSino();
   iniciarEquipeETarefas();
 }
 async function gravarUltimoAcesso() {
@@ -263,232 +257,41 @@ async function gravarUltimoAcesso() {
   gravarLS(chave, Date.now());
   try { await sb.from('perfis').update({ultimo_acesso_em: new Date().toISOString(), ultimo_app: 'crm'}).eq('id', PERFIL.id); } catch { /* não atrapalha o uso */ }
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && SESSAO_ATIVA) { gravarUltimoAcesso(); carregarNotificacoes(); recarregarTarefas(); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && SESSAO_ATIVA) { gravarUltimoAcesso(); recarregarTarefas(); } });
 
-/* ---------------- menus do topo (perfil e sino) ---------------- */
-function fecharPops(exceto) {
-  for (const [btn, pop] of [['#btnPerfil', '#menuPerfil'], ['#btnSino', '#painelSino']]) if (pop !== exceto && !$(pop).hidden) { $(pop).hidden = true; $(btn).setAttribute('aria-expanded', 'false'); }
+/* ---------------- menu da pessoa (rodada 11) ----------------
+   O sino e os avisos moram na Central; senha na Central; conta, equipe e duas etapas no Atendimento.
+   Aqui ficam só o que o CRM usa: Equipe e metas e Sem responsável (gestor), Serviços, tema e sair. */
+const CANAIS = [];
+function fecharPops() {
+  if (!$('#menuPerfil').hidden) { $('#menuPerfil').hidden = true; $('#btnPerfil').setAttribute('aria-expanded', 'false'); }
 }
-function alternarPop(btn, pop) {
-  const abrir = $(pop).hidden; fecharPops(pop);
-  $(pop).hidden = !abrir; $(btn).setAttribute('aria-expanded', String(abrir));
-  if (abrir) setTimeout(() => $(pop).querySelector('[role=menuitem],button,a')?.focus(), 20);
-}
-$('#btnPerfil').addEventListener('click', () => alternarPop('#btnPerfil', '#menuPerfil'));
-$('#btnSino').addEventListener('click', () => { alternarPop('#btnSino', '#painelSino'); if (!$('#painelSino').hidden) carregarNotificacoes(); });
-document.addEventListener('click', e => { if (!e.target.closest('.topo-icones')) fecharPops(); });
+$('#btnPerfil').addEventListener('click', () => {
+  const abrir = $('#menuPerfil').hidden;
+  $('#menuPerfil').hidden = !abrir; $('#btnPerfil').setAttribute('aria-expanded', String(abrir));
+  if (abrir) setTimeout(() => $('#menuPerfil [role=menuitem]:not([hidden])')?.focus(), 20);
+});
+document.addEventListener('click', e => { if (!e.target.closest('.ic-pessoa')) fecharPops(); });
 document.addEventListener('keydown', e => {
-  const aberto = ['#menuPerfil', '#painelSino'].find(p => !$(p).hidden); if (!aberto) return;
-  if (e.key === 'Escape') { e.stopImmediatePropagation(); fecharPops(); $(aberto === '#menuPerfil' ? '#btnPerfil' : '#btnSino').focus(); return; }
-  if (aberto === '#menuPerfil' && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
-    const itens = $$('#menuPerfil [role=menuitem]'), i = itens.indexOf(document.activeElement); e.preventDefault();
+  if ($('#menuPerfil').hidden) return;
+  if (e.key === 'Escape') { e.stopImmediatePropagation(); fecharPops(); $('#btnPerfil').focus(); return; }
+  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+    const itens = $$('#menuPerfil [role=menuitem]:not([hidden])'), i = itens.indexOf(document.activeElement); e.preventDefault();
     const n = e.key === 'Home' ? 0 : e.key === 'End' ? itens.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + itens.length) % itens.length;
     itens[n].focus();
   }
 }, true);
-function irParaConta(alvo) {
-  irPara('configuracoes');
-  $('#configTabs [data-secao="conta"]').click();
-  const el = $(alvo); if (!el) return;
-  el.scrollIntoView({block: 'start'}); (el.matches('input,button') ? el : el.querySelector('input,button'))?.focus();
-}
-$('#menuPerfil').addEventListener('click', async e => {
-  const b = e.target.closest('[data-mp]'); if (!b) return;
+$('#menuPerfil').addEventListener('click', e => {
+  const b = e.target.closest('[role=menuitem]'); if (!b) return;
   fecharPops();
   const acao = b.dataset.mp;
-  if (acao === 'perfil') irParaConta('#perfilNome');
-  if (acao === 'senha') irParaConta('#senhaNova');
-  if (acao === 'mfa') irParaConta('#cardMfa');
-  if (acao === 'notif') irParaConta('#cardNotif');
-  if (acao === 'tarefas') { irPara('dashboard'); $('#cardTarefas').scrollIntoView({block: 'start'}); $('#tarefaTexto').focus(); }
-  if (acao === 'tema') $('#btnTema').click();
-  if (acao === 'ajuda') window.abrirAjuda?.();
+  if (b.dataset.view) irPara(b.dataset.view);
+  if (acao === 'tema') aplicarTema(temaAtual() === 'claro' ? 'escuro' : 'claro');
   if (acao === 'sair') sair('local');
-  if (acao === 'sairTodos') sair('global');
 });
 async function sair(escopo) {
-  if (escopo === 'global' && !confirm('Sair de todos os aparelhos? Você e quem estiver usando a sua conta em outro celular ou computador vão precisar entrar de novo.')) return;
-  try { const {error} = await sb.auth.signOut({scope: escopo}); if (error) throw error; }
-  catch (err) { if (escopo === 'global') { toast('⚠️ ' + CrmUtils.mensagemLogin(err)); return; } }
-  mostrarLogin(escopo === 'global' ? 'Você saiu de todos os aparelhos.' : 'Você saiu da conta.', {tipo: 'ok'});
-}
-$('#btnSair').addEventListener('click', () => sair('local'));
-$('#btnSairTodos').addEventListener('click', () => sair('global'));
-
-/* ---------------- Minha conta: perfil, cor, notificações, duas etapas ---------------- */
-function preencherMinhaConta() {
-  const p = PERFIL || {};
-  $('#perfilNome').value = p.nome ?? ''; $('#perfilCargo').value = p.cargo ?? '';
-  $('#perfilTelefone').value = p.telefone ? CrmUtils.formatarTelefone(p.telefone) : '';
-  $('#perfilEmail').value = p.email ?? ''; $('#perfilPapel').value = LABEL_PAPEL[p.papel] ?? (p.papel || '—');
-  const cor = CrmUtils.corAvatar(p);
-  $('#perfilCores').innerHTML = '<legend>Cor do avatar</legend>' + CrmUtils.CORES_AVATAR.map((c, i) => `<label class="cor-avatar" style="--cor-avatar:${c}"><input type="radio" name="corAvatar" value="${c}" ${c === cor ? 'checked' : ''} aria-label="Cor ${i + 1}"><span aria-hidden="true">${esc(iniciais(p.nome || '?'))}</span></label>`).join('');
-  const apps = CrmUtils.appsPermitidos(p, '').map(a => a.nome);
-  $('#perfilAcesso').textContent = (apps.length ? 'Apps liberados: ' + apps.join(', ') + '.' : '') + (p.ultimo_acesso_em ? ' Último acesso: ' + new Date(p.ultimo_acesso_em).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) + '.' : '');
-  const n = prefsNotif();
-  $('#notifToast').checked = n.toast; $('#notifSom').checked = n.som; $('#notifTitulo').checked = n.titulo;
-  $('#sessaoTxt').textContent = `Conectado como ${p.email || 'você'}. "Sair de todos os aparelhos" encerra também o celular e outros computadores.`;
-  renderMfa();
-}
-$('#perfilCores').addEventListener('change', () => { const c = $('input[name=corAvatar]:checked')?.value; if (c) $$('#perfilAvatar,#mpAvatar').forEach(el => el.style.setProperty('--cor-avatar', c)); });
-async function salvarMeuPerfil(d) {
-  // a cor mora na coluna perfis.avatar_cor (a mesma que o Atendimento e o servidor leem)
-  const linha = {nome: d.nome, cargo: d.cargo || null, telefone: d.telefone || null, ...(d.avatar_cor ? {avatar_cor: d.avatar_cor} : {})};
-  const {error} = await sb.from('perfis').update(linha).eq('id', PERFIL.id);
-  // sem permissão de gravar direto: a rota do servidor grava (pelo menos o nome)
-  if (error) await api('/api/perfil', {method: 'PATCH', body: JSON.stringify({nome: d.nome, cargo: linha.cargo, telefone: linha.telefone, avatar_cor: d.avatar_cor})});
-  Object.assign(PERFIL, linha);
-  renderAvatar(); carregarEquipeNomes();
-}
-const prefsNotif = () => ({toast: true, som: false, titulo: true, ...(PERFIL?.preferencias?.notificacoes || {})});
-$('#formNotif').addEventListener('submit', async e => {
-  e.preventDefault();
-  const msg = $('#notifMsg'), novas = {notificacoes: {toast: $('#notifToast').checked, som: $('#notifSom').checked, titulo: $('#notifTitulo').checked}};
-  try {
-    // o servidor lê as preferências de agora e soma: salvar aqui nunca apaga o que outro app gravou depois do login
-    const r = await api('/api/perfil', {method: 'PATCH', body: JSON.stringify({preferencias: novas})});
-    PERFIL.preferencias = r.preferencias || CrmUtils.mesclarPreferencias(PERFIL?.preferencias, novas); renderSino();
-    msg.textContent = '✅ Preferências salvas (valem em qualquer aparelho).'; msg.className = 'form-msg ok';
-    if (novas.notificacoes.som) bipe();
-  } catch (err) { msg.textContent = '⚠️ Não consegui salvar: ' + (err.message || 'erro'); msg.className = 'form-msg erro'; }
-  msg.hidden = false;
-});
-let MFA_PENDENTE = null;
-async function renderMfa() {
-  const box = $('#mfaBox');
-  if (!sb?.auth?.mfa) { box.innerHTML = '<p class="muted">Indisponível neste navegador.</p>'; return; }
-  box.innerHTML = '<p class="muted"><span class="spinner"></span>Conferindo…</p>';
-  try {
-    const {data, error} = await sb.auth.mfa.listFactors(); if (error) throw error;
-    const ativo = (data?.totp || []).find(f => f.status === 'verified');
-    if (ativo) {
-      box.innerHTML = `<p class="mfa-estado on">✅ Ativada${ativo.created_at ? ' desde ' + esc(dtAno(ativo.created_at)) : ''}. Depois da senha, o CRM pede o código do app.</p>
-        <button type="button" class="btn btn-ghost sm" id="mfaDesativar">Desativar</button>`;
-      $('#mfaDesativar').onclick = async () => {
-        if (!confirm('Desativar a verificação em duas etapas? A conta fica protegida só pela senha.')) return;
-        const {error: e2} = await sb.auth.mfa.unenroll({factorId: ativo.id});
-        if (e2) { toast('⚠️ ' + (/aal2|assurance/i.test(e2.message) ? 'Para desativar, saia e entre de novo usando o código do app.' : CrmUtils.mensagemLogin(e2))); return; }
-        toast('Verificação em duas etapas desativada'); renderMfa();
-      };
-    } else {
-      box.innerHTML = '<p class="mfa-estado">Desativada.</p><button type="button" class="btn btn-primary sm" id="mfaAtivar">Ativar verificação em duas etapas</button>';
-      $('#mfaAtivar').onclick = ativarMfa;
-    }
-  } catch (err) { box.innerHTML = `<p class="muted">Não consegui conferir agora: ${esc(CrmUtils.mensagemLogin(err))}</p>`; }
-}
-async function ativarMfa() {
-  const box = $('#mfaBox');
-  try {
-    // limpa tentativa anterior que ficou pela metade (fator não verificado)
-    const {data: l} = await sb.auth.mfa.listFactors();
-    for (const f of (l?.all || []).filter(x => x.status !== 'verified')) await sb.auth.mfa.unenroll({factorId: f.id});
-    const {data, error} = await sb.auth.mfa.enroll({factorType: 'totp', friendlyName: 'CRM IndyCar ' + new Date().toISOString().slice(0, 10)});
-    if (error) throw error;
-    MFA_PENDENTE = data.id;
-    const qr = String(data.totp?.qr_code || ''), src = qr.startsWith('data:') ? qr : 'data:image/svg+xml;utf8,' + encodeURIComponent(qr);
-    box.innerHTML = `<ol class="mfa-passos"><li>No celular, abra o app autenticador e leia o QR:</li></ol>
-      <img class="mfa-qr" alt="QR code para o app autenticador" src="${esc(src)}" width="180" height="180">
-      <p class="muted mini-nota">Sem câmera? Digite a chave: <code id="mfaSegredo">${esc(data.totp?.secret || '')}</code></p>
-      <form id="formMfaAtivar" class="form-vertical"><label>2. Digite o código de 6 números que apareceu<input id="mfaNovoCodigo" inputmode="numeric" autocomplete="one-time-code" maxlength="7" class="codigo-mfa" required></label>
-      <p class="form-erro" id="mfaAtivarErro" role="alert"></p>
-      <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="mfaCancelar">Cancelar</button><div class="spacer"></div><button type="submit" class="btn btn-primary sm">Confirmar e ativar</button></div></form>`;
-    $('#mfaNovoCodigo').focus();
-    $('#mfaCancelar').onclick = async () => { try { await sb.auth.mfa.unenroll({factorId: MFA_PENDENTE}); } catch { /* ignora */ } MFA_PENDENTE = null; renderMfa(); };
-    $('#formMfaAtivar').onsubmit = async ev => {
-      ev.preventDefault();
-      const code = $('#mfaNovoCodigo').value.replace(/\s/g, '');
-      if (!CrmUtils.codigoMfaValido(code)) { $('#mfaAtivarErro').textContent = 'O código tem 6 números.'; return; }
-      const {data: ch, error: e1} = await sb.auth.mfa.challenge({factorId: MFA_PENDENTE});
-      const {error: e2} = e1 ? {error: e1} : await sb.auth.mfa.verify({factorId: MFA_PENDENTE, challengeId: ch.id, code});
-      if (e2) { $('#mfaAtivarErro').textContent = CrmUtils.mensagemLogin(e2).replace(/^Não deu certo: /, ''); $('#mfaNovoCodigo').select(); return; }
-      MFA_PENDENTE = null; toast('🛡️ Verificação em duas etapas ativada'); renderMfa();
-    };
-  } catch (err) { box.innerHTML = `<p class="form-erro">${esc(CrmUtils.mensagemLogin(err))}</p><button type="button" class="btn btn-ghost sm" id="mfaDeNovo">Tentar de novo</button>`; $('#mfaDeNovo').onclick = renderMfa; }
-}
-
-/* ---------------- sino de notificações (tabela notificacoes + realtime) ---------------- */
-let NOTIFS = [], TIMER_SINO = null, SINO_OK = true;
-const CANAIS = [];
-const ICONE_NOTIF = {tarefa: '✅', tarefa_atribuida: '✅', lead: '🎯', lead_atribuido: '🎯', conversa: '💬', conversa_atribuida: '💬', aguardando_consultor: '⏳', cliente_aguardando: '⏳', meta: '🏁', sistema: '⚙️'};
-function iniciarSino() {
-  carregarNotificacoes();
-  try {
-    const canal = sb.channel('crm-notif-' + PERFIL.id)
-      .on('postgres_changes', {event: '*', schema: 'public', table: 'notificacoes', filter: 'perfil_id=eq.' + PERFIL.id}, chegouNotificacao)
-      .subscribe(st => { if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') SINO_OK = false; if (st === 'SUBSCRIBED') SINO_OK = true; });
-    CANAIS.push(canal);
-  } catch { SINO_OK = false; }
-  // rede de segurança: se o realtime cair, confere a cada 2 minutos
-  clearInterval(TIMER_SINO); TIMER_SINO = setInterval(() => { if (!SINO_OK || document.visibilityState === 'visible') carregarNotificacoes(); }, 120000);
-}
-let GER_SINO = 0;
-async function carregarNotificacoes() {
-  if (!PERFIL?.id || !sb) return;
-  const ger = ++GER_SINO;
-  try {
-    const {data, error} = await sb.from('notificacoes').select('id,tipo,titulo,corpo,link,app,lida_em,created_at').eq('perfil_id', PERFIL.id).order('created_at', {ascending: false}).limit(40);
-    if (error) throw error;
-    if (ger !== GER_SINO) return;
-    NOTIFS = data || []; renderSino();
-  } catch { $('#sinoPe').textContent = 'Não consegui buscar as notificações agora.'; }
-}
-function chegouNotificacao(p) {
-  const n = p.new, velho = p.old;
-  if (p.eventType === 'INSERT' && n?.id && !NOTIFS.some(x => x.id === n.id)) {
-    NOTIFS.unshift(n); NOTIFS = NOTIFS.slice(0, 60); renderSino();
-    const pr = prefsNotif();
-    if (pr.toast) toastAcao('🔔 ' + (n.titulo || 'Nova notificação'), 'Abrir', () => abrirNotificacao(n), 8000);
-    if (pr.som) bipe();
-  } else if (p.eventType === 'UPDATE' && n?.id) { NOTIFS = NOTIFS.map(x => x.id === n.id ? {...x, ...n} : x); renderSino(); }
-  else if (p.eventType === 'DELETE' && velho?.id) { NOTIFS = NOTIFS.filter(x => x.id !== velho.id); renderSino(); }
-}
-function renderSino() {
-  const naoLidas = NOTIFS.filter(n => !n.lida_em).length, qtd = $('#sinoQtd');
-  qtd.hidden = !naoLidas; qtd.textContent = naoLidas > 99 ? '99+' : String(naoLidas);
-  $('#btnSino').setAttribute('aria-label', naoLidas ? `Notificações: ${naoLidas} não lida${naoLidas === 1 ? '' : 's'}` : 'Notificações');
-  $('#btnSino').classList.toggle('tem', !!naoLidas);
-  document.title = (naoLidas && prefsNotif().titulo ? `(${naoLidas}) ` : '') + TITULO_BASE;
-  $('#sinoTodas').disabled = !naoLidas;
-  $('#sinoLista').innerHTML = NOTIFS.length ? NOTIFS.map(n => `<li class="${n.lida_em ? '' : 'nova'}">
-      <button type="button" class="sino-item" data-notif="${esc(n.id)}"><span class="sino-ico" aria-hidden="true">${ICONE_NOTIF[n.tipo] || '🔔'}</span>
-        <span class="sino-txt"><strong>${n.lida_em ? '' : '<span class="sr">Não lida: </span>'}${esc(n.titulo || 'Notificação')}</strong>${n.corpo ? `<small>${esc(n.corpo)}</small>` : ''}
-        <time datetime="${esc(n.created_at)}">${esc(CrmUtils.tempoRelativo(n.created_at))}${n.app && n.app !== 'crm' ? ' · ' + esc(CrmUtils.NOME_APPS[n.app] || n.app) : ''}</time></span></button>
-      <button type="button" class="sino-x" data-apagar="${esc(n.id)}" aria-label="Apagar notificação: ${esc(n.titulo || '')}">×</button></li>`).join('')
-    : '<li class="sino-vazio">Nada por aqui. Quando passarem um lead, uma conversa ou uma tarefa para você, aparece aqui.</li>';
-  $('#sinoPe').textContent = SINO_OK ? '' : 'Atualização ao vivo fora do ar: confiro a cada 2 minutos.';
-}
-async function marcarLida(ids) {
-  const agora = new Date().toISOString(), alvo = ids.filter(id => NOTIFS.some(n => n.id === id && !n.lida_em));
-  if (!alvo.length) return;
-  NOTIFS = NOTIFS.map(n => alvo.includes(n.id) ? {...n, lida_em: agora} : n); renderSino();
-  try { const {error} = await sb.from('notificacoes').update({lida_em: agora}).in('id', alvo); if (error) throw error; }
-  catch { toast('⚠️ Não consegui marcar como lida.'); carregarNotificacoes(); }
-}
-async function abrirNotificacao(n) {
-  marcarLida([n.id]);
-  const dest = CrmUtils.linkNotificacao(n, 'crm');
-  fecharPops();
-  if (dest.interno?.lead) { await abrirModal(dest.interno.lead); return; }
-  if (dest.interno?.busca) { history.replaceState(null, '', location.pathname + dest.interno.busca); await abrirPorLink(); return; }
-  if (dest.url) window.open(dest.url, '_blank', 'noopener,noreferrer');
-}
-$('#sinoLista').addEventListener('click', async e => {
-  const x = e.target.closest('[data-apagar]');
-  if (x) {
-    const id = x.dataset.apagar, antes = NOTIFS; NOTIFS = NOTIFS.filter(n => n.id !== id); renderSino();
-    try { const {error} = await sb.from('notificacoes').delete().eq('id', id); if (error) throw error; }
-    catch { NOTIFS = antes; renderSino(); toast('⚠️ Não consegui apagar.'); }
-    $('#sinoLista .sino-item')?.focus(); return;
-  }
-  const b = e.target.closest('[data-notif]'); if (!b) return;
-  const n = NOTIFS.find(x => x.id === b.dataset.notif); if (n) abrirNotificacao(n);
-});
-$('#sinoTodas').addEventListener('click', () => marcarLida(NOTIFS.filter(n => !n.lida_em).map(n => n.id)));
-let AUDIO = null;
-function bipe() {
-  try { AUDIO = AUDIO || new (window.AudioContext || window.webkitAudioContext)(); const o = AUDIO.createOscillator(), g = AUDIO.createGain();
-    o.frequency.value = 880; g.gain.setValueAtTime(.08, AUDIO.currentTime); g.gain.exponentialRampToValueAtTime(.0001, AUDIO.currentTime + .25);
-    o.connect(g).connect(AUDIO.destination); o.start(); o.stop(AUDIO.currentTime + .26); } catch { /* sem áudio */ }
+  try { const {error} = await sb.auth.signOut({scope: escopo}); if (error) throw error; } catch { /* sai da tela de qualquer jeito */ }
+  mostrarLogin('Você saiu da conta.', {tipo: 'ok'});
 }
 
 /* ---------------- configuração com espera (rodada 4) ---------------- */
