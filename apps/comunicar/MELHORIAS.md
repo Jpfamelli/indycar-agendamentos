@@ -1164,3 +1164,28 @@ Lote 8 — cada rota e cada aviso conferidos um a um (testes de API e do carteir
 - **R10-COM-050** · segurança · O reagendamento do dia rejeita data enviada como lista (teste testes-rodada7-api) · `66d554d`
 - **R10-COM-051** · segurança · O rodapé de saída exige texto com a palavra PARAR (teste testes-rodada7-api) · `66d554d`
 - **R10-COM-052** · segurança · A escrita com IA exige um pedido em texto (teste testes-rodada7-api) · `66d554d`
+
+- **R10-COM-053** · conserto · Reagendamento individual informa conflito quando o carteiro assume o envio antes da atualização (teste R10-COM-053 em testes-rodada7-api.mjs) · `058cbaf`
+- **R10-COM-054** · conserto · Reagendamento do dia só conta mensagens efetivamente atualizadas (teste R10-COM-054 em testes-rodada7-api.mjs) · `058cbaf`
+
+- **R10-COM-055** · segurança · Reabordagem exige período inteiro entre 1 e 180 dias (teste R10-COM-055 em testes-rodada7-api.mjs) · 482076c
+- **R10-COM-056** · segurança · Reabordagem recusa uma seleção explícita de motivos vazia (teste R10-COM-056 em testes-rodada7-api.mjs) · 482076c
+- **R10-COM-057** · conserto · Reabordagem sinaliza modelos enviados para motivos desconhecidos (teste R10-COM-057 em testes-rodada7-api.mjs) · 482076c
+- **R10-COM-058** · segurança · A consulta de orçamentos recusados exige período em dias inteiros (teste R10-COM-058 em testes-rodada7-api.mjs) · 2cdceea
+- **R10-COM-059** · segurança · A fila do Pátio recusa intervalo de horas não finito ou fora da faixa (teste R10-COM-059 em testes-rodada7-api.mjs) · 2cdceea
+- **R10-COM-060** · conserto · Respostas pendentes sinalizam intervalo inválido antes de consultar (teste R10-COM-060 em testes-rodada7-api.mjs) · 2cdceea
+- **R10-COM-061** · conserto · A prévia exata sinaliza opção inválida de inclusão da fila (teste R10-COM-061 em testes-rodada7-api.mjs) · 2cdceea
+- **R10-COM-062** · conserto · A agenda por hora distingue dia omitido de dia vazio (teste R10-COM-062 em testes-rodada7-api.mjs) · 2cdceea
+- **R10-COM-063** · segurança · A reabordagem recusa data de calendário impossível antes de montar a fila (teste R10-COM-063 em testes-rodada7-api.mjs) · 2cdceea
+- **R10-COM-064** · segurança · Réguas exigem booleanos nos alternadores e evitam desligamento por texto (teste R10-COM-064 em testes-rodada7-api.mjs) · 5090769
+- **R10-COM-065** · segurança · Réguas recusam mensagens que não sejam texto preenchido dentro do limite (teste R10-COM-065 em testes-rodada7-api.mjs) · 5090769
+- **R10-COM-066** · segurança · Horas da janela de envio exigem números inteiros (teste R10-COM-066 em testes-rodada7-api.mjs) · 5090769
+- **R10-COM-067** · conserto · Hora de envio recusa texto extra após o horário (teste R10-COM-067 em testes-rodada7-api.mjs) · 5090769
+- **R10-COM-068** · segurança · Link de avaliação inválido recebe erro sem limpar a configuração gravada (teste R10-COM-068 em testes-rodada7-api.mjs) · 5090769
+- **R10-COM-069** · conserto · Rodapé de descadastro informa quando está fora do limite aceito (teste R10-COM-069 em testes-rodada7-api.mjs) · 5090769
+- **R10-COM-070** · segurança · Cadastro e edição de regra exigem nome preenchido em texto (teste R10-COM-070 em testes-rodada7-api.mjs) · 4db1b9e
+- **R10-COM-071** · segurança · Regras aceitam somente termos de serviço em texto e dentro do limite (teste R10-COM-071 em testes-rodada7-api.mjs) · 4db1b9e
+- **R10-COM-072** · conserto · Regras informam erro ao receber prazo fracionário (teste R10-COM-072 em testes-rodada7-api.mjs) · 4db1b9e
+- **R10-COM-073** · conserto · Regras informam erro em mensagem longa antes de truncar o conteúdo (teste R10-COM-073 em testes-rodada7-api.mjs) · 4db1b9e
+- **R10-COM-074** · segurança · O estado da regra exige confirmação booleana no cadastro e na edição (teste R10-COM-074 em testes-rodada7-api.mjs) · 4db1b9e
+- **R10-COM-075** · segurança · A ordem da regra exige inteiro dentro da faixa da coluna (teste R10-COM-075 em testes-rodada7-api.mjs) · 4db1b9e

@@ -347,6 +347,39 @@ test('R7 API: rotas caras têm limite por minuto (429) sem afetar outra pessoa',
   } finally { await s.fechar(); }
 });
 
+for (const individual of [true, false]) {
+  const numero = individual ? '053' : '054';
+  test(`R10-COM-${numero}: informa perda da disputa pelo reagendamento`, async () => {
+    const s = await subir({ livre: true });
+    const envio = pend(989, { enviar_em: futuro(24 * 60), expira_em: futuro(4 * 24 * 60) });
+    const filaAnterior = tabelas.posvenda_envios;
+    tabelas.posvenda_envios = [envio];
+    const buscar = globalThis.fetch;
+    globalThis.fetch = (url, opts) => {
+      if (opts?.method === 'PATCH' && new URL(url).pathname === '/rest/v1/posvenda_envios') {
+        envio.enviando_em = new Date().toISOString();
+      }
+      return buscar(url, opts);
+    };
+    try {
+      const dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', dateStyle: 'short' })
+        .format(new Date(envio.enviar_em));
+      const caminho = individual ? `/api/envios/${envio.id}/adiar` : '/api/agenda/adiar-dia';
+      const r = await s.chamar('gestor', 'POST', caminho, { dia, enviar_em: futuro(2 * 24 * 60) });
+      assert.equal(r.status, individual ? 409 : 200);
+      if (!individual) {
+        assert.equal(r.json.total, 1);
+        assert.equal(r.json.adiadas, 0);
+        assert.equal(r.json.ficaram, 1);
+      }
+    } finally {
+      globalThis.fetch = buscar;
+      tabelas.posvenda_envios = filaAnterior;
+      await s.fechar();
+    }
+  });
+}
+
 test('R10-COM-034: a triagem recusa seleção parcialmente inválida sem cancelar mensagens', async () => {
   const s = await subir({ livre: true });
   try {
@@ -384,3 +417,148 @@ for (const [id, caminho, corpo, campo] of [
     } finally { await s.fechar(); }
   });
 }
+
+for (const [id, corpo, campo] of [
+  ['055', { dias: true }, 'dias'],
+  ['056', { motivos: [] }, 'motivos'],
+  ['057', { textos: { desconhecido: 'Mensagem para revisar' } }, 'textos'],
+]) {
+  test(`R10-COM-${id}: reabordagem recusa seleção inválida em ${campo}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'POST', '/api/reabordar/enviar', corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+for (const [id, metodo, caminho, corpo, campo] of [
+  ['058', 'GET', '/api/reabordar?dias=2.5', undefined, 'dias'],
+  ['059', 'GET', '/api/patio/fila?horas=Infinity', undefined, 'horas'],
+  ['060', 'GET', '/api/respostas/pendentes?horas=abc', undefined, 'horas'],
+  ['061', 'GET', '/api/previa/exata?fila=sim', undefined, 'fila'],
+  ['062', 'GET', '/api/agenda/por-hora?dia=', undefined, 'dia'],
+  ['063', 'POST', '/api/reabordar/enviar', { enviar_em: '2026-02-30T12:00:00Z' }, 'enviar_em'],
+]) {
+  test(`R10-COM-${id}: valida ${campo} em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', metodo, caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+for (const [id, campo, valor] of [
+  ['064', 'pausa_geral', 'true'],
+  ['065', 'msg_lembrete', { corpo: 'Oi' }],
+  ['066', 'janela_inicio', [8]],
+  ['067', 'hora_envio', '08:00 inválido'],
+  ['068', 'link_avaliacao', 'javascript:alert(1)'],
+  ['069', 'texto_rodape_parar', 'PARAR'],
+]) {
+  test(`R10-COM-${id}: rejeita configuração inválida em ${campo}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'PUT', '/api/comunicar/config', { [campo]: valor });
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+for (const [id, campo, valor] of [
+  ['070', 'rotulo', ['Revisão']],
+  ['071', 'palavras', [{ termo: 'óleo' }]],
+  ['072', 'meses', 1.5],
+  ['073', 'mensagem', 'x'.repeat(1001)],
+  ['074', 'ativo', 'false'],
+  ['075', 'ordem', true],
+]) {
+  test(`R10-COM-${id}: valida ${campo} ao criar e editar regra de retorno`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const corpo = { rotulo: 'Óleo', palavras: ['óleo'], meses: 6, [campo]: valor };
+      for (const [metodo, caminho] of [['POST', '/api/regras-retorno'], ['PUT', `/api/regras-retorno/${ID(10)}`]]) {
+        const r = await s.chamar('gestor', metodo, caminho, corpo);
+        assert.equal(r.status, 400);
+        assert.equal(r.json.campo, campo);
+      }
+    } finally { await s.fechar(); }
+  });
+}
+for (const [id, metodo, caminho, corpo, campo] of [
+  ['076', 'GET', '/api/clientes/360?tel=129999900001234', undefined, 'tel'],
+  ['077', 'POST', '/api/segmentos/salvos', { nome: 'Clientes', filtro: ['todos'] }, 'filtro'],
+  ['078', 'POST', '/api/segmentos/salvos', { nome: 'Serviços', filtro: 'servico', valor: { nome: 'óleo' } }, 'valor'],
+  ['079', 'POST', '/api/segmentos/salvos', { nome: 'Atendidos', filtro: 'atendidos', valor: true }, 'valor'],
+  ['080', 'GET', '/api/previa/mensagem?corpo=' + 'x'.repeat(2001), undefined, 'corpo'],
+  ['081', 'POST', '/api/campanhas/previa', { corpo: 'Teste', enviar_em: 1, destinos: [{ telefone: '12999990000' }] }, 'enviar_em'],
+]) {
+  test(`R10-COM-${id}: rejeita ${campo} inválido em ${metodo}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', metodo, caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+for (const [id, campo, valor] of [
+  ['082', 'destinos', Array(2001).fill({ telefone: '12999990000' })],
+  ['083', 'destinos', [{ telefone: '12999990000' }, '12999990001']],
+  ['084', 'segmento', ['todos']],
+  ['085', 'detalhe', { assunto: 'Retorno' }],
+  ['086', 'evitar_dias', true],
+  ['087', 'confirmar_links_externos', 'true'],
+]) {
+  test(`R10-COM-${id}: recusa ${campo} inválido no pedido de campanha`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const corpo = { corpo: 'Mensagem de teste', destinos: [{ telefone: '12999990000' }], [campo]: valor };
+      const r = await s.chamar('gestor', 'POST', '/api/envios', corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+for (const [id, caminho, corpo, campo] of [
+  ['088', '/api/envios/teste-meu', { corpo: ['Teste'] }, 'corpo'],
+  ['089', '/api/envios/teste', { telefone: '12999990000', corpo: 'x'.repeat(2001) }, 'corpo'],
+  ['090', '/api/ia/escrever', { regua: ['campanha'] }, 'regua'],
+  ['091', '/api/ia/escrever', { pedido: 'x'.repeat(501) }, 'pedido'],
+  ['092', '/api/ia/escrever', { texto: { mensagem: 'Revisar' } }, 'texto'],
+  ['093', '/api/ia/escrever', { exemplo: ['Cliente'] }, 'exemplo'],
+]) {
+  test(`R10-COM-${id}: valida ${campo} em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'POST', caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+for (const [id, campo, valor] of [
+  ['094', 'nascimento', '31/02'],
+  ['095', 'telefone', ['12999990000']],
+  ['096', 'email', 'sem-arroba'],
+  ['097', 'observacoes', { texto: 'Agendar retorno' }],
+  ['098', 'motivo', 'x'.repeat(121)],
+]) {
+  test(`R10-COM-${id}: rejeita ${campo} inválido ao editar ficha`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', 'PUT', `/api/clientes/${ID(10)}`, { aceita_mensagens: false, [campo]: valor });
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
+
+test('R10-COM-099: edição vazia de uma regra inexistente informa 404', async () => {
+  const s = await subir({ livre: true });
+  try {
+    const r = await s.chamar('gestor', 'PUT', `/api/regras-retorno/${ID(990)}`, {});
+    assert.equal(r.status, 404);
+  } finally { await s.fechar(); }
+});

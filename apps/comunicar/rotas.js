@@ -160,6 +160,29 @@ export function criarApi(deps) {
   const pedidosRecentes = new Map(); // assinatura do pedido → instante (anti duplo clique)
   const segmentoValido = (f) => (dados.SEGMENTOS || []).some((s) => s.id === f);
 
+  function validarPedidoCampanha(body) {
+    if (body.destinos != null && (!Array.isArray(body.destinos) || body.destinos.length > 2000)) {
+      return ['destinos', 'Informe uma lista de até 2.000 destinatários.'];
+    }
+    if (body.destinos?.some((destino) => !destino || typeof destino !== 'object' || Array.isArray(destino))) {
+      return ['destinos', 'Revise os destinatários selecionados.'];
+    }
+    if (body.segmento != null && (typeof body.segmento !== 'object' || Array.isArray(body.segmento)
+        || typeof body.segmento.filtro !== 'string' || !segmentoValido(body.segmento.filtro))) {
+      return ['segmento', 'Escolha um segmento válido.'];
+    }
+    if (body.detalhe != null && (typeof body.detalhe !== 'string' || body.detalhe.length > 200)) {
+      return ['detalhe', 'Descreva a campanha em até 200 caracteres.'];
+    }
+    if (body.evitar_dias != null && (!Number.isInteger(body.evitar_dias) || body.evitar_dias < 0 || body.evitar_dias > 90)) {
+      return ['evitar_dias', 'Informe um intervalo inteiro de 0 a 90 dias.'];
+    }
+    if (body.confirmar_links_externos !== undefined && typeof body.confirmar_links_externos !== 'boolean') {
+      return ['confirmar_links_externos', 'Confirme se os links externos podem ser enviados.'];
+    }
+    return null;
+  }
+
   async function resolverDestinos(body) {
     let destinos = Array.isArray(body.destinos) ? body.destinos.slice(0, 2000) : [];
     destinos = destinos.filter((d) => d && typeof d === 'object');
@@ -331,6 +354,24 @@ export function criarApi(deps) {
     const mudaAceite = body.aceita_mensagens !== undefined;
     if (mudaAceite && typeof body.aceita_mensagens !== 'boolean') return bad(res, 'Informe se o cliente aceita mensagens.');
     if (body.aceita_mensagens === true && !A.pode(usuario, 'optout_religar')) return proibido(res, 'optout_religar');
+    const { nascimento, telefone, email, observacoes, motivo } = body;
+    if (nascimento != null && (typeof nascimento !== 'string' || (nascimento.trim() && !dados.dataBanco(nascimento)))) {
+      return bad(res, 'Informe uma data de aniversário válida.', { campo: 'nascimento' });
+    }
+    if (telefone != null && (typeof telefone !== 'string' ||
+        (telefone.trim() && (!/^\+?[\d ().-]+$/.test(telefone.trim()) || ![10, 11].includes(dados.telefoneNacional(telefone)?.length))))) {
+      return bad(res, 'Informe um telefone com DDD.', { campo: 'telefone' });
+    }
+    if (email != null && (typeof email !== 'string' ||
+        (email !== '' && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))))) {
+      return bad(res, 'Informe um e-mail válido.', { campo: 'email' });
+    }
+    if (observacoes != null && (typeof observacoes !== 'string' || observacoes.length > 2000)) {
+      return bad(res, 'Informe observações em até 2.000 caracteres.', { campo: 'observacoes' });
+    }
+    if (motivo != null && (typeof motivo !== 'string' || motivo.length > 120)) {
+      return bad(res, 'Informe o motivo em até 120 caracteres.', { campo: 'motivo' });
+    }
     const antes = mudaAceite ? await dados.obterCliente(id) : null;
     const c = await dados.atualizarCliente(id, body, usuario.nome || usuario.email);
     if (!c) return naoAchou(res);
@@ -373,11 +414,23 @@ export function criarApi(deps) {
   // ---- rodada 5: segmentos salvos ----
   rota('GET', '/api/segmentos/salvos', async ({ res }) => ok(res, await dados.listarSegmentosSalvos()));
   rota('POST', '/api/segmentos/salvos', async ({ res, usuario, body }) => {
-    if (!segmentoValido(String(body.filtro || ''))) return bad(res, 'Segmento desconhecido.');
+    if (typeof body.filtro !== 'string' || !segmentoValido(body.filtro)) {
+      return bad(res, 'Segmento desconhecido.', { campo: 'filtro' });
+    }
+    const segmento = dados.SEGMENTOS?.find((item) => item.id === body.filtro);
+    const valor = body.valor;
+    if (segmento?.unidade === 'texto' && valor != null &&
+        (typeof valor !== 'string' || valor.trim().length > 60)) {
+      return bad(res, 'Informe um termo de até 60 caracteres.', { campo: 'valor' });
+    }
+    if (['dias', 'meses'].includes(segmento?.unidade) && valor != null && valor !== '' &&
+        ((typeof valor !== 'string' && typeof valor !== 'number') || !Number.isInteger(Number(valor)) || Number(valor) < 1)) {
+      return bad(res, 'Informe um período inteiro maior que zero.', { campo: 'valor' });
+    }
     const nome = typeof body.nome === 'string' ? body.nome.trim().replace(/\s+/g, ' ') : '';
     if (nome.length < 2 || nome.length > 60) return bad(res, 'Dê um nome ao segmento (2 a 60 caracteres).');
     try {
-      const s = await dados.salvarSegmento({ nome: body.nome, filtro: String(body.filtro || ''), valor: body.valor, criado_por: usuario.id, criado_por_nome: usuario.nome || usuario.email });
+      const s = await dados.salvarSegmento({ nome, filtro: body.filtro, valor, criado_por: usuario.id, criado_por_nome: usuario.nome || usuario.email });
       auditar(usuario, 'segmento_salvo', 'comunicar_segmentos', s?.id, { nome: s?.nome, filtro: s?.filtro, valor: s?.valor });
       esquecerCache('seg-salvos');
       return ok(res, s);
@@ -397,7 +450,7 @@ export function criarApi(deps) {
   rota('GET', '/api/clientes/360', async ({ res, url }) => {
     const bruto = String(url.searchParams.get('tel') || '').replace(/\D/g, '');
     const tel = dados.telefoneNacional?.(bruto) || bruto; // com ou sem 55: a coluna normalizada não tem o DDI
-    if (!tel || tel.length < 10) return bad(res, 'Informe o telefone com DDD.');
+    if (!tel || ![10, 11].includes(tel.length)) return bad(res, 'Informe o telefone com DDD.', { campo: 'tel' });
     const c360 = await dados.cliente360(tel).catch((e) => { const err = new Error('Não consegui ler a ficha 360 agora.'); err.causa = e; throw err; });
     return ok(res, { telefone: tel, ligacoes: dados.montarLigacoes(c360), cliente: c360?.cliente || null, resumo: c360?.resumo || null });
   });
@@ -411,7 +464,8 @@ export function criarApi(deps) {
   rota('GET', '/api/previa/mensagem', async ({ res, url }) => {
     const id = url.searchParams.get('cliente_id');
     const regua = url.searchParams.get('regua') || 'campanha';
-    const corpo = String(url.searchParams.get('corpo') || '').slice(0, 2000);
+    const corpo = url.searchParams.get('corpo') || '';
+    if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).', { campo: 'corpo' });
     if (!dados.ehUuid(id)) return bad(res, 'Escolha o cliente.');
     const c = await dados.obterCliente(id);
     if (!c) return naoAchou(res);
@@ -431,6 +485,9 @@ export function criarApi(deps) {
     const corpo = (body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');
     if (corpo.length > 2000) return bad(res, 'Mensagem longa demais (máximo 2.000 caracteres).');
+    if (body.enviar_em != null && typeof body.enviar_em !== 'string') {
+      return bad(res, 'Informe a data de envio em texto.', { campo: 'enviar_em' });
+    }
     const destinos = await resolverDestinos(body);
     if (destinos === null) return bad(res, 'Segmento desconhecido.');
     if (!destinos.length) return bad(res, 'Escolha pelo menos um cliente.');
@@ -523,6 +580,8 @@ export function criarApi(deps) {
   /* Avulsa (1 cliente, qualquer um da equipe), campanha (gestor: sai direto) ou
      proposta (atendente com 2+ clientes: espera o gestor aprovar). */
   rota('POST', '/api/envios', async ({ res, usuario, body }) => {
+    const invalido = validarPedidoCampanha(body);
+    if (invalido) return bad(res, invalido[1], { campo: invalido[0] });
     if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
     const corpo = (body.corpo ?? '').trim();
     if (!corpo) return bad(res, 'Escreva a mensagem.');
@@ -615,10 +674,12 @@ export function criarApi(deps) {
   /* Rodada 5: "mandar para o MEU celular" — o texto da campanha chega no telefone do perfil
      de quem está escrevendo (qualquer um da equipe), fora da fila. */
   rota('POST', '/api/envios/teste-meu', async ({ res, usuario, body }) => {
+    if (typeof body.corpo !== 'string' || !body.corpo.trim() || body.corpo.trim().length > 2000) {
+      return bad(res, 'Escreva uma mensagem de até 2.000 caracteres antes de testar.', { campo: 'corpo' });
+    }
     const telefone = dados.soDigitos(usuario.telefone || '');
     if (telefone.length < 10) return bad(res, 'Cadastre seu celular em "Meu perfil" para receber o teste.', { codigo: 'sem_telefone' });
-    const texto = String(body.corpo || '').trim().slice(0, 2000);
-    if (!texto) return bad(res, 'Escreva a mensagem antes de testar.');
+    const texto = body.corpo.trim();
     const corpo = dados.renderTemplate(texto, { ...EXEMPLO_PREVIA, nome: usuario.nome || EXEMPLO_PREVIA.nome, link_area: `${patio.PATIO_URL}/minha/?c=exemplo`, link_os: `${patio.PATIO_URL}/acompanhar/?t=exemplo` });
     const r = await whatsapp.enviar(telefone, `[teste] ${corpo}`);
     await dados.enfileirar({
@@ -665,10 +726,11 @@ export function criarApi(deps) {
   rota('POST', '/api/envios/teste', async ({ res, usuario, body }) => {
     if (body.telefone != null && typeof body.telefone !== 'string') return bad(res, 'Informe o telefone em texto.', { campo: 'telefone' });
     if (body.corpo != null && typeof body.corpo !== 'string') return bad(res, 'Escreva a mensagem em texto.', { campo: 'corpo' });
+    if (body.corpo?.length > 2000) return bad(res, 'Escreva uma mensagem de até 2.000 caracteres.', { campo: 'corpo' });
     const cfg = await dados.obterConfig();
     const telefone = dados.soDigitos(body.telefone || cfg.telefone_teste);
     if (telefone.length < 10) return bad(res, 'Informe um telefone de teste (em Réguas › Envio).');
-    const corpo = dados.renderTemplate(String(body.corpo || 'Teste do IndyCar Comunicar: se você recebeu isto, o WhatsApp está saindo. 🏁').slice(0, 2000),
+    const corpo = dados.renderTemplate(body.corpo || 'Teste do IndyCar Comunicar: se você recebeu isto, o WhatsApp está saindo. 🏁',
       { nome: usuario.nome || 'Equipe', carro: 'seu carro' });
     const r = await whatsapp.enviar(telefone, corpo);
     await dados.enfileirar({
@@ -750,6 +812,37 @@ export function criarApi(deps) {
   // ---- configuração (o caminho antigo /api/posvenda/config continua) ----
   const lerConfig = async ({ res }) => ok(res, await dados.obterConfig());
   const salvarConfig = async ({ res, usuario, body }) => {
+    const alternadores = [
+      'pausa_geral', 'envia_domingo', 'so_horario_comercial',
+      ...dados.REGUAS.map((regua) => `ativo_${regua}`),
+      ...(dados.BOOLEANOS_R6 || []), ...r7.BOOLEANOS_R7,
+    ];
+    for (const campo of alternadores) {
+      if (body[campo] !== undefined && typeof body[campo] !== 'boolean') {
+        return bad(res, 'Informe se a opção está ligada ou desligada.', { campo });
+      }
+    }
+    for (const regua of dados.REGUAS) {
+      const campo = `msg_${regua}`;
+      const texto = body[campo];
+      if (texto !== undefined && (typeof texto !== 'string' || !texto.trim() || texto.trim().length > 1000)) {
+        return bad(res, 'Escreva uma mensagem de até 1.000 caracteres.', { campo });
+      }
+    }
+    for (const campo of ['janela_inicio', 'janela_fim']) {
+      if (body[campo] !== undefined && !Number.isInteger(body[campo])) {
+        return bad(res, 'Informe a hora da janela como número inteiro.', { campo });
+      }
+    }
+    if (body.hora_envio !== undefined &&
+        (typeof body.hora_envio !== 'string' || !/^(?:[01]?\d|2[0-3]):[0-5]\d(?::00)?$/.test(body.hora_envio))) {
+      return bad(res, 'Informe o horário no formato HH:MM.', { campo: 'hora_envio' });
+    }
+    const link = body.link_avaliacao;
+    if (link != null && (typeof link !== 'string' ||
+        (link.trim() && (link.trim().length > 500 || !/^https?:\/\/\S+$/i.test(link.trim()) || !URL.canParse(link.trim()))))) {
+      return bad(res, 'Informe um link de avaliação válido.', { campo: 'link_avaliacao' });
+    }
     /* rodada 6: texto novo com erro NÃO é ignorado em silêncio (antes dizia "salvo" e mantinha o antigo) */
     for (const k of Object.keys(dados.TEXTOS_R6 || {})) {
       if (body?.[k] === undefined) continue;
@@ -761,9 +854,11 @@ export function criarApi(deps) {
       const erro = r7.validarTextoR7(k, body[k]);
       if (erro) return bad(res, erro, { campo: k });
     }
-    if (body.texto_rodape_parar !== undefined &&
-        (typeof body.texto_rodape_parar !== 'string' || !/parar/i.test(body.texto_rodape_parar))) {
-      return bad(res, 'O rodapé precisa dizer como sair: inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
+    if (body.texto_rodape_parar !== undefined) {
+      const rodape = typeof body.texto_rodape_parar === 'string' ? body.texto_rodape_parar.replace(/\s+/g, ' ').trim() : '';
+      if (rodape.length < 10 || rodape.length > 140 || !/\bparar\b/i.test(rodape)) {
+        return bad(res, 'Use de 10 a 140 caracteres no rodapé e inclua a palavra PARAR.', { campo: 'texto_rodape_parar' });
+      }
     }
     const antes = await dados.obterConfig();
     const depois = await dados.salvarConfig(body);
@@ -783,8 +878,36 @@ export function criarApi(deps) {
   rota('PUT', '/api/posvenda/config', salvarConfig);
 
   // ---- regras de retorno ----
+  function validarRegraRetorno(body) {
+    const { rotulo, palavras, meses, mensagem, ativo, ordem } = body;
+    if (rotulo !== undefined && (typeof rotulo !== 'string' || !rotulo.trim() || rotulo.trim().length > 80)) {
+      return ['rotulo', 'Informe um nome de até 80 caracteres.'];
+    }
+    if (palavras !== undefined) {
+      const termos = typeof palavras === 'string' ? palavras.split(/[,;\n]/) : palavras;
+      if (!Array.isArray(termos) || termos.some((termo) => typeof termo !== 'string')) {
+        return ['palavras', 'Informe as palavras do serviço em texto.'];
+      }
+      const preenchidos = termos.filter((termo) => termo.trim());
+      if (!preenchidos.length || preenchidos.length > 30) return ['palavras', 'Informe de 1 a 30 palavras do serviço.'];
+    }
+    if (meses !== undefined && (!Number.isInteger(meses) || meses < 1 || meses > 36)) {
+      return ['meses', 'Informe um prazo inteiro de 1 a 36 meses.'];
+    }
+    if (mensagem != null && (typeof mensagem !== 'string' || mensagem.trim().length > 1000)) {
+      return ['mensagem', 'Escreva uma mensagem de até 1.000 caracteres.'];
+    }
+    if (ativo !== undefined && typeof ativo !== 'boolean') return ['ativo', 'Informe se a regra está ativa.'];
+    if (ordem !== undefined && (!Number.isInteger(ordem) || ordem < -2147483648 || ordem > 2147483647)) {
+      return ['ordem', 'Informe a ordem como número inteiro válido.'];
+    }
+    return null;
+  }
+
   rota('GET', '/api/regras-retorno', async ({ res }) => ok(res, await dados.listarRegras()));
   rota('POST', '/api/regras-retorno', async ({ res, usuario, body }) => {
+    const invalido = validarRegraRetorno(body);
+    if (invalido) return bad(res, invalido[1], { campo: invalido[0] });
     try {
       const r = await dados.criarRegra(body);
       auditar(usuario, 'regra_retorno_criada', 'comunicar_regras_retorno', r?.id, { rotulo: r?.rotulo, meses: r?.meses });
@@ -792,6 +915,8 @@ export function criarApi(deps) {
     } catch (e) { return bad(res, e.message); }
   });
   rota('PUT', `/api/regras-retorno/${U}`, async ({ res, usuario, body, url }) => {
+    const invalido = validarRegraRetorno(body);
+    if (invalido) return bad(res, invalido[1], { campo: invalido[0] });
     const id = idDe(url.pathname);
     const r = await dados.atualizarRegra(id, body);
     if (!r) return naoAchou(res);
@@ -831,13 +956,25 @@ export function criarApi(deps) {
     return ok(res, { ativo: cfg.ativo, temChave: !!chave, autonomia: cfg.autonomia, chamadasHoje: hojeN, limite: cfg.limite });
   });
   rota('POST', '/api/ia/escrever', async ({ res, usuario, body }) => {
-    if (body.pedido != null && typeof body.pedido !== 'string') return bad(res, 'Escreva o pedido em texto.', { campo: 'pedido' });
-    const regua = String(body.regua || 'campanha');
-    if (!ia?.VARIAVEIS_POR_REGUA?.[regua]) return bad(res, 'Régua desconhecida.');
-    const pedido = String(body.pedido || '').slice(0, 500), texto = String(body.texto || '').slice(0, 1500);
+    if (body.pedido != null && (typeof body.pedido !== 'string' || body.pedido.length > 500)) {
+      return bad(res, 'Escreva o pedido em texto com até 500 caracteres.', { campo: 'pedido' });
+    }
+    const regua = body.regua ?? 'campanha';
+    if (typeof regua !== 'string') {
+      return bad(res, 'Régua desconhecida.', { campo: 'regua' });
+    }
+    if (body.texto != null && (typeof body.texto !== 'string' || body.texto.length > 1500)) {
+      return bad(res, 'Informe o texto atual com até 1.500 caracteres.', { campo: 'texto' });
+    }
+    if (body.exemplo != null && (typeof body.exemplo !== 'object' || Array.isArray(body.exemplo)
+        || ['nome', 'carro', 'placa'].some((campo) => body.exemplo[campo] != null && typeof body.exemplo[campo] !== 'string'))) {
+      return bad(res, 'Informe nome, carro e placa do exemplo em texto.', { campo: 'exemplo' });
+    }
+    const pedido = body.pedido ?? '', texto = body.texto ?? '';
+    if (!Object.hasOwn(ia?.VARIAVEIS_POR_REGUA ?? {}, regua)) return bad(res, 'Régua desconhecida.', { campo: 'regua' });
     return chamadaIA(res, usuario, 'escrever_mensagem', (r) => `${r.variacoes.length} variações para ${dados.ROTULO_TIPO[regua] || regua}`, async (ctx) => {
       const r = await ia.escreverMensagem({ regua, pedido, textoAtual: texto, quantidade: 3 }, ctx);
-      const ex = body.exemplo && typeof body.exemplo === 'object' ? body.exemplo : {};
+      const ex = body.exemplo ?? {};
       const exemplo = {
         ...EXEMPLO_PREVIA,
         nome: String(ex.nome || EXEMPLO_PREVIA.nome).slice(0, 80), carro: String(ex.carro || EXEMPLO_PREVIA.carro).slice(0, 60),

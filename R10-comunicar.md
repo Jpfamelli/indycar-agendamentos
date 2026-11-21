@@ -1,12 +1,12 @@
 # Rodada 10 · Comunicar
 
-Entrega parcial. 52 de 100 melhorias registradas. Próximo número: R10-COM-053.
+Entrega parcial. 75 de 100 melhorias registradas. Próximo número é R10-COM-076.
 
 A suíte de referência passou 310/310 com isolamento padrão do Node. O modo sem isolamento fez os dublês dos testes compartilharem estado, por isso a conferência foi repetida com os subprocessos padrão.
 
 ## Para outra frente
 
-Faltam a cobertura dos comportamentos R9-COM-032 a R9-COM-100 ainda sem cobertura e 48 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
+Faltam a cobertura dos comportamentos R9-COM-032 a R9-COM-100 ainda sem cobertura e 25 melhorias para a meta do app. Agenda e Atendimento seguem com Claude.
 
 ## Para o João
 
@@ -62,3 +62,23 @@ O commit f410f11 cobre R10-COM-041 a 046. As seis regressões falharam antes e p
 ## Importação, reagendamento, rodapé e IA
 
 O commit 66d554d cobre R10-COM-047 a 052. As seis regressões falharam antes e passaram depois. A suíte isolada passou de 356 para 362 testes. A importação pede que planilhas maiores sejam divididas e que linhas com formato inválido sejam corrigidas antes de gravar. Falta confirmar no navegador se a oficina recebe esses avisos de forma clara.
+
+## Concorrência no reagendamento
+
+O commit `058cbaf` cobre R10-COM-053 e 054. A suíte completa passou de 362 para 364 testes em processos separados, com Supabase fictício, e npm run check passou. A atualização individual informa conflito e o lote exclui da contagem os envios assumidos pelo carteiro durante a operação.
+
+## Escopo da reabordagem
+
+Commit 482076c. As três regressões falharam antes da mudança e passaram depois. Suíte completa 367/367 com Supabase fictício. A seleção explícita vazia recebe erro e a seleção omitida preserva o padrão. Validar no Chrome como a equipe recebe cada mensagem de erro.
+
+## Continuação de 20/11
+
+- 2cdceea cobre 058–063, com validação dos filtros da agenda por hora, fila do Pátio, respostas pendentes, prévia exata e reabordagem. Suíte 373/373.
+- 5090769 cobre 064–069, com validação de alternadores, mensagens, janela, horário, link de avaliação e rodapé nas configurações. Suíte 379/379.
+- 4db1b9e cobre 070–075, com validação dos seis campos no cadastro e na edição de regras de retorno. Suíte 385/385.
+
+As 18 regressões falharam antes das correções e passaram depois. A suíte foi executada em processos separados com Supabase fictício. npm run check passou nas três etapas.
+
+Chrome passou em 12 cenários dos roteiros de janelas, campanhas e clientes, a 375 e 1440 px nos dois temas. Os roteiros aceitaram somente GET e HEAD para o mock confirmado em localhost. As capturas de Réguas, Clientes e Satisfação estão em apps/comunicar/qa-out/r9.
+
+Faltam 25 melhorias, a cobertura remanescente da R9, o axe e as medições comparativas de desempenho. Os rótulos da interface seguem os mesmos. Na oficina, vale conferir se o formulário torna claros os novos erros de configuração e de regras. Agenda e Atendimento seguem com Claude na outra cópia.
