@@ -28,7 +28,9 @@ export function registrarRotas7(c) {
 
   // ---- reabordar recusados (Orçador → Comunicar) ----
   rota('GET', '/api/reabordar', async ({ res, url }) => {
-    const dias = Math.min(Math.max(Math.round(Number(url.searchParams.get('dias'))) || 30, 1), 180);
+    const periodo = Number(url.searchParams.get('dias') ?? 30);
+    if (!Number.isInteger(periodo)) return bad(res, 'Informe o período em dias inteiros.', { campo: 'dias' });
+    const dias = Math.min(Math.max(periodo, 1), 180);
     return ok(res, await emCache(`reabordar:${dias}`, 60_000, () => dados.reabordarRecusados({ dias, limite: LIMITE_RECUSADOS })));
   });
   rota('POST', '/api/reabordar/enviar', async ({ res, usuario, body }) => {
@@ -66,7 +68,9 @@ export function registrarRotas7(c) {
       textos[m] = t;
     }
     const enviarEm = body.enviar_em ? new Date(body.enviar_em) : new Date(relogio());
-    if (Number.isNaN(enviarEm.getTime())) return bad(res, 'Data de envio inválida.');
+    if (body.enviar_em != null && (!conexoes.diaValido(body.enviar_em.slice(0, 10)) || Number.isNaN(enviarEm.getTime()))) {
+      return bad(res, 'Data de envio inválida.', { campo: 'enviar_em' });
+    }
     if (enviarEm.getTime() > relogio() + 30 * 86400000) return bad(res, 'No máximo 30 dias à frente.');
     // a lista é SEMPRE recalculada aqui (nunca confiamos na do navegador): quem pediu PARAR, tem reclamação ou carro na oficina já está fora
     const lista = await dados.reabordarRecusados({ dias, limite: LIMITE_RECUSADOS });
@@ -91,7 +95,8 @@ export function registrarRotas7(c) {
     const os = (url.searchParams.get('os') || '').split(',').map((x) => x.trim()).filter(Boolean);
     if (os.length > 300) return bad(res, 'No máximo 300 ordens por vez.');
     if (os.some((x) => !new RegExp(`^${U}$`).test(x))) return bad(res, 'Identificador de ordem inválido.');
-    const horas = Math.min(Math.max(Number(url.searchParams.get('horas')) || 48, 1), 168);
+    const horas = Number(url.searchParams.get('horas') ?? 48);
+    if (!Number.isFinite(horas) || horas < 1 || horas > 168) return bad(res, 'Informe de 1 a 168 horas.', { campo: 'horas' });
     return ok(res, await emCache(`patio-fila:${os.join(',')}:${horas}`, 10_000, () => dados.filaPorOrdem(os.length ? os : null, horas)));
   });
 
@@ -102,7 +107,9 @@ export function registrarRotas7(c) {
   rota('GET', '/api/previa/exata', async ({ res, url }) => {
     const so = url.searchParams.get('regua') || null;
     if (so && !dados.REGUAS.includes(so) && !r7.R7_REGUAS.some((x) => x.id === so)) return bad(res, 'Régua desconhecida.');
-    return ok(res, await dados.previaExata({ so, incluirFila: url.searchParams.get('fila') === '1' }));
+    const fila = url.searchParams.get('fila');
+    if (fila !== null && fila !== '0' && fila !== '1') return bad(res, 'Informe se a prévia inclui a fila (0 ou 1).', { campo: 'fila' });
+    return ok(res, await dados.previaExata({ so, incluirFila: fila === '1' }));
   });
   rota('GET', `/api/envios/${U}/quando`, async ({ res, url }) => {
     const id = idDe(url.pathname);
@@ -111,7 +118,7 @@ export function registrarRotas7(c) {
   });
   rota('GET', '/api/agenda/por-hora', async ({ res, url }) => {
     const dia = url.searchParams.get('dia');
-    if (dia && !conexoes.diaValido(dia)) return bad(res, 'Dia inválido: use AAAA-MM-DD.');
+    if (dia !== null && !conexoes.diaValido(dia)) return bad(res, 'Dia inválido: use AAAA-MM-DD.', { campo: 'dia' });
     return ok(res, await emCache(`agenda-hora:${dia || ''}`, 10_000, () => dados.agendaPorHora(dia || null)));
   });
   rota('POST', `/api/envios/${U}/antecipar`, async ({ res, usuario, url }) => {
@@ -167,7 +174,8 @@ export function registrarRotas7(c) {
     return ok(res, await emCache(`res-av:${de}:${ate}:${tipo}`, 60_000, () => dados.resultadosAvancados({ de, ate, tipo })));
   });
   rota('GET', '/api/respostas/pendentes', async ({ res, url }) => {
-    const horas = Math.min(Math.max(Number(url.searchParams.get('horas')) || 2, 1), 48);
+    const horas = Number(url.searchParams.get('horas') ?? 2);
+    if (!Number.isFinite(horas) || horas < 1 || horas > 48) return bad(res, 'Informe de 1 a 48 horas.', { campo: 'horas' });
     return ok(res, await emCache(`resp-pend:${horas}`, 20_000, () => dados.respostasPendentesDeAtendimento({ horas })));
   });
 }

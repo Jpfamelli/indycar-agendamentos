@@ -432,3 +432,20 @@ for (const [id, corpo, campo] of [
     } finally { await s.fechar(); }
   });
 }
+for (const [id, metodo, caminho, corpo, campo] of [
+  ['058', 'GET', '/api/reabordar?dias=2.5', undefined, 'dias'],
+  ['059', 'GET', '/api/patio/fila?horas=Infinity', undefined, 'horas'],
+  ['060', 'GET', '/api/respostas/pendentes?horas=abc', undefined, 'horas'],
+  ['061', 'GET', '/api/previa/exata?fila=sim', undefined, 'fila'],
+  ['062', 'GET', '/api/agenda/por-hora?dia=', undefined, 'dia'],
+  ['063', 'POST', '/api/reabordar/enviar', { enviar_em: '2026-02-30T12:00:00Z' }, 'enviar_em'],
+]) {
+  test(`R10-COM-${id}: valida ${campo} em ${caminho}`, async () => {
+    const s = await subir({ livre: true });
+    try {
+      const r = await s.chamar('gestor', metodo, caminho, corpo);
+      assert.equal(r.status, 400);
+      assert.equal(r.json.campo, campo);
+    } finally { await s.fechar(); }
+  });
+}
