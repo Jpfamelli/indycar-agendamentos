@@ -49,7 +49,7 @@ test('R10-ATD-034: tema claro usa a logo de fundo transparente e ela está na ca
   assert.equal(png[25], 6, 'PNG com transparência (RGBA)');
   const sw = pub('sw.js');
   assert.match(sw, /'logo-claro\.png'/);
-  assert.match(sw, /indycar-atendimento-v23/, 'rodada 11 subiu a versão (a casca mudou)');
+  assert.match(sw, /indycar-atendimento-v24/, 'rodada 13 subiu a versão (a casca mudou: hoje.js e r13.css)');
 });
 
 test('R10-ATD-035: os roteiros antigos respondem à pergunta do app (não dependem mais da janela do navegador)', () => {
