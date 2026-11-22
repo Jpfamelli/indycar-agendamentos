@@ -22,7 +22,8 @@ const HOSTS = {
 };
 const NOMES = { atendimento: 'Atendimento', crm: 'CRM', agenda: 'Agenda', comunicar: 'Comunicar', orcador: 'Orçador', patio: 'Pátio', site: 'Site', ads: 'Tráfego pago' };
 /* Na Central, estes quatro moram no mesmo servidor; os outros continuam no próprio endereço. */
-const NA_CENTRAL = { agenda: '/agenda/', atendimento: '/atendimento/', crm: '/crm/', comunicar: '/comunicar/' };
+/* Rodada 13B: o Orçador (/orcador/, mesma sessão) e o Tráfego (/trafego/) também moram na Central. */
+const NA_CENTRAL = { agenda: '/agenda/', atendimento: '/atendimento/', crm: '/crm/', comunicar: '/comunicar/', orcador: '/orcador/', trafego: '/trafego/' };
 
 /** '/crm' | '' — aceita '/crm', 'crm', '/crm/' e lixo (vira ''). */
 function normalizarPrefixo(p) {

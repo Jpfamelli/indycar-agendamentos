@@ -35,8 +35,32 @@ async function pedirValor13(id) {
 }
 
 /* ---------- tela Hoje: o resumo do dia ---------- */
+/* Rodada 13B: enquanto os contatos não chegam, o resumo diz que está carregando (antes mostrava "0 contatos novos"
+   e "todo serviço fechado já tem valor", o que era mentira); se a rede cair, diz isso e oferece tentar de novo. */
+let R13_PRONTO = false, R13_ERRO = '';
+const _carregarLeads13 = carregarLeads;
+carregarLeads = async function () {
+  try { const r = await _carregarLeads13(); R13_PRONTO = true; R13_ERRO = ''; return r; }
+  catch (e) { R13_ERRO = e.message || 'falha de rede'; renderHoje13(); throw e; }
+};
+function esperaHoje13() {
+  $('#r13Heroi').classList.toggle('r13-esperando', true);
+  $('#r13Frase').innerHTML = R13_ERRO
+    ? `Não consegui carregar os contatos agora. <button type="button" class="btn btn-primary" data-r13-tentar>Tentar de novo</button>`
+    : 'Montando o resumo do dia…';
+  $('#r13Frase').setAttribute('role', R13_ERRO ? 'alert' : 'status');
+  $('#r13Nums').innerHTML = ''; $('#r13Caixa').innerHTML = '';
+  const carregando = '<div class="skeleton" aria-label="Carregando"></div>';
+  $('#r13ValoresLista').innerHTML = R13_ERRO ? '<p class="vazio-curto">Sem os contatos, não dá para saber quais serviços estão sem valor.</p>' : carregando;
+  $('#r13ValoresSub').textContent = ''; $('#r13Lote').hidden = true;
+  $('#r13Grafico').innerHTML = R13_ERRO ? '' : carregando; $('#r13Leitura').textContent = '';
+  $('#r13Etapas').innerHTML = ''; $('#r13FunilTxt').textContent = '';
+}
 function renderHoje13() {
-  if (!$('#r13Heroi') || !PERFIL?.id || typeof TODOS === 'undefined') return;
+  if (!$('#r13Heroi')) return;
+  if (!R13_PRONTO || typeof TODOS === 'undefined') { esperaHoje13(); return; }
+  if (!PERFIL?.id) return;
+  $('#r13Heroi').classList.remove('r13-esperando'); $('#r13Frase').removeAttribute('role');
   const agora = Date.now(), r = R13.resumoHoje(TODOS, agora, {euId: PERFIL.id, gestor: SOU_GESTOR});
   const ret = R13_RET;
   $('#r13Data').textContent = `Hoje · ${new Date(agora).toLocaleDateString('pt-BR', {weekday: 'long', day: '2-digit', month: '2-digit'})} · ${SOU_GESTOR ? 'a loja toda' : 'os seus contatos'}`;
@@ -100,6 +124,7 @@ function renderEtapas13(r) {
 
 /* ---------- cliques da tela Hoje ---------- */
 $('#view-hoje').addEventListener('click', async e => {
+  if (e.target.closest('[data-r13-tentar]')) { R13_ERRO = ''; esperaHoje13(); carregar(); return; }
   const abrir = e.target.closest('[data-r13-abrir]'); if (abrir) { abrirModal(abrir.dataset.r13Abrir); return; }
   const sug = e.target.closest('[data-r13-sug]'); if (sug) { const i = sug.closest('form').querySelector('input'); i.value = sug.dataset.r13Sug; i.focus(); return; }
   const cort = e.target.closest('[data-r13-cortesia]');
@@ -192,3 +217,30 @@ renderHoje6 = function () {
 };
 $('#hojeLista').addEventListener('click', e => { if (e.target.closest('[data-r13-fila]')) { R13_FILA_TODA = true; renderHoje6(); } });
 document.addEventListener('indycar:aba', e => { if (e.detail.aba === 'hoje') renderHoje13(); });
+
+renderHoje13();   // já mostra "Montando o resumo do dia…" enquanto os contatos chegam
+
+/* ---------- Rodada 13B: abrir já filtrado pelo endereço (a Central usa no número "contatos sem responsável") ----------
+   /crm/?ver=sem-responsavel  → Contatos, só os sem responsável
+   /crm/?ver=meus             → Contatos, só os meus
+   /crm/?ver=sem-valor        → Contatos, só os concluídos sem valor lançado
+   /crm/?ver=funil | ?ver=painel | ?ver=hoje → a aba
+   Aceita também ?filtro=… com os mesmos valores. O parâmetro sai da barra depois de usado. */
+const VER13 = {
+  'sem-responsavel': {resp: 'sem'}, 'meus': {resp: 'meus'}, 'sem-valor': {semValor: true},
+  'funil': {aba: 'pipeline'}, 'painel': {aba: 'dashboard'}, 'hoje': {aba: 'hoje'}, 'contatos': {},
+};
+const _abrirPorLink13 = abrirPorLink;
+abrirPorLink = async function () {
+  const p = new URLSearchParams(location.search), chave = String(p.get('ver') || p.get('filtro') || '').toLowerCase();
+  if (!chave) return _abrirPorLink13();
+  const v = VER13[chave];
+  p.delete('ver'); p.delete('filtro'); p.delete('papel');
+  history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : '') + location.hash);
+  if (!v) { toast('Esse endereço pede uma lista que o CRM não conhece. Abri o resumo de hoje.'); return _abrirPorLink13(); }
+  if (v.aba) { irPara(v.aba); return _abrirPorLink13(); }
+  $('#fStatus').value = ''; $('#fOrigem').value = ''; $('#search').value = ''; $('#soParados').checked = false; $('#soSemValor').checked = !!v.semValor;
+  $('#fResp').value = v.resp || ''; salvarResp();
+  irPara('leads'); refiltrarTela();
+  return _abrirPorLink13();
+};

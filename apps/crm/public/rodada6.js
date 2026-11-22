@@ -19,7 +19,7 @@ const post6 = (url, corpo) => api(url, { method: 'POST', body: JSON.stringify(co
 function appDoLink6(href) {
   let u; try { u = new URL(href, location.href); } catch { return null; }
   if (!/^https?:$/.test(u.protocol)) return null;
-  for (const app of ['patio', 'orcador', 'atendimento', 'agenda', 'comunicar', 'site']) {
+  for (const app of ['patio', 'orcador', 'atendimento', 'agenda', 'comunicar', 'trafego', 'site']) {
     const base = A6.urlApp(app, '/'); if (!base) continue;
     try { const b = new URL(base, location.href); if (b.origin === u.origin && u.pathname.startsWith(b.pathname === '/' ? '/' : b.pathname) && !(app === 'agenda' && A6.CENTRAL && !u.pathname.startsWith(b.pathname))) return app; } catch { /* segue */ }
   }
@@ -28,10 +28,21 @@ function appDoLink6(href) {
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href]'); if (!a || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
   const app = appDoLink6(a.getAttribute('href')); if (!app) return;
-  if (A6.CENTRAL && ['agenda', 'atendimento', 'comunicar'].includes(app) && !a.target) return;
   e.preventDefault(); abrirNomeada6(a.href, app);
 }, true);
-function abrirNomeada6(u, app) { const w = window.open(u, 'indycar-' + app); if (w) { try { w.opener = null; w.focus(); } catch { /* outra origem */ } } return w; }
+/* Rodada 13B: na Central, os apps irmãos (Agenda, Atendimento, Comunicar, Orçador, Tráfego) abrem na MESMA janela,
+   com a mesma sessão (sem outro login). Antes, "Abrir conversa" e cia. abriam outra aba. O Pátio mora em outro
+   endereço e continua na janela dele. Antes de sair, não deixa perder o que foi digitado nem a fila de mudanças. */
+const mesmaJanela6 = app => !!(A6.CENTRAL && A6.IRMAOS && A6.IRMAOS[app]);
+function sairPara6(href) {
+  const sujo = typeof formSujo === 'function' && document.querySelector('#modalBg')?.classList.contains('open') && formSujo();
+  if (sujo && !confirm('Há alterações na ficha que não foram salvas. Sair mesmo assim?')) return false;
+  const fila = typeof FILA_MEM !== 'undefined' ? FILA_MEM.length : 0;
+  if (fila && !confirm(`Há ${fila} mudança${fila === 1 ? '' : 's'} esperando o sistema voltar. Se sair agora, ela${fila === 1 ? '' : 's'} não será${fila === 1 ? '' : 'ão'} gravada${fila === 1 ? '' : 's'}. Sair mesmo assim?`)) return false;
+  location.assign(href);
+  return true;
+}
+function abrirNomeada6(u, app) { if (mesmaJanela6(app)) { sairPara6(u); return null; } const w = window.open(u, 'indycar-' + app); if (w) { try { w.opener = null; w.focus(); } catch { /* outra origem */ } } return w; }
 const abrirApp6 = (app, caminho) => { const u = A6.urlApp(app, caminho); if (u) abrirNomeada6(u, app); };
 
 /* ================= sinais ao vivo ================= */

@@ -340,7 +340,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
     return null;
   };
 
-  const rotasR7 = criarRotasMockR7({getLeads: () => leads, getClientes: () => clientes, ativ, getTarefas: () => tarefas, indicacoes: INDICACOES_FALSAS, EU, equipeDe: equipe});
+  const rotasR7 = criarRotasMockR7({getLeads: () => leads, getClientes: () => clientes, ativ, getTarefas: () => tarefas, indicacoes: INDICACOES_FALSAS, EU, equipeDe: equipe, prefixo: PREFIXO});
   const filtros = new Map();      // papel → filtros salvos (rodada 5)
   const campanhas = [];
   return http.createServer(async (req, res) => {
@@ -527,7 +527,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
           const pre = true ? R6C.prepararPreAgendamentos([{id: crypto.randomUUID(), data: new Date(Date.now() + 2 * DIA).toISOString().slice(0, 10), hora: '08:00:00', status: 'aguardando', observacoes: 'PRÉ-AGENDAMENTO pedido pelo cliente pela página do orçamento — confirmar horário. Orçamento nº 0012 (Orçador)', servico: 'Pastilhas e discos'}], {agora}) : [];
           return json({lead_id: lead.id, gerado_em: agoraIso(), avisos: [], site: R6C.lerObservacoes(true ? 'CARRO NO PÁTIO AGORA: OS nº 100 (em execucao).\nHorário escolhido: sexta de manhã.' : lead.observacoes), orcamentos: {itens, resumo: R6C.resumirOrcamentos(itens), consultou_orcador: true},
             pre_agendamentos: pre, patio: {carros}, acoes_sugeridas: true ? R6C.acoesSugeridas([{codigo: 'cobrar_orcamento', app: 'orcador', titulo: 'Cobrar o orçamento nº 12', motivo: 'O cliente abriu e não respondeu', link: 'https://indycar-orcador.netlify.app/#/historico/x'}]) : [],
-            linha_do_tempo: [], links: {novo_orcamento: R6C.linkNovoOrcamento({telefone: lead.telefone, nome: lead.nome, lead_id: lead.id}), whatsapp: tel ? 'https://wa.me/55' + tel : null}});
+            linha_do_tempo: [], links: {novo_orcamento: R6C.linkNovoOrcamento({telefone: lead.telefone, nome: lead.nome, lead_id: lead.id}, {prefixo: PREFIXO}), whatsapp: tel ? 'https://wa.me/55' + tel : null}});
         }
         if (p === '/api/patio/carros') { const car = carrosMock(), sem = [{os_id: crypto.randomUUID(), numero: 777, etapa: 'teste', etapa_em: hAtras(2), placa: 'XYZ9K88', telefone: '12988887777', cliente_id: null}]; return json({total: car.length + 1, sem_lead_total: sem.length, sem_lead: sem.map(x => ({...x, etapa_rotulo: R6C.rotuloEtapa(x.etapa), nome: 'Dono Sem Lead', link: 'https://indycar-patio.netlify.app/?os=' + x.os_id}))}); }
         if (p === '/api/busca-tudo') {
@@ -622,7 +622,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
           comunicar: ctx ? ctx.comunicar : [], tarefas: tarefas.filter(x => x.status === 'aberta' && ls.some(l => l.id === x.lead_id)).map(x => ({...x, responsavel_nome: equipe(pp).find(y => y.id === x.responsavel_id)?.nome || null})),
           indicacoes: {fez: fc.indicacoes.feitas, foi_indicado_por: INDICACOES_FALSAS.some(i => i.lead_id && ls.some(l => l.id === i.lead_id)) ? {cliente_id: C0, nome: clientes[0].nome, telefone: clientes[0].telefone, quando: hAtras(48)} : null},
           resumo: {total_agendamentos: fc.agendamentos.length, servicos_feitos: fc.resumo.servicosFeitos, faltas: 0, nao_fechou: 0, gasto_agenda: 0, gasto_leads: fc.resumo.gasto, total_gasto: fc.resumo.gasto, ultima_visita: fc.agendamentos[0] ? fc.agendamentos[0].data + 'T09:30:00Z' : null, proximo_horario: null, carro_na_oficina: fc.patio.some(o => !['entregue','cancelado'].includes(o.etapa)), total_leads: ls.length, leads_abertos: ls.filter(l => !['concluido','perdido'].includes(l.status)).length, mensagens_total: ctx ? ctx.mensagens.length : 0, ultima_mensagem_em: aberto?.updated_at || null, tarefas_abertas: 0}};
-        return json({...ficha, links: R5.linksFicha(ficha), motivosPerda: R5.MOTIVOS_PERDA});
+        return json({...ficha, links: R5.linksFicha(ficha, {prefixo: PREFIXO}), motivosPerda: R5.MOTIVOS_PERDA});
       }
       if (p === '/api/busca') return json(R5.buscaGlobal({leads, clientes}, url.searchParams.get('q') || '', {limite: 8}));
       if (p === '/api/leads/sem-dono') {
