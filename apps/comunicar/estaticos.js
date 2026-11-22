@@ -14,6 +14,16 @@ import { aceitaCodificacao } from './rotas.js';
 
 const TEXTO = /\.(html|css|js|json|webmanifest|svg|txt)$/;
 
+/** Rodada 13C: caminho que nunca é tela do Comunicar e não existe: segmento oculto (/.env, /.git/config), nome com
+ *  ponto (/README.md, /x.html) ou pasta interna do projeto (/scripts/, /tests/…). Responde 404 em vez da página.
+ *  Telas sem ponto (/qualquer-tela) continuam recebendo a página (fallback). */
+export function naoEPagina(rel) {
+  const p = String(rel || '/');
+  if (/(^|\/)\./.test(p)) return true;
+  if (/\.[^/]*$/.test(p)) return true;
+  return /^\/(scripts|tests?|testes|node_modules|sql|supabase|qa-out)(\/|$)/i.test(p);
+}
+
 export function criarEstaticos({ pasta, mime = {}, seguros = {}, emMemoria = true }) {
   const memoria = new Map();
 
@@ -65,7 +75,7 @@ export function criarEstaticos({ pasta, mime = {}, seguros = {}, emMemoria = tru
     try {
       return responder(req, res, await carregar(caminho));
     } catch {
-      if (ext && ext !== '.html') { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...seguros }); return res.end('Não encontrado'); }
+      if ((ext && ext !== '.html') || naoEPagina(rel)) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...seguros }); return res.end('Não encontrado'); }
       try { return responder(req, res, await carregar(join(pasta, 'index.html'))); }
       catch { res.writeHead(404, seguros); return res.end(); }
     }

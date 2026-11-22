@@ -1698,7 +1698,8 @@ const CHAMA_CONSULTOR = new Set(['quer_agendar', 'quer_orcamento', 'reclamacao']
 const pillIntencao = (i, resumo) => { const x = INTENCAO[i]; if (!x) return '';
   return `<span class="badge-pill ${x[2]} intencao" title="${esc(resumo ? `IA: ${resumo}` : 'lido pela IA')}">✨ ${x[0]} ${esc(x[1])}</span>`; };
 /* Passagens para os outros apps (rodada 13B): os endereços vêm de apps.js (na Central, a mesma origem = sem login de
-   novo) e abrem NA MESMA JANELA; o telefone vai sem o 55, como o Atendimento, o CRM e a Agenda esperam. */
+   novo); o telefone vai sem o 55, como o Atendimento, o CRM e a Agenda esperam. Rodada 13C: cada app abre na aba
+   nomeada dele ("indycar-crm", "indycar-agenda"…), pelo ouvinte de cliques de apps.js. */
 function linkCliente(app, c) {
   const pronto = app === 'crm' ? LINKS.clienteCrm?.(c.id, c.telefone) : LINKS.clienteAgenda?.(c.id, c.telefone);
   if (pronto) return pronto;
