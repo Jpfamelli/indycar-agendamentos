@@ -1,0 +1,28 @@
+antes-entrada-1440-escuro.png · lateral não · toques pequenos 0
+antes-contatos-1440-escuro.png · lateral não · toques pequenos 0
+antes-funil-1440-escuro.png · lateral não · toques pequenos 0
+antes-painel-1440-escuro.png · lateral não · toques pequenos 0
+antes-clientes-1440-escuro.png · lateral não · toques pequenos 0
+antes-ficha-1440-escuro.png · lateral não · toques pequenos 0
+[escuro 1440] erros de console: 0
+antes-entrada-375-escuro.png · lateral não · toques pequenos 5 (btnPerfil 38x38; search 343x38; btnNovo 132x40; selPagina 17x17; btn btn-ghost sm 32x34)
+antes-contatos-375-escuro.png · lateral não · toques pequenos 5 (btnPerfil 38x38; search 343x38; btnNovo 132x40; selPagina 17x17; btn btn-ghost sm 32x34)
+antes-funil-375-escuro.png · lateral não · toques pequenos 7 (btnPerfil 38x38; search 343x38; btnNovo 132x40; fRespFunil 343x35; fSinal6 343x35; r6-mini 79x36; kb-etapa 258x35)
+antes-painel-375-escuro.png · lateral não · toques pequenos 10 (btnPerfil 38x38; btnNovo 132x40; filtro-pill 55x35; filtro-pill ativo 64x35; filtro-pill 71x35; filtro-pill 81x35; filtro-pill 108x35; svVer 95x34; svPreencher 120x34; btnMetas 102x34)
+antes-clientes-375-escuro.png · lateral não · toques pequenos 6 (btnPerfil 38x38; btnNovo 132x40; buscaCliente 297x38; ordemClientes 183x33; mini-acao 32x32; btn btn-ghost sm 32x34)
+antes-ficha-375-escuro.png · lateral não · toques pequenos 12 (btnPerfil 38x38; btnNovo 132x40; buscaCliente 297x38; ordemClientes 183x33; mini-acao 32x32; btn btn-ghost sm 32x34; modalX 32x32; lfRespSel 192x35; acao 130x33; acao 75x33; acao 95x33; acao 157x33)
+[escuro 375] erros de console: 0
+antes-entrada-1440-claro.png · lateral não · toques pequenos 0
+antes-contatos-1440-claro.png · lateral não · toques pequenos 0
+antes-funil-1440-claro.png · lateral não · toques pequenos 0
+antes-painel-1440-claro.png · lateral não · toques pequenos 0
+antes-clientes-1440-claro.png · lateral não · toques pequenos 0
+antes-ficha-1440-claro.png · lateral não · toques pequenos 0
+[claro 1440] erros de console: 0
+antes-entrada-375-claro.png · lateral não · toques pequenos 5 (btnPerfil 38x38; search 343x38; btnNovo 132x40; selPagina 17x17; btn btn-ghost sm 32x34)
+antes-contatos-375-claro.png · lateral não · toques pequenos 5 (btnPerfil 38x38; search 343x38; btnNovo 132x40; selPagina 17x17; btn btn-ghost sm 32x34)
+antes-funil-375-claro.png · lateral não · toques pequenos 7 (btnPerfil 38x38; search 343x38; btnNovo 132x40; fRespFunil 343x35; fSinal6 343x35; r6-mini 79x36; kb-etapa 258x35)
+antes-painel-375-claro.png · lateral não · toques pequenos 10 (btnPerfil 38x38; btnNovo 132x40; filtro-pill 55x35; filtro-pill ativo 64x35; filtro-pill 71x35; filtro-pill 81x35; filtro-pill 108x35; svVer 95x34; svPreencher 120x34; btnMetas 102x34)
+antes-clientes-375-claro.png · lateral não · toques pequenos 6 (btnPerfil 38x38; btnNovo 132x40; buscaCliente 297x38; ordemClientes 183x33; mini-acao 32x32; btn btn-ghost sm 32x34)
+antes-ficha-375-claro.png · lateral não · toques pequenos 12 (btnPerfil 38x38; btnNovo 132x40; buscaCliente 297x38; ordemClientes 183x33; mini-acao 32x32; btn btn-ghost sm 32x34; modalX 32x32; lfRespSel 192x35; acao 130x33; acao 75x33; acao 95x33; acao 157x33)
+[claro 375] erros de console: 0

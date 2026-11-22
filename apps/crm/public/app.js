@@ -245,7 +245,7 @@ async function carregar() {
     if (primeira) {
       let aba = null; try { aba = sessionStorage.getItem('indycar_crm_aba'); } catch { /* ignora */ }
       const atalho = Object.hasOwn(TITULOS, aba) && [...document.querySelectorAll('[data-view]')].find(item => item.dataset.view === aba);
-      irPara(atalho && !atalho.hidden ? aba : 'leads');
+      irPara(atalho && !atalho.hidden ? aba : 'hoje');   // rodada 13: a primeira visita abre Hoje (o resumo do dia)
       abrirPorLink();
     }
   } catch (err) {

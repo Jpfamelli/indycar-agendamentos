@@ -21,7 +21,7 @@ test('rodada 11: topo .ic-topo com a marca "IndyCar CRM" que volta para a Centra
 test('rodada 11: até 5 abas no topo; o resto do gestor fica no menu da pessoa', () => {
   const nav = html.match(/<nav class="ic-abas"[\s\S]*?<\/nav>/)[0];
   const abas = [...nav.matchAll(/data-view="(\w+)">([^<]+)</g)].map(m => m[2]);
-  assert.deepEqual(abas, ['Contatos', 'Funil', 'Hoje', 'Clientes', 'Painel']);
+  assert.deepEqual([...abas].sort(), ['Clientes', 'Contatos', 'Funil', 'Hoje', 'Painel'], 'as mesmas 5 abas (a ordem com Hoje primeiro é da rodada 13: r13-tela.test.cjs)');
   const menu = html.match(/<div class="pop pop-direita menu-perfil" id="menuPerfil"[\s\S]*?<\/header>/)[0];
   assert.match(menu, /data-view="equipe" hidden>Equipe e metas</);
   assert.match(menu, /data-view="distribuir" hidden>Contatos sem responsável</);
@@ -113,7 +113,7 @@ test('R9-CRM: atributos de teclado, leitor de tela e celular que continuam na te
 
 test('R9-CRM: comportamentos da tela que continuam (primeira visita, contagem, clientes, fila Hoje, ficha)', () => {
   const app = pub('app.js'), eq = pub('equipe.js'), r7 = pub('rodada7.js');
-  assert.match(app, /irPara\(atalho && !atalho\.hidden \? aba : 'leads'\)/, 'R9-CRM-002: primeira visita abre Contatos');
+  assert.match(app, /irPara\(atalho && !atalho\.hidden \? aba : 'hoje'\)/, 'R9-CRM-002 (mudou na rodada 13): primeira visita abre Hoje, o resumo do dia');
   assert.match(app, /\$\('#leadCount'\)\.textContent = `\$\{LEADS\.length\} contato/, 'R9-CRM-011 + rodada 11: a contagem aparece já no carregamento');
   assert.match(app, /const pedido = \+\+pedidoClientes;[\s\S]*if \(!atual\(\)\) return;/, 'R9-CRM-065: busca de clientes descarta respostas antigas');
   assert.match(app, /alvo\.setAttribute\('aria-busy', 'true'\)/, 'R9-CRM-066');

@@ -28,6 +28,7 @@
 <link rel="stylesheet" href="styles.css" />
 <link rel="stylesheet" href="crm-ia.css" />
 <link rel="stylesheet" href="r11.css" />
+<link rel="stylesheet" href="r13.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0a0a'/><text y='.85em' x='8' font-size='78' font-family='sans-serif' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar CRM" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -55,9 +56,9 @@
     <span class="ic-nome">IndyCar <b>CRM</b></span>
   </a>
   <nav class="ic-abas" aria-label="Seções">
+    <button type="button" class="nav-item" data-view="hoje">Hoje</button>
     <button type="button" class="nav-item" data-view="leads">Contatos</button>
     <button type="button" class="nav-item" data-view="pipeline">Funil</button>
-    <button type="button" class="nav-item" data-view="hoje">Hoje</button>
     <button type="button" class="nav-item" data-view="clientes">Clientes</button>
     <button type="button" class="nav-item" data-view="dashboard">Painel</button>
   </nav>
@@ -110,6 +111,7 @@
       </form>
       <span class="filter-count" id="periodoTxt" aria-live="polite"></span>
     </div>
+    <p class="r13-frase r13-frase-painel" id="r13FrasePainel" aria-live="polite"></p>
     <div class="card card-sem-valor" id="cardSemValor" hidden>
       <div class="sv-txt"><div><h3 id="svTitulo">Vendas sem valor pago</h3><p class="card-sub" id="svSub"></p></div></div>
       <div class="sv-acoes"><button type="button" class="btn btn-ghost sm" id="svVer">Ver na lista</button><button type="button" class="btn btn-primary sm" id="svPreencher" hidden>Preencher agora</button></div>
@@ -197,6 +199,32 @@
 
   <!-- ---------- HOJE (rodada 6) ---------- -->
   <section class="view" id="view-hoje">
+    <!-- rodada 13: o resumo do dia, no estilo do herói do Tráfego -->
+    <div class="r13-heroi" id="r13Heroi">
+      <div class="r13-h-txt">
+        <p class="r13-sobre" id="r13Data">Hoje</p>
+        <p class="r13-frase" id="r13Frase" aria-live="polite"></p>
+        <div class="r13-nums" id="r13Nums"></div>
+      </div>
+      <div class="r13-caixa" id="r13Caixa"></div>
+    </div>
+    <div class="r13-grade">
+      <section class="card r13-valores" id="r13Valores" aria-labelledby="r13ValoresT">
+        <div class="card-topo"><h3 id="r13ValoresT">Valor dos serviços fechados</h3><button type="button" class="btn btn-ghost sm" id="r13Lote" hidden>Lançar vários de uma vez</button></div>
+        <p class="card-sub" id="r13ValoresSub"></p>
+        <div id="r13ValoresLista"></div>
+      </section>
+      <section class="card r13-grafico" aria-labelledby="r13GraficoT">
+        <div class="card-topo"><h3 id="r13GraficoT">Contatos por dia</h3><span class="filter-count">últimos 14 dias</span></div>
+        <div class="r13-legenda"><span><i class="r13-l-ent"></i>Entraram</span><span><i class="r13-l-fec"></i>Fecharam serviço</span></div>
+        <div id="r13Grafico"></div>
+        <p class="r13-leitura" id="r13Leitura" aria-live="polite"></p>
+      </section>
+    </div>
+    <section class="card r13-funil" aria-labelledby="r13FunilT">
+      <div class="card-topo"><h3 id="r13FunilT">Funil agora</h3><span class="filter-count" id="r13FunilTxt"></span></div>
+      <div class="r13-etapas" id="r13Etapas"></div>
+    </section>
     <div class="card">
       <div class="r6-cab"><h3>Fila do dia</h3><label class="r6-esc">Mostrar<select id="hojeEscopo" aria-label="Escopo da fila"></select></label></div>
       <p class="card-sub" id="hojeResumo" aria-live="polite"></p>
@@ -543,6 +571,8 @@
 <script src="rodada6.js"></script>
 <script src="rodada6c.js"></script>
 <script src="rodada7.js"></script>
+<script src="r13-resumo.js"></script>
+<script src="r13.js"></script>
 <script>
   /* Registra o service worker — é o que torna o app instalável.
      Falha silenciosa de propósito: sem ele o app funciona igual, só deixa
