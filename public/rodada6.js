@@ -65,6 +65,13 @@
     if (d.length === 10 || d.length === 11) p.set('tel', '55' + d);
     const nome = String(a.cliente_nome || '').replace(/\s+/g, ' ').trim().slice(0, 80);
     if (nome) p.set('nome', nome);
+    /* rodada 13B: o Orçador aceita carro, placa e serviço no link (ecossistema.ts › clienteDaConsulta): a cotação já começa com eles */
+    const carro = String(a.veiculo || '').replace(/[\p{C}<>]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (carro) p.set('carro', carro);
+    const placa = String(a.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(placa)) p.set('placa', placa);
+    const servico = String(a.servico || '').replace(/[\p{C}<>]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+    if (servico) p.set('servico', servico);
     const q = p.toString();
     return q ? IndyCarApps.url('orcador', '?' + q) : null;
   }

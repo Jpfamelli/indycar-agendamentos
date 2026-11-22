@@ -101,6 +101,8 @@ async function pedirComTempo(url, opt) {
 }
 const ERRO_SEM_REDE = 'Sem conexão com o servidor. Confira a internet e tente de novo.';
 const ERRO_FORA = 'O sistema está reiniciando e não conseguiu salvar agora. Nada se perdeu, tente de novo em alguns segundos.';
+/* rodada 13B: numa LEITURA não tem o que salvar; o recado dizia "não conseguiu salvar" ao abrir uma tela */
+const ERRO_FORA_LER = 'O sistema está reiniciando e não conseguiu carregar agora. Tente de novo em alguns segundos.';
 
 async function api(method, path, body, o = {}) {
   let tentativa = 0, esperou = false, r;
@@ -127,7 +129,7 @@ async function api(method, path, body, o = {}) {
     if (esperou) { _esperandoServidor--; faixaAcordando(tentativa); }
   }
   if (esperou && r?.ok && _esperandoServidor === 0) toast('O sistema voltou, tudo certo de novo ✅');
-  if (P.servidorFora(r.status)) throw Object.assign(new Error(ERRO_FORA), { status: r.status, fora: true });
+  if (P.servidorFora(r.status)) throw Object.assign(new Error(method === 'GET' ? ERRO_FORA_LER : ERRO_FORA), { status: r.status, fora: true });
   const data = await r.json().catch(() => ({}));
   /* Sessão (padrão comum, item 9): desativado no meio do uso → volta ao login
      com o aviso; falta o código das duas etapas → pede o código; sem a Agenda
@@ -522,6 +524,28 @@ function cartaoVaiSair(card, act) {
 }
 /** Desliza o cartão para fora e fecha o espaço. Resolve mesmo se a animação não
     rodar (aba oculta, movimento reduzido) — por isso o timer de segurança. */
+/* RODADA 13B: apagar com DESFAZER. O item some da tela na hora e o recado traz "Desfazer" por 8 s; só
+   depois o pedido de apagar vai ao servidor. Desfez (ou fechou a aba antes) = nada foi apagado. Enquanto
+   espera, a tela repintada continua sem o item (state._apagando). */
+state._apagando = new Set();
+const esconderApagando = (root = document) => { for (const id of state._apagando) $$(`[data-id="${CSS.escape(id)}"]`, root).forEach((el) => { el.hidden = true; }); };
+function apagarComDesfazer(id, msg, apagar) {
+  state._apagando.add(id);
+  esconderApagando();
+  let desfeito = false;
+  const ir = async () => {
+    if (desfeito || !state._apagando.has(id)) return;
+    try { await apagar(); state._apagando.delete(id); route(); }
+    catch (e) { state._apagando.delete(id); $$(`[data-id="${CSS.escape(id)}"]`).forEach((el) => { el.hidden = false; }); toast(e.message, 'err'); }
+  };
+  const t = setTimeout(ir, 8000);
+  toast(msg, 'ok', { duracao: 8000, acao: { rotulo: 'Desfazer', fn: () => {
+    desfeito = true; clearTimeout(t); state._apagando.delete(id);
+    $$(`[data-id="${CSS.escape(id)}"]`).forEach((el) => { el.hidden = false; });
+    toast('Desfeito, nada foi apagado');
+  } } });
+}
+
 function sairDoCartao(card) {
   return new Promise((ok) => {
     if (!card.isConnected) return ok();
@@ -698,11 +722,8 @@ function bindApptActions(root) {
         if (act === 'confirmar') return pedirConfirmacao(id);
         if (act === 'motivo') return window.R7?.pedirMotivo(id, card.querySelector('.appt-nome, .nome')?.textContent || '');
         if (act === 'excluir') {
-          if (!confirm('Excluir este agendamento?')) return;
-          await api('DELETE', `/agendamentos/${id}`);
-          await sairDoCartao(card);
-          toast('Agendamento excluído');
-          return route();
+          const nome = card.dataset.nome || card.querySelector('.appt-nome')?.textContent || 'cliente';
+          return apagarComDesfazer(id, `Horário de ${nome} excluído`, () => api('DELETE', `/agendamentos/${id}`));
         }
         if (act === 'compareceu') return marcarNaRecepcao(card, act, { aoAtualizar: () => route() });
         if (RECADO_DESFECHO[act] || act === 'nao_veio') return marcarDesfecho(card, id, act);
@@ -722,13 +743,16 @@ function bindApptActions(root) {
    ============================================================================ */
 const PATIO_ST_CHEGOU = new Set(['compareceu', 'em_atendimento', 'concluido', 'nao_fechou']);
 const _patioCache = new Map();          // agendamento_id → { em, os|null }
+let _patioVoo = null;                   // rodada 13B: o Quadro pedia os mesmos ids duas vezes ao mesmo tempo
 async function patioDe(ids, forcar = false) {
+  if (_patioVoo) await _patioVoo.catch(() => null);
   const agora = Date.now();
   const faltam = ids.filter(id => forcar || !_patioCache.has(id) || agora - _patioCache.get(id).em > 30_000);
   if (faltam.length) {
-    const r = await api('GET', '/patio/agendamentos?ids=' + encodeURIComponent(faltam.slice(0, 60).join(',')), null, { repetir: false })
-      .catch(() => null);
-    if (r && r.itens) for (const id of faltam) _patioCache.set(id, { em: agora, os: r.itens[id] || null });
+    _patioVoo = api('GET', '/patio/agendamentos?ids=' + encodeURIComponent(faltam.slice(0, 60).join(',')), null, { repetir: false })
+      .then((r) => { if (r && r.itens) for (const id of faltam) _patioCache.set(id, { em: agora, os: r.itens[id] || null }); })
+      .catch(() => null).finally(() => { _patioVoo = null; });
+    await _patioVoo;
   }
   const saida = {};
   for (const id of ids) { const c = _patioCache.get(id); if (c?.os) saida[id] = c.os; }
@@ -1295,11 +1319,10 @@ function bindCliRows() {
     const id = tr.dataset.id; // uuid (string)
     tr.querySelector('[data-act="edit"]')?.addEventListener('click', () => openClienteModal(id));
     tr.querySelector('[data-act="wa"]')?.addEventListener('click', () => openWhatsappModal(null, id));
-    tr.querySelector('[data-act="del"]')?.addEventListener('click', async () => {
-      if (!confirm('Excluir cliente?')) return;
-      // clientes agora é compartilhada: o banco pode recusar se houver agendamento ligado
-      try { await api('DELETE', `/clientes/${id}`); toast('Cliente excluído'); route(); }
-      catch (e) { toast(e.message, 'err'); }
+    tr.querySelector('[data-act="del"]')?.addEventListener('click', () => {
+      // clientes é compartilhada: o banco pode recusar se houver agendamento ligado (a linha volta com o aviso)
+      const nome = tr.querySelector('b')?.textContent || '';
+      apagarComDesfazer(id, `Cliente ${nome} excluído`, () => api('DELETE', `/clientes/${id}`));
     });
   });
 }
@@ -3007,10 +3030,9 @@ function ligarEspera(box) {
     try { await api('PATCH', `/espera/${b.dataset.reabrirEspera}`, { status: 'aberta' }); toast('De volta à lista de espera'); refreshBadge(true); route(); }
     catch (e) { toast(e.message, 'err'); }
   }));
-  $$('[data-apagar-espera]', box).forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('Apagar esta espera de vez?')) return;
-    try { await api('DELETE', `/espera/${b.dataset.apagarEspera}`); toast('Espera apagada'); route(); }
-    catch (e) { toast(e.message, 'err'); }
+  $$('[data-apagar-espera]', box).forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.apagarEspera;
+    apagarComDesfazer(id, 'Espera apagada', () => api('DELETE', `/espera/${id}`));
   }));
 }
 /* Nova/editar espera. `pre` vem do Novo agendamento ("Entrar na lista de espera" com o que já foi digitado). */
@@ -3131,6 +3153,7 @@ async function route(r, opts = {}){
     await (ROUTES[state.route] || renderInicio)({ quieto, vez });
     if (vez === state._vez) {
       state._pintou = true;
+      if (state._apagando.size) esconderApagando(view);   // rodada 13B: o que está para apagar não volta numa repintura
       if (!quieto) {
         clearTimeout(state._entraTimer);
         state._entraTimer = setTimeout(() => view.classList.remove('entrando'), 1200);
