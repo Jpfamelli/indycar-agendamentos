@@ -42,6 +42,7 @@ export function periodoDe(id) {
     case 'hoje': return { id: 'hoje', de: HOJE, ate: HOJE, rotulo: 'Hoje', quando: 'hoje', anterior: { de: '2026-11-18', ate: '2026-11-18' } };
     case '7d': return { id: '7d', de: '2026-11-13', ate: HOJE, rotulo: '7 dias', quando: 'nos últimos 7 dias', anterior: { de: '2026-11-06', ate: '2026-11-12' } };
     case '30d': return { id: '30d', de: '2026-10-21', ate: HOJE, rotulo: '30 dias', quando: 'nos últimos 30 dias', anterior: { de: '2026-09-21', ate: '2026-10-20' } };
+    case '60d': return { id: '60d', de: '2026-09-21', ate: HOJE, rotulo: '60 dias', quando: 'nos últimos 60 dias', anterior: { de: '2026-07-23', ate: '2026-09-20' } };
     case 'mes_passado': return { id: 'mes_passado', de: '2026-10-01', ate: '2026-10-31', rotulo: 'Mês passado', quando: 'no mês passado', anterior: { de: '2026-09-01', ate: '2026-09-30' } };
     default: return { id: 'mes', de: '2026-11-01', ate: HOJE, rotulo: 'Este mês', quando: 'neste mês', anterior: { de: '2026-10-01', ate: '2026-10-19' } };
   }

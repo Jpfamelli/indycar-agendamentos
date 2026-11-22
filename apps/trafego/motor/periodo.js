@@ -1,6 +1,6 @@
 /* ============================================================
    Período das rotas novas (rodada 8, frente T2a) — contrato da API:
-     ?periodo=hoje|7d|30d|mes|mes_passado   (padrão: mes)
+     ?periodo=hoje|7d|30d|60d|mes|mes_passado   (padrão: mes)
      ?de=AAAA-MM-DD&ate=AAAA-MM-DD          (vence o parâmetro periodo)
    O dia é sempre o de Brasília. Tudo aqui é puro: recebe "hoje" de fora.
    ============================================================ */
@@ -80,7 +80,7 @@ const ddmmaaaa = iso => `${ddmm(iso)}/${iso.slice(0, 4)}`;
 
 /**
  * Lê o período do pedido. Devolve { de, ate, rotulo, anterior: { de, ate }, chave }.
- * `chave` é o nome do período (hoje, 7d, 30d, mes, mes_passado) ou "datas".
+ * `chave` é o nome do período (hoje, 7d, 30d, 60d, mes, mes_passado) ou "datas".
  */
 function periodoDaConsulta(q, { hoje = hojeBR() } = {}) {
   const de = q.get('de'), ate = q.get('ate');
@@ -94,8 +94,8 @@ function periodoDaConsulta(q, { hoje = hojeBR() } = {}) {
   }
   const chave = q.get('periodo') || 'mes';
   if (chave === 'hoje') return { de: hoje, ate: hoje, rotulo: 'Hoje', anterior: { de: somarDias(hoje, -1), ate: somarDias(hoje, -1) }, chave };
-  if (chave === '7d' || chave === '30d') {
-    const n = chave === '7d' ? 7 : 30, inicio = somarDias(hoje, -(n - 1));
+  if (chave === '7d' || chave === '30d' || chave === '60d') {
+    const n = Number.parseInt(chave, 10), inicio = somarDias(hoje, -(n - 1));
     return { de: inicio, ate: hoje, rotulo: `Últimos ${n} dias`, anterior: { de: somarDias(inicio, -n), ate: somarDias(inicio, -1) }, chave };
   }
   if (chave === 'mes') {
@@ -107,7 +107,7 @@ function periodoDaConsulta(q, { hoje = hojeBR() } = {}) {
     const fimAntes = somarDias(inicio, -1);
     return { de: inicio, ate: fim, rotulo: 'Mês passado', anterior: { de: inicioDoMes(fimAntes), ate: fimAntes }, chave };
   }
-  throw recusar('Escolha um período: hoje, 7d, 30d, mes ou mes_passado.');
+  throw recusar('Escolha um período: hoje, 7d, 30d, 60d, mes ou mes_passado.');
 }
 
 /** ?mes=AAAA-MM (padrão: o mês corrente). Mês corrente vai até hoje; mês que ainda não começou é recusado. */

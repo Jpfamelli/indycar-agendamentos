@@ -63,6 +63,7 @@ function noPeriodo(periodo) {
     case 'hoje': return 'hoje';
     case '7d': return 'nos últimos 7 dias';
     case '30d': return 'nos últimos 30 dias';
+    case '60d': return 'nos últimos 60 dias';
     case 'mes': return 'neste mês';
     case 'mes_passado': return 'no mês passado';
     default: return periodo.de === periodo.ate ? `em ${P.ddmm(periodo.de)}` : `de ${periodo.rotulo}`;
