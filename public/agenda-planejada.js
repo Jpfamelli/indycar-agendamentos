@@ -116,7 +116,7 @@ function confirmarRemarcacao(a, dia, hora, conflitos) {
   return new Promise((resolver) => {
     const hoje = agoraSP().data;
     openModal(`
-      <div class="modal-head"><h3>${svg(I.calendar)} Remarcar ${esc(a.cliente_nome)}?</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+      <div class="modal-head"><h3>${svg(I.calendar)} Remarcar ${esc(a.cliente_nome)}?</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
       <div class="modal-body remarcar-conf">
         <div class="de-para"><div><small>De</small><b>${esc(a.hora)}</b><small>${esc(rotuloDia(a.data, hoje))}</small></div><span class="seta" aria-hidden="true">→</span>
           <div><small>Para</small><b>${esc(hora)}</b><small>${esc(rotuloDia(dia, hoje))}</small></div></div>
@@ -124,7 +124,7 @@ function confirmarRemarcacao(a, dia, hora, conflitos) {
         ${conflitos.length ? `<p class="aviso-campo">${svg(I.alerta)} <span>Horário disputado com ${esc(conflitos.map(c => c.hora + ' ' + c.cliente_nome).join('; '))}. Pode remarcar mesmo assim.</span></p>` : ''}
         <small class="muted">Depois de remarcar, o recado oferece "Avisar o cliente" (pela fila do Comunicar) e "Desfazer".</small>
       </div>
-      <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" id="rc_ok">${svg(I.check)} Remarcar</button></div>`);
+      <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button><button class="btn primary" id="rc_ok">${svg(I.check)} Remarcar</button></div>`);
     let feito = false;
     const fim = (v) => { if (feito) return; feito = true; resolver(v); };
     _aoFecharModal = () => fim(false);

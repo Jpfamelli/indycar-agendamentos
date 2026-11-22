@@ -9,18 +9,7 @@
 
   <!-- Tema (claro/escuro) aplicado ANTES de pintar a tela, para não piscar.
        Padrão: escuro. A escolha fica no localStorage, igual ao Atendimento. -->
-  <script>
-    (function () {
-      try {
-        var t = localStorage.getItem('indycar_tema');
-        if (t === 'claro') {
-          document.documentElement.setAttribute('data-tema', 'claro');
-          var m = document.querySelector('meta[name="theme-color"]');
-          if (m) m.setAttribute('content', '#eef0f4');
-        }
-      } catch (e) { /* navegador sem localStorage: segue no escuro */ }
-    })();
-  </script>
+  <script src="./tema-inicial.js"></script>
 
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />

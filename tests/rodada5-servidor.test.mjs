@@ -178,7 +178,9 @@ test('regras: espera e confirmação fora da allowlist da presença; apagar espe
 
 test('estáticos: /confirmar/ serve a página do cliente; a casca não tem caminho absoluto; o service worker é relativo', async () => {
   const pg = await (await fetch(base + '/confirmar/?t=abc')).text();
-  assert.match(pg, /Confirmar horário/); assert.match(pg, /\.\.\/api\/publico\/confirmacao/);
+  assert.match(pg, /Confirmar horário/); assert.match(pg, /<script src="\.\/confirmar\.js"><\/script>/);
+  // R13C: o script saiu para um arquivo (a CSP recusa script embutido); o arquivo é servido junto da página
+  assert.match(await (await fetch(base + '/confirmar/confirmar.js')).text(), /\.\.\/api\/publico\/confirmacao/);
   const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
   // rodada 11: o único caminho absoluto é o padrão IndyCar que a Central serve (/casa/...) e a marca que volta para a Central (/)
   assert.doesNotMatch(html, /(href|src)="\/(?!casa\/)[a-z]/, 'index.html só com caminhos relativos (fora o /casa/ do padrão)');

@@ -415,18 +415,22 @@ export function validarCliente(corpo, { parcial = false } = {}) {
 
 /** Política de conteúdo (CSP) da Agenda. Com o Supabase configurado, a tela só fala com AQUELE projeto
     (https para o login e wss para o sino ao vivo); sem configuração (instalação nova) vale o curinga de antes. */
+/** R13C: o único arquivo de fora que a Agenda carrega (supabase-js, versão fixa). */
+export const LIB_LOGIN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/';
 export function politicaDeConteudo(supabaseUrl) {
   let projeto = null;
   try { const u = new URL(String(supabaseUrl || '')); if (u.protocol === 'https:' && u.host) projeto = u.host; } catch { /* sem projeto */ }
   const supabase = projeto ? `https://${projeto} wss://${projeto}` : 'https://*.supabase.co wss://*.supabase.co';
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    /* R13C: sem 'unsafe-inline' (os dois scripts embutidos viraram arquivo e os onclick="" viraram data-acao) e o CDN só
+       no caminho exato da biblioteca do login, como a Casa: um HTML injetado não roda nem puxa código de outro pacote. */
+    `script-src 'self' ${LIB_LOGIN}`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data: blob:",
-    // jsdelivr: o service worker guarda a biblioteca do login (versão fixa) para a casca abrir sem rede
-    `connect-src 'self' ${supabase} https://cdn.jsdelivr.net`,
+    // a biblioteca do login (versão fixa): o service worker a guarda para a casca abrir sem rede
+    `connect-src 'self' ${supabase} ${LIB_LOGIN}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
