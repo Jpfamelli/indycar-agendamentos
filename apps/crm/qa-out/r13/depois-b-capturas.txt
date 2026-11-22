@@ -1,0 +1,28 @@
+depois-b-entrada-1440-escuro.png · lateral não · toques pequenos 0
+depois-b-contatos-1440-escuro.png · lateral não · toques pequenos 0
+depois-b-funil-1440-escuro.png · lateral não · toques pequenos 0
+depois-b-painel-1440-escuro.png · lateral não · toques pequenos 0
+depois-b-clientes-1440-escuro.png · lateral não · toques pequenos 0
+depois-b-ficha-1440-escuro.png · lateral não · toques pequenos 0
+[escuro 1440] erros de console: 0
+depois-b-entrada-375-escuro.png · lateral não · toques pequenos 0
+depois-b-contatos-375-escuro.png · lateral não · toques pequenos 0
+depois-b-funil-375-escuro.png · lateral não · toques pequenos 0
+depois-b-painel-375-escuro.png · lateral não · toques pequenos 0
+depois-b-clientes-375-escuro.png · lateral não · toques pequenos 0
+depois-b-ficha-375-escuro.png · lateral não · toques pequenos 0
+[escuro 375] erros de console: 0
+depois-b-entrada-1440-claro.png · lateral não · toques pequenos 0
+depois-b-contatos-1440-claro.png · lateral não · toques pequenos 0
+depois-b-funil-1440-claro.png · lateral não · toques pequenos 0
+depois-b-painel-1440-claro.png · lateral não · toques pequenos 0
+depois-b-clientes-1440-claro.png · lateral não · toques pequenos 0
+depois-b-ficha-1440-claro.png · lateral não · toques pequenos 0
+[claro 1440] erros de console: 0
+depois-b-entrada-375-claro.png · lateral não · toques pequenos 0
+depois-b-contatos-375-claro.png · lateral não · toques pequenos 0
+depois-b-funil-375-claro.png · lateral não · toques pequenos 0
+depois-b-painel-375-claro.png · lateral não · toques pequenos 0
+depois-b-clientes-375-claro.png · lateral não · toques pequenos 0
+depois-b-ficha-375-claro.png · lateral não · toques pequenos 0
+[claro 375] erros de console: 0
