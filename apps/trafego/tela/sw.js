@@ -11,17 +11,18 @@
    - Tudo relativo ao lugar do próprio arquivo: funciona em /trafego/ e na raiz.
    ============================================================================ */
 
-const VERSAO = 'indycar-trafego-r11-1';
+const VERSAO = 'indycar-trafego-r12-1';
 const PREFIXO = 'indycar-trafego-';
 const TEMPO_REDE_MS = 6000;
-/* Rodada 11: três abas só. O /casa/indycar.css (topo comum) é da Central e fica fora desta lista. */
+/* Rodada 12: Visão geral, Campanhas, Clientes, Radar, Relatórios e Ajustes. O /casa/indycar.css (topo comum) é da Central e fica fora desta lista. */
 const CASCA = [
   './', 'index.html', 'tema.js', 'manifest.json', 'img/logo.png', 'img/icone-192.png', 'vendor/supabase.js',
-  'ds/tokens.css', 'ds/base.css', 'ds/componentes.css', 'css/trafego.css',
+  'ds/tokens.css', 'ds/base.css', 'ds/componentes.css', 'css/trafego.css', 'css/painel.css',
   'fontes/archivo-variavel.woff2', 'fontes/barlow-condensed-600.woff2', 'fontes/barlow-condensed-700.woff2',
-  'js/api.js', 'js/app.js', 'js/dom.js', 'js/ecossistema.js', 'js/formato.js', 'js/icones.js',
-  'js/pecas.js', 'js/rede.js', 'js/resumo-logica.js', 'js/rotas.js', 'js/sessao.js',
-  'js/telas/ajustes.js', 'js/telas/campanhas.js', 'js/telas/estados.js', 'js/telas/periodo.js', 'js/telas/resumo.js',
+  'js/api.js', 'js/app.js', 'js/dom.js', 'js/ecossistema.js', 'js/formato.js', 'js/graficos.js', 'js/icones.js',
+  'js/painel-logica.js', 'js/pecas.js', 'js/rede.js', 'js/rotas.js', 'js/sessao.js',
+  'js/telas/ajustes.js', 'js/telas/cabeca.js', 'js/telas/campanhas.js', 'js/telas/clientes.js', 'js/telas/estados.js',
+  'js/telas/geral.js', 'js/telas/radar.js', 'js/telas/relatorios.js',
   'js/telas/gavetas/conexoes.js', 'js/telas/gavetas/metas.js',
 ];
 const ESCOPO = new URL('./', self.location.href);

@@ -1,30 +1,36 @@
 /* ============================================================================
-   IndyCar Tráfego · casca do app (rodada 11)
-   O topo comum (.ic-topo do /casa/indycar.css) com três abas: Resumo,
-   Campanhas e Ajustes (só administrador). Tema, conta, avisos e navegação.
+   IndyCar Tráfego · casca do app (rodada 12, no pique do Nexus Ads)
+   O topo comum (.ic-topo do /casa/indycar.css), a navegação lateral no
+   computador e a barra de baixo no celular: Visão geral, Campanhas,
+   Clientes, Radar (com o número vermelho de avisos) e Relatórios. Ajustes
+   fica no fim da lateral e no menu da pessoa, só para o administrador.
    O login é o da Central: sem sessão, a pessoa vai para lá e volta.
    ============================================================================ */
 
 import { $, h, icone, trocar } from './dom.js';
-import { lerRota, montarRota, abasDoPapel } from './rotas.js';
+import { lerRota, montarRota, abasDoPapel, ehAdmin, periodoDaTela, fonteDaTela, PERIODO_DA_TELA, PERIODOS_DA_TELA } from './rotas.js';
 import { baseDaPagina, enderecoDeEntrada, raizDaCentral, CENTRAL_PUBLICA } from './ecossistema.js';
 import { criarApi, criarLeitor } from './api.js';
 import { abrirSessao, acabouDeIr, marcarIda, limparIda } from './sessao.js';
-import { PERIODO_PADRAO, periodoValido, haQuanto, iniciais } from './formato.js';
+import { haQuanto, iniciais } from './formato.js';
+import { radar as contarRadar } from './painel-logica.js';
 import { textoDaEspera } from './rede.js';
 import * as Estados from './telas/estados.js';
-import * as Resumo from './telas/resumo.js';
+import * as Geral from './telas/geral.js';
 import * as Campanhas from './telas/campanhas.js';
+import * as Clientes from './telas/clientes.js';
+import * as Radar from './telas/radar.js';
+import * as Relatorios from './telas/relatorios.js';
 import * as Ajustes from './telas/ajustes.js';
 
-const TELA = { resumo: Resumo, campanhas: Campanhas, ajustes: Ajustes };
+const TELA = { geral: Geral, campanhas: Campanhas, clientes: Clientes, radar: Radar, relatorios: Relatorios, ajustes: Ajustes };
 const NOME_DO_PAPEL = { admin: 'Administrador', dono: 'Administrador', gestor: 'Gestor', atendente: 'Atendente', agenda: 'Agenda' };
 
 const base = baseDaPagina(location.pathname);
 const raizDoc = document.documentElement;
 const hrefCentral = raizDaCentral(base) || CENTRAL_PUBLICA;
 const miolo = $('#miolo');
-const el = { faixas: $('#faixas'), avisos: $('#avisos'), abas: $('#abas'), bTema: $('#bTema'), bConta: $('#bConta'), menuConta: $('#menuConta'), iniciais: $('#contaIniciais'), marca: $('#linkCasa') };
+const el = { faixas: $('#faixas'), avisos: $('#avisos'), navLado: $('#navLado'), navBaixo: $('#navBaixo'), ladoPe: $('#ladoPe'), bTema: $('#bTema'), bConta: $('#bConta'), menuConta: $('#menuConta'), iniciais: $('#contaIniciais'), marca: $('#linkCasa') };
 const estado = { rota: null, controle: null, vez: 0, eu: null, sb: null, api: null, leitor: null, parado: false };
 
 /* ------------------------------ avisos ------------------------------ */
@@ -86,6 +92,7 @@ function abrirMenu() {
       h('strong', null, eu.nome || 'Sem nome cadastrado'),
       eu.email ? h('span', null, eu.email) : null,
       eu.papel ? h('span', null, NOME_DO_PAPEL[eu.papel] || eu.papel) : null),
+    ehAdmin(eu.papel) ? h('a', { class: 'menu-item', href: hrefDaTela('ajustes'), on: { click: () => fecharMenu() } }, icone('ajustes'), 'Ajustes') : null,
     h('a', { class: 'menu-item', href: hrefCentral }, icone('voltar'), 'Ir para a Central'),
     h('button', { class: 'menu-item', type: 'button', on: { click: sair } }, icone('sair'), 'Sair'));
   el.menuConta.hidden = false;
@@ -102,26 +109,60 @@ async function sair() {
 
 /* ------------------------------ navegação ------------------------------ */
 
-const periodoAtual = () => (estado.rota ? periodoValido(estado.rota.params.periodo) : PERIODO_PADRAO);
+const periodoAtual = () => (estado.rota ? periodoDaTela(estado.rota.params.periodo) : PERIODO_DA_TELA);
+const fonteAtual = () => (estado.rota ? fonteDaTela(estado.rota.params.fonte) : '');
 
-/** Endereço de uma tela daqui, levando o período escolhido junto. */
+/** Endereço de uma tela daqui, levando o período e a fonte escolhidos junto (params com null tiram o filtro). */
 function hrefDaTela(tela, params = {}) {
-  const periodo = periodoAtual();
-  return montarRota(tela, { ...(periodo !== PERIODO_PADRAO ? { periodo } : {}), ...params });
+  const periodo = periodoAtual(), fonte = fonteAtual();
+  return montarRota(tela, { ...(periodo !== PERIODO_DA_TELA ? { periodo } : {}), ...(fonte ? { fonte } : {}), ...params });
 }
 
-function pintarAbas(rota) {
-  trocar(el.abas, abasDoPapel(estado.eu && estado.eu.papel).map((t) => h('a', {
-    href: hrefDaTela(t.id), 'aria-current': t.id === rota.tela ? 'page' : null,
-  }, t.rotulo)));
-  const atual = abasDoPapel(null).find((t) => t.id === rota.tela);
+const seloDoRadar = { n: 0 };
+function itemDaNav(t, rota, { curto = false } = {}) {
+  const n = t.id === 'radar' ? seloDoRadar.n : 0;
+  return h('a', { class: 'nav-item', href: hrefDaTela(t.id), 'aria-current': t.id === rota.tela ? 'page' : null, data: { tela: t.id } },
+    icone(t.icone, 'nav-icone'),
+    h('span', { class: 'nav-rotulo' }, curto && t.id === 'geral' ? 'Geral' : t.rotulo),
+    n ? h('span', { class: 'nav-selo' }, String(n), h('span', { class: 'so-leitor' }, n === 1 ? ' aviso' : ' avisos')) : null);
+}
+
+const TELAS_TODAS = abasDoPapel(null);
+function pintarNavegacao(rota) {
+  const papel = estado.eu && estado.eu.papel;
+  const telas = abasDoPapel(papel);
+  const doAdmin = telas.filter((t) => t.so_admin);
+  trocar(el.navLado,
+    telas.filter((t) => !t.so_admin).map((t) => itemDaNav(t, rota)),
+    doAdmin.length ? [h('span', { class: 'nav-divisa', 'aria-hidden': 'true' }), ...doAdmin.map((t) => itemDaNav(t, rota))] : null);
+  trocar(el.navBaixo, telas.filter((t) => !t.so_admin).map((t) => itemDaNav(t, rota, { curto: true })));
+  const periodo = PERIODOS_DA_TELA.find((p) => p.id === periodoAtual());
+  const fonte = fonteAtual();
+  trocar(el.ladoPe,
+    h('p', { class: 'lado-rotulo' }, 'Olhando'),
+    h('p', { class: 'lado-filtro' }, 'Últimos ' + (periodo ? periodo.rotulo : '30 dias'), h('span', null, fonte === 'meta' ? 'só a Meta' : fonte === 'google' ? 'só o Google' : 'Meta e Google')),
+    h('p', { class: 'lado-assina' }, 'IndyCar · Taubaté'));
+  const atual = TELAS_TODAS.find((t) => t.id === rota.tela);
   document.title = (atual ? atual.rotulo + ' · ' : '') + 'IndyCar Tráfego';
+}
+
+/** O número vermelho do Radar: avisos urgentes e de atenção do período (a mesma leitura que a tela do Radar usa). */
+async function atualizarSeloDoRadar(vez) {
+  try {
+    const lido = await estado.leitor.ler('api/hoje?periodo=' + periodoAtual());
+    if (vez !== estado.vez || estado.parado) return;
+    const n = contarRadar(lido.dados && lido.dados.fazer).selo;
+    if (n === seloDoRadar.n) return;
+    seloDoRadar.n = n;
+    pintarNavegacao(estado.rota);
+  } catch { /* sem o número: o Radar continua abrindo normal */ }
 }
 
 function criarCtx(rota, vez, forcar) {
   return {
     base, rota, forcar, miolo,
-    periodo: periodoValido(rota.params.periodo),
+    periodo: periodoDaTela(rota.params.periodo),
+    fonte: fonteDaTela(rota.params.fonte),
     api: estado.api, leitor: estado.leitor, eu: estado.eu,
     vivo: () => vez === estado.vez,
     hrefDaTela, avisar, faixa,
@@ -141,7 +182,7 @@ async function navegar({ forcar = false } = {}) {
   const mudouTela = !anterior || anterior.tela !== rota.tela;
   estado.rota = rota;
   const vez = ++estado.vez;
-  pintarAbas(rota);
+  pintarNavegacao(rota);
   if (estado.controle && estado.controle.sair) { try { estado.controle.sair(); } catch (erro) { console.error(erro); } }
   estado.controle = null;
   faixa('falha', null);
@@ -156,6 +197,7 @@ async function navegar({ forcar = false } = {}) {
     if (vez === estado.vez) Estados.falha(miolo, { mensagem: Estados.fraseDoErro(erro), aoTentar: () => navegar({ forcar: true }) });
   }
   if (mudouTela && anterior && vez === estado.vez) miolo.focus({ preventScroll: true });
+  if (vez === estado.vez) atualizarSeloDoRadar(vez);
 }
 
 /* ------------------------------ sessão ------------------------------ */
@@ -165,7 +207,9 @@ function pararEm(pintar) {
   estado.vez++;
   if (estado.controle && estado.controle.sair) { try { estado.controle.sair(); } catch { /* a tela já estava saindo */ } }
   estado.controle = null;
-  trocar(el.abas);
+  trocar(el.navLado);
+  trocar(el.navBaixo);
+  trocar(el.ladoPe);
   pintar();
 }
 

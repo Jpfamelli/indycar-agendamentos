@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>IndyCar Tráfego</title>
-  <meta name="description" content="Quanto gastou em anúncios, quantos contatos vieram e quantos viraram serviço.">
+  <meta name="description" content="O que os anúncios trouxeram para a oficina: conversas, agendamentos, clientes e dinheiro.">
   <meta name="theme-color" content="#070a14">
   <meta name="color-scheme" content="dark light">
   <script src="tema.js"></script>
@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="ds/base.css">
   <link rel="stylesheet" href="ds/componentes.css">
   <link rel="stylesheet" href="css/trafego.css">
+  <link rel="stylesheet" href="css/painel.css">
 </head>
 <body>
   <a class="pular" href="#miolo">Pular para o conteúdo</a>
@@ -25,7 +26,6 @@
       <img src="../casa/logo.png" alt="" width="32" height="32">
       <span class="ic-nome">IndyCar <b>Tráfego</b></span>
     </a>
-    <nav class="ic-abas" id="abas" aria-label="Seções"></nav>
     <div class="ic-acoes">
       <button class="botao-topo" id="bTema" type="button" aria-label="Mudar para o tema claro"></button>
       <button class="botao-topo conta" id="bConta" type="button" aria-expanded="false" aria-controls="menuConta" aria-label="Minha conta">
@@ -35,12 +35,22 @@
     </div>
   </header>
 
-  <div class="faixas" id="faixas"></div>
+  <div class="casca">
+    <aside class="lado" aria-label="Menu do Tráfego">
+      <nav class="lado-nav" id="navLado" aria-label="Seções"></nav>
+      <div class="lado-pe" id="ladoPe"></div>
+    </aside>
 
-  <main class="pagina" id="miolo" tabindex="-1">
-    <p class="abrindo" id="abrindo">Abrindo o Tráfego</p>
-    <noscript><p class="abrindo">Esta tela precisa do JavaScript ligado no navegador.</p></noscript>
-  </main>
+    <div class="conteudo">
+      <div class="faixas" id="faixas"></div>
+      <main class="pagina" id="miolo" tabindex="-1">
+        <p class="abrindo" id="abrindo">Abrindo o Tráfego</p>
+        <noscript><p class="abrindo">Esta tela precisa do JavaScript ligado no navegador.</p></noscript>
+      </main>
+    </div>
+  </div>
+
+  <nav class="barra-baixo" id="navBaixo" aria-label="Seções"></nav>
 
   <div id="avisos" aria-live="polite" aria-atomic="true"></div>
 
