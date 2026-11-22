@@ -27,7 +27,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, extname, normalize, sep } from 'node:path';
 import zlib from 'node:zlib';
-import { criarLinksCliente, podar } from './casa-servidor.js';
+import { criarLinksCliente, criarFaturamento, podar } from './casa-servidor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -84,6 +84,8 @@ export function dentroDoFreioDaSaude(ip, agora = Date.now(), limite = 40) {
   return true;
 }
 const LINKS_CLIENTE = criarLinksCliente();
+/* R13C: faturamento do mês da Casa pela regra única do valor do serviço (lib/valor-servico.cjs), só gestor */
+const FATURAMENTO = criarFaturamento({ quemE: LINKS_CLIENTE.quemE });
 let saudeEm = 0, saudeVoo = null, sondaFn = null;
 export function definirSondaParaTeste(fn) { sondaFn = fn; saudeEm = 0; SAUDE.patio = null; SAUDE.orcador = null; }
 export async function saudeDosApps(agora = Date.now(), validadeMs = 40_000) {
@@ -432,6 +434,10 @@ export async function handler(req, res) {
   if (caminho === '/api/central/links-cliente') {
     const r = await LINKS_CLIENTE.tratar(req);
     return json(res, r.status, r.corpo, r.cabecalhos);
+  }
+  if (caminho === '/api/central/faturamento') {
+    const r = await FATURAMENTO.tratar(req);
+    return json(res, r.status, r.corpo, { 'Cache-Control': 'no-store', ...(r.cabecalhos || {}) });
   }
   if (caminho === '/api/central' || caminho.startsWith('/api/central/')) return json(res, 404, { erro: 'Essa rota da Central não existe.' });
 

@@ -1,7 +1,9 @@
 /* Casa, rodada 13 — "Mês da oficina": UM bloco enxuto para o dono (gestor e administrador). Faturamento do mês até
    hoje, a meta com a barra, a projeção pelo ritmo dos dias úteis e quanto falta por dia. Nada de faturamento do dia,
    da semana, conversão, consultores ou gráfico de 7 dias (moram nos apps).
-   Lê r6_c1_painel_dono (só o faturamento) e a meta compartilhada em casa_metas (mês "2026-11"). A meta só se muda aqui,
+   Lê o faturamento em GET /api/central/faturamento (R13C: a regra única do valor do serviço, a mesma do CRM e do Tráfego:
+   Pátio > orçamento aprovado > Agenda > lançado; antes era r6_c1_painel_dono, só a Agenda) e a meta compartilhada em
+   casa_metas (mês "2026-11"). A meta só se muda aqui,
    num campo do próprio bloco. As regras estão em logica5.js (resumoDoMes) e logica2.js (valorDaMeta). */
 (function () {
   'use strict';
@@ -15,13 +17,14 @@
   async function carregar() {
     const minha = ++vez;
     try {
+      const { data: { session } } = await C.sb.auth.getSession();
       const [p, m] = await Promise.all([
-        C.sb.rpc('r6_c1_painel_dono'),
+        fetch('/api/central/faturamento', { headers: { Authorization: 'Bearer ' + (session ? session.access_token : '') }, cache: 'no-store', signal: AbortSignal.timeout(20000) })
+          .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(d.erro || 'falhou'), { status: r.status, code: r.status === 401 ? 'PGRST301' : undefined }); return d; }),
         C.sb.from('casa_metas').select('valor').eq('mes', L5.mesChave()).maybeSingle(),
       ]);
       if (minha !== vez) return;
-      if (p.error) throw p.error;
-      fat = (p.data && p.data.faturamento) || {};
+      fat = (p && p.faturamento) || {};
       meta = !m.error && m.data ? Number(m.data.valor) || 0 : 0;
       lido = true; erroLeitura = false; ultima = Date.now();
     } catch (e) {
@@ -57,10 +60,10 @@
     corpo.innerHTML = `
       <p class="mes-rot">Faturamento de ${C.esc(r.mesNome)} até hoje</p>
       <p class="mes-valor">${C.esc(reais(r.valor))}</p>
-      ${r.valor > 0 ? '' : '<p class="mes-apoio">Ainda nenhum "fechou" com valor na Agenda neste mês.</p>'}
+      ${r.valor > 0 ? '' : '<p class="mes-apoio">Ainda nenhum serviço fechado com valor neste mês.</p>'}
       ${metaHtml}
       ${conta.length ? `<dl class="mes-conta">${conta.join('')}</dl>` : ''}
-      ${r.semValor > 0 ? `<p class="mes-apoio">${r.semValor} ${r.semValor === 1 ? 'fechamento desta semana está' : 'fechamentos desta semana estão'} sem valor: o faturamento real é maior. <a class="link" href="${C.esc(C.bases.agenda)}" target="${C.esc(L.nomeDaAba('agenda'))}">Abrir a Agenda</a></p>` : ''}
+      ${r.semValor > 0 ? `<p class="mes-apoio">${r.semValor} ${r.semValor === 1 ? 'fechamento desta semana está' : 'fechamentos desta semana estão'} sem valor: o faturamento real é maior. <a class="link" href="${C.esc(C.bases.crm + '?ver=sem-valor')}" target="${C.esc(L.nomeDaAba('crm'))}">Lançar no CRM</a></p>` : ''}
       ${editando ? formulario(r.meta) : `<p class="mes-pe"><button type="button" class="btn-link" data-mes-meta>${r.meta ? 'mudar a meta' : 'definir a meta do mês'}</button></p>`}`;
     /* a CSP da Casa não deixa style="" no HTML: a largura da barra entra pelo CSSOM */
     corpo.querySelectorAll('[data-w]').forEach((e) => { e.style.width = Number(e.dataset.w) + '%'; });

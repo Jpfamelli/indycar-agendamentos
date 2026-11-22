@@ -146,3 +146,98 @@ export function criarLinksCliente({ env = process.env, fetchFn = globalThis.fetc
 
   return { tratar, quemE, limparCache: () => { cacheLogin.clear(); janelas.clear(); falhas.clear(); } };
 }
+
+/* ============================================================
+   R13C — GET /api/central/faturamento  →  { faturamento: { mes, sem_valor_semana, fechados_mes, com_valor_mes, por_fonte } }
+
+   O "Faturamento do mês" da Casa pela MESMA regra do CRM e do Tráfego (lib/valor-servico.cjs): serviço fechado = contato
+   concluído; valor = Pátio > orçamento aprovado > Agenda > lançado. Antes a Casa somava só agendamentos.valor
+   (r6_c1_painel_dono) e um valor lançado no CRM ou no Tráfego não aparecia. Só gestor/administrador (como a função do
+   banco, que recusa com so_gestor). Só leitura; nenhum nome ou telefone sai daqui, só somas.
+   ============================================================ */
+const GESTORES = new Set(['admin', 'gestor']);
+
+/** Início do mês e da semana (segunda) no fuso da oficina, como instantes. São Paulo não tem horário de verão desde 2019. */
+export function trechosDoFaturamento(agora = Date.now()) {
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(agora));
+  const meiaNoite = (dia) => Date.parse(`${dia}T00:00:00-03:00`);
+  const t = meiaNoite(hoje);
+  const dow = new Date(t + 3 * 3600e3).getUTCDay();             // 0 = domingo, no dia de São Paulo
+  const segunda = t - ((dow + 6) % 7) * 86400e3;
+  return { hoje, inicioMes: meiaNoite(hoje.slice(0, 7) + '-01'), inicioSemana: segunda, fim: t + 86400e3 };
+}
+
+/** Conta com a regra única: contatos fechados → valores → somas do mês e da semana. `leads` já lidos. */
+export function somarFaturamento(VS, leads, valores, agora = Date.now()) {
+  const tr = trechosDoFaturamento(agora);
+  const mes = VS.faturamento(leads, valores, { de: tr.inicioMes, ate: tr.fim });
+  const semana = VS.faturamento(leads, valores, { de: tr.inicioSemana, ate: tr.fim });
+  const porFonte = {};
+  for (const l of leads) {
+    const tl = VS.fechadoEm(l), v = valores.get(l.id);
+    if (!VS.fechou(l) || !(tl >= tr.inicioMes && tl < tr.fim) || !v || v.valor == null) continue;
+    porFonte[v.fonte] = Math.round(((porFonte[v.fonte] || 0) + v.valor) * 100) / 100;
+  }
+  return { mes: mes.total, fechados_mes: mes.fechados, com_valor_mes: mes.com_valor, sem_valor_semana: semana.sem_valor, por_fonte: porFonte, hoje: tr.hoje };
+}
+
+export function criarFaturamento({ env = process.env, quemE, agora = () => Date.now(), sb = null, VS = null } = {}) {
+  const janelas = new Map();
+  let cliente = sb, regra = VS;
+  async function banco() {
+    if (cliente) return cliente;
+    const { createClient } = await import('@supabase/supabase-js');
+    cliente = createClient(String(env.SUPABASE_URL || ''), String(env.SUPABASE_SERVICE_ROLE_KEY || ''), { auth: { persistSession: false, autoRefreshToken: false } });
+    return cliente;
+  }
+  async function valorServico() {
+    if (regra) return regra;
+    const { createRequire } = await import('node:module');
+    regra = createRequire(import.meta.url)('./lib/valor-servico.cjs');
+    return regra;
+  }
+  function dentroDoLimite(id) {
+    const t = agora();
+    const lista = (janelas.get(id) || []).filter((x) => t - x < 60_000);
+    if (lista.length >= LIMITE_POR_MINUTO) { janelas.set(id, lista); return false; }
+    lista.push(t); janelas.set(id, lista);
+    podar(janelas, 500, (l) => l.some((x) => t - x < 60_000), (l) => l.length);
+    return true;
+  }
+
+  async function lerFechados(sbc, desde) {
+    const linhas = [];
+    const iso = new Date(desde).toISOString();
+    for (let i = 0; i < 20000; i += 1000) {
+      // updated_at >= closed_at sempre: quem fechou no trecho foi atualizado no trecho (a conta fina é feita depois)
+      const { data, error } = await sbc.from('leads').select('id, status, valor_pago, observacoes, closed_at, updated_at, created_at')
+        .eq('status', 'concluido').or(`updated_at.gte.${iso},updated_at.is.null`).order('id').range(i, i + 999);
+      if (error) throw new Error('leads: ' + error.message);
+      linhas.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    return linhas;
+  }
+
+  /** Devolve { status, corpo, cabecalhos? } como LINKS_CLIENTE.tratar. */
+  async function tratar(req) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return { status: 405, corpo: { erro: 'Use GET.' }, cabecalhos: { Allow: 'GET' } };
+    const q = await quemE(req);
+    if (q.erro) {
+      const status = q.erro === 'sem_login' || q.erro === 'mfa_pendente' ? 401 : q.erro === 'indisponivel' ? 503 : 403;
+      return { status, corpo: { erro: status === 401 ? 'Entre de novo na Central.' : status === 503 ? 'Não consegui conferir o seu acesso agora.' : 'Sem acesso.', codigo: q.erro } };
+    }
+    if (!GESTORES.has(q.usuario.papel)) return { status: 403, corpo: { erro: 'Só o gestor vê o faturamento.', codigo: 'so_gestor' } };
+    if (!dentroDoLimite(q.usuario.id)) return { status: 429, corpo: { erro: 'Muitos pedidos seguidos. Espere um minuto.', codigo: 'limite' }, cabecalhos: { 'Retry-After': '60' } };
+    try {
+      const [sbc, R] = await Promise.all([banco(), valorServico()]);
+      const tr = trechosDoFaturamento(agora());
+      const leads = await lerFechados(sbc, Math.min(tr.inicioMes, tr.inicioSemana));
+      const valores = await R.valoresDosFechados(sbc, leads);
+      return { status: 200, corpo: { faturamento: somarFaturamento(R, leads, valores, agora()), regra: 'patio>orcamento>agenda>lancado' } };
+    } catch {
+      return { status: 502, corpo: { erro: 'O banco não respondeu o faturamento agora.', codigo: 'banco' } };
+    }
+  }
+  return { tratar, limparCache: () => janelas.clear() };
+}

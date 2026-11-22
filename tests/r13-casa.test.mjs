@@ -96,7 +96,7 @@ test('tela: herói com saudação, frase, números e relógio; "Mês da oficina"
 test('mês da oficina: só gestor e administrador, um bloco enxuto (sem dia, semana, conversão, consultores ou barras de 7 dias)', () => {
   const m = semComentarios(ler('mes.js'));
   assert.match(m, /if \(!casa\.visao\(\)\.dono\) \{ sec\.hidden = true; return; \}/);
-  assert.match(m, /r6_c1_painel_dono/);
+  assert.match(m, /\/api\/central\/faturamento/);   // R13C: o faturamento sai pela regra única do valor do serviço (servidor da Central)
   assert.match(m, /casa_metas/);
   assert.doesNotMatch(m, /r6_c1b_painel_consultores|serie7|semana_passada|conversao|f\.hoje|f\.semana\b|ticket/);
   assert.doesNotMatch(m, /style="/, 'a CSP não deixa style no HTML');
