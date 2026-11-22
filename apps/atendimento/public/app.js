@@ -6872,7 +6872,7 @@ function abrirAbaPeloEndereco() {
   if (aba === 'orcador') {
     /* só o que o Orçador entende (papel, saude, utm… ficam de fora) */
     const veio = new URLSearchParams(location.search), resto = new URLSearchParams();
-    for (const k of ['tel', 'nome', 'conversa', 'cliente', 'carro', 'placa']) if (veio.get(k)) resto.set(k, veio.get(k));
+    for (const k of ['tel', 'nome', 'cliente', 'carro', 'veiculo', 'placa', 'servico', 'conversa', 'lead', 'agendamento', 'os', 'extra', 'orcamento']) if (veio.get(k)) resto.set(k, veio.get(k));
     const destino = (resto.toString() ? '?' + resto : '') + location.hash;
     try { history.replaceState(null, '', location.pathname); } catch { /* ignora */ }
     if (!botao || botao.hidden) { toast('⚠️ Essa tela não está disponível para o seu papel.'); return; }

@@ -116,7 +116,12 @@ test('B: ?aba=orcador leva o resto do endereço (cliente ou orçamento) para o O
   const i = app.indexOf("if (aba === 'orcador') {");
   assert.ok(i > 0);
   const t = app.slice(i, i + 900);
-  assert.match(t, /for \(const k of \['tel', 'nome', 'conversa', 'cliente', 'carro', 'placa'\]\)/, 'só o que o Orçador entende vai junto (papel/saude não)');
+  const m = /for \(const k of (\[[^\]]+\])\)/.exec(t);
+  assert.ok(m, 'só o que o Orçador entende vai junto (papel/saude não)');
+  const chaves = JSON.parse(m[1].replace(/'/g, '"'));
+  // o "Novo orçamento" da Casa/Agenda manda carro, placa e serviço: tudo chega à cotação nova
+  for (const k of ['tel', 'nome', 'cliente', 'carro', 'veiculo', 'placa', 'servico', 'conversa', 'agendamento', 'lead']) assert.ok(chaves.includes(k), k);
+  for (const k of ['papel', 'saude', 'aba', 'utm_source']) assert.ok(!chaves.includes(k), k);
   assert.match(t, /const destino = \(resto\.toString\(\) \? '\?' \+ resto : ''\) \+ location\.hash;/);
   assert.match(t, /history\.replaceState\(null, '', location\.pathname\)/, 'o telefone sai da barra');
   assert.match(t, /AbaOrcador\.abrir\(destino\)/);

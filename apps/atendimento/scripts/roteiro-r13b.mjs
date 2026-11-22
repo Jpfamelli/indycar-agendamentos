@@ -199,6 +199,14 @@ const naMoldura = async (page, fn, arg) => { const f = await moldura(page); retu
   await foto(r.page, 'b-casa-novo-orcamento-1440-escuro', 1440);
   await r.ctx.close();
 
+  // Agenda → "Novo orçamento": vem com carro, placa e serviço; tudo chega à cotação nova
+  r = await entrar('?papel=atendente&saude=ok&aba=orcador&tel=12996830111&nome=Camila%20Rodrigues&carro=Onix%202019&placa=ABC1D23&servico=Troca%20de%20%C3%B3leo');
+  const srcAg = new URL(await r.page.evaluate(() => document.getElementById('orcadorMoldura').src));
+  const veioTudo = ['tel', 'nome', 'carro', 'placa', 'servico'].every((k) => srcAg.searchParams.get(k)) && !srcAg.searchParams.get('papel');
+  const naTela = await ate(() => naMoldura(r.page, () => /Onix/.test(document.body.innerText + [...document.querySelectorAll('input,textarea')].map((i) => i.value).join(' '))), 15000);
+  conferir('Agenda → "Novo orçamento" com carro, placa e serviço: a cotação nova abre com o carro', veioTudo && naTela, srcAg.search.slice(0, 200));
+  await r.ctx.close();
+
   r = await entrar('?papel=atendente&saude=ok&aba=orcador#/historico');
   const lista = await ate(() => naMoldura(r.page, () => /^#\/historico/.test(location.hash) && !!document.querySelector('.heroi-dia')), 15000);
   conferir('?aba=orcador#/historico (Casa → orçamentos) abre Orçamentos com o resumo de hoje', lista);
