@@ -498,14 +498,13 @@
             <button type="button" class="btn mini" id="qdHoje">Hoje</button></div>
           <span class="muted" id="qdResumo" aria-live="polite"></span></div>
         <div class="right"><label class="qd-opt"><input type="checkbox" id="qdCanc" ${_q.ocultaCancelados ? '' : 'checked'}> cancelados</label>
-          <button type="button" class="btn" id="qdEspera" hidden title="Quem quer um horário e ainda não achou"></button>
           <button type="button" class="btn" id="qdNovo">${svg(I.plus)} Novo</button></div></div>
         <p class="aviso-campo" id="qdAviso" hidden role="status">${svg(I.alerta)} <span></span> <button type="button" class="btn mini" id="qdSoltar">Cancelar (Esc)</button></p>
         <div id="qdMoverPainel" class="qd-mover-painel" hidden></div>
         <div id="qdEncaixe" class="qd-mover-painel qd-encaixe" hidden></div>
         <div id="qdChips" class="qd-chips-wrap"></div>
         <div id="qdCorpo" class="qd-corpo"><div class="skel" style="height:260px"></div></div>
-        <small class="muted">Arraste o cartão (ou toque em ⇄ Mover) para uma célula livre. Teclas: ← → muda o dia · T hoje · N novo · Esc cancela.</small>`;
+        <small class="muted">Arraste o cartão (ou toque em ⇄ Mover) para uma célula livre.</small>`;
       const ir = (iso) => { if (!iso) return; _q.data = iso; _q._rolou = false; _q.dados = null; $('#qdData').value = iso; atualizar(true); };
       $('#qdAnt').addEventListener('click', () => ir(maisDias(_q.data, -1)));
       $('#qdProx').addEventListener('click', () => ir(maisDias(_q.data, 1)));
@@ -513,7 +512,6 @@
       $('#qdData').addEventListener('change', (e) => ir(e.target.value));
       $('#qdCanc').addEventListener('change', (e) => { _q.ocultaCancelados = !e.target.checked; if (_q.dados) desenhar(_q.dados); });
       $('#qdNovo').addEventListener('click', () => openAgendamentoModal(null, { data: _q.data }));
-      $('#qdEspera').addEventListener('click', () => route('espera'));
       $('#qdSoltar').addEventListener('click', pararMover);
       state._cxTimer = setInterval(() => { if (!document.hidden) atualizar(); }, 30_000);
     }

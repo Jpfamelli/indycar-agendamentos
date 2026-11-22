@@ -345,7 +345,7 @@
       if (!['compareceu', 'em_atendimento'].includes(card.dataset.status)) continue;
       const acoes = $('.qd-acoes', card); if (!acoes || $('[data-qd-entrada]', acoes)) continue;
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn mini primary'; b.dataset.qdEntrada = card.dataset.id; b.textContent = '🔧 Entrada';
+      b.type = 'button'; b.className = 'btn mini primary'; b.dataset.qdEntrada = card.dataset.id; b.innerHTML = (typeof svg === 'function' ? svg(I.chave) : '') + ' Entrada';
       b.title = 'Abre a entrada pronta no Pátio (checklist, fotos e assinatura)';
       b.addEventListener('click', (ev) => { ev.stopPropagation(); entradaDoCartao(card.dataset.id, b); });
       acoes.insertBefore(b, acoes.firstChild);
@@ -366,8 +366,7 @@
     try { painelPre(d); } catch (e) { /* idem */ }
     if (semAcessoDeEquipe()) return;
     botaoEntradaNoQuadro(d);
-    const barra = $('#qdFerr');
-    if (barra && !$('.r7-auto', barra)) barra.appendChild(interruptorAuto());
+    /* rodada 13B (Quadro enxuto): o "abrir a entrada do Pátio sozinho" fica só na recepção, onde se marca a chegada */
   }
 
   /* ---- Início, "No pátio agora": WhatsApp para os carros prontos ---- */
