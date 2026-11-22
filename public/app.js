@@ -723,7 +723,7 @@ function bindApptActions(root) {
         if (act === 'motivo') return window.R7?.pedirMotivo(id, card.querySelector('.appt-nome, .nome')?.textContent || '');
         if (act === 'excluir') {
           const nome = card.dataset.nome || card.querySelector('.appt-nome')?.textContent || 'cliente';
-          return apagarComDesfazer(id, `Horário de ${nome} excluído`, () => api('DELETE', `/agendamentos/${id}`));
+          return apagarComDesfazer(id, `Agendamento de ${nome} excluído`, () => api('DELETE', `/agendamentos/${id}`));
         }
         if (act === 'compareceu') return marcarNaRecepcao(card, act, { aoAtualizar: () => route() });
         if (RECADO_DESFECHO[act] || act === 'nao_veio') return marcarDesfecho(card, id, act);
@@ -1926,7 +1926,7 @@ async function bloco360(box, tel, chave, pai) {
   const naOficina = (r.patio || []).find(o => o.etapa && !['entregue', 'cancelado'].includes(o.etapa));
   if (naOficina) chips.push(`<a class="badge-pill bp-orange" href="${esc(linkApp('patio', naOficina.link || `?os=${naOficina.id}`))}" target="_blank" rel="noopener" title="Abrir a ordem no Pátio">${svg(ICO_PATIO)} no pátio: ${esc(ETAPA_PATIO_ROTULO[naOficina.etapa] || naOficina.etapa)}${naOficina.numero ? ' · OS ' + esc(naOficina.numero) : ''}${naOficina.extras_pendentes ? ' · ' + naOficina.extras_pendentes + ' p/ aprovar' : ''}</a>`);
   const leadsAbertos = (r.leads || []).filter(l => !['concluido', 'perdido'].includes(l.status));
-  if (leadsAbertos.length) chips.push(`<a class="badge-pill bp-purple" href="${esc(linkApp('crm', leadsAbertos[0].link || `?tel=${tel}`))}" target="_blank" rel="noopener" title="Abrir no CRM">${svg(I.flag)} ${leadsAbertos.length} ${leadsAbertos.length === 1 ? 'lead aberto' : 'leads abertos'} · ${esc(leadsAbertos[0].status || '')}</a>`);
+  if (leadsAbertos.length) chips.push(`<a class="badge-pill bp-purple" href="${esc(linkApp('crm', leadsAbertos[0].link || `?tel=${tel}`))}" target="_blank" rel="noopener" title="Abrir no CRM">${svg(I.flag)} no CRM${leadsAbertos.length > 1 ? ` (${leadsAbertos.length})` : ''} · ${esc(leadsAbertos[0].status || 'em aberto')}</a>`);
   const orcs = r.orcamentos || [];
   if (orcs.length) chips.push(`<span class="badge-pill bp-gray" title="${esc(orcs.slice(0, 3).map(o => `nº ${o.numero ?? '?'} · ${o.status ?? ''}`).join(' · '))}">${svg(I.money)} ${orcs.length} ${orcs.length === 1 ? 'orçamento' : 'orçamentos'}${orcs[0]?.status ? ' · último ' + esc(orcs[0].status) : ''}</span>`);
   if (s.tarefas_abertas) chips.push(`<span class="badge-pill bp-orange">${svg(I.check)} ${s.tarefas_abertas} ${s.tarefas_abertas === 1 ? 'tarefa aberta' : 'tarefas abertas'}</span>`);
@@ -1945,7 +1945,7 @@ async function bloco360(box, tel, chave, pai) {
     </div>`;
   det.innerHTML = `<summary>${svg(I.flag)} Visão 360 <span class="muted">· o que os outros apps sabem</span></summary>
     <div class="f360">${resumo}
-      ${chips.length ? `<div class="f360-chips">${chips.join('')}</div>` : '<p class="muted">Sem conversa, lead, orçamento ou passagem pelo pátio.</p>'}
+      ${chips.length ? `<div class="f360-chips">${chips.join('')}</div>` : '<p class="muted">Sem conversa, contato no CRM, orçamento ou passagem pelo pátio.</p>'}
       ${ultimoEnvio ? `<ul class="f360-lista"><li><small>Comunicar:</small> ${esc(rotuloTipoEnvio(ultimoEnvio.tipo))} <small>${esc(dataCurtaBR(ultimoEnvio.enviado_em || ultimoEnvio.enviar_em || ultimoEnvio.created_at))} · ${esc(ultimoEnvio.status || '')}</small>${ultimoEnvio.resposta ? ` <small>· respondeu: “${esc(String(ultimoEnvio.resposta).slice(0, 80))}”</small>` : ''}</li></ul>` : ''}
       ${s.carro_na_oficina && !naOficina ? '<small class="muted">carro na oficina</small>' : ''}
     </div>`;
