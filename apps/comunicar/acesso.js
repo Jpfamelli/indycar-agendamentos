@@ -248,15 +248,30 @@ export function origemPermitida(origem, extras = []) {
 }
 
 // ---- cabeçalhos de segurança ------------------------------------------------
-export const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-  "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'",
-].join('; ');
+/* R13C: no padrão da Casa. Sem 'unsafe-inline' em script (o único script embutido virou tema-inicial.js), o CDN só no
+   caminho exato do supabase-js (versão fixa) e o banco só o projeto da oficina (antes qualquer *.supabase.co passava:
+   um script injetado mandaria dado para o projeto de outra pessoa). As fontes são as do padrão (/casa/), sem Google.
+   O service worker não busca nada de fora (7.2.1), então o connect-src não precisa do CDN. */
+export const LIB_SUPABASE = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/';
+export function cspDoComunicar(env = process.env) {
+  let banco = 'https://*.supabase.co wss://*.supabase.co';
+  try {
+    const u = new URL(String(env.SUPABASE_URL || '').trim());
+    const local = ['localhost', '127.0.0.1'].includes(u.hostname);
+    if ((u.protocol === 'https:' || (u.protocol === 'http:' && local)) && !u.username && !u.password) banco = u.origin + ' ' + u.origin.replace(/^http/, 'ws');
+  } catch { /* sem projeto configurado: fica o curinga */ }
+  return [
+    "default-src 'self'",
+    `script-src 'self' ${LIB_SUPABASE}`,
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
+    "img-src 'self' data: blob:",
+    `connect-src 'self' ${banco}`,
+    "manifest-src 'self'", "worker-src 'self'",
+    "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'",
+  ].join('; ');
+}
+export const CSP = cspDoComunicar();
 
 export function cabecalhosSeguros({ https = false } = {}) {
   const c = {
@@ -264,7 +279,7 @@ export function cabecalhosSeguros({ https = false } = {}) {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Frame-Options': 'DENY',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
-    'Content-Security-Policy': CSP,
+    'Content-Security-Policy': cspDoComunicar(),
     'Cross-Origin-Opener-Policy': 'same-origin',
   };
   if (https) c['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
