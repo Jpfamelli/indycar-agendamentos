@@ -66,10 +66,14 @@
   let _projecao = null;
   async function projecao(forcar = false) {
     if (!forcar && _projecao && Date.now() - _projecao.em < 5 * 60000) return _projecao.v;
-    const v = await api('GET', '/projecao');
-    _projecao = { v, em: Date.now() };
-    return v;
+    /* r13B: o resumo de hoje e a "Próxima saída" pedem juntos — quem chega segundo espera o MESMO pedido */
+    if (!forcar && _projecaoNoAr) return _projecaoNoAr;
+    _projecaoNoAr = api('GET', '/projecao')
+      .then((v) => { _projecao = { v, em: Date.now() }; return v; })
+      .finally(() => { _projecaoNoAr = null; });
+    return _projecaoNoAr;
   }
+  let _projecaoNoAr = null;
   R4.projecao = projecao; // rodada 13: o resumo de hoje usa a mesma projeção (uma chamada só)
   /* Réguas: a próxima saída de cada régua ligada (dia e primeiro nome), pela projeção do servidor. */
   R4.pintarReguas = async function () {
@@ -148,7 +152,7 @@
       corpo.innerHTML = `<p class="dica">Procura datas perto de "aniversário", "nasci", "nascimento" nas observações da ficha, nos leads do CRM e no que os clientes escreveram no WhatsApp. Confira o trecho antes de gravar.</p><div id="anResultado"><div class="skel" style="height:120px"></div></div>`;
       let r; try { r = await api('GET', '/aniversarios/sugestoes'); } catch (e) { $('#anResultado').innerHTML = `<p class="form-msg erro">${esc(e.message)}</p>`; return; }
       const box = $('#anResultado'); if (!box) return;
-      const lidos = `${r.lidos.fichas} ficha(s), ${r.lidos.crm} lead(s) e ${r.lidos.conversas} mensagem(ns) com a palavra`;
+      const lidos = `${r.lidos.fichas} ficha(s), ${r.lidos.crm} contato(s) do CRM e ${r.lidos.conversas} mensagem(ns) com a palavra`;
       if (!r.sugestoes.length) { box.innerHTML = vazio(I.search, 'Nenhuma data encontrada', `Li ${esc(lidos)} e não achei datas novas. Use a lista colada ou o arquivo.`); return; }
       box.innerHTML = `<p class="muted">Li ${esc(lidos)}. Achei <b>${r.sugestoes.length}</b>:</p>
         <div class="an-lista">${r.sugestoes.map((s, i) => `<label class="an-item">

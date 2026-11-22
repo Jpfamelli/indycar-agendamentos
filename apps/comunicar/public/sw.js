@@ -4,7 +4,7 @@
 // rede — quem espera o servidor acordar é o acordar.js, com aviso na tela.
 // Rodada 5: tudo RELATIVO ao lugar onde o SW foi registrado (BASE) — funciona em
 // "/" sozinho e em "/comunicar/" dentro da IndyCar Central (escopo do prefixo).
-const VERSAO = '7.1.0';   // 22/11: rodada 13 (resumo de hoje nas Réguas)
+const VERSAO = '7.2.0';   // 22/11: rodada 13B (passagens entre apps, Desfazer, entrada mais leve)
 const CACHE = `comunicar-v${VERSAO}`;
 const EXTERNO = 'comunicar-externo-v1'; // supabase-js e fontes (versão fixa na URL)
 const BASE = new URL('./', self.location.href).pathname; // '/' ou '/comunicar/'

@@ -336,8 +336,9 @@ async function abrirPrevia(regua = null) {
 // RÉGUAS (ligar, ver a mensagem, próxima saída) e AJUSTES (envio, prazos, cuidado)
 // As duas telas mexem na mesma configuração e salvam do mesmo jeito.
 // ============================================================================
-async function carregarConfig(vez) {
-  const [cfg, regras] = await Promise.all([api('GET', '/comunicar/config'), api('GET', '/regras-retorno').catch(() => null)]);
+async function carregarConfig(vez, { comRegras = false } = {}) {
+  /* r13B: os prazos por serviço só aparecem em Ajustes — as Réguas (tela de entrada) não pedem */
+  const [cfg, regras] = await Promise.all([api('GET', '/comunicar/config'), comRegras ? api('GET', '/regras-retorno').catch(() => null) : Promise.resolve(state.regras ?? null)]);
   if (vez !== state._vez) return false;
   state.cfg = cfg; state.cfgEdit = {}; state.regras = regras;
   /* rodada 4: alterações que não foram salvas (aba fechada, servidor dormindo) voltam */
@@ -427,7 +428,7 @@ async function renderReguas({ vez = state._vez } = {}) {
 }
 
 async function renderAjustes({ vez = state._vez } = {}) {
-  if (!(await carregarConfig(vez))) return;
+  if (!(await carregarConfig(vez, { comRegras: true }))) return;
   const v = valorCfg, trava = travado();
   const regras = state.regras;
   const regrasHtml = regras ? htmlRegras(regras, ehGestor()) : '<p role="status">Não deu para carregar os prazos por serviço.</p><button type="button" class="btn" id="btnRecarregarRegras">Tentar de novo</button>';
@@ -654,13 +655,22 @@ function ligarRegras() {
       if (!confirm(`Apagar a regra "${$('[data-campo="rotulo"]', linha).value}"? Os serviços dela passam a usar o prazo padrão.`)) return;
       apagar.disabled = true;
       try {
+        const apagada = state.regras?.find(r => String(r.id) === linha.dataset.id);
         await api('DELETE', `/regras-retorno/${linha.dataset.id}`);
         if (!box.isConnected) return;
         state.regras = state.regras?.filter(r => String(r.id) !== linha.dataset.id) ?? [];
         linha.remove();
         $('.lista-sep em', box).textContent = state.regras.length;
         $('[data-nova] [data-campo="rotulo"]', box)?.focus();
-        toast('Regra apagada.');
+        /* r13B: apagou sem querer? "Desfazer" cria a regra de novo com o mesmo nome, palavras, meses e mensagem */
+        if (apagada) toastAcao('Regra apagada.', 'Desfazer', async () => {
+          const { rotulo, palavras, meses, mensagem, ativo, ordem } = apagada;
+          const volta = await api('POST', '/regras-retorno', { rotulo, palavras: (palavras || []).join(', '), meses, mensagem: mensagem || '', ativo, ordem });
+          state.regras = [...(state.regras || []), volta].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+          if (box.isConnected) { box.innerHTML = htmlRegras(state.regras, ehGestor()); }
+          toast('Regra de volta.');
+        });
+        else toast('Regra apagada.');
       } catch (err) { toast(err.message, 'err'); }
       finally { apagar.disabled = false; }
       return;
@@ -798,7 +808,7 @@ function cartaoEnvio(e) {
         ${duvida && meu ? `<button type="button" class="btn btn-mini primary" data-chegou="${esc(e.id)}">✓ Chegou</button>` : ''}
         ${podeReenviar ? `<button type="button" class="btn btn-mini" data-reenviar="${esc(e.id)}"${duvida ? ' data-duvida="1"' : ''}>${svg(I.refresh)} Reenviar</button>` : ''}
         ${e.intencao && CHAMA_CONSULTOR.has(e.intencao) ? (e.encaminhado_em ? '<span class="badge-pill bp-green">✓ no Atendimento</span>' : `<button type="button" class="btn btn-mini primary" data-encaminhar="${esc(e.id)}">${svg(I.wa)} Passar ao Atendimento</button>`) : ''}
-        ${e.status === 'enviado' || e.resposta || duvida ? `<a class="btn btn-mini ghost" href="${esc(linkConversa(e.telefone))}" target="_blank" rel="noopener">${svg(I.externo)} Abrir conversa</a>` : ''}
+        ${e.status === 'enviado' || e.resposta || duvida ? `<a class="btn btn-mini ghost" href="${esc(linkConversa(e.telefone))}">${svg(I.wa)} Abrir conversa</a>` : ''}
       </div>
     </div>
   </article>`;
@@ -1370,9 +1380,9 @@ async function abrirFicha(id, quieto = false) {
         <div><h3 id="gavetaTitulo">${esc(c.nome)}</h3>
           <p><span>${esc(telBR(c.telefone))}</span>${c.carro ? `<span>· ${esc(c.carro)}${c.placa ? ` ${esc(c.placa)}` : ''}</span>` : ''}
              ${c.nascimento ? `<span>· 🎂 ${esc(nascBR(c.nascimento))}</span>` : ''}</p>
-          <div class="eco-links">${c.telefone ? `<a href="${esc(linkConversa(c.telefone))}" target="_blank" rel="noopener">${svg(I.wa)} Conversa</a>` : ''}
-            <a href="${esc(`${CRM_URL}/?cliente=${encodeURIComponent(c.id)}${c.telefone ? `&tel=${encodeURIComponent(soDigitos(c.telefone))}` : ''}`)}" target="_blank" rel="noopener">${svg(I.flag)} CRM</a>
-            <a href="${esc(`${AGENDA_URL}/?cliente=${encodeURIComponent(c.id)}${c.telefone ? `&tel=${encodeURIComponent(soDigitos(c.telefone))}` : ''}`)}" target="_blank" rel="noopener">${svg(I.calendar)} Agenda</a></div></div></div>
+          <div class="eco-links">${c.telefone ? `<a href="${esc(linkConversa(c.telefone))}">${svg(I.wa)} Conversa</a>` : ''}
+            <a href="${esc(linkCliente('crm', c))}">${svg(I.flag)} CRM</a>
+            <a href="${esc(linkCliente('agenda', c))}">${svg(I.calendar)} Agenda</a></div></div></div>
       <button type="button" class="modal-close" data-fechar-gaveta aria-label="Fechar ficha">×</button>
     </div>
     <div class="gaveta-body">
@@ -1574,8 +1584,10 @@ async function abrirApp() {
   if (window.Conta) await window.Conta.depoisDoPerfil(p); else esconderLogin();
   if (_appAberto) return route(null, { quieto:true });
   _appAberto = true;
-  await route('reguas');
+  const comLink = [...new URLSearchParams(location.search).keys()].some(k => ['cliente', 'tel', 'campanha', 'tela'].includes(k));
+  if (!comLink) await route('reguas');
   await abrirPorLink();
+  if (!state._vez) await route('reguas'); // link sem destino (cliente não achado): cai nas Réguas
   window.R5?.abrirAtalho();
 }
 
@@ -1685,7 +1697,15 @@ const INTENCAO = {
 const CHAMA_CONSULTOR = new Set(['quer_agendar', 'quer_orcamento', 'reclamacao']);
 const pillIntencao = (i, resumo) => { const x = INTENCAO[i]; if (!x) return '';
   return `<span class="badge-pill ${x[2]} intencao" title="${esc(resumo ? `IA: ${resumo}` : 'lido pela IA')}">✨ ${x[0]} ${esc(x[1])}</span>`; };
-function linkConversa(tel) { return `${ATENDIMENTO_URL}/?tel=${encodeURIComponent(soDigitos(tel).replace(/^55(?=\d{10,11}$)/, ''))}`; }
+/* Passagens para os outros apps (rodada 13B): os endereços vêm de apps.js (na Central, a mesma origem = sem login de
+   novo) e abrem NA MESMA JANELA; o telefone vai sem o 55, como o Atendimento, o CRM e a Agenda esperam. */
+function linkCliente(app, c) {
+  const pronto = app === 'crm' ? LINKS.clienteCrm?.(c.id, c.telefone) : LINKS.clienteAgenda?.(c.id, c.telefone);
+  if (pronto) return pronto;
+  const tel = soDigitos(c.telefone).replace(/^55(?=\d{10,11}$)/, '');
+  return `${app === 'crm' ? CRM_URL : AGENDA_URL}/?cliente=${encodeURIComponent(c.id)}${tel ? `&tel=${encodeURIComponent(tel)}` : ''}`;
+}
+function linkConversa(tel) { return LINKS.conversaTel?.(tel) || `${ATENDIMENTO_URL}/?tel=${encodeURIComponent(soDigitos(tel).replace(/^55(?=\d{10,11}$)/, ''))}`; }
 
 async function encaminhar(id, btn) {
   if (btn) btn.disabled = true;
@@ -1799,7 +1819,7 @@ async function pintarAprovacoes() {
       // rodada 5: o CRM também propõe campanhas (origem 'crm'); sem a coluna, lista de destinos sem segmento é do CRM
       const doCrm = c.origem === 'crm' || (!c.origem && !c.segmento && Array.isArray(c.destinos));
       return `<article class="aprov${c.id === state.campanhaEmFoco ? ' foco' : ''}" data-camp="${esc(c.id)}">
-        <div class="aprov-topo"><span class="badge-pill ${cor}">${esc(rot)}</span>${doCrm ? '<span class="badge-pill bp-purple" title="Proposta criada no CRM (leads/pipeline)">🚩 veio do CRM</span>' : ''}
+        <div class="aprov-topo"><span class="badge-pill ${cor}">${esc(rot)}</span>${doCrm ? '<span class="badge-pill bp-purple" title="Proposta criada no funil do CRM">🚩 veio do CRM</span>' : ''}
           <small>${esc(c.criado_por_nome || 'atendente')} · ${esc(relativo(c.created_at))} · ${c.total_previsto ?? '?'} clientes · ${esc(alvo)}${c.enviar_em ? ` · para ${esc(dataHoraBR(c.enviar_em))}` : ''}</small></div>
         <div class="envio-corpo">${esc(c.corpo)}</div>
         ${c.status === 'recusada' && c.motivo_recusa ? `<p class="form-msg erro">Motivo: ${esc(c.motivo_recusa)}</p>` : ''}
