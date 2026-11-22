@@ -459,7 +459,7 @@
     try {
       const r = await fetch('/api/central/config', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
       cfg = r.ok ? await r.json() : null;
-      if (cfg) { $('#versao').textContent = cfg.versao || ''; bases = L.bases(cfg.apps); links = L.links(bases); }
+      if (cfg) { $('#versao').textContent = cfg.versao || ''; bases = L.bases(cfg.apps, undefined, cfg.orcadorNaCentral === true); links = L.links(bases); }
     } catch { cfg = null; }
     finally { ligando = false; tentar.disabled = false; tentar.removeAttribute('aria-busy'); }
     if (!window.supabase?.createClient) {

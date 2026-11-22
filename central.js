@@ -415,6 +415,8 @@ export async function handler(req, res) {
     return json(res, 200, {
       supabaseUrl: process.env.SUPABASE_URL || '', supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '', versao: VERSAO_CENTRAL,
       apps: { patio: urlDeApp(process.env.PATIO_URL, PATIO_PADRAO), orcador: urlDeApp(process.env.ORCADOR_URL, ORCADOR_PADRAO) },
+      /* rodada 13B: o Orçador está servido aqui em /orcador/ (mesmo endereço, mesmo login): a Casa leva para lá, não para o Netlify */
+      orcadorNaCentral: orcadorLocal(),
     });
   }
 

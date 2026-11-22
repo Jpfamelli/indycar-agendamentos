@@ -178,12 +178,16 @@
   const ORCADOR_NO_ATENDIMENTO_URL = '/atendimento/?aba=orcador';
 
   /** Endereços configuráveis: o servidor manda `apps` em /api/central/config (PATIO_URL, ORCADOR_URL); sem isso, produção. */
-  function bases(cfgApps, orcadorNoAtendimento = ORCADOR_NO_ATENDIMENTO) {
+  /* rodada 13B: com o Orçador servido pela Central (/api/central/config → orcadorNaCentral), ele abre em /orcador/ no
+     mesmo endereço e com o mesmo login; o endereço do Netlify pedia para entrar de novo. */
+  const ORCADOR_NA_CENTRAL_URL = '/orcador/';
+  function bases(cfgApps, orcadorNoAtendimento = ORCADOR_NO_ATENDIMENTO, orcadorNaCentral = false) {
     const out = {};
     for (const [k, a] of Object.entries(APPS)) out[k] = a.base;
     const ok = (u) => typeof u === 'string' && /^https:\/\/[a-z0-9.-]+(\/|$)/i.test(u);
     if (cfgApps && ok(cfgApps.patio)) out.patio = cfgApps.patio.replace(/\/*$/, '/');
     if (cfgApps && ok(cfgApps.orcador)) out.orcador = cfgApps.orcador.replace(/\/*$/, '/');
+    if (orcadorNaCentral === true) out.orcador = ORCADOR_NA_CENTRAL_URL;
     if (orcadorNoAtendimento) out.orcador = ORCADOR_NO_ATENDIMENTO_URL;
     return out;
   }
@@ -250,7 +254,7 @@
    * rodada 8: para onde voltar depois do login (/?voltar=...). Só caminho deste mesmo endereço, dentro de um app da
    * Central (agenda, atendimento, crm, comunicar, trafego); qualquer outra coisa vira '' (fica na Casa).
    */
-  const VOLTAR_OK = ['/agenda/', '/atendimento/', '/crm/', '/comunicar/', '/trafego/'];
+  const VOLTAR_OK = ['/agenda/', '/atendimento/', '/crm/', '/comunicar/', '/trafego/', '/orcador/'];   // rodada 13B: o Orçador mora em /orcador/
   function voltarSeguro(v) {
     if (typeof v !== 'string' || !v || v.length > 300) return '';
     if (v[0] !== '/' || v[1] === '/' || v[1] === '\\' || /[\\\u0000-\u001f\u007f]/.test(v)) return '';
@@ -290,6 +294,11 @@
         const o = new URL(origem);
         const dentro = u.origin === o.origin || Object.values(b).some((x) => { try { return new URL(x, origem).origin === u.origin; } catch { return false; } });
         if (dentro) return u.href;
+        /* rodada 13B: aviso antigo com o endereço do Orçador no Netlify, e o Orçador agora mora na Central: o mesmo
+           orçamento (#/historico/<id>, ?tel=…) abre em /orcador/, sem pedir login de novo */
+        if (u.origin === new URL(ORCADOR_PADRAO).origin && b.orcador && !/^https?:/i.test(b.orcador) && !b.orcador.includes('?')) {
+          return new URL(b.orcador, origem).href + u.search + u.hash;
+        }
       } catch { /* lixo */ }
       return base;
     }
@@ -546,6 +555,6 @@
     duracao, quando, hojeSP, diaDe, hora5, saudacao, ETAPAS, ETAPA, rotuloEtapa, tomDaEtapa, previsao, STATUS_ORC, rotuloOrc, numeroOrc,
     STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
     contagemPorApp, tituloDaAba, tempoDoAviso, atencao, gargalos, conversao, barras, diaCurto, classificarBusca, GRUPOS_BUSCA, linhasDaBusca, filtrarPorPermissao,
-    ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca, ORCADOR_NO_ATENDIMENTO, ORCADOR_NO_ATENDIMENTO_URL,
+    ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca, ORCADOR_NO_ATENDIMENTO, ORCADOR_NO_ATENDIMENTO_URL, ORCADOR_NA_CENTRAL_URL,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
