@@ -227,6 +227,7 @@ export const PERIODOS = [
   { id: 'hoje', rotulo: 'Hoje' },
   { id: '7d', rotulo: '7 dias' },
   { id: '30d', rotulo: '30 dias' },
+  { id: '60d', rotulo: '60 dias' },
   { id: 'mes', rotulo: 'Este mês' },
   { id: 'mes_passado', rotulo: 'Mês passado' },
 ];

@@ -104,7 +104,7 @@ test('telefone, iniciais e leitura de dinheiro digitado', () => {
 });
 
 test('período: só os cinco do contrato; o resto volta para "este mês"', () => {
-  assert.deepEqual(F.PERIODOS.map((p) => p.id), ['hoje', '7d', '30d', 'mes', 'mes_passado']);
+  assert.deepEqual(F.PERIODOS.map((p) => p.id), ['hoje', '7d', '30d', '60d', 'mes', 'mes_passado']);
   assert.equal(F.periodoValido('7d'), '7d');
   assert.equal(F.periodoValido('ano'), 'mes');
   assert.equal(F.periodoValido(undefined), 'mes');
