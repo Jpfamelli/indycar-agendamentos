@@ -45,7 +45,7 @@ async function foto(nome, cenario, { largura, tema, depois = null }) {
     if (u.hostname === 'cdn.jsdelivr.net' && /supabase/.test(u.pathname)) return req.respond({ status: 200, contentType: TIPOS['.js'], headers: { 'Access-Control-Allow-Origin': '*' }, body: MOCK });
     if (u.origin !== BASE) return req.respond({ status: 204, body: '' });
     const json = (o, status = 200) => req.respond({ status, contentType: 'application/json', body: JSON.stringify(o) });
-    if (u.pathname === '/api/central/config') return json({ supabaseUrl: 'https://mentira.supabase.co', supabaseAnonKey: 'chave-de-mentira', versao: 'r13', apps: {} });
+    if (u.pathname === '/api/central/config') return json({ supabaseUrl: 'https://mentira.supabase.co', supabaseAnonKey: 'chave-de-mentira', versao: 'r13', apps: {}, orcadorNaCentral: true });
     if (u.pathname === '/api/central/saude-apps') return json({ verificado_em: Date.now(), apps: {}, internos: {} });
     if (u.pathname.startsWith('/agenda/api/')) return json([]);
     if (u.pathname === '/sw.js') return req.respond({ status: 200, contentType: TIPOS['.js'], body: '/* service worker vazio nas fotos */' });
@@ -84,7 +84,7 @@ for (const [nome, cen] of SO_USO ? [] : papeis) {
 const conferir = (ok, msg, erros) => { console.log((ok ? 'ok      ' : 'FALHOU  ') + msg); if (!ok) erros.push(msg); };
 await foto('uso-dono-375-escuro', { papel: 'admin', zap: 'ok' }, { largura: 375, tema: 'escuro', depois: async (page, erros) => {
   const hrefs = await page.$$eval('#heroiNums a', (as) => as.map((a) => [a.getAttribute('href'), a.getAttribute('target')]));
-  conferir(JSON.stringify(hrefs) === JSON.stringify([['/atendimento/', 'indycar-atendimento'], ['/agenda/', 'indycar-agenda'], ['https://indycar-patio.netlify.app/', 'indycar-patio'], ['https://indycar-orcador.netlify.app/', 'indycar-orcador']]), 'herói: cada número abre o app na aba dele ' + JSON.stringify(hrefs), erros);
+  conferir(JSON.stringify(hrefs) === JSON.stringify([['/atendimento/', 'indycar-atendimento'], ['/agenda/', 'indycar-agenda'], ['https://indycar-patio.netlify.app/', 'indycar-patio'], ['/orcador/', 'indycar-orcador']]), 'herói: cada número abre o app na aba dele ' + JSON.stringify(hrefs), erros);
   const cartoes = await page.$$eval('[data-app-num]:not([hidden])', (els) => els.map((e) => e.dataset.appNum));
   conferir(JSON.stringify(cartoes) === '["crm"]', 'cartões: só o CRM repete número (o resto já está no herói) ' + JSON.stringify(cartoes), erros);
   await page.click('[data-mes-meta]');
@@ -102,6 +102,30 @@ await foto('uso-dono-375-escuro', { papel: 'admin', zap: 'ok' }, { largura: 375,
   const g = await page.evaluate(() => window.__GRAVADO.filter((x) => x.tabela === 'casa_metas'));
   conferir(g.length === 1 && g[0].acao === 'upsert' && g[0].valor.valor === 80000 && /^\d{4}-\d{2}$/.test(g[0].valor.mes), 'meta: "80 mil" grava 80000 no mês (só na memória da página)', erros);
   conferir((await page.$eval('#mesCorpo', (e) => e.textContent.replace(/\s+/g, ' '))).includes('R$ 80.000'), 'meta: o bloco mostra a meta nova', erros);
+  /* rodada 13B: tirar a meta tem "Desfazer" */
+  await page.click('[data-mes-meta]'); await page.waitForSelector('#mesMetaValor');
+  await page.$eval('#mesMetaValor', (i) => { i.value = ''; }); await page.keyboard.press('Enter'); await espera(300);
+  conferir((await page.$eval('#mesCorpo', (e) => e.textContent)).includes('Sem meta'), 'meta: vazio tira a meta', erros);
+  const desfazer = await page.$('#toast .toast-btn');
+  conferir(!!desfazer && (await page.$eval('#toast .toast-btn', (b) => b.textContent)) === 'Desfazer', 'meta: o aviso traz "Desfazer"', erros);
+  if (desfazer) { await desfazer.click(); await espera(300); }
+  const ult = await page.evaluate(() => window.__GRAVADO.filter((x) => x.tabela === 'casa_metas').map((x) => x.acao + ':' + (x.valor && x.valor.valor || '')));
+  conferir(JSON.stringify(ult) === '["upsert:80000","delete:","upsert:80000"]', 'meta: "Desfazer" grava a meta de antes de volta ' + JSON.stringify(ult), erros);
+  /* rodada 13B: "Pede atenção" mostra 5 e "Ver mais" */
+  const vis = () => page.$$eval('#atencaoLista > li', (ls) => ls.filter((l) => !l.hidden).length);
+  conferir((await vis()) === 5 && (await page.$eval('#atencaoMais', (b) => b.textContent)) === 'Ver mais 3 avisos', 'atenção: 5 visíveis e "Ver mais 3 avisos"', erros);
+  await page.screenshot({ path: join(SAIDA, 'uso-dono-375-escuro-atencao5.png'), clip: await page.$eval('#atencao', (e) => { const r = e.getBoundingClientRect(); return { x: 0, y: r.y + window.scrollY, width: window.innerWidth, height: r.height }; }) }).catch(() => {});
+  await page.click('#atencaoMais'); await espera(150);
+  conferir((await vis()) === 8 && (await page.$eval('#atencaoMais', (b) => b.getAttribute('aria-expanded'))) === 'true', 'atenção: "Ver mais" abre as 8', erros);
+  await page.evaluate(() => window.Casa.painel.atualizar()); await espera(300);
+  conferir((await vis()) === 8, 'atenção: continua aberta quando os números atualizam', erros);
+  /* rodada 13B: as passagens da Central, cada uma no lugar certo e com o registro certo */
+  const passagens = await page.$$eval('#atencaoLista a', (as) => as.map((a) => [a.textContent.replace(/\s+/g, ' ').trim().slice(0, 30), a.getAttribute('href'), a.getAttribute('target')]));
+  const achar = (t) => passagens.find((p) => p[0].includes(t)) || [];
+  conferir(achar('3 conversas')[1] === '/atendimento/?conversa=00000033-0000-4000-8000-000000000000', 'passagem: conversa esperando abre a conversa mais antiga no Atendimento', erros);
+  conferir(achar('2 orçamentos esperando')[1] === '/orcador/#/historico/00000021-0000-4000-8000-000000000000' && achar('2 orçamentos esperando')[2] === 'indycar-orcador', 'passagem: orçamento esperando abre o orçamento certo em /orcador/ (mesmo login)', erros);
+  conferir(achar('contatos novos')[1] === '/crm/', 'passagem: contatos sem responsável abrem o CRM', erros);
+  conferir(String(achar('1 carro pronto')[1]).endsWith('#/patio'), 'passagem: carro pronto abre o painel do Pátio', erros);
   await page.click('#bSino'); await espera(200);
   conferir(await page.$eval('#painelSino', (e) => !e.hidden), 'sino abre', erros);
   await page.keyboard.press('Escape'); await espera(100);
