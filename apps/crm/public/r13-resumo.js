@@ -10,7 +10,9 @@
   const ms = v => { const t = Date.parse(v); return Number.isFinite(t) ? t : NaN; };
   const ABERTAS = ['novo', 'contato', 'orcamento', 'agendado', 'em_servico'];
   const ehCortesia = obs => /Cortesia: sem cobran/i.test(String(obs || ''));
-  const semValor = l => !!l && l.status === 'concluido' && !(num(l.valor_pago) > 0) && !ehCortesia(l.observacoes);
+  /* R13C: valor do serviço pela regra única (o servidor manda valor_servico); sem ele, o lançado */
+  const valorFechado = l => (l && l.valor_servico !== undefined ? num(l.valor_servico) : num(l && l.valor_pago));
+  const semValor = l => !!l && l.status === 'concluido' && !(valorFechado(l) > 0) && !ehCortesia(l.observacoes);
   const inicioDoDia = agora => { const d = new Date(agora); d.setHours(0, 0, 0, 0); return d.getTime(); };
   const fechouEm = l => ms(l.closed_at || l.updated_at || l.created_at);
   const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
@@ -29,7 +31,7 @@
     return {
       novos: novos.length,
       fechados: fechados.length,
-      faturouHoje: Math.round(fechados.reduce((s, l) => s + num(l.valor_pago), 0) * 100) / 100,
+      faturouHoje: Math.round(fechados.reduce((s, l) => s + valorFechado(l), 0) * 100) / 100,
       faltaValor,
       abertos: abertos.length,
       emAberto: Math.round(abertos.reduce((s, l) => s + (num(l.valor_orcado) || 0), 0) * 100) / 100,

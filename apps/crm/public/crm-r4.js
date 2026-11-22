@@ -76,7 +76,9 @@
     return (s ? s.slice(0, 3970) + '\n' : '') + 'Cortesia: sem cobrança';
   }
   /** Concluído sem valor pago (e que não foi marcado como cortesia). */
-  const semValor = l => !!l && l.status === 'concluido' && !(num(l.valor_pago) > 0) && !ehCortesia(l.observacoes);
+  /* R13C: valor do serviço pela regra única (o servidor manda valor_servico); sem ele, o lançado */
+  const valorFechado = l => (l && l.valor_servico !== undefined ? num(l.valor_servico) : num(l && l.valor_pago));
+  const semValor = l => !!l && l.status === 'concluido' && !(valorFechado(l) > 0) && !ehCortesia(l.observacoes);
   const semValorPago = leads => (leads || []).filter(semValor);
   /** Sugestões de valor, sem repetir: orçado, Agenda e Orçador. */
   function sugestoesValor(lead, extras = {}) {
@@ -147,7 +149,7 @@
   const dentro = (v, a, b) => { const t = ms(v); return Number.isFinite(t) && t >= +a && t < +b; };
   /** Linha de números para um grupo de leads (entradas no período e fechamentos no período). */
   function linhaNumeros(entraram, ganhos, perdidos) {
-    const fat = r2(ganhos.reduce((s, l) => s + num(l.valor_pago), 0));
+    const fat = r2(ganhos.reduce((s, l) => s + valorFechado(l), 0));
     const decididos = ganhos.length + perdidos.length;
     const avancaram = entraram.filter(l => ['agendado', 'em_servico', 'concluido'].includes(l.status)).length;
     return { leads: entraram.length, agendados: avancaram, ganhos: ganhos.length, perdidos: perdidos.length, faturamento: fat,
