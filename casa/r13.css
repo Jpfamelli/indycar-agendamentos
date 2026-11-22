@@ -85,7 +85,7 @@
 .mes-linha { font-size: 14px; color: var(--texto); }
 .mes-linha b { font: 700 20px/1 var(--f-num); color: var(--forte); }
 .mes-sem-meta, .mes-apoio, .mes-vazio { font-size: 13px; color: var(--muted); }
-.mes-apoio .link { color: var(--texto); display: inline-flex; align-items: center; min-height: 44px; }
+.mes-apoio .link { color: var(--texto); display: inline-block; padding: 14px 0; margin: -14px 0; }   /* toque de 44 px sem empurrar a linha */
 .mes-conta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 4px 0 0; padding-top: 12px; border-top: 1px solid var(--borda); }
 .mes-conta div { display: grid; gap: 2px; align-content: start; }
 .mes-conta div + div { padding-left: 12px; border-left: 1px solid var(--borda); }
