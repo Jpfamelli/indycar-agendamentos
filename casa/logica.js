@@ -168,7 +168,9 @@
     ads:         { k: 'ads',         nome: 'Tráfego',     desc: 'anúncios e de onde vêm os clientes', ico: '📢', base: '/trafego/' },
   };
   /** Nome da aba de cada app (window.open(url, nome)): a Casa nunca vira o app e clicar de novo volta para a aba dele. */
-  const nomeDaAba = (k) => 'indycar-' + k;
+  /* rodada 13C: o Tráfego abre na aba "indycar-trafego", o mesmo nome que o CRM, o Comunicar e o próprio Tráfego usam
+     (antes a Casa abria "indycar-ads" e o mesmo app ficava em duas abas). A chave em perfis.apps continua "ads". */
+  const nomeDaAba = (k) => 'indycar-' + (k === 'ads' ? 'trafego' : k);
 
   /**
    * Rodada 11: o Orçador vai morar DENTRO do Atendimento (aba Orçador). O dia em que isso for publicado, troque só esta
@@ -281,6 +283,21 @@
       soMeusCarros: p?.papel === 'mecanico',
       padrao: dono ? 'dono' : 'operacao',
     };
+  }
+
+  /**
+   * rodada 13C: link gravado com o endereço antigo do Orçador (Netlify) → o mesmo orçamento em /orcador/ da Central
+   * (#/historico/<id>, #/cotacao?…, ?tel=…). Qualquer outro endereço volta como veio. Sem isso, a ficha descartava o
+   * "Novo orçamento" e os orçamentos do cliente (o endereço do Netlify não é de nenhum app da Central).
+   */
+  function orcadorNaCentral(url, b = bases(), origem = 'http://central.local/') {
+    try {
+      const u = new URL(String(url || ''));
+      if (u.origin === new URL(ORCADOR_PADRAO).origin && b.orcador && !/^https?:/i.test(b.orcador) && !b.orcador.includes('?')) {
+        return new URL(b.orcador, origem).href + u.search + u.hash;
+      }
+    } catch { /* lixo ou relativo: segue como veio */ }
+    return url;
   }
 
   /* ---------------- sino unificado ---------------- */
@@ -553,7 +570,7 @@
   root.CasaLogica = Object.freeze({
     esc, semAcento, destacar, soDigitos, telefoneE164, formatarTelefone, normalizarPlaca, formatarPlaca, brl, brlCurto, variacao, taxa,
     duracao, quando, hojeSP, diaDe, hora5, saudacao, ETAPAS, ETAPA, rotuloEtapa, tomDaEtapa, previsao, STATUS_ORC, rotuloOrc, numeroOrc,
-    STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
+    STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, orcadorNaCentral, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
     contagemPorApp, tituloDaAba, tempoDoAviso, atencao, gargalos, conversao, barras, diaCurto, classificarBusca, GRUPOS_BUSCA, linhasDaBusca, filtrarPorPermissao,
     ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca, ORCADOR_NO_ATENDIMENTO, ORCADOR_NO_ATENDIMENTO_URL, ORCADOR_NA_CENTRAL_URL,
   });

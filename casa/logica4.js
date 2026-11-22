@@ -363,7 +363,8 @@
   function fichaDe(c, bases, origem) {
     const f = c && typeof c === 'object' ? c : {};
     const cli = f.cliente || {};
-    const seguro = (u) => (u && L.appDoLink(u, origem, bases) ? String(u) : '');
+    /* rodada 13C: link do Orçador no Netlify (banco) vira /orcador/ da Central antes de conferir de qual app é */
+    const seguro = (u0) => { const u = u0 && L.orcadorNaCentral ? L.orcadorNaCentral(u0, bases, origem) : u0; return u && L.appDoLink(u, origem, bases) ? String(u) : ''; };
     const r = f.resumo || {};
     const tel = L.formatarTelefone(cli.telefone_55 || cli.telefone || '');
     const patio = (Array.isArray(f.patio) ? f.patio : []).filter((o) => o && o.aberta !== false && !['entregue', 'cancelado'].includes(o.etapa)).slice(0, 3)

@@ -123,7 +123,7 @@ try {
     }
     await page.screenshot({ path: `qa-out/r8-casa-${largura}-${tema}.png` });
     const trafego = await page.evaluate(() => document.querySelector('a[href="/trafego/"]')?.target || null);
-    assert.equal(trafego, papel === 'admin' || (papel === 'gestor' && ads) ? 'indycar-ads' : null);
+    assert.equal(trafego, papel === 'admin' || (papel === 'gestor' && ads) ? 'indycar-trafego' : null);
     await page.click('#bSino');
     const grupo = '[data-grupo-tipo="espera"]';
     await page.waitForSelector(grupo);

@@ -100,7 +100,7 @@ try {
   await page.evaluate(() => document.activeElement.blur());
   await page.keyboard.press('7'); await espera(50);
   const abas = await page.evaluate(() => window.__ABAS);
-  conferir('tecla 7 abre o Tráfego na aba indycar-ads', abas.some(([u, n]) => /\/trafego\/$/.test(u) && n === 'indycar-ads'), JSON.stringify(abas));
+  conferir('tecla 7 abre o Tráfego na aba indycar-trafego', abas.some(([u, n]) => /\/trafego\/$/.test(u) && n === 'indycar-trafego'), JSON.stringify(abas));
   });
 
   // 5. busca: o item marcado pelas setas é anunciado; Tráfego no "Ir para"
@@ -343,7 +343,7 @@ try {
   const dicaAdmin = await g.page.$eval('#toast', (t) => t.textContent);
   await g.page.keyboard.press('f'); await espera(100);
   const abas = await g.page.evaluate(() => window.__ABAS.slice());
-  conferir('g f abre o Tráfego na aba indycar-ads', abas.length === 1 && abas[0][0] === '/trafego/' && abas[0][1] === 'indycar-ads', JSON.stringify(abas));
+  conferir('g f abre o Tráfego na aba indycar-trafego', abas.length === 1 && abas[0][0] === '/trafego/' && abas[0][1] === 'indycar-trafego', JSON.stringify(abas));
   conferir('dica do g (dono): tem o Tráfego', /f Tráfego/.test(dicaAdmin), dicaAdmin);
   await g.page.close();
   const m = await abrir({ papel: 'agenda' }, 1440);

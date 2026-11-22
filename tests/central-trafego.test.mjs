@@ -335,7 +335,7 @@ test('dependências: tudo que o Tráfego importa está no package.json da raiz e
 test('Casa: cartão "Tráfego" abre em /trafego/, com a chave de acesso "ads" e o desenho dos outros cartões', () => {
   assert.deepEqual(L.APPS.ads, { k: 'ads', nome: 'Tráfego', desc: 'anúncios e de onde vêm os clientes', ico: '📢', base: '/trafego/' });
   assert.equal(L.bases().ads, '/trafego/');
-  assert.equal(L.nomeDaAba('ads'), 'indycar-ads', 'a mesma aba nomeada que os outros apps usam para o Tráfego');
+  assert.equal(L.nomeDaAba('ads'), 'indycar-trafego', 'rodada 13C: a mesma aba nomeada que o CRM, o Comunicar e o próprio Tráfego usam');
   assert.equal(L.appDoLink('/trafego/?periodo=7d', ORIGEM_CENTRAL), 'ads');
   assert.equal(L.appDoLink('/trafego', ORIGEM_CENTRAL), 'ads');
   assert.equal(L.appDoLink('https://site-de-fora.example/trafego/', ORIGEM_CENTRAL), null);
