@@ -1,7 +1,8 @@
 // Rodada 13B: as passagens do CRM para os outros apps, de ponta a ponta, com o CRM montado em /crm/ como na Central.
 // SÓ com o servidor de mentira:  MOCK_PREFIXO=crm PORT=3614 npm run mock   e depois   node testes/r13b-passagens.mjs [base]
 // Os outros apps (/atendimento/, /agenda/, /comunicar/, /orcador/) são respondidos aqui por uma página de mentira que
-// só registra o endereço: confere que a passagem abre o lugar certo, com o cliente certo, na MESMA janela.
+// só registra o endereço: confere que a passagem abre o lugar certo, com o cliente certo. Rodada 13C: cada app abre na
+// ABA NOMEADA dele (indycar-<app>) e o CRM fica onde estava; o window.open é trocado por um gravador.
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const puppeteer = require(process.env.PUPPETEER_CORE || 'C:/Users/USER/.claude/backups/indycar-ferramentas/node_modules/puppeteer-core');
@@ -29,17 +30,23 @@ async function abrir(caminho = '?papel=gestor', { erroLeads = false } = {}) {
     r.continue();
   });
   await page.setViewport({ width: 1440, height: 900 });
+  // rodada 13C: grava window.open(url, nome); com window.__bloquear a "aba" é recusada, como um bloqueador de pop-up
+  await page.evaluateOnNewDocument(() => { window.__abas = []; window.open = (u, n) => { if (window.__bloquear) return null; window.__abas.push([new URL(String(u), location.href).pathname + new URL(String(u), location.href).search + new URL(String(u), location.href).hash, String(n)]); return { focus() {} }; }; });
   await page.goto(CRM + caminho, { waitUntil: 'domcontentloaded' });
   if (!erroLeads) await page.waitForFunction(() => typeof TODOS !== 'undefined' && TODOS.length && document.querySelector('.view.active'), { timeout: 20000 });
   await espera(1200);
   return { page, erros, confirms };
 }
 const destino = page => page.evaluate(() => location.pathname + location.search + location.hash);
+/** Clica e devolve o que abriu: { destino, aba (nome), ficou (o CRM continua em /crm/) }. */
 async function clicarEEsperar(page, seletor) {
-  const antes = abasNovas;
-  await Promise.all([page.waitForNavigation({ timeout: 8000 }).catch(() => null), page.evaluate(s => document.querySelector(s).click(), seletor)]);
-  return { destino: await destino(page), novaAba: abasNovas > antes };
+  const antes = await page.evaluate(() => window.__abas.length);
+  await page.evaluate(s => document.querySelector(s).click(), seletor);
+  await page.waitForFunction(n => window.__abas.length > n, { timeout: 8000 }, antes).catch(() => null);
+  const [d, aba] = (await page.evaluate(() => window.__abas[window.__abas.length - 1])) || ['', ''];
+  return { destino: d, aba, ficou: (await destino(page)).startsWith('/crm/') };
 }
+const naAba = (r, app) => r.aba === 'indycar-' + app && r.ficou;
 
 try {
   // 1) ficha do contato -> Atendimento, Agenda, Comunicar
@@ -51,7 +58,7 @@ try {
     const sel = await ctx.page.evaluate(r => { const a = [...document.querySelectorAll('#lfAcoes a')].find(x => x.textContent.includes(r)); if (!a) return null; a.id = 'alvoTeste'; return '#alvoTeste'; }, rotulo);
     if (!sel) { conferir(`ficha: "${rotulo}" existe`, false); continue; }
     const r = await clicarEEsperar(ctx.page, sel);
-    conferir(`ficha → ${rotulo}: abre /${app}/ com o telefone, na mesma janela`, r.destino.startsWith(`/${app}/`) && r.destino.includes('tel=' + lead.tel) && !r.novaAba, JSON.stringify(r));
+    conferir(`ficha → ${rotulo}: abre /${app}/ com o telefone, na aba indycar-${app}`, r.destino.startsWith(`/${app}/`) && r.destino.includes('tel=' + lead.tel) && naAba(r, app), JSON.stringify(r));
     await ctx.page.close(); ctx = await abrir();
   }
 
@@ -66,7 +73,7 @@ try {
       const sel = await ctx.page.evaluate(f => { const a = [...document.querySelectorAll('#fichaCliente a')].find(new Function('a', 'return (' + f + ')(a)')); if (!a) return null; a.id = 'alvoFc'; return '#alvoFc'; }, filtro.toString());
       if (!sel) { conferir(`ficha do cliente: "${rotulo}" existe`, false); continue; }
       const r = await clicarEEsperar(ctx.page, sel);
-      conferir(`ficha do cliente → ${rotulo}: /${app}/ certo, na mesma janela`, r.destino.startsWith(`/${app}/`) && conferirDestino(r.destino) && !r.novaAba, JSON.stringify(r));
+      conferir(`ficha do cliente → ${rotulo}: /${app}/ certo, na aba indycar-${app}`, r.destino.startsWith(`/${app}/`) && conferirDestino(r.destino) && naAba(r, app), JSON.stringify(r));
       await ctx.page.close(); ctx = await abrir();
     }
   }
@@ -75,25 +82,29 @@ try {
   const temOrc = await ctx.page.evaluate(() => { const b = document.querySelector('#modalBg a[data-r7a="orcamento"]'); if (!b) return false; b.id = 'alvoCriarOrc'; return true; });
   if (temOrc) {
     const r = await clicarEEsperar(ctx.page, '#alvoCriarOrc');
-    conferir('ficha → Criar orçamento: /orcador/ com telefone e contato, na mesma janela', r.destino.startsWith('/orcador/') && /tel=55\d{10,11}/.test(r.destino) && /lead=/.test(r.destino) && !r.novaAba, JSON.stringify(r));
+    conferir('ficha → Criar orçamento: /orcador/ com telefone e contato, na aba indycar-orcador', r.destino.startsWith('/orcador/') && /tel=55\d{10,11}/.test(r.destino) && /lead=/.test(r.destino) && naAba(r, 'orcador'), JSON.stringify(r));
     await ctx.page.close(); ctx = await abrir();
   } else conferir('ficha: "Criar orçamento" existe', false);
 
-  // 2c) IA da ficha: "Conversa ↗" (link montado com o endereço antigo) vira /atendimento/ na mesma janela
+  // 2c) IA da ficha: "Conversa ↗" (link montado com o endereço antigo) vira /atendimento/ na aba do Atendimento
   await ctx.page.evaluate(id => abrirModal(id), lead.id); await espera(2500);
   const temIa = await ctx.page.evaluate(() => { const a = [...document.querySelectorAll('.cia-links a')].find(x => /Conversa/.test(x.textContent)); if (!a) return null; a.id = 'alvoIa'; return a.getAttribute('href'); });
   if (temIa) {
     const r = await clicarEEsperar(ctx.page, '#alvoIa');
-    conferir('IA da ficha → Conversa: /atendimento/ na mesma janela', r.destino.startsWith('/atendimento/') && /tel=/.test(r.destino) && !r.novaAba, JSON.stringify({ href: temIa, ...r }));
+    conferir('IA da ficha → Conversa: /atendimento/ na aba indycar-atendimento', r.destino.startsWith('/atendimento/') && /tel=/.test(r.destino) && naAba(r, 'atendimento'), JSON.stringify({ href: temIa, ...r }));
     await ctx.page.close(); ctx = await abrir();
   } else conferir('IA da ficha: link "Conversa" existe', false);
 
-  // 3) ficha com alteração não salva: sair pede confirmação e, se a pessoa desiste, fica no CRM
+  // 3) ficha com alteração não salva: o outro app abre na aba dele e a anotação continua aqui; com a aba bloqueada,
+  //    sair nesta janela pergunta antes e, se a pessoa desiste, fica no CRM
   await ctx.page.evaluate(id => abrirModal(id), lead.id); await espera(800);
   await ctx.page.evaluate(() => { document.querySelector('#abaDados').click(); const o = document.querySelector('#fObs'); o.value += ' anotação não salva'; o.dispatchEvent(new Event('input', { bubbles: true })); });
   await ctx.page.evaluate(() => { const a = [...document.querySelectorAll('#lfAcoes a')].find(x => x.textContent.includes('Abrir conversa')); a.click(); });
   await espera(800);
-  conferir('ficha suja: pergunta antes de sair e fica no CRM ao desistir', ctx.confirms.some(m => /não foram salvas/.test(m)) && (await destino(ctx.page)).startsWith('/crm/'), JSON.stringify(ctx.confirms));
+  conferir('ficha suja: Atendimento abre na aba dele sem perguntar e a anotação continua no CRM', !ctx.confirms.length && (await ctx.page.evaluate(() => window.__abas.length === 1 && document.querySelector('#fObs').value.includes('anotação não salva'))) && (await destino(ctx.page)).startsWith('/crm/'), JSON.stringify(ctx.confirms));
+  await ctx.page.evaluate(() => { window.__bloquear = true; const a = [...document.querySelectorAll('#lfAcoes a')].find(x => x.textContent.includes('Abrir conversa')); a.click(); });
+  await espera(800);
+  conferir('aba bloqueada + ficha suja: pergunta antes de sair e fica no CRM ao desistir', ctx.confirms.some(m => /não foram salvas/.test(m)) && (await destino(ctx.page)).startsWith('/crm/'), JSON.stringify(ctx.confirms));
   await ctx.page.close();
 
   // 4) chegando no CRM por link de outro app: ?lead= e ?tel= abrem a ficha certa (a entrada continua sendo Hoje)

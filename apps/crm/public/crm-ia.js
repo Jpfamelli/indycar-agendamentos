@@ -62,11 +62,24 @@
   async function copiar(texto) {
     try { await navigator.clipboard.writeText(texto); return true; } catch { return false; }
   }
-  /* Rodada 13B: endereço antigo de um app irmão (Render/Netlify) -> o mesmo caminho dentro da Central. null se não for. */
+  /* Rodada 13B: endereço antigo de um app irmão (Render/Netlify) -> o mesmo caminho dentro da Central. null se não for.
+     Rodada 13C: link que JÁ está na Central (este endereço ou o de produção, ex.: /crm/?lead=…, /atendimento/?conversa=…)
+     fica com o caminho do app dono; antes a raiz da Central era tratada como "a Agenda" e virava /agenda/crm/…. */
   function naCentral(u) {
     const A = window.IndyCarApps; if (!u || !A || !A.CENTRAL) return null;
+    let url; try { url = new URL(String(u), location.href); } catch { return null; }
+    const raizProd = A.HOSTS && A.HOSTS.agenda ? new URL(A.HOSTS.agenda).origin : null;
+    if (url.origin === location.origin || url.origin === raizProd) {
+      const caminho = url.pathname.replace(/^\/+/, '');
+      for (const [app, pasta] of Object.entries(A.IRMAOS || {})) {
+        if (caminho === pasta.replace(/\/$/, '') || caminho.startsWith(pasta)) return A.urlApp(app, caminho.slice(pasta.length).replace(/^\/?/, '/') + url.search + url.hash);
+      }
+      /* raiz da Central com ?agendamento=/?tel= (links antigos da Agenda) e só a raiz: a Agenda; o resto da raiz não é de app irmão */
+      if (caminho === '' && url.search) return A.urlApp('agenda', '/' + url.search + url.hash);
+      return null;
+    }
     for (const app of Object.keys(A.IRMAOS || {})) {
-      const host = A.HOSTS && A.HOSTS[app]; if (!host || app === 'crm') continue;
+      const host = A.HOSTS && A.HOSTS[app]; if (!host || app === 'crm' || app === 'agenda') continue;
       const h = host.replace(/\/$/, '');
       if (u === h || u.startsWith(h + '/')) return A.urlApp(app, u.slice(h.length) || '/');
     }
@@ -75,7 +88,8 @@
   function abrirLink(url) {
     if (!url) return;
     if (/^tel:/.test(url)) { location.href = url; return; }
-    const c = naCentral(url); if (c) { if (typeof sairPara6 === 'function') sairPara6(c); else location.assign(c); return; }
+    /* rodada 13C: o app irmão abre na aba nomeada dele (indycar-<app>); link do próprio CRM fica nesta janela */
+    const c = naCentral(url); if (c) { const app = typeof appDoLink6 === 'function' ? appDoLink6(c) : null; if (app && typeof abrirNomeada6 === 'function') abrirNomeada6(c, app); else if (typeof sairPara6 === 'function') sairPara6(c); else location.assign(c); return; }
     if (/^https:\/\//.test(url)) window.open(url, '_blank', 'noopener,noreferrer');
   }
   const quando = iso => {

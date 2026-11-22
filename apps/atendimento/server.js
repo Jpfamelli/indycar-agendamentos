@@ -2238,7 +2238,7 @@ async function fichaDoCliente(clienteId) {
     ultimoServico,
     revisao,
     envios: envios.map(e => ({ ...e, rotulo: COM.ROTULO_TIPO[e.tipo] || e.tipo || 'Mensagem' })),
-    comunicarUrl: 'https://indycar-posvenda.onrender.com',
+    // rodada 13C: sem "comunicarUrl" fixo no Render antigo (passava por cima do endereço da Central); a tela usa apps.js
     // carro na oficina agora (ou entregue há até 2 dias), com o link do cliente
     patio: pat?.ordem ? { ...pat.ordem, texto_link: PAT.textoDoAcompanhamento({ nome: cliente.nome, veiculo: pat.ordem.veiculo || cliente.carro_modelo, link: pat.ordem.link_cliente }) } : null,
   };

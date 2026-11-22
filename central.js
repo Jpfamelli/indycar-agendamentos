@@ -129,6 +129,8 @@ async function carregarTudo() {
   await carregar('agenda', '/agenda', async () => {
     const m = await import(pathToFileURL(join(__dirname, 'server.js')).href);
     await m.iniciar({ ouvir: false });         // config de IA, token ICS, importação CodeWords, automações
+    /* rodada 13C: com o Orçador servido aqui, os links que a Agenda monta no servidor vão para /orcador/ (não o Netlify) */
+    if (orcadorLocal()) (await import(pathToFileURL(join(__dirname, 'orcador.js')).href)).usarOrcadorDaCentral(true);
     return { handler: m.handler, versao: m.VERSAO };
   });
   await carregar('crm', '/crm', async () => {

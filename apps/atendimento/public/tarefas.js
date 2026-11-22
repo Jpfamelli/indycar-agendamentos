@@ -126,12 +126,15 @@ const Tarefas = (() => {
     if (!link) return;
     // só links relativos ou do próprio ecossistema
     if (/^https?:\/\//i.test(link)) {
-      try { const u = new URL(link); if (Object.values(LINKS_APP).some(b => b.startsWith(u.origin))) { const ch = window.IndyCarApps?.appDoEndereco(u.href); if (ch) window.IndyCarApps.abrir(ch, u.href); else window.open(u.href, '_blank', 'noopener'); } } catch { /* ignora */ }
+      /* rodada 13C: a lista de endereços era um Proxy sem chaves (Object.values dava [] e o aviso não abria nada);
+         agora vale qualquer endereço do ecossistema (o do Netlify do Orçador vira /orcador/ dentro da Central) */
+      try { const A = window.IndyCarApps; const alvo = A ? A.enderecoSeguro(A.naCentralAtual(link)) : null; if (alvo) { const ch = A.appDoEndereco(alvo); if (ch) A.abrir(ch, alvo); else window.open(alvo, '_blank', 'noopener'); } } catch { /* ignora */ }
       return;
     }
     if (!link.startsWith('/')) return;
     const app = n.app || 'atendimento';
-    if (app !== 'atendimento') return void (window.IndyCarApps ? window.IndyCarApps.abrir(app, (LINKS_APP[app] || '') + link) : window.open((LINKS_APP[app] || '') + link, '_blank', 'noopener'));
+    /* rodada 13C: link(app, rel) põe o caminho depois da barra do app ("/crm/?lead=…"), sem "//" nem salto de 308 */
+    if (app !== 'atendimento') return void (window.IndyCarApps ? window.IndyCarApps.abrir(app, window.IndyCarApps.link(app, link)) : window.open((LINKS_APP[app] || '') + link, '_blank', 'noopener'));
     const u = new URL(link, location.origin);
     const conversa = u.searchParams.get('conversa');
     if (conversa) return irParaConversa(conversa);

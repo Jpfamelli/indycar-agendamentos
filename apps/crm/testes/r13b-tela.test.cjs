@@ -27,10 +27,11 @@ test('Central: Orçador e Tráfego são irmãos (mesma origem e mesma sessão); 
   assert.equal(APPS.linkApp('patio', '/?os=1', { prefixo: '/crm' }), 'https://indycar-patio.netlify.app/?os=1');
 });
 
-test('links para apps irmãos abrem na mesma janela e não deixam perder o que foi digitado', () => {
+test('links para outros apps (rodada 13C: aba nomeada; aba bloqueada sai nesta janela sem perder o que foi digitado)', () => {
   const r6 = pub('rodada6.js');
-  assert.match(r6, /const mesmaJanela6 = app => !!\(A6\.CENTRAL && A6\.IRMAOS && A6\.IRMAOS\[app\]\)/);
-  assert.match(r6, /function abrirNomeada6\(u, app\) \{ if \(mesmaJanela6\(app\)\) \{ sairPara6\(u\); return null; \}/);
+  assert.match(r6, /const mesmaJanela6 = \(\) => false;/);
+  assert.match(r6, /function abrirNomeada6\(u, app\) \{\n  const w = window\.open\(u, 'indycar-' \+ app\);/);
+  assert.match(r6, /sairPara6\(u\);   \/\/ aba bloqueada/);
   assert.match(r6, /formSujo\(\)[\s\S]{0,120}não foram salvas/, 'ficha com alteração não salva pergunta antes de sair');
   assert.match(r6, /FILA_MEM\.length[\s\S]{0,200}esperando o sistema voltar/, 'mudança na fila pergunta antes de sair');
   assert.match(r6, /location\.assign\(href\)/);
@@ -72,9 +73,9 @@ test('endereço com filtro: ?ver=sem-responsavel (e ?filtro=) abre Contatos filt
   assert.ok(r > 0 && ir > r, 'vai para Contatos e refiltra');
 });
 
-test('IA da ficha: link com endereço antigo de app irmão vira o caminho da Central e abre na mesma janela', () => {
+test('IA da ficha: link com endereço antigo de app irmão vira o caminho da Central (rodada 13C: na aba nomeada do app)', () => {
   const ia = pub('crm-ia.js');
   assert.match(ia, /function naCentral\(u\)/);
   assert.match(ia, /const c = naCentral\(u\); return c \? `<a href="\$\{esc\(c\)\}">/);
-  assert.match(ia, /const c = naCentral\(url\); if \(c\) \{ if \(typeof sairPara6 === 'function'\) sairPara6\(c\)/);
+  assert.match(ia, /const c = naCentral\(url\); if \(c\) \{ const app = typeof appDoLink6 === 'function' \? appDoLink6\(c\) : null; if \(app && typeof abrirNomeada6 === 'function'\) abrirNomeada6\(c, app\)/);
 });

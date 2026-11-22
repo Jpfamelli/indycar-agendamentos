@@ -1,7 +1,8 @@
 // Rodada 13B · passagens entre apps do Comunicar, de ponta a ponta, no servidor de mentira (npm run mock).
 // O Comunicar abre em /comunicar/ (como na Central); /agenda/, /crm/ e /atendimento/ são páginas de mentira que só
 // mostram o endereço recebido. Confere: chegar por link de outro app (telefone com 55, tela filtrada), sair para a
-// conversa, o CRM e a Agenda com o cliente certo, na MESMA janela, e a tela de entrada sem pedido repetido.
+// conversa, o CRM e a Agenda com o cliente certo, cada um na ABA NOMEADA dele (rodada 13C: "indycar-crm",
+// "indycar-agenda", "indycar-atendimento"; o Comunicar fica aberto onde estava), e a tela de entrada sem pedido repetido.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -29,6 +30,8 @@ async function abrir(caminho) {
     r.continue();
   });
   await page.setViewport({ width: 1280, height: 900 });
+  // rodada 13C: guarda cada window.open(url, nome) em vez de abrir a aba de verdade
+  await page.evaluateOnNewDocument(() => { window.__abas = []; window.open = (u, n) => { window.__abas.push([String(u), String(n)]); return { focus() {} }; }; });
   await page.goto(origem + caminho, { waitUntil: 'networkidle0' });
   await espera(600);
   return { page, erros, pedidos };
@@ -46,27 +49,27 @@ try {
     assert.ok(!pedidos.includes('GET /api/projecao') && !pedidos.includes('GET /api/resumo'), 'não carregou o resumo das Réguas à toa: ' + pedidos.join(', '));
     passo('chegar com ?tel=55… abre a ficha da Maria em Clientes, sem carregar as Réguas');
 
-    // 2. da ficha para a conversa, o CRM e a Agenda: mesma janela, mesma origem, cliente certo, telefone sem 55
+    // 2. da ficha para a conversa, o CRM e a Agenda: aba nomeada de cada app, mesma origem, cliente certo, telefone sem 55
     const links = await page.$$eval('.eco-links a', (as) => as.map((a) => ({ txt: a.textContent.trim(), href: a.href, alvo: a.target })));
     assert.equal(links.length, 3);
-    for (const l of links) assert.equal(l.alvo, '', `${l.txt} abre na mesma janela`);
     const id = new URL(links.find((l) => /CRM/.test(l.txt)).href).searchParams.get('cliente');
     assert.match(id, /^[0-9a-f-]{36}$/);
-    const esperado = { Conversa: `/atendimento/?tel=12999990001`, CRM: `/crm/?cliente=${id}&tel=12999990001`, Agenda: `/agenda/?cliente=${id}&tel=12999990001` };
-    for (const [txt, caminho] of Object.entries(esperado)) {
+    const esperado = { Conversa: ['/atendimento/?tel=12999990001', 'indycar-atendimento'], CRM: [`/crm/?cliente=${id}&tel=12999990001`, 'indycar-crm'], Agenda: [`/agenda/?cliente=${id}&tel=12999990001`, 'indycar-agenda'] };
+    for (const [txt, [caminho]] of Object.entries(esperado)) {
       const l = links.find((x) => x.txt.includes(txt));
       assert.equal(l.href, origem + caminho, txt);
     }
-    await Promise.all([page.waitForNavigation(), page.$$eval('.eco-links a', (as) => as.find((a) => /CRM/.test(a.textContent)).click())]);
-    const d = await destino(page);
-    assert.equal(d.app, 'crm'); assert.equal(d.url, `/crm/?cliente=${id}&tel=12999990001`);
-    passo('ficha → CRM / Agenda / Conversa: mesma janela, cliente e telefone certos');
+    const antes = page.url();
+    for (const txt of Object.keys(esperado)) await page.$$eval('.eco-links a', (as, t) => as.find((a) => a.textContent.includes(t)).click(), txt);
+    const abas = await page.evaluate(() => window.__abas);
+    assert.deepEqual(abas, Object.values(esperado).map(([c, n]) => [origem + c, n]), JSON.stringify(abas));
+    assert.equal(page.url(), antes, 'o Comunicar fica aberto onde estava');
+    passo('ficha → Conversa / CRM / Agenda: cada um na aba nomeada dele, cliente e telefone certos');
 
-    // 3. voltar do outro app cai no Comunicar sem pedir login de novo
-    await page.goBack({ waitUntil: 'domcontentloaded' }).catch(() => null);
-    await page.waitForSelector('.view .toolbar, #gaveta h3', { timeout: 10000 });
+    // 3. o Comunicar continua na tela (nada de login de novo nem de tela trocada)
     assert.equal(await page.$('#telaLogin:not([hidden]) #formLogin:not([hidden])'), null, 'não pediu login de novo');
-    passo('voltar do CRM: o Comunicar abre sem pedir login');
+    assert.equal(await page.$eval('#gavetaTitulo', (el) => el.textContent.trim()), 'Maria Aparecida Souza');
+    passo('depois de abrir os outros apps, a ficha da Maria continua aberta no Comunicar');
     assert.deepEqual(erros, []);
     await page.close();
   }
@@ -78,13 +81,12 @@ try {
     assert.equal(await page.$eval('.nav-item[aria-current="page"]', (el) => el.dataset.route), 'mensagens');
     const status = await page.$$eval('.envio .envio-chips', (cs) => cs.map((c) => c.textContent));
     assert.ok(status.length && status.every((t) => /Enviada/.test(t)), 'só as enviadas: ' + status.slice(0, 3).join(' | '));
-    const conversa = await page.$eval('.envio a[href*="/atendimento/?tel="]', (a) => ({ href: a.href, alvo: a.target }));
-    assert.equal(conversa.alvo, '');
-    assert.match(conversa.href, new RegExp('^' + origem + '/atendimento/\\?tel=\\d{10,11}$'));
-    await Promise.all([page.waitForNavigation(), page.$eval('.envio a[href*="/atendimento/?tel="]', (a) => a.click())]);
-    const d = await destino(page);
-    assert.equal(d.app, 'atendimento');
-    passo('?tela=mensagens&status=enviado abre filtrada; "Abrir conversa" leva ao Atendimento na mesma janela');
+    const conversa = await page.$eval('.envio a[href*="/atendimento/?tel="]', (a) => a.href);
+    assert.match(conversa, new RegExp('^' + origem + '/atendimento/\\?tel=\\d{10,11}$'));
+    await page.$eval('.envio a[href*="/atendimento/?tel="]', (a) => a.click());
+    const abas = await page.evaluate(() => window.__abas);
+    assert.deepEqual(abas, [[conversa, 'indycar-atendimento']]);
+    passo('?tela=mensagens&status=enviado abre filtrada; "Abrir conversa" leva ao Atendimento na aba dele');
     assert.deepEqual(erros, []);
     await page.close();
   }

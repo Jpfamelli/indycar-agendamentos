@@ -253,6 +253,15 @@ const naMoldura = async (page, fn, arg) => { const f = await moldura(page); retu
   const patio = await page.evaluate(() => window.__abertos[0] || null);
   conferir('"Entrada no Pátio" abre o Pátio na aba dele, já com o cliente', !!patio && /indycar-patio/.test(patio[1]) && /tel=|cliente=|placa=/.test(patio[0]), JSON.stringify(patio).slice(0, 160));
 
+  // rodada 13C: links da ficha (Agenda, CRM, Comunicar) no endereço desta Central, com a barra ("/agenda/?tel="), na aba de cada app
+  const fl = await page.evaluate(() => [...document.querySelectorAll('#colFicha .ficha-links a, #colFicha a.ficha-link[target="indycar-comunicar"]')].map((a) => [a.textContent.trim(), a.getAttribute('href'), a.target]));
+  const daFicha = (re) => fl.find(([t]) => re.test(t));
+  const ok13c = [[/Agenda/, '/agenda/?tel=', 'indycar-agenda'], [/CRM/, '/crm/?tel=', 'indycar-crm'], [/^📣 Comunicar/, '/comunicar/?tel=', 'indycar-comunicar']]
+    .every(([re, caminho, aba]) => { const l = daFicha(re); return l && l[1].startsWith(BASE + caminho) && l[2] === aba; });
+  conferir('ficha → Agenda / CRM / Comunicar: "/<app>/?tel=" nesta Central (nada do Render antigo), na aba de cada app', ok13c && !fl.some(([, h]) => /onrender\.com|netlify/.test(h)), JSON.stringify(fl).slice(0, 400));
+  const abrirCom = daFicha(/Abrir no Comunicar/);
+  if (abrirCom) conferir('"Abrir no Comunicar" (mensagens automáticas) usa o Comunicar desta Central', abrirCom[1].startsWith(BASE + '/comunicar/') && abrirCom[2] === 'indycar-comunicar', JSON.stringify(abrirCom));
+
   // Agendar: a janela já vem com o carro e a placa
   await page.evaluate(() => document.getElementById('btnAgendar').click());
   await ate(() => page.evaluate(() => document.getElementById('modalAgendarBg').classList.contains('aberto')));

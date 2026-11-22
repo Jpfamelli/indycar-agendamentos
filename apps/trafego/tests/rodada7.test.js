@@ -130,7 +130,7 @@ test('os avisos antigos agora levam itens com nome e links (CRM, conversa, orça
   const it = alerta(c, 'orcamento_parado').itens[0];
   assert.equal(it.nome, 'Cliente l1'); assert.equal(it.placa, 'ABC1D23'); assert.equal(it.canal, 'meta');
   assert.equal(it.links.crm, 'https://indycar-agendamentos.onrender.com/crm/?lead=l1');
-  assert.equal(it.links.orcamento, 'https://indycar-orcador.netlify.app/#/historico/o1');
+  assert.equal(it.links.orcamento, 'https://indycar-agendamentos.onrender.com/orcador/#/historico/o1');
   assert.match(it.links.conversa, /atendimento\/\?tel=5512991234567$/);
   assert.match(it.links.orcar, /lead=l1/);
   assert.equal(it.sem_responsavel, false);

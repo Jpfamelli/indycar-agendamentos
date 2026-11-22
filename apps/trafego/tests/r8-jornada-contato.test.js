@@ -85,7 +85,7 @@ test('detalhe: o item e mais nome e telefone inteiros, linha do tempo de até 60
   assert.deepEqual(d.rastreio, { pagina: '/troca-de-oleo', servico: 'oleo', utm_source: 'facebook', utm_medium: 'cpc', utm_campaign: 'oleo', codigo: 'K7M2P', clique_em: J.isoBR(h(101)) });
   assert.deepEqual(d.historico, { visitas_antes: 1, gasto_antes: 300, cliente_desde: '2025-03-02T09:00:00-03:00' });
   assert.deepEqual(d.links, { crm: `/crm/?lead=${L1}`, atendimento: '/atendimento/?tel=5512991230272', agenda: '/agenda/?tel=5512991230272',
-    orcamento: 'https://indycar-orcador.netlify.app/#/historico/o1', patio: 'https://indycar-patio.netlify.app/?os=os1' });
+    orcamento: '/orcador/#/historico/o1', patio: 'https://indycar-patio.netlify.app/?os=os1' });
   assert.equal(/NAO-PODE-SAIR|gclid|fbclid/i.test(JSON.stringify(d)), false, 'identificador de clique é dado pessoal: não sai nem no detalhe');
 });
 

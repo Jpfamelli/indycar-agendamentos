@@ -360,7 +360,8 @@ const AbaOrcador = (() => {
     let u;
     try { u = new URL(String(endereco), BASE); } catch { return null; }
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
-    const antigo = window.IndyCarApps?.apps?.orcador?.url;
+    /* rodada 13C: o endereço do Orçador na Central é /orcador/; o "antigo" (links do banco) é o Netlify */
+    const antigo = window.IndyCarApps?.ORCADOR_NETLIFY || window.IndyCarApps?.apps?.orcador?.url;
     const doOrcador = u.origin === location.origin ? u.pathname.startsWith(BASE.pathname) : !!antigo && u.origin === new URL(antigo).origin;
     if (!doOrcador) return null;
     return BASE.href + u.search + u.hash;
@@ -2224,7 +2225,7 @@ async function carregarFicha(conv) {
       <div class="ficha-bloco">
         <div class="ficha-titulo">
           Mensagens automáticas
-          <a class="ficha-link" href="${esc(fx?.comunicarUrl || URL_COMUNICAR)}"
+          <a class="ficha-link" href="${esc(URL_COMUNICAR || fx?.comunicarUrl)}"
              target="indycar-comunicar" rel="noopener" title="Abrir o IndyCar Comunicar">Abrir no Comunicar ↗</a>
         </div>
         <label class="switch aceita${aceita ? '' : ' desligado'}">
@@ -5891,6 +5892,8 @@ $('#chatTelefone')?.addEventListener('click', () => {
 const URL_AGENDA = window.IndyCarApps?.link('agenda') || 'https://indycar-agendamentos.onrender.com';
 const URL_CRM = window.IndyCarApps?.link('crm') || 'https://indycar-crm.onrender.com';
 const URL_COMUNICAR = window.IndyCarApps?.link('comunicar') || 'https://indycar-posvenda.onrender.com';
+/* rodada 13C: o endereço do Comunicar é o desta Central (apps.js). O servidor mandava "comunicarUrl" fixo no Render
+   antigo e passava por cima dele; agora o servidor não manda mais e, se mandar, vale o daqui. */
 function linkComTelefone(base, tel) {
   try { const u = new URL(base); if (tel) u.searchParams.set('tel', tel); return u.href; } catch { return base; }
 }
@@ -5899,7 +5902,7 @@ function linksDoClienteHtml(conv, comunicarUrl) {
   return `<nav class="ficha-links" aria-label="Este cliente nos outros sistemas">
     <a href="${esc(linkComTelefone(URL_AGENDA, tel))}" target="indycar-agenda" rel="noopener" title="Abrir este cliente na Agenda">📅 Agenda</a>
     <a href="${esc(linkComTelefone(URL_CRM, tel))}" target="indycar-crm" rel="noopener" title="Abrir este cliente no CRM">📈 CRM</a>
-    <a href="${esc(linkComTelefone(comunicarUrl || URL_COMUNICAR, tel))}" target="indycar-comunicar" rel="noopener" title="Abrir este cliente no Comunicar">📣 Comunicar</a>
+    <a href="${esc(linkComTelefone(URL_COMUNICAR || comunicarUrl, tel))}" target="indycar-comunicar" rel="noopener" title="Abrir este cliente no Comunicar">📣 Comunicar</a>
     <button type="button" data-copiar-tel title="Copiar o telefone">📋 Tel.</button>
   </nav>`;
 }

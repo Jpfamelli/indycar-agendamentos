@@ -22,7 +22,7 @@ const APPS = Object.freeze({
   atendimento: { nome: 'Atendimento', url: `${CENTRAL}/atendimento`,   caminho: '/atendimento/' },
   comunicar:   { nome: 'Comunicar',   url: `${CENTRAL}/comunicar`,     caminho: '/comunicar/' },
   trafego:     { nome: 'Tráfego',     url: `${CENTRAL}/trafego`,       caminho: '/trafego/' },
-  orcador:     { nome: 'Orçador',     url: 'https://indycar-orcador.netlify.app', caminho: null },
+  orcador:     { nome: 'Orçador',     url: `${CENTRAL}/orcador`,       caminho: '/orcador/' },   // rodada 13C: mora na Central (o Netlify só redireciona)
   patio:       { nome: 'Pátio',       url: 'https://indycar-patio.netlify.app',   caminho: null },
   site:        { nome: 'Site',        url: 'https://indycar-taubate.netlify.app', caminho: null },
 });
@@ -30,6 +30,7 @@ const APPS = Object.freeze({
 /* Endereços antigos: hoje só redirecionam para a Central, mas continuam
    valendo no CORS (abas abertas e links já enviados). */
 const ANTIGOS = Object.freeze([
+  'https://indycar-orcador.netlify.app',   // rodada 13C: o Orçador saiu do Netlify (lá só redireciona para /orcador/)
   'https://indycar-ads.onrender.com',
   'https://indycar-crm.onrender.com',
   'https://indycar-atendimento.onrender.com',
@@ -64,7 +65,7 @@ function consultaDe(params) {
 /**
  * Caminho de outro app DENTRO da Central ("/atendimento/?aba=integracoes"), para as ações
  * que levam a pessoa a outro app. Começa com barra: é relativo à raiz da Central, não ao Tráfego.
- * App que mora em outro domínio (Pátio, Orçador, Site) ou desconhecido devolve null.
+ * App que mora em outro domínio (Pátio, Site) ou desconhecido devolve null.
  */
 function caminhoNaCentral(app, params) {
   const a = Object.prototype.hasOwnProperty.call(APPS, app) ? APPS[app] : null;

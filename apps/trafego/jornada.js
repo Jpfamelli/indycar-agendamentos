@@ -695,7 +695,7 @@ function linksDoContato(l, interno) {
     por('atendimento', enderecos.caminhoNaCentral('atendimento', { tel: interno.telefone }));
     por('agenda', enderecos.caminhoNaCentral('agenda', { tel: interno.telefone }));
   }
-  if (interno.orcamento_id) por('orcamento', `${enderecos.APPS.orcador.url}/#/historico/${encodeURIComponent(interno.orcamento_id)}`);
+  if (interno.orcamento_id) por('orcamento', `${enderecos.caminhoNaCentral('orcador')}#/historico/${encodeURIComponent(interno.orcamento_id)}`);   // rodada 13C: /orcador/ da Central
   if (interno.os_id) por('patio', `${enderecos.APPS.patio.url}/?os=${encodeURIComponent(interno.os_id)}`);
   return links;
 }

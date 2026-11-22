@@ -934,7 +934,7 @@ http.createServer(async (req, res) => {
       cliente: { id: cli.id, nome: cli.nome, nascimento: cli.nascimento, aceita_mensagens: cli.aceita_mensagens !== false,
         aceita_mensagens_em: cli.aceita_mensagens_em, aceita_mensagens_motivo: cli.aceita_mensagens_motivo },
       resumo: r360, ultimoServico: ultimo, revisao: ultimo ? { prevista, ...regra, regraId: null } : null, envios,
-      comunicarUrl: 'https://indycar-posvenda.onrender.com',
+      // rodada 13C: o servidor real não manda mais comunicarUrl (a tela usa o endereço da Central)
       // Pátio (16/10): a Camila está com o carro na oficina, com um extra esperando
       patio: cli.id === CLI.camila ? (() => {
         const o = PAT.resumoDaOs({ id: '44444444-4444-4444-8444-444444444444', numero: 57, etapa: 'aguardando_aprovacao', etapa_em: d(0.06),

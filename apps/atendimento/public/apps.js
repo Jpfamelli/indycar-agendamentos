@@ -45,7 +45,10 @@
       apps.atendimento.url = location.origin + base.replace(/\/$/, '');
       /* IndyCar Central (16/10): os irmãos montados no mesmo domínio (mesmo login). */
       if (/^\/(agenda|crm|atendimento|comunicar)\/$/.test(base)) {
-        for (const k of ['agenda', 'crm', 'comunicar']) apps[k].url = location.origin + '/' + k;
+        /* rodada 13C: com a barra no fim ("/agenda/?tel=…"): sem ela cada passagem custava um 308 a mais da Central */
+        for (const k of ['agenda', 'crm', 'comunicar']) apps[k].url = location.origin + '/' + k + '/';
+        /* rodada 13C: o Orçador também mora na Central (/orcador/, mesma sessão); o Netlify só redireciona */
+        apps.orcador.url = location.origin + '/orcador/';
       }
     }
   } catch { /* fora do navegador */ }
@@ -66,7 +69,9 @@
     if (!a || !a.url) return null;
     const r = String(rel || '');
     if (!r) return a.url;
-    return a.url.replace(/\/$/, '') + (r.startsWith('/') || r.startsWith('?') || r.startsWith('#') ? r : '/' + r);
+    /* rodada 13C: "?tel=…" e "#/…" entram depois da barra do app ("/agenda/?tel="), não no lugar dela ("/agenda?tel=") */
+    if (r.startsWith('?') || r.startsWith('#')) return a.url + r;
+    return a.url.replace(/\/$/, '') + (r.startsWith('/') ? r : '/' + r);
   }
   /** Lista para seletores/menus: só os apps publicados, na ordem da casa. */
   function lista() {
@@ -90,10 +95,13 @@
   /* Rodada 13: aberto pela Central em outro endereço (servidor de mentira, homologação), o link gravado com o endereço
      de produção da Central fica neste mesmo endereço (mesmo login), em vez de escapar para a produção. */
   const CENTRAL_PRODUCAO = 'https://indycar-agendamentos.onrender.com';
+  /* rodada 13C: endereço antigo do Orçador (gravado no banco e nos links prontos): dentro da Central vira /orcador/ */
+  const ORCADOR_NETLIFY = 'https://indycar-orcador.netlify.app';
   function naCentralAtual(endereco) {
     try {
       const u = new URL(String(endereco), location.href);
       if (base !== '/' && u.origin === CENTRAL_PRODUCAO && location.origin !== CENTRAL_PRODUCAO) return location.origin + u.pathname + u.search + u.hash;
+      if (base !== '/' && u.origin === ORCADOR_NETLIFY && apps.orcador.url && new URL(apps.orcador.url).origin !== u.origin) return apps.orcador.url.replace(/\/$/, '') + '/' + u.search + u.hash;
     } catch (e) { /* endereço inválido: segue como veio */ }
     return endereco;
   }
@@ -104,7 +112,8 @@
     const alvo = endereco ? enderecoSeguro(endereco) : (apps[app] && apps[app].url);
     if (!alvo) return null;
     try {
-      const w = window.open(alvo, 'indycar-' + app);
+      /* rodada 13C: o Tráfego (chave "ads") abre na mesma aba que a Casa, o CRM e o Comunicar usam: indycar-trafego */
+      const w = window.open(alvo, 'indycar-' + (app === 'ads' ? 'trafego' : app));
       if (w) { try { w.opener = null; } catch (e) { /* aba de outro domínio */ } if (w.focus) w.focus(); }
       return w;
     } catch (e) { return null; }
@@ -113,12 +122,12 @@
   function appDoEndereco(endereco) {
     try {
       const u = new URL(endereco, location.href);
-      const rota = /^\/(agenda|crm|comunicar|atendimento)(\/|$)/.exec(u.pathname);
-      if (rota && u.origin === (apps.agenda.url ? new URL(apps.agenda.url).origin : '')) return rota[1];
+      const rota = /^\/(agenda|crm|comunicar|atendimento|orcador|trafego)(\/|$)/.exec(u.pathname);
+      if (rota && u.origin === (apps.agenda.url ? new URL(apps.agenda.url).origin : '')) return rota[1] === 'trafego' ? 'ads' : rota[1];
       for (const [k, a] of Object.entries(apps)) { if (a.url && new URL(a.url).origin === u.origin && !(k === 'agenda' && rota)) return k; }
     } catch (e) { /* endereço inválido */ }
     return null;
   }
-  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, enderecoSeguro, appDoEndereco, naCentralAtual, atual: 'atendimento' };
+  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, enderecoSeguro, appDoEndereco, naCentralAtual, ORCADOR_NETLIFY, atual: 'atendimento' };
   if (typeof module !== 'undefined') module.exports = raiz.IndyCarApps;
 })(typeof window !== 'undefined' ? window : globalThis);
