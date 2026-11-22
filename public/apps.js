@@ -31,6 +31,8 @@
   try {
     if (root.location && /^\/(agenda|crm|atendimento|comunicar)(\/|$)/.test(root.location.pathname) && /^https?:/.test(root.location.origin)) {
       for (const k of ['agenda', 'crm', 'atendimento', 'comunicar']) if (!(extra[k] && extra[k].url)) apps[k].url = root.location.origin + '/' + k;
+      /* rodada 13B: a Central serve o Orçador em /orcador/ (mesmo domínio = mesmo login, sem passar pelo Netlify antigo) */
+      if (!(extra.orcador && extra.orcador.url)) apps.orcador.url = root.location.origin + '/orcador';
     }
   } catch { /* fora do navegador */ }
 

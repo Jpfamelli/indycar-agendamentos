@@ -117,7 +117,7 @@
       // 🔗 conversa do cliente no Atendimento (aba nomeada pelo clique global)
       const conv = a.telefone && root.Planejamento && Planejamento.links(a).atendimento;
       if (conv && !$('.qd-conversa', acoes) && VIVO.has(a.status)) {
-        acoes.insertAdjacentHTML('beforeend', `<a class="btn mini qd-conversa" href="${esc(conv)}" target="_blank" rel="noopener" title="Abrir a conversa deste cliente no Atendimento">💬 Conversa</a>`);
+        acoes.insertAdjacentHTML('beforeend', `<a class="btn mini qd-conversa" href="${esc(conv)}" target="_blank" rel="noopener" title="Abrir a conversa deste cliente no Atendimento">${typeof svg === 'function' ? svg(I.wa) : ''} Conversa</a>`);
       }
     }
   }
@@ -133,7 +133,7 @@
       const url = R6.linkNovoOrcamento(a); if (!url) continue;
       const card = $(`#qdCorpo .qd-card[data-id="${CSS.escape(a.id)}"]`); const acoes = card && $('.qd-acoes', card);
       if (!acoes || $('.qd-orcar', acoes)) continue;
-      acoes.insertAdjacentHTML('beforeend', `<a class="btn mini qd-orcar" href="${esc(url)}" target="_blank" rel="noopener" title="Criar o orçamento deste carro no Orçador">🧾 Orçar</a>`);
+      acoes.insertAdjacentHTML('beforeend', `<a class="btn mini qd-orcar" href="${esc(url)}" target="_blank" rel="noopener" title="Criar o orçamento deste carro no Orçador">${typeof svg === 'function' ? svg(I.money) : ''} Orçar</a>`);
     }
   }
   function repetir(a) {

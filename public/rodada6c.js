@@ -190,8 +190,7 @@
     box.innerHTML = `<input type="search" id="qdBusca" class="qd-busca" placeholder="Achar no quadro: nome, placa, telefone…" aria-label="Achar no quadro" value="${esc(q.busca || '')}" autocomplete="off">
       <label class="qd-opt"><input type="checkbox" id="qdSoFalta" ${q.soFalta ? 'checked' : ''}> só quem falta chegar</label>
       <button type="button" class="btn mini" id="qdAtrasados" hidden></button>
-      <button type="button" class="btn mini" id="qdCopiar" title="Copia a agenda do dia em texto, pronta para o WhatsApp da equipe">📋 Copiar o dia</button>
-      <button type="button" class="btn mini" id="qdImprimir" title="Imprime o quadro do dia">🖨 Imprimir</button>`;
+      <button type="button" class="btn mini" id="qdCopiar" title="Copia a agenda do dia em texto, pronta para o WhatsApp da equipe">${typeof svg === 'function' ? svg(I.copiar) : ''} Copiar o dia</button>`;
     antes.parentNode.insertBefore(box, antes);
     const faixa = document.createElement('div'); faixa.id = 'qdSemana'; faixa.className = 'qd-semana'; faixa.setAttribute('role', 'group'); faixa.setAttribute('aria-label', 'Próximos dias');
     box.parentNode.insertBefore(faixa, box);
@@ -201,7 +200,6 @@
     $('#qdBusca').addEventListener('input', (e) => { Q().busca = e.target.value; redesenhar(); });
     $('#qdSoFalta').addEventListener('change', (e) => { Q().soFalta = e.target.checked; redesenhar(); });
     $('#qdCopiar').addEventListener('click', copiarDia);
-    $('#qdImprimir').addEventListener('click', () => { document.body.classList.add('imprimindo-quadro'); setTimeout(() => { window.print(); setTimeout(() => document.body.classList.remove('imprimindo-quadro'), 300); }, 50); });
     $('#qdAtrasados').addEventListener('click', () => { painel.hidden = !painel.hidden; });
   }
 
@@ -221,7 +219,7 @@
     if (btn && painel) {
       const lista = hojeFlag ? atrasados(d.lista, agoraSP().min) : [];
       btn.hidden = !lista.length;
-      btn.textContent = `⏰ ${lista.length} atrasado${lista.length === 1 ? '' : 's'}`;
+      btn.innerHTML = `${typeof svg === 'function' ? svg(I.relogio) : ''} ${lista.length} atrasado${lista.length === 1 ? '' : 's'}`;
       if (!lista.length) painel.hidden = true;
       painel.innerHTML = lista.length ? `<b>Passaram do horário e não chegaram</b><ul>${lista.map(({ a, atraso }) => {
         const wa = a.telefone ? linkWhatsApp(a.telefone, textoDoAtrasado(a, atraso)) : null;
