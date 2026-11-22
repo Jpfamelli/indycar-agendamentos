@@ -109,14 +109,13 @@
 
 /* ---------------- apps: fileira compacta (o número grande já está no herói) ---------------- */
 .bloco-titulo { font-size: 24px; }
-.grade-apps { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-.app { grid-template-columns: 40px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 12px; row-gap: 2px; padding: 12px 14px; min-height: 64px; align-items: center; }
-.app-ico { grid-row: 1 / span 2; width: 40px; height: 40px; border-radius: 12px; font-size: 20px; align-self: center; }
-.app-nome { font-size: 17px; letter-spacing: .02em; overflow-wrap: anywhere; }
-.app-num { grid-column: 2; font-size: 26px; }
-.app-desc { grid-column: 2; font-size: 12px; line-height: 1.3; }
-.app:has(.app-num:not([hidden])) { grid-template-rows: auto auto auto; }
-.app:has(.app-num:not([hidden])) .app-ico { grid-row: 1 / span 3; }
+.grade-apps { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }   /* os 7 apps numa fileira só em 1440 */
+.app { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; row-gap: 4px; padding: 14px; min-height: 64px; align-items: start; align-content: start; }   /* ícone em cima: "ATENDIMENTO" cabe inteiro */
+.app-ico { grid-row: auto; width: 36px; height: 36px; border-radius: 11px; font-size: 18px; margin-bottom: 4px; }
+.app-nome { font-size: 17px; letter-spacing: .02em; }
+.app-num { grid-column: auto; font-size: 26px; }
+.app-desc { grid-column: auto; font-size: 12px; line-height: 1.3; }
+.app:has(.app-num:not([hidden])) .app-ico { grid-row: auto; }
 
 @media (max-width: 600px) {
   .miolo { padding: 16px 16px 32px; gap: 16px; }
@@ -132,8 +131,9 @@
   .mes-conta { grid-template-columns: minmax(0, 1fr); }
   .mes-conta div + div { padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--borda); }
   .grade-apps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .app { grid-template-columns: 36px minmax(0, 1fr); padding: 10px 12px; }
-  .app-ico { grid-row: 1 / span 2; width: 36px; height: 36px; font-size: 18px; }
+  .app { grid-template-columns: 36px minmax(0, 1fr); column-gap: 12px; padding: 10px 12px; align-items: center; }
+  .app-ico { grid-row: 1 / span 2; width: 36px; height: 36px; font-size: 18px; margin: 0; }
+  .app:has(.app-num:not([hidden])) .app-ico { grid-row: 1 / span 3; }
   .app-nome { font-size: 17px; }
 }
 
