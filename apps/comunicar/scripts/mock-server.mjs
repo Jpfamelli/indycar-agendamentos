@@ -486,7 +486,15 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ mock: 'comunicar' }));
   }
-  const p = url.pathname, m = req.method;
+  /* rodada 13B: como na Central — o Comunicar também responde em /comunicar/…, e os outros apps da mesma
+     origem (Agenda, CRM, Atendimento) viram uma página de mentira que só mostra o endereço que recebeu
+     (para conferir as passagens entre apps sem subir a Central inteira). */
+  const outroApp = /^\/(agenda|crm|atendimento)(\/|$)/.exec(url.pathname);
+  if (req.method === 'GET' && outroApp) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(`<!doctype html><meta charset="utf-8"><title>${outroApp[1]} (mentira)</title><p id="destino" data-app="${outroApp[1]}">${(url.pathname + url.search).replace(/[<>"&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', '&': '&amp;' }[c]))}</p>`);
+  }
+  const p = url.pathname.replace(/^\/comunicar(?=\/|$)/, '') || '/', m = req.method;
   if (!p.startsWith('/api/')) {
     if (p === '/' || p === '/index.html') {
       if (url.searchParams.has('papel')) { const k = url.searchParams.get('papel'); PAPEL = PERFIS[k] ? k : 'admin'; }
@@ -531,16 +539,16 @@ http.createServer(async (req, res) => {
 
   /* Porteiro: as MESMAS regras do servidor (acesso.js) — rota, acesso ao app,
      segundo fator, troca de senha obrigatória e permissão do papel. */
-  const regra = A.regraDaRota(m, p);
-  if (regra?.metodoErrado) return json(res, 405, { erro:'Método não permitido.' });
+  const regraRota = A.regraDaRota(m, p);
+  if (regraRota?.metodoErrado) return json(res, 405, { erro:'Método não permitido.' });
   const eu = perfil();
-  if (regra && !regra.publica) {
+  if (regraRota && !regraRota.publica) {
     if (!/^Bearer mock/.test(req.headers.authorization || '')) return json(res, 401, { erro:'Faça login para usar o Comunicar.', codigo:'sem_login' });
     const v = A.verificarAcesso(eu);
     if (!v.ok) return json(res, v.status, { erro: v.erro, codigo: v.codigo, apps: v.apps });
     if (eu.mfa && req.headers.authorization !== 'Bearer mock-aal2') return json(res, 401, { erro:'Digite o código do seu app autenticador.', codigo:'mfa_pendente' });
-    if (eu.precisa_trocar_senha && regra.perm !== 'conta') return json(res, 403, { erro:'Troque sua senha para continuar.', codigo:'trocar_senha' });
-    if (!A.pode(eu, regra.perm)) return json(res, 403, { erro: A.motivo403(regra.perm), codigo:'sem_permissao' });
+    if (eu.precisa_trocar_senha && regraRota.perm !== 'conta') return json(res, 403, { erro:'Troque sua senha para continuar.', codigo:'trocar_senha' });
+    if (!A.pode(eu, regraRota.perm)) return json(res, 403, { erro: A.motivo403(regraRota.perm), codigo:'sem_permissao' });
   }
 
   // ---- conta: perfil, sino, tarefas
