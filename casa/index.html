@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/casa/r7.css?v=2" />
   <link rel="stylesheet" href="/casa/r9.css?v=5" />
   <link rel="stylesheet" href="/casa/r11.css?v=1" />
+  <link rel="stylesheet" href="/casa/r13.css?v=1" />
 </head>
 <body>
   <!-- ======================= ENTRADA (login único) ======================= -->
@@ -128,15 +129,25 @@
     </aside>
 
     <main id="miolo" class="miolo" tabindex="-1">
-      <section class="saudacao">
-        <p id="hoje" class="saudacao-data"></p>
-        <h1 class="saudacao-titulo"><span id="ola">Olá</span>, <em id="nomeCurto">equipe</em>.</h1>
-      </section>
-
       <div id="avisoRede" class="aviso-rede" role="status" hidden></div>
       <div id="avisoApps" class="aviso-apps" role="status" hidden></div>
-
       <section class="avisos-vigia" data-avisos-vigia aria-label="Avisos graves do Vigia" aria-live="polite" hidden></section>
+
+      <!-- rodada 13: o herói da Central (no molde do Tráfego): o dia da oficina numa frase, os números grandes que levam
+           ao app com um toque e o relógio da oficina -->
+      <section id="heroi" class="heroi" aria-labelledby="ola">
+        <div class="heroi-in">
+          <p class="heroi-cima"><span id="hoje" class="saudacao-data"></span></p>
+          <h1 class="heroi-ola"><span id="ola">Olá</span>, <em id="nomeCurto">equipe</em>.</h1>
+          <p id="heroiFrase" class="heroi-frase" aria-live="polite"><span class="heroi-lendo">Lendo o dia da oficina…</span></p>
+          <ul id="heroiNums" class="heroi-nums" aria-label="Números de hoje" hidden></ul>
+        </div>
+        <div class="heroi-lado" aria-label="Relógio da oficina">
+          <p id="heroiHora" class="heroi-hora"></p>
+          <p id="heroiOficina" class="heroi-oficina"></p>
+        </div>
+      </section>
+
       <section id="saudeSist" class="saude-sist" aria-label="Saúde dos sistemas" hidden>
         <button id="saudeBotao" class="saude-resumo" type="button" aria-expanded="false" aria-controls="saudePainel"><span id="saudeTxt">Saúde dos sistemas</span><span id="saudeHora" class="saude-hora"></span></button>
         <div id="saudePainel" class="saude-painel" hidden>
@@ -145,10 +156,19 @@
         </div>
       </section>
 
-      <section id="atencao" class="atencao" aria-label="Pede atenção agora" hidden>
-        <h2 class="atencao-titulo">Pede atenção agora</h2>
-        <ul id="atencaoLista" class="atencao-lista"></ul>
-      </section>
+      <div class="casa-meio">
+        <section id="atencao" class="atencao cartao-r13" aria-labelledby="tAtencao" hidden>
+          <h2 id="tAtencao" class="atencao-titulo">Pede atenção agora</h2>
+          <ul id="atencaoLista" class="atencao-lista"></ul>
+          <p id="atencaoVazio" class="atencao-vazio" hidden><span aria-hidden="true">🏁</span> Nada pedindo atenção agora. Oficina andando.</p>
+        </section>
+
+        <!-- rodada 13: o mês da oficina, só para gestor e administrador (mes.js) -->
+        <section id="mesOficina" class="mes cartao-r13" aria-labelledby="tMes" hidden>
+          <div class="mes-cab"><h2 id="tMes" class="atencao-titulo">Mês da oficina</h2><span id="mesSelo" class="selo-r13" hidden></span></div>
+          <div id="mesCorpo" class="mes-corpo" aria-live="polite"></div>
+        </section>
+      </div>
 
       <section class="bloco" aria-labelledby="tApps">
         <h2 id="tApps" class="bloco-titulo">Apps</h2>
@@ -191,13 +211,15 @@
   <script src="/casa/logica2.js?v=9"></script>
   <script src="/casa/logica3.js?v=3"></script>
   <script src="/casa/logica4.js?v=7"></script>
+  <script src="/casa/logica5.js?v=1"></script>
   <script src="/casa/sino.js?v=11"></script>
-  <script src="/casa/painel.js?v=15"></script>
+  <script src="/casa/painel.js?v=16"></script>
+  <script src="/casa/mes.js?v=1"></script>
   <script src="/casa/ficha.js?v=4"></script>
   <script src="/casa/busca.js?v=10"></script>
   <script src="/casa/comando.js?v=10"></script>
   <script src="/casa/saude.js?v=7"></script>
   <script src="/casa/parar.js?v=1"></script>
-  <script src="/casa/casa.js?v=13"></script>
+  <script src="/casa/casa.js?v=14"></script>
 </body>
 </html>

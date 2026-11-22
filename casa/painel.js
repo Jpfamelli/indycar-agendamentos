@@ -7,7 +7,7 @@
   'use strict';
   const MOD = { nome: 'painel' };
   let C = null, L = null, V = null, links = null;
-  let canal = null, timerPoll = null, deb = null;
+  let canal = null, timerPoll = null, deb = null, timerHora = null;
   let ultima = 0, carregando = false, dados = null, emFalha = false, online = true;
   /* rodada 10: quando começou a leitura em andamento e qual é a vez dela (uma leitura pendurada não trava mais o painel) */
   let carregandoDesde = 0, vezAgora = 0;
@@ -23,7 +23,10 @@
   function desenharAtencao(a) {
     const itens = L.atencao(a, V, links);
     const sec = $('#atencao');
-    sec.hidden = !itens.length;
+    /* rodada 13: vazio vira um estado bonito ("Nada pedindo atenção agora"), não some; o mecânico só vê se tiver algo */
+    sec.hidden = !itens.length && !!V.soMeusCarros;
+    $('#atencaoVazio').hidden = itens.length > 0;
+    $('#atencaoLista').hidden = !itens.length;
     $('#atencaoLista').innerHTML = itens.map((i) => `<li class="grav-${i.grav}">${linkA(i.url, i.app, 'atencao-item',
       `<span class="a-num">${Number(i.n)}</span><span class="a-txt">${seloGrav(i.grav)}${C.esc(i.texto)}${i.extra ? `<small>${C.esc(i.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('');
   }
@@ -40,8 +43,10 @@
     if (V.leads && d.leads) out.crm = [d.leads.novos_sem_dono, plural(d.leads.novos_sem_dono, 'contato novo sem dono', 'contatos novos sem dono')];
     return out;
   }
-  function desenharNumeros(d) {
+  /* rodada 13: o número que já está grande no herói não se repete no cartão do app (lá fica a frase curta do app) */
+  function desenharNumeros(d, noHeroi = new Set()) {
     const nums = numerosDosApps(d);
+    for (const k of noHeroi) delete nums[k];
     for (const el of document.querySelectorAll('[data-app-num]')) {
       const k = el.dataset.appNum;
       const desc = document.querySelector(`[data-app-desc="${k}"]`);
@@ -53,7 +58,36 @@
     }
   }
 
-  function desenharTudo(d) { desenharNumeros(d); desenharAtencao(d); }
+  /* ---------------- herói: o dia da oficina numa frase e os números que levam ao app ---------------- */
+  function desenharHeroi(d) {
+    const L5 = window.CasaLogica5;
+    const itens = L5.numerosDoDia(d, V);
+    const partes = L5.fraseDoDia(itens, { mecanico: !!V.soMeusCarros });
+    const fr = $('#heroiFrase');
+    fr.hidden = !partes;
+    if (partes) {
+      const ultimo = partes.reduce((u, p, i) => (p.n != null ? i : u), -1);
+      fr.innerHTML = partes.map((p, i) => (p.n != null
+        ? `<span class="heroi-n${i === ultimo ? ' heroi-n-fim' : ''}">${Number(p.n)}</span>${C.esc(p.texto)}`
+        : C.esc(p.texto))).join('');
+    }
+    const ul = $('#heroiNums');
+    ul.hidden = !itens.length;
+    ul.innerHTML = itens.map((i) => `<li>${linkA(C.bases[i.app] || '/', i.app, 'heroi-num' + (i.n === 0 ? ' zero' : ''),
+      `<span class="heroi-num-n">${Number(i.n)}</span><span class="heroi-num-rot">${C.esc(i.rotulo)}</span><span class="heroi-num-app">${C.esc(i.nome)} <span aria-hidden="true">›</span></span>`,
+      `aria-label="${C.esc(i.n + ' ' + i.rotulo + ': abrir ' + i.nome)}"`)}</li>`).join('');
+    return new Set(itens.map((i) => i.app));
+  }
+  function relogio() {
+    const L5 = window.CasaLogica5;
+    const h = $('#heroiHora'), o = $('#heroiOficina');
+    if (!h || !o) return;
+    h.textContent = L5.horaAgora();
+    const l = L5.linhaDaOficina();
+    o.textContent = l.texto; o.dataset.tom = l.tom;
+  }
+
+  function desenharTudo(d) { const noHeroi = desenharHeroi(d); desenharNumeros(d, noHeroi); desenharAtencao(d); }
 
   async function carregarAgora({ silencioso = false } = {}) {
     if (carregando && Date.now() - carregandoDesde < TEMPO_PENDURADO_MS) return;
@@ -90,6 +124,8 @@
     const av = $('#avisoRede');
     if (!av || !online) return;
     av.hidden = !ligar;
+    /* rodada 13: sem nenhuma leitura boa, o herói não fica dizendo "lendo…" para sempre */
+    if (ligar && !dados) { const fr = $('#heroiFrase'); if (fr) fr.innerHTML = '<span class="heroi-lendo">Os números de hoje não carregaram.</span>'; }
     av.innerHTML = ligar ? 'Não consegui ler os números agora. <button type="button" class="btn-link" data-recarregar>tentar de novo</button>' : '';
   }
 
@@ -123,6 +159,7 @@
     C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; ultima = 0; emFalha = false; carregando = false; vezAgora++;
     online = navigator.onLine;
     $('#atencao').hidden = true;
+    relogio(); clearInterval(timerHora); timerHora = setInterval(relogio, 30_000);
     carregarAgora();
     ouvir();
     clearInterval(timerPoll);
@@ -134,7 +171,7 @@
   };
   MOD.desmontar = function () {
     try { if (canal && C) C.sb.removeChannel(canal); } catch { /* segue */ }
-    canal = null; clearInterval(timerPoll); clearTimeout(deb);
+    canal = null; clearInterval(timerPoll); clearTimeout(deb); clearInterval(timerHora);
     window.removeEventListener('online', aoRede); window.removeEventListener('offline', aoRede);
     document.removeEventListener('visibilitychange', aoVisivel);
     try { $('#miolo').removeEventListener('click', aoClicar); } catch { /* sem miolo */ }
