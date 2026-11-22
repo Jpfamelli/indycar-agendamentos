@@ -4,7 +4,8 @@
 // rede — quem espera o servidor acordar é o acordar.js, com aviso na tela.
 // Rodada 5: tudo RELATIVO ao lugar onde o SW foi registrado (BASE) — funciona em
 // "/" sozinho e em "/comunicar/" dentro da IndyCar Central (escopo do prefixo).
-const VERSAO = '7.2.0';   // 22/11: rodada 13B (passagens entre apps, Desfazer, entrada mais leve)
+const VERSAO = '7.2.1';   // 22/11: externos sem service worker (login quebrava na 2ª visita)
+// 7.2.0 = rodada 13B (passagens entre apps, Desfazer, entrada mais leve)
 const CACHE = `comunicar-v${VERSAO}`;
 const EXTERNO = 'comunicar-externo-v1'; // supabase-js e fontes (versão fixa na URL)
 const BASE = new URL('./', self.location.href).pathname; // '/' ou '/comunicar/'
@@ -48,11 +49,9 @@ self.addEventListener('fetch', (e) => {
   if (passaDireto(req)) return;                       // API e cia.: sempre rede, sem guardar
   const url = new URL(req.url);
 
-  // supabase-js e fontes: cache primeiro (a URL já tem a versão)
-  if (url.origin !== self.location.origin) {
-    e.respondWith(caches.match(req).then((m) => m || fetch(req).then((r) => guardar(EXTERNO, req, r))));
-    return;
-  }
+  // supabase-js e fontes (outro endereço): o navegador busca sozinho, com o cache dele. Se o service worker
+  // buscasse, valeria o connect-src da CSP, que não libera o jsDelivr: da 2ª visita em diante o login não carregava.
+  if (url.origin !== self.location.origin) return;
 
   // a página: rede por até 4 s; servidor fora (5xx), sem rede ou lento → a casca do cache
   if (req.mode === 'navigate' || url.pathname === BASE || url.pathname === `${BASE}index.html`) {
