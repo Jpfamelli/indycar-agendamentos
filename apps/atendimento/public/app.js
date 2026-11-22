@@ -397,6 +397,17 @@ const AbaOrcador = (() => {
   return { abrir, carregar, mostrar, daConversa, enderecoLocal };
 })();
 window.AbaOrcador = AbaOrcador;
+/* Rodada 13: o Orçador da aba pede para voltar à conversa ("Voltar para a conversa" e "Abrir a conversa" dentro da
+   cotação). Antes isso abria o Atendimento de novo noutra aba do navegador. Só vale recado da própria moldura, do
+   mesmo endereço, com um id de conversa: abre a conversa aqui e põe o cursor no campo (nada é enviado). */
+window.addEventListener('message', (ev) => {
+  const m = document.getElementById('orcadorMoldura');
+  if (!m || ev.source !== m.contentWindow || ev.origin !== location.origin) return;
+  const d = ev.data;
+  if (!d || d.tipo !== 'indycar:abrir-conversa' || !/^[0-9a-f-]{36}$/i.test(String(d.conversa || ''))) return;
+  $$('.nav-item').find(b => b.dataset.aba === 'conversas')?.click();
+  abrirConversa(d.conversa, { focarCampo: true });
+});
 $('#btnFazerOrcamento')?.addEventListener('click', () => AbaOrcador.daConversa(conversaAtual));
 $$('.nav-item').forEach(b => b.addEventListener('click', () => {
   const aba = b.dataset.aba;
@@ -740,6 +751,14 @@ const TEXTO_VAZIO_FILTRO = {
 };
 
 let ultimoHtmlLista = '';
+/* Rodada 13: no celular, a etapa e o dono DENTRO da linha da lista viram etiqueta (o toque abre a conversa; antes
+   eram botões de 20 px colados um no outro e o dedo trocava a etapa sem querer). Trocar a etapa e o dono continua
+   no topo da conversa aberta, com botão de 44 px. No computador nada muda. */
+function etiquetaDaLinha(html) {
+  if (!window.matchMedia?.('(max-width:900px)').matches) return html;
+  return String(html).replace(/<button type="button"/, '<span').replace(/ data-(?:dono|pegar)="[^"]*"/, '')
+    .replace(/ title="([^"]*): clique[^"]*"/, ' title="$1"').replace(/<\/button>\s*$/, '</span>').replace('>★ Pegar<', '>sem dono<');
+}
 function renderConversas() {
   const lista = conversasFiltradas();
   const el = $('#listaConversas');
@@ -807,10 +826,10 @@ function renderConversas() {
           ${c.tipo === 'disparo' && c.respondeu_disparo_em
             ? '<span class="tag respondeu">💬 respondeu</span>' : ''}
           ${chegouHoje(c.created_at) && c.tipo !== 'disparo' ? '<span class="tag novo-hoje">🆕 novo</span>' : ''}
-          ${c.atribuida_a ? donoHtml(c)
+          ${etiquetaDaLinha(c.atribuida_a ? donoHtml(c)
             : `<button type="button" class="dono pegar" data-pegar="${esc(c.id)}"
-                 title="Ninguém responsável: um clique e o cliente é seu">★ Pegar</button>`}
-          ${plaquinhaHtml(c)}
+                 title="Ninguém responsável: um clique e o cliente é seu">★ Pegar</button>`)}
+          ${etiquetaDaLinha(plaquinhaHtml(c))}
           <span class="tag ${esc(c.status)}">${esc(c.status)}</span>
           ${IaFunil.respondendo(c.id) ? '<span class="tag ia-respondendo" title="A IA do funil está lendo e respondendo esta conversa agora"><i class="girando" aria-hidden="true"></i> IA respondendo</span>' : (c.ia_ativa ? '<span class="tag ia">✨ IA</span>' : '')}
           ${c.nao_lidas > 0 ? `<span class="nao-lidas" aria-hidden="true">${esc(String(c.nao_lidas))}</span>` : ''}
@@ -5044,10 +5063,12 @@ document.addEventListener('keydown', e => {
 const btnNova = document.createElement('button');
 btnNova.className = 'btn btn-primary sm';
 btnNova.textContent = '+ Nova';
-btnNova.style.cssText = 'position:absolute;top:14px;right:14px;z-index:5';
+/* Rodada 13: mora dentro da caixa de busca (à direita), e não mais no canto do topo da lista, onde agora fica o
+   resumo de hoje no celular. */
+btnNova.style.cssText = 'position:absolute;top:50%;right:4px;transform:translateY(-50%);z-index:5';
 btnNova.addEventListener('click', abrirModalNova);
 $('.lista-topo').style.position = 'relative';
-$('.lista-topo').appendChild(btnNova);
+($('.lista-topo .busca') || $('.lista-topo')).appendChild(btnNova);
 
 /* ============================================================
    TEMA CLARO / ESCURO
@@ -5602,7 +5623,8 @@ function vigiarFimDaLista() {
   observadorFim?.disconnect();
   observadorFim = new IntersectionObserver(entradas => {
     if (entradas.some(e => e.isIntersecting)) carregarMaisConversas();
-  }, { root: $('#listaConversas'), rootMargin: '0px 0px 300px 0px' });
+    /* rodada 13: no celular a coluna inteira rola (resumo, filtros e lista juntos): é ela que diz "chegou ao fim" */
+  }, { root: window.matchMedia?.('(max-width:900px)').matches ? $('.col-lista') : $('#listaConversas'), rootMargin: '0px 0px 300px 0px' });
   observadorFim.observe(alvo);
 }
 function carregarMaisConversas() {
@@ -5640,7 +5662,7 @@ $('#listaConversas').addEventListener('click', async (ev) => {
     return;
   }
   /* A plaquinha abre o menu de etapas — e NÃO abre a conversa junto */
-  const pl = t.closest('.plaquinha');
+  const pl = t.closest('button.plaquinha');
   if (pl) {
     ev.stopPropagation();
     const conv = acharConversa(pl.closest('.conversa')?.dataset.id);

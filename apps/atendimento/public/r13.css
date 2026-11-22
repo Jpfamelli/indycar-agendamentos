@@ -1,0 +1,175 @@
+/* Rodada 13 (22/11/2026): Atendimento no nível do Tráfego.
+   · A entrada é o resumo de HOJE (hoje.js): no computador ocupa o meio enquanto nenhuma conversa está aberta;
+     no celular é um cartão curto em cima da lista. Frase grande com os números em vermelho (Barlow Condensed),
+     números que filtram a lista, "Atender agora", chegadas hora a hora e os atalhos do dia.
+   · O que era do Pátio na lista (no pátio, atrasados, extras, prontos) saiu: mora no Pátio. Os carros na oficina sem
+     conversa (trabalho da recepção) foram para o resumo.
+   · Acabamento: busca sem o "+ Nova" por cima do texto, conversa sem o selo cru "aberta", "Fazer orçamento" em
+     destaque, ações da conversa em duas linhas no celular, nenhum cartão com borda grossa de um lado só.
+   Carregado por último (depois do r11.css). Só Archivo e Barlow Condensed, as do /casa/indycar.css. */
+[hidden]{display:none!important}
+
+:root{
+  --h-verm-txt:#ff4d5e;
+  --h-brilho:rgb(230 25 46 / .22);
+  --h-cartao:var(--ic-painel);
+  --h-cartao-2:var(--ic-painel-2);
+  --h-borda:var(--ic-borda);
+}
+:root[data-tema="claro"]{
+  --h-verm-txt:#c20f22;
+  --h-brilho:rgb(230 25 46 / .12);
+}
+
+/* ---------------- a entrada: o meio mostra o resumo; a ficha vazia sai ---------------- */
+@media (min-width:901px){
+  .conversas-layout:has(#chatVazio:not([hidden])),
+  .conversas-layout.ficha-fechada:has(#chatVazio:not([hidden])){grid-template-columns:320px minmax(0,1fr)}
+  .conversas-layout:has(#chatVazio:not([hidden])) .col-ficha{display:none}
+  #hojeMini{display:none!important}
+}
+@media (min-width:1181px){
+  .conversas-layout{grid-template-columns:320px minmax(0,1fr) 300px}
+  .conversas-layout.ficha-fechada{grid-template-columns:320px minmax(0,1fr)}
+}
+.chat-vazio:has(#hojePainel:not([hidden])){display:block;overflow-y:auto;padding:clamp(16px,2.6vw,36px);color:var(--ic-texto)}
+.chat-vazio:has(#hojePainel:not([hidden])) .chat-vazio-espera{display:none}
+.chat-vazio-espera{display:flex;flex-direction:column;align-items:center;gap:14px}
+
+/* ---------------- o herói ---------------- */
+.hoje{position:relative;border:1px solid var(--h-borda);border-radius:16px;overflow:hidden;
+  background:
+    radial-gradient(34rem 22rem at 86% 0%, var(--h-brilho), transparent 70%),
+    repeating-linear-gradient(-76deg, transparent 0 46px, color-mix(in srgb, var(--ic-forte) 3%, transparent) 46px 47px),
+    var(--h-cartao)}
+.hoje-painel{max-width:1080px;margin:0 auto;padding:clamp(20px,3vw,40px);display:grid;gap:26px}
+.hoje-painel::after{content:'';position:absolute;right:-40px;bottom:-26px;width:220px;height:16px;background:var(--ic-vermelho);
+  transform:skewX(-14deg) rotate(-8deg);opacity:.85;pointer-events:none}
+.hoje-sobre{margin:0;font:700 12px/1 var(--ic-texto-f);letter-spacing:.16em;text-transform:uppercase;color:var(--h-verm-txt)}
+.hoje-frase{margin:0;max-width:26ch;font:500 clamp(26px,3vw,42px)/1.16 var(--ic-texto-f);letter-spacing:-.01em;
+  color:var(--ic-forte);text-wrap:balance}
+.hoje-frase em{font:700 1.24em/1 var(--ic-titulo);font-style:normal;color:var(--h-verm-txt);font-variant-numeric:tabular-nums}
+
+/* números que filtram a lista */
+.hoje-nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border-top:1px solid var(--h-borda);
+  border-bottom:1px solid var(--h-borda)}
+.hoje-num{display:grid;gap:6px;align-content:start;justify-items:start;min-height:44px;padding:16px 14px 16px 0;margin:0;
+  background:none;border:0;border-radius:0;color:var(--ic-texto);text-align:left;cursor:pointer;font:inherit}
+.hoje-num + .hoje-num{padding-left:18px;border-left:1px solid var(--h-borda)}
+.hoje-num b{font:700 clamp(40px,4.4vw,64px)/.9 var(--ic-titulo);color:var(--ic-forte);font-variant-numeric:tabular-nums}
+.hoje-num span{font:600 12px/1.3 var(--ic-texto-f);letter-spacing:.08em;text-transform:uppercase;color:var(--ic-apagado)}
+.hoje-num.zero b{color:var(--ic-apagado);opacity:.55}
+.hoje-num:hover span,.hoje-num.ligado span{color:var(--ic-forte)}
+.hoje-num.ligado b{color:var(--h-verm-txt)}
+.hoje-num:focus-visible{outline:2px solid var(--ic-forte);outline-offset:-2px}
+
+/* cartões: atender agora e chegadas */
+.hoje-grade{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px}
+.hoje-cartao{min-width:0;padding:18px;border:1px solid var(--h-borda);border-radius:14px;background:var(--h-cartao-2)}
+.hoje-cartao-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.hoje-cartao h2{margin:0;font:700 22px/1 var(--ic-titulo);letter-spacing:.02em;text-transform:uppercase;color:var(--ic-forte)}
+.hoje-btn{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--h-borda);background:none;color:var(--ic-forte);
+  font:600 13px/1 var(--ic-texto-f);cursor:pointer}
+.hoje-btn:hover:not(:disabled){border-color:var(--ic-vermelho)}
+.hoje-btn:disabled{opacity:.45;cursor:default}
+.hoje-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hoje-item{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:8px 10px;border-radius:12px;border:1px solid transparent;
+  background:color-mix(in srgb,var(--ic-forte) 3%,transparent);color:var(--ic-texto);text-align:left;cursor:pointer;font:inherit}
+.hoje-item:hover{border-color:var(--h-borda);background:color-mix(in srgb,var(--ic-forte) 6%,transparent)}
+.hoje-item .avatar{flex:none;width:36px;height:36px;font-size:.78rem}
+.hoje-item-txt{display:grid;gap:2px;min-width:0;flex:1}
+.hoje-item-txt b{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ic-forte)}
+.hoje-item-txt small{font-size:.8rem;color:var(--ic-apagado);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hoje-selo{flex:none;padding:4px 10px;border-radius:999px;font:700 12px/1.2 var(--ic-texto-f);border:1px solid currentColor}
+.hoje-selo.tom-ruim{color:var(--h-verm-txt);background:color-mix(in srgb,var(--ic-vermelho) 12%,transparent)}
+.hoje-selo.tom-atencao{color:var(--amarelo-txt,#fbbf24);background:color-mix(in srgb,#f59e0b 12%,transparent)}
+.hoje-selo.tom-neutro{color:var(--ic-apagado)}
+.hoje-vazio{margin:0;padding:14px 0;color:var(--ic-apagado);font-size:.92rem}
+.hoje-total{font-size:.9rem;color:var(--ic-apagado)}
+.hoje-total b{font:700 26px/1 var(--ic-titulo);color:var(--ic-forte);margin-right:2px}
+.hoje-nota{margin:10px 0 0;font-size:.85rem;color:var(--ic-apagado)}
+
+/* gráfico das chegadas, hora a hora */
+.hoje-barras{list-style:none;margin:0;padding:0;display:flex;align-items:flex-end;gap:4px;height:132px}
+.hoje-barra{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;height:100%;min-width:0}
+.hoje-barra i{display:block;width:100%;max-width:22px;border-radius:5px 5px 2px 2px;background:color-mix(in srgb,var(--ic-forte) 28%,transparent)}
+.hoje-barra.agora i{background:var(--ic-vermelho)}
+.hoje-barra.vazia i{background:color-mix(in srgb,var(--ic-forte) 10%,transparent)}
+.hoje-barra small{height:12px;font:600 11px/1 var(--ic-texto-f);color:var(--ic-apagado)}
+
+/* atalhos do dia */
+.hoje-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.hoje-acoes .hoje-acao{min-height:44px}
+.hoje-acoes .hoje-acao:first-of-type{margin-left:auto}
+.hoje-carros{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border-radius:12px;
+  border:1px solid var(--h-borda);background:var(--h-cartao-2);color:var(--ic-texto);font:500 14px/1.2 var(--ic-texto-f);cursor:pointer;text-align:left}
+.hoje-carros b{font:700 22px/1 var(--ic-titulo);color:var(--ic-forte)}
+.hoje-carros:hover{border-color:var(--ic-vermelho)}
+.hoje-pronto{color:var(--verde-txt,#4ade80);font-weight:700}
+
+@media (max-width:1180px){
+  .hoje-grade{grid-template-columns:minmax(0,1fr)}
+  .hoje-nums{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hoje-num:nth-child(3){padding-left:0;border-left:0}
+  .hoje-num:nth-child(n+3){border-top:1px solid var(--h-borda)}
+}
+
+/* ---------------- o cartão curto do celular ---------------- */
+.hoje-mini{display:grid;gap:10px;padding:14px;margin-bottom:12px}
+.hoje-mini .hoje-frase{font-size:19px;line-height:1.25;max-width:none}
+.hoje-mini .hoje-nums{grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:0}
+.hoje-mini .hoje-num{padding:10px 8px 2px 0}
+.hoje-mini .hoje-num + .hoje-num{padding-left:10px}
+.hoje-mini .hoje-num b{font-size:34px}
+.hoje-mini .hoje-num span{font-size:11px;letter-spacing:.06em}
+.hoje-mini .hoje-carros{width:100%;font-size:13px}
+
+/* ---------------- lista de conversas ---------------- */
+/* o "+ Nova" fica dentro da busca: o texto da busca não corre mais por baixo dele */
+.lista-topo .busca input{padding-right:96px;text-overflow:ellipsis}
+/* o que era do Pátio sai da lista (mora no Pátio); os carros sem conversa estão no resumo de hoje */
+#r7Agora,#c5Barra{display:none!important}
+/* "aberta" é o normal de toda conversa da fila: o selo cru só repetia isso */
+.conversa-tags .tag.aberta{display:none}
+.conversa-tags,.r6-chips{gap:4px}
+
+/* ---------------- conversa aberta ---------------- */
+/* o botão da rodada: fazer o orçamento sem sair do Atendimento */
+#btnFazerOrcamento{border:1px solid color-mix(in srgb,var(--ic-vermelho) 60%,transparent);color:var(--h-verm-txt);
+  background:color-mix(in srgb,var(--ic-vermelho) 10%,transparent)}
+#btnFazerOrcamento:hover{background:color-mix(in srgb,var(--ic-vermelho) 20%,transparent);color:var(--ic-forte)}
+@media (max-width:900px){
+  /* duas linhas: ícones, Ficha e "mais" em cima; Assumir, Agendar e Fazer orçamento embaixo, sem cortar */
+  .chat-acoes{flex-wrap:wrap;row-gap:6px}
+  .chat-acoes > *{order:1}
+  .chat-acoes #btnPainelCliente{flex:1 1 auto}
+  .chat-acoes #btnAssumir,.chat-acoes #btnAgendar,.chat-acoes #btnFazerOrcamento{order:2;flex:1 1 28%}
+  .chat-acoes::after{content:'';order:1;flex-basis:100%;height:0}
+}
+
+/* ---------------- nenhum cartão com borda grossa de um lado só ---------------- */
+.toast,.patio-bloco,.r6-patio-topo.r6-tom-ok,.r6-patio-topo.r6-tom-atencao,.r6-patio-topo.r6-tom-andamento,
+.cop-acao.st-proposta,.cop-acao.st-executada,.cop-acao.st-erro,.cop-proxima{border-left-width:1px}
+.r6-patio-topo.r6-tom-ok,.r6-patio-topo.r6-tom-atencao,.r6-patio-topo.r6-tom-andamento{border-left-style:solid;border-left-color:var(--linha)}
+
+/* celular: o "Atualizar quando o cliente escrever" do copiloto vira um alvo de 44 px (a linha inteira) */
+@media (max-width:900px){
+  .cop-auto{min-height:44px}
+  .cop-auto input{width:22px;height:22px}
+}
+
+/* celular: a coluna inteira rola (resumo, busca, filtros e conversas juntos). Antes só a lista rolava, embaixo de
+   tudo, e em 375 x 812 sobrava 0 px para ela. Os filtros principais ficam numa linha só, que corre para o lado. */
+@media (max-width:900px){
+  .col-lista{overflow-y:auto;overscroll-behavior:contain}
+  .col-lista .lista-conversas{flex:none;overflow:visible;min-height:auto}
+  .filtros-principais{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-right:-12px;padding-right:12px}
+  .filtros-principais::-webkit-scrollbar{display:none}
+  .filtros-principais .chip{flex:none}
+  .lista-rodape{position:sticky;bottom:0;background:var(--grafite)}
+}
+
+/* celular e tablet: a ficha fechada (gaveta fora da tela) deixava a sombra dela vazando na borda direita */
+@media (max-width:1180px){
+  .col-ficha:not(.aberta){box-shadow:none}
+}

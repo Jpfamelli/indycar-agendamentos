@@ -31,6 +31,7 @@
   <link rel="stylesheet" href="r6c5.css" />
   <link rel="stylesheet" href="r7c4.css" />
   <link rel="stylesheet" href="r11.css" />
+  <link rel="stylesheet" href="r13.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar Atendimento" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -238,6 +239,7 @@
       <!-- Lista -->
       <div class="col-lista">
         <div class="lista-topo">
+          <section class="hoje hoje-mini" id="hojeMini" aria-label="Resumo de hoje" hidden></section>
           <div class="busca">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" fill="none"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             <input id="buscaConversa" placeholder="Buscar nome, telefone ou placa…"
@@ -322,8 +324,12 @@
       <!-- Chat -->
       <div class="col-chat">
         <div class="chat-vazio" id="chatVazio">
-          <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2z" fill="currentColor"/></svg>
-          <p>Escolha uma conversa à esquerda para começar.</p>
+          <!-- Rodada 13: a entrada é o resumo de HOJE (hoje.js); enquanto ele carrega, o recado de sempre -->
+          <section class="hoje hoje-painel" id="hojePainel" aria-label="Resumo de hoje" hidden></section>
+          <div class="chat-vazio-espera">
+            <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2z" fill="currentColor"/></svg>
+            <p>Escolha uma conversa à esquerda para começar.</p>
+          </div>
         </div>
 
         <div class="chat" id="chat" hidden>
@@ -1541,6 +1547,7 @@
 <script src="r6-regras.js"></script>
 <script src="r7-regras.js"></script>
 <script src="r9-regras.js"></script>
+<script src="hoje-regras.js"></script>
 <script src="rede.js"></script>
 <script src="vendor/supabase.js"></script>
 <script>window.supabase || document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/dist/umd/supabase.js"><\/script>');</script>
@@ -1551,6 +1558,7 @@
 <script src="r6-tela.js"></script>
 <script src="r6c5.js"></script>
 <script src="r7c4.js"></script>
+<script src="hoje.js"></script>
 <script src="copiloto.js" defer></script>
 <script src="casca.js" defer></script>
 </body>
