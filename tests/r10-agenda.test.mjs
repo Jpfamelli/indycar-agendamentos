@@ -37,7 +37,8 @@ test('R10-AGE-033: a política de conteúdo libera só o projeto do Supabase con
 });
 
 /* ---- página pública /confirmar/ (medida em scripts/qa-r10-confirmar.mjs; aqui fica preso para não voltar atrás) ---- */
-const conf = ler('public/confirmar/index.html');
+// R13C: o script da página saiu para confirmar.js (a CSP recusa script embutido); as regras são as mesmas
+const conf = ler('public/confirmar/index.html') + ler('public/confirmar/confirmar.js');
 const lum = (hex) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 const contraste = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 const varDe = (bloco, nome) => new RegExp(`--${nome}:(#[0-9a-f]{6})`).exec(bloco)?.[1];

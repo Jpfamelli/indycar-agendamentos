@@ -498,7 +498,7 @@ window.pedirConfirmacao = async function (id) {
   try { r = await api('POST', `/agendamentos/${id}/confirmacao`, { canal: 'whatsapp' }); }
   catch (e) { return toast(e.message, 'err'); }
   openModal(`
-    <div class="modal-head"><h3>${svg(I.check)} Pedir confirmação</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.check)} Pedir confirmação</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body link-conf">
       <p class="info-campo">O cliente abre o link e toca em <b>Confirmo</b>, <b>Preciso remarcar</b> ou <b>Não vou conseguir</b>. A resposta aparece no cartão${r.resposta ? `, ele já respondeu: <b>${esc(r.resposta)}</b>` : ''}.</p>
       <div class="texto" id="pc_texto">${esc(r.texto)}</div>
@@ -576,7 +576,7 @@ function pedirValorAoFechar(id, nome, servico) {
     let feito = false;
     const fim = (v) => { if (feito) return; feito = true; resolver(v); };
     openModal(`
-      <div class="modal-head"><h3>${svg(I.check)} Veio e fechou</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+      <div class="modal-head"><h3>${svg(I.check)} Veio e fechou</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
       <div class="modal-body">
         <p class="remarcar-quem"><b>${esc(nome)}</b>${servico ? ` · ${esc(servico)}` : ''}</p>
         <div class="field"><label for="vf_valor">Valor do serviço <small class="muted">(opcional)</small></label>
@@ -1106,7 +1106,7 @@ function pintarInicio(d, opts = {}) {
 function abrirImpressao(d) {
   const hoje = agoraSP().data, amanha = P.dia(hoje, 1);
   openModal(`
-    <div class="modal-head"><h3>${svg(I.imprimir)} Imprimir a folha do dia</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.imprimir)} Imprimir a folha do dia</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <fieldset class="escolha-dia"><legend>Qual dia?</legend>
         <label><input type="radio" name="fd_dia" value="${hoje}" checked> Hoje</label>
@@ -1115,7 +1115,7 @@ function abrirImpressao(d) {
       </fieldset>
       <label class="pref"><input type="checkbox" id="fd_tel" checked><span><b>Incluir o telefone</b><small>desmarque se a folha fica à vista no balcão</small></span></label>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primary" id="fd_ok">${svg(I.imprimir)} Imprimir</button></div>`);
   $('#fd_data').addEventListener('focus', () => { $('input[name="fd_dia"][value="outro"]').checked = true; });
   $('#fd_ok').addEventListener('click', async () => {
@@ -1273,7 +1273,7 @@ async function renderClientes(opts = {}) {
     <div class="toolbar">
       <div class="left"><div class="search">${svg(I.search)}<input id="qCli" type="search" enterkeyhint="search" placeholder="Buscar por nome, telefone ou placa…" value="${esc(q0)}" aria-label="Buscar cliente"></div>
         <span class="badge-pill bp-gray" id="cliTotal">${list.length} ${list.length === 1 ? 'cliente' : 'clientes'}</span></div>
-      <button class="btn primary" onclick="openClienteModal()">${svg(I.plus)} Novo cliente</button>
+      <button class="btn primary" data-acao="novo-cliente">${svg(I.plus)} Novo cliente</button>
     </div>
     <div class="panel"><div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table cli-tabela"><thead><tr>
       <th>Nome</th><th>Telefone</th><th>Carro</th><th>Placa</th><th>Origem</th><th></th>
@@ -1358,7 +1358,7 @@ async function renderEquipe() {
       ${semHoje ? `<span class="badge-pill bp-orange" title="Horários de hoje sem consultor">${semHoje} hoje sem consultor</span>` : ''}</div>
       <div class="left">
         ${gestor && (semHoje || semAmanha) ? `<button class="btn" id="btnDistribuir" title="Dá os horários sem consultor para quem tem menos carros (sem dois no mesmo horário)">${svg(I.user)} Distribuir ${semHoje + semAmanha} sem consultor</button>` : ''}
-        <button class="btn primary so-gestor" onclick="openConsultorModal()">${svg(I.plus)} Novo consultor</button></div></div>
+        <button class="btn primary so-gestor" data-acao="novo-consultor">${svg(I.plus)} Novo consultor</button></div></div>
     <div class="panel"><div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table"><thead><tr>
       <th scope="col">Consultor</th><th scope="col">Login</th><th scope="col">Hoje</th><th scope="col">Amanhã</th><th scope="col">Próx. 7 dias</th><th scope="col">Status</th><th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
       <tbody>${list.length ? list.map(c => `<tr data-id="${esc(c.id)}">
@@ -1667,6 +1667,16 @@ function closeModal(){
   if (_focoAntes && _focoAntes.isConnected && typeof _focoAntes.focus === 'function') _focoAntes.focus({ preventScroll: true });
   _focoAntes = null;
 }
+/* R13C: nada de atributo onclick no HTML que as telas montam (a CSP passou a recusar script embutido): os botões levam
+   data-acao e este ouvinte único faz o que o onclick fazia. */
+document.addEventListener('click', (e) => {
+  const b = e.target && e.target.closest ? e.target.closest('[data-acao]') : null;
+  if (!b) return;
+  const acao = b.dataset.acao;
+  if (acao === 'fechar-modal') { e.preventDefault(); closeModal(); }
+  else if (acao === 'novo-cliente') { e.preventDefault(); window.openClienteModal(); }
+  else if (acao === 'novo-consultor') { e.preventDefault(); window.openConsultorModal(); }
+});
 const modalAberto = () => overlay.classList.contains('open');
 overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 // Tab dentro do modal: do último campo volta ao primeiro (e vice-versa com Shift)
@@ -1997,7 +2007,7 @@ window.abrirRemarcar = async function(id) {
   let a;
   try { a = await api('GET', `/agendamentos/${id}`); } catch (e) { return toast(e.message, 'err'); }
   openModal(`
-    <div class="modal-head"><h3>${svg(I.calendar)} Remarcar</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.calendar)} Remarcar</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <p class="remarcar-quem"><b>${esc(a.cliente_nome)}</b> · ${esc(a.servico)}<br>
         <small class="muted">Horário atual: ${esc(rotuloDia(a.data, agoraSP().data))} às ${esc(a.hora)}${['nao_veio', 'cancelado'].includes(a.status) ? ', volta para Aguardando' : ''}</small></p>
@@ -2010,7 +2020,7 @@ window.abrirRemarcar = async function(id) {
       <div class="sugestoes grade-livres" id="r_grade" aria-live="polite"></div>
       <div class="sugerir"><span class="muted">Próximos dias:</span><div class="sugestoes" id="r_sugestoes" aria-live="polite"></div></div>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primary" id="r_salvar">${svg(I.check)} Remarcar</button></div>`);
   const aviso = async () => {
     const d = $('#r_data').value, h = $('#r_hora').value, av = $('#r_aviso'); if (!av) return;
@@ -2089,7 +2099,7 @@ async function abrirEntrada(e) {
 window.abrirBuscaGlobal = function() {
   if (emPresenca()) return;
   openModal(`
-    <div class="modal-head"><h3>${svg(I.search)} Buscar em tudo</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.search)} Buscar em tudo</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="search larga">${svg(I.search)}<input id="bgQ" type="search" enterkeyhint="search" placeholder="Nome, telefone, placa, carro ou serviço" aria-label="Buscar agendamentos e clientes" autocomplete="off"></div>
       <div id="bgRes" class="busca-res" aria-live="polite"><p class="muted">Digite pelo menos 2 caracteres.</p></div>
@@ -2169,14 +2179,14 @@ const ROTULO_FILA = { concluido: 'Veio e fechou', nao_fechou: 'Veio e não fecho
 function abrirFila() {
   const f = lerFila();
   openModal(`
-    <div class="modal-head"><h3>${svg(I.relogio)} Esperando a conexão</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.relogio)} Esperando a conexão</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <p class="info-campo">Estas marcações foram feitas sem conexão e saem sozinhas quando o sistema voltar. Cancele a que foi engano.</p>
       ${f.length ? `<ul class="ctx-lista">${f.map((x, i) => `<li><span><b>${esc(x.nome || 'Cliente')}</b> · ${esc(ROTULO_FILA[x.status] || x.status)}${x.valor ? ' · ' + esc(P.reais(x.valor)) : ''}
           <small class="muted">${esc(dataHoraBR(x.em))}</small></span>
           <button type="button" class="btn mini" data-cancelar-fila="${i}">Cancelar</button></li>`).join('')}</ul>` : '<p class="muted">Nada na fila.</p>'}
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Fechar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Fechar</button>
       <button class="btn primary" id="fila_enviar"${f.length ? '' : ' disabled'}>Tentar enviar agora</button></div>`);
   $$('[data-cancelar-fila]', modal).forEach(b => b.addEventListener('click', () => {
     const atual = lerFila(); const item = f[+b.dataset.cancelarFila];
@@ -2276,7 +2286,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
   }
   openModal(`
     <div class="modal-head"><h3>${svg(I.calendar)} ${id?'Editar':'Novo'} agendamento</h3>
-      <button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+      <button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div id="f_rapido" class="r6c-rapido" hidden></div>
       <div id="f_ctx6c" class="r6c-ctx" aria-live="polite"></div>
@@ -2547,7 +2557,7 @@ window.openClienteModal = async function(id, opts = {}){
   const diasAniv = diasParaAniversario(c.nascimento, hoje);
   const revAtrasada = c.proxima_revisao && c.proxima_revisao.data < hoje;
   openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} ${id?'Ficha do cliente':'Novo cliente'}</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.user)} ${id?'Ficha do cliente':'Novo cliente'}</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       ${id ? `<div class="ficha-resumo">
         <div class="ficha-item"><small>Última visita</small>
@@ -2588,7 +2598,7 @@ window.openClienteModal = async function(id, opts = {}){
     </div>
     <div class="modal-foot">
       ${id && c.telefone ? `<button class="btn" id="c_wa" style="margin-right:auto">${svg(I.wa)} WhatsApp</button>` : ''}
-      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primary" id="c_save">${svg(I.check)} Salvar</button></div>`);
   ligarMascaraTelefone($('#c_tel'));
   $('#c_nasc').addEventListener('input', e => { e.target.value = mascaraAniversario(e.target.value); });
@@ -2623,7 +2633,7 @@ window.openConsultorModal = async function(id){
   const nomes = await api('GET', '/equipe/nomes').catch(() => []);
   const usados = new Set((state.consultores || []).filter(x => x.id !== id && x.perfil_id).map(x => x.perfil_id));
   openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} consultor</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} consultor</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="field"><label for="k_nome">Nome *</label><input id="k_nome" maxlength="80" value="${esc(c.nome)}"></div>
       <div class="grid2">
@@ -2637,7 +2647,7 @@ window.openConsultorModal = async function(id){
         <small class="muted">Ligado, a pessoa vê "Minha agenda", recebe as tarefas de confirmar/reagendar e o aviso de atraso dos carros dela.</small></div>
       <div class="field"><label><input id="k_ativo" type="checkbox" ${c.ativo?'checked':''}> Ativo (aparece nas sugestões e conta na capacidade da recepção)</label></div>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primary" id="k_save">${svg(I.check)} Salvar</button></div>`);
   ligarMascaraTelefone($('#k_tel'));
   $('#k_save').addEventListener('click', async () => {
@@ -2659,7 +2669,7 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
   if (agendamentoId){ const a=await api('GET',`/agendamentos/${agendamentoId}`).catch(()=>null); if(a){nome=a.cliente_nome;telefone=a.telefone;} }
   else if (clienteId){ const c=await api('GET',`/clientes/${clienteId}/ficha`).catch(()=>null); if(c){nome=c.nome;telefone=c.telefone;} }
   openModal(`
-    <div class="modal-head"><h3 class="titulo-wa">${svg(I.wa)} Enviar WhatsApp</h3><button type="button" class="modal-close" aria-label="Fechar" onclick="closeModal()">×</button></div>
+    <div class="modal-head"><h3 class="titulo-wa">${svg(I.wa)} Enviar WhatsApp</h3><button type="button" class="modal-close" aria-label="Fechar" data-acao="fechar-modal">×</button></div>
     <div class="modal-body">
       <div class="grid2">
         <div class="field"><label for="w_nome">Nome</label><input id="w_nome" value="${esc(nome)}"></div>
@@ -2673,7 +2683,7 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
         ? '⚡ A Cloud API está ativa: a mensagem será <b>enviada automaticamente</b>.'
         : '🔗 Modo link: a mensagem será registrada e o <b>WhatsApp abrirá</b> com o texto pronto.'}</small>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn green" id="w_send">${svg(I.send)} ${enviaCloud?'Enviar pela Cloud API':'Registrar e abrir WhatsApp'}</button></div>`);
 
   ligarMascaraTelefone($('#w_tel'));
@@ -3042,7 +3052,7 @@ window.openEsperaModal = async function (id, pre = {}) {
   if (id) e = await api('GET', '/espera?status=todas').then(l => l.find(x => x.id === id)).catch(() => null) || e;
   const servicos = state.servicos || await api('GET', '/servicos').catch(() => []);
   openModal(`
-    <div class="modal-head"><h3>${svg(I.relogio)} ${id ? 'Editar espera' : 'Entrar na lista de espera'}</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.relogio)} ${id ? 'Editar espera' : 'Entrar na lista de espera'}</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <p class="info-campo">Para quem quer um horário que ainda não existe. Quando vagar, o recado avisa e "Encaixar" marca com um toque.</p>
       <div class="grid2">
@@ -3062,7 +3072,7 @@ window.openEsperaModal = async function (id, pre = {}) {
       </div>
       <div class="field"><label for="e_obs">Observações</label><textarea id="e_obs" maxlength="500">${esc(e.observacoes || '')}</textarea></div>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primary" id="e_save">${svg(I.check)} ${id ? 'Salvar' : 'Entrar na lista'}</button></div>`);
   ligarMascaraTelefone($('#e_tel'));
   $('#e_save').addEventListener('click', async () => {

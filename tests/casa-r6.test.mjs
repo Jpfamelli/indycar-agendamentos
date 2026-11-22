@@ -106,7 +106,7 @@ test('atencao: prioriza e conta; gargalos só passam do limite', () => {
   const agora = Date.parse('2026-10-21T12:00:00Z');
   const a = { patio: { prontos: 1, extras_pendentes: 2, atrasados: 0, lista: [{ etapa: 'pronto', etapa_em: '2026-10-21T05:00:00Z' }] },
     conversas: { esperando: 2, lista: [{ id: U, aguardando_desde: '2026-10-21T08:00:00Z' }] }, orcamentos: { esperando: 1, aprovados_sem_horario: 0, lista: [{ id: U, enviado_em: '2026-10-20T08:00:00Z' }] },
-    agenda: { sem_confirmar: 0 }, leads: { novos_sem_dono: 4 } };
+    agenda: { sem_confirmar: 0 }, leads: { novos_sem_dono: 4, sem_dono: 4 } };
   const r = L.atencao(a, v, l, agora);
   assert.equal(r[0].grav, 3);
   assert.ok(r.find((x) => x.k === 'conversas').url.includes('conversa=' + U));

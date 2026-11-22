@@ -279,7 +279,7 @@ function preencherSelects() {
   // preserva o que o usuário escolheu — antes, salvar um lead zerava o filtro
   const stAtual = $('#fStatus').value, ogAtual = $('#fOrigem').value;
 
-  $('#fStatus').innerHTML = '<option value="">Todas as etapas</option>' +
+  $('#fStatus').innerHTML = '<option value="">Todas as etapas</option>' + opt('abertos', 'Em aberto (sem concluídos e perdidos)') +
     STATUSES.map(s => opt(s, LABEL_STATUS[s] ?? s)).join('');
   $('#fOrigem').innerHTML = '<option value="">Todas as origens</option>' +
     ORIGENS.map(o => opt(o, o === 'indicacao' ? 'Indicação (inclui as da Área do Cliente)' : LABEL_ORIGEM[o] ?? o)).join('') +
@@ -288,7 +288,7 @@ function preencherSelects() {
     opt('pago_sem_plataforma', 'Anúncio sem plataforma') + opt('nao_pago', 'Contato não pago') +
     opt('origem_incerta', 'Não sei de onde veio');
 
-  if (stAtual && STATUSES.includes(stAtual)) $('#fStatus').value = stAtual;
+  if (stAtual && (STATUSES.includes(stAtual) || stAtual === 'abertos')) $('#fStatus').value = stAtual;
   if (Array.from($('#fOrigem').options).some(o => o.value === ogAtual)) $('#fOrigem').value = ogAtual;
 
   $('#fStatusForm').innerHTML = STATUSES.map(s => opt(s, LABEL_STATUS[s] ?? s)).join('');

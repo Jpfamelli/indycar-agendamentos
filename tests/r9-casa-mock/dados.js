@@ -25,6 +25,8 @@
   var pe = vazio ? [] : null;
   window.__DADOS = {
     tabelas: {
+      // R13C: a Casa conta "contatos sem responsável" direto em leads (head + count, regra do CRM): 2 no cenário
+      leads: vazio ? [] : [{ id: U(951) }, { id: U(952) }],
       perfis: [{ id: eu, nome: nomes[papel] || 'Paulo Exemplo', email: 'dono@oficina.test', papel: papel, apps: apps, ativo: true, avatar_cor: '#e6192e', precisa_trocar_senha: false, cargo: papel === 'admin' ? 'Dono' : '' },
         { id: U(901), nome: 'Rita Exemplo', papel: 'atendente', ativo: true }, { id: U(902), nome: 'Gil Teste', papel: 'gestor', ativo: true }],
       tarefas: pe || [

@@ -454,7 +454,7 @@ function contaNovaTarefa(pre = {}) {
   if (typeof emPresenca === 'function' && emPresenca()) return;
   contaFecharPops();
   openModal(`
-    <div class="modal-head"><h3>${svg(I.check)} Nova tarefa</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.check)} Nova tarefa</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="field"><label for="tf_titulo">O que precisa ser feito *</label>
         <input id="tf_titulo" maxlength="200" value="${esc(pre.titulo || '')}" placeholder="Ex.: Ligar para confirmar o horário"></div>
@@ -467,7 +467,7 @@ function contaNovaTarefa(pre = {}) {
       <div class="field"><label for="tf_desc">Detalhes</label><textarea id="tf_desc" maxlength="1000"></textarea></div>
       <p class="form-msg" id="tf_msg" hidden></p>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primary" id="tf_salvar">${svg(I.check)} Criar tarefa</button></div>`);
   document.getElementById('tf_salvar').addEventListener('click', async () => {
     const titulo = document.getElementById('tf_titulo').value.trim();
@@ -516,7 +516,7 @@ function contaDesenharMenuPerfil() {
 function contaModalPerfil() {
   const p = state.perfil || {};
   openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} Meu perfil</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.user)} Meu perfil</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="grid2">
         <div class="field"><label for="mp_nome">Nome *</label><input id="mp_nome" maxlength="80" value="${esc(p.nome || '')}" autocomplete="name"></div>
@@ -532,7 +532,7 @@ function contaModalPerfil() {
       <p class="info-campo">Função: <b>${esc(PAPEL_LABEL[p.papel] || p.papel || '—')}</b>${p.consultor_nome ? ` · consultor na agenda: <b>${esc(p.consultor_nome)}</b>` : ''}, quem muda é o administrador.</p>
       <p class="form-msg" id="mp_msg" hidden></p>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primary" id="mp_salvar">${svg(I.check)} Salvar</button></div>`);
   ligarMascaraTelefone(document.getElementById('mp_tel'));
   let cor = p.avatar_cor || '#e50914';
@@ -555,7 +555,7 @@ function contaModalPerfil() {
 
 function contaModalSenha() {
   openModal(`
-    <div class="modal-head"><h3>${svg(I.cadeado)} Trocar senha</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.cadeado)} Trocar senha</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <p class="info-campo">É o mesmo login da Agenda, do CRM e do Atendimento: a senha nova vale em todos. Mínimo de 8 caracteres.</p>
       <div class="field"><label for="ms_s1">Nova senha</label><span class="campo-senha"><input id="ms_s1" type="password" minlength="8" autocomplete="new-password">
@@ -564,7 +564,7 @@ function contaModalSenha() {
       <p class="login-caps" hidden>Caps Lock ligado</p>
       <p class="form-msg" id="ms_msg" hidden></p>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cancelar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primary" id="ms_salvar">${svg(I.check)} Trocar senha</button></div>`);
   contaLigarCamposDeSenha(document.getElementById('modal'));
   document.getElementById('ms_salvar').addEventListener('click', async () => {
@@ -585,7 +585,7 @@ async function contaModalMfa() {
   const { data } = await sb.auth.mfa.listFactors().catch(() => ({ data: null }));
   const ativo = (data?.totp || []).find((f) => f.status === 'verified');
   openModal(`
-    <div class="modal-head"><h3>${svg(I.cadeado)} Verificação em duas etapas</h3><button class="modal-close" onclick="closeModal()" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h3>${svg(I.cadeado)} Verificação em duas etapas</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body" id="mfaCorpo">
       ${ativo ? `<p class="form-msg ok">Ligada. Depois da senha, a Agenda pede o código de 6 números do seu app autenticador.</p>
         <p class="info-campo">Trocou de celular? Desligue aqui e ligue de novo no aparelho novo.</p>`
@@ -593,7 +593,7 @@ async function contaModalMfa() {
         (Google Authenticator, Microsoft Authenticator…): depois da senha, a Agenda pede o código de 6 números.</p>`}
       <p class="form-msg" id="mfa_msg" hidden></p>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Fechar</button>
+    <div class="modal-foot"><button class="btn" data-acao="fechar-modal">Fechar</button>
       ${ativo ? `<button class="btn" id="mfa_desligar">Desligar</button>` : `<button class="btn primary" id="mfa_ligar">${svg(I.cadeado)} Ligar</button>`}</div>`);
   document.getElementById('mfa_desligar')?.addEventListener('click', async () => {
     if (!confirm('Desligar a verificação em duas etapas? Sua conta volta a pedir só a senha.')) return;
@@ -615,7 +615,7 @@ async function contaModalMfa() {
       <div class="field"><label for="mfa_novo">Código de 6 números</label><input id="mfa_novo" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></div>
       <p class="form-msg" id="mfa_msg" hidden></p>`;
     const foot = document.querySelector('#modal .modal-foot');
-    foot.innerHTML = `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn primary" id="mfa_confirmar">${svg(I.check)} Confirmar</button>`;
+    foot.innerHTML = `<button class="btn" data-acao="fechar-modal">Cancelar</button><button class="btn primary" id="mfa_confirmar">${svg(I.check)} Confirmar</button>`;
     document.getElementById('mfa_novo').focus();
     document.getElementById('mfa_confirmar').addEventListener('click', async () => {
       const code = document.getElementById('mfa_novo').value.replace(/\D/g, '');

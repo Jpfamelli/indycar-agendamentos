@@ -317,12 +317,14 @@ async function relatorioDe(tipo, referencia) {
 async function leadsPorCanal(de, ate) {
   // A coluna do CRM chama-se `origem` (enum canal_origem), não `canal`.
   const { data, error } = await sb.from('leads')
-    .select('origem, status, valor_pago, utm_campaign, created_at')
+    .select('id, origem, status, valor_pago, observacoes, utm_campaign, created_at')
     .gte('created_at', inicioBR(de)).lt('created_at', inicioBR(diaSeguinte(ate)))
     .in('origem', ['meta', 'google']).limit(10000);
   if (error) { console.warn('leadsPorCanal:', error.message); return {}; }
+  // R13C: receita pelo valor do serviço (Pátio > orçamento > Agenda > lançado), a mesma regra da Casa e do CRM
+  const linhas = await require('../../lib/valor-servico.cjs').comValorDoServico(sb, data || []);
   const por = {};
-  for (const l of data || []) {
+  for (const l of linhas) {
     const c = (por[l.origem] ||= { leads: 0, fechados: 0, receita: 0 });
     c.leads++;
     if (l.status === 'concluido') { c.fechados++; c.receita += num(l.valor_pago); if (!num(l.valor_pago)) c.sem_valor = (c.sem_valor || 0) + 1; }
@@ -390,7 +392,8 @@ async function lerCoorteAds(de, ate) {
       .order('created_at').order('id').range(inicio, inicio + 999);
     if (error) throw new Error('Não foi possível ler a atribuição do CRM. Tente novamente.');
     linhas.push(...(data || []));
-    if ((data || []).length < 1000) return linhas;
+    // R13C: ranking, CSV e relatório passam a ver o valor do serviço pela regra única (não só o lançado à mão)
+    if ((data || []).length < 1000) return require('../../lib/valor-servico.cjs').comValorDoServico(sb, linhas);
   }
   throw new Error('Coorte acima de 50 mil leads. Escolha um período menor.');
 }

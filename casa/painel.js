@@ -56,7 +56,7 @@
     if (V.patio && d.patio) out.patio = [d.patio.total, V.soMeusCarros ? plural(d.patio.total, 'carro seu no pátio', 'carros seus no pátio') : plural(d.patio.total, 'carro no pátio', 'carros no pátio')];
     if (V.orcamentos && d.orcamentos) out.orcador = [d.orcamentos.esperando, plural(d.orcamentos.esperando, 'orçamento esperando resposta', 'orçamentos esperando resposta')];
     if (V.agenda && d.agenda) out.agenda = [d.agenda.total, plural(d.agenda.total, 'horário hoje', 'horários hoje')];
-    if (V.leads && d.leads) out.crm = [d.leads.novos_sem_dono, plural(d.leads.novos_sem_dono, 'contato novo sem responsável', 'contatos novos sem responsável')];
+    if (V.leads && d.leads && d.leads.sem_dono != null) out.crm = [d.leads.sem_dono, plural(d.leads.sem_dono, 'contato sem responsável', 'contatos sem responsável')];
     return out;
   }
   /* rodada 13: o número que já está grande no herói não se repete no cartão do app (lá fica a frase curta do app) */
@@ -120,9 +120,12 @@
         d = { patio: { total: lista.length, prontos: lista.filter((o) => o.etapa === 'pronto').length, atrasados: lista.filter((o) => o.previsao_entrega && Date.parse(o.previsao_entrega) < Date.now() && o.etapa !== 'pronto').length, extras_pendentes: 0, por_etapa: por, lista } };
       } else {
         // fonte única: r6_agora (X3); o que ele não traz vem de r6_c1_agora_extras
-        const [a, x] = await Promise.all([C.sb.rpc('r6_agora', { p_limite: 40 }), C.sb.rpc('r6_c1_agora_extras')]);
+        // R13C: "sem responsável" com a regra do CRM (em aberto, qualquer data), contado junto e sem esperar a mais
+        const [a, x, semDono] = await Promise.all([C.sb.rpc('r6_agora', { p_limite: 40 }), C.sb.rpc('r6_c1_agora_extras'),
+          V.leads ? L.contarSemResponsavel(C.sb) : Promise.resolve(null)]);
         if (a.error) throw a.error;
-        d = L.adaptarAgora(a.data, x.error ? {} : x.data);
+        const ex = x.error ? {} : (x.data || {});
+        d = L.adaptarAgora(a.data, { ...ex, leads: { ...(ex.leads || {}), sem_dono: semDono } });
       }
       if (vez !== vezAgora) return;   // chegou atrasada: já há uma leitura mais nova
       dados = d; ultima = Date.now(); emFalha = false;

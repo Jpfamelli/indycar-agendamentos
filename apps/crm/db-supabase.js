@@ -175,7 +175,9 @@ function statsDe(rows, sinceISO) {
   const concluidos = fechados.filter(r => r.status === 'concluido');
   const perdidos   = fechados.filter(r => r.status === 'perdido');
 
-  const faturamento = concluidos.reduce((s, r) => s + r.valor_pago, 0);
+  // R13C: valor do serviço pela regra única (valor_servico, anotado em todosOsLeads); sem ele, o lançado
+  const valorDe = r => (r.valor_servico !== undefined ? Number(r.valor_servico) || 0 : r.valor_pago);
+  const faturamento = concluidos.reduce((s, r) => s + valorDe(r), 0);
   const ticket = concluidos.length ? faturamento / concluidos.length : 0;
   const conversao = fechados.length ? (concluidos.length / fechados.length) * 100 : 0;
 
@@ -188,7 +190,7 @@ function statsDe(rows, sinceISO) {
     const e = entrada.filter(x => x.origem === o);
     const g = concluidos.filter(x => x.origem === o);
     return { origem: o, leads: e.length, ganhos: g.length,
-             faturamento: g.reduce((s, x) => s + x.valor_pago, 0) };
+             faturamento: g.reduce((s, x) => s + valorDe(x), 0) };
   }).filter(x => x.leads > 0 || x.ganhos > 0).sort((a, b) => b.leads - a.leads);
 
   const porStatus = {};
@@ -196,6 +198,16 @@ function statsDe(rows, sinceISO) {
 
   return { total: entrada.length, ganhos: concluidos.length, perdidos: perdidos.length,
            faturamento, emAberto, ticket, conversao, porOrigem, porStatus };
+}
+
+/* R13C: cada contato fechado leva `valor_servico` e `valor_fonte` pela regra única da Central
+   (lib/valor-servico.cjs: Pátio > orçamento > Agenda > lançado) — a mesma do faturamento da Casa e do Tráfego.
+   Só leitura; se o Orçador/Pátio/Agenda não responderem, o contato fica sem o campo e a tela usa o lançado. */
+async function anotarValorDoServico(lista) {
+  try {
+    const mapa = await require('../../lib/valor-servico.cjs').valoresDosFechados(sb, lista);
+    for (const l of lista) { const v = mapa.get(l.id); if (v) { l.valor_servico = v.valor; l.valor_fonte = v.fonte; } }
+  } catch (e) { console.warn('CRM: valor do serviço indisponível agora:', String((e && e.message) || e).slice(0, 120)); }
 }
 
 async function todosOsLeads() {
@@ -212,7 +224,9 @@ async function todosOsLeads() {
       out.push(...(data || []));
       if (!data || data.length < 1000) break;
     }
-    return out.map(normalizarLead).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    const lista = out.map(normalizarLead).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    await anotarValorDoServico(lista);
+    return lista;
   })();
   CACHE_LEADS = { lendo, expira: 0 };
   try {

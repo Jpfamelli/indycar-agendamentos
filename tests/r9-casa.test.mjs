@@ -167,7 +167,7 @@ test('textos da tela: sem travessão e sem "lead" (palavra que a oficina não us
     if (/(?<![.\w$])leads?\b(?![_:.?])/i.test(t.replace(/\$\{[^}]*\}/g, ''))) ruins.push(f + ': lead em "' + t.slice(0, 80) + '"');
   }
   assert.deepEqual(ruins, []);
-  assert.match(semComentarios(ler('painel.js')), /'contatos novos sem responsável'/);   // rodada 13B: o mesmo nome do CRM
+  assert.match(semComentarios(ler('painel.js')), /'contatos sem responsável'/);   // R13C: mesma regra e nome do CRM
   assert.equal(L.GRUPOS_BUSCA.find((g) => g.k === 'leads').nome, 'Contatos (CRM)');
 });
 

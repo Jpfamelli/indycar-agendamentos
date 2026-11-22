@@ -11,6 +11,8 @@
 'use strict';
 
 const db = require('./db');
+/* R13C: o valor do serviço fechado (e as peças dele) mora num lugar só, dividido com a Casa e o CRM */
+const VS = require('../../lib/valor-servico.cjs');
 const A = require('./atribuicao');
 const Eco = require('./public/ecossistema.js');
 
@@ -78,6 +80,21 @@ async function lerOS({ leadIds = [], orcIds = [], agIds = [] }, { sb = db.sb } =
   return [...mapa.values()];
 }
 
+/** OS de uma coluna só (lead_id, orcamento_id ou agendamento_id), em lotes ao mesmo tempo. */
+function lerOSPor(coluna, ids, { sb = db.sb } = {}) {
+  return emLotes(ids, async lote => {
+    const { data, error } = await sb.from('patio_os').select(COLS_OS).in(coluna, lote);
+    if (error) throw new Error('patio_os: ' + error.message);
+    return data || [];
+  });
+}
+/** Junta as OS achadas por caminhos diferentes, na ordem dos caminhos; a mesma OS fica com a última leitura (como lerOS). */
+function unirOS(...listas) {
+  const mapa = new Map();
+  for (const l of listas) for (const o of l || []) mapa.set(o.id, o);
+  return [...mapa.values()];
+}
+
 /** Extras do pátio (só valor e estado) das OS. */
 async function lerExtras(osIds, { sb = db.sb } = {}) {
   return emLotes(osIds, async lote => {
@@ -123,15 +140,36 @@ async function lerTudo(leadIds, { sb = db.sb } = {}) {
   try {
     const ids = [...new Set((leadIds || []).filter(Boolean))];
     if (!ids.length) return { porLead: new Map(), orcamentos: [], os: [], extras: [], agendamentos: [], ok: true, erro: null };
-    const [porLeadId, ags] = await Promise.all([lerOrcamentos(ids, { sb }), lerAgendamentosLeve(ids, { sb })]);
+    /* R13C (Tráfego lento): as leituras que não dependem umas das outras saem juntas. Antes eram 4 idas em fila
+       (orçamentos+agendamentos → orçamentos do agendamento → OS → extras); agora 3 (4 só quando um orçamento ligado
+       apenas ao agendamento tem OS). O resultado é o mesmo: as mesmas OS (lead, orçamento, agendamento) e os mesmos extras. */
+    const patio = { erro: null };
+    const doPatio = p => p.catch(e => { if (!patio.erro) patio.erro = e; return []; });
+    const osPor = (coluna, lista) => doPatio(lerOSPor(coluna, lista, { sb }));
+    const extrasDe = lista => doPatio(lerExtras(lista.map(o => o.id), { sb }));
+    const [porLeadId, ags, osLead] = await Promise.all([lerOrcamentos(ids, { sb }), lerAgendamentosLeve(ids, { sb }), osPor('lead_id', ids)]);
+    const agIds = ags.map(a => a.id);
     // Rodada 7: o Orçador grava lead_id, mas o orçamento feito a partir da Agenda só tem agendamento_id: os dois caminhos contam, sem duplicar.
-    const porAg = await lerOrcamentosPorAgendamento(ags.map(a => a.id), { sb }).catch(() => []);
+    const [porAg, osAg, osOrcLead, extrasLead] = await Promise.all([
+      lerOrcamentosPorAgendamento(agIds, { sb }).catch(() => []),
+      osPor('agendamento_id', agIds),
+      osPor('orcamento_id', porLeadId.map(o => o.id)),
+      extrasDe(osLead),
+    ]);
     const orcamentos = unirOrcamentos(porLeadId, porAg);
+    const doLead = new Set(porLeadId.map(o => o.id));
+    const lidas = new Set(osLead.map(o => o.id));
+    const novas = unirOS(osOrcLead, osAg).filter(o => !lidas.has(o.id));
+    novas.forEach(o => lidas.add(o.id));
+    const [osOrcAg, extrasNovas] = await Promise.all([osPor('orcamento_id', porAg.filter(o => !doLead.has(o.id)).map(o => o.id)), extrasDe(novas)]);
     // Rodada 7: se só o Pátio falhar, os orçamentos continuam valendo (ok: true) e a tela avisa que os carros ficaram de fora.
     let os = [], extras = [], parcial = null;
     try {
-      os = await lerOS({ leadIds: ids, orcIds: orcamentos.map(o => o.id), agIds: ags.map(a => a.id) }, { sb });
-      extras = await lerExtras(os.map(o => o.id), { sb });
+      const ultimas = osOrcAg.filter(o => !lidas.has(o.id));
+      const extrasUltimas = await extrasDe(ultimas);
+      if (patio.erro) throw patio.erro;
+      os = unirOS(osLead, osOrcLead, osOrcAg, osAg);
+      extras = [...extrasLead, ...extrasNovas, ...extrasUltimas];
     } catch (e) { os = []; extras = []; parcial = { fonte: 'patio', erro: String(e.message || e) }; }
     return { porLead: ligar({ leadIds: ids, orcamentos, os, extras, agendamentos: ags }), orcamentos, os, extras, agendamentos: ags, ok: true, erro: null, parcial: parcial ? parcial.fonte : null, erro_parcial: parcial ? parcial.erro : null };
   } catch (e) {
@@ -153,52 +191,10 @@ function unirOrcamentos(...listas) {
  * OS: lead_id da OS, senão o lead do orçamento de origem, senão o lead do agendamento.
  * Devolve Map(leadId -> { orcamentos:[...], os:[...], extras:{aprovado,pendente,recusado} }).
  */
-function ligar({ leadIds = [], orcamentos = [], os = [], extras = [], agendamentos = [] } = {}) {
-  const lista = new Set(leadIds);
-  const porLead = new Map();
-  const de = id => {
-    if (!porLead.has(id)) porLead.set(id, { orcamentos: [], os: [], extras: { aprovado: 0, pendente: 0, recusado: 0, qtd_aprovado: 0 } });
-    return porLead.get(id);
-  };
-  const orcPorId = new Map(orcamentos.map(o => [o.id, o]));
-  const agPorId = new Map(agendamentos.map(a => [a.id, a]));
-
-  const leadDoOrc = o => (o.lead_id && lista.has(o.lead_id) ? o.lead_id : (agPorId.get(o.agendamento_id)?.lead_id || null));
-  for (const o of orcamentos) {
-    if (!o?.id || o.rascunho === true) continue;
-    // lead_id do Orçador; sem ele, o lead do agendamento (rodada 7). O mesmo orçamento não entra duas vezes.
-    const alvoLead = leadDoOrc(o);
-    if (!alvoLead || !lista.has(alvoLead)) continue;
-    const dest = de(alvoLead);
-    if (dest.orcamentos.some(x => x.id === o.id)) continue;
-    dest.orcamentos.push(o.lead_id === alvoLead ? o : { ...o, ligado_por: 'agendamento' });
-  }
-  const vistas = new Set();
-  const extrasPorOS = new Map();
-  for (const x of extras) { if (!extrasPorOS.has(x.os_id)) extrasPorOS.set(x.os_id, []); extrasPorOS.get(x.os_id).push(x); }
-  for (const o of os) {
-    if (!o?.id || vistas.has(o.id)) continue;
-    const orcOrigem = orcPorId.get(o.orcamento_id);
-    const lead = o.lead_id || (orcOrigem && leadDoOrc(orcOrigem)) || agPorId.get(o.agendamento_id)?.lead_id || null;
-    if (!lead || !lista.has(lead)) continue;
-    vistas.add(o.id);
-    const alvo = de(lead);
-    alvo.os.push(o);
-    for (const x of extrasPorOS.get(o.id) || []) {
-      const v = numero(x.valor);
-      if (x.status === 'aprovado') { alvo.extras.aprovado += v; alvo.extras.qtd_aprovado++; }
-      else if (x.status === 'pendente') alvo.extras.pendente += v;
-      else if (x.status === 'recusado') alvo.extras.recusado += v;
-    }
-  }
-  return porLead;
-}
+function ligar(dados = {}) { return VS.ligar(dados); }
 
 /** O melhor orçamento do lead (aprovado > enviado > aberto > recusado > expirado; empate: o mais recente). */
-function melhorOrcamento(orcs = []) {
-  return [...orcs].sort((a, b) => (PESO_ORC[b.status] || 0) - (PESO_ORC[a.status] || 0)
-    || String(b.created_at || '').localeCompare(String(a.created_at || '')))[0] || null;
-}
+function melhorOrcamento(orcs = []) { return VS.melhorOrcamento(orcs); }
 /** A OS mais relevante: a que ainda está no pátio, senão a mais recente. */
 function osPrincipal(lista = []) {
   const validas = lista.filter(o => o.etapa !== 'cancelado');
@@ -249,7 +245,7 @@ const horasEntre = (de, ate) => {
   return Number.isFinite(a) && Number.isFinite(b) && b >= a ? (b - a) / HORA : null;
 };
 /** Valor que o cliente de fato aprovou (com o desconto à vista, quando o Orçador gravou); senão o total do orçamento. */
-function valorAprovado(orc) { return numero(orc?.total_aprovado) > 0 ? numero(orc.total_aprovado) : numero(orc?.total); }
+function valorAprovado(orc) { return VS.valorAprovado(orc); }
 const temValor = v => v != null && v !== '' && !(Array.isArray(v) && !v.length) && !(typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length);
 
 /**
@@ -319,7 +315,7 @@ function mediana(v) {
  * Soma o ciclo por campanha. `resultado` = A.consolidar(...) (gasto/leads/receita por campanha).
  * Devolve { campanhas: [{canal, campanha, ...ciclo, custos}], total, motivos, funil, alertas }.
  */
-function consolidarCiclo({ leads = [], porLead = new Map(), resultado = null, agora = Date.now() } = {}) {
+function consolidarCiclo({ leads = [], porLead = new Map(), agsPorLead = new Map(), resultado = null, agora = Date.now() } = {}) {
   const grupos = new Map(), motivos = {};
   const grupo = (l) => {
     const c = A.canal(l), nome = A.normalizar(l.utm_campaign);
@@ -384,7 +380,8 @@ function consolidarCiclo({ leads = [], porLead = new Map(), resultado = null, ag
       const entregue = validas.some(o => o.etapa === 'entregue');
       if (entregue) {
         g.entregues++;
-        const pago = numero(l.valor_pago);
+        // R13C: valor do serviço pela regra única (Pátio > orçamento > Agenda > lançado), não só o lançado à mão
+        const pago = numero(VS.valorDoContato(l, lig, agsPorLead.get(l.id) || []).valor);
         g.receita_entregues += pago;
         if (!pago) { g.entregues_sem_valor++; if (orc && orc.status === 'aprovado') semValorComOrc.push(item(l, { orcamento_id: orc.id, os_id: validas.find(o => o.etapa === 'entregue')?.id, valor_sugerido: valorAprovado(orc) + (lig.extras.aprovado || 0), valor: valorAprovado(orc) + (lig.extras.aprovado || 0) })); }
       }
@@ -511,6 +508,12 @@ function frase(c) {
 
 /* ---------------- "Oficina agora" (cartão do Painel) ---------------- */
 
+/** Map(lead_id -> agendamentos) do que Ciclo.ler devolveu (para o valor do serviço sair igual à jornada). */
+function agsPorLeadDe(ags = []) {
+  const m = new Map();
+  for (const a of ags || []) { if (!a || !a.lead_id) continue; if (!m.has(a.lead_id)) m.set(a.lead_id, []); m.get(a.lead_id).push(a); }
+  return m;
+}
 const diaBR = (agora) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(agora));
 
 /**
@@ -525,10 +528,11 @@ async function agora({ dias = 30, lerLeads = null, ler = ler_, agoraMs = Date.no
   if (!lido.ok) return { indisponivel: true, motivo: 'Orçador e Pátio não responderam agora.' };
   const noPatio = [], esperando = [];
   let prontosParados = 0, entregues = 0, receita = 0;
+  const agsPorLead = agsPorLeadDe(lido.agendamentos);
   for (const l of pagos) {
     const r = resumoDoLead(lido.porLead.get(l.id), agoraMs);
     if (!r) continue;
-    if (r.os?.entregue) { entregues++; receita += numero(l.valor_pago); }
+    if (r.os?.entregue) { entregues++; receita += numero(VS.valorDoContato(l, lido.porLead.get(l.id), agsPorLead.get(l.id) || []).valor); }
     const base = { lead_id: l.id, nome: l.nome || '(sem nome)', carro: l.carro_modelo || null, campanha: l.utm_campaign || null, link_crm: Eco.linkLead(l.id) };
     if (r.os?.no_patio) {
       noPatio.push({ ...base, etapa: r.os.etapa, etapa_nome: r.os.etapa_nome, link_os: r.os.link, pronto_horas: r.os.pronto_horas });
@@ -582,7 +586,7 @@ async function acoes({ dias = 30, lerLeads = null, ler = ler_, agoraMs = Date.no
   const pagos = brutos.filter(l => A.canal(l));
   const lido = await ler(pagos.map(l => l.id));
   if (!lido.ok) return { indisponivel: true, motivo: 'Orçador e Pátio não responderam agora.', itens: [], total: 0 };
-  const cons = consolidarCiclo({ leads: pagos, porLead: lido.porLead, agora: agoraMs });
+  const cons = consolidarCiclo({ leads: pagos, porLead: lido.porLead, agsPorLead: agsPorLeadDe(lido.agendamentos), agora: agoraMs });
   const f = require('./acoes').fila(cons, { limite });
   return { indisponivel: false, parcial: lido.parcial || null, dias, leads_lidos: pagos.length, gerado_em: new Date(agoraMs).toISOString(), ...f, alertas: cons.alertas };
 }

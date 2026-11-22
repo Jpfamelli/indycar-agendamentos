@@ -50,7 +50,7 @@ test('a Casa lê "orcadorNaCentral" da configuração e o servidor manda o valor
 
 test('mesmos nomes do CRM: "contatos novos sem responsável" (não "sem dono") nos textos da Casa', () => {
   const p = semComentarios(ler('casa/painel.js'));
-  assert.match(p, /'contatos novos sem responsável'/);
+  assert.match(p, /'contatos sem responsável'/);   // R13C: a regra virou a do CRM (em aberto, qualquer data): sai o "novos"
   for (const f of ['casa/painel.js', 'casa/logica.js', 'casa/logica5.js', 'casa/mes.js', 'casa/index.html']) {
     const textos = [...semComentarios(ler(f)).matchAll(/'([^'\n]*)'|`([^`\n]*)`|>([^<>\n]+)</g)].map((m) => m[1] || m[2] || m[3] || '');
     assert.ok(!textos.some((t) => / sem dono\b/.test(t)), f + ': "sem dono" na tela');

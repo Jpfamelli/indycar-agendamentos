@@ -29,6 +29,9 @@ function ultimosMeses(agora, qtd) {
   return out;
 }
 
+/* R13C: valor do serviço pela regra única quando o contato já vem anotado (valor_servico); senão, o lançado */
+const valorDe = l => (l && l.valor_servico !== undefined ? n(l.valor_servico) : n(l && l.valor_pago));
+
 /** Estatística de um intervalo [desde, ate): entrada, ganhos, perdas, faturamento. */
 function statsPeriodo(leads, desde, ate) {
   const dentro = iso => { const t = ts(iso); return t >= desde && t < ate; };
@@ -36,13 +39,13 @@ function statsPeriodo(leads, desde, ate) {
   const fechados = leads.filter(l => FATURAMENTO.has(l.status) && dentro(fechamento(l)));
   const ganhos = fechados.filter(l => l.status === 'concluido');
   const perdidos = fechados.filter(l => l.status === 'perdido');
-  const faturamento = r2(ganhos.reduce((s, l) => s + n(l.valor_pago), 0));
+  const faturamento = r2(ganhos.reduce((s, l) => s + valorDe(l), 0));
   const porOrigem = ORIGENS.map(o => ({
     origem: o,
     leads: entrada.filter(l => l.origem === o).length,
     ganhos: ganhos.filter(l => l.origem === o).length,
     perdidos: perdidos.filter(l => l.origem === o).length,
-    faturamento: r2(ganhos.filter(l => l.origem === o).reduce((s, l) => s + n(l.valor_pago), 0)),
+    faturamento: r2(ganhos.filter(l => l.origem === o).reduce((s, l) => s + valorDe(l), 0)),
   })).filter(x => x.leads || x.ganhos || x.perdidos);
   const porStatus = Object.fromEntries(STATUSES.map(s => [s, entrada.filter(l => l.status === s).length]));
   return {
@@ -115,7 +118,7 @@ function agregadoParaPergunta({ leads = [], conversas = [], envios = [], orcamen
     const ganhos = leads.filter(l => l.status === 'concluido' && l.origem === o && mesDe(fechamento(l)) === mes);
     const perderam = leads.filter(l => l.status === 'perdido' && l.origem === o && mesDe(fechamento(l)) === mes).length;
     if (entraram || ganhos.length || perderam) porMes.push({ mes, origem: o, entraram, fecharam: ganhos.length, perderam,
-      faturamento: r2(ganhos.reduce((s, l) => s + n(l.valor_pago), 0)) });
+      faturamento: r2(ganhos.reduce((s, l) => s + valorDe(l), 0)) });
   }
 
   const abertos = leads.filter(l => !FATURAMENTO.has(l.status));

@@ -94,7 +94,10 @@
   // dias sem mexer a partir dos quais o lead conta como "parado" (concluído/perdido nunca param)
   const LIMITE_PARADO = {novo:1, contato:3, orcamento:4, agendado:7, em_servico:5};
   const num = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
-  const valorLead = l => num(l && l.status === 'concluido' ? l.valor_pago : l && l.valor_orcado);
+  /* R13C: valor do serviço fechado pela regra única da Central (lib/valor-servico.cjs: Pátio > orçamento > Agenda > lançado).
+     O servidor manda `valor_servico` em cada contato fechado; sem ele (app solto/teste), vale o lançado (valor_pago). */
+  const valorFechado = l => (l && l.valor_servico !== undefined ? num(l.valor_servico) : num(l && l.valor_pago));
+  const valorLead = l => (l && l.status === 'concluido' ? valorFechado(l) : num(l && l.valor_orcado));
   const ms = v => { const t = Date.parse(v); return Number.isFinite(t) ? t : NaN; };
   function diasNaEtapa(l, agora = Date.now()) {
     const t = ms(l && (l.updated_at || l.created_at));
@@ -138,13 +141,13 @@
     const fechou = l => l.closed_at || l.updated_at || l.created_at;
     const ganhos = leads.filter(l => l.status === 'concluido' && dentro(fechou(l), a, b));
     const perdidos = leads.filter(l => l.status === 'perdido' && dentro(fechou(l), a, b));
-    const faturamento = Math.round(ganhos.reduce((s, l) => s + num(l.valor_pago), 0) * 100) / 100;
+    const faturamento = Math.round(ganhos.reduce((s, l) => s + valorFechado(l), 0) * 100) / 100;
     const ciclos = ganhos.map(l => (ms(fechou(l)) - ms(l.created_at)) / DIA).filter(x => Number.isFinite(x) && x >= 0);
     const decididos = ganhos.length + perdidos.length;
     const porOrigem = {};
     const linha = o => porOrigem[o] || (porOrigem[o] = {origem: o, leads: 0, ganhos: 0, faturamento: 0});
     for (const l of entraram) linha(l.origem || 'organico').leads++;
-    for (const l of ganhos) { const o = linha(l.origem || 'organico'); o.ganhos++; o.faturamento += num(l.valor_pago); }
+    for (const l of ganhos) { const o = linha(l.origem || 'organico'); o.ganhos++; o.faturamento += valorFechado(l); }
     const motivos = {};
     for (const l of perdidos) { const m = (Object.hasOwn(MOTIVOS_R8, l.motivo_perda) && MOTIVOS_R8[l.motivo_perda]) || motivoPadrao(motivoPerda(l.observacoes)) || 'Sem motivo registrado'; motivos[m] = (motivos[m] || 0) + 1; }
     return {
@@ -382,6 +385,14 @@
     if (filtro === 'sem') return !r;
     return r === String(filtro);
   }
+  /* Etapa do filtro da lista: '' todas · 'abertos' (tudo menos concluído e perdido) · uma etapa. */
+  function filtroEtapa(l, st) {
+    if (!st) return true;
+    if (st === 'abertos') return ABERTAS.includes(l && l.status);
+    return !!l && l.status === st;
+  }
+  /* R13C — regra ÚNICA de "contato sem responsável" (a Casa conta igual: etapa em aberto e ninguém cuidando). */
+  function semResponsavelAberto(l) { return !!l && !l.responsavel_id && ABERTAS.includes(l.status); }
   function funilPorResponsavel(leads, equipe = []) {
     const nomes = new Map(equipe.map(p => [String(p.id), p]));
     const linhas = new Map();
@@ -391,7 +402,7 @@
       const x = linhas.get(id); x.total++;
       if (x.porEtapa[l.status] !== undefined) x.porEtapa[l.status]++;
       if (ABERTAS.includes(l.status)) { x.abertos++; x.valorAberto += valorLead(l); }
-      if (l.status === 'concluido') { x.ganhos++; x.faturamento += num(l.valor_pago); }
+      if (l.status === 'concluido') { x.ganhos++; x.faturamento += valorFechado(l); }
     }
     return [...linhas.values()].map(x => ({...x, valorAberto: Math.round(x.valorAberto * 100) / 100, faturamento: Math.round(x.faturamento * 100) / 100}))
       .sort((a, b) => (a.perfil_id === null) - (b.perfil_id === null) || b.abertos - a.abertos || b.total - a.total);
@@ -555,8 +566,8 @@
     if (s < 86400) return Math.floor(s / 3600) + ' h';
     const d = Math.floor(s / 86400); return d === 1 ? 'ontem' : d + ' dias';
   }
-  const api = {normalizar,digitos,buscar,validarLead,origemDetalhada,origemCaptada,camposPerda,MOTIVOS_R8,MOTIVOS_PERDA,motivoPadrao,nascimento,moeda,csv,ETAPAS,ABERTAS,LIMITE_PARADO,valorLead,diasNaEtapa,parado,textoDias,resumoColuna,periodo,metricas,funilPassagem,comparar,motivoPerda,comMotivoPerda,telE164,linkWhatsApp,linkLigar,linkConversa,linkComunicar,linkAgenda,formatarTelefone,paginar,linhaDoTempo,casaOrigem,situacaoTarefa,ordenarTarefas,novaTarefa,COLUNAS_LEADS,COLUNAS_PADRAO,colunasValidas,ATALHOS_ABA,
-    ehUuid,PAPEIS,ROTULO_PAPEL,ehGestor,URL_APPS,NOME_APPS,acessoApp,appsPermitidos,acaoErroAcesso,mensagemLogin,esperaLogin,validarNovaSenha,codigoMfaValido,linkNotificacao,CORES_AVATAR,corAvatar,filtroResponsavel,funilPorResponsavel,vencimentoDe,situacaoTarefaDb,ordenarTarefasDb,agruparTarefas,validarTarefa,lembreteParaTarefa,ROTULO_PRIORIDADE,mesAtual,intervaloMes,progressoMeta,CAMPOS_META,validarMetas,normalizarMetas,normalizarDesempenho,normalizarEquipe,podeReatribuir,podeEditarLead,avisoLeadDeOutro,ordenarDesempenho,deveGravarAcesso,mesclarPreferencias,tempoRelativo};
+  const api = {normalizar,digitos,buscar,validarLead,origemDetalhada,origemCaptada,camposPerda,MOTIVOS_R8,MOTIVOS_PERDA,motivoPadrao,nascimento,moeda,csv,ETAPAS,ABERTAS,LIMITE_PARADO,valorLead,valorFechado,diasNaEtapa,parado,textoDias,resumoColuna,periodo,metricas,funilPassagem,comparar,motivoPerda,comMotivoPerda,telE164,linkWhatsApp,linkLigar,linkConversa,linkComunicar,linkAgenda,formatarTelefone,paginar,linhaDoTempo,casaOrigem,situacaoTarefa,ordenarTarefas,novaTarefa,COLUNAS_LEADS,COLUNAS_PADRAO,colunasValidas,ATALHOS_ABA,
+    ehUuid,PAPEIS,ROTULO_PAPEL,ehGestor,URL_APPS,NOME_APPS,acessoApp,appsPermitidos,acaoErroAcesso,mensagemLogin,esperaLogin,validarNovaSenha,codigoMfaValido,linkNotificacao,CORES_AVATAR,corAvatar,filtroResponsavel,filtroEtapa,semResponsavelAberto,funilPorResponsavel,vencimentoDe,situacaoTarefaDb,ordenarTarefasDb,agruparTarefas,validarTarefa,lembreteParaTarefa,ROTULO_PRIORIDADE,mesAtual,intervaloMes,progressoMeta,CAMPOS_META,validarMetas,normalizarMetas,normalizarDesempenho,normalizarEquipe,podeReatribuir,podeEditarLead,avisoLeadDeOutro,ordenarDesempenho,deveGravarAcesso,mesclarPreferencias,tempoRelativo};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CrmUtils = api;
 })(typeof window !== 'undefined' ? window : globalThis);

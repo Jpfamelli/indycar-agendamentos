@@ -90,10 +90,11 @@ test('consolidarCiclo: contagens, custo por carro e receita por campanha', () =>
   const g = c.campanhas.find(x => x.campanha === 'Revisão');
   assert.equal(g.orcados, 4); assert.equal(g.orcamentos_aprovados, 3); assert.equal(g.orcamentos_enviados, 4, 'l1, l2 e l3 aprovados + l4 enviado');
   assert.equal(g.na_oficina, 3); assert.equal(g.no_patio_agora, 1); assert.equal(g.entregues, 2);
-  assert.equal(g.receita_entregues, 1000); assert.equal(g.entregues_sem_valor, 1);
+  // R13C: valor do serviço pela regra única (Pátio: orçamento aprovado + extras): l1 = 900 + 100, l2 = 600 (antes l2 contava 0)
+  assert.equal(g.receita_entregues, 1600); assert.equal(g.entregues_sem_valor, 0);
   assert.equal(g.extras_aprovados, 100);
   assert.equal(g.gasto, 800); assert.equal(g.custo_carro_na_oficina, 800 / 3); assert.equal(g.custo_carro_entregue, 400);
-  assert.equal(g.ticket_oficina, 1000);
+  assert.equal(g.ticket_oficina, 800);
   assert.equal(g.receita_prevista, 900 + 600 + 400 + 100);
 });
 
@@ -115,9 +116,8 @@ test('consolidarCiclo: avisos de orçamento parado, pronto parado e valor sugeri
   const c = Ciclo.consolidarCiclo({ leads, porLead, resultado, agora: AGORA });
   const tipos = c.alertas.map(a => a.tipo);
   assert.ok(tipos.includes('pronto_parado'));
-  assert.ok(tipos.includes('valor_sugerido'));
-  const sug = c.alertas.find(a => a.tipo === 'valor_sugerido');
-  assert.equal(sug.valor, 600, 'l2 entregue sem valor: orçamento aprovado de R$ 600');
+  // R13C: l2 entregue com orçamento aprovado já TEM valor pela regra única (Pátio): não pede mais "lançar o valor sugerido"
+  assert.ok(!tipos.includes('valor_sugerido'));
   assert.ok(tipos.includes('orcamento_parado'), 'l4: o melhor orçamento é o enviado há 72 h');
 });
 
