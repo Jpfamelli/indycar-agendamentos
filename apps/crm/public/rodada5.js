@@ -138,7 +138,7 @@ $('#formCampanha').addEventListener('submit', async e => {
     const r = await api('/api/leads/campanha', { method: 'POST', body: JSON.stringify({ ids, corpo, enviar_em: $('#campQuando').value ? new Date($('#campQuando').value).toISOString() : null, detalhe: $('#campDetalhe').value.trim() || null }) });
     $('#dlgCampanha')._ok(true); SEL.clear(); renderTabelaLeads();
     const msg = `✉️ Campanha proposta para ${r.destinos} cliente${r.destinos === 1 ? '' : 's'}${r.pulados ? ` (${r.pulados} sem telefone válido)` : ''}. O gestor aprova no Comunicar${r.avisados ? ` — ${r.avisados} avisado${r.avisados === 1 ? '' : 's'}` : ''}.`;
-    if (r.abrir) toastAcao(msg, 'Abrir no Comunicar', () => window.open(r.abrir, A5.CENTRAL ? '_self' : '_blank', 'noopener'), 10000); else toast(msg, 8000);
+    if (r.abrir) toastAcao(msg, 'Abrir no Comunicar', () => (typeof abrirNomeada6 === 'function' ? abrirNomeada6(r.abrir, 'comunicar') : window.open(r.abrir, 'indycar-comunicar'))   /* rodada 13C: aba nomeada do Comunicar */, 10000); else toast(msg, 8000);
   } catch (err) { $('#campErro').textContent = err.message; }
   finally { btn.disabled = false; btn.textContent = 'Mandar para o Comunicar'; }
 });

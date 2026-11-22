@@ -30,10 +30,12 @@ document.addEventListener('click', e => {
   const app = appDoLink6(a.getAttribute('href')); if (!app) return;
   e.preventDefault(); abrirNomeada6(a.href, app);
 }, true);
-/* Rodada 13B: na Central, os apps irmãos (Agenda, Atendimento, Comunicar, Orçador, Tráfego) abrem na MESMA janela,
-   com a mesma sessão (sem outro login). Antes, "Abrir conversa" e cia. abriam outra aba. O Pátio mora em outro
-   endereço e continua na janela dele. Antes de sair, não deixa perder o que foi digitado nem a fila de mudanças. */
-const mesmaJanela6 = app => !!(A6.CENTRAL && A6.IRMAOS && A6.IRMAOS[app]);
+/* Rodada 13C (regra única da Central): cada app abre na SUA aba nomeada "indycar-<app>" (indycar-agenda,
+   indycar-atendimento, indycar-comunicar, indycar-orcador, indycar-trafego, indycar-patio), como a Casa, a Agenda, o
+   Atendimento e o Orçador. Clicar de novo volta para a mesma aba e o CRM fica aberto onde estava (nada se perde).
+   A 13B tinha trocado os irmãos para a mesma janela; a sessão continua a mesma (mesmo endereço). Os links do próprio
+   CRM seguem na mesma janela. Se o navegador bloquear a aba nova, sai nesta janela, sem perder o que foi digitado. */
+const mesmaJanela6 = () => false;
 function sairPara6(href) {
   const sujo = typeof formSujo === 'function' && document.querySelector('#modalBg')?.classList.contains('open') && formSujo();
   if (sujo && !confirm('Há alterações na ficha que não foram salvas. Sair mesmo assim?')) return false;
@@ -42,7 +44,12 @@ function sairPara6(href) {
   location.assign(href);
   return true;
 }
-function abrirNomeada6(u, app) { if (mesmaJanela6(app)) { sairPara6(u); return null; } const w = window.open(u, 'indycar-' + app); if (w) { try { w.opener = null; w.focus(); } catch { /* outra origem */ } } return w; }
+function abrirNomeada6(u, app) {
+  const w = window.open(u, 'indycar-' + app);
+  if (w) { try { w.opener = null; w.focus(); } catch { /* outra origem */ } return w; }
+  sairPara6(u);   // aba bloqueada: vai nesta janela, com a mesma proteção do que foi digitado
+  return null;
+}
 const abrirApp6 = (app, caminho) => { const u = A6.urlApp(app, caminho); if (u) abrirNomeada6(u, app); };
 
 /* ================= sinais ao vivo ================= */
