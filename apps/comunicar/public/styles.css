@@ -1383,3 +1383,91 @@ button,input,select,textarea{font-family:inherit}
 }
 .envio::before,.r6-passos li{border-left-width:1px}
 .envio::before{display:none}
+
+/* ============================================================================
+   RODADA 13 (22/11/2026): no nível do Tráfego. Resumo de HOJE no alto das
+   Réguas (frase grande, números em Barlow Condensed, gráfico dos 14 dias),
+   aba atual marcada, topo que cabe no celular e toques de 44 px.
+   ============================================================================ */
+[hidden]{display:none!important}
+.tarefa.alta{border-left-width:1px}
+
+/* topo: aba atual com o risco vermelho; no celular as 5 abas cabem sem rolar */
+.ic-abas .nav-item[aria-current="page"]{color:var(--text-forte);border-bottom-color:var(--red)}
+.ic-topo .avatar-bottom{width:44px;height:44px;min-width:44px}
+@media (max-width:600px){
+  .ic-abas{justify-content:space-between;gap:0;overflow:visible}
+  .ic-abas a,.ic-abas button{padding:0 4px;font-size:13.5px;flex:0 1 auto}
+}
+
+/* interruptores: o toque inteiro tem 44 px de altura */
+.sw{min-height:44px}
+
+/* o herói de hoje */
+.heroi{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:28px;overflow:hidden;
+  padding:clamp(20px,3.2vw,40px);border-radius:18px;border:1px solid var(--border);
+  background:radial-gradient(34rem 22rem at 85% 0%,var(--red-soft),transparent 70%),var(--panel)}
+.heroi::after{content:"";position:absolute;right:-40px;bottom:-30px;width:220px;height:18px;background:var(--red);
+  transform:skewX(-14deg) rotate(-8deg);opacity:.85;pointer-events:none}
+@media (min-width:1024px){.heroi{grid-template-columns:minmax(0,1fr) 320px;align-items:center}}
+.heroi .mini,.secao-tit{margin:0;font:700 12px/1.3 var(--ic-texto-f);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.heroi-in{display:grid;gap:24px;min-width:0}
+.hoje-topo{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.heroi-frase{margin:0;max-width:26ch;font:500 clamp(26px,3.3vw,44px)/1.16 var(--ic-texto-f);letter-spacing:-.01em;color:var(--text-forte);text-wrap:balance}
+.heroi-n{font:700 1.24em/1 var(--ic-titulo);color:var(--red-txt);font-variant-numeric:tabular-nums}
+.heroi-n-fim{background:linear-gradient(var(--red),var(--red)) 0 100%/100% .12em no-repeat}
+.selo{display:inline-flex;align-items:center;gap:6px;min-height:26px;padding:0 10px;border-radius:999px;
+  font:700 12px/1 var(--ic-texto-f);letter-spacing:.04em;text-transform:none;border:1px solid currentColor}
+.selo::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.selo-bom{color:var(--green-txt)} .selo-atencao{color:var(--orange-txt)} .selo-ruim{color:var(--red-txt)}
+.hoje-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:2px solid var(--red);padding-top:16px}
+.hoje-num{display:grid;gap:6px;align-content:start;min-width:0;padding-right:12px}
+.hoje-num + .hoje-num{padding-left:18px;border-left:1px solid var(--border)}
+.hoje-n{font:700 clamp(44px,5.6vw,76px)/.9 var(--ic-titulo);color:var(--text-forte);font-variant-numeric:tabular-nums}
+.hoje-rot{font:600 12px/1.3 var(--ic-texto-f);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.hoje-apoio{font-size:13px;color:var(--muted)}
+.hoje-conta{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px 24px;padding-top:18px;border-top:1px solid var(--border)}
+.hoje-conta > div{display:grid;gap:8px;align-content:start;min-width:0}
+.hoje-conta > div + div{padding-left:24px;border-left:1px solid var(--border)}
+.hoje-reguas{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.hoje-reguas li{display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;border-radius:10px;background:var(--surface);font-size:14px}
+.hoje-reguas b{font:700 20px/1 var(--ic-titulo);color:var(--text-forte)}
+.hoje-ligadas{margin:0;font-size:16px;color:var(--muted)}
+.hoje-ligadas b{font:700 34px/1 var(--ic-titulo);color:var(--text-forte)}
+.hoje-conta .btn{justify-self:start}
+.hoje-sem{margin:0;font-size:14px;color:var(--muted)}
+.hoje-graf{margin:0;display:grid;gap:10px;padding:18px;border-radius:14px;background:var(--panel-3);border:1px solid var(--border);position:relative;z-index:1}
+.hoje-graf svg{width:100%;height:auto;display:block}
+.hoje-graf rect.b-dia{fill:var(--muted-2);opacity:.55}
+.hoje-graf rect.b-zero{fill:var(--border-2)}
+.hoje-graf rect.b-hoje{fill:var(--red)}
+.hoje-graf text{font:500 11px var(--ic-texto-f);fill:var(--muted)}
+.hoje-graf-pe{margin:0;font-size:13px;color:var(--muted)}
+.heroi[aria-busy="true"] .skel{margin-top:4px}
+.heroi[data-estado="parado"] .hoje-nums,.heroi[data-estado="pausa"] .hoje-nums{border-top-color:var(--border-2)}
+.secao-tit{margin-top:6px}
+@media (max-width:600px){
+  .heroi{padding:20px 16px}
+  .hoje-nums{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .hoje-num + .hoje-num{padding-left:10px}
+  .hoje-num{padding-right:4px}
+  .hoje-rot{font-size:11px;letter-spacing:.06em}
+  .hoje-apoio{font-size:12px}
+  .hoje-conta{grid-template-columns:minmax(0,1fr)}
+  .hoje-conta > div + div{padding:16px 0 0;border-left:0;border-top:1px solid var(--border)}
+}
+
+/* Pátio e Orçador / Avisos de outros apps: mensagens fechadas, como nas réguas */
+.r6-textos>summary,.r7-editar>summary{margin-top:4px}
+.r7-editar{margin:-4px 0 6px}
+.r6-painel .panel-head h2,.r7-painel .panel-head h2{font:700 20px/1.1 var(--ic-titulo);text-transform:uppercase;letter-spacing:.03em}
+/* Campanhas: painel de aprovação na cor da casa e botões que quebram linha no celular */
+.aprov-panel{border-color:var(--border)}
+.aprov.foco{box-shadow:0 0 0 2px var(--red)}
+.aprov .btn{white-space:normal;text-align:center;line-height:1.2}
+/* Clientes: a coluna do aniversário não quebra linha e o nome tem espaço ao lado do selo */
+.cli .nasc{white-space:nowrap;justify-content:space-between}
+.cli .nasc .muted{font-size:13px}
+@media (min-width:1181px){.cli{grid-template-columns:minmax(0,1.9fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr) auto}}
+.cli-nome b{flex:0 1 auto}
+.hoje-graf svg,.hoje-graf svg *{stroke:none}

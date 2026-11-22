@@ -88,9 +88,9 @@
         <div class="field r6-texto"><label for="r7t_texto_rodape_parar">Frase do rodapé</label><input id="r7t_texto_rodape_parar" class="inp" maxlength="140" data-r7cfg="texto_rodape_parar" value="${esc(v('texto_rodape_parar') ?? '')}" ${gestor ? '' : 'disabled'}><small class="r6-erro-texto" id="r7e_texto_rodape_parar" hidden></small></div>
       </div>` : `<div class="panel-head"><h2>Avisos de outros apps</h2></div>
       <div class="panel-body">${EVENTOS.map((e) => `<div class="r6-cfg-item"><div class="r6-cfg-txt"><b>${e.emoji} ${esc(e.rotulo)}</b><p>${esc(e.desc)}</p>${num({ ...e.param, titulo: e.rotulo })}</div>${sw(e.campo)}</div>
-          <div class="field r6-texto"><label for="r7t_${e.texto}">Texto: ${esc(e.rotulo)}</label><textarea id="r7t_${e.texto}" maxlength="1000" data-r7cfg="${e.texto}" ${gestor ? '' : 'disabled'}>${esc(v(e.texto) ?? '')}</textarea>
+          <details class="regua-editar r7-editar"><summary>Editar mensagem</summary><div class="field r6-texto"><label for="r7t_${e.texto}">Texto: ${esc(e.rotulo)}</label><textarea id="r7t_${e.texto}" maxlength="1000" data-r7cfg="${e.texto}" ${gestor ? '' : 'disabled'}>${esc(v(e.texto) ?? '')}</textarea>
             <div class="var-chips">${e.vars.map((x) => `<button type="button" class="var-chip${x === e.obrig ? ' link' : ''}" data-r7var="${esc(x)}" data-r7alvo="r7t_${e.texto}" ${gestor ? '' : 'disabled'}>{${esc(x)}}</button>`).join('')}</div>
-            <small class="r6-erro-texto" id="r7e_${e.texto}" hidden></small></div>`).join('')}
+            <small class="r6-erro-texto" id="r7e_${e.texto}" hidden></small></div></details>`).join('')}
       </div>`;
     if (modo === 'ajustes') grid.insertAdjacentElement('beforebegin', caixa); else ($('#painelR6Reguas') || grid).insertAdjacentElement('afterend', caixa);
     const validar = (campo) => {

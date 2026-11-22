@@ -42,6 +42,7 @@ import { MODELO_CONVITE_AREA, usaLinkArea, linkArea, linkOs, PATIO_URL } from '.
 import { montarSaude, classificarErro } from '../whatsapp.js';
 import { peneirarSegmento, montarRelatorioPorRegua, montarLigacoes } from '../dados.js';
 import { LINKS } from '../acesso.js';
+import { PADRAO_R7 } from '../r7.js';
 
 /* IA de MENTIRA: o mock usa as funções REAIS do ia.js (validação, correção de
    vocabulário, prévia) com um cliente falso — nada vai para a Anthropic. */
@@ -155,6 +156,8 @@ const CFG = {
   // rodada 5: cadência segura e o estado do WhatsApp que o carteiro gravou
   limite_por_minuto:10, limite_por_dia:300, intervalo_mesmo_cliente_min:60, so_horario_comercial:false,
   whatsapp: { estado:'chave_recusada', em: diasAtras(8), motivo:'A chave do CodeWords foi recusada (401).' },
+  // rodada 13: os números da rodada 7 com o mesmo padrão do servidor de verdade (dados.obterConfig)
+  ...PADRAO_R7,
 };
 
 // ---- regras de retorno e modelos (iguais ao SQL da migração) ---------------
