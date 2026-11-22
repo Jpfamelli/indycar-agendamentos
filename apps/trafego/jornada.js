@@ -485,6 +485,8 @@ function montarEstado(itens, { respostas, janelas, ciclo }) {
 async function lerPeriodo({ de, ate, sb, agora, esperaRetryMs }) {
   const inicio = db.inicioBR(de), fimDoPeriodo = Date.parse(db.inicioBR(db.diaSeguinte(ate)));
   const fim = Math.min(fimDoPeriodo, agora);
+  // R13C: as respostas confirmadas não dependem dos contatos: saem junto com a leitura deles (uma ida a menos na fila)
+  const lendoSaidas = Dados.saidasConfirmadas({ inicio, fim: new Date(Math.max(fim, Date.parse(inicio))).toISOString(), sb });
   const leads = await Leads.lerLeads(de, ate, { sb });
   const ids = leads.map(l => l.id);
   const [ciclo, pms, clientes, nomes, saidas] = await Promise.all([
@@ -492,7 +494,7 @@ async function lerPeriodo({ de, ate, sb, agora, esperaRetryMs }) {
     Dados.primeirasMensagens(ids, { sb }),
     Dados.clientes(leads.map(l => l.cliente_id), { sb }),
     Dados.nomes(leads.map(l => l.responsavel_id), { sb }),
-    Dados.saidasConfirmadas({ inicio, fim: new Date(Math.max(fim, Date.parse(inicio))).toISOString(), sb }),
+    lendoSaidas,
   ]);
   const respostas = pms.ok && saidas.ok;
   const janelas = respostas ? janelasSemRegistro({ inicio: Date.parse(inicio), fim, agora, antes: saidas.antes, primeira: saidas.primeira, ultima: saidas.ultima }) : [];

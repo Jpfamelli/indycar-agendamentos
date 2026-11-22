@@ -78,6 +78,21 @@ async function lerOS({ leadIds = [], orcIds = [], agIds = [] }, { sb = db.sb } =
   return [...mapa.values()];
 }
 
+/** OS de uma coluna só (lead_id, orcamento_id ou agendamento_id), em lotes ao mesmo tempo. */
+function lerOSPor(coluna, ids, { sb = db.sb } = {}) {
+  return emLotes(ids, async lote => {
+    const { data, error } = await sb.from('patio_os').select(COLS_OS).in(coluna, lote);
+    if (error) throw new Error('patio_os: ' + error.message);
+    return data || [];
+  });
+}
+/** Junta as OS achadas por caminhos diferentes, na ordem dos caminhos; a mesma OS fica com a última leitura (como lerOS). */
+function unirOS(...listas) {
+  const mapa = new Map();
+  for (const l of listas) for (const o of l || []) mapa.set(o.id, o);
+  return [...mapa.values()];
+}
+
 /** Extras do pátio (só valor e estado) das OS. */
 async function lerExtras(osIds, { sb = db.sb } = {}) {
   return emLotes(osIds, async lote => {
@@ -123,15 +138,36 @@ async function lerTudo(leadIds, { sb = db.sb } = {}) {
   try {
     const ids = [...new Set((leadIds || []).filter(Boolean))];
     if (!ids.length) return { porLead: new Map(), orcamentos: [], os: [], extras: [], agendamentos: [], ok: true, erro: null };
-    const [porLeadId, ags] = await Promise.all([lerOrcamentos(ids, { sb }), lerAgendamentosLeve(ids, { sb })]);
+    /* R13C (Tráfego lento): as leituras que não dependem umas das outras saem juntas. Antes eram 4 idas em fila
+       (orçamentos+agendamentos → orçamentos do agendamento → OS → extras); agora 3 (4 só quando um orçamento ligado
+       apenas ao agendamento tem OS). O resultado é o mesmo: as mesmas OS (lead, orçamento, agendamento) e os mesmos extras. */
+    const patio = { erro: null };
+    const doPatio = p => p.catch(e => { if (!patio.erro) patio.erro = e; return []; });
+    const osPor = (coluna, lista) => doPatio(lerOSPor(coluna, lista, { sb }));
+    const extrasDe = lista => doPatio(lerExtras(lista.map(o => o.id), { sb }));
+    const [porLeadId, ags, osLead] = await Promise.all([lerOrcamentos(ids, { sb }), lerAgendamentosLeve(ids, { sb }), osPor('lead_id', ids)]);
+    const agIds = ags.map(a => a.id);
     // Rodada 7: o Orçador grava lead_id, mas o orçamento feito a partir da Agenda só tem agendamento_id: os dois caminhos contam, sem duplicar.
-    const porAg = await lerOrcamentosPorAgendamento(ags.map(a => a.id), { sb }).catch(() => []);
+    const [porAg, osAg, osOrcLead, extrasLead] = await Promise.all([
+      lerOrcamentosPorAgendamento(agIds, { sb }).catch(() => []),
+      osPor('agendamento_id', agIds),
+      osPor('orcamento_id', porLeadId.map(o => o.id)),
+      extrasDe(osLead),
+    ]);
     const orcamentos = unirOrcamentos(porLeadId, porAg);
+    const doLead = new Set(porLeadId.map(o => o.id));
+    const lidas = new Set(osLead.map(o => o.id));
+    const novas = unirOS(osOrcLead, osAg).filter(o => !lidas.has(o.id));
+    novas.forEach(o => lidas.add(o.id));
+    const [osOrcAg, extrasNovas] = await Promise.all([osPor('orcamento_id', porAg.filter(o => !doLead.has(o.id)).map(o => o.id)), extrasDe(novas)]);
     // Rodada 7: se só o Pátio falhar, os orçamentos continuam valendo (ok: true) e a tela avisa que os carros ficaram de fora.
     let os = [], extras = [], parcial = null;
     try {
-      os = await lerOS({ leadIds: ids, orcIds: orcamentos.map(o => o.id), agIds: ags.map(a => a.id) }, { sb });
-      extras = await lerExtras(os.map(o => o.id), { sb });
+      const ultimas = osOrcAg.filter(o => !lidas.has(o.id));
+      const extrasUltimas = await extrasDe(ultimas);
+      if (patio.erro) throw patio.erro;
+      os = unirOS(osLead, osOrcLead, osOrcAg, osAg);
+      extras = [...extrasLead, ...extrasNovas, ...extrasUltimas];
     } catch (e) { os = []; extras = []; parcial = { fonte: 'patio', erro: String(e.message || e) }; }
     return { porLead: ligar({ leadIds: ids, orcamentos, os, extras, agendamentos: ags }), orcamentos, os, extras, agendamentos: ags, ok: true, erro: null, parcial: parcial ? parcial.fonte : null, erro_parcial: parcial ? parcial.erro : null };
   } catch (e) {
