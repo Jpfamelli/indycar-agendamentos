@@ -1,1 +1,0 @@
-import{n as e,t}from"./pdf-DeKe21z4.js";import"./Cotacao-Cfe_cCf4.js";export{t as entregarPdf,e as gerarPdf};
