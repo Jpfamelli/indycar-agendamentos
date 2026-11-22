@@ -48,6 +48,9 @@ function hashesDosScripts(html) {
 }
 
 /** CSP da interface. `supabaseUrl` entra em connect/img/media (anexos assinados e tempo real). */
+/* R13C: o CDN entra só no caminho exato do supabase-js de reserva (o mesmo do index.html), como a Casa. Antes valia o
+   cdn.jsdelivr.net inteiro: um <script src="https://cdn.jsdelivr.net/gh/<qualquer repositório>/x.js"> injetado passava. */
+const LIB_RESERVA = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.0/';
 function politicaCSP({ supabaseUrl = '', hashes = [] } = {}) {
   let sb = '', sbWs = '';
   try {
@@ -57,7 +60,7 @@ function politicaCSP({ supabaseUrl = '', hashes = [] } = {}) {
   } catch { /* sem Supabase configurado: só 'self' */ }
   const dir = {
     'default-src': ["'self'"],
-    'script-src': ["'self'", 'https://cdn.jsdelivr.net', ...hashes],
+    'script-src': ["'self'", LIB_RESERVA, ...hashes],
     // rodada 11: as fontes vêm do /casa/indycar.css da Central (nada do Google)
     'style-src': ["'self'", "'unsafe-inline'"],
     'font-src': ["'self'", 'data:'],
@@ -281,7 +284,7 @@ function avisoDeLeitura(rotulo, error, { log = console.error } = {}) {
 }
 
 module.exports = {
-  ORIGENS_ECOSSISTEMA, METODOS_CORS, cabecalhosCors, hashesDosScripts, politicaCSP, cabecalhosBase, aplicarCabecalhos,
+  ORIGENS_ECOSSISTEMA, METODOS_CORS, cabecalhosCors, hashesDosScripts, politicaCSP, LIB_RESERVA, cabecalhosBase, aplicarCabecalhos,
   ipDoCliente, criarLimitador, ErroHttp, lerCorpoJson,
   ehUuid, ehEmail, texto, inteiro, dataISO, instante, listaDe, telefone,
   CHAVES_SENSIVEIS, semSegredos, erroSeguro, fraseDoBanco, avisoDeLeitura,

@@ -17,7 +17,9 @@ test('CSP: hash de cada <script> embutido, frame-ancestors none, Supabase no con
   assert.match(csp, /object-src 'none'/);
   assert.match(csp, /connect-src 'self' https:\/\/abc\.supabase\.co wss:\/\/abc\.supabase\.co/);
   assert.match(csp, /img-src [^;]*https:\/\/abc\.supabase\.co/);
-  assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net 'sha256-/);
+  // R13C: o CDN só no caminho exato do supabase-js de reserva (não o jsdelivr inteiro)
+  assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@2\.112\.0\/ 'sha256-/);
+  assert.doesNotMatch(csp, /https:\/\/cdn\.jsdelivr\.net[ ;]/);
   assert.doesNotMatch(csp, /script-src[^;]*unsafe-inline/);
   assert.doesNotMatch(S.politicaCSP({ supabaseUrl: 'lixo' }), /undefined/);
 });
