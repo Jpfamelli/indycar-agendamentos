@@ -109,3 +109,46 @@ test('Orçador da aba volta para a conversa: só recado da própria moldura, do 
   // o "+ Nova" mora dentro da busca (não fica por cima do resumo no celular)
   assert.match(app, /\(\$\('\.lista-topo \.busca'\) \|\| \$\('\.lista-topo'\)\)\.appendChild\(btnNova\);/);
 });
+
+/* ---------------- Rodada B: tudo conversando ---------------- */
+test('B: ?aba=orcador leva o resto do endereço (cliente ou orçamento) para o Orçador e não abre conversa', () => {
+  assert.match(app, /if \(p\.get\('aba'\) === 'orcador'\) return;/, 'abrirPeloEndereco não usa o ?tel= do orçamento');
+  const i = app.indexOf("if (aba === 'orcador') {");
+  assert.ok(i > 0);
+  const t = app.slice(i, i + 900);
+  assert.match(t, /for \(const k of \['tel', 'nome', 'conversa', 'cliente', 'carro', 'placa'\]\)/, 'só o que o Orçador entende vai junto (papel/saude não)');
+  assert.match(t, /const destino = \(resto\.toString\(\) \? '\?' \+ resto : ''\) \+ location\.hash;/);
+  assert.match(t, /history\.replaceState\(null, '', location\.pathname\)/, 'o telefone sai da barra');
+  assert.match(t, /AbaOrcador\.abrir\(destino\)/);
+});
+
+test('B: "Fazer orçamento" leva cliente, carro e placa da ficha', () => {
+  const i = app.indexOf('function daConversa(conv)');
+  const t = app.slice(i, i + 1400);
+  for (const k of ["p.set('cliente'", "p.set('carro'", "p.set('placa'", "p.set('conversa'", "p.set('tel'", "p.set('nome'"]) assert.ok(t.includes(k), k);
+  assert.match(t, /placaValida\(placa\)/);
+});
+
+test('B: links gravados com o endereço de produção da Central ficam no endereço em que a Central está (mesmo login)', () => {
+  const carregar = (origin, basePath) => {
+    const doc = { querySelector: () => ({ getAttribute: () => basePath }) };
+    const loc = new URL(origin + basePath);
+    const raiz = {};
+    new Function('window', 'document', 'location', 'module', fs.readFileSync(path.join(__dirname, '..', 'public', 'apps.js'), 'utf8'))(raiz, doc, loc, undefined);
+    return raiz.IndyCarApps;
+  };
+  const mock = carregar('http://localhost:3296', '/atendimento/');
+  assert.equal(mock.naCentralAtual('https://indycar-agendamentos.onrender.com/crm/?lead=1'), 'http://localhost:3296/crm/?lead=1');
+  assert.equal(mock.naCentralAtual('https://indycar-patio.netlify.app/?os=1'), 'https://indycar-patio.netlify.app/?os=1', 'o Pátio mora fora da Central');
+  const prod = carregar('https://indycar-agendamentos.onrender.com', '/atendimento/');
+  assert.equal(prod.naCentralAtual('https://indycar-agendamentos.onrender.com/crm/?lead=1'), 'https://indycar-agendamentos.onrender.com/crm/?lead=1');
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'public', 'apps.js'), 'utf8'), /if \(endereco\) endereco = naCentralAtual\(endereco\);/);
+});
+
+test('B: rede caindo, o resumo de hoje guarda os números da última leitura boa e diz de quando são', () => {
+  assert.match(tela, /H\.falhou = respostas\.some/);
+  assert.match(tela, /Sem resposta do banco agora/);
+  assert.match(tela, /if \(!H\.okEm && !H\.falhou\) return/, 'antes da primeira leitura: "Contando o dia…", não zeros');
+  assert.match(tela, /data-hoje="recontar"/);
+  assert.match(html, /title="Só as conversas que chegaram hoje"/, 'Novos hoje fala de conversa, não de lead');
+});

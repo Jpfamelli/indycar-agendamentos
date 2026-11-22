@@ -1085,15 +1085,15 @@ http.createServer(async (req, res) => {
       const pat = ehCamila ? patioCamila() : null;
       const orcs = ehCamila ? [{ id: 'orc-1', numero: 87, status: 'enviado', rotulo: 'Visualizado, sem resposta', tom: 'atencao', cod: 'visualizado', acao: 'Abriu o orçamento há 1 dia e não respondeu: dê um retorno.', total: 1180, pedido: 'Revisão + pastilhas',
         enviado_em: iso(3000), created_at: iso(3100), validade: new Date(Date.now() + 5 * 86400000).toISOString(), abrir: 'https://indycar-orcador.netlify.app/#/historico/orc-1', link_cliente: 'https://indycar-orcador.netlify.app/#/o/tok123' }] : [];
-      const lead = ehCamila ? { id: 'l2', status: 'orcamento', rotulo: 'Orçamento', servico: 'Alinhamento 3D', valor_orcado: 180, responsavel_nome: 'Leonardo', origem: 'whatsapp', abrir: 'https://x/?lead=l2' } : null;
+      const lead = ehCamila ? { id: 'l2', status: 'orcamento', rotulo: 'Orçamento', servico: 'Alinhamento 3D', valor_orcado: 180, responsavel_nome: 'Leonardo', origem: 'whatsapp', abrir: 'https://indycar-agendamentos.onrender.com/crm/?lead=b0000000-0000-4000-8000-000000000002' } : null;
       return json(res, 200, { ok: true, aviso: null, cliente: { id: cli.id, nome: cli.nome, telefone: cli.telefone, carro: cli.carro_modelo, placa: cli.placa },
         situacao: ehCamila ? ['Carro: ' + pat.etapa_rotulo, 'Orçamento nº 87: visualizado, sem resposta'] : [],
         proximos: ehCamila ? [{ icone: '📄', texto: 'Abriu o orçamento e não respondeu: dê um retorno.' }, { icone: '🔗', texto: 'O cliente ainda não abriu o link de acompanhar: mande o link.' }] : [],
         patio: pat, orcamentos: orcs, orcamento_principal: orcs[0]?.id || null,
-        agendamentos: { proximo: ehCamila ? { id: 'a2', data: new Date(Date.now() + 86400000).toISOString().slice(0, 10), hora: '09:00', status: 'agendado', servico: 'Revisão', consultor: 'Leonardo', abrir: 'https://x/?agendamento=a2' } : null, futuros: [], recentes: [] },
+        agendamentos: { proximo: ehCamila ? { id: 'a2', data: new Date(Date.now() + 86400000).toISOString().slice(0, 10), hora: '09:00', status: 'agendado', servico: 'Revisão', consultor: 'Leonardo', abrir: 'https://indycar-agendamentos.onrender.com/agenda/?agendamento=a0000000-0000-4000-8000-000000000002' } : null, futuros: [], recentes: [] },
         eventos_orcamento: ehCamila ? [{ quando: iso(2000), tipo: 'orcamento', evento: 'conexao', titulo: 'Orçamento nº 87 conectado a esta conversa' }, { quando: iso(2990), tipo: 'orcamento', evento: 'enviado', titulo: 'Orçamento nº 87 enviado ao cliente' }] : [],
         lead, leads: lead ? [lead] : [], timeline: ehCamila ? [{ quando: iso(2000), titulo: 'Abriu o orçamento nº 87' }, { quando: iso(3000), titulo: 'Orçamento enviado' }] : [],
-        links: { novo_orcamento: 'https://indycar-orcador.netlify.app/?cliente=' + cli.id + '&tel=' + String(cli.telefone_e164 || '').replace(/\D/g, '') + '&nome=' + encodeURIComponent(cli.nome), crm_lead: lead ? lead.abrir : null, crm_cliente: 'https://x/crm' } });
+        links: { novo_orcamento: 'https://indycar-orcador.netlify.app/?cliente=' + cli.id + '&tel=' + String(cli.telefone_e164 || '').replace(/\D/g, '') + '&nome=' + encodeURIComponent(cli.nome), crm_lead: lead ? lead.abrir : null, crm_cliente: 'https://indycar-agendamentos.onrender.com/crm/?cliente=' + cli.id /* rodada 13B: como o banco grava (endereço da Central) */ } });
     }
     m = /^\/api\/r6\/patio\/([^/]+)$/.exec(p);
     if (m) return json(res, 200, { ok: true, patio: m[1] === CLI.camila ? patioCamila() : null });

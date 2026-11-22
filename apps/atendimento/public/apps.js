@@ -87,7 +87,18 @@
     } catch (e) { /* endereço inválido */ }
     return null;
   }
+  /* Rodada 13: aberto pela Central em outro endereço (servidor de mentira, homologação), o link gravado com o endereço
+     de produção da Central fica neste mesmo endereço (mesmo login), em vez de escapar para a produção. */
+  const CENTRAL_PRODUCAO = 'https://indycar-agendamentos.onrender.com';
+  function naCentralAtual(endereco) {
+    try {
+      const u = new URL(String(endereco), location.href);
+      if (base !== '/' && u.origin === CENTRAL_PRODUCAO && location.origin !== CENTRAL_PRODUCAO) return location.origin + u.pathname + u.search + u.hash;
+    } catch (e) { /* endereço inválido: segue como veio */ }
+    return endereco;
+  }
   function abrir(app, endereco) {
+    if (endereco) endereco = naCentralAtual(endereco);
     // rodada 11: dentro da Central o Orçador abre na aba Orçador do Atendimento (mesma sessão), não em outra janela
     if (app === 'orcador' && raiz.AbaOrcador && raiz.AbaOrcador.abrir(endereco || '')) return raiz;
     const alvo = endereco ? enderecoSeguro(endereco) : (apps[app] && apps[app].url);
@@ -108,6 +119,6 @@
     } catch (e) { /* endereço inválido */ }
     return null;
   }
-  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, enderecoSeguro, appDoEndereco, atual: 'atendimento' };
+  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, enderecoSeguro, appDoEndereco, naCentralAtual, atual: 'atendimento' };
   if (typeof module !== 'undefined') module.exports = raiz.IndyCarApps;
 })(typeof window !== 'undefined' ? window : globalThis);
