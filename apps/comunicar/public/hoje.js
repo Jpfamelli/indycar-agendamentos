@@ -94,7 +94,7 @@
       const alt = d.total ? Math.max(4, Math.round((d.total / max) * (A - 22))) : 2;
       const x = i * (w + gap), y = A - 18 - alt;
       const dt = new Date(d.data + 'T12:00:00');
-      const rot = i === 0 || (i >= 3 && dt.getDay() === 1) ? `<text x="${x + w / 2}" y="${A - 4}" text-anchor="middle">${i === 0 ? 'hoje' : String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0')}</text>` : '';
+      const rot = i === 0 || (i >= 3 && dt.getDay() === 1) ? `<text x="${i === 0 ? x : x + w / 2}" y="${A - 4}" text-anchor="${i === 0 ? 'start' : 'middle'}">${i === 0 ? 'hoje' : String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0')}</text>` : '';
       return `<rect class="${d.hoje ? 'b-hoje' : d.total ? 'b-dia' : 'b-zero'}" x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${alt}" rx="2"><title>${escH(`${SEMANA[dt.getDay()]} ${d.data.slice(8, 10)}/${d.data.slice(5, 7)}: ${d.total}`)}</title></rect>${rot}`;
     }).join('');
     const pico = h.pico ? (() => { const dt = new Date(h.pico.data + 'T12:00:00'); return `Dia mais cheio: ${SEMANA[dt.getDay()]} ${h.pico.data.slice(8, 10)}/${h.pico.data.slice(5, 7)}, ${fmt(h.pico.total)} ${h.pico.total === 1 ? 'mensagem' : 'mensagens'}.`; })() : 'Nenhuma mensagem nos próximos 14 dias.';

@@ -1470,3 +1470,4 @@ button,input,select,textarea{font-family:inherit}
 .cli .nasc .muted{font-size:13px}
 @media (min-width:1181px){.cli{grid-template-columns:minmax(0,1.9fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr) auto}}
 .cli-nome b{flex:0 1 auto}
+.hoje-graf svg,.hoje-graf svg *{stroke:none}
