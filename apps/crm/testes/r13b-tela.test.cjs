@@ -64,7 +64,7 @@ test('servidor de mentira monta os links com o prefixo da Central (como o servid
 
 test('endereço com filtro: ?ver=sem-responsavel (e ?filtro=) abre Contatos filtrado; o parâmetro sai da barra', () => {
   const js = pub('r13.js');
-  assert.match(js, /'sem-responsavel': \{resp: 'sem'\}/);
+  assert.match(js, /'sem-responsavel': \{resp: 'sem', status: 'abertos'\}/);   // R13C: mesma regra da Casa (em aberto)
   assert.match(js, /'sem-valor': \{semValor: true\}/);
   assert.match(js, /p\.get\('ver'\) \|\| p\.get\('filtro'\)/);
   assert.match(js, /history\.replaceState/);

@@ -382,6 +382,14 @@
     if (filtro === 'sem') return !r;
     return r === String(filtro);
   }
+  /* Etapa do filtro da lista: '' todas · 'abertos' (tudo menos concluído e perdido) · uma etapa. */
+  function filtroEtapa(l, st) {
+    if (!st) return true;
+    if (st === 'abertos') return ABERTAS.includes(l && l.status);
+    return !!l && l.status === st;
+  }
+  /* R13C — regra ÚNICA de "contato sem responsável" (a Casa conta igual: etapa em aberto e ninguém cuidando). */
+  function semResponsavelAberto(l) { return !!l && !l.responsavel_id && ABERTAS.includes(l.status); }
   function funilPorResponsavel(leads, equipe = []) {
     const nomes = new Map(equipe.map(p => [String(p.id), p]));
     const linhas = new Map();
@@ -556,7 +564,7 @@
     const d = Math.floor(s / 86400); return d === 1 ? 'ontem' : d + ' dias';
   }
   const api = {normalizar,digitos,buscar,validarLead,origemDetalhada,origemCaptada,camposPerda,MOTIVOS_R8,MOTIVOS_PERDA,motivoPadrao,nascimento,moeda,csv,ETAPAS,ABERTAS,LIMITE_PARADO,valorLead,diasNaEtapa,parado,textoDias,resumoColuna,periodo,metricas,funilPassagem,comparar,motivoPerda,comMotivoPerda,telE164,linkWhatsApp,linkLigar,linkConversa,linkComunicar,linkAgenda,formatarTelefone,paginar,linhaDoTempo,casaOrigem,situacaoTarefa,ordenarTarefas,novaTarefa,COLUNAS_LEADS,COLUNAS_PADRAO,colunasValidas,ATALHOS_ABA,
-    ehUuid,PAPEIS,ROTULO_PAPEL,ehGestor,URL_APPS,NOME_APPS,acessoApp,appsPermitidos,acaoErroAcesso,mensagemLogin,esperaLogin,validarNovaSenha,codigoMfaValido,linkNotificacao,CORES_AVATAR,corAvatar,filtroResponsavel,funilPorResponsavel,vencimentoDe,situacaoTarefaDb,ordenarTarefasDb,agruparTarefas,validarTarefa,lembreteParaTarefa,ROTULO_PRIORIDADE,mesAtual,intervaloMes,progressoMeta,CAMPOS_META,validarMetas,normalizarMetas,normalizarDesempenho,normalizarEquipe,podeReatribuir,podeEditarLead,avisoLeadDeOutro,ordenarDesempenho,deveGravarAcesso,mesclarPreferencias,tempoRelativo};
+    ehUuid,PAPEIS,ROTULO_PAPEL,ehGestor,URL_APPS,NOME_APPS,acessoApp,appsPermitidos,acaoErroAcesso,mensagemLogin,esperaLogin,validarNovaSenha,codigoMfaValido,linkNotificacao,CORES_AVATAR,corAvatar,filtroResponsavel,filtroEtapa,semResponsavelAberto,funilPorResponsavel,vencimentoDe,situacaoTarefaDb,ordenarTarefasDb,agruparTarefas,validarTarefa,lembreteParaTarefa,ROTULO_PRIORIDADE,mesAtual,intervaloMes,progressoMeta,CAMPOS_META,validarMetas,normalizarMetas,normalizarDesempenho,normalizarEquipe,podeReatribuir,podeEditarLead,avisoLeadDeOutro,ordenarDesempenho,deveGravarAcesso,mesclarPreferencias,tempoRelativo};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CrmUtils = api;
 })(typeof window !== 'undefined' ? window : globalThis);

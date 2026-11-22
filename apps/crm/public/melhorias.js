@@ -119,7 +119,7 @@ function refiltrar() {
   const st = $('#fStatus').value, og = $('#fOrigem').value, q = $('#search').value.trim(), so = $('#soParados').checked, agora = Date.now();
   const rp = $('#fResp').value, eu = PERFIL?.id;
   const sv = $('#soSemValor')?.checked;
-  LEADS = TODOS.filter(l => (!st || l.status === st) && U.casaOrigem(l, og, INDICADOS) && U.filtroResponsavel(l, rp, eu) && U.buscar(l, q) && (!so || U.parado(l, agora)) && (!sv || CrmR4.semValor(l)));
+  LEADS = TODOS.filter(l => U.filtroEtapa(l, st) && U.casaOrigem(l, og, INDICADOS) && U.filtroResponsavel(l, rp, eu) && U.buscar(l, q) && (!so || U.parado(l, agora)) && (!sv || CrmR4.semValor(l)));
   ordenarLeads();
   for (const id of [...SEL]) if (!TODOS.some(l => String(l.id) === id)) SEL.delete(id);
 }

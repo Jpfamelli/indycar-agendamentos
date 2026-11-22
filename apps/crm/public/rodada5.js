@@ -179,7 +179,7 @@ function renderSemDono() {
       <td class="cell-sub">${Object.entries(x.porEtapa).map(([k, n]) => `${esc(LABEL_STATUS[k] || k)} ${n}`).join(' · ') || '—'}</td><td class="num">${esc(x.depois)}</td></tr>`).join('')}</tbody></table></div>
     ${s.total < r.total ? `<p class="muted mini-nota">Sugestão para os primeiros ${s.total} de ${r.total}; aplique e recalcule para o resto.</p>` : ''}`;
   el.insertAdjacentHTML('beforeend', `<details class="ds-detalhe"><summary>Ver contato por contato (${s.plano.length})</summary><div class="table-wrap"><table class="table"><thead><tr><th>Contato</th><th>Etapa</th><th>Há</th><th>Vai para</th></tr></thead><tbody>${s.plano.slice(0, 200).map(x => `<tr class="sem-clique"><td>${esc(x.nome)}</td><td>${esc(LABEL_STATUS[x.status] ?? x.status)}</td><td class="cell-sub">${esc(x.dias)} dias</td><td>${chipResponsavel(x.para)}</td></tr>`).join('')}${s.plano.length > 200 ? `<tr class="sem-clique"><td colspan="4" class="muted">…e mais ${s.plano.length - 200}.</td></tr>` : ''}</tbody></table></div></details><p><button type="button" class="link-btn" id="sdVerLista">Ver os sem responsável na lista</button></p>`);
-  $('#sdVerLista').onclick = () => { $('#fResp').value = 'sem'; salvarResp(); $('#fStatus').value = ''; irPara('leads'); refiltrarTela(); };
+  $('#sdVerLista').onclick = () => { $('#fResp').value = 'sem'; salvarResp(); $('#fStatus').value = 'abertos'; irPara('leads'); refiltrarTela(); };
   btn.disabled = !s.total; btn.textContent = `Aplicar o rodízio sugerido (${s.total})`;
 }
 $('#sdRecarregar').addEventListener('click', carregarSemDono);

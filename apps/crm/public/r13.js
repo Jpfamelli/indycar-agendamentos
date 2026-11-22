@@ -221,13 +221,13 @@ document.addEventListener('indycar:aba', e => { if (e.detail.aba === 'hoje') ren
 renderHoje13();   // já mostra "Montando o resumo do dia…" enquanto os contatos chegam
 
 /* ---------- Rodada 13B: abrir já filtrado pelo endereço (a Central usa no número "contatos sem responsável") ----------
-   /crm/?ver=sem-responsavel  → Contatos, só os sem responsável
+   /crm/?ver=sem-responsavel  → Contatos em aberto e sem responsável (R13C: a mesma regra do número da Casa)
    /crm/?ver=meus             → Contatos, só os meus
    /crm/?ver=sem-valor        → Contatos, só os concluídos sem valor lançado
    /crm/?ver=funil | ?ver=painel | ?ver=hoje → a aba
    Aceita também ?filtro=… com os mesmos valores. O parâmetro sai da barra depois de usado. */
 const VER13 = {
-  'sem-responsavel': {resp: 'sem'}, 'meus': {resp: 'meus'}, 'sem-valor': {semValor: true},
+  'sem-responsavel': {resp: 'sem', status: 'abertos'},   // R13C: mesma regra do número da Casa (em aberto, sem responsável) 'meus': {resp: 'meus'}, 'sem-valor': {semValor: true},
   'funil': {aba: 'pipeline'}, 'painel': {aba: 'dashboard'}, 'hoje': {aba: 'hoje'}, 'contatos': {},
 };
 const _abrirPorLink13 = abrirPorLink;
@@ -239,7 +239,7 @@ abrirPorLink = async function () {
   history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : '') + location.hash);
   if (!v) { toast('Esse endereço pede uma lista que o CRM não conhece. Abri o resumo de hoje.'); return _abrirPorLink13(); }
   if (v.aba) { irPara(v.aba); return _abrirPorLink13(); }
-  $('#fStatus').value = ''; $('#fOrigem').value = ''; $('#search').value = ''; $('#soParados').checked = false; $('#soSemValor').checked = !!v.semValor;
+  $('#fStatus').value = v.status || ''; $('#fOrigem').value = ''; $('#search').value = ''; $('#soParados').checked = false; $('#soSemValor').checked = !!v.semValor;
   $('#fResp').value = v.resp || ''; salvarResp();
   irPara('leads'); refiltrarTela();
   return _abrirPorLink13();

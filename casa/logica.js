@@ -206,6 +206,8 @@
       agendaNovo: (o = {}) => b.agenda + q({ novo: 1, tel: telefoneE164(o.telefone), cliente: ehUuid(o.cliente) ? o.cliente : '' }),
       agendaCliente: (o = {}) => b.agenda + q({ tel: telefoneE164(o.telefone), cliente: ehUuid(o.cliente) ? o.cliente : '' }),
       crmLead: (id) => b.crm + (ehUuid(id) ? q({ lead: id }) : ''),
+      /* R13C: o número "contatos sem responsável" abre o CRM já na mesma lista que ele conta */
+      crmSemResponsavel: () => b.crm + q({ ver: 'sem-responsavel' }),
       crmTel: (o = {}) => b.crm + q({ tel: telefoneE164(o.telefone), cliente: ehUuid(o.cliente) ? o.cliente : '' }),
       conversa: (id) => b.atendimento + (ehUuid(id) ? q({ conversa: id }) : ''),
       conversaTel: (tel) => b.atendimento + q({ tel: telefoneE164(tel) }),
@@ -363,8 +365,8 @@
     if (v.agenda && n(a.agenda?.sem_confirmar) > 0) {
       out.push({ k: 'confirmar', grav: 1, n: n(a.agenda.sem_confirmar), texto: `${a.agenda.sem_confirmar} ${n(a.agenda.sem_confirmar) === 1 ? 'horário de hoje' : 'horários de hoje'} sem confirmação`, app: 'agenda', url: l.agenda() });
     }
-    if (v.leads && n(a.leads?.novos_sem_dono) > 0) {
-      out.push({ k: 'leads', grav: 1, n: n(a.leads.novos_sem_dono), texto: `${a.leads.novos_sem_dono} ${n(a.leads.novos_sem_dono) === 1 ? 'contato novo' : 'contatos novos'} sem responsável`, app: 'crm', url: l.crmLead() });
+    if (v.leads && n(a.leads?.sem_dono) > 0) {
+      out.push({ k: 'leads', grav: 1, n: n(a.leads.sem_dono), texto: `${a.leads.sem_dono} ${n(a.leads.sem_dono) === 1 ? 'contato' : 'contatos'} sem responsável`, app: 'crm', url: l.crmSemResponsavel() });
     }
     return out.sort((x, y) => y.grav - x.grav || y.n - x.n);
   }
@@ -385,7 +387,8 @@
     if (n(g.pronto_parado_4h)) out.push({ k: 'pronto', grav: 2, texto: `${g.pronto_parado_4h} ${n(g.pronto_parado_4h) === 1 ? 'carro pronto' : 'carros prontos'} há mais de 4 horas sem retirar`, extra: 'ligue para o cliente', app: 'patio', url: l.patioPainel() });
     if (n(g.conversas_2h)) out.push({ k: 'conversas', grav: 3, texto: `${g.conversas_2h} ${n(g.conversas_2h) === 1 ? 'conversa' : 'conversas'} sem resposta há mais de 2 horas`, extra: 'cliente esfria rápido', app: 'atendimento', url: l.conversa() });
     if (n(g.orcamentos_24h)) out.push({ k: 'orcamentos', grav: 2, texto: `${g.orcamentos_24h} ${n(g.orcamentos_24h) === 1 ? 'orçamento enviado' : 'orçamentos enviados'} há mais de 24 horas sem resposta`, extra: 'vale um lembrete', app: 'orcador', url: l.orcamentosLista() });
-    if (n(g.leads_sem_dono)) out.push({ k: 'leads', grav: 2, texto: `${g.leads_sem_dono} ${n(g.leads_sem_dono) === 1 ? 'contato novo' : 'contatos novos'} sem responsável`, app: 'crm', url: l.crmLead() });
+    /* R13C: o banco conta "novos dos últimos 7 dias"; a Casa só mostra o número com a regra do CRM (d.leads_sem_dono_crm) */
+    if (n(d.leads_sem_dono_crm)) out.push({ k: 'leads', grav: 2, texto: `${d.leads_sem_dono_crm} ${n(d.leads_sem_dono_crm) === 1 ? 'contato' : 'contatos'} sem responsável`, app: 'crm', url: l.crmSemResponsavel() });
     if (n(g.horarios_sem_desfecho)) out.push({ k: 'desfecho', grav: 1, texto: `${g.horarios_sem_desfecho} ${n(g.horarios_sem_desfecho) === 1 ? 'horário passado' : 'horários passados'} sem desfecho`, extra: 'o faturamento só conta quem foi marcado "fechou"', app: 'agenda', url: l.agenda() });
     return out.sort((x, y) => y.grav - x.grav);
   }
@@ -526,9 +529,23 @@
           return { id: i.id, hora: i.hora, nome: i.cliente, telefone: i.telefone_55 || null, veiculo: i.veiculo, servico: i.servico, status: i.status, confirmado: i.status === 'confirmado',
             patio_etapa: i.os_etapa || null, os_id: i.os_id || null, orc_id: q?.id || null, orc_numero: q?.numero, orc_status: q?.status };
         }) },
-      leads: { novos_sem_dono: num(ex.leads?.novos_sem_dono), novos_hoje: num(ex.leads?.novos_hoje) },
+      leads: { novos_sem_dono: num(ex.leads?.novos_sem_dono), novos_hoje: num(ex.leads?.novos_hoje),
+        sem_dono: ex.leads?.sem_dono == null ? null : num(ex.leads.sem_dono) },
       tarefas: a.tarefas || null,
     };
+  }
+  /**
+   * R13C — "contatos sem responsável", a MESMA regra do CRM (/crm/?ver=sem-responsavel e CrmUtils.semResponsavelAberto):
+   * etapa em aberto (novo, contato, orçamento, agendado, em serviço) e ninguém cuidando, de qualquer data.
+   * Antes a Casa contava só os "novos dos últimos 7 dias" (r6_c1_agora_extras) e mostrava 0 com 565 no CRM.
+   * Conta no banco (head + count, nenhuma linha baixada). Falhou: null (a Casa esconde o número em vez de mostrar outro).
+   */
+  const ETAPAS_ABERTAS_CRM = Object.freeze(['novo', 'contato', 'orcamento', 'agendado', 'em_servico']);
+  async function contarSemResponsavel(sb) {
+    try {
+      const r = await sb.from('leads').select('id', { count: 'exact', head: true }).is('responsavel_id', null).in('status', ETAPAS_ABERTAS_CRM);
+      return r && !r.error && Number.isFinite(r.count) ? r.count : null;
+    } catch { return null; }
   }
   function adaptarBusca(x3) {
     const g = (x3 && x3.grupos) || {};
@@ -555,6 +572,6 @@
     duracao, quando, hojeSP, diaDe, hora5, saudacao, ETAPAS, ETAPA, rotuloEtapa, tomDaEtapa, previsao, STATUS_ORC, rotuloOrc, numeroOrc,
     STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
     contagemPorApp, tituloDaAba, tempoDoAviso, atencao, gargalos, conversao, barras, diaCurto, classificarBusca, GRUPOS_BUSCA, linhasDaBusca, filtrarPorPermissao,
-    ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca, ORCADOR_NO_ATENDIMENTO, ORCADOR_NO_ATENDIMENTO_URL, ORCADOR_NA_CENTRAL_URL,
+    ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca, ETAPAS_ABERTAS_CRM, contarSemResponsavel, ORCADOR_NO_ATENDIMENTO, ORCADOR_NO_ATENDIMENTO_URL, ORCADOR_NA_CENTRAL_URL,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
