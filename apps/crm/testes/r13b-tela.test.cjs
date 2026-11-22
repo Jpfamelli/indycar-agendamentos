@@ -71,3 +71,10 @@ test('endereço com filtro: ?ver=sem-responsavel (e ?filtro=) abre Contatos filt
   const r = js.indexOf('abrirPorLink = async function'), ir = js.indexOf("irPara('leads'); refiltrarTela();", r);
   assert.ok(r > 0 && ir > r, 'vai para Contatos e refiltra');
 });
+
+test('IA da ficha: link com endereço antigo de app irmão vira o caminho da Central e abre na mesma janela', () => {
+  const ia = pub('crm-ia.js');
+  assert.match(ia, /function naCentral\(u\)/);
+  assert.match(ia, /const c = naCentral\(u\); return c \? `<a href="\$\{esc\(c\)\}">/);
+  assert.match(ia, /const c = naCentral\(url\); if \(c\) \{ if \(typeof sairPara6 === 'function'\) sairPara6\(c\)/);
+});

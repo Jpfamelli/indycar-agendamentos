@@ -79,6 +79,15 @@ try {
     await ctx.page.close(); ctx = await abrir();
   } else conferir('ficha: "Criar orçamento" existe', false);
 
+  // 2c) IA da ficha: "Conversa ↗" (link montado com o endereço antigo) vira /atendimento/ na mesma janela
+  await ctx.page.evaluate(id => abrirModal(id), lead.id); await espera(2500);
+  const temIa = await ctx.page.evaluate(() => { const a = [...document.querySelectorAll('.cia-links a')].find(x => /Conversa/.test(x.textContent)); if (!a) return null; a.id = 'alvoIa'; return a.getAttribute('href'); });
+  if (temIa) {
+    const r = await clicarEEsperar(ctx.page, '#alvoIa');
+    conferir('IA da ficha → Conversa: /atendimento/ na mesma janela', r.destino.startsWith('/atendimento/') && /tel=/.test(r.destino) && !r.novaAba, JSON.stringify({ href: temIa, ...r }));
+    await ctx.page.close(); ctx = await abrir();
+  } else conferir('IA da ficha: link "Conversa" existe', false);
+
   // 3) ficha com alteração não salva: sair pede confirmação e, se a pessoa desiste, fica no CRM
   await ctx.page.evaluate(id => abrirModal(id), lead.id); await espera(800);
   await ctx.page.evaluate(() => { document.querySelector('#abaDados').click(); const o = document.querySelector('#fObs'); o.value += ' anotação não salva'; o.dispatchEvent(new Event('input', { bubbles: true })); });

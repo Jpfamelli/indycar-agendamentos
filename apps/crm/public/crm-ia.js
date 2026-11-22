@@ -62,9 +62,20 @@
   async function copiar(texto) {
     try { await navigator.clipboard.writeText(texto); return true; } catch { return false; }
   }
+  /* Rodada 13B: endereço antigo de um app irmão (Render/Netlify) -> o mesmo caminho dentro da Central. null se não for. */
+  function naCentral(u) {
+    const A = window.IndyCarApps; if (!u || !A || !A.CENTRAL) return null;
+    for (const app of Object.keys(A.IRMAOS || {})) {
+      const host = A.HOSTS && A.HOSTS[app]; if (!host || app === 'crm') continue;
+      const h = host.replace(/\/$/, '');
+      if (u === h || u.startsWith(h + '/')) return A.urlApp(app, u.slice(h.length) || '/');
+    }
+    return null;
+  }
   function abrirLink(url) {
     if (!url) return;
     if (/^tel:/.test(url)) { location.href = url; return; }
+    const c = naCentral(url); if (c) { if (typeof sairPara6 === 'function') sairPara6(c); else location.assign(c); return; }
     if (/^https:\/\//.test(url)) window.open(url, '_blank', 'noopener,noreferrer');
   }
   const quando = iso => {
@@ -183,7 +194,8 @@
     if (s.insatisfeito) out.push(['😟 já reclamou', true]);
     if (s.aceitaMensagens === false) out.push(['🔕 não aceita mensagens', true]);
     const links = ctx.links || {};
-    const lk = (u, t) => u && /^https:\/\//.test(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${t}</a>` : '';
+    // rodada 13B: na Central, o link do servidor (host antigo) vira o irmão (/atendimento/…) e abre na mesma janela
+    const lk = (u, t) => { const c = naCentral(u); return c ? `<a href="${esc(c)}">${t}</a>` : u && /^https:\/\//.test(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${t}</a>` : ''; };
     return out.map(([x, al]) => `<span${al ? ' class="cia-alerta"' : ''}>${esc(x)}</span>`).join('') +
       `<span class="cia-links">${lk(links.atendimento, 'Conversa ↗')}${lk(links.agenda, 'Agenda ↗')}${lk(links.comunicar, 'Comunicar ↗')}</span>`;
   }
