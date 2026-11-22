@@ -10,7 +10,7 @@
    ============================================================ */
 (function () {
   'use strict';
-  const H = { c: { novos: 0, esperando: 0, naoLidas: 0 }, chegadas: [], contouEm: 0, html: { painel: '', mini: '' } };
+  const H = { c: { novos: 0, esperando: 0, naoLidas: 0 }, chegadas: [], contouEm: 0, okEm: 0, falhou: false, html: { painel: '', mini: '' } };
   const E = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const banco = () => (typeof sb !== 'undefined' ? sb : null);
   const quem = () => (typeof perfil !== 'undefined' ? perfil : null);
@@ -33,11 +33,16 @@
       s.from('conversas').select('id', head).eq('aguardando_consultor', true),
       s.from('conversas').select('id', head).eq('tipo', 'atendimento').is('desfecho', null).gt('nao_lidas', 0),
       s.from('conversas').select('created_at').eq('tipo', 'atendimento').gte('created_at', inicio).limit(500),
-    ].map((q) => Promise.resolve(q).catch(() => ({}))));
-    H.c.novos = novos?.count ?? H.c.novos;
-    H.c.esperando = esperando?.count ?? H.c.esperando;
-    H.c.naoLidas = naoLidas?.count ?? H.c.naoLidas;
-    if (Array.isArray(chegadas?.data)) H.chegadas = chegadas.data.map((x) => x.created_at);
+    ].map((q) => Promise.resolve(q).catch((e) => ({ error: e || true }))));
+    /* rodada 13B: com a rede caindo, os números ficam os da última leitura boa e a tela diz de quando são;
+       nunca vira "tudo em dia" só porque o banco não respondeu */
+    const respostas = [novos, esperando, naoLidas, chegadas];
+    H.falhou = respostas.some((r) => !r || r.error || (r.count === undefined && !Array.isArray(r.data)));
+    if (!novos?.error && typeof novos?.count === 'number') H.c.novos = novos.count;
+    if (!esperando?.error && typeof esperando?.count === 'number') H.c.esperando = esperando.count;
+    if (!naoLidas?.error && typeof naoLidas?.count === 'number') H.c.naoLidas = naoLidas.count;
+    if (!chegadas?.error && Array.isArray(chegadas?.data)) H.chegadas = chegadas.data.map((x) => x.created_at);
+    if (!H.falhou) H.okEm = Date.now();
     pintar();
   }
 
@@ -84,12 +89,21 @@
         <span class="hoje-selo tom-${E(x.selo.tom)}">${E(x.selo.rotulo)}</span></button></li>`).join('')}</ul>`;
   }
 
+  function avisoConexao() {
+    if (!H.falhou) return '';
+    const hora = H.okEm ? new Date(H.okEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+    return `<p class="hoje-aviso" role="status">⚠ Sem resposta do banco agora${hora ? `: números das ${E(hora)}` : ''}. Tento de novo em 1 minuto.</p>`;
+  }
+  const carregando = (classe) => `<p class="hoje-frase hoje-carregando ${classe}" role="status">Contando o dia…</p>`;
   function montarPainel(c, f, ch) {
+    if (!H.okEm && !H.falhou) return `<p class="hoje-sobre">Hoje · ${E(dataDeHoje())}</p>${carregando('')}`;
+    if (!H.okEm) return `<p class="hoje-sobre">Hoje · ${E(dataDeHoje())}</p><p class="hoje-frase">Hoje: não consegui contar as conversas.</p>${avisoConexao()}
+      <div class="hoje-acoes"><button type="button" class="btn btn-ghost hoje-acao" data-hoje="recontar">Tentar de novo</button></div>`;
     const frase = R().fraseDeHoje({ ...c, naMesa: f.naMesa });
     const carros = f.carros ? `<button type="button" class="hoje-carros" data-hoje="carros">
         <b>${E(f.carros)}</b> ${f.carros === 1 ? 'carro na oficina sem conversa' : 'carros na oficina sem conversa'}${f.prontos ? ` · <span class="hoje-pronto">${E(f.prontos)} pronto${f.prontos > 1 ? 's' : ''} para avisar</span>` : ''}</button>` : '';
     return `<p class="hoje-sobre">Hoje · ${E(dataDeHoje())}</p>
-      <h1 class="hoje-frase" aria-live="polite">${fraseHtml(frase)}</h1>
+      <h1 class="hoje-frase" aria-live="polite">${fraseHtml(frase)}</h1>${avisoConexao()}
       <div class="hoje-nums" role="group" aria-label="Filtrar a lista">
         ${num(c.esperando, 'esperando consultor', 'aguardando', 'Mostrar quem a IA passou e espera um consultor')}
         ${num(c.naoLidas, c.naoLidas === 1 ? 'conversa sem ler' : 'conversas sem ler', 'nao_lidas', 'Mostrar só as conversas com mensagem sem ler')}
@@ -117,9 +131,11 @@
   }
 
   function montarMini(c, f) {
+    if (!H.okEm && !H.falhou) return carregando('');
+    if (!H.okEm) return `<p class="hoje-frase">Hoje: não consegui contar as conversas.</p>${avisoConexao()}<button type="button" class="hoje-carros" data-hoje="recontar">Tentar de novo</button>`;
     const frase = R().fraseDeHoje({ ...c, naMesa: f.naMesa });
     const carros = f.carros ? `<button type="button" class="hoje-carros" data-hoje="carros"><b>${E(f.carros)}</b> ${f.carros === 1 ? 'carro' : 'carros'} sem conversa${f.prontos ? ` · <span class="hoje-pronto">${E(f.prontos)} pronto${f.prontos > 1 ? 's' : ''}</span>` : ''}</button>` : '';
-    return `<p class="hoje-frase">${fraseHtml(frase)}</p>
+    return `<p class="hoje-frase">${fraseHtml(frase)}</p>${avisoConexao()}
       <div class="hoje-nums" role="group" aria-label="Filtrar a lista">
         ${num(c.esperando, 'esperando', 'aguardando', 'Quem a IA passou e espera um consultor')}
         ${num(c.naoLidas, 'sem ler', 'nao_lidas', 'Conversas com mensagem sem ler')}
@@ -173,6 +189,7 @@
     }
     ev.preventDefault();
     const acao = b.dataset.hoje;
+    if (acao === 'recontar') return contar();
     if (acao === 'proxima') return window.R6Tela?.irParaProxima();
     if (acao === 'carros') return window.R6C5?.abrirCarros();
     if (acao === 'nova' && typeof abrirModalNova === 'function') return abrirModalNova();

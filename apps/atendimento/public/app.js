@@ -391,6 +391,13 @@ const AbaOrcador = (() => {
     const nome = String(conv.nome || '').trim();
     if (nome) p.set('nome', nome.slice(0, 80));
     if (/^[0-9a-f-]{36}$/i.test(String(conv.id || ''))) p.set('conversa', conv.id);
+    /* rodada 13: o carro e a placa que a ficha já conhece vão junto (a cotação abre com o carro certo) */
+    const info = (typeof CLIENTES_INFO !== 'undefined' && CLIENTES_INFO.get(conv.cliente_id)) || {};
+    if (/^[0-9a-f-]{36}$/i.test(String(conv.cliente_id || ''))) p.set('cliente', conv.cliente_id);
+    const carro = String(info.carro_modelo || '').trim();
+    if (carro) p.set('carro', carro.slice(0, 80));
+    const placa = String(info.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (typeof placaValida === 'function' ? placaValida(placa) : placa.length === 7) p.set('placa', placa);
     if (!p.has('tel')) { toast('⚠️ Esta conversa não tem telefone: abri o Orçador sem cliente.'); return abrir(''); }
     return abrir('?' + p.toString());
   }
@@ -5835,6 +5842,9 @@ document.addEventListener('click', (ev) => {
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function abrirPeloEndereco() {
   const p = new URLSearchParams(location.search);
+  /* rodada 13: ?aba=orcador&tel=… é "orçamento novo para este cliente" (link da Casa): o telefone vai para o Orçador
+     (abrirAbaPeloEndereco), não abre conversa nem a janela de conversa nova */
+  if (p.get('aba') === 'orcador') return;
   const id = p.get('conversa'), tel = p.get('tel');
   if (id && RE_UUID.test(id)) return abrirConversa(id);
   if (!tel) return;
@@ -6857,6 +6867,18 @@ function abrirAbaPeloEndereco() {
   try { aba = new URLSearchParams(location.search).get('aba'); } catch { return; }
   if (!aba) return;
   const botao = document.querySelector(`.nav-item[data-aba="${CSS.escape(aba)}"]`);
+  /* rodada 13: ?aba=orcador leva junto o resto do endereço para o Orçador (o orçamento certo "#/historico/<id>" ou a
+     cotação nova com "?tel=&nome=&cliente=" que a Casa monta). Antes o Orçador abria sempre na tela de entrada. */
+  if (aba === 'orcador') {
+    /* só o que o Orçador entende (papel, saude, utm… ficam de fora) */
+    const veio = new URLSearchParams(location.search), resto = new URLSearchParams();
+    for (const k of ['tel', 'nome', 'cliente', 'carro', 'veiculo', 'placa', 'servico', 'conversa', 'lead', 'agendamento', 'os', 'extra', 'orcamento']) if (veio.get(k)) resto.set(k, veio.get(k));
+    const destino = (resto.toString() ? '?' + resto : '') + location.hash;
+    try { history.replaceState(null, '', location.pathname); } catch { /* ignora */ }
+    if (!botao || botao.hidden) { toast('⚠️ Essa tela não está disponível para o seu papel.'); return; }
+    if (!AbaOrcador.abrir(destino)) AbaOrcador.abrir('');
+    return;
+  }
   try { const u = new URL(location.href); u.searchParams.delete('aba'); history.replaceState(null, '', u.pathname + (u.searchParams.toString() ? '?' + u.searchParams : '') + u.hash); } catch { /* ignora */ }
   if (!botao || botao.hidden) { toast('⚠️ Essa tela não está disponível para o seu papel.'); return; }
   botao.click();
