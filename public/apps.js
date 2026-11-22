@@ -69,10 +69,20 @@
       });
     } catch { return false; }
   }
+  /* rodada 13C: link antigo do Orçador (Netlify, gravado no banco) → o mesmo orçamento em /orcador/ da Central. */
+  const ORCADOR_ANTIGO = PADRAO.orcador.url;
+  function naCentral(href) {
+    try {
+      const u = new URL(href, root.location.href);
+      const b = url('orcador');
+      if (u.origin === ORCADOR_ANTIGO && b && new URL(b).origin !== u.origin) return b + '/' + u.search + u.hash;
+    } catch { /* segue como veio */ }
+    return href;
+  }
   /** Qual app é dono deste endereço? ('crm', 'patio', 'orcador'…) ou null. Rodada 6: abre cada app na aba NOMEADA dele. */
   function appDoLink(href) {
     try {
-      const u = new URL(href, root.location.href);
+      const u = new URL(naCentral(href), root.location.href);
       let achado = null, melhor = -1;
       for (const k of Object.keys(apps)) {
         const b = url(k); if (!b) continue;
@@ -88,10 +98,11 @@
   }
   /** window.open(url, 'indycar-<app>'): clicar de novo volta para a aba do app em vez de empilhar abas. */
   function abrir(href) {
+    href = naCentral(href);
     const k = appDoLink(href);
     const w = root.open(href, k ? 'indycar-' + k : '_blank');
     try { w && w.focus(); } catch { /* outra origem */ }
     return !!w;
   }
-  root.IndyCarApps = Object.freeze({ apps, url, raiz, raizAbsoluta, ehDoEcossistema, appDoLink, abrir, aqui: 'agenda' });
+  root.IndyCarApps = Object.freeze({ apps, url, raiz, raizAbsoluta, ehDoEcossistema, appDoLink, abrir, naCentral, aqui: 'agenda' });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -10,8 +10,18 @@ export const ORCADOR_PADRAO = 'https://indycar-orcador.netlify.app';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Endereço do Orçador: só https, sem usuário/senha; qualquer outra coisa volta ao padrão. */
+/* rodada 13C: dentro da IndyCar Central o Orçador mora em /orcador/ (mesmo endereço, mesmo login). Os links que a
+   Agenda monta no servidor ("Abrir orçamento", aprovados sem horário) saem nesse caminho, sem passar pelo Netlify. */
+export const ORCADOR_NA_CENTRAL = '/orcador';
+let _naCentral = false;
+/** A Central chama isto ao subir quando serve o Orçador (apps/orcador). Solto, a Agenda segue com o Netlify. */
+export function usarOrcadorDaCentral(sim = true) { _naCentral = sim === true; }
+/** Base dos links do Orçador agora: '/orcador' na Central; senão ORCADOR_URL (https) ou o Netlify. */
+export function baseAtualDoOrcador(valor) { return _naCentral ? ORCADOR_NA_CENTRAL : baseDoOrcador(valor); }
+
+/** Endereço do Orçador: só https, sem usuário/senha (ou o caminho da Central); qualquer outra coisa volta ao padrão. */
 export function baseDoOrcador(valor) {
+  if (valor === ORCADOR_NA_CENTRAL) return ORCADOR_NA_CENTRAL;
   try {
     const u = new URL(String(valor || ''));
     return u.protocol === 'https:' && !u.username && !u.password ? u.origin : ORCADOR_PADRAO;

@@ -19,7 +19,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { resumoDaOs, juntarSugestaoComExtras, entreguesSemDesfecho, PATIO_URL } from './patio.js';
 import { situacaoDoLembrete, textoDoLembrete, chaveDoLembrete, validadeDoLembrete } from './lembretes.js';
-import { orcamentoPorAgendamento, aprovadoParaAgendar, baseDoOrcador } from './orcador.js';
+import { orcamentoPorAgendamento, aprovadoParaAgendar, baseAtualDoOrcador } from './orcador.js';
 
 // Tabelas de configuração ganharam o prefixo agenda_ no banco compartilhado.
 const T = {
@@ -2414,14 +2414,14 @@ export async function orcamentosDosAgendamentos(ids = []) {
   const lista = ids.filter(ehUuid);
   if (!lista.length) return {};
   const linhas = await selecionar('orc_orcamentos', `${SEL_ORC}&agendamento_id=in.(${lista.join(',')})&order=created_at.desc&limit=200`);
-  return orcamentoPorAgendamento(linhas, baseDoOrcador(process.env.ORCADOR_URL));
+  return orcamentoPorAgendamento(linhas, baseAtualDoOrcador(process.env.ORCADOR_URL));
 }
 
 /** Orçamentos aprovados que ainda não viraram horário (para o Início oferecer "Marcar horário"). */
 export async function orcamentosAprovadosSemHorario({ limite = 12 } = {}) {
   const n = Math.min(Math.max(Number(limite) || 12, 1), 50);
   const linhas = await selecionar('orc_orcamentos', `${SEL_ORC}&status=eq.aprovado&agendamento_id=is.null&order=decidido_em.desc.nullslast&limit=${n}`);
-  const base = baseDoOrcador(process.env.ORCADOR_URL);
+  const base = baseAtualDoOrcador(process.env.ORCADOR_URL);
   return linhas.map((o) => aprovadoParaAgendar(o, base)).filter(Boolean);
 }
 
