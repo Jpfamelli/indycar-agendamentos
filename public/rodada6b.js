@@ -44,7 +44,7 @@
       <div class="patio-ficha-topo"><b>Lembrete</b> <span class="badge-pill ${TOM[s.tom] || 'bp-gray'}">${esc(s.rotulo)}${esc(sai)}</span></div>
       ${s.motivo && !['agendado'].includes(s.codigo) ? `<small class="muted">${esc(s.motivo)}</small>` : ''}${resposta}${desligado}
       <div class="eco-links">
-        ${s.podeMandar ? `<button type="button" class="btn mini primary" data-r6b-mandar>📨 Mandar lembrete agora</button>` : ''}
+        ${s.podeMandar ? `<button type="button" class="btn mini primary" data-r6b-mandar>${svg(I.send)} Mandar lembrete agora</button>` : ''}
         ${s.codigo === 'enviado' ? `<button type="button" class="btn mini" data-r6b-mandar="reenviar">↻ Mandar de novo</button>` : ''}
         ${comunicar ? `<a class="btn mini" href="${esc(comunicar)}">Abrir o Comunicar ↗</a>` : ''}
       </div></div>`;
@@ -227,7 +227,7 @@
       <div class="qd-acoes">
         ${vivo ? `${ehPre(a) && a.status === 'aguardando' ? '<button type="button" class="btn mini primary" data-qd="confirmarpre" title="Confirmar o horário do pré-agendamento">Confirmar</button>' : ''}<button type="button" class="btn mini primary" data-qd="chegou" title="O cliente chegou, abre a OS no Pátio">Chegou</button>
           <button type="button" class="btn mini" data-qd="mover" title="Mover para outro horário ou consultor">⇄ Mover</button>
-          ${podeLembrar ? '<button type="button" class="btn mini" data-qd="lembrar" title="Mandar o lembrete agora pelo Comunicar">📨</button>' : ''}
+          ${podeLembrar ? '<button type="button" class="btn mini" data-qd="lembrar" title="Mandar o lembrete agora pelo Comunicar" aria-label="Mandar o lembrete agora pelo Comunicar">' + svg(I.send) + '</button>' : ''}
           <button type="button" class="btn mini" data-qd="faltou" title="Não veio (manda o aviso de falta)">Faltou</button>` : ''}
         <button type="button" class="btn mini" data-qd="abrir" title="Abrir / editar">✎</button>
       </div></article>`;

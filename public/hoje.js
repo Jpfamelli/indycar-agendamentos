@@ -18,7 +18,7 @@
     return 'vem';
   }
 
-  const minutos = (hm) => { const [h, m] = String(hm || '').split(':').map(Number); return Number.isNaN(h) ? null : h * 60 + (m || 0); };
+  const minutos = (hm) => { const x = /^(\d{1,2}):(\d{2})/.exec(String(hm || '')); return x ? Number(x[1]) * 60 + Number(x[2]) : null; };
 
   /** Os números do dia. Cancelado não conta como horário (não ia acontecer). */
   function resumo(lista, agoraHm) {
