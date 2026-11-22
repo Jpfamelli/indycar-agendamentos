@@ -33,8 +33,14 @@ const Acesso = (() => {
 
   /* ---------------- Onde o login fica guardado ----------------
      "Manter conectado" marcado (padrão): localStorage, como sempre foi.
-     Desmarcado: sessionStorage — fecha o navegador e sai sozinho. */
-  const manter = () => ls.get(K.manter) !== '0';
+     Desmarcado: sessionStorage — fecha o navegador e sai sozinho.
+     Rodada 13C — dentro da IndyCar Central a sessão é UMA SÓ para todos os apps (mesmo endereço, mesma chave no
+     localStorage). Desmarcar aqui movia o login para esta aba e APAGAVA a cópia compartilhada: a Casa e os outros apps
+     abertos caíam, e cada aba nova pedia login. Separar só o Atendimento não dá sem risco (o Supabase troca o token de
+     renovação a cada atualização: duas cópias se derrubam). Então, na Central, a opção some e a sessão fica sempre na
+     cópia compartilhada; quem quer sair usa "Sair", que sai de todos os apps. Solto (fora da Central), nada muda. */
+  const naCentral = () => !!(window.IndyCarApps && window.IndyCarApps.base && window.IndyCarApps.base !== '/');
+  const manter = () => naCentral() || ls.get(K.manter) !== '0';
   function armazenamentoDaSessao() {
     const um = () => (manter() ? localStorage : sessionStorage);
     const outro = () => (manter() ? sessionStorage : localStorage);
@@ -223,6 +229,7 @@ const Acesso = (() => {
     const lembrado = ls.get(K.lembrar);
     if (lembrado) { $('#loginEmail').value = lembrado; $('#loginLembrar').checked = true; }
     $('#loginManter').checked = manter();
+    { const caixa = $('#loginManter').closest('label'); if (caixa) caixa.hidden = naCentral(); }   // rodada 13C: na Central, sessão única
     // mostrar senha
     $$('[data-olho]').forEach(b => b.addEventListener('click', () => {
       const campo = document.getElementById(b.dataset.olho);
@@ -272,7 +279,7 @@ const Acesso = (() => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return mostrarErro('Esse e-mail não parece certo. Confira se tem @ e o domínio.');
     if (navigator.onLine === false) return mostrarErro('Sem internet. Confira a conexão e tente de novo.');
     // a escolha vale ANTES do login: é ela que decide onde o token será guardado
-    ls.set(K.manter, $('#loginManter').checked ? '1' : '0');
+    if (!naCentral()) ls.set(K.manter, $('#loginManter').checked ? '1' : '0');   // rodada 13C: na Central não existe a escolha
     btn.disabled = true;
     btn.innerHTML = '<span class="girando"></span>Entrando…';
     try {
@@ -443,7 +450,7 @@ const Acesso = (() => {
     vigiaTimer = setInterval(() => { if (!document.hidden) vigiar(); }, 5 * 60_000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden && window.__jaEntrou) vigiar(); });
     $('#sessaoInfo').textContent = `Entrou às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · `
-      + (manter() ? 'continua conectado neste aparelho ao fechar o navegador.' : 'sai sozinho ao fechar o navegador.');
+      + (naCentral() ? 'a mesma sessão da Central: "Sair" sai de todos os apps.' : manter() ? 'continua conectado neste aparelho ao fechar o navegador.' : 'sai sozinho ao fechar o navegador.');
   }
   const pararVigia = () => clearInterval(vigiaTimer);
   let ultimaVigia = 0;
@@ -821,7 +828,7 @@ const Acesso = (() => {
   }
 
   return {
-    preparar, portao, depoisDeEntrar, recuperacao, mostrarVista, traduzirErro, armazenamentoDaSessao,
+    preparar, portao, depoisDeEntrar, recuperacao, mostrarVista, traduzirErro, armazenamentoDaSessao, naCentral,
     pedirSair, sair, limparAparelho, confirmar, perguntar, copiar, prefAviso, podeUsar, APPS,
     get emRecuperacao() { return emRecuperacao; }, set emRecuperacao(v) { emRecuperacao = !!v; },
     saindoSozinho: false,
