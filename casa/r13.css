@@ -142,3 +142,6 @@
   .casa-meio:not(:has(#mesOficina:not([hidden]))) .atencao-lista { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
   .casa-meio:not(:has(#mesOficina:not([hidden]))) .atencao-lista li:nth-child(2) { border-top: 0; }
 }
+
+/* rodada 13B: "Ver mais" da lista de atenção (5 visíveis), com toque de 44 px */
+.atencao-mais { justify-self: start; min-height: 44px; padding: 10px 8px; font-weight: 600; color: var(--texto); }

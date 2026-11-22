@@ -1,5 +1,5 @@
 /* Casa — painel (rodada 11). A Casa mostra só o que é dela: "Pede atenção agora" e, em cada cartão de app, o número que
-   importa (conversas esperando, carros no pátio, orçamentos esperando, horários de hoje, contatos sem dono). As listas
+   importa (conversas esperando, carros no pátio, orçamentos esperando, horários de hoje, contatos sem responsável). As listas
    longas (horários, conversas, carros, orçamentos) e a visão do dono saíram: cada uma mora no app dela.
    Uma chamada de banco por vez (r6_agora + r6_c1_agora_extras; o mecânico lê só os carros dele), com tempo real e
    relógio de reserva de 60 s. */
@@ -20,6 +20,10 @@
   /* ---------------- "pede atenção agora" ---------------- */
   /* rodada 9: a gravidade aparece em palavra e ícone (Urgente, Atenção), não só na cor da borda */
   const seloGrav = (g) => (g >= 3 ? '<span class="a-selo a-selo-3"><span aria-hidden="true">⚠</span> Urgente</span>' : g === 2 ? '<span class="a-selo a-selo-2">Atenção</span>' : '');
+  /* rodada 13B: a lista mostra as 5 mais graves e um "Ver mais" para o resto (no celular ela ficava comprida e escondia
+     o resto da Central). Quem abriu continua com ela aberta quando os números atualizam. */
+  const ATENCAO_VISIVEIS = 5;
+  let atencaoAberta = false;
   function desenharAtencao(a) {
     const itens = L.atencao(a, V, links);
     const sec = $('#atencao');
@@ -27,8 +31,20 @@
     sec.hidden = !itens.length && !!V.soMeusCarros;
     $('#atencaoVazio').hidden = itens.length > 0;
     $('#atencaoLista').hidden = !itens.length;
-    $('#atencaoLista').innerHTML = itens.map((i) => `<li class="grav-${i.grav}">${linkA(i.url, i.app, 'atencao-item',
+    const escondidos = Math.max(0, itens.length - ATENCAO_VISIVEIS);
+    if (!escondidos) atencaoAberta = false;
+    $('#atencaoLista').innerHTML = itens.map((i, idx) => `<li class="grav-${i.grav}"${idx >= ATENCAO_VISIVEIS && !atencaoAberta ? ' hidden' : ''}>${linkA(i.url, i.app, 'atencao-item',
       `<span class="a-num">${Number(i.n)}</span><span class="a-txt">${seloGrav(i.grav)}${C.esc(i.texto)}${i.extra ? `<small>${C.esc(i.extra)}</small>` : ''}</span><span class="a-seta" aria-hidden="true">›</span>`)}</li>`).join('');
+    const mais = $('#atencaoMais');
+    mais.hidden = !escondidos;
+    mais.setAttribute('aria-expanded', String(atencaoAberta));
+    mais.textContent = atencaoAberta ? 'Ver menos' : `Ver mais ${escondidos} ${escondidos === 1 ? 'aviso' : 'avisos'}`;
+  }
+  function alternarAtencao() {
+    atencaoAberta = !atencaoAberta;
+    if (dados) desenharAtencao(dados);
+    /* abriu: o foco vai para o primeiro aviso que estava escondido (quem usa teclado continua de onde parou) */
+    if (atencaoAberta) { const li = $('#atencaoLista').children[ATENCAO_VISIVEIS]; const a = li && li.querySelector('a'); if (a) a.focus(); }
   }
 
   /* ---------------- o número de cada cartão de app ---------------- */
@@ -40,7 +56,7 @@
     if (V.patio && d.patio) out.patio = [d.patio.total, V.soMeusCarros ? plural(d.patio.total, 'carro seu no pátio', 'carros seus no pátio') : plural(d.patio.total, 'carro no pátio', 'carros no pátio')];
     if (V.orcamentos && d.orcamentos) out.orcador = [d.orcamentos.esperando, plural(d.orcamentos.esperando, 'orçamento esperando resposta', 'orçamentos esperando resposta')];
     if (V.agenda && d.agenda) out.agenda = [d.agenda.total, plural(d.agenda.total, 'horário hoje', 'horários hoje')];
-    if (V.leads && d.leads) out.crm = [d.leads.novos_sem_dono, plural(d.leads.novos_sem_dono, 'contato novo sem dono', 'contatos novos sem dono')];
+    if (V.leads && d.leads) out.crm = [d.leads.novos_sem_dono, plural(d.leads.novos_sem_dono, 'contato novo sem responsável', 'contatos novos sem responsável')];
     return out;
   }
   /* rodada 13: o número que já está grande no herói não se repete no cartão do app (lá fica a frase curta do app) */
@@ -153,10 +169,10 @@
   }
   /* rodada 10: com menos de 15 s da última leitura boa, voltar para a aba não vai ao banco de novo */
   function aoVisivel() { if (!document.hidden && C && C.perfil && Date.now() - ultima > 15_000) carregarAgora({ silencioso: true }); }
-  function aoClicar(e) { if (e.target.closest('[data-recarregar]')) carregarAgora(); }
+  function aoClicar(e) { if (e.target.closest('[data-recarregar]')) carregarAgora(); if (e.target.closest('#atencaoMais')) alternarAtencao(); }
 
   MOD.montar = function (casa) {
-    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; ultima = 0; emFalha = false; carregando = false; vezAgora++;
+    C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; atencaoAberta = false; ultima = 0; emFalha = false; carregando = false; vezAgora++;
     online = navigator.onLine;
     $('#atencao').hidden = true;
     relogio(); clearInterval(timerHora); timerHora = setInterval(relogio, 30_000);

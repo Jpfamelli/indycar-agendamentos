@@ -77,9 +77,10 @@
     </form>`;
   }
 
-  async function guardar(texto) {
+  async function guardar(texto, { desfazendo = false } = {}) {
     if (gravando) return;
     const v = L2.valorDaMeta(texto);
+    const antes = meta;
     if (Number.isNaN(v)) { erroMeta = 'Não entendi o valor. Escreva, por exemplo, 80.000 ou 80 mil.'; rascunho = texto; return desenhar(); }
     gravando = true;
     try {
@@ -89,7 +90,9 @@
         : await C.sb.from('casa_metas').delete().eq('mes', mes);
       if (r.error) throw r.error;
       meta = v || 0; editando = false; erroMeta = ''; rascunho = '';
-      C.toast(v ? 'Meta do mês guardada.' : 'Meta do mês tirada.', 'ok');
+      /* rodada 13B: tirar a meta apaga o valor do mês: o aviso traz "Desfazer", que grava a meta de antes de volta */
+      if (!v && antes > 0 && !desfazendo) C.toast('Meta do mês tirada.', 'ok', { rotulo: 'Desfazer', fazer: () => guardar(String(antes), { desfazendo: true }) });
+      else C.toast(desfazendo ? 'Meta de volta.' : v ? 'Meta do mês guardada.' : 'Meta do mês tirada.', 'ok');
     } catch {
       erroMeta = 'Não consegui guardar a meta agora. Tente de novo.'; rascunho = texto;
     } finally { gravando = false; desenhar(); }

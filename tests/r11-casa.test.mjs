@@ -37,7 +37,7 @@ test('cartão de app: o número que importa (painel.js preenche) e a frase curta
   assert.match(c, /<span class="app-num" data-app-num="\$\{esc\(a\.k\)\}" hidden><\/span>/);
   assert.match(c, /data-app-desc="\$\{esc\(a\.k\)\}" data-padrao="\$\{esc\(a\.desc\)\}"/);
   const p = semComentarios(ler('painel.js'));
-  for (const t of ['conversas esperando', 'carros no pátio', 'orçamentos esperando resposta', 'horários hoje', 'contatos novos sem dono']) assert.ok(p.includes(t), t);
+  for (const t of ['conversas esperando', 'carros no pátio', 'orçamentos esperando resposta', 'horários hoje', 'contatos novos sem responsável']) assert.ok(p.includes(t), t);
   assert.doesNotMatch(p, /agora-cartao|desenharHoje|desenharDono|carregarChegadas/);
 });
 
