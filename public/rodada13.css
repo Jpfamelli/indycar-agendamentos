@@ -1,0 +1,195 @@
+/* ============================================================================
+   Rodada 13 (22/11/2026): a Agenda no nível do Tráfego da R12.
+   O Hoje abre com UM resumo forte (frase grande com os números em vermelho),
+   números grandes em Barlow Condensed, a barra do dia e o gráfico por hora.
+   Cartões limpos, sem faixa colorida num lado só, selos claros, celular de verdade.
+   Cores e fontes vêm do padrão (/casa/indycar.css) e das variáveis da Agenda.
+   ============================================================================ */
+[hidden]{display:none!important}
+
+:root{
+  --r13-cartao:var(--ic-painel,var(--panel));
+  --r13-borda:var(--ic-borda,var(--border));
+  --r13-vermelho:var(--ic-vermelho,#e6192e);
+  --r13-vermelho-texto:#ff4d5e;
+  --r13-brilho:rgb(230 25 46 / .22);
+  --r13-chegou:#22c55e;
+  --r13-vem:#8a92a7;
+  --r13-falta:#e6192e;
+  --r13-trilho:rgba(255,255,255,.08);
+}
+:root[data-tema="claro"]{
+  --r13-vermelho-texto:#c20f22;
+  --r13-brilho:rgb(230 25 46 / .12);
+  --r13-chegou:#15803d;
+  --r13-vem:#9aa1b1;
+  --r13-trilho:rgba(17,19,25,.08);
+}
+
+/* ------------------------------ herói do Hoje ------------------------------ */
+.r13-heroi{
+  position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:24px 32px;overflow:hidden;
+  margin:0 0 18px;padding:clamp(20px,3.2vw,40px);border:1px solid var(--r13-borda);border-radius:16px;
+  background:
+    radial-gradient(34rem 22rem at 82% 8%, var(--r13-brilho), transparent 70%),
+    repeating-linear-gradient(-76deg, transparent 0 46px, color-mix(in srgb, var(--ic-forte,#fff) 3%, transparent) 46px 47px),
+    var(--r13-cartao);
+}
+.r13-heroi::after{
+  /* a faixa inclinada do logo, no canto (a mesma do Tráfego) */
+  content:'';position:absolute;right:-40px;bottom:-30px;width:220px;height:18px;
+  background:var(--r13-vermelho);transform:skewX(-14deg) rotate(-8deg);opacity:.85;pointer-events:none;
+}
+@media (min-width:1100px){
+  .r13-heroi{grid-template-columns:minmax(0,1fr) 300px;align-items:start}
+  .r13-horas,.r13-heroi .hero-chips{grid-column:1 / -1}
+}
+.r13-in{display:grid;gap:22px;min-width:0}
+.r13-kicker{margin:0;font:700 12px/1.3 var(--ic-texto-f);letter-spacing:.14em;text-transform:uppercase;color:var(--ic-apagado,var(--muted))}
+.r13-frase{
+  margin:0;max-width:26ch;font:500 clamp(26px,3.3vw,46px)/1.15 var(--ic-texto-f);letter-spacing:-.01em;
+  color:var(--ic-forte,var(--text-forte));text-wrap:balance;
+}
+.r13-n{font:700 1.24em/1 var(--ic-titulo);color:var(--r13-vermelho-texto);font-variant-numeric:tabular-nums}
+.marca-cache{color:var(--ic-apagado,var(--muted));font-size:12px}
+
+/* os quatro números */
+.r13-numeros{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;padding:0;list-style:none}
+.r13-etapa{display:grid;gap:6px;align-content:start;min-width:0;padding:0 14px 0 0}
+.r13-etapa + .r13-etapa{padding-left:18px;border-left:1px solid var(--r13-borda)}
+.r13-rotulo{display:flex;align-items:center;gap:7px;font:600 12px/1.3 var(--ic-texto-f);letter-spacing:.1em;text-transform:uppercase;color:var(--ic-apagado,var(--muted))}
+.r13-ponto{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--ic-forte,#fff)}
+.r13-ponto.chegou{background:var(--r13-chegou)} .r13-ponto.vem{background:var(--r13-vem)} .r13-ponto.falta{background:var(--r13-falta)}
+.r13-num{font:700 clamp(44px,5.4vw,76px)/.9 var(--ic-titulo);color:var(--ic-forte,var(--text-forte));font-variant-numeric:tabular-nums}
+.r13-num.pulsa{animation:statPulsa .55s var(--ease)}
+.r13-apoio{font-size:13px;color:var(--ic-apagado,var(--muted))}
+
+/* selos claros (Boa / Atenção / Ruim), iguais aos do Tráfego */
+.r13-selo{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font:700 12px/1.2 var(--ic-texto-f)}
+.r13-selo.atencao{background:var(--orange-soft);color:var(--orange-txt)}
+.r13-selo.boa{background:var(--green-soft);color:var(--green-txt)}
+.r13-selo.ruim{background:var(--red-soft);color:var(--red-txt)}
+
+/* a barra do dia: chegaram · ainda vêm · não vieram */
+.r13-barra{display:flex;gap:3px;height:10px;border-radius:999px;overflow:hidden;background:var(--r13-trilho)}
+.r13-barra i{display:block;min-width:6px}
+.r13-barra .chegou{background:var(--r13-chegou)} .r13-barra .vem{background:var(--r13-vem)} .r13-barra .falta{background:var(--r13-falta)}
+
+/* próximo cliente */
+.r13-prox{display:grid;gap:6px;align-content:start;min-width:0;padding:18px 20px;border:1px solid var(--r13-borda);border-radius:14px;
+  background:color-mix(in srgb, var(--ic-bg,var(--bg)) 55%, transparent)}
+.r13-mini{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;font:700 12px/1.3 var(--ic-texto-f);letter-spacing:.12em;text-transform:uppercase;color:var(--ic-apagado,var(--muted))}
+.r13-mini .quando{letter-spacing:.02em;text-transform:none}
+.r13-prox-h{font:700 64px/.9 var(--ic-titulo);color:var(--r13-vermelho-texto);font-variant-numeric:tabular-nums}
+.r13-prox-nome{margin:4px 0 0;font:700 19px/1.25 var(--ic-texto-f);color:var(--ic-forte,var(--text-forte));overflow-wrap:anywhere}
+.r13-prox-serv{margin:0;color:var(--ic-texto,var(--text));font-size:14px;overflow-wrap:anywhere}
+.r13-prox-meta{margin:0;color:var(--ic-apagado,var(--muted));font-size:13px;overflow-wrap:anywhere}
+.r13-prox.vazio .r13-prox-nome{font-size:17px}
+
+/* horários ao longo do dia (gráfico simples de colunas) */
+.r13-horas{display:grid;gap:12px;min-width:0;padding-top:20px;border-top:1px solid var(--r13-borda)}
+.r13-grafico{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px;align-items:end;height:140px;margin:0;padding:22px 0 0;list-style:none}
+.r13-hora{display:grid;grid-template-rows:1fr auto;gap:6px;height:100%;min-width:0}
+.r13-col{position:relative;align-self:end;display:flex;flex-direction:column;gap:2px;justify-content:flex-end;
+  height:calc(var(--v) * 100%);min-height:3px;border-radius:5px 5px 2px 2px;background:var(--r13-trilho);
+  transform-origin:bottom;animation:r13Sobe .7s cubic-bezier(.16,1,.3,1) both}
+.r13-col i{display:block;min-height:4px;border-radius:3px}
+.r13-col i.chegou{background:var(--r13-chegou)} .r13-col i.vem{background:var(--r13-vem)} .r13-col i.falta{background:var(--r13-falta)}
+.r13-col em{position:absolute;left:0;right:0;top:-18px;text-align:center;font:700 13px/1 var(--ic-titulo);font-style:normal;color:var(--ic-texto,var(--text))}
+.r13-h{text-align:center;font:600 11px/1 var(--ic-texto-f);color:var(--ic-apagado,var(--muted));white-space:nowrap}
+.r13-hora.agora .r13-h{color:var(--r13-vermelho-texto);font-weight:800}
+.r13-hora.agora .r13-col{box-shadow:0 0 0 2px var(--r13-vermelho)}
+.r13-legenda{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;font-size:12.5px;color:var(--ic-apagado,var(--muted))}
+.r13-legenda span{display:inline-flex;align-items:center;gap:6px}
+.r13-legenda i{width:10px;height:10px;border-radius:3px}
+.r13-legenda i.chegou{background:var(--r13-chegou)} .r13-legenda i.vem{background:var(--r13-vem)} .r13-legenda i.falta{background:var(--r13-falta)}
+@keyframes r13Sobe{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@media (prefers-reduced-motion:reduce){ .r13-col{animation:none} }
+
+/* pendências (chips do gestor e o "sem telefone"): cartões pequenos com o selo, sem cor gritando */
+.r13-heroi .hero-chips{display:flex;flex-wrap:wrap;gap:10px;margin:0}
+.r13-heroi .hero-chips:not(:has(button)){display:none}
+.r13-heroi .hero-chips .chip-aviso{
+  display:inline-flex;align-items:center;gap:8px;min-height:44px;margin:0;padding:8px 14px;border-radius:12px;
+  border:1px solid var(--r13-borda);background:color-mix(in srgb, var(--ic-bg,var(--bg)) 55%, transparent);
+  color:var(--ic-texto,var(--text));font:600 13.5px/1.25 var(--ic-texto-f);text-align:left;cursor:pointer;
+}
+.r13-heroi .hero-chips .chip-aviso svg{width:16px;height:16px;flex:0 0 auto;color:var(--orange-txt)}
+.r13-heroi .hero-chips .chip-aviso.chip-valor svg{color:var(--green-txt)}
+.r13-heroi .hero-chips .chip-aviso:hover{border-color:var(--r13-vermelho)}
+
+@media (max-width:700px){
+  .r13-heroi{padding:20px 16px;gap:20px}
+  .r13-frase{font-size:clamp(24px,7vw,30px)}
+  .r13-numeros{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 0}
+  .r13-etapa:nth-child(odd){padding-left:0;border-left:0}
+  .r13-etapa:nth-child(even){padding-left:14px;border-left:1px solid var(--r13-borda)}
+  .r13-num{font-size:52px}
+  .r13-prox-h{font-size:52px}
+  .r13-grafico{height:116px;gap:3px}
+  .r13-h{font-size:10px}
+  .r13-hora:nth-child(even) .r13-h{visibility:hidden}
+  .r13-hora.agora .r13-h{visibility:visible}
+  /* no celular as pendências ficam uma embaixo da outra, inteiras (nada some de lado) */
+  .r13-heroi .hero-chips{flex-direction:column;flex-wrap:nowrap;overflow:visible;margin:0;padding:0}
+  .r13-heroi .hero-chips .chip-aviso{width:100%;white-space:normal}
+}
+
+/* ------------------------------ cartões limpos ------------------------------ */
+/* sem faixa colorida num lado só: a situação já está no selo do cartão */
+.appt::before,.cols-dia .appt::before{display:none}
+.appt{padding-left:16px}
+@media (max-width:640px){ .appt{padding-left:14px} }
+.stat::before{display:none}
+.espera-item.r7-esp-aviso{border-left:1px solid var(--orange)}
+.espera-item.r7-esp-ruim{border-left:1px solid #d64545}
+.qd-card.s-confirmado,.qd-card.s-compareceu,.qd-card.s-em_atendimento,.qd-card.s-concluido,
+.qd-card.s-nao_veio,.qd-card.s-cancelado,.qd-card.s-nao_fechou{border-left-color:var(--border)}
+.qd-hh.agora{box-shadow:none}
+
+/* lembretes de amanhã e orçamentos aprovados: mesmo cartão do Tráfego */
+.r6-faixa{border-radius:16px;border-color:var(--r13-borda);padding:18px 20px 16px;gap:10px}
+.r6-faixa h3{display:flex;align-items:center;gap:8px;font:700 22px/1.1 var(--ic-titulo);letter-spacing:.01em;text-transform:uppercase;color:var(--ic-forte,var(--text-forte))}
+.r6-faixa h3 svg{width:18px;height:18px;color:var(--r13-vermelho-texto)}
+.r6-faixa .aviso-campo{margin:0;padding:10px 12px;border-radius:10px;border:1px solid var(--r13-borda);background:var(--orange-soft);color:var(--ic-texto,var(--text));font-size:13px}
+.r6-faixa .eco-links .btn{min-height:44px;display:inline-flex;align-items:center;gap:6px}
+.r6-faixa .eco-links .btn svg{width:16px;height:16px}
+
+/* a lista do dia: título no padrão */
+.cols-dia .panel-head h2{font:700 24px/1 var(--ic-titulo);letter-spacing:.01em;text-transform:uppercase}
+
+/* ------------------------------ abas do topo no celular ------------------------------ */
+/* as 5 abas cabem inteiras em 375 px (antes "Clientes" saía cortada) */
+@media (max-width:600px){
+  .ic-abas{gap:0}
+  .ic-abas .nav-item{flex:1 1 0;justify-content:center;padding:0 2px;font-size:13.5px;min-width:0}
+  .ic-abas .badge{min-width:16px;height:16px;font-size:10px;padding:0 4px}
+}
+
+/* ------------------------------ Espera ------------------------------ */
+.r7-esp-resumo{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 14px;padding:14px 16px 0;color:var(--ic-apagado,var(--muted));font-size:13.5px}
+.r7-esp-resumo .btn{min-height:44px}
+
+/* ------------------------------ Clientes no celular: um cartão por pessoa ------------------------------ */
+@media (max-width:640px){
+  .cli-tabela thead{display:none}
+  .cli-tabela,.cli-tabela tbody{display:block;width:100%}
+  .cli-tabela tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:14px 16px;border-bottom:1px solid var(--r13-borda)}
+  .cli-tabela td{display:block;padding:0;border:0;min-width:0}
+  .cli-tabela td:nth-child(1){grid-column:1;font-size:16px}
+  .cli-tabela td:nth-child(2){grid-column:1}
+  .cli-tabela td:nth-child(3),.cli-tabela td:nth-child(4){grid-column:1;color:var(--ic-apagado,var(--muted));font-size:13px}
+  .cli-tabela td:nth-child(5){display:none}
+  .cli-tabela td:nth-child(6){grid-column:2;grid-row:1 / span 4;align-self:center}
+  .cli-tabela td:nth-child(6) .actions{flex-direction:column;gap:6px}
+  .cli-tabela td[colspan]{grid-column:1 / -1}
+  .cli-tabela .icon-btn{width:44px;height:44px}
+  .cli-tabela .copiar{width:44px;height:44px}
+  .tabela-rolagem:has(.cli-tabela){overflow:visible}
+}
+
+/* títulos das telas no padrão (Barlow Condensed, caixa alta), como no Tráfego */
+.toolbar h2{font:700 28px/1 var(--ic-titulo);letter-spacing:.01em;text-transform:uppercase;color:var(--ic-forte,var(--text-forte))}
+@media (max-width:600px){ .toolbar h2{font-size:24px} }
+/* telefone da espera: cor do texto, sem o azul sublinhado do navegador */
+.espera-item a[href^="tel"]{color:var(--ic-texto,var(--text));text-decoration:none;border-bottom:1px dashed var(--border-2)}

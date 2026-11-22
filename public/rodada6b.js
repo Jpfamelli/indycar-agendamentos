@@ -89,12 +89,12 @@
     host.hidden = false;
     host._ultimo = r;
     host.innerHTML = `<section class="r6-faixa r6b-lembretes" aria-label="Lembretes de ${esc(rotuloCurto(r.data))}">
-      <header><h3>📨 Lembretes de ${esc(rotuloCurto(r.data))}</h3>
+      <header><h3>${typeof svg === 'function' ? svg(I.send) : ''} Lembretes de ${esc(rotuloCurto(r.data))}</h3>
         <span class="muted">${esc(partes.join(' · '))}</span></header>
       ${r.cfg?.ativo_lembrete === false ? '<p class="aviso-campo">O lembrete automático está desligado no Comunicar. Mande daqui, um a um ou todos de uma vez.</p>' : ''}
       ${r.cfg?.pausa_geral ? '<p class="aviso-campo">O Comunicar está em pausa geral: nada sai até o gestor reativar.</p>' : ''}
       <div class="eco-links">
-        ${faltam ? `<button type="button" class="btn primary mini" data-r6b-lote>📨 Lembrar ${faltam === 1 ? 'o que falta' : `os ${faltam} que faltam`}</button>` : '<span class="muted">Todo mundo que pode receber já foi lembrado. 🏁</span>'}
+        ${faltam ? `<button type="button" class="btn primary mini" data-r6b-lote>${typeof svg === 'function' ? svg(I.send) : ''} Lembrar ${faltam === 1 ? 'o que falta' : `os ${faltam} que faltam`}</button>` : '<span class="r13-selo boa">Todo mundo que pode receber já foi lembrado</span>'}
         <button type="button" class="btn mini" data-r6b-quadro="${esc(r.data)}">Ver no Quadro</button>
       </div></section>`;
     $('[data-r6b-lote]', host)?.addEventListener('click', async (ev) => {

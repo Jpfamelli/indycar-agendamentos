@@ -903,7 +903,6 @@ function repintarSePuder() {
 setInterval(repintarSePuder, 60000);
 document.addEventListener('visibilitychange', repintarSePuder);
 
-const CHAVES_CARDS = ['totalHoje', 'compareceram', 'naoVieram'];
 
 /* VELOCIDADE DO INÍCIO (rodada 4): o último painel carregado fica guardado
    nesta ABA (sessionStorage — some ao fechar a aba e ao sair da conta) por até
@@ -940,8 +939,67 @@ async function renderInicio(opts = {}) {
   state._repintar = () => { if (state.route === 'inicio' && state._inicio) pintarInicio(state._inicio, { quieto: true }); };
 }
 
+/* RODADA 13: o topo do Hoje no molde do herói do Tráfego. UMA frase grande com os
+   números do dia em vermelho, os quatro números em Barlow Condensed, a barra do dia
+   (chegaram · ainda vêm · não vieram), os horários por hora e o próximo cliente.
+   As contas são de public/hoje.js (regras puras, com teste). */
+function heroiDoHoje(d, prox, relProx, agora, opts = {}) {
+  const H = window.HojeResumo;
+  const r = H.resumo(d.agendaHoje, agora.hm);
+  const fechado = !EXPEDIENTE.diasAbertos.includes(new Date(d.data + 'T12:00:00Z').getUTCDay());
+  const frase = H.frase(r, { fechado }).map(p => p.n != null ? `<b class="r13-n">${p.n}</b>` : esc(p.t)).join('');
+  const c = d.cards || {};
+  const numero = (chave, n, rotulo, cor, apoio) => `<li class="r13-etapa">
+      <span class="r13-rotulo"><i class="r13-ponto ${cor}" aria-hidden="true"></i>${rotulo}</span>
+      <b class="num r13-num" data-chave="${chave}"${n > 0 ? ` data-num="${n}"` : ''}>${n}</b>
+      ${apoio ? `<small class="r13-apoio">${apoio}</small>` : ''}</li>`;
+  const pedaco = (n, cls) => n ? `<i class="${cls}" style="flex:${n}"></i>` : '';
+  const g = H.porHora(d.agendaHoje);
+  const horaAgora = Math.floor((agora.min || 0) / 60);
+  const barras = g.barras.map(b => `<li class="r13-hora${b.h === horaAgora ? ' agora' : ''}" title="${b.h}h: ${b.total} ${b.total === 1 ? 'horário' : 'horários'}">
+      <span class="r13-col" style="--v:${(b.total / g.maximo).toFixed(3)}">${b.total ? `<em>${b.total}</em>` : ''}${b.faltou ? `<i class="falta" style="flex:${b.faltou}"></i>` : ''}${b.vem ? `<i class="vem" style="flex:${b.vem}"></i>` : ''}${b.chegou ? `<i class="chegou" style="flex:${b.chegou}"></i>` : ''}</span>
+      <span class="r13-h">${b.h}h</span></li>`).join('');
+  const carro = prox ? [prox.veiculo, prox.placa].filter(Boolean).join(' · ') : '';
+  return `
+    <section class="r13-heroi" aria-label="Resumo de hoje">
+      <div class="r13-in">
+        <p class="r13-kicker hero-data">${esc(dataExtenso(d.data))}</p>
+        <h1 class="r13-frase">${frase}</h1>
+        ${r.total ? `<ol class="r13-numeros" aria-label="Números de hoje">
+          ${numero('total', r.total, r.total === 1 ? 'Horário' : 'Horários', 'tot', r.confirmados ? `${r.confirmados} confirmado${r.confirmados === 1 ? '' : 's'} a vir` : '')}
+          ${numero('chegaram', r.chegaram, 'Chegaram', 'chegou', `${r.pctChegaram}% do dia`)}
+          ${numero('vem', r.vem, 'Ainda vêm', 'vem', r.atrasados ? `<span class="r13-selo atencao">${r.atrasados} atrasado${r.atrasados === 1 ? '' : 's'}</span>` : '')}
+          ${numero('faltaram', r.faltaram, 'Não vieram', 'falta', r.faltaram ? `${r.pctFaltaram}% do dia` : '')}
+        </ol>
+        <div class="r13-barra" role="img" aria-label="${esc(H.fraseTexto(r, { fechado }))}">
+          ${pedaco(r.chegaram, 'chegou')}${pedaco(r.vem, 'vem')}${pedaco(r.faltaram, 'falta')}</div>` : ''}
+        ${opts.doCache ? '<small class="marca-cache" aria-live="polite">Atualizando os horários. A lista ainda pode mudar.</small>' : ''}
+      </div>
+      <aside class="r13-prox${prox ? '' : ' vazio'}" aria-label="Próximo cliente">
+        ${prox ? `<p class="r13-mini">Próximo${relProx ? ` <span class="quando ${esc(relProx.tom)}">${esc(relProx.txt)}</span>` : ''}</p>
+          <b class="r13-prox-h">${esc(prox.hora)}</b>
+          <p class="r13-prox-nome">${esc(prox.cliente_nome)}</p>
+          <p class="r13-prox-serv">${esc(prox.servico)}</p>
+          ${carro || prox.consultor_nome ? `<p class="r13-prox-meta">${[carro, prox.consultor_nome].filter(Boolean).map(esc).join(' · ')}</p>` : ''}`
+        : `<p class="r13-mini">Próximo</p>
+          <p class="r13-prox-nome">${r.vem ? 'Quem falta já passou da hora' : 'Ninguém mais para chegar hoje'}</p>
+          <p class="r13-prox-serv">${r.vem ? 'Marque a chegada ou a falta na lista abaixo.' : 'Para marcar um horário, use Novo agendamento.'}</p>`}
+      </aside>
+      ${r.total ? `<div class="r13-horas">
+        <p class="r13-mini">Horários ao longo do dia</p>
+        <ol class="r13-grafico" aria-label="Horários por hora">${barras}</ol>
+        <p class="r13-legenda" aria-hidden="true"><span><i class="chegou"></i>Chegaram</span><span><i class="vem"></i>Ainda vêm</span><span><i class="falta"></i>Não vieram</span></p>
+      </div>` : ''}
+      <div class="hero-chips">${c.semTelefone30d > 0 ? `<button type="button" class="chip-aviso" id="chipSemTel"
+            title="Sem telefone o cliente não recebe lembrete nem pós-venda. Toque para ver e corrigir.">
+            ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
+        <span class="chips-gestor" id="chipsGestor"></span></div>
+    </section>`;
+}
+
 function pintarInicio(d, opts = {}) {
   const c = d.cards, agora = agoraSP();
+  const resumoHoje = window.HojeResumo.resumo(d.agendaHoje, agora.hm);
   const grupos = { agendados: [], oficina: [], faltaram: [] };
   for (const a of d.agendaHoje) { const g = grupoDoDia(a); if (grupos[g]) grupos[g].push(a); }
   /* "Na oficina" atravessa os dias: carro que chegou ontem e ainda não teve
@@ -959,36 +1017,10 @@ function pintarInicio(d, opts = {}) {
 
   // abertura: quem é o próximo?
   const prox = grupos.agendados.find(a => String(a.hora) >= agora.hm);
-  const semDesfecho = grupos.agendados.filter(a => String(a.hora) < agora.hm).length;
-  const frase = semDesfecho
-    ? `${semDesfecho} ${semDesfecho === 1 ? 'horário sem desfecho' : 'horários sem desfecho'}`
-    : !d.agendaHoje.length ? 'Nenhum agendamento para hoje.' : '';
   const relProx = prox ? quandoRel(prox, agora) : null;
 
   view.innerHTML = `
-    <div class="hero-dia">
-      <div>
-        <h2 class="hero-titulo">Agenda de hoje</h2>
-        <p class="hero-data">${esc(dataExtenso(d.data))}</p>
-        ${frase ? `<p class="hero-situacao">${frase}</p>` : ''}
-        <div class="hero-chips">${c.semTelefone30d > 0 ? `<button type="button" class="chip-aviso" id="chipSemTel"
-            title="Sem telefone o cliente não recebe lembrete nem pós-venda. Toque para ver e corrigir.">
-            ${svg(I.alerta)} ${c.semTelefone30d} ${c.semTelefone30d === 1 ? 'agendamento sem telefone' : 'agendamentos sem telefone'} nos últimos 30 dias</button>` : ''}
-        <span class="chips-gestor" id="chipsGestor"></span></div>
-        ${opts.doCache ? '<small class="marca-cache" aria-live="polite">Atualizando os horários. A lista ainda pode mudar.</small>' : ''}
-      </div>
-      ${prox ? `<div class="hero-prox">
-        <span class="h">${esc(prox.hora)}</span>
-        <div><small>Próximo${relProx ? ' · ' + esc(relProx.txt) : ''}</small>
-          <b>${esc(prox.cliente_nome)} · ${esc(prox.servico)}</b></div>
-      </div>` : ''}
-    </div>
-    <!-- Rodada 11: 3 números do dia ("vieram e não fecharam" é venda, mora no CRM) -->
-    <div class="stat-grid row2 tres">
-      ${statCard('red',    c.totalHoje,    'Agendamentos hoje',       I.calendar)}
-      ${statCard('green',  c.compareceram, 'Chegaram hoje',       I.check)}
-      ${statCard('orange', c.naoVieram,    'Não vieram hoje',         I.x)}
-    </div>
+    ${heroiDoHoje(d, prox, relProx, agora, opts)}
     <div class="cols cols-dia so-hoje">
       <div class="panel">
         <div class="panel-head">
@@ -1031,11 +1063,13 @@ function pintarInicio(d, opts = {}) {
 
   // números: contam na abertura; numa atualização silenciosa, só o que mudou "pulsa"
   if (opts.quieto && state._cards) {
-    $$('.stat .num', view).forEach((el, i) => {
-      if (state._cards[CHAVES_CARDS[i]] !== c[CHAVES_CARDS[i]]) el.classList.add('pulsa');
+    $$('.num[data-chave]', view).forEach((el) => {
+      const k = el.dataset.chave;
+      if (state._resumoHoje && state._resumoHoje[k] !== resumoHoje[k]) el.classList.add('pulsa');
     });
   } else if (!opts.quieto) animarNumeros(view);
   state._cards = c;
+  state._resumoHoje = resumoHoje;
   if (state.contagens) pintarContagens(state.contagens);   // chips do gestor sem esperar outra chamada
   window.R6b?.inicio();
   window.R6?.inicio(d);                                     // orçamentos aprovados esperando horário
@@ -1217,7 +1251,7 @@ async function renderClientes(opts = {}) {
         <span class="badge-pill bp-gray" id="cliTotal">${list.length} ${list.length === 1 ? 'cliente' : 'clientes'}</span></div>
       <button class="btn primary" onclick="openClienteModal()">${svg(I.plus)} Novo cliente</button>
     </div>
-    <div class="panel"><div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table"><thead><tr>
+    <div class="panel"><div class="tabela-rolagem" tabindex="0" role="region" aria-label="Tabela, role de lado para ver tudo"><table class="table cli-tabela"><thead><tr>
       <th>Nome</th><th>Telefone</th><th>Carro</th><th>Placa</th><th>Origem</th><th></th>
     </tr></thead><tbody id="cliBody">${clienteRows(list, q0)}</tbody></table></div></div>`;
   bindCliRows();
