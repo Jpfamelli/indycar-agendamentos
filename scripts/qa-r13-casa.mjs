@@ -47,6 +47,8 @@ async function foto(nome, cenario, { largura, tema, depois = null }) {
     const json = (o, status = 200) => req.respond({ status, contentType: 'application/json', body: JSON.stringify(o) });
     if (u.pathname === '/api/central/config') return json({ supabaseUrl: 'https://mentira.supabase.co', supabaseAnonKey: 'chave-de-mentira', versao: 'r13', apps: {}, orcadorNaCentral: true });
     if (u.pathname === '/api/central/saude-apps') return json({ verificado_em: Date.now(), apps: {}, internos: {} });
+    // R13C: o faturamento do mês sai do servidor da Central (regra única do valor do serviço); aqui, o número da mentira
+    if (u.pathname === '/api/central/faturamento') return json({ faturamento: { mes: 48250, sem_valor_semana: 2, fechados_mes: 31, com_valor_mes: 29, por_fonte: { agenda: 48250 } } });
     if (u.pathname.startsWith('/agenda/api/')) return json([]);
     if (u.pathname === '/sw.js') return req.respond({ status: 200, contentType: TIPOS['.js'], body: '/* service worker vazio nas fotos */' });
     if (u.pathname === '/manifest.json') return req.respond({ status: 200, contentType: TIPOS['.json'], body: readFileSync(join(RAIZ, 'casa/manifest.json')) });
@@ -124,7 +126,7 @@ await foto('uso-dono-375-escuro', { papel: 'admin', zap: 'ok' }, { largura: 375,
   const achar = (t) => passagens.find((p) => p[0].includes(t)) || [];
   conferir(achar('3 conversas')[1] === '/atendimento/?conversa=00000033-0000-4000-8000-000000000000', 'passagem: conversa esperando abre a conversa mais antiga no Atendimento', erros);
   conferir(achar('2 orçamentos esperando')[1] === '/orcador/#/historico/00000021-0000-4000-8000-000000000000' && achar('2 orçamentos esperando')[2] === 'indycar-orcador', 'passagem: orçamento esperando abre o orçamento certo em /orcador/ (mesmo login)', erros);
-  conferir(achar('contatos novos')[1] === '/crm/', 'passagem: contatos sem responsável abrem o CRM', erros);
+  conferir(achar('contatos sem responsável')[1] === '/crm/?ver=sem-responsavel', 'passagem: contatos sem responsável abrem o CRM já filtrado (R13C)', erros);
   conferir(String(achar('1 carro pronto')[1]).endsWith('#/patio'), 'passagem: carro pronto abre o painel do Pátio', erros);
   await page.click('#bSino'); await espera(200);
   conferir(await page.$eval('#painelSino', (e) => !e.hidden), 'sino abre', erros);
