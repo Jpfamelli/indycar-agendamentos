@@ -2373,6 +2373,14 @@ async function api(req, res, url) {
 // ---------------------------------------------------------------------------
 // Arquivos estáticos
 // ---------------------------------------------------------------------------
+/** rodada 13C: caminho que nunca é tela da Agenda: segmento oculto, último nome com ponto ou pasta interna do projeto. */
+export function caminhoQueNaoEPagina(pathname) {
+  let p = String(pathname || '/');
+  try { p = decodeURIComponent(p); } catch { return true; }
+  if (/(^|\/)\./.test(p)) return true;                          // /.env, /.git/config, /x/.htaccess
+  if (/\.[^/]*$/.test(p)) return true;                           // /README.md, /backup.zip, /foo.html que não existe
+  return /^\/(scripts|tests?|testes|node_modules|apps|sql|supabase|qa-out|capturas[^/]*)(\/|$)/i.test(p);
+}
 const _estaticos = new Map();   // caminho -> { chave, bruto, etag, comp:{br,gzip} }
 const TEXTUAIS = new Set(['.html', '.css', '.js', '.json', '.svg']);
 async function serveStatic(req, res, pathname) {
@@ -2396,6 +2404,10 @@ async function serveStatic(req, res, pathname) {
   } catch {
     /* rodada 6: arquivo com extensão que não existe (/rodada9.js, /foto.png) é 404 — antes devolvia o index.html com 200 e o navegador tentava rodar HTML como script */
     if (/\.(?:js|mjs|css|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|json|txt|xml)$/i.test(pathname)) return notFound(res);
+    /* rodada 13C: arquivo oculto (/.env, /.git/config), qualquer nome com ponto que não existe (/README.md) e pasta
+       interna do projeto (/scripts/, /tests/…) são 404. Antes caíam na página da Agenda com 200 (nada vazava, mas
+       parecia que existiam). As telas sem ponto continuam com a página (fallback). */
+    if (caminhoQueNaoEPagina(pathname)) return notFound(res);
     // SPA fallback (rodada 10: pela mesma porta dos arquivos: comprimida, com ETag e 304; antes saía crua, 21,8 kB a cada vez)
     try {
       const casca = join(PUBLIC, 'index.html');
