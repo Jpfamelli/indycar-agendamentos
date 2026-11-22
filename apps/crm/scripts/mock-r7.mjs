@@ -58,12 +58,12 @@ export function criarRotasMockR7(ctx) {
     const m = req.method, leads = ctx.getLeads(), clientes = ctx.getClientes();
     if (p === '/api/funil/movimentos' && m === 'GET') {
       const dados = dadosMock(agora), sinais = R6.construirSinais(leads, dados, agora);
-      const todos = R7.sugerirMovimentos(leads, sinais, { agora }).map(x => ({ ...x, pode_editar: pode(leads.find(l => l.id === x.lead_id), gestor) }));
+      const todos = R7.sugerirMovimentos(leads, sinais, { agora, prefixo: ctx.prefixo || '' }).map(x => ({ ...x, pode_editar: pode(leads.find(l => l.id === x.lead_id), gestor) }));
       const vis = gestor ? todos : todos.filter(x => x.pode_editar);
       return json({ gerado_em: new Date(agora).toISOString(), total: vis.length, aplicaveis: vis.filter(x => x.aplicavel && x.pode_editar).length, para_revisar: vis.filter(x => !x.aplicavel).length, itens: vis.slice(0, 100) });
     }
     if (p === '/api/funil/movimentos/aplicar' && m === 'POST') {
-      const dados = dadosMock(agora), sinais = R6.construirSinais(leads, dados, agora), movs = R7.sugerirMovimentos(leads, sinais, { agora });
+      const dados = dadosMock(agora), sinais = R6.construirSinais(leads, dados, agora), movs = R7.sugerirMovimentos(leads, sinais, { agora, prefixo: ctx.prefixo || '' });
       const aplicados = [], pulados = [];
       for (const it of (Array.isArray(d.itens) ? d.itens : []).slice(0, 50)) {
         const l = leads.find(x => x.id === it.id); if (!l) { pulados.push({ id: it.id, motivo: 'nao_achei' }); continue; }
@@ -102,9 +102,9 @@ export function criarRotasMockR7(ctx) {
       const doL = lista => lista.filter(x => x.lead_id === l.id);
       const orcAprovado = doL(dados.orcs).find(o => o.status === 'aprovado') || null, agendamento = doL(dados.agendamentos)[0] || null, os = doL(dados.os)[0] || null;
       const reais = ativ.filter(a => a.lead_id === l.id && a.tipo !== 'sistema' && a.tipo !== 'nota');
-      const mov = R7.sugerirMovimentos([l], { [l.id]: sn }, { agora })[0] || null;
+      const mov = R7.sugerirMovimentos([l], { [l.id]: sn }, { agora, prefixo: ctx.prefixo || '' })[0] || null;
       return json({ lead_id: l.id, saude: R7.saudeDoLead(l, sn, agora), melhor_horario: R7.melhorHorario(reais), canal: R7.canalQueFunciona(reais), tempo: R7.tempoComoLead(l, ativ.filter(a => a.lead_id === l.id), agora),
-        atalhos: R7.atalhosDoLead(l, { orcAprovado: orcAprovado && { id: crypto.randomUUID() }, agendamento: agendamento && { id: crypto.randomUUID() }, os: os && { id: crypto.randomUUID(), numero: os.numero, etapa: os.etapa }, conversaId: crypto.randomUUID() }),
+        atalhos: R7.atalhosDoLead(l, { orcAprovado: orcAprovado && { id: crypto.randomUUID() }, agendamento: agendamento && { id: crypto.randomUUID() }, os: os && { id: crypto.randomUUID(), numero: os.numero, etapa: os.etapa }, conversaId: crypto.randomUUID() }, { prefixo: ctx.prefixo || '' }),
         movimento: mov ? { ...mov, pode_editar: pode(l, gestor) } : null, automaticos: ativ.filter(a => a.lead_id === l.id && a.tipo === 'sistema').slice(0, 8).map(a => ({ texto: a.texto, quando: a.created_at })), pode_editar: pode(l, gestor) });
     }
     if (p === '/api/perdas' && m === 'GET') {
@@ -122,7 +122,7 @@ export function criarRotasMockR7(ctx) {
     }
     if (p === '/api/indicacoes/painel' && m === 'GET') {
       const cl = new Map(clientes.map(c => [c.id, c]));
-      const r = R7.painelIndicacoes(indicacoes, leads, cl, { agora });
+      const r = R7.painelIndicacoes(indicacoes, leads, cl, { agora, prefixo: ctx.prefixo || '' });
       const filtra = lista => gestor ? lista : lista.filter(x => { const l = leads.find(t => t.id === x.lead_id); return l && pode(l, gestor); });
       const resp = { ...r, esperando_contato: filtra(r.esperando_contato), agradecer: filtra(r.agradecer) };
       if (!gestor) { delete resp.ranking; resp.valor = null; resp.valor_medio = null; }
