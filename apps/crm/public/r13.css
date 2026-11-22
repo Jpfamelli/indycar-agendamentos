@@ -162,3 +162,5 @@
   #tblLeads .card,.card:has(#tblLeads){padding:6px 0}
   #view-leads .table-wrap{overflow:visible}
 }
+.r13-esperando .r13-frase{font-size:clamp(20px,2vw,26px);color:var(--ic-apagado)}
+.r13-esperando .r13-frase .btn{margin-left:8px;vertical-align:middle}
