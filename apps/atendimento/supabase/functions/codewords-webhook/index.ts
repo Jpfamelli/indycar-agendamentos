@@ -18,10 +18,19 @@
 // aí o áudio toca e a foto abre direto no painel, igual às que a
 // gente envia. Sem o arquivo, continua só o rótulo "🎤 Áudio".
 //
+// v10 (R13C, 22/11/2026): FREIO NO TOKEN ERRADO. Do mesmo endereço,
+// 10 tentativas erradas em 10 min ficam no registro; depois é 429
+// sem gravar nada. A recusa não grava mais o corpo de quem chamou
+// (só tamanho e nome dos campos). Regra em freio.ts (freio.deno-teste.ts).
+//
 // Segurança: verify_jwt desligado DE PROPÓSITO (o CodeWords não
 // fala JWT) — em troca todo POST precisa do x-codewords-token.
 // ============================================================
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { criarFreio, ipDe, JANELA_MS, resumoDaRecusa, TENTATIVAS_ERRADAS } from "./freio.ts";
+
+/** Tentativas com token errado por endereço (memória da instância; some quando ela recicla). */
+const FREIO = criarFreio({ maxChaves: 5000 });
 
 const sb = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -210,15 +219,17 @@ Deno.serve(async (req: Request) => {
       headers: { "Content-Type": "application/json; charset=utf-8" },
     });
 
-  if (req.method === "GET") return json(200, { ok: true, versao: 9 });
+  if (req.method === "GET") return json(200, { ok: true, versao: 10 });
   if (req.method !== "POST") return json(405, { erro: "use POST" });
 
   const tamanho = Number(req.headers.get("content-length") || 0);
   if (tamanho > LIMITE_CORPO) return json(413, { erro: "mensagem grande demais" });
 
   let body: Record<string, unknown> = {};
+  let bytesRecebidos = 0;
   try {
     const bruto = await req.text();
+    bytesRecebidos = bruto.length;
     if (bruto.length > LIMITE_CORPO) return json(413, { erro: "mensagem grande demais" });
     body = bruto ? JSON.parse(bruto) : {};
     if (typeof body !== "object" || body === null || Array.isArray(body)) body = {};
@@ -232,12 +243,23 @@ Deno.serve(async (req: Request) => {
                   (typeof body.token === "string" ? body.token : undefined);
   const esperado = typeof cfg?.token_webhook === "string" ? cfg.token_webhook.trim() : "";
   if (erroCfg || !esperado || !segredosIguais(enviado, esperado)) {
+    /* v10 (R13C): quem chuta o token não enche o banco. Do mesmo endereço, as 10 primeiras
+       tentativas erradas em 10 min ficam registradas; dali em diante é 429 sem gravar nada
+       (mesma regra da versão Node, rodada 10). E o registro da recusa não leva o corpo de
+       quem chamou: só o tamanho e o nome dos campos. */
+    const chave = `webhook-token:${ipDe(req.headers)}`;
+    if (FREIO.contar(chave, JANELA_MS) > TENTATIVAS_ERRADAS) {
+      return new Response(JSON.stringify({ erro: "muitas tentativas com token inválido; espere alguns minutos", codigo: "muitas_tentativas" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json; charset=utf-8", "Retry-After": String(FREIO.espera(chave)) },
+      });
+    }
     await registrarEvento({ direcao: "entrada", sucesso: false,
       resumo: esperado ? "token inválido" : "webhook sem token configurado",
       erro: erroCfg ? "não consegui ler a configuração"
                     : (esperado ? "x-codewords-token não confere"
                                 : "defina o Token do webhook em Configurações"),
-      payload: recortarPayload(body) });
+      payload: { recusado: true, ...resumoDaRecusa(body, bytesRecebidos) } });
     return json(401, { erro: "token inválido" });
   }
 
