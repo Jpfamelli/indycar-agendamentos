@@ -55,7 +55,7 @@ test('resumoDoLead: links do orçamento e da OS, horas esperando e pronto parado
   const lig = { orcamentos: [{ id: 'o1', numero: 12, status: 'enviado', total: '780.00', enviado_em: horas(60) }],
     os: [{ id: 's1', numero: 7, etapa: 'pronto', etapa_em: horas(30) }], extras: { aprovado: 90, pendente: 0, recusado: 0 } };
   const r = Ciclo.resumoDoLead(lig, AGORA);
-  assert.equal(r.orcamento.link, 'https://indycar-orcador.netlify.app/#/historico/o1');
+  assert.equal(r.orcamento.link, 'https://indycar-agendamentos.onrender.com/orcador/#/historico/o1');
   assert.equal(r.os.link, 'https://indycar-patio.netlify.app/?os=s1');
   assert.equal(r.orcamento.esperando_horas, 60); assert.equal(r.orcamento.total, 780);
   assert.equal(r.os.pronto_horas, 30); assert.equal(r.os.no_patio, true); assert.equal(r.extras_aprovados, 90);
@@ -251,7 +251,8 @@ test('ecossistema: origens (CORS) são só https://host — sem caminho — e ma
 test('ecossistema: appDaUrl acha o app pelo endereço mais específico e ignora o que é de fora', () => {
   assert.equal(Eco.appDaUrl('https://indycar-agendamentos.onrender.com/crm/?lead=1'), 'crm');
   assert.equal(Eco.appDaUrl('https://indycar-agendamentos.onrender.com/atendimento/'), 'atendimento');
-  assert.equal(Eco.appDaUrl('https://indycar-orcador.netlify.app/#/historico/x'), 'orcador');
+  assert.equal(Eco.appDaUrl('https://indycar-agendamentos.onrender.com/orcador/#/historico/x'), 'orcador');
+  assert.equal(Eco.appDaUrl('https://indycar-orcador.netlify.app/#/historico/x'), 'orcador', 'rodada 13C: o endereço antigo continua reconhecido');
   assert.equal(Eco.appDaUrl('https://indycar-patio.netlify.app/?os=1'), 'patio');
   assert.equal(Eco.appDaUrl('https://indycar-agendamentos.onrender.com/'), null, 'a Casa não tem aba própria aqui');
   assert.equal(Eco.appDaUrl('https://indycar-crm.onrender.com.malvado.com/'), null);
@@ -261,14 +262,14 @@ test('ecossistema: appDaUrl acha o app pelo endereço mais específico e ignora 
 
 test('ecossistema: nome da aba de cada app e links do orçamento e da OS', () => {
   assert.equal(Eco.alvo('crm'), 'indycar-crm'); assert.equal(Eco.alvo('orcador'), 'indycar-orcador');
-  assert.equal(Eco.linkOrcamento('abc 1'), 'https://indycar-orcador.netlify.app/#/historico/abc%201');
+  assert.equal(Eco.linkOrcamento('abc 1'), 'https://indycar-agendamentos.onrender.com/orcador/#/historico/abc%201');
   assert.equal(Eco.linkOS('u-1'), 'https://indycar-patio.netlify.app/?os=u-1');
   assert.equal(Eco.linkOrcamento(''), null); assert.equal(Eco.linkOS(null), null);
 });
 
 test('ecossistema: "Orçar" leva o cliente (id) e o telefone ao Orçador', () => {
   const u = Eco.linkOrcadorTel('(12) 97403-2299', 'João da Silva', 'cli-1');
-  assert.match(u, /^https:\/\/indycar-orcador\.netlify\.app\/\?/);
+  assert.match(u, /^https:\/\/indycar-agendamentos\.onrender\.com\/orcador\/\?/, 'rodada 13C: o Orçador mora na Central');
   assert.match(u, /tel=5512974032299/); assert.match(u, /cliente=cli-1/); assert.match(u, /nome=Jo%C3%A3o%20da%20Silva/);
   assert.doesNotMatch(Eco.linkOrcadorTel('12974032299', 'A'), /cliente=/);
 });
@@ -286,7 +287,7 @@ test('leads.montarLinha: placa normalizada, idade, lead novo parado e links do c
   const resumo = Ciclo.resumoDoLead({ orcamentos: [{ id: 'o1', status: 'aprovado', total: 10 }], os: [{ id: 's1', etapa: 'recebido' }], extras: {} }, AGORA);
   const l = Leads.montarLinha(cru('1'), { ciclo: resumo, agora: AGORA });
   assert.equal(l.placa, 'ABC1D23'); assert.equal(l.idade_horas, 30); assert.equal(l.parado, true);
-  assert.equal(l.links.orcamento, 'https://indycar-orcador.netlify.app/#/historico/o1');
+  assert.equal(l.links.orcamento, 'https://indycar-agendamentos.onrender.com/orcador/#/historico/o1');
   assert.equal(l.links.os, 'https://indycar-patio.netlify.app/?os=s1');
   assert.match(l.links.orcador, /cliente=c-1/);
   const fresco = Leads.montarLinha(cru('2', { created_at: horas(2) }), { agora: AGORA });
@@ -359,7 +360,7 @@ test('ciclo.agora: carros no pátio e orçamentos esperando dos leads de anúnci
   assert.equal(r.no_patio, 1, 'lead de WhatsApp direto não conta'); assert.equal(r.prontos_parados, 1);
   assert.equal(r.orc_esperando, 1); assert.equal(r.valor_esperando, 700);
   assert.equal(r.carros[0].link_os, 'https://indycar-patio.netlify.app/?os=s1');
-  assert.equal(r.orcamentos[0].link_orcamento, 'https://indycar-orcador.netlify.app/#/historico/o2');
+  assert.equal(r.orcamentos[0].link_orcamento, 'https://indycar-agendamentos.onrender.com/orcador/#/historico/o2');
   const fora = await Ciclo.agora({ lerLeads: async () => brutos, ler: async () => ({ ok: false, porLead: new Map() }), agoraMs: AGORA });
   assert.equal(fora.indisponivel, true);
 });

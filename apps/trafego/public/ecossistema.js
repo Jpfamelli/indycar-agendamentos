@@ -21,7 +21,7 @@
     atendimento: { nome: 'Atendimento',   url: 'https://indycar-agendamentos.onrender.com/atendimento' },
     comunicar:   { nome: 'Comunicar',     url: 'https://indycar-agendamentos.onrender.com/comunicar' },
     ads:         { nome: 'Tráfego pago',  url: 'https://indycar-ads.onrender.com', aqui: true },
-    orcador:     { nome: 'Orçador',       url: 'https://indycar-orcador.netlify.app' },
+    orcador:     { nome: 'Orçador',       url: 'https://indycar-agendamentos.onrender.com/orcador' },   // rodada 13C: mora na Central
     patio:       { nome: 'Pátio',         url: 'https://indycar-patio.netlify.app' },
     site:        { nome: 'Site',          url: 'https://indycar-taubate.netlify.app' },
   };
@@ -34,7 +34,7 @@
   function nome(app) { return APPS[app] ? APPS[app].nome : app; }
 
   /* Endereços antigos (só redirecionam para a Central): continuam valendo no CORS e nos links de sino já gravados. */
-  var LEGADOS = ['https://indycar-crm.onrender.com', 'https://indycar-atendimento.onrender.com', 'https://indycar-posvenda.onrender.com'];
+  var LEGADOS = ['https://indycar-crm.onrender.com', 'https://indycar-atendimento.onrender.com', 'https://indycar-posvenda.onrender.com', 'https://indycar-orcador.netlify.app'];
 
   /** Só a origem (https://host) de uma URL — sem caminho. */
   function origemDe(u) {
@@ -53,6 +53,7 @@
   /** Qual app do ecossistema é dono desta URL (o endereço mais específico vence: /crm antes da Casa). null = de fora. */
   function appDaUrl(href) {
     var h = String(href || ''), melhor = null, tam = 0;
+    if (/^https:[/][/]indycar-orcador[.]netlify[.]app([/?#]|$)/.test(h)) return 'orcador';   // rodada 13C: endereço antigo do Orçador
     for (var k in APPS) {
       var u = APPS[k].url;
       if (APPS[k].aqui || k === 'casa') continue;

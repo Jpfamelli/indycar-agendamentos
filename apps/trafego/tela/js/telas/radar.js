@@ -11,7 +11,7 @@ import { haQuanto, inteiro } from '../formato.js';
 import { selo } from '../pecas.js';
 import { radar } from '../painel-logica.js';
 import { destinoDoIr, ehAdmin } from '../rotas.js';
-import { linkSeguro } from '../ecossistema.js';
+import { linkSeguro, abaDoLink } from '../ecossistema.js';
 import * as Estados from './estados.js';
 import { cabeca } from './cabeca.js';
 
@@ -28,7 +28,7 @@ function botaoDoAviso(ctx, acao) {
   if (!destino) return null;
   if (destino.fora) {
     const href = linkSeguro(destino.fora, { base: ctx.base });
-    return href ? h('a', { class: 'botao', href }, acao.rotulo, icone('abre-fora', 'icone-p')) : null;
+    return href ? h('a', { class: 'botao', href, target: abaDoLink(href, { base: ctx.base }) }, acao.rotulo, icone('abre-fora', 'icone-p')) : null;   // rodada 13C: aba nomeada do app
   }
   if (destino.tela === 'ajustes' && !ehAdmin(ctx.eu && ctx.eu.papel)) return null;
   return h('a', { class: 'botao', href: ctx.hrefDaTela(destino.tela, destino.params) }, acao.rotulo, icone('seta', 'icone-p'));

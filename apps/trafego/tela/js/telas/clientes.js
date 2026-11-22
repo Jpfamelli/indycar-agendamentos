@@ -11,7 +11,7 @@ import { h, icone, trocar } from '../dom.js';
 import { dinheiro, inteiro, ehNumero, dataCurta, dataHora, haQuanto } from '../formato.js';
 import { vazio } from '../pecas.js';
 import { agruparClientes, jornadaDoCliente } from '../painel-logica.js';
-import { linkSeguro } from '../ecossistema.js';
+import { linkSeguro, abaDoLink } from '../ecossistema.js';
 import * as Estados from './estados.js';
 import { cabeca } from './cabeca.js';
 
@@ -134,7 +134,8 @@ function abrirFicha(ctx, c) {
 
 function pintarFicha(ctx, alvo, c) {
   const links = c.links || {};
-  const atalho = (href, rotulo) => { const seguro = linkSeguro(href, { base: ctx.base }); return seguro ? h('a', { class: 'botao', href: seguro }, rotulo, icone('abre-fora', 'icone-p')) : null; };
+  /* rodada 13C: cada app abre na aba nomeada dele (o ícone de "abre fora" agora diz a verdade) */
+  const atalho = (href, rotulo) => { const seguro = linkSeguro(href, { base: ctx.base }); return seguro ? h('a', { class: 'botao', href: seguro, target: abaDoLink(seguro, { base: ctx.base }) }, rotulo, icone('abre-fora', 'icone-p')) : null; };
   trocar(alvo,
     h('p', { class: 'ficha-sub' }, [c.carro, c.servico, c.chegou_em ? 'chegou ' + (dataCurta(c.chegou_em) || '') : null].filter(Boolean).join(' · ')),
     passos(c, { grande: true }),

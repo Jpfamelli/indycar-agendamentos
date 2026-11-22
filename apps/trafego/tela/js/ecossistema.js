@@ -16,10 +16,12 @@ const APPS = [
   { id: 'comunicar', nome: 'Comunicar', caminho: 'comunicar/', descricao: 'lembretes e réguas' },
   { id: 'trafego', nome: 'Tráfego', caminho: 'trafego/', descricao: 'do anúncio ao carro entregue' },
   { id: 'patio', nome: 'Pátio', url: 'https://indycar-patio.netlify.app/', descricao: 'carro dentro da oficina' },
-  { id: 'orcador', nome: 'Orçador', url: 'https://indycar-orcador.netlify.app/', descricao: 'orçamentos' },
+  { id: 'orcador', nome: 'Orçador', caminho: 'orcador/', descricao: 'orçamentos' },   // rodada 13C: mora na Central (/orcador/)
   { id: 'site', nome: 'Site', url: 'https://indycar-taubate.netlify.app/', descricao: 'página da oficina' },
 ];
 const ORIGENS_DE_FORA = APPS.filter((a) => a.url).map((a) => new URL(a.url).origin).concat(new URL(CENTRAL_PUBLICA).origin);
+/* rodada 13C: endereço antigo do Orçador (links já gravados): vira o mesmo orçamento em /orcador/ da Central */
+const ORCADOR_ANTIGO = 'https://indycar-orcador.netlify.app';
 
 /** Pasta da página: "/trafego/" na Central, "/" solto. Sempre termina com "/". */
 export function baseDaPagina(pathname) {
@@ -68,6 +70,9 @@ export function linkSeguro(href, { base = '/' } = {}) {
   if (/^https:[/][/]/i.test(texto)) {
     try {
       const u = new URL(texto);
+      if (u.origin === ORCADOR_ANTIGO) return enderecoNaCentral('orcador/' + u.search + u.hash, { base });
+      /* rodada 13C: endereço de produção da Central visto de dentro da Central: fica neste endereço (mesmo login) */
+      if (u.origin === new URL(CENTRAL_PUBLICA).origin && raizDaCentral(base)) return enderecoNaCentral(u.pathname + u.search + u.hash, { base });
       return ORIGENS_DE_FORA.includes(u.origin) ? u.href : null;
     } catch {
       return null;
@@ -80,6 +85,15 @@ export function linkSeguro(href, { base = '/' } = {}) {
 
 /** Nome da aba de cada app (window.open(url, nome)): clicar de novo volta para a mesma aba. */
 export const nomeDaAba = (id) => 'indycar-' + id;
+
+/**
+ * Rodada 13C (regra única da Central): o "target" de um link para outro app: a aba nomeada dele ("indycar-crm"…).
+ * Link do próprio Tráfego (ou que não é de app conhecido) fica nesta janela: null.
+ */
+export function abaDoLink(href, { base = '/' } = {}) {
+  const app = appDoEndereco(href, { base });
+  return app && app !== 'trafego' ? nomeDaAba(app) : null;
+}
 
 /** De qual app é este endereço (para escolher a aba). null = não sei. */
 export function appDoEndereco(url, { base = '/' } = {}) {
