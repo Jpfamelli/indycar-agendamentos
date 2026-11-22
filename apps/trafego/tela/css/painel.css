@@ -560,8 +560,7 @@ body {
 .gd-leitura {
   margin: 0;
   padding: 10px 14px;
-  border-left: 3px solid var(--pn-vermelho);
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
   background: var(--pn-cartao-2);
   font-weight: 600;
   color: var(--ic-forte);
@@ -612,8 +611,9 @@ body {
 .mg-barra-meta { flex: 0 0 calc(var(--v) * 100%); background: var(--pn-meta); color: #0b0b0c; }
 .mg-barra-google { flex: 1; justify-content: flex-end; background: var(--pn-google); color: #fff; }
 .mg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.mg-col { padding: 14px; border-radius: 10px; background: var(--pn-cartao-2); border-top: 3px solid var(--pn-meta); }
-.mg-google { border-top-color: var(--pn-google); }
+.mg-col { padding: 14px; border-radius: 10px; background: var(--pn-cartao-2); --mg-cor: var(--pn-meta); }
+.mg-google { --mg-cor: var(--pn-google); }
+.mg-nome::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: var(--mg-cor); vertical-align: middle; }
 .mg-nome { margin: 0 0 10px; font: 700 18px/1.1 var(--ic-titulo); text-transform: uppercase; color: var(--ic-forte); }
 .mg-dados { display: grid; gap: 8px; margin: 0; }
 .mg-dados div { display: flex; justify-content: space-between; gap: 8px; }
@@ -790,7 +790,7 @@ body {
 .jornada-g li.feito span { color: var(--ic-forte); }
 .ficha-sub { margin: 0; color: var(--ic-apagado); }
 .ficha-origem { display: flex; gap: 8px; align-items: center; margin: 0; font-size: 14px; }
-.ficha-msg { margin: 0; padding: 12px 16px; border-left: 3px solid #22c55e; border-radius: 0 10px 10px 0; background: var(--pn-cartao-2); font-size: 16px; }
+.ficha-msg { margin: 0; padding: 12px 16px; border-radius: 4px 14px 14px 14px; background: var(--pn-cartao-2); font-size: 16px; }
 .tempo { display: grid; gap: 10px; margin: 0; padding: 0 0 0 16px; list-style: none; border-left: 2px solid var(--pn-borda); }
 .tempo li { position: relative; display: grid; gap: 2px; }
 .tempo li::before { content: ''; position: absolute; left: -22px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--pn-vermelho); }
