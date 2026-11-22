@@ -251,11 +251,14 @@
    * apareciam por um instante para quem entrasse depois no mesmo computador. Agora o conteúdo é apagado junto.
    */
   const PARA_LIMPAR = ['#listaNotif', '#sinoRodape', '#atencaoLista', '#saudeLista', '#buscaLista', '#fichaCorpo', '#fichaChips',
-    '#gradeApps', '#avisoApps', '#avisoRede', '#mpNome', '#mpEmail', '#mpPapel', '#nomeCurto', '#bPerfil', '#fichaTit', '#fichaSub', '#saudeTxt', '#saudeHora', '#sinoNum', '#toast'];
+    '#gradeApps', '#avisoApps', '#avisoRede', '#heroiNums', '#heroiHora', '#heroiOficina', '#mesCorpo', '#mesSelo', '#mpNome', '#mpEmail', '#mpPapel', '#nomeCurto', '#bPerfil', '#fichaTit', '#fichaSub', '#saudeTxt', '#saudeHora', '#sinoNum', '#toast'];
   function limparTela() {
     for (const s of PARA_LIMPAR) { const el = $(s); if (el) el.textContent = ''; }
     for (const s of ['#buscaInput', '#sinoBusca']) { const el = $(s); if (el) el.value = ''; }
     const av = $('#bPerfil'); if (av) av.style.background = '';
+    /* rodada 13: o herói volta para "lendo" e o mês da oficina some (o número do faturamento não fica na página) */
+    const fr = $('#heroiFrase'); if (fr) fr.innerHTML = '<span class="heroi-lendo">Lendo o dia da oficina…</span>';
+    for (const s of ['#heroiNums', '#mesOficina', '#atencao']) { const el = $(s); if (el) el.hidden = true; }
     const rede = $('#avisoRede'); if (rede) rede.hidden = true;
     $('#toast').hidden = true;
   }

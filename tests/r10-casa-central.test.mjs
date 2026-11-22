@@ -70,7 +70,7 @@ test('r10-marca: cada CSS e JS do index leva a marca do conteúdo e, pedido com 
   assert.equal(r.headers.get('cache-control'), 'no-cache', 'o index sempre confere');
   const html = await r.text();
   const pedidos = [...html.matchAll(/(?:href|src)="(\/casa\/([\w.-]+\.(?:css|js))\?v=([\w-]+))"/g)];
-  assert.equal(pedidos.length, 19, '6 folhas de estilo e 13 scripts (rodada 11: saíram manha.js, tarefas.js e atalhos.js; entraram indycar.css e r11.css)');
+  assert.equal(pedidos.length, 22, '7 folhas de estilo e 15 scripts (rodada 11: saíram manha.js, tarefas.js e atalhos.js; entraram indycar.css e r11.css; rodada 13: entraram r13.css, logica5.js e mes.js)');
   const marcas = new Set();
   for (const [, url, nome, marca] of pedidos) {
     assert.match(marca, /^[\w-]{12}$/, nome + ': marca do conteúdo, não número escrito à mão');
@@ -80,7 +80,7 @@ test('r10-marca: cada CSS e JS do index leva a marca do conteúdo e, pedido com 
     assert.equal(a.headers.get('cache-control'), 'public, max-age=31536000, immutable', nome);
     assert.equal(a.headers.get('content-encoding'), 'br', nome);
   }
-  assert.equal(marcas.size, 19, 'arquivos diferentes, marcas diferentes');
+  assert.equal(marcas.size, 22, 'arquivos diferentes, marcas diferentes');
   // marca velha, marca inventada ou sem marca: confere com o servidor como antes (nunca fica preso num arquivo antigo)
   for (const url of ['/casa/casa.js', '/casa/casa.js?v=12', '/casa/casa.js?v=aaaaaaaaaaaa', '/casa/casa.css?v=']) assert.equal((await pega(url)).headers.get('cache-control'), 'no-cache', url);
   // o service worker e o index nunca ficam fixos, mesmo com "?v="
