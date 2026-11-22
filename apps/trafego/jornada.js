@@ -138,20 +138,9 @@ function classificarResposta(pm, { janelas = [], respostas = true } = {}) {
 
 const valorDoOrcamento = orc => (orc.status === 'aprovado' ? arred(Ciclo.valorAprovado(orc)) : (orc.total == null ? null : arred(numero(orc.total))));
 
-/** Valor do serviço fechado e de onde ele veio: Pátio (OS entregue) > orçamento aprovado > agendamento concluído > lançado à mão. */
-function valorDoServico(l, { lig = null, orc = null, ags = [] } = {}) {
-  const entregue = lig ? (lig.os || []).find(o => o.etapa === 'entregue') : null;
-  const aprovado = orc && orc.status === 'aprovado' ? Ciclo.valorAprovado(orc) : 0;
-  if (entregue) {
-    const total = (aprovado > 0 ? aprovado : numero(entregue.orcamento_total)) + numero(lig.extras && lig.extras.aprovado);
-    if (total > 0) return { valor: arred(total), fonte: 'patio' };
-  }
-  if (aprovado > 0) return { valor: arred(aprovado), fonte: 'orcamento' };
-  const daAgenda = Math.max(0, ...ags.filter(a => a.status === 'concluido').map(a => numero(a.valor)));
-  if (daAgenda > 0) return { valor: arred(daAgenda), fonte: 'agenda' };
-  if (numero(l.valor_pago) > 0) return { valor: arred(numero(l.valor_pago)), fonte: 'manual' };
-  return { valor: null, fonte: null };
-}
+/** Valor do serviço fechado e de onde ele veio: Pátio (OS entregue) > orçamento aprovado > agendamento concluído > lançado à mão.
+ *  R13C: a regra mora em lib/valor-servico.cjs, a mesma da Casa (faturamento do mês) e do CRM. */
+const valorDoServico = (l, ctx = {}) => require('../../lib/valor-servico.cjs').valorDoServico(l, ctx);
 
 /* ---------------- o item ---------------- */
 

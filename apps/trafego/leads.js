@@ -208,7 +208,8 @@ function resumo(lista) {
  */
 async function listar({ de, ate, canal = null, status = null, q = null, soPagos = false, semResponsavel = false, etapa = null, limite = 500, ordem = 'recentes',
   sb = db.sb, nomes = ids => require('./equipe').banco().nomesDosPerfis(ids), ler = Ciclo.ler, agora = Date.now() } = {}) {
-  const brutos = await lerLeads(de, ate, { sb });
+  // R13C: o valor de quem fechou sai pela regra única (lib/valor-servico.cjs), igual à jornada, à Casa e ao CRM
+  const brutos = await require('../../lib/valor-servico.cjs').comValorDoServico(sb, await lerLeads(de, ate, { sb }));
   const [ags, mapaNomes] = await Promise.all([
     agendamentosDe(brutos.map(l => l.id), { sb }),
     nomes(brutos.map(l => l.responsavel_id).filter(Boolean)).catch(() => new Map()),

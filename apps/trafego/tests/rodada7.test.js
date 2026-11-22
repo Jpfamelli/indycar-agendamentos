@@ -142,7 +142,8 @@ test('pronto_parado: o item leva o link da OS; entregue sem valor leva o valor s
     [{ id: 's1', lead_id: 'l1', etapa: 'entregue', created_at: horas(50) }, { id: 's2', lead_id: 'l2', etapa: 'pronto', etapa_em: horas(40), created_at: horas(50) }],
     [{ os_id: 's1', valor: 100, status: 'aprovado' }]);
   assert.equal(alerta(c, 'pronto_parado').itens[0].links.os, 'https://indycar-patio.netlify.app/?os=s2');
-  assert.equal(alerta(c, 'valor_sugerido').itens[0].valor_sugerido, 1000);
+  // R13C: entregue com orçamento aprovado já tem valor pela regra única (900 + 100 do Pátio): nada a sugerir
+  assert.equal(alerta(c, 'valor_sugerido'), undefined);
 });
 
 /* ---------- métricas novas por campanha ---------- */
