@@ -62,11 +62,11 @@
     caixa.innerHTML = modo === 'ajustes' ? `<div class="panel-head"><h2>Cuidado com o cliente</h2></div>
       <div class="panel-body">${ANTISPAM.map(item).join('')}</div>` : `<div class="panel-head"><h2>Pátio e Orçador</h2></div>
       <div class="panel-body">${INTERRUPTORES.map(item).join('')}
-        ${Object.entries(TEXTOS).map(([campo, t]) => `<div class="field r6-texto"><label for="r6t_${campo}">${esc(t.rotulo)}</label>
+        <details class="regua-editar r6-textos"><summary>Editar as mensagens do Pátio e do Orçador</summary>${Object.entries(TEXTOS).map(([campo, t]) => `<div class="field r6-texto"><label for="r6t_${campo}">${esc(t.rotulo)}</label>
             <textarea id="r6t_${campo}" maxlength="1000" data-r6cfg="${campo}" ${gestor ? '' : 'disabled'}>${esc(v(campo))}</textarea>
             <div class="var-chips">${t.vars.map(x => `<button type="button" class="var-chip${x === t.obrig ? ' link' : ''}" data-r6var="${esc(x)}" data-r6alvo="r6t_${campo}" ${gestor ? '' : 'disabled'}>{${esc(x)}}</button>`).join('')}</div>
             <small class="r6-erro-texto" id="r6e_${campo}" hidden></small>
-            <div class="previa"><small>Prévia</small>${celularWA(`<div class="bolha wa-rec" id="r6b_${campo}"></div>`, { mini: true })}</div></div>`).join('')}
+            <div class="previa"><small>Prévia</small>${celularWA(`<div class="bolha wa-rec" id="r6b_${campo}"></div>`, { mini: true })}</div></div>`).join('')}</details>
       </div>`;
     if (modo === 'ajustes') grid.insertAdjacentElement('beforebegin', caixa); else grid.insertAdjacentElement('afterend', caixa);
 

@@ -350,7 +350,7 @@ const travado = () => (ehGestor() ? '' : 'disabled');
 const topoConfig = (titulo) => `<div class="toolbar">
       <div class="left"><h2>${titulo}</h2>
         ${ehGestor() ? '' : '<span class="so-gestor">Só gestor altera.</span>'}</div>
-      <div class="right"><button type="button" class="btn primary" id="btnSalvarTopo" disabled>${svg(I.check)} Salvar</button></div>
+      <div class="right"><button type="button" class="btn primary" id="btnSalvarTopo" disabled hidden>${svg(I.check)} Salvar</button></div>
     </div>`;
 const barraSalvar = () => `<div class="barra-salvar" id="barraSalvar" hidden>
       <div class="b-txt" role="status"><span class="n" id="nAlteracoes">0</span><span id="txtAlteracoes">alterações sem salvar</span></div>
@@ -410,10 +410,14 @@ async function renderReguas({ vez = state._vez } = {}) {
 
   view.innerHTML = `
     ${topoConfig('Réguas automáticas')}
+    <section class="panel heroi" id="heroiHoje" aria-busy="true" aria-label="Resumo de hoje"><div class="heroi-in"><p class="mini">Hoje</p>
+      <div class="skel" style="height:34px;width:min(560px,92%)"></div><div class="skel" style="height:34px;width:min(420px,70%)"></div></div></section>
+    <h3 class="secao-tit">As 8 réguas</h3>
     <div class="reguas-grid">${REGUAS.map(cartao).join('')}</div>
     ${barraSalvar()}`;
 
   REGUAS.forEach(atualizarPrevia);
+  window.R13?.pintarHoje($('#heroiHoje', view), { cfg: state.cfg, vez });
   $$('[data-quem]', view).forEach(b => b.addEventListener('click', () => abrirPrevia(b.dataset.quem)));
   $$('[data-teste]', view).forEach(b => b.addEventListener('click', () => mandarTeste(b)));
   window.R6?.pintarReguas('reguas');
@@ -532,7 +536,7 @@ function atualizarBarra() {
   barra.hidden = !n;
   $('#nAlteracoes').textContent = n;
   $('#txtAlteracoes').textContent = n === 1 ? 'alteração sem salvar' : 'alterações sem salvar';
-  const topo = $('#btnSalvarTopo'); if (topo) topo.disabled = !n;
+  const topo = $('#btnSalvarTopo'); if (topo) { topo.disabled = !n; topo.hidden = !n; }
   window.R4?.guardarRascunhoReguas(state.cfgEdit);
 }
 async function salvarConfig() {
@@ -541,9 +545,9 @@ async function salvarConfig() {
   const dados = { ...state.cfgEdit };
   if (!Object.keys(dados).length) return;
   const textoRuim = $('.r6-texto textarea.invalido', view);
-  if (textoRuim) { textoRuim.focus(); return toast('Confira o texto destacado: ' + ($('.r6-erro-texto:not([hidden])', view)?.textContent || 'tem um erro.'), 'err', 6000); }
+  if (textoRuim) { textoRuim.closest('details')?.setAttribute('open', ''); textoRuim.focus(); return toast('Confira o texto destacado: ' + ($('.r6-erro-texto:not([hidden])', view)?.textContent || 'tem um erro.'), 'err', 6000); }
   const invalido = $('.param input.invalido, .field input.invalido, .r6-param input.invalido', view);
-  if (invalido) { invalido.focus(); return toast('Confira o número destacado: ele está fora da faixa.', 'err'); }
+  if (invalido) { invalido.closest('details')?.setAttribute('open', ''); invalido.focus(); return toast('Confira o número destacado: ele está fora da faixa.', 'err'); }
   if (dados.janela_inicio !== undefined || dados.janela_fim !== undefined) {
     const ini = dados.janela_inicio ?? state.cfg.janela_inicio, fim = dados.janela_fim ?? state.cfg.janela_fim;
     if (ini >= fim) {
@@ -580,6 +584,7 @@ async function mandarTeste(btn) {
   const cfg = { ...state.cfg, ...state.cfgEdit };
   if (!soDigitos(cfg.telefone_teste) || soDigitos(cfg.telefone_teste).length < 10) { $('#cfg_tel')?.focus(); return toast('Preencha o telefone de teste em Ajustes (e salve).', 'err'); }
   if (state.cfgEdit.telefone_teste !== undefined) return toast('Salve o telefone de teste antes de mandar o teste.', 'err');
+  if (state.envioParado) return toast(state.envioParado === 'pausa' ? 'O envio está em pausa: o teste não sai agora.' : 'O WhatsApp da oficina está parado: o teste não sai agora.', 'err', 5000);
   const corpo = $(`#msg_${tipo}`)?.value?.trim();
   if (!corpo) return toast('Escreva a mensagem antes de testar.', 'err');
   btn.disabled = true; const antes = btn.innerHTML; btn.innerHTML = `${svg(I.refresh)} Mandando…`;
@@ -769,7 +774,8 @@ function cartaoEnvio(e) {
       <span class="r-txt">${esc(e.resposta)}</span>
       <span class="r-tag">${e.resposta_tipo === 'positiva' ? 'gostou' : e.resposta_tipo === 'negativa' ? 'reclamou' : e.resposta_tipo === 'parar' ? 'pediu para parar' : 'respondeu'}${e.respondido_em ? ` · ${esc(horaBR(e.respondido_em))}` : ''}</span></div>` : '';
   const meu = pode('cancelar_qualquer') || (e.criado_por_id && e.criado_por_id === state.perfil?.id);
-  const podeCancelar = meu && e.status === 'pendente', podeReenviar = meu && ['falhou', 'cancelado', 'pulado'].includes(e.status);
+  const podeCancelar = meu && e.status === 'pendente', podeReenviar = meu && ['falhou', 'cancelado', 'pulado'].includes(e.status)
+    && !(e.status === 'pulado' && /não receber|parar/i.test(e.motivo_pulado || '')); // r13: quem saiu da lista não ganha "Reenviar" (o carteiro pularia de novo)
   // 16/10: timeout/conexão caída depois do pedido — pode ter chegado; nada sai de novo sozinho
   const duvida = e.status === 'falhou' && e.erro_classe === 'sem_confirmacao';
   return `<article class="envio s-${esc(e.status)}" data-id="${esc(e.id)}">
@@ -1246,7 +1252,7 @@ const travaReligar = (c) => (c.aceita_mensagens === false && !pode('optout_relig
 function linhasClientes(lista) {
   if (!lista.length) return vazio(I.user, state.cliQ ? 'Nenhum cliente encontrado' : 'Nenhum cliente', state.cliQ ? 'Confira o nome, telefone ou placa e tente de novo.' : 'A base é a mesma do CRM, da Agenda e do Atendimento.');
   return lista.map(c => `<div class="cli${c.aceita_mensagens === false ? ' fora' : ''}" data-id="${esc(c.id)}">
-    <button type="button" class="cli-nome" data-ficha="${esc(c.id)}" title="Abrir ficha"><span class="av">${esc(iniciais(c.nome) || 'IC')}</span><b>${esc(c.nome)}</b>${c.aceita_mensagens === false ? '<span class="selo">não quer mensagens</span>' : ''}</button>
+    <button type="button" class="cli-nome" data-ficha="${esc(c.id)}" title="Abrir ficha"><span class="av">${esc(iniciais(c.nome) || 'IC')}</span><b>${esc(c.nome)}</b>${c.aceita_mensagens === false ? '<span class="selo" title="Pediu para não receber mensagens">fora da lista</span>' : ''}</button>
     <span class="cli-meta"><span class="col tel">${svg(I.phone)} ${esc(telBR(c.telefone))}</span>
     <span class="col carro">${svg(I.car)} ${esc(c.carro || '—')}${c.placa ? ` <b>${esc(c.placa)}</b>` : ''}</span>
     <span class="nasc">${c.nascimento ? `🎂 <b>${esc(nascBR(c.nascimento))}</b>` : '<span class="muted">sem aniversário</span>'}

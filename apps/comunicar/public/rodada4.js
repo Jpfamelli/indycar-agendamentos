@@ -70,6 +70,7 @@
     _projecao = { v, em: Date.now() };
     return v;
   }
+  R4.projecao = projecao; // rodada 13: o resumo de hoje usa a mesma projeção (uma chamada só)
   /* Réguas: a próxima saída de cada régua ligada (dia e primeiro nome), pela projeção do servidor. */
   R4.pintarReguas = async function () {
     let p; try { p = await projecao(); } catch { return; }
