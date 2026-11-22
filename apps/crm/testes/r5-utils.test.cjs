@@ -129,7 +129,8 @@ test('lib/apps: prefixo, raiz da Central e links', () => {
   assert.equal(APPS.linkApp('agenda', '/?tel=1'), 'https://indycar-agendamentos.onrender.com/?tel=1');
   assert.equal(APPS.linkApp('agenda', '/?tel=1', { prefixo: '/crm' }), '/agenda/?tel=1');
   assert.equal(APPS.linkApp('agenda', '/?tel=1', { prefixo: '/apps/crm' }), '/apps/agenda/?tel=1');
-  assert.equal(APPS.linkApp('orcador', '/', { prefixo: '/crm' }), 'https://indycar-orcador.netlify.app/');
+  assert.equal(APPS.linkApp('orcador', '/', { prefixo: '/crm' }), '/orcador/', 'rodada 13B: na Central o Orçador é irmão (/orcador/, mesma sessão)');
+  assert.equal(APPS.linkApp('orcador', '/'), 'https://indycar-orcador.netlify.app/', 'solto continua no Netlify');
   assert.equal(APPS.linkApp('ads', '/'), null);
   assert.equal(APPS.linkCrm('/?meus=1'), '/?meus=1'); assert.equal(APPS.linkCrm('/?meus=1', { prefixo: '/crm' }), '/crm/?meus=1');
   assert.ok(APPS.origens().includes('https://indycar-patio.netlify.app'));
@@ -152,7 +153,7 @@ test('public/apps.js: base da página e rotas relativas (solto e Central)', () =
   assert.equal(central.rota('/api/leads'), '/crm/api/leads'); assert.equal(central.rota('/?lead=1'), '/crm/?lead=1');
   assert.equal(central.rota('/crm/api/leads'), '/crm/api/leads', 'não dobra o prefixo'); assert.equal(solto.rota('/crm/x'), '/crm/x');
   assert.equal(central.urlApp('agenda', '/?tel=1'), '/agenda/?tel=1'); assert.equal(central.urlApp('comunicar', '/'), '/comunicar/');
-  assert.equal(central.urlApp('orcador', '/'), 'https://indycar-orcador.netlify.app/');
+  assert.equal(central.urlApp('orcador', '/'), '/orcador/', 'rodada 13B: Orçador irmão na Central'); assert.equal(solto.urlApp('orcador', '/'), 'https://indycar-orcador.netlify.app/');
   assert.equal(central.absoluto('/'), 'https://indycar-agendamentos.onrender.com/crm/');
   assert.equal(carregar('/crm/index.html').BASE, '/crm/');
   assert.equal(carregar('/apps/crm/').RAIZ_CENTRAL, '/apps/');

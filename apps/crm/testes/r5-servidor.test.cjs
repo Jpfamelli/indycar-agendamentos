@@ -51,7 +51,7 @@ test('montado em /crm/ (proxy mínimo como a Central): página, estáticos, API 
     const eu = await s.req('atendente', '/api/eu');
     assert.equal(eu.status, 200); assert.equal(eu.corpo.prefixo, '/crm');
     assert.ok(eu.corpo.outrosApps.some(a => a.app === 'agenda' && a.url === '/agenda/'), JSON.stringify(eu.corpo.outrosApps));
-    assert.ok(eu.corpo.outrosApps.some(a => a.app === 'orcador' && /netlify/.test(a.url)));
+    assert.ok(eu.corpo.outrosApps.some(a => a.app === 'orcador' && a.url === '/orcador/'), 'rodada 13B: na Central o Orçador é irmão (mesma sessão)');
     // ficha 360 com links irmãos
     s.db.clientes.push({ id: C(1), nome: 'Cliente Fictício 1', telefone: '12991000001', created_at: dias(400) });
     const f = await s.req('gestor', '/api/clientes/360?tel=12991000001');

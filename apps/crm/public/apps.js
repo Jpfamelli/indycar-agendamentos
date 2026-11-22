@@ -29,7 +29,8 @@
   }, sobre.hosts || {});
   const NOMES = { atendimento: 'Atendimento', crm: 'CRM', agenda: 'Agenda', comunicar: 'Comunicar', orcador: 'Orçador', patio: 'Pátio', site: 'Site' };
   /* Quem mora junto na Central (irmãos de caminho); os outros ficam no próprio host. */
-  const IRMAOS = Object.assign({ agenda: 'agenda/', atendimento: 'atendimento/', crm: 'crm/', comunicar: 'comunicar/' }, sobre.irmaos || {});
+  /* Rodada 13B: o Orçador e o Tráfego também moram na Central (mesma sessão, sem outro login). */
+  const IRMAOS = Object.assign({ agenda: 'agenda/', atendimento: 'atendimento/', crm: 'crm/', comunicar: 'comunicar/', orcador: 'orcador/', trafego: 'trafego/' }, sobre.irmaos || {});
 
   /** Caminho dentro do CRM. Aceita '/api/x', 'api/x' ou '/?lead=…'. */
   function rota(caminho) {
