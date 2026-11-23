@@ -227,7 +227,10 @@ renderHoje13();   // já mostra "Montando o resumo do dia…" enquanto os contat
    /crm/?ver=funil | ?ver=painel | ?ver=hoje → a aba
    Aceita também ?filtro=… com os mesmos valores. O parâmetro sai da barra depois de usado. */
 const VER13 = {
-  'sem-responsavel': {resp: 'sem', status: 'abertos'},   // R13C: mesma regra do número da Casa (em aberto, sem responsável) 'meus': {resp: 'meus'}, 'sem-valor': {semValor: true},
+  // R13C: mesma regra do número da Casa (em aberto, sem responsável)
+  'sem-responsavel': {resp: 'sem', status: 'abertos'},
+  'meus': {resp: 'meus'},
+  'sem-valor': {semValor: true},
   'funil': {aba: 'pipeline'}, 'painel': {aba: 'dashboard'}, 'hoje': {aba: 'hoje'}, 'contatos': {},
 };
 const _abrirPorLink13 = abrirPorLink;

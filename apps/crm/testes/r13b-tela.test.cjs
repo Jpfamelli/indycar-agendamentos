@@ -79,3 +79,13 @@ test('IA da ficha: link com endereço antigo de app irmão vira o caminho da Cen
   assert.match(ia, /const c = naCentral\(u\); return c \? `<a href="\$\{esc\(c\)\}">/);
   assert.match(ia, /const c = naCentral\(url\); if \(c\) \{ const app = typeof appDoLink6 === 'function' \? appDoLink6\(c\) : null; if \(app && typeof abrirNomeada6 === 'function'\) abrirNomeada6\(c, app\)/);
 });
+
+test('?ver=: todos os filtros do endereço existem, cada um na sua linha (um comentário já engoliu "meus" e "sem-valor")', () => {
+  const fonte = pub('r13.js');
+  const bloco = fonte.slice(fonte.indexOf('const VER13 = {'), fonte.indexOf('};', fonte.indexOf('const VER13 = {')));
+  for (const chave of ['sem-responsavel', 'meus', 'sem-valor', 'funil', 'painel', 'hoje', 'contatos']) {
+    const linha = bloco.split('\n').find(l => l.includes(`'${chave}'`));
+    assert.ok(linha, `falta o filtro ${chave}`);
+    assert.ok(!/\/\/.*'(meus|sem-valor)'/.test(linha), `${chave}: está dentro de um comentário`);
+  }
+});
