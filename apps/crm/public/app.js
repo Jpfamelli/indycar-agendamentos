@@ -490,7 +490,7 @@ function renderClientes() {
       <td class="num">${c.emAberto ? brl(c.emAberto) : '—'}</td>
       <td class="num">${brl(c.gasto)}</td>
       <td class="cell-sub">${dtAno(c.ultimoContato)}</td>
-      <td class="col-acao">${U.linkWhatsApp(c.telefone) ? `<a class="mini-acao" href="${esc(U.linkWhatsApp(c.telefone))}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp de ${esc(c.nome)}" title="WhatsApp">🟢</a>` : ''}</td>
+      <td class="col-acao">${U.linkConversa(c.telefone) ? `<a class="mini-acao" href="${esc(U.linkConversa(c.telefone))}" aria-label="Abrir conversa com ${esc(c.nome)}" title="Abrir conversa">💬</a>` : ''}</td>
     </tr>`).join('')}</tbody>`;
   renderPaginacao($('#pagClientes'), p, n => { PAG_CLI = n; renderClientes(); $('#tblClientes').scrollIntoView({block: 'start', behavior: 'smooth'}); });
 }

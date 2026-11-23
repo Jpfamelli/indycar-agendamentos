@@ -218,7 +218,7 @@ function r6Pintar(l) {
   if (s.agendamento) linha.push(`<div class="r6-eco"><b>📅 Horário</b> · ${esc(quando6(s.agendamento.quando))} (${esc(s.agendamento.status)})<span class="r6-links"><a class="acao" href="${esc(L.agendamentos?.[s.agendamento.id] || A6.urlApp('agenda', `/?agendamento=${s.agendamento.id}`))}">Abrir na Agenda</a></span></div>`);
   if (f.segmento && f.segmento.codigo !== 'novo') linha.push(`<div class="r6-eco"><b>🪪 ${esc(f.segmento.rotulo)}</b>${f.segmento.ltv ? ' · já gastou ' + brl(f.segmento.ltv) : ''}${f.segmento.revisao_vencida ? ' · <b class="parado-txt">revisão vencida</b>' : ''}${f.nota ? ` · nota média ${f.nota.media} (${f.nota.total})` : ''}</div>`);
   const pa = eco?.proxima_acao;
-  if (pa) linha.unshift('<div class="r6-eco acao-sug"><b>👉 Próxima ação:</b> ' + esc(pa.texto) + '<details class="r6-script"><summary>Mensagem sugerida</summary><p>' + esc(pa.script) + '</p><span class="r6-links"><button type="button" class="acao" data-r6p="copiar" data-txt="' + esc(pa.script) + '">Copiar texto</button>' + (U.telE164(l.telefone) ? '<a class="acao" href="https://wa.me/55' + esc(U.telE164(l.telefone)) + '?text=' + encodeURIComponent(pa.script) + '" target="_blank" rel="noopener">🟢 Abrir no WhatsApp</a>' : '') + '</span></details></div>');
+  if (pa) linha.unshift('<div class="r6-eco acao-sug"><b>👉 Próxima ação:</b> ' + esc(pa.texto) + '<details class="r6-script"><summary>Mensagem sugerida</summary><p>' + esc(pa.script) + '</p><span class="r6-links"><button type="button" class="acao" data-r6p="copiar" data-txt="' + esc(pa.script) + '">Copiar texto</button>' + (U.telE164(l.telefone) ? '<a class="acao" href="' + esc(A6.urlApp('atendimento', '/?tel=' + U.telE164(l.telefone)) || '#') + '">💬 Abrir conversa</a>' : '') + '</span></details></div>');
   const prox = l.proximo_contato_em ? `<span class="r6-prox${Date.parse(l.proximo_contato_em) <= Date.now() ? ' alerta' : ''}">⏰ Falar de novo: ${esc(quando6(l.proximo_contato_em))}</span>` : '<span class="muted">Sem retorno combinado</span>';
   const novoOrc = L.novoOrcamento ? `<a class="acao" href="${esc(L.novoOrcamento)}">🧾 Novo orçamento</a>` : '';
   p.innerHTML = `${linha.join('')}
@@ -305,7 +305,7 @@ function renderHoje6() {
     return `<article class="r6-linha" data-lead="${esc(l.id)}"><div class="r6-corpo"><div class="r6-topo"><strong>${esc(l.nome)}</strong> <span class="badge b-${esc(l.status)}">${esc(LABEL_STATUS[l.status] ?? l.status)}</span> ${l.responsavel_id ? chipResponsavel(l.responsavel_id, true) : '<span class="tag">sem dono</span>'}</div>
       <div class="cell-sub">${esc(it.texto)}${it.motivos.length > 1 ? ' · ' + esc(it.motivos.slice(1).map(m => m.texto).join(' · ')) : ''}</div>
       <details class="r6-script"><summary>Mensagem sugerida</summary><p>${esc(it.script)}</p><button type="button" class="link-btn" data-h6="copiar" data-txt="${esc(it.script)}">Copiar texto</button></details></div>
-      <div class="r6-acoes">${tel ? `<a class="acao" href="https://wa.me/55${esc(tel)}?text=${encodeURIComponent(it.script)}" target="_blank" rel="noopener">🟢 WhatsApp</a>` : ''}<button type="button" class="acao" data-h6="contato" data-id="${esc(l.id)}">📞 Registrar</button><button type="button" class="acao" data-h6="adiar" data-id="${esc(l.id)}">⏰ Adiar</button><button type="button" class="acao" data-h6="abrir" data-id="${esc(l.id)}">Abrir</button>${linksHoje6(it)}</div></article>`;
+      <div class="r6-acoes">${tel ? `<a class="acao" href="${esc(A6.urlApp('atendimento', '/?tel=' + tel) || '#')}">💬 Abrir conversa</a>` : ''}<button type="button" class="acao" data-h6="contato" data-id="${esc(l.id)}">📞 Registrar</button><button type="button" class="acao" data-h6="adiar" data-id="${esc(l.id)}">⏰ Adiar</button><button type="button" class="acao" data-h6="abrir" data-id="${esc(l.id)}">Abrir</button>${linksHoje6(it)}</div></article>`;
   }).join('') : H6.motivo || (typeof R7 !== 'undefined' && (R7.hoje.q || R7.hoje.origem))
     ? '<p class="vazio-curto">Nenhum contato nesta busca. Ajuste os filtros para ver o restante da fila.</p>'
     : '<p class="vazio-curto"><strong>Fila zerada. 🏁</strong><br>Nada urgente agora. Os retornos combinados aparecem aqui quando vencerem.</p>';
@@ -314,7 +314,6 @@ function linksHoje6(it) {
   const s = it.sinais || {}, l = it.lead, tel = U.telE164(l.telefone) || '', out = [];
   if (s.patio) out.push('<a class="acao" href="' + esc(A6.urlApp('patio', '/?os=' + s.patio.id) || '#') + '">🔧 Pátio</a>');
   if (s.orcamento) out.push('<a class="acao" href="' + esc(A6.urlApp('orcador', '/#/historico/' + s.orcamento.id) || '#') + '">🧾 Orçamento</a>');
-  if (it.principal === 'esperando' && tel) out.push('<a class="acao" href="' + esc(A6.urlApp('atendimento', '/?tel=' + tel) || '#') + '">💬 Conversa</a>');
   if (it.principal === 'orcamento_aprovado' && tel) out.push('<a class="acao" href="' + esc(A6.urlApp('agenda', '/?tel=' + tel) || '#') + '">📅 Agendar</a>');
   return out.join('');
 }

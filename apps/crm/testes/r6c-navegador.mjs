@@ -92,7 +92,7 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   await page.evaluate(() => document.activeElement?.blur?.());
   await page.keyboard.press('w'); await page.keyboard.press('p'); await page.keyboard.press('q');
   const abs = await page.evaluate(() => window.__abertas.slice(-3));
-  ok(`${tag}: na ficha, W abre o WhatsApp, P o Pátio e Q o orçamento (abas nomeadas)`, abs.length === 3 && abs[0][0].startsWith('https://wa.me/55') && /55[0-9]+$/.test(abs[0][0]) && abs[1][1] === 'indycar-patio' && abs[2][1] === 'indycar-orcador', JSON.stringify(abs));
+  ok(`${tag}: na ficha, W abre a conversa do Atendimento, P o Pátio e Q o orçamento (abas nomeadas)`, abs.length === 3 && (abs[0][0].includes('/atendimento/?tel=') || abs[0][0].includes('indycar-atendimento.onrender.com/?tel=')) && abs[0][1] === 'indycar-atendimento' && abs[1][1] === 'indycar-patio' && abs[2][1] === 'indycar-orcador', JSON.stringify(abs));
   ok(`${tag}: a faixa do carro oferece copiar o link de acompanhar e o aviso de extras esperando`, await page.evaluate(() => !!document.querySelector('#r6cPainel [data-r6c="copiar"][title*="acompanhar"]')));
   await page.keyboard.press('c');
   try { await page.waitForSelector('#dlgContato6[open]', { timeout: 5000 }); } catch (e) { console.log('DEBUG', JSON.stringify(await page.evaluate(() => ({ ae: document.activeElement.tagName + '.' + document.activeElement.id + '.' + document.activeElement.className, open: modal.classList.contains('open'), lead: LEAD_ABERTO, dlg: [...document.querySelectorAll('dialog[open]')].map(d => d.id), toast: document.getElementById('toastTxt').textContent })))); throw e; }
@@ -104,7 +104,7 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   await page.waitForSelector('#dlgContato6[open]', { timeout: 5000 });
   ok(`${tag}: o diálogo lembra o último tipo de contato usado`, await page.evaluate(() => document.getElementById('ct6Tipo').value === 'whatsapp'));
   await page.keyboard.press('Escape'); await dorme(200);
-  ok(`${tag}: ficha oferece mensagens prontas do WhatsApp (link de acompanhar, orçamento, horário), sem preço`, await page.evaluate(() => { const t = [...document.querySelectorAll('#r6cPainel a[href^="https://wa.me/55"]')].map(a => new URL(a.href).searchParams.get('text')); return t.length === 3 && t.every(x => !x.includes('R$')) && t.some(x => /acompanhar/.test(x)) && t.some(x => /orçamento/.test(x)); }));
+  ok(`${tag}: ficha oferece mensagens prontas para copiar (link de acompanhar, orçamento, horário), sem preço, e um Abrir conversa, sem wa.me`, await page.evaluate(() => { const p = document.querySelector('#r6cPainel'); const bl = [...p.querySelectorAll('.r6c-bloco')].find(b => /Mensagens prontas/.test(b.textContent)); if (!bl) return false; const t = [...bl.querySelectorAll('button[data-r6c="copiar"]')].map(b => b.dataset.txt); const ab = [...bl.querySelectorAll('a')]; return t.length === 3 && t.every(x => !x.includes('R$')) && t.some(x => /acompanhar/.test(x)) && t.some(x => /orçamento/.test(x)) && ab.length === 1 && /Abrir conversa/.test(ab[0].textContent) && !p.querySelector('a[href*="wa.me"]'); }));
   await page.keyboard.press('Escape'); await dorme(300);
 
   /* novo lead: telefone/placa já conhecidos em outros sistemas */

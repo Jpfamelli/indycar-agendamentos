@@ -136,7 +136,7 @@ async function roteiro(browser, base, { largura, altura, movel, papel, prefixo }
   const chipMotivo = await page.evaluate(() => document.querySelector('#hojeResumo [data-h6="motivo"]')?.dataset.k);
   if (chipMotivo) { await page.click('#hojeResumo [data-h6="motivo"]'); ok(`${tag}: chip de motivo filtra a fila`, await page.evaluate(() => document.querySelectorAll('#hojeLista .r6-linha').length > 0)); await page.click('#hojeResumo [data-h6="motivo"][data-k=""]'); }
   await page.screenshot({ path: join(SAIDA, `${tag}-hoje.png`), fullPage: largura > 500 });
-  ok(`${tag}: WhatsApp da fila já leva o texto sugerido`, await page.evaluate(() => [...document.querySelectorAll('#hojeLista a[href^="https://wa.me/55"]')].some(a => /text=Oi/.test(a.href))));
+  ok(`${tag}: a fila tem Abrir conversa (Atendimento) em vez de WhatsApp direto, e a mensagem sugerida segue copiável`, await page.evaluate(() => { const l = document.querySelector('#hojeLista'); const a = [...l.querySelectorAll('a.acao')].filter(x => /Abrir conversa/.test(x.textContent)); return a.length > 0 && a.every(x => (x.href.includes('/atendimento/?tel=') || x.href.includes('indycar-atendimento.onrender.com/?tel='))) && !l.querySelector('a[href*="wa.me"], a[href*="api.whatsapp.com"]') && !!l.querySelector('[data-h6="copiar"][data-txt^="Oi"]'); }));
   ok(`${tag}: linhas da fila trazem links para Pátio/Orçamento quando há`, await page.evaluate(() => [...document.querySelectorAll('#hojeLista a.acao')].some(a => /Pátio|Orçamento|Conversa|Agendar/.test(a.textContent))));
   await page.keyboard.press('j'); await dorme(150);
   await page.keyboard.press('c');

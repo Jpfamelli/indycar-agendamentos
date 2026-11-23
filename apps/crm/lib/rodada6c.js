@@ -28,7 +28,7 @@ const semAcento = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');
 /* ---------------- endereços que a casa conhece ---------------- */
 const DOMINIOS_DA_CASA = new Set([
   'indycar-agendamentos.onrender.com', 'indycar-atendimento.onrender.com', 'indycar-crm.onrender.com', 'indycar-posvenda.onrender.com',
-  'indycar-orcador.netlify.app', 'indycar-patio.netlify.app', 'indycar-taubate.netlify.app', 'wa.me',
+  'indycar-orcador.netlify.app', 'indycar-patio.netlify.app', 'indycar-taubate.netlify.app',
 ]);
 /** Só devolve o endereço se for http(s) de um domínio da casa (ou caminho relativo do próprio app). Senão null. */
 function linkSeguro(href, { extras = [] } = {}) {
@@ -355,7 +355,6 @@ async function rotasR6c(c) {
       links: {
         novo_orcamento: linkNovoOrcamento({ cliente_id: lead.cliente_id || ficha?.cliente?.id, telefone: lead.telefone, nome: lead.nome, lead_id: lead.id, placa: lead.placa, veiculo: lead.carro_modelo, servico: lead.servico }, { prefixo }),
         crm: linkSeguro(ficha?.links?.crm), atendimento: linkSeguro(ficha?.links?.atendimento) || (tel ? APPS.linkApp('atendimento', '/?tel=55' + tel, { prefixo }) : null),
-        whatsapp: tel ? 'https://wa.me/55' + tel : null,
       },
     });
     return true;

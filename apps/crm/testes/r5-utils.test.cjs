@@ -117,7 +117,7 @@ test('links da ficha 360: host de cada app solto; irmãos na Central', () => {
   assert.equal(solto.agenda, 'https://indycar-agendamentos.onrender.com/?tel=5512996204288');
   assert.equal(solto.agendamentos.a1, 'https://indycar-agendamentos.onrender.com/?agendamento=a1');
   assert.equal(solto.patio.o1, 'https://indycar-patio.netlify.app/?os=o1');
-  assert.equal(solto.leads.l1, '/?lead=l1'); assert.equal(solto.whatsapp, 'https://wa.me/5512996204288'); assert.equal(solto.ligar, 'tel:+5512996204288');
+  assert.equal(solto.leads.l1, '/?lead=l1'); assert.equal(solto.whatsapp, undefined); assert.equal(solto.ligar, 'tel:+5512996204288');
   const central = R5.linksFicha(ficha, { prefixo: '/crm' });
   assert.equal(central.conversa, '/atendimento/?conversa=abc'); assert.equal(central.agenda, '/agenda/?tel=5512996204288');
   assert.equal(central.leads.l1, '/crm/?lead=l1'); assert.equal(central.patio.o1, 'https://indycar-patio.netlify.app/?os=o1', 'o Pátio continua no Netlify');

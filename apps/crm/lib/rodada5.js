@@ -206,7 +206,7 @@ function linksFicha(ficha, { prefixo = '' } = {}) {
   return {
     atendimento: f.conversa?.link ? ap('atendimento', f.conversa.link) : ap('atendimento', tel),
     agenda: ap('agenda', tel), comunicar: ap('comunicar', tel), orcador: ap('orcador', '/'),
-    whatsapp: f.telefone_55 ? `https://wa.me/${f.telefone_55}` : null, ligar: f.telefone_55 ? `tel:+${f.telefone_55}` : null,
+    ligar: f.telefone_55 ? `tel:+${f.telefone_55}` : null,
     conversa: f.conversa?.link ? ap('atendimento', f.conversa.link) : null,
     agendamentos: Object.fromEntries((f.agendamentos || []).map(a => [a.id, ap('agenda', a.link || `/?agendamento=${a.id}`)])),
     patio: Object.fromEntries((f.patio || []).map(o => [o.id, ap('patio', o.link || `/?os=${o.id}`)])),

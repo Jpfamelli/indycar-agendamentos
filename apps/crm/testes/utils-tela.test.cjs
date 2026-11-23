@@ -70,7 +70,6 @@ test('motivo da perda entra nas observações sem duplicar', () => {
 test('links de ação do telefone', () => {
   assert.equal(u.telE164('+55 (12) 99999-0001'), '12999990001');
   assert.equal(u.telE164('123'), '');
-  assert.equal(u.linkWhatsApp('(12) 99999-0001'), 'https://wa.me/5512999990001');
   assert.equal(u.linkLigar('12 3632-0000'), 'tel:+551236320000');
   assert.equal(u.linkConversa('5512999990001'), 'https://indycar-atendimento.onrender.com/?tel=12999990001');
   assert.equal(u.linkConversa(''), '');

@@ -293,7 +293,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
   };
   const resumoLead = l => ({id: l.id, nome: l.nome, status: l.status, origem: l.origem, servico: l.servico || null, telefone: l.telefone || null});
   const linksDe = tel => { const t = String(tel || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, ''), q = t ? '?tel=' + t : '';
-    return {atendimento: 'https://indycar-atendimento.onrender.com/' + q, agenda: 'https://indycar-agendamentos.onrender.com/' + q, comunicar: 'https://indycar-posvenda.onrender.com/' + q, whatsapp: t ? 'https://wa.me/55' + t : null, ligar: t ? 'tel:+55' + t : null}; };
+    return {atendimento: 'https://indycar-atendimento.onrender.com/' + q, agenda: 'https://indycar-agendamentos.onrender.com/' + q, comunicar: 'https://indycar-posvenda.onrender.com/' + q, ligar: t ? 'tel:+55' + t : null}; };
   const ia = (url, req, d, json) => {
     const p = url.pathname;
     const ml = p.match(/^\/api\/ia\/lead\/([0-9a-f-]{36})\/(contexto|proxima-acao|qualificar|preencher)$/);
@@ -527,7 +527,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
           const pre = true ? R6C.prepararPreAgendamentos([{id: crypto.randomUUID(), data: new Date(Date.now() + 2 * DIA).toISOString().slice(0, 10), hora: '08:00:00', status: 'aguardando', observacoes: 'PRÉ-AGENDAMENTO pedido pelo cliente pela página do orçamento — confirmar horário. Orçamento nº 0012 (Orçador)', servico: 'Pastilhas e discos'}], {agora}) : [];
           return json({lead_id: lead.id, gerado_em: agoraIso(), avisos: [], site: R6C.lerObservacoes(true ? 'CARRO NO PÁTIO AGORA: OS nº 100 (em execucao).\nHorário escolhido: sexta de manhã.' : lead.observacoes), orcamentos: {itens, resumo: R6C.resumirOrcamentos(itens), consultou_orcador: true},
             pre_agendamentos: pre, patio: {carros}, acoes_sugeridas: true ? R6C.acoesSugeridas([{codigo: 'cobrar_orcamento', app: 'orcador', titulo: 'Cobrar o orçamento nº 12', motivo: 'O cliente abriu e não respondeu', link: 'https://indycar-orcador.netlify.app/#/historico/x'}]) : [],
-            linha_do_tempo: [], links: {novo_orcamento: R6C.linkNovoOrcamento({telefone: lead.telefone, nome: lead.nome, lead_id: lead.id}, {prefixo: PREFIXO}), whatsapp: tel ? 'https://wa.me/55' + tel : null}});
+            linha_do_tempo: [], links: {novo_orcamento: R6C.linkNovoOrcamento({telefone: lead.telefone, nome: lead.nome, lead_id: lead.id}, {prefixo: PREFIXO})}});
         }
         if (p === '/api/patio/carros') { const car = carrosMock(), sem = [{os_id: crypto.randomUUID(), numero: 777, etapa: 'teste', etapa_em: hAtras(2), placa: 'XYZ9K88', telefone: '12988887777', cliente_id: null}]; return json({total: car.length + 1, sem_lead_total: sem.length, sem_lead: sem.map(x => ({...x, etapa_rotulo: R6C.rotuloEtapa(x.etapa), nome: 'Dono Sem Lead', link: 'https://indycar-patio.netlify.app/?os=' + x.os_id}))}); }
         if (p === '/api/busca-tudo') {

@@ -192,9 +192,8 @@
     const exato = MOTIVOS_PERDA.find(m => m.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() === s.trim());
     return exato || 'Outro';
   }
-  /* Telefone em links: wa.me exige DDI; tel: aceita com +55. */
+  /* Telefone em links: o Atendimento recebe só o DDD+número; tel: aceita com +55. */
   function telE164(v) { let d = digitos(v); if (d.length === 12 || d.length === 13) d = d.replace(/^55/, ''); return d.length === 10 || d.length === 11 ? d : ''; }
-  const linkWhatsApp = v => telE164(v) ? 'https://wa.me/55' + telE164(v) : '';
   const linkLigar = v => telE164(v) ? 'tel:+55' + telE164(v) : '';
   /* rodada 5: os endereços vêm de apps.js quando ele está na página (solto ou Central); no Node ficam os fixos */
   const APPS = () => (root && root.IndyCarApps) || null;
@@ -566,7 +565,7 @@
     if (s < 86400) return Math.floor(s / 3600) + ' h';
     const d = Math.floor(s / 86400); return d === 1 ? 'ontem' : d + ' dias';
   }
-  const api = {normalizar,digitos,buscar,validarLead,origemDetalhada,origemCaptada,camposPerda,MOTIVOS_R8,MOTIVOS_PERDA,motivoPadrao,nascimento,moeda,csv,ETAPAS,ABERTAS,LIMITE_PARADO,valorLead,valorFechado,diasNaEtapa,parado,textoDias,resumoColuna,periodo,metricas,funilPassagem,comparar,motivoPerda,comMotivoPerda,telE164,linkWhatsApp,linkLigar,linkConversa,linkComunicar,linkAgenda,formatarTelefone,paginar,linhaDoTempo,casaOrigem,situacaoTarefa,ordenarTarefas,novaTarefa,COLUNAS_LEADS,COLUNAS_PADRAO,colunasValidas,ATALHOS_ABA,
+  const api = {normalizar,digitos,buscar,validarLead,origemDetalhada,origemCaptada,camposPerda,MOTIVOS_R8,MOTIVOS_PERDA,motivoPadrao,nascimento,moeda,csv,ETAPAS,ABERTAS,LIMITE_PARADO,valorLead,valorFechado,diasNaEtapa,parado,textoDias,resumoColuna,periodo,metricas,funilPassagem,comparar,motivoPerda,comMotivoPerda,telE164,linkLigar,linkConversa,linkComunicar,linkAgenda,formatarTelefone,paginar,linhaDoTempo,casaOrigem,situacaoTarefa,ordenarTarefas,novaTarefa,COLUNAS_LEADS,COLUNAS_PADRAO,colunasValidas,ATALHOS_ABA,
     ehUuid,PAPEIS,ROTULO_PAPEL,ehGestor,URL_APPS,NOME_APPS,acessoApp,appsPermitidos,acaoErroAcesso,mensagemLogin,esperaLogin,validarNovaSenha,codigoMfaValido,linkNotificacao,CORES_AVATAR,corAvatar,filtroResponsavel,filtroEtapa,semResponsavelAberto,funilPorResponsavel,vencimentoDe,situacaoTarefaDb,ordenarTarefasDb,agruparTarefas,validarTarefa,lembreteParaTarefa,ROTULO_PRIORIDADE,mesAtual,intervaloMes,progressoMeta,CAMPOS_META,validarMetas,normalizarMetas,normalizarDesempenho,normalizarEquipe,podeReatribuir,podeEditarLead,avisoLeadDeOutro,ordenarDesempenho,deveGravarAcesso,mesclarPreferencias,tempoRelativo};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.CrmUtils = api;

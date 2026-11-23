@@ -6,8 +6,8 @@
 'use strict';
 
 const C6 = { con: null, lead: null, em: 0, ger: 0, assinatura: '', carros: null, agora: null };
-const HOSTS_OK6 = (() => { const s = new Set(['wa.me']); try { for (const h of Object.values(A6.HOSTS || {})) s.add(new URL(h).hostname); } catch { /* segue */ } return s; })();
-/** Só abre http(s) da própria origem, de um app da casa ou do WhatsApp. */
+const HOSTS_OK6 = (() => { const s = new Set(); try { for (const h of Object.values(A6.HOSTS || {})) s.add(new URL(h).hostname); } catch { /* segue */ } return s; })();
+/** Só abre http(s) da própria origem ou de um app da casa. */
 function urlSegura6(href) {
   let u; try { u = new URL(String(href || ''), location.href); } catch { return null; }
   if (!/^https?:$/.test(u.protocol) || u.username || u.password) return null;
@@ -17,7 +17,6 @@ function urlSegura6(href) {
 const appDaUrl6 = href => { try { return appDoLink6(href); } catch { return null; } };
 function abrirSeguro6(href, app) {
   const u = urlSegura6(href); if (!u) { toast('Esse endereço não é de um sistema da casa.'); return; }
-  if (u.startsWith('https://wa.me/')) { window.open(u, '_blank', 'noopener'); return; }
   abrirNomeada6(u, app || appDaUrl6(u) || 'patio');
 }
 const hojeChave6 = () => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
@@ -36,7 +35,7 @@ function onClickConexoes6(e) {
   const b = e.target.closest('[data-r6c]'); if (!b) return;
   const a = b.dataset.r6c;
   if (a === 'abrir') abrirSeguro6(b.dataset.url, b.dataset.app);
-  if (a === 'copiar') navigator.clipboard.writeText(b.dataset.txt).then(() => toast('Link copiado'), () => toast('Não consegui copiar.'));
+  if (a === 'copiar') navigator.clipboard.writeText(b.dataset.txt).then(() => toast('Copiado'), () => toast('Não consegui copiar.'));
   if (a === 'recarregar') carregarConexoes6(leadPorId6(LEAD_ABERTO), true);
 }
 function assinaturaConexoes6(c) {
@@ -253,21 +252,21 @@ $('#fPlaca')?.addEventListener('change', () => avisarOutrosSistemas6('placa'));
 const _abrirModalR6c = abrirModal;
 abrirModal = async function (id, pre) { $('#r6cAvisotel')?.remove(); $('#r6cAvisoplaca')?.remove(); const r = await _abrirModalR6c(id, pre); if (!id && pre?.telefone) setTimeout(() => avisarOutrosSistemas6('tel'), 50); return r; };
 
-/* Ficha aberta: C registra contato, W abre o WhatsApp, P o Pátio, Q o orçamento que pede ação */
+/* Ficha aberta: C registra contato, W abre a conversa, P o Pátio, Q o orçamento que pede ação */
 document.addEventListener('keydown', e => {
   if (!modal.classList.contains('open') || !LEAD_ABERTO || $('dialog[open]') || /INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
   const l = leadPorId6(LEAD_ABERTO); if (!l) return;
   const k = e.key.toLowerCase(), c = C6.lead === l.id ? C6.con : null;
   if (k === 'c') { e.preventDefault(); registrarContato6(l.id); }
-  if (k === 'w') { const t = U.telE164(l.telefone); if (t) { e.preventDefault(); window.open('https://wa.me/55' + t, '_blank', 'noopener'); } }
+  if (k === 'w') { const t = U.telE164(l.telefone); if (t) { e.preventDefault(); abrirApp6('atendimento', '/?tel=' + t); } }
   if (k === 'p') { e.preventDefault(); const car = c?.patio?.carros?.[0]; if (car?.link) abrirSeguro6(car.link, 'patio'); else toast('Esse contato não tem carro no Pátio agora.'); }
   if (k === 'q') { e.preventDefault(); const o = c?.orcamentos?.itens?.[0]; if (o) abrirSeguro6(o.link_equipe, 'orcador'); else toast('Esse contato não tem orçamento no Orçador.'); }
 }, true);
 
 /* ================= lote 3: mensagens prontas com os links da casa ================= */
 const primeiroNome6c = n => { const p = String(n || '').trim().split(/\s+/)[0]; return p && !/família|familia|cliente/i.test(p) ? p : ''; };
-const waLink6 = (l, texto) => { const t = U.telE164(l.telefone); return t ? 'https://wa.me/55' + t + '?text=' + encodeURIComponent(texto) : null; };
-/** Textos sem preço e no vocabulário da casa; quem manda é a pessoa (abre o WhatsApp já escrito). */
+const conversaLink6 = l => { const t = U.telE164(l.telefone); return t ? A6.urlApp('atendimento', '/?tel=' + t) : null; };
+/** Textos sem preço e no vocabulário da casa; quem manda é a pessoa (copia o texto e cola na conversa do Atendimento). */
 function textosProntos6(l, c) {
   const oi = primeiroNome6c(l.nome) ? `Oi, ${primeiroNome6c(l.nome)}!` : 'Oi!';
   const out = [];
@@ -283,8 +282,9 @@ const _pintarConexoes6c3 = pintarConexoes6;
 pintarConexoes6 = function (c, l) {
   _pintarConexoes6c3(c, l);
   if (!c || !l) return;
-  const msgs = textosProntos6(l, c).map(x => ({ ...x, href: waLink6(l, x.texto) })).filter(x => x.href);
-  if (!msgs.length) return;
-  $('#r6cPainel').insertAdjacentHTML('beforeend', `<div class="r6c-bloco"><h4>💬 Mensagens prontas <small>abrem o WhatsApp já escritas; você revisa e envia</small></h4><div class="r6c-linha-acao">${msgs.map(x => `<a class="acao" href="${esc(x.href)}" target="_blank" rel="noopener">${esc(x.rotulo)}</a>`).join('')}</div></div>`);
+  const conv = conversaLink6(l);
+  const msgs = textosProntos6(l, c);
+  if (!msgs.length || !conv) return;
+  $('#r6cPainel').insertAdjacentHTML('beforeend', `<div class="r6c-bloco"><h4>💬 Mensagens prontas <small>copie o texto e cole na conversa do Atendimento; você revisa e envia</small></h4><div class="r6c-linha-acao">${msgs.map(x => `<button type="button" class="acao" data-r6c="copiar" data-txt="${esc(x.texto)}" title="Copiar mensagem">${esc(x.rotulo.replace(/^\S+\s*/, '📋 Copiar: '))}</button>`).join('')}<a class="acao acao-forte" href="${esc(conv)}">💬 Abrir conversa</a></div></div>`);
 };
 if (C6.con && C6.lead) pintarConexoes6(C6.con, leadPorId6(C6.lead));
