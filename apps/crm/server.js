@@ -47,6 +47,7 @@ const { rotasR3 } = require('./lib/rotas');
 const SEG = require('./lib/seguranca');
 const U = require('./lib/util-servidor');
 const R4 = require('./lib/rodada4');
+const R14 = require('./lib/rodada14');
 const PATIO = require('./lib/patio-crm');
 const R5 = require('./lib/rodada5');
 const APPS = require('./lib/apps');
@@ -536,6 +537,10 @@ async function handler(req, res) {
       /* Rodada 5: ficha 360 (rpc), busca global, leads sem dono, campanha do Comunicar, filtros salvos, previsão. */
       if (await R5.rotasR5({ req, res, url, pathname, quem, json, lerCorpo: () => readBody(req), freio: FREIO, auditar, prefixo, acesso: acesso(),
         equipe: equipe(), store, baseClientes: USA_SUPABASE ? carregarBaseClientes : null, sb: USA_SUPABASE ? adminSupabase() : null })) return;
+
+      /* Rodada 14: faxina dos contatos parados (gestor; marca perdido em lote com Desfazer, nunca apaga). */
+      if (await R14.rotasR14({ req, res, url, pathname, quem, json, lerCorpo: () => readBody(req), freio: FREIO, auditar, equipe: equipe(),
+        sb: USA_SUPABASE ? adminSupabase() : null, limparStats: limparTudo })) return;
 
       /* Rodada 4: valor pago (sem valor + lote) e distribuição em lote. */
       if (await R4.rotasR4({ req, res, url, pathname, quem, json, lerCorpo: () => readBody(req), freio: FREIO, auditar, prefixo,

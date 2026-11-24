@@ -6,7 +6,7 @@
 // Biblioteca do Supabase e fontes (endereços com versão) ficam em cache direto.
 // v8 (16/10/2026, rodada 5): caminhos RELATIVOS ao escopo — o CRM pode estar na
 // raiz (/) ou montado na IndyCar Central (/crm/); nada começa com "/" fixo.
-const CACHE = 'indycar-crm-v17';   // v17 (22/11, rodada 13B): passagens na mesma janela e Hoje sem número falso; v16: tela Hoje (r13.css, r13-resumo.js, r13.js)
+const CACHE = 'indycar-crm-v18';   // v18 (24/11, rodada 14): faxina dos contatos parados (r14.css, r14-faxina.js, r14.js); v17 (22/11, rodada 13B): passagens na mesma janela e Hoje sem número falso; v16: tela Hoje (r13.css, r13-resumo.js, r13.js)
 //    // v10 (16/10): lead de colega travado na tela
 const CACHE_EXTERNO = 'indycar-crm-externo-v1';
 /* Pasta do app: '/' ou '/crm/' (o escopo do registro é a pasta de sw.js). */
@@ -14,7 +14,7 @@ const RAIZ = new URL('./', self.registration ? self.registration.scope : self.lo
 
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala. Só o que existe de verdade. */
-const CORE = ['', 'styles.css', 'apps.js', 'app.js', 'crm-utils.js', 'crm-r4.js', 'melhorias.js', 'acesso.js', 'equipe.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'rodada6.css', 'rodada6c.js', 'rodada6c.css', 'rodada7.js', 'rodada7.css', 'crm-ia.js', 'crm-ia.css', 'r11.css', 'r13.css', 'r13-resumo.js', 'r13.js',
+const CORE = ['', 'styles.css', 'apps.js', 'app.js', 'crm-utils.js', 'crm-r4.js', 'melhorias.js', 'acesso.js', 'equipe.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'rodada6.css', 'rodada6c.js', 'rodada6c.css', 'rodada7.js', 'rodada7.css', 'crm-ia.js', 'crm-ia.css', 'r11.css', 'r13.css', 'r13-resumo.js', 'r13.js', 'r14.css', 'r14-faxina.js', 'r14.js',
               'manifest.json', 'icon-192.png', 'icon-512.png'].map((p) => RAIZ + p);
 const EXTERNOS = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@'];
 const ESPERA_REDE_MS = 3500;

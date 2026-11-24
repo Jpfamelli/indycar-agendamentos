@@ -102,7 +102,7 @@ test('R9-CRM: atributos de teclado, leitor de tela e celular que continuam na te
   tem(/id="tarefaLeadTexto" enterkeyhint="done"/, 'R9-CRM-034');
   tem(/id="nsSenha2"|id="senhaNova2"/, 'R9-CRM-035 (senha nova no login)');
   tem(/id="dsIdade" aria-label="Tempo desde a abertura do contato"/, 'R9-CRM-039');
-  tem(/<h2 id="sdTitulo">Contatos sem responsável<\/h2>/, 'R9-CRM-042/115');
+  tem(/<section class="card card-sem-dono r14-rodizio" id="cardSemDono" aria-labelledby="sdTitulo2">/, 'R9-CRM-042/115 (rodada 14: o título virou o herói e o rodízio ganhou o próprio título)');
   tem(/id="fCampanha" autocapitalize="none" maxlength="200" placeholder="Ex.: troca-de-oleo"/, 'R9-CRM-048/054');
   tem(/id="tarefaLeadData" type="date" aria-label="Data da tarefa"/, 'R9-CRM-051');
   tem(/id="fCarro" autocapitalize="words"/, 'R9-CRM-053');

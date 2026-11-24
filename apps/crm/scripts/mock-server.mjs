@@ -24,6 +24,7 @@ const R5 = createRequire(import.meta.url)('../lib/rodada5.js');
 const R6 = createRequire(import.meta.url)('../lib/rodada6.js');
 const R6C = createRequire(import.meta.url)('../lib/rodada6c.js');
 const CrmUtils = createRequire(import.meta.url)('../public/crm-utils.js');
+const CR14 = createRequire(import.meta.url)('../public/r14-faxina.js');
 // Rodada 5: MOCK_PREFIXO=/crm serve o app montado num prefixo, como a IndyCar Central
 const PREFIXO = (p => p ? '/' + p : '')(String(process.env.MOCK_PREFIXO || '').trim().replace(/^\/+|\/+$/g, ''));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
@@ -98,7 +99,7 @@ function gerarDados(agora = Date.now(), qtdLeads = Number(process.env.MOCK_LEADS
     const criado = agora - (10 + Math.floor(r() * 60)) * DIA;
     leads.push({id: `22222222-2222-4222-8222-${String(i).padStart(12, '0')}`, cliente_id: c.id, nome: c.nome, telefone: c.telefone, carro_modelo: c.carro_modelo, placa: c.placa,
       servico: pick(SERVICOS), origem: i % 9 === 0 ? 'google' : 'whatsapp', status: st, valor_orcado: 0, valor_pago: 0, utm_campaign: '',
-      observacoes: st === 'perdido' ? 'Motivo da perda: ' + pick(MOTIVOS) : '', created_at: new Date(criado).toISOString(), updated_at: new Date(criado + DIA).toISOString(),
+      observacoes: st === 'perdido' ? 'Motivo da perda: ' + pick(MOTIVOS) : '', created_at: new Date(criado).toISOString(), updated_at: new Date(i % 5 === 0 ? agora - (i % 13) * DIA - 3600000 : criado + DIA).toISOString(),
       closed_at: ['concluido', 'perdido'].includes(st) ? new Date(criado + DIA).toISOString() : null, responsavel_id: null});
   }
   leads.sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -625,6 +626,42 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
         return json({...ficha, links: R5.linksFicha(ficha, {prefixo: PREFIXO}), motivosPerda: R5.MOTIVOS_PERDA});
       }
       if (p === '/api/busca') return json(R5.buscaGlobal({leads, clientes}, url.searchParams.get('q') || '', {limite: 8}));
+      /* rodada 14: faxina dos contatos parados (mesmas contas do servidor real; sem conversas no servidor de mentira) */
+      if (p === '/api/leads/faxina' && req.method === 'GET') {
+        if (!gestor) return json({erro: 'Só um gestor faz a faxina dos contatos parados.', codigo: 'so_gestor'}, 403);
+        const dias = CR14.diasValidos(url.searchParams.get('dias') || 30), escopo = CR14.escopoValido(url.searchParams.get('escopo'));
+        const abertos = leads.filter(l => CR14.ABERTAS.includes(l.status));
+        const resumo = CR14.resumoFaxina(abertos, {dias, escopo});
+        const carga = id => leads.filter(l => l.responsavel_id === id && !['concluido','perdido'].includes(l.status)).length;
+        const vendedores = equipe(pp).filter(x => x.ativo !== false && x.papel !== 'agenda' && x.recebe_leads !== false).map(x => ({id: x.id, nome: x.nome, abertos: carga(x.id), recebe_leads: true}));
+        const noLixo = new Set(resumo.itens.map(i => i.id));
+        return json({...resumo, rodizio: R5.sugerirRodizio(abertos.filter(l => !noLixo.has(l.id)), vendedores, {cargas: new Map(vendedores.map(v => [v.id, v.abertos]))})});
+      }
+      if (p === '/api/leads/faxina/arquivar' && req.method === 'POST') {
+        if (!gestor) return json({erro: 'Só um gestor faz a faxina dos contatos parados.', codigo: 'so_gestor'}, 403);
+        const ids = Array.isArray(d.ids) ? d.ids : [];
+        if (!ids.length || ids.length > 500) return json({erro: 'Escolha de 1 a 500 contatos por vez.'}, 400);
+        const ok = new Map(CR14.selecionarFaxina(leads.filter(l => ids.includes(l.id)), {dias: d.dias, escopo: d.escopo}).itens.map(i => [i.id, i]));
+        const feitos = [], pulados = [];
+        for (const id of ids) {
+          const l = leads.find(y => y.id === id);
+          if (!l || !ok.has(id)) { pulados.push({id, motivo: 'mexeram nele depois da prévia ou há conversa recente'}); continue; }
+          const antes = {status: l.status, observacoes: l.observacoes || ''};
+          Object.assign(l, {status: 'perdido', observacoes: CR14.observacoesDaFaxina(l.observacoes, ok.get(id).dias), updated_at: agoraIso(), closed_at: agoraIso()});
+          feitos.push({id, nome: l.nome, antes, depois: {status: 'perdido', observacoes: l.observacoes}});
+        }
+        return json({ok: true, atualizados: feitos.length, feitos, pulados});
+      }
+      if (p === '/api/leads/faxina/desfazer' && req.method === 'POST') {
+        if (!gestor) return json({erro: 'Só um gestor faz a faxina dos contatos parados.', codigo: 'so_gestor'}, 403);
+        let voltaram = 0; const pulados = [];
+        for (const x of d.itens || []) {
+          const l = leads.find(y => y.id === x.id);
+          if (!l || l.status !== 'perdido' || (l.observacoes || '') !== x.depois.observacoes) { pulados.push(x.id); continue; }
+          Object.assign(l, {status: x.antes.status, observacoes: x.antes.observacoes, closed_at: null}); voltaram++;
+        }
+        return json({ok: true, voltaram, pulados});
+      }
       if (p === '/api/leads/sem-dono') {
         if (!gestor) return json({erro: 'Só um gestor vê a distribuição dos leads sem responsável.', codigo: 'so_gestor'}, 403);
         const carga = id => leads.filter(l => l.responsavel_id === id && !['concluido','perdido'].includes(l.status)).length;

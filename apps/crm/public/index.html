@@ -29,6 +29,7 @@
 <link rel="stylesheet" href="crm-ia.css" />
 <link rel="stylesheet" href="r11.css" />
 <link rel="stylesheet" href="r13.css" />
+<link rel="stylesheet" href="r14.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0a0a'/><text y='.85em' x='8' font-size='78' font-family='sans-serif' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar CRM" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -271,36 +272,57 @@
 
   <!-- ---------- DISTRIBUIR (gestor) — rodada 4 ---------- -->
   <section class="view" id="view-distribuir">
-    <div class="card card-sem-dono" id="cardSemDono">
-      <div class="card-topo"><h2 id="sdTitulo">Contatos sem responsável</h2><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
-      <div class="sd-resumo" id="sdResumo"></div>
+    <!-- rodada 14: o que está sem responsável, em duas ações: limpar o que parou e dividir o que está vivo -->
+    <div class="r13-heroi r14-heroi" id="r14Heroi">
+      <div class="r13-h-txt">
+        <p class="r13-sobre" id="sdTitulo">Sem responsável · faxina e rodízio</p>
+        <p class="r13-frase" id="r14Frase" aria-live="polite">Contando os contatos…</p>
+        <div class="r13-nums" id="r14Nums"></div>
+      </div>
+    </div>
+    <section class="card r14-faxina" id="r14Faxina" aria-labelledby="r14FaxinaT">
+      <div class="card-topo"><h3 id="r14FaxinaT">1. Limpar o que parou</h3><span class="filter-count" id="r14FaxinaTxt" aria-live="polite"></span></div>
+      <div class="r14-controles">
+        <div class="r14-grupo" role="group" aria-label="Parado há mais de"><span class="r14-rot">Parado há mais de</span><div class="pilulas" id="r14Dias"></div></div>
+        <div class="r14-grupo" role="group" aria-label="De quem"><span class="r14-rot">De quem</span><div class="pilulas" id="r14Escopo"></div></div>
+      </div>
+      <div class="r14-corpo" id="r14FaxinaCorpo" aria-live="polite"></div>
+      <details class="ds-detalhe r14-lista" id="r14Detalhe" hidden><summary id="r14DetalheT">Ver quem entra</summary>
+        <div class="r14-lista-corpo" role="region" aria-label="Contatos que entram na faxina"></div>
+      </details>
+      <div class="int-actions r14-acoes"><button type="button" class="btn btn-ghost sm" id="r14Desfazer" hidden>Desfazer a última faxina</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="r14Gravar" disabled>Marcar como perdidos</button></div>
+    </section>
+    <section class="card card-sem-dono r14-rodizio" id="cardSemDono" aria-labelledby="sdTitulo2">
+      <div class="card-topo"><h3 id="sdTitulo2">2. Dividir o que está vivo</h3><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
       <div class="sd-rodizio" id="sdRodizio"></div>
       <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="sdRecarregar">Recalcular</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="sdAplicar" disabled>Aplicar o rodízio sugerido</button></div>
-    </div>
+    </section>
+    <details class="card r14-manual" id="r14Manual"><summary>Escolher na mão quem recebe</summary>
     <div class="dist-grade">
-      <div class="card">
-        <div class="card-topo"><h3>1. Contatos a distribuir</h3><span class="filter-count" id="dsQtd" aria-live="polite"></span></div>
-        <fieldset class="ds-grupo"><legend>Etapa</legend><div class="pilulas" id="dsStatus"></div></fieldset>
-        <fieldset class="ds-grupo"><legend>Origem</legend><div class="pilulas" id="dsOrigem"></div></fieldset>
-        <label class="ds-idade">Entrou há
-          <select id="dsIdade" aria-label="Tempo desde a abertura do contato"><option value="">qualquer tempo</option><option value="0-7">até 7 dias</option><option value="7-30">7 a 30 dias</option><option value="30-90">30 a 90 dias</option><option value="7">mais de 7 dias</option><option value="30">mais de 30 dias</option><option value="90">mais de 90 dias</option></select></label>
+        <div class="card">
+          <div class="card-topo"><h3>1. Contatos a distribuir</h3><span class="filter-count" id="dsQtd" aria-live="polite"></span></div>
+          <fieldset class="ds-grupo"><legend>Etapa</legend><div class="pilulas" id="dsStatus"></div></fieldset>
+          <fieldset class="ds-grupo"><legend>Origem</legend><div class="pilulas" id="dsOrigem"></div></fieldset>
+          <label class="ds-idade">Entrou há
+            <select id="dsIdade" aria-label="Tempo desde a abertura do contato"><option value="">qualquer tempo</option><option value="0-7">até 7 dias</option><option value="7-30">7 a 30 dias</option><option value="30-90">30 a 90 dias</option><option value="7">mais de 7 dias</option><option value="30">mais de 30 dias</option><option value="90">mais de 90 dias</option></select></label>
+        </div>
+        <div class="card">
+          <div class="card-topo"><h3>2. Quem recebe</h3><span class="filter-count" id="dsGenteQtd" aria-live="polite"></span></div>
+          <div id="dsGente" class="ds-gente" role="group" aria-label="Pessoas que recebem"></div>
+          <fieldset class="ds-grupo"><legend>Como dividir</legend>
+            <label class="chk"><input type="radio" name="dsModo" value="igual" checked /> Partes iguais</label>
+            <label class="chk"><input type="radio" name="dsModo" value="carga" /> Igualar a carga (quem tem menos contatos abertos recebe mais)</label>
+          </fieldset>
+          <button type="button" class="btn btn-primary" id="dsPrevia">Ver prévia</button>
+        </div>
       </div>
-      <div class="card">
-        <div class="card-topo"><h3>2. Quem recebe</h3><span class="filter-count" id="dsGenteQtd" aria-live="polite"></span></div>
-        <div id="dsGente" class="ds-gente" role="group" aria-label="Pessoas que recebem"></div>
-        <fieldset class="ds-grupo"><legend>Como dividir</legend>
-          <label class="chk"><input type="radio" name="dsModo" value="igual" checked /> Partes iguais</label>
-          <label class="chk"><input type="radio" name="dsModo" value="carga" /> Igualar a carga (quem tem menos contatos abertos recebe mais)</label>
-        </fieldset>
-        <button type="button" class="btn btn-primary" id="dsPrevia">Ver prévia</button>
+      <div class="card" id="dsResultado" hidden>
+        <div class="card-topo"><h3>3. Prévia</h3><span class="filter-count" id="dsPreviaTxt" aria-live="polite"></span></div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Prévia da distribuição por pessoa"><table class="table" id="tblDsResumo"></table></div>
+        <details class="ds-detalhe"><summary>Ver contato por contato</summary><div class="table-wrap" tabindex="0" role="region" aria-label="Contatos da prévia de distribuição"><table class="table" id="tblDsLeads"></table></div></details>
+        <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="dsRefazer">Refazer</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="dsGravar">Gravar distribuição</button></div>
       </div>
-    </div>
-    <div class="card" id="dsResultado" hidden>
-      <div class="card-topo"><h3>3. Prévia</h3><span class="filter-count" id="dsPreviaTxt" aria-live="polite"></span></div>
-      <div class="table-wrap" tabindex="0" role="region" aria-label="Prévia da distribuição por pessoa"><table class="table" id="tblDsResumo"></table></div>
-      <details class="ds-detalhe"><summary>Ver contato por contato</summary><div class="table-wrap" tabindex="0" role="region" aria-label="Contatos da prévia de distribuição"><table class="table" id="tblDsLeads"></table></div></details>
-      <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="dsRefazer">Refazer</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="dsGravar">Gravar distribuição</button></div>
-    </div>
+    </details>
     <div class="card">
       <div class="card-topo"><h3>Últimas distribuições</h3></div>
       <div id="dsHistorico" aria-live="polite"></div>
@@ -573,6 +595,8 @@
 <script src="rodada7.js"></script>
 <script src="r13-resumo.js"></script>
 <script src="r13.js"></script>
+<script src="r14-faxina.js"></script>
+<script src="r14.js"></script>
 <script>
   /* Registra o service worker — é o que torna o app instalável.
      Falha silenciosa de propósito: sem ele o app funciona igual, só deixa
