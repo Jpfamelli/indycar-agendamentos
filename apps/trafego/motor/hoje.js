@@ -477,7 +477,7 @@ function responder({ q = new URLSearchParams(), pedido = null, fonte = Fonte.pad
   const periodo = P.periodoDaConsulta(q, { hoje: fonte.hoje() });
   const plataforma = plataformaDaConsulta(q);
   const fresco = q.get('fresco') === '1';
-  return fonte.guardar(`hoje|${periodo.de}|${periodo.ate}|${plataforma || ''}`, () => carregarEMontar({ periodo, plataforma, fonte, fresco, pedido }), { fresco });
+  return fonte.guardar(`hoje|${periodo.de}|${periodo.ate}|${plataforma || ''}`, (r) => carregarEMontar({ periodo, plataforma, fonte, fresco: fresco || !!(r && r.renovando), pedido: r && r.renovando ? null : pedido }), { fresco });
 }
 
 module.exports = {

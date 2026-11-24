@@ -28,6 +28,7 @@ const Registro = require('../registro');
 const Google = require('../google');
 
 const TTL_MS = 30_000;
+const VELHO_MS = 120_000;   // R14: até 2 min depois de montado, a tela recebe o pronto na hora e a releitura corre por trás
 const PAGINA = 1000;
 const MAX_PAGINAS = 30;
 const DIAS_DE_ALERTA = 7;
@@ -90,7 +91,7 @@ function jornadaDoApp() {
  *   agora    função que devolve o instante  ttl      milissegundos de memória
  */
 function criarFonte(opcoes = {}) {
-  const cfg = { sb: null, agora: Date.now, jornada: undefined, ttl: TTL_MS, ...opcoes };
+  const cfg = { sb: null, agora: Date.now, jornada: undefined, ttl: TTL_MS, velho: 0, ...opcoes };
   const memoria = new Map();
   const falhasVistas = new Map();     // leitura tolerante que falhou -> { em, erro }
 
@@ -98,14 +99,29 @@ function criarFonte(opcoes = {}) {
   const instante = () => cfg.agora();
   const hoje = () => P.hojeBR(instante());
 
-  function lembrar(chave, carregar, { fresco = false } = {}) {
+  function lembrar(chave, carregar, { fresco = false, velho = false } = {}) {
     const t = instante(), guardado = memoria.get(chave);
-    if (guardado && !fresco && t - guardado.em < cfg.ttl) return guardado.promessa;
-    const entrada = { em: t, promessa: null };
-    entrada.promessa = Promise.resolve().then(carregar);
+    if (guardado && !fresco) {
+      const idade = t - guardado.em;
+      if (idade < cfg.ttl) return guardado.promessa;
+      // R14: resultado já montado, um pouco vencido: responde na hora com ele e relê em segundo plano (uma vez só)
+      if (velho && cfg.velho > 0 && guardado.pronto && idade < cfg.velho) {
+        if (!guardado.renovando && t >= (guardado.tentarDepoisDe || 0)) {
+          guardado.renovando = true;
+          Promise.resolve().then(() => carregar({ renovando: true })).then(valor => {
+            if (memoria.get(chave) === guardado) memoria.set(chave, { em: instante(), promessa: Promise.resolve(valor), pronto: true });
+          }, () => { guardado.renovando = false; guardado.tentarDepoisDe = instante() + 10_000; });
+        }
+        return guardado.promessa;
+      }
+    }
+    const entrada = { em: t, promessa: null, pronto: false };
+    entrada.promessa = Promise.resolve().then(() => carregar({ renovando: false }));
+    entrada.promessa.then(() => { entrada.pronto = true; }, () => {});
     memoria.set(chave, entrada);
     entrada.promessa.catch(() => { if (memoria.get(chave) === entrada) memoria.delete(chave); });
-    if (memoria.size > 300) for (const [k, v] of memoria) if (t - v.em >= cfg.ttl) memoria.delete(k);
+    const limite = Math.max(cfg.ttl, cfg.velho || 0);
+    if (memoria.size > 300) for (const [k, v] of memoria) if (t - v.em >= limite) memoria.delete(k);
     return entrada.promessa;
   }
 
@@ -327,7 +343,7 @@ function criarFonte(opcoes = {}) {
   }
 
   /** Guarda (ou busca) um resultado já montado, pela mesma memória curta. */
-  const guardar = (chave, montar, o = {}) => lembrar(`pronto|${chave}`, montar, o);
+  const guardar = (chave, montar, o = {}) => lembrar(`pronto|${chave}`, montar, { ...o, velho: true });
 
   return {
     metricas, haReal, contatos, config, alertas, rastreio, termos, conexoes, agenda, falhas, guardar,
@@ -343,7 +359,7 @@ function criarFonte(opcoes = {}) {
 let _padrao = null;
 /** A fonte do app (banco de verdade, relógio de verdade). */
 function padrao() {
-  if (!_padrao) _padrao = criarFonte();
+  if (!_padrao) _padrao = criarFonte({ velho: VELHO_MS });
   return _padrao;
 }
 
@@ -353,4 +369,4 @@ function esquecerLeituras() {
   if (_padrao) _padrao.esquecer();
 }
 
-module.exports = { criarFonte, padrao, esquecerLeituras, FalhaDeLeitura, normalizarMetrica, semSegredo, tabelaAusente, TTL_MS, PAGINA };
+module.exports = { VELHO_MS, criarFonte, padrao, esquecerLeituras, FalhaDeLeitura, normalizarMetrica, semSegredo, tabelaAusente, TTL_MS, PAGINA };

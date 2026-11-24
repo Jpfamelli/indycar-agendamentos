@@ -376,8 +376,9 @@ function responderLista({ q = new URLSearchParams(), pedido = null, fonte = Font
   const periodo = P.periodoDaConsulta(q, { hoje: fonte.hoje() });
   const plataforma = plataformaDaConsulta(q);
   const fresco = q.get('fresco') === '1', o = { fresco };
-  return fonte.guardar(`campanhas|${periodo.de}|${periodo.ate}|${plataforma || ''}`, async () => {
-    const base = await lerBase({ periodo, fonte, o, medir: medirCom(pedido) });
+  return fonte.guardar(`campanhas|${periodo.de}|${periodo.ate}|${plataforma || ''}`, async (r) => {
+    const renova = !!(r && r.renovando);
+    const base = await lerBase({ periodo, fonte, o: renova ? { fresco: true } : o, medir: medirCom(renova ? null : pedido) });
     return montarLista({ periodo, plataforma, hoje: fonte.hoje(), ...base, incompleto: fonte.falhas() });
   }, o);
 }
@@ -395,8 +396,9 @@ function alvoDoEndereco(plataforma, chaveCrua) {
 function responderDetalhe({ plataforma, chave, q = new URLSearchParams(), pedido = null, fonte = Fonte.padrao() } = {}) {
   const alvo = alvoDoEndereco(plataforma, chave);
   const periodo = P.periodoDaConsulta(q, { hoje: fonte.hoje() });
-  const fresco = q.get('fresco') === '1', o = { fresco }, medir = medirCom(pedido);
-  return fonte.guardar(`campanha|${periodo.de}|${periodo.ate}|${alvo.plataforma}|${alvo.chave}`, async () => {
+  const fresco = q.get('fresco') === '1', o0 = { fresco }, medir0 = medirCom(pedido);
+  return fonte.guardar(`campanha|${periodo.de}|${periodo.ate}|${alvo.plataforma}|${alvo.chave}`, async (r) => {
+    const renova = !!(r && r.renovando), o = renova ? { fresco: true } : o0, medir = renova ? medirCom(null) : medir0;
     const porExt = alvo.chave.startsWith('nome:') || alvo.plataforma === S.ANUNCIO ? null : alvo.chave;
     const [base, linhasDetalhe, termos] = await Promise.all([
       lerBase({ periodo, fonte, o, medir }),
@@ -404,7 +406,7 @@ function responderDetalhe({ plataforma, chave, q = new URLSearchParams(), pedido
       porExt && alvo.plataforma === 'google' ? medir('termos', () => fonte.termos({ de: periodo.de, ate: periodo.ate, plataforma: 'google', campanha: porExt }, o)) : { existe: false, linhas: [] },
     ]);
     return montarDetalhe({ periodo, hoje: fonte.hoje(), ...base, linhasDetalhe, termos, alvo, incompleto: fonte.falhas() });
-  }, o);
+  }, o0);
 }
 
 module.exports = {
