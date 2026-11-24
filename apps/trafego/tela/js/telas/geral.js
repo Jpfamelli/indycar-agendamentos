@@ -9,9 +9,9 @@
 
 import { h, icone, trocar, menosMovimento } from '../dom.js';
 import { dinheiro, inteiro, porcento, ehNumero, dataLonga } from '../formato.js';
-import { heroi, somarDias, melhoresCampanhas, seloDaCampanha, fracao } from '../painel-logica.js';
+import { heroi, somarDias, melhoresCampanhas, seloDaCampanha, fracao, semContaDe, semPedidoDeConta } from '../painel-logica.js';
 import { graficoDiario, faisca, funil } from '../graficos.js';
-import { selo } from '../pecas.js';
+import { selo, vazio, ligarConta } from '../pecas.js';
 import * as Estados from './estados.js';
 import { cabeca, datasDoPeriodo } from './cabeca.js';
 
@@ -114,6 +114,15 @@ function instrumento(rotulo, valor, apoio, serie) {
 function regua(H, dias, semConta) {
   const gastos = dias.map((d) => d.gasto), conversas = dias.map((d) => d.contatos);
   const temGasto = gastos.some(ehNumero);
+  if (semConta) {
+    // sem conta de anúncios: só o que o WhatsApp e a oficina sabem (nada de "sem dado" em três dos seis)
+    return h('section', { class: 'cartao regua', 'aria-label': 'Números do período' }, h('ul', { class: 'regua-in regua-5' },
+      instrumento('Conversas no WhatsApp', ehNumero(H.etapas[0].valor) ? inteiro(H.etapas[0].valor) : null, 'que vieram dos anúncios', conversas),
+      instrumento('Agendaram', ehNumero(H.etapas[1].valor) ? inteiro(H.etapas[1].valor) : null, ehNumero(H.etapas[1].passagem) ? porcento(H.etapas[1].passagem) + ' das conversas' : null, null),
+      instrumento('Vieram na oficina', ehNumero(H.vieram) ? inteiro(H.vieram) : null, 'carros que chegaram', null),
+      instrumento('Clientes novos', ehNumero(H.etapas[2].valor) ? inteiro(H.etapas[2].valor) : null, ehNumero(H.etapas[2].passagem) ? porcento(H.etapas[2].passagem) + ' de quem agendou' : null, null),
+      instrumento('Em serviços', ehNumero(H.faturado) && H.faturado > 0 ? r0(H.faturado) : null, ehNumero(H.faturado) && H.faturado > 0 ? 'serviços fechados' : 'nenhum valor lançado ainda', null)));
+  }
   return h('section', { class: 'cartao regua', 'aria-label': 'Números do período' }, h('ul', { class: 'regua-in' },
     instrumento('Investido em anúncio', temGasto || ehNumero(H.gasto) ? r0(H.gasto || 0) : null, semConta ? 'conta de anúncios não ligada' : 'Meta e Google juntos', temGasto ? gastos : null),
     instrumento('Custo por conversa', ehNumero(H.custo_por_conversa) ? r2(H.custo_por_conversa) : null, 'quanto custou cada conversa no WhatsApp', null),
@@ -152,7 +161,7 @@ function funilCompleto(t) {
   return cartao('Do anúncio ao serviço fechado', 'O caminho de quem viu o anúncio até sair com o carro pronto.', funil(etapas), 'cartao-funil');
 }
 
-function metaGoogle(origens, comparacao) {
+function metaGoogle(origens, comparacao, semConta) {
   const da = (id) => (Array.isArray(origens) ? origens : []).find((o) => o && o.id === id) || null;
   const linhaCmp = (id) => (comparacao && Array.isArray(comparacao.linhas) ? comparacao.linhas.find((l) => l.plataforma === id) : null) || {};
   const coluna = (id, nome) => {
@@ -161,11 +170,11 @@ function metaGoogle(origens, comparacao) {
     return h('div', { class: 'mg-col mg-' + id },
       h('p', { class: 'mg-nome' }, nome),
       h('dl', { class: 'mg-dados' },
-        h('div', null, h('dt', null, 'Investido'), h('dd', null, ehNumero(o.gasto) ? r0(o.gasto) : 'sem dado')),
+        semConta ? null : h('div', null, h('dt', null, 'Investido'), h('dd', null, ehNumero(o.gasto) ? r0(o.gasto) : 'sem dado')),
         h('div', null, h('dt', null, 'Conversas'), h('dd', null, ehNumero(o.contatos) ? inteiro(o.contatos) : 'sem dado')),
         h('div', null, h('dt', null, 'Clientes'), h('dd', null, ehNumero(o.fecharam) ? inteiro(o.fecharam) : 'sem dado')),
-        h('div', null, h('dt', null, 'Custo por cliente'), h('dd', null, custo ? r0(custo) : 'sem dado')),
-        h('div', { class: 'mg-forte' }, h('dt', null, 'Cada R$ 1 virou'), h('dd', null, ehNumero(o.retorno) ? r2(o.retorno) : 'sem dado'))));
+        semConta ? null : h('div', null, h('dt', null, 'Custo por cliente'), h('dd', null, custo ? r0(custo) : 'sem dado')),
+        semConta ? null : h('div', { class: 'mg-forte' }, h('dt', null, 'Cada R$ 1 virou'), h('dd', null, ehNumero(o.retorno) ? r2(o.retorno) : 'sem dado'))));
   };
   const m = da('meta') || {}, g = da('google') || {};
   const total = (m.contatos || 0) + (g.contatos || 0);
@@ -177,10 +186,10 @@ function metaGoogle(origens, comparacao) {
     h('div', { class: 'mg' }, coluna('meta', 'Meta · Facebook e Instagram'), coluna('google', 'Google · pesquisa'))], 'cartao-mg');
 }
 
-function melhores(ctx, campanhas) {
+function melhores(ctx, campanhas, semConta) {
   const top = melhoresCampanhas(campanhas, 3);
   const maior = Math.max(1, ...top.map((c) => c.fecharam));
-  return cartao('Melhores campanhas', 'As que trouxeram cliente mais barato.',
+  return cartao('Melhores campanhas', semConta ? 'As que trouxeram mais clientes.' : 'As que trouxeram cliente mais barato.',
     top.length ? h('ol', { class: 'podio' }, top.map((c, i) => {
       const s = seloDaCampanha(c);
       return h('li', { class: 'podio-item' },
@@ -193,10 +202,10 @@ function melhores(ctx, campanhas) {
     })) : h('p', { class: 'suave' }, 'Nenhuma campanha trouxe cliente neste período ainda.'), 'cartao-podio');
 }
 
-function leituraDoPeriodo(ctx, campanhas, comparacao) {
+function leituraDoPeriodo(ctx, campanhas, comparacao, semConta) {
   const itens = [];
   if (comparacao && comparacao.destaque) itens.push([null, comparacao.destaque]);
-  for (const c of campanhas.slice(0, 4)) if (c.leitura && c.leitura.texto) itens.push([c.nome, c.leitura.texto]);
+  for (const c of campanhas.slice(0, 4)) { const texto = semConta ? semPedidoDeConta(c.leitura && c.leitura.texto) : c.leitura && c.leitura.texto; if (texto) itens.push([c.nome, texto]); }
   if (!itens.length) return null;
   return cartao('Leitura do período', 'O que os números estão dizendo.',
     h('ol', { class: 'leitura' }, itens.map(([nome, texto], i) => h('li', null,
@@ -210,11 +219,12 @@ function pintar(ctx, c, todas, hoje) {
   const estado = c.estado || {};
   ctx.demo(Boolean(estado.demo));
   const t = c.totais || {};
-  const semConta = estado.gasto === 'sem_conta' || estado.gasto === 'sem_dados';
+  const semConta = semContaDe(estado);
   const H = heroi(t, ctx.fonte);
   const dias = somarDias(c.campanhas);
   const campanhas = Array.isArray(c.campanhas) ? c.campanhas : [];
   const comparacao = (todas && todas.comparacao) || null;
+  const semConversa = !(t.contatos > 0);
 
   trocar(ctx.miolo,
     cabeca(ctx, { linha: 'Anúncios → WhatsApp → oficina', titulo: 'Visão geral' }),
@@ -225,11 +235,14 @@ function pintar(ctx, c, todas, hoje) {
         trilha(H),
         contaDoHeroi(H, semConta)),
       celular(hoje.hoje, c.periodo && c.periodo.ate)),
-    semConta ? h('p', { class: 'aviso-linha' }, icone('info', 'icone-p'), 'A conta de anúncios ainda não está ligada: dá para ver as conversas e os clientes, mas não o quanto custaram.') : null,
-    regua(H, dias, semConta),
-    diario(dias, ctx.fonte),
-    h('div', { class: 'grade-2' }, funilCompleto(t), h('div', { class: 'coluna-d' }, metaGoogle(hoje.origens, comparacao), melhores(ctx, campanhas))),
-    leituraDoPeriodo(ctx, campanhas, ctx.fonte ? null : comparacao));
+    semConta ? ligarConta(ctx) : null,
+    semConversa
+      ? vazio({ titulo: 'Nenhuma conversa de anúncio neste período', texto: 'Se já há anúncio rodando, confira se ele abre o WhatsApp da oficina e se o site está contando os cliques. O Radar mostra o que está ligado.',
+        acao: h('a', { class: 'botao', href: ctx.hrefDaTela('radar') }, 'Ver o Radar', icone('seta', 'icone-seta')) })
+      : [regua(H, dias, semConta),
+        diario(dias, ctx.fonte),
+        h('div', { class: 'grade-2' }, funilCompleto(t), h('div', { class: 'coluna-d' }, metaGoogle(hoje.origens, comparacao, semConta), melhores(ctx, campanhas, semConta))),
+        leituraDoPeriodo(ctx, campanhas, ctx.fonte ? null : comparacao, semConta)]);
 }
 
 /** O brilho vermelho do herói segue o dedo ou o mouse (só enfeite: sem ele a tela é igual). */

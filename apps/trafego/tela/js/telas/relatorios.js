@@ -8,7 +8,7 @@
 
 import { h, icone, trocar } from '../dom.js';
 import { dinheiro, inteiro, porcento, ehNumero, dataLonga } from '../formato.js';
-import { heroi, ordenarCampanhas, radar, linhasDoRelatorio } from '../painel-logica.js';
+import { heroi, ordenarCampanhas, radar, linhasDoRelatorio, semContaDe } from '../painel-logica.js';
 import * as Estados from './estados.js';
 import { cabeca, datasDoPeriodo } from './cabeca.js';
 
@@ -60,6 +60,7 @@ function mensagem(ctx) {
 function folha(ctx, c, hoje) {
   const t = c.totais || {};
   const H = heroi(t, ctx.fonte);
+  const semConta = semContaDe(c.estado);
   const campanhas = ordenarCampanhas(c.campanhas, 'clientes').slice(0, 6);
   const origens = Array.isArray(hoje.origens) ? hoje.origens.filter((o) => o && (o.id === 'meta' || o.id === 'google')) : [];
   const fazer = radar(hoje.fazer).lista.filter((a) => a.gravidade !== 'baixa').slice(0, 3);
@@ -72,28 +73,27 @@ function folha(ctx, c, hoje) {
       h('p', { class: 'folha-data' }, c.periodo && c.periodo.ate ? 'até ' + dataLonga(c.periodo.ate) : '')),
     h('p', { class: 'folha-frase' }, H.frase.map((p) => (p.numero != null ? h('b', null, p.numero) : p.texto))),
     h('dl', { class: 'folha-grandes' },
-      grande('Investido', r0(H.gasto)),
-      grande('Em serviços', r0(H.faturado)),
-      grande('Custo por cliente', r0(H.custo_por_cliente)),
-      grande('Cada R$ 1 virou', ehNumero(H.retorno) ? dinheiro(H.retorno, { centavos: true }) : 'sem dado')),
+      semConta
+        ? [grande('Conversas', ehNumero(t.contatos) ? inteiro(t.contatos) : 'sem dado'), grande('Clientes', ehNumero(t.fecharam) ? inteiro(t.fecharam) : 'sem dado'), grande('Em serviços', r0(H.faturado))]
+        : [grande('Investido', r0(H.gasto)), grande('Em serviços', r0(H.faturado)), grande('Custo por cliente', r0(H.custo_por_cliente)), grande('Cada R$ 1 virou', ehNumero(H.retorno) ? dinheiro(H.retorno, { centavos: true }) : 'sem dado')]),
     h('section', { class: 'folha-parte' }, h('h3', null, 'Do anúncio ao serviço'),
       h('ol', { class: 'folha-funil' },
         [['Conversas no WhatsApp', t.contatos, null], ['Agendaram', t.agendaram, t.contatos], ['Vieram na oficina', t.vieram, t.agendaram], ['Fecharam serviço', t.fecharam, t.vieram]]
           .map(([rotulo, n, de]) => h('li', null, h('b', null, ehNumero(n) ? inteiro(n) : 'sem dado'), h('span', null, rotulo), ehNumero(n) && ehNumero(de) && de > 0 ? h('small', null, porcento(n / de)) : null)))),
     origens.length ? h('section', { class: 'folha-parte' }, h('h3', null, 'Meta × Google'),
       h('div', { class: 'tabela-rola' }, h('table', { class: 'tabela' },
-        h('thead', null, h('tr', null, ['', 'Investido', 'Conversas', 'Clientes', 'Cada R$ 1 virou'].map((x) => h('th', { scope: 'col' }, x)))),
+        h('thead', null, h('tr', null, (semConta ? ['', 'Conversas', 'Clientes'] : ['', 'Investido', 'Conversas', 'Clientes', 'Cada R$ 1 virou']).map((x) => h('th', { scope: 'col' }, x)))),
         h('tbody', null, origens.map((o) => h('tr', null, h('th', { scope: 'row' }, o.id === 'meta' ? 'Meta' : 'Google'),
-          h('td', null, r0(o.gasto)), h('td', null, inteiro(o.contatos) || '0'), h('td', null, inteiro(o.fecharam) || '0'),
-          h('td', null, ehNumero(o.retorno) ? dinheiro(o.retorno, { centavos: true }) : 'sem dado'))))))) : null,
+          semConta ? null : h('td', null, r0(o.gasto)), h('td', null, inteiro(o.contatos) || '0'), h('td', null, inteiro(o.fecharam) || '0'),
+          semConta ? null : h('td', null, ehNumero(o.retorno) ? dinheiro(o.retorno, { centavos: true }) : 'sem dado'))))))) : null,
     campanhas.length ? h('section', { class: 'folha-parte' }, h('h3', null, 'Campanhas'),
       h('div', { class: 'tabela-rola' }, h('table', { class: 'tabela' },
-        h('thead', null, h('tr', null, ['Campanha', 'Gasto', 'Conversas', 'Clientes', 'Custo por cliente'].map((x) => h('th', { scope: 'col' }, x)))),
+        h('thead', null, h('tr', null, (semConta ? ['Campanha', 'Conversas', 'Clientes'] : ['Campanha', 'Gasto', 'Conversas', 'Clientes', 'Custo por cliente']).map((x) => h('th', { scope: 'col' }, x)))),
         h('tbody', null, campanhas.map((x) => h('tr', null, h('th', { scope: 'row' }, x.nome || 'Campanha'),
-          h('td', null, r0(x.gasto)), h('td', null, inteiro(x.contatos) || '0'), h('td', null, inteiro(x.fecharam) || '0'), h('td', null, x.fecharam === 0 ? 'nenhum cliente' : r0(x.custo_por_servico)))))))) : null,
+          semConta ? null : h('td', null, r0(x.gasto)), h('td', null, inteiro(x.contatos) || '0'), h('td', null, inteiro(x.fecharam) || '0'), semConta ? null : h('td', null, x.fecharam === 0 ? 'nenhum cliente' : r0(x.custo_por_servico)))))))) : null,
     fazer.length ? h('section', { class: 'folha-parte' }, h('h3', null, 'O que fazer agora'),
       h('ol', { class: 'folha-fazer' }, fazer.map((a) => h('li', null, h('b', null, a.titulo + (a.porque ? ':' : '')), a.porque ? ' ' + a.porque : '')))) : null,
-    h('p', { class: 'folha-pe' }, 'IndyCar Tráfego · números do anúncio (Meta e Google) juntos com o que aconteceu na oficina.'));
+    h('p', { class: 'folha-pe' }, semConta ? 'IndyCar Tráfego · conversas e clientes que vieram dos anúncios. O gasto entra quando a conta de anúncios for ligada.' : 'IndyCar Tráfego · números do anúncio (Meta e Google) juntos com o que aconteceu na oficina.'));
 }
 
 function pintar(ctx, c, hoje) {

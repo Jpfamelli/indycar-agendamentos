@@ -230,3 +230,15 @@ function partesFortes(texto) {
   if (ultimo < texto.length) partes.push({ texto: texto.slice(ultimo), forte: false });
   return partes;
 }
+
+/* ------------------------------ sem conta de anúncios (rodada 14) ------------------------------ */
+
+/** A conta de anúncios (Meta ou Google) não está ligada: o servidor diz em estado.gasto. */
+export function semContaDe(estado) {
+  return Boolean(estado) && (estado.gasto === 'sem_conta' || estado.gasto === 'sem_dados');
+}
+
+/** A frase "Ligue a conta de anúncios para ver o custo." repete em cada campanha; sem conta ela sai (o passo para ligar mora num cartão só). */
+export function semPedidoDeConta(texto) {
+  return String(texto || '').replace(/\s*Ligue a conta de anúncios para ver o custo\.?/gi, '').replace(/\s{2,}/g, ' ').trim();
+}
