@@ -20,9 +20,14 @@
       const n = num(d.conversas.esperando);
       out.push({ k: 'conversas', app: 'atendimento', nome: 'Atendimento', n, frase: um(n, 'conversa esperando', 'conversas esperando', 'nenhuma conversa esperando'), rotulo: um(n, 'conversa esperando', 'conversas esperando', 'conversas esperando') });
     }
-    if (v.agenda && d.agenda) {
+    if ((v.agenda || v.recepcao) && d.agenda) {
       const n = num(d.agenda.total);
       out.push({ k: 'agenda', app: 'agenda', nome: 'Agenda', n, frase: um(n, 'horário na Agenda', 'horários na Agenda', 'nenhum horário na Agenda'), rotulo: um(n, 'horário hoje', 'horários hoje', 'horários hoje') });
+      /* R14: a recepção quer saber quem já chegou (a Agenda dela é a presença) */
+      if (v.recepcao && d.agenda.chegaram != null) {
+        const c = num(d.agenda.chegaram);
+        out.push({ k: 'chegaram', app: 'agenda', nome: 'Agenda', n: c, frase: um(c, 'cliente já chegou', 'clientes já chegaram', 'ninguém chegou ainda'), rotulo: um(c, 'já chegou', 'já chegaram', 'já chegaram') });
+      }
     }
     if (v.patio && d.patio) {
       const n = num(d.patio.total);
@@ -60,6 +65,62 @@
   }
   /** A mesma frase em texto corrido (leitor de tela, título, testes). */
   const fraseEmTexto = (partes) => (partes || []).map((p) => (p.n != null ? p.n + p.texto : p.texto)).join('');
+
+  /* ---------------- R14: a Agenda da recepção (presença) e os carros do mecânico ---------------- */
+  const minutosDe = (h) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(h || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+  function minutosAgora(agora) {
+    const p = new Intl.DateTimeFormat('pt-BR', { timeZone: L.FUSO, hour: '2-digit', minute: '2-digit', hour12: false }).format(agora).split(':');
+    return (Number(p[0]) % 24) * 60 + Number(p[1]);
+  }
+  const TOLERANCIA_MIN = 15;
+  /**
+   * O dia da recepção a partir da lista que a Agenda dá a quem só marca presença (GET /agenda/api/agendamentos: hoje e
+   * quem está na casa de outro dia, sem telefone). total = horários de hoje sem os cancelados; chegaram = já está na oficina
+   * ou já saiu; faltam = ainda esperados; atrasados = esperados cuja hora passou há mais de 15 min (a recepção liga ou marca
+   * "não veio"); mais_atrasado = a hora do primeiro deles.
+   */
+  function agendaDaRecepcao(lista, agora = new Date(), hojeIso = L.hojeSP(agora)) {
+    const hoje = (Array.isArray(lista) ? lista : []).filter((a) => a && String(a.data || '').slice(0, 10) === hojeIso && a.status !== 'cancelado');
+    const chegou = (a) => a.compareceu === 1 || L.CHEGARAM.includes(a.status);
+    const espera = (a) => !chegou(a) && ['aguardando', 'confirmado'].includes(a.status);
+    const agoraMin = minutosAgora(agora);
+    const atras = hoje.filter((a) => espera(a) && minutosDe(a.hora) != null && agoraMin - minutosDe(a.hora) >= TOLERANCIA_MIN)
+      .sort((a, b) => minutosDe(a.hora) - minutosDe(b.hora));
+    return { total: hoje.length, chegaram: hoje.filter(chegou).length, faltam: hoje.filter(espera).length, atrasados: atras.length, mais_atrasado: atras.length ? String(atras[0].hora).slice(0, 5) : null };
+  }
+  /**
+   * Os carros do mecânico, do que pede mais atenção para o que acabou de chegar: pronto primeiro, depois o que está há
+   * mais tempo na etapa. Cada um: { id, titulo (placa e modelo), cliente, etapa, tempo, tom ('ok'|'atencao'|'atrasado'), previsao }.
+   */
+  function carrosDoMecanico(lista, agoraMs = Date.now()) {
+    const arr = (Array.isArray(lista) ? lista : []).filter((o) => o && o.id);
+    const peso = (o) => (o.etapa === 'pronto' ? 0 : 1);
+    arr.sort((a, b) => peso(a) - peso(b) || (Date.parse(a.etapa_em) || agoraMs) - (Date.parse(b.etapa_em) || agoraMs));
+    return arr.map((o) => {
+      const t = Date.parse(o.etapa_em);
+      const pv = L.previsao(o.previsao_entrega, o.etapa, agoraMs);
+      return {
+        id: o.id, titulo: [L.formatarPlaca(o.placa), o.veiculo].filter(Boolean).join(' · ') || 'Carro sem placa', cliente: o.nome || o.cliente_nome || '',
+        etapa: L.rotuloEtapa(o.etapa), tempo: Number.isFinite(t) ? L.duracao(agoraMs - t) : '', tom: L.tomDaEtapa(o.etapa, o.etapa_em, agoraMs), previsao: pv.texto, previsaoAtrasada: pv.atrasada,
+      };
+    });
+  }
+
+  /**
+   * R14: avisos que só valem enquanto são o mais novo da série. "N tarefas vencidas" chega várias vezes por semana com a
+   * contagem do momento (118 no mês, 9 sem ler ao mesmo tempo): só o último diz a verdade. Devolve os ids dos não lidos
+   * que já foram superados por outro mais novo do mesmo tipo (a Casa os marca como lidos, sem barulho).
+   */
+  const TIPOS_SUBSTITUIVEIS = ['tarefas_vencidas'];
+  function avisosSubstituidos(lista) {
+    const novos = new Map();
+    for (const n of Array.isArray(lista) ? lista : []) {
+      if (!n || !TIPOS_SUBSTITUIVEIS.includes(n.tipo)) continue;
+      const atual = novos.get(n.tipo);
+      if (!atual || String(n.created_at) > String(atual.created_at)) novos.set(n.tipo, n);
+    }
+    return (Array.isArray(lista) ? lista : []).filter((n) => n && !n.lida_em && novos.has(n.tipo) && novos.get(n.tipo).id !== n.id).map((n) => n.id);
+  }
 
   const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   /** "2026-11" do dia em São Paulo (a chave da meta em casa_metas). */
@@ -107,5 +168,5 @@
     return { tom: 'neutro', texto: dia === 'Sat' || dia === 'Sun' ? 'Fechada · abre segunda às 8h' : 'Fechada · abre amanhã às 8h' };
   }
 
-  root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, MESES });
+  root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, agendaDaRecepcao, carrosDoMecanico, avisosSubstituidos, MESES });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -251,14 +251,14 @@
    * apareciam por um instante para quem entrasse depois no mesmo computador. Agora o conteúdo é apagado junto.
    */
   const PARA_LIMPAR = ['#listaNotif', '#sinoRodape', '#atencaoLista', '#saudeLista', '#buscaLista', '#fichaCorpo', '#fichaChips',
-    '#gradeApps', '#avisoApps', '#avisoRede', '#heroiNums', '#heroiHora', '#heroiOficina', '#mesCorpo', '#mesSelo', '#mpNome', '#mpEmail', '#mpPapel', '#nomeCurto', '#bPerfil', '#fichaTit', '#fichaSub', '#saudeTxt', '#saudeHora', '#sinoNum', '#toast'];
+    '#gradeApps', '#avisoApps', '#avisoRede', '#heroiNums', '#meusCarrosLista', '#heroiHora', '#heroiOficina', '#mesCorpo', '#mesSelo', '#mpNome', '#mpEmail', '#mpPapel', '#nomeCurto', '#bPerfil', '#fichaTit', '#fichaSub', '#saudeTxt', '#saudeHora', '#sinoNum', '#toast'];
   function limparTela() {
     for (const s of PARA_LIMPAR) { const el = $(s); if (el) el.textContent = ''; }
     for (const s of ['#buscaInput', '#sinoBusca']) { const el = $(s); if (el) el.value = ''; }
     const av = $('#bPerfil'); if (av) av.style.background = '';
     /* rodada 13: o herói volta para "lendo" e o mês da oficina some (o número do faturamento não fica na página) */
     const fr = $('#heroiFrase'); if (fr) fr.innerHTML = '<span class="heroi-lendo">Lendo o dia da oficina…</span>';
-    for (const s of ['#heroiNums', '#mesOficina', '#atencao']) { const el = $(s); if (el) el.hidden = true; }
+    for (const s of ['#heroiNums', '#mesOficina', '#atencao', '#meusCarros']) { const el = $(s); if (el) el.hidden = true; }
     const rede = $('#avisoRede'); if (rede) rede.hidden = true;
     $('#toast').hidden = true;
   }
@@ -375,12 +375,15 @@
     $('#mpEmail').textContent = perfil.email || sessao.user.email || '';
     $('#mpPapel').textContent = [PAPEL[perfil.papel] || perfil.papel || '', perfil.cargo || ''].filter(Boolean).join(' · ');
     desenharApps();
+    /* R14: a busca lê clientes de todos os sistemas pela regra da equipe; recepção e mecânico não leem isso (voltava vazio) */
+    $('#bBusca').hidden = !L.visao(perfil).equipe;
     mostrar('casa');
     /* rodada 8: veio de um app sem sessão (/?voltar=): abre o app na aba com o nome dele. Se esta aba já é a do app
        (o Tráfego mandou para cá), a própria aba volta para ele; se não, abre a aba do app e a Casa fica. */
     if (voltarPedido) { const v = voltarPedido; voltarPedido = ''; abrirNaAba(v); }
     montada = true;
     for (const m of window.CasaModulos) { try { m.montar && m.montar(Casa); } catch (e) { console.error('Casa: módulo', m.nome, e); } }
+    if (buscaPedida && !L.visao(perfil).equipe) buscaPedida = '';
     if (buscaPedida) { const t = buscaPedida; buscaPedida = ''; setTimeout(() => Casa.busca && Casa.busca.abrir(t), 120); }
   }
 
@@ -457,8 +460,10 @@
     const tentar = $('#lTentar');
     tentar.disabled = true; tentar.setAttribute('aria-busy', 'true');
     try {
-      const r = await fetch('/api/central/config', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
-      cfg = r.ok ? await r.json() : null;
+      /* R14: a primeira leitura já saiu do <head> (tema.js), em paralelo com os scripts; só a primeira vez a usa */
+      const cedo = window.__cfgCedo; window.__cfgCedo = null;
+      cfg = cedo ? await cedo : null;
+      if (!cfg) { const r = await fetch('/api/central/config', { cache: 'no-store', signal: AbortSignal.timeout(10000) }); cfg = r.ok ? await r.json() : null; }
       if (cfg) { $('#versao').textContent = cfg.versao || ''; bases = L.bases(cfg.apps, undefined, cfg.orcadorNaCentral === true); links = L.links(bases); }
     } catch { cfg = null; }
     finally { ligando = false; tentar.disabled = false; tentar.removeAttribute('aria-busy'); }

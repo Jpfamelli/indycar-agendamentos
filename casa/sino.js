@@ -1,11 +1,13 @@
 /* Casa — sino unificado (rodada 6 + 7): avisos de TODOS os apps numa lista só, com filtro por app, busca por texto,
    "só não lidas", grupos por dia, marcar uma/todas, adiar com escolha (1 h, 3 h, amanhã 8h), "carregar mais",
    aba do navegador com a contagem e aviso do sistema (opcional) quando chega coisa nova com a Central em segundo plano.
+   R14: o sino abre nas NÃO LIDAS (a caixa de entrada do dia); "Todas" traz também as já lidas. As não lidas vêm numa leitura
+   só delas (até 100), então um aviso novo nunca fica escondido atrás de dezenas de avisos antigos já lidos.
    Aviso de "tarefas vencidas" (sem app e sem link no banco) leva para a aba Tarefas do Atendimento (rodada 11). */
 (function () {
   'use strict';
   const MOD = { nome: 'sino' };
-  let C = null, L = null, notifs = [], filtro = '', soNovas = false, canal = null, timerSync = null, primeiraCarga = true, buscaTexto = '', limite = 60, adiarAberto = null;
+  let C = null, L = null, notifs = [], filtro = '', soNovas = true, canal = null, timerSync = null, primeiraCarga = true, buscaTexto = '', limite = 60, adiarAberto = null;
   /* rodada 9: estado da leitura, para o sino dizer "carregando" e "não consegui ler" em vez de ficar em branco */
   let leitura = 'carregando';
   /* rodada 10: relógio que junta uma rajada de avisos do tempo real numa leitura só */
@@ -40,7 +42,7 @@
 
     // filtros por app (só os que aparecem na lista), com a contagem de não lidas
     const porApp = L.contagemPorApp(notifs);
-    const apps = [...new Set(notifs.map((n) => n.app || 'outros'))];
+    const apps = [...new Set(notifs.filter((n) => !soNovas || !n.lida_em).map((n) => n.app || 'outros'))];   // R14: em "Não lidas" só os apps que têm aviso novo
     $('#sinoFiltros').innerHTML = apps.length > 1 ? [`<button type="button" data-filtro="" aria-pressed="${filtro === ''}">Todos${novas ? ` <b>${novas}</b>` : ''}</button>`]
       .concat(apps.map((a) => `<button type="button" data-filtro="${C.esc(a)}" aria-pressed="${filtro === a}">${icoApp(a)} ${C.esc(rotuloApp(a))}${porApp[a] ? ` <b>${porApp[a]}</b>` : ''}</button>`)).join('') : '';
 
@@ -53,6 +55,12 @@
       }
     }
     const nAd = Object.keys(adiados).length;
+    const bN = $('#sinoModoNovas'), bT = $('#sinoModoTodas');
+    if (bN && bT) {
+      bN.setAttribute('aria-pressed', String(soNovas)); bT.setAttribute('aria-pressed', String(!soNovas));
+      bN.innerHTML = 'Não lidas' + (novas ? ` <b>${novas > 99 ? '99+' : novas}</b>` : '');
+    }
+    const lerTodasBtn = $('#bLerTodas'); if (lerTodasBtn) lerTodasBtn.hidden = !novas;
     const item = (n) => `
         <li class="${n.lida_em ? '' : 'nova'}">
           <button type="button" class="notif-abrir" data-notif="${C.esc(n.id)}">
@@ -73,7 +81,7 @@
       const rotulo = nomesPorTipo[tipo]?.[1] || M2().rotuloTipo(tipo);
       blocos.push(`
       <details class="notif-grupo" data-grupo-tipo="${C.esc(tipo)}" ${gruposAbertos.has(tipo) ? 'open' : ''}>
-        <summary>${itens.length} ${C.esc(rotulo)}${novos.length ? ` · ${novos.length} sem ler` : ''}</summary>
+        <summary>${itens.length} ${C.esc(rotulo)}${novos.length && !soNovas ? ` · ${novos.length} sem ler` : ''}</summary>
         ${novos.length ? `<button type="button" class="btn-link" data-ler="${C.esc(novos.map((n) => n.id).join(','))}">Marcar este grupo como lido</button>` : ''}
         <ul>${itens.map(item).join('')}</ul></details>`);
     }
@@ -83,7 +91,7 @@
       : (leitura === 'falhou' && !notifs.length) ? `<p class="vazio vazio-erro" role="alert">Não consegui ler os avisos agora. ${tentar}</p>`
       : (leitura === 'falhou' ? `<p class="vazio vazio-erro" role="alert">Não consegui atualizar os avisos: mostrando a última leitura. ${tentar}</p>` : '')
         + (grupos.size ? blocos.join('')
-          : `<p class="vazio">${buscaTexto ? `Nenhum aviso com “${C.esc(buscaTexto)}”.` : notifs.length ? 'Nada com esse filtro.' : 'Nada por aqui. Quando passarem uma conversa, um contato, um orçamento ou um carro para você, aparece aqui.'}</p>`);
+          : `<p class="vazio">${buscaTexto ? `Nenhum aviso com “${C.esc(buscaTexto)}”.` : filtro ? 'Nada com esse filtro.' : soNovas ? '<span aria-hidden="true">🏁</span> Tudo lido. Nenhum aviso novo.' : 'Nada por aqui. Quando passarem uma conversa, um contato, um orçamento ou um carro para você, aparece aqui.'}${soNovas && !buscaTexto && !filtro ? '<br><button type="button" class="btn-link" data-sino-modo="todas">Ver também os já lidos</button>' : ''}</p>`);
 
     const rod = $('#sinoRodape');
     const volta = nAd ? N4().quandoVolta(Math.min(...Object.values(adiados).map(Number))) : '';
@@ -96,20 +104,28 @@
   }
 
   async function carregar() {
-    let data = null, error = null;
+    const campos = 'id,tipo,titulo,corpo,link,app,lida_em,created_at';
+    const nova = (so) => { let b = C.sb.from('notificacoes').select(campos); if (so) b = b.is('lida_em', null); return b.order('created_at', { ascending: false }).limit(so ? 100 : limite); };
+    let nao = null, todas = null, error = null;
+    const modo = soNovas;
     try {
-      ({ data, error } = await C.sb.from('notificacoes').select('id,tipo,titulo,corpo,link,app,lida_em,created_at')
-        .order('created_at', { ascending: false }).limit(limite));
+      [nao, todas] = await Promise.all([nova(true), modo ? Promise.resolve(null) : nova(false)]);
+      error = nao.error || (todas && todas.error) || null;
     } catch (e) { error = e; }
     if (!C) return;   // saiu enquanto lia
     if (error) { leitura = 'falhou'; desenhar(); C.sessaoVenceu && C.sessaoVenceu(error); return; }
     leitura = 'ok'; lidoEm = Date.now();
     const antes = new Set(notifs.map((n) => n.id));
     const adiados = lerAdiados();
-    const lista = (data || []).map((n) => (n.app ? n : { ...n, app: N4().appDoAviso(n) }));
+    const mapa = new Map();
+    for (const n of [...((todas && todas.data) || []), ...(nao.data || [])]) mapa.set(n.id, n.app ? n : { ...n, app: N4().appDoAviso(n) });
+    const lista = [...mapa.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
     const novas = lista.filter((n) => !antes.has(n.id) && !n.lida_em && !adiados[n.id]);
     notifs = lista;
     desenhar();
+    /* R14: "N tarefas vencidas" repetido: só o mais novo vale; os antigos saem das não lidas */
+    const velhos = window.CasaLogica5.avisosSubstituidos(lista);
+    if (velhos.length) marcar(velhos);
     if (!primeiraCarga && novas.length && document.hidden) avisarSistema(novas);
     primeiraCarga = false;
   }
@@ -178,12 +194,10 @@
 
   MOD.montar = function (casa) {
     gruposAbertos.clear();
-    C = casa; L = casa.L; notifs = []; filtro = ''; soNovas = false; primeiraCarga = true; buscaTexto = ''; limite = 60; adiarAberto = null; leitura = 'carregando';
+    C = casa; L = casa.L; notifs = []; filtro = ''; soNovas = true; primeiraCarga = true; buscaTexto = ''; limite = 60; adiarAberto = null; leitura = 'carregando';
     C.alternarSino = alternar;
     C.sino = { carregar, naoLidas: () => notifs.filter((n) => !n.lida_em).length, lista: () => notifs.slice() };
     $('#bLerTodas').onclick = lerTodas;
-    $('#sinoSoNovas').checked = false;
-    $('#sinoSoNovas').onchange = (e) => { soNovas = e.target.checked; desenhar(); };
     const busca = $('#sinoBusca');
     if (busca) { busca.value = ''; busca.oninput = () => { buscaTexto = busca.value.trim().slice(0, 60); desenhar(); }; }
     $('#painelSino').onclick = (e) => {
@@ -194,6 +208,13 @@
       if (grupo?.dataset.grupoTipo) {
         if (grupo.open) gruposAbertos.delete(grupo.dataset.grupoTipo);
         else gruposAbertos.add(grupo.dataset.grupoTipo);
+      }
+      const modo = e.target.closest('[data-sino-modo]');
+      if (modo) {
+        soNovas = modo.dataset.sinoModo === 'novas'; filtro = '';
+        if (soNovas) desenhar(); else { desenhar(); carregar(); }
+        document.querySelector(soNovas ? '#sinoModoNovas' : '#sinoModoTodas')?.focus();
+        return;
       }
       const f = e.target.closest('[data-filtro]');
       if (f) { filtro = f.dataset.filtro; desenhar(); [...document.querySelectorAll('#sinoFiltros [data-filtro]')].find((x) => x.dataset.filtro === filtro)?.focus(); return; }   // rodada 9: o foco fica no filtro (antes caía fora do sino)

@@ -28,7 +28,8 @@
     const itens = L.atencao(a, V, links);
     const sec = $('#atencao');
     /* rodada 13: vazio vira um estado bonito ("Nada pedindo atenção agora"), não some; o mecânico só vê se tiver algo */
-    sec.hidden = !itens.length && !!V.soMeusCarros;
+    /* R14: o mecânico tem "Seus carros" (com Atrasado e Atenção em cada um): repetir a lista aqui só empurrava o resto para baixo */
+    sec.hidden = !!V.soMeusCarros && (!itens.length || !!(a.patio && (a.patio.lista || []).length));
     $('#atencaoVazio').hidden = itens.length > 0;
     $('#atencaoLista').hidden = !itens.length;
     const escondidos = Math.max(0, itens.length - ATENCAO_VISIVEIS);
@@ -55,7 +56,7 @@
     if (V.conversas && d.conversas) out.atendimento = [d.conversas.esperando, plural(d.conversas.esperando, 'conversa esperando', 'conversas esperando')];
     if (V.patio && d.patio) out.patio = [d.patio.total, V.soMeusCarros ? plural(d.patio.total, 'carro seu no pátio', 'carros seus no pátio') : plural(d.patio.total, 'carro no pátio', 'carros no pátio')];
     if (V.orcamentos && d.orcamentos) out.orcador = [d.orcamentos.esperando, plural(d.orcamentos.esperando, 'orçamento esperando resposta', 'orçamentos esperando resposta')];
-    if (V.agenda && d.agenda) out.agenda = [d.agenda.total, plural(d.agenda.total, 'horário hoje', 'horários hoje')];
+    if ((V.agenda || V.recepcao) && d.agenda) out.agenda = [d.agenda.total, plural(d.agenda.total, 'horário hoje', 'horários hoje')];
     if (V.leads && d.leads && d.leads.sem_dono != null) out.crm = [d.leads.sem_dono, plural(d.leads.sem_dono, 'contato sem responsável', 'contatos sem responsável')];
     return out;
   }
@@ -103,7 +104,35 @@
     o.textContent = l.texto; o.dataset.tom = l.tom;
   }
 
-  function desenharTudo(d) { const noHeroi = desenharHeroi(d); desenharNumeros(d, noHeroi); desenharAtencao(d); }
+  /* ---------------- R14: "Seus carros" (só o mecânico): o detalhe do que o número do herói conta ---------------- */
+  const CARROS_VISIVEIS = 6;
+  function desenharMeusCarros(d) {
+    const sec = $('#meusCarros');
+    if (!sec) return;
+    const lista = V.soMeusCarros && d.patio ? window.CasaLogica5.carrosDoMecanico(d.patio.lista) : [];
+    sec.hidden = !lista.length;
+    $('#meusCarrosLista').innerHTML = lista.slice(0, CARROS_VISIVEIS).map((c) => '<li>' + linkA(links.os(c.id), 'patio', 'carro-item',
+      `<span class="c-tit">${C.esc(c.titulo)}</span><span class="c-sub">${C.esc([c.cliente, c.etapa + (c.tempo ? ' há ' + c.tempo : ''), c.previsao].filter(Boolean).join(' · '))}</span>`
+      + (c.tom === 'atrasado' ? '<span class="a-selo a-selo-3"><span aria-hidden="true">⚠</span> Atrasado</span>' : c.tom === 'atencao' ? '<span class="a-selo a-selo-2">Atenção</span>' : '')
+      + '<span class="a-seta" aria-hidden="true">›</span>') + '</li>').join('');
+    const mais = $('#meusCarrosMais');
+    if (mais) { mais.hidden = lista.length <= CARROS_VISIVEIS; mais.href = C.bases.patio || '/'; mais.setAttribute('target', L.nomeDaAba('patio')); }
+  }
+
+  function desenharTudo(d) { const noHeroi = desenharHeroi(d); desenharNumeros(d, noHeroi); desenharAtencao(d); desenharMeusCarros(d); }
+
+  /* R14: quem só marca presença não enxerga a agenda pelo banco (a regra do banco é da equipe): os horários de hoje vêm da
+     própria Agenda, que já entrega a lista do dia sem telefone. Falhou: o herói só não mostra a Agenda (nunca um zero falso). */
+  async function lerAgendaDaRecepcao() {
+    try {
+      const { data: { session } } = await C.sb.auth.getSession();
+      const r = await fetch('/agenda/api/agendamentos', { headers: { Authorization: 'Bearer ' + (session ? session.access_token : '') }, cache: 'no-store', signal: AbortSignal.timeout(12000) });
+      if (!r.ok) throw Object.assign(new Error('agenda'), { status: r.status, code: r.status === 401 ? 'PGRST301' : undefined });
+      const lista = await r.json();
+      if (!Array.isArray(lista)) return null;
+      return window.CasaLogica5.agendaDaRecepcao(lista);
+    } catch (e) { try { C.sessaoVenceu && C.sessaoVenceu(e); } catch { /* segue */ } return null; }
+  }
 
   async function carregarAgora({ silencioso = false } = {}) {
     if (carregando && Date.now() - carregandoDesde < TEMPO_PENDURADO_MS) return;
@@ -121,11 +150,12 @@
       } else {
         // fonte única: r6_agora (X3); o que ele não traz vem de r6_c1_agora_extras
         // R13C: "sem responsável" com a regra do CRM (em aberto, qualquer data), contado junto e sem esperar a mais
-        const [a, x, semDono] = await Promise.all([C.sb.rpc('r6_agora', { p_limite: 40 }), C.sb.rpc('r6_c1_agora_extras'),
-          V.leads ? L.contarSemResponsavel(C.sb) : Promise.resolve(null)]);
+        const [a, x, semDono, agendaRec] = await Promise.all([C.sb.rpc('r6_agora', { p_limite: 40 }), C.sb.rpc('r6_c1_agora_extras'),
+          V.leads ? L.contarSemResponsavel(C.sb) : Promise.resolve(null), V.recepcao ? lerAgendaDaRecepcao() : Promise.resolve(null)]);
         if (a.error) throw a.error;
         const ex = x.error ? {} : (x.data || {});
         d = L.adaptarAgora(a.data, { ...ex, leads: { ...(ex.leads || {}), sem_dono: semDono } });
+        if (V.recepcao) d.agenda = agendaRec;
       }
       if (vez !== vezAgora) return;   // chegou atrasada: já há uma leitura mais nova
       dados = d; ultima = Date.now(); emFalha = false;
@@ -178,6 +208,7 @@
     C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; atencaoAberta = false; ultima = 0; emFalha = false; carregando = false; vezAgora++;
     online = navigator.onLine;
     $('#atencao').hidden = true;
+    { const mc = $('#meusCarros'); if (mc) mc.hidden = true; }
     relogio(); clearInterval(timerHora); timerHora = setInterval(relogio, 30_000);
     carregarAgora();
     ouvir();

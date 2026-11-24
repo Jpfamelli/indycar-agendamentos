@@ -207,7 +207,7 @@
   };
   /* rodada 11: das teclas de atalho, ficou só a da busca: Ctrl+K (até dentro de um campo) ou "/" fora de campo */
   function teclado(e) {
-    if (!C || !C.perfil) return;
+    if (!C || !C.perfil || !C.visao().equipe) return;   // R14: recepção e mecânico não têm a busca
     if ((e.ctrlKey || e.metaKey) && !e.altKey && String(e.key).toLowerCase() === 'k') { e.preventDefault(); if (aberta) fechar(); else abrir(); return; }
     if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !aberta && !L.ehCampo(e.target) && !document.body.classList.contains('modal-aberto')) { e.preventDefault(); abrir(); }
   }

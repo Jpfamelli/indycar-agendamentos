@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,6 +19,7 @@ const SO_USO = process.argv.includes('--so-uso');   // só os roteiros de uso, s
 mkdirSync(SAIDA, { recursive: true });
 const MOCK = readFileSync(join(RAIZ, 'tests/r9-casa-mock/dados.js'), 'utf8') + '\n' + readFileSync(join(RAIZ, 'tests/r10-casa-mock/supabase-falso.js'), 'utf8');
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2' };
+const { agendaDeHoje } = await import(pathToFileURL(join(RAIZ, 'tests/r9-casa-mock/agenda-hoje.mjs')).href);
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: ['--no-sandbox', '--disable-background-networking'] });
@@ -49,6 +50,7 @@ async function foto(nome, cenario, { largura, tema, depois = null }) {
     if (u.pathname === '/api/central/saude-apps') return json({ verificado_em: Date.now(), apps: {}, internos: {} });
     // R13C: o faturamento do mês sai do servidor da Central (regra única do valor do serviço); aqui, o número da mentira
     if (u.pathname === '/api/central/faturamento') return json({ faturamento: { mes: 48250, sem_valor_semana: 2, fechados_mes: 31, com_valor_mes: 29, por_fonte: { agenda: 48250 } } });
+    if (u.pathname === '/agenda/api/agendamentos') return json(cenario.papel === 'agenda' ? agendaDeHoje() : []);   // R14: a Agenda da recepção
     if (u.pathname.startsWith('/agenda/api/')) return json([]);
     if (u.pathname === '/sw.js') return req.respond({ status: 200, contentType: TIPOS['.js'], body: '/* service worker vazio nas fotos */' });
     if (u.pathname === '/manifest.json') return req.respond({ status: 200, contentType: TIPOS['.json'], body: readFileSync(join(RAIZ, 'casa/manifest.json')) });
@@ -78,7 +80,7 @@ async function foto(nome, cenario, { largura, tema, depois = null }) {
   await page.close();
 }
 
-const papeis = [['dono', { papel: 'admin', zap: 'ok' }], ['atendente', { papel: 'atendente', zap: 'ok' }], ['mecanico', { papel: 'mecanico', zap: 'ok' }]];
+const papeis = [['dono', { papel: 'admin', zap: 'ok' }], ['atendente', { papel: 'atendente', zap: 'ok' }], ['recepcao', { papel: 'agenda', zap: 'ok' }], ['mecanico', { papel: 'mecanico', zap: 'ok' }]];
 for (const [nome, cen] of SO_USO ? [] : papeis) {
   for (const largura of [1440, 375]) for (const tema of ['escuro', 'claro']) await foto(`casa-${nome}-${largura}-${tema}`, cen, { largura, tema });
 }
