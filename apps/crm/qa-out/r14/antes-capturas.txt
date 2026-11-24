@@ -1,0 +1,16 @@
+antes-entrada-1440-escuro.png · lateral não · toques pequenos 0
+antes-sem-responsavel-1440-escuro.png · lateral não · toques pequenos 0
+antes-faxina-lista-1440-escuro.png · lateral não · toques pequenos 0
+[escuro 1440] erros de console: 0
+antes-entrada-375-escuro.png · lateral não · toques pequenos 0
+antes-sem-responsavel-375-escuro.png · lateral não · toques pequenos 1 (INPUT 13x13)
+antes-faxina-lista-375-escuro.png · lateral não · toques pequenos 1 (INPUT 13x13)
+[escuro 375] erros de console: 0
+antes-entrada-1440-claro.png · lateral não · toques pequenos 0
+antes-sem-responsavel-1440-claro.png · lateral não · toques pequenos 0
+antes-faxina-lista-1440-claro.png · lateral não · toques pequenos 0
+[claro 1440] erros de console: 0
+antes-entrada-375-claro.png · lateral não · toques pequenos 0
+antes-sem-responsavel-375-claro.png · lateral não · toques pequenos 1 (INPUT 13x13)
+antes-faxina-lista-375-claro.png · lateral não · toques pequenos 1 (INPUT 13x13)
+[claro 375] erros de console: 0

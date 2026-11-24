@@ -145,43 +145,9 @@ $('#formCampanha').addEventListener('submit', async e => {
 
 /* ================= leads sem dono: resumo + rodízio sugerido (gestor aplica) ================= */
 const SD = { dados: null, carregando: false };
-async function carregarSemDono() {
-  if (!SOU_GESTOR || SD.carregando) return;
-  SD.carregando = true;
-  const el = $('#sdRodizio');
-  el.innerHTML = '<p class="vazio-curto">Calculando o rodízio…</p>';
-  el.setAttribute('aria-busy', 'true');
-  $('#sdAplicar').disabled = true;
-  try { SD.dados = await api('/api/leads/sem-dono'); renderSemDono(); }
-  catch (e) {
-    SD.dados = null;
-    $('#sdTxt').textContent = '';
-    $('#sdResumo').replaceChildren();
-    el.innerHTML = `<p class="vazio-curto" role="alert">Não consegui calcular o rodízio: ${esc(e.message)}. Use Recalcular para tentar novamente.</p>`;
-  } finally {
-    SD.carregando = false;
-    el.setAttribute('aria-busy', 'false');
-  }
-}
-function renderSemDono() {
-  const d = SD.dados; if (!d) return;
-  const r = d.resumo, s = d.sugestao;
-  $('#sdTxt').textContent = r.total ? `${r.total} contato${r.total === 1 ? '' : 's'} aberto${r.total === 1 ? '' : 's'} sem responsável · ${brl(r.valorOrcado)} orçado · o mais antigo entrou há ${r.maisAntigo} dias` : '';
-  const chip = (rot, n) => n ? `<span class="sd-chip"><b>${esc(n)}</b> ${esc(rot)}</span>` : '';
-  $('#sdResumo').innerHTML = r.total ? Object.entries(r.porEtapa).sort((a, b) => b[1] - a[1]).map(([k, n]) => chip(LABEL_STATUS[k] || k, n)).join('')
-    + '<span class="sd-sep" aria-hidden="true"></span>' + r.porIdade.filter(x => x.qtd).map(x => chip(x.rotulo, x.qtd)).join('') : '';
-  const el = $('#sdRodizio'), btn = $('#sdAplicar');
-  if (!r.total) { el.innerHTML = '<p class="vazio-curto">Todos os contatos abertos têm responsável.</p>'; btn.disabled = true; return; }
-  if (s.semGente) { el.innerHTML = '<p class="vazio-curto">Ninguém está marcado para receber contatos. Em Configurações › Equipe, ligue "recebe contatos" para os vendedores.</p>'; btn.disabled = true; return; }
-  el.innerHTML = `<p class="muted mini-nota">Rodízio sugerido (quem tem menos contatos abertos recebe mais; orçamentos e agendados saem primeiro):</p>
-    <div class="table-wrap" tabindex="0" role="region" aria-label="Resumo do rodízio sugerido"><table class="table"><thead><tr><th>Pessoa</th><th class="num">Abertos hoje</th><th class="num">Recebe</th><th>Por etapa</th><th class="num">Fica com</th></tr></thead>
-    <tbody>${s.resumo.map(x => `<tr class="sem-clique"><td>${chipResponsavel(x.id)}</td><td class="num">${esc(x.antes)}</td><td class="num"><b>+${esc(x.recebe)}</b></td>
-      <td class="cell-sub">${Object.entries(x.porEtapa).map(([k, n]) => `${esc(LABEL_STATUS[k] || k)} ${n}`).join(' · ') || '—'}</td><td class="num">${esc(x.depois)}</td></tr>`).join('')}</tbody></table></div>
-    ${s.total < r.total ? `<p class="muted mini-nota">Sugestão para os primeiros ${s.total} de ${r.total}; aplique e recalcule para o resto.</p>` : ''}`;
-  el.insertAdjacentHTML('beforeend', `<details class="ds-detalhe"><summary>Ver contato por contato (${s.plano.length})</summary><div class="table-wrap"><table class="table"><thead><tr><th>Contato</th><th>Etapa</th><th>Há</th><th>Vai para</th></tr></thead><tbody>${s.plano.slice(0, 200).map(x => `<tr class="sem-clique"><td>${esc(x.nome)}</td><td>${esc(LABEL_STATUS[x.status] ?? x.status)}</td><td class="cell-sub">${esc(x.dias)} dias</td><td>${chipResponsavel(x.para)}</td></tr>`).join('')}${s.plano.length > 200 ? `<tr class="sem-clique"><td colspan="4" class="muted">…e mais ${s.plano.length - 200}.</td></tr>` : ''}</tbody></table></div></details><p><button type="button" class="link-btn" id="sdVerLista">Ver os sem responsável na lista</button></p>`);
-  $('#sdVerLista').onclick = () => { $('#fResp').value = 'sem'; salvarResp(); $('#fStatus').value = 'abertos'; irPara('leads'); refiltrarTela(); };
-  btn.disabled = !s.total; btn.textContent = `Aplicar o rodízio sugerido (${s.total})`;
-}
+/* Rodada 14: o resumo e o rodízio sugerido vêm junto com a faxina (r14.js, GET /api/leads/faxina):
+   o rodízio só olha o que está vivo, porque o que parou vai primeiro para a faxina. */
+async function carregarSemDono() { if (SOU_GESTOR) await carregarFaxina14(); }
 $('#sdRecarregar').addEventListener('click', carregarSemDono);
 $('#sdAplicar').addEventListener('click', async () => {
   const s = SD.dados?.sugestao; if (!s?.total) return;
