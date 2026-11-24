@@ -130,3 +130,12 @@ test('faturamento: a conta fica 45 s na memória, pedidos juntos dividem a mesma
   assert.equal((await pede()).status, 200, 'depois do erro a conta refaz, não repete o erro');
   assert.equal(n.contas, 4);
 });
+
+test('sino: "N tarefas vencidas" repetido só vale o mais novo; os antigos não lidos saem das não lidas', () => {
+  const n = (id, tipo, quando, lida) => ({ id, tipo, created_at: quando, lida_em: lida ? quando : null });
+  const lista = [n('a', 'tarefas_vencidas', '2026-11-22T10:00:00Z'), n('b', 'tarefas_vencidas', '2026-11-24T10:00:00Z'), n('c', 'tarefas_vencidas', '2026-11-23T10:00:00Z'), n('d', 'tarefas_vencidas', '2026-11-21T10:00:00Z', true),
+    n('e', 'espera', '2026-11-20T10:00:00Z'), n('f', 'espera', '2026-11-24T11:00:00Z')];
+  assert.deepEqual(L5.avisosSubstituidos(lista).sort(), ['a', 'c'], 'o mais novo (b) fica; o já lido (d) não entra; "espera" é de clientes diferentes e nunca é substituído');
+  assert.deepEqual(L5.avisosSubstituidos(null), []);
+  assert.ok(ler('sino.js').includes('avisosSubstituidos(lista)'));
+});

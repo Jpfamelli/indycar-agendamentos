@@ -106,6 +106,22 @@
     });
   }
 
+  /**
+   * R14: avisos que só valem enquanto são o mais novo da série. "N tarefas vencidas" chega várias vezes por semana com a
+   * contagem do momento (118 no mês, 9 sem ler ao mesmo tempo): só o último diz a verdade. Devolve os ids dos não lidos
+   * que já foram superados por outro mais novo do mesmo tipo (a Casa os marca como lidos, sem barulho).
+   */
+  const TIPOS_SUBSTITUIVEIS = ['tarefas_vencidas'];
+  function avisosSubstituidos(lista) {
+    const novos = new Map();
+    for (const n of Array.isArray(lista) ? lista : []) {
+      if (!n || !TIPOS_SUBSTITUIVEIS.includes(n.tipo)) continue;
+      const atual = novos.get(n.tipo);
+      if (!atual || String(n.created_at) > String(atual.created_at)) novos.set(n.tipo, n);
+    }
+    return (Array.isArray(lista) ? lista : []).filter((n) => n && !n.lida_em && novos.has(n.tipo) && novos.get(n.tipo).id !== n.id).map((n) => n.id);
+  }
+
   const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   /** "2026-11" do dia em São Paulo (a chave da meta em casa_metas). */
   const mesChave = (hojeIso = L.hojeSP()) => String(hojeIso).slice(0, 7);
@@ -152,5 +168,5 @@
     return { tom: 'neutro', texto: dia === 'Sat' || dia === 'Sun' ? 'Fechada · abre segunda às 8h' : 'Fechada · abre amanhã às 8h' };
   }
 
-  root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, agendaDaRecepcao, carrosDoMecanico, MESES });
+  root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, agendaDaRecepcao, carrosDoMecanico, avisosSubstituidos, MESES });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

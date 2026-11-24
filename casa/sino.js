@@ -123,6 +123,9 @@
     const novas = lista.filter((n) => !antes.has(n.id) && !n.lida_em && !adiados[n.id]);
     notifs = lista;
     desenhar();
+    /* R14: "N tarefas vencidas" repetido: só o mais novo vale; os antigos saem das não lidas */
+    const velhos = window.CasaLogica5.avisosSubstituidos(lista);
+    if (velhos.length) marcar(velhos);
     if (!primeiraCarga && novas.length && document.hidden) avisarSistema(novas);
     primeiraCarga = false;
   }
