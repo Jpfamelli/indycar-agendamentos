@@ -629,10 +629,29 @@ function pedirValorAoFechar(id, nome, servico) {
   });
 }
 
+/* R14: "Não veio" no Início manda WhatsApp ao cliente: pergunta no próprio cartão antes (igual à recepção).
+   Resolve true se a pessoa confirmou, false se voltou. Cartão que já está como "Não veio" não pergunta de novo. */
+function perguntarNaoVeio(card) {
+  return new Promise((resolver) => {
+    const acoes = $('.appt-actions', card);
+    if (!acoes || card.dataset.status === 'nao_veio') return resolver(true);
+    const antes = acoes.innerHTML;
+    card.classList.add('confirmando');
+    acoes.innerHTML = `<p class="rec-pergunta pergunta-falta" role="alert">${esc(card.dataset.nome || 'O cliente')} não veio? ${card.dataset.tel ? 'O cliente recebe uma mensagem no WhatsApp.' : 'Sem telefone: nenhuma mensagem sai.'}</p>
+      <button type="button" class="act red solido" data-sim>${svg(I.x)} Sim, não veio</button>
+      <button type="button" class="act" data-volta>Voltar</button>`;
+    $('[data-sim]', acoes).focus();
+    const refazer = () => { card.classList.remove('confirmando'); acoes.innerHTML = antes; };
+    $('[data-volta]', acoes).addEventListener('click', () => { refazer(); bindApptActions(card); resolver(false); });
+    $('[data-sim]', acoes).addEventListener('click', () => { refazer(); resolver(true); });
+  });
+}
+
 async function marcarDesfecho(card, id, act) {
   const anterior = card.dataset.status;
   const nome = card.dataset.nome || 'Cliente';
   let valor = null;
+  if (act === 'nao_veio' && !(await perguntarNaoVeio(card))) return;   // voltou: nada muda
   if (act === 'concluido') {
     const escolha = await pedirValorAoFechar(id, nome, $('.appt-servico', card)?.textContent || '');
     if (!escolha) return;                                      // desistiu: nada muda
@@ -711,7 +730,8 @@ document.addEventListener('click', async (e) => {
 
 // delegação de cliques nos cards
 function bindApptActions(root) {
-  $$('.appt', root).forEach(card => {
+  const cartoes = root.matches?.('.appt') ? [root] : $$('.appt', root);
+  cartoes.forEach(card => {
     // id é uuid (string) desde a migração para o Supabase — não converter com +
     const id = card.dataset.id;
     $$('.act', card).forEach(btn => btn.addEventListener('click', async () => {
@@ -2841,9 +2861,14 @@ async function renderDia(opts = {}) {
     const chegam = todos.filter(a => a.data === agora.data && grupoDoDia(a) === 'agendados');
     const prox = chegam.filter(a => String(a.hora) >= agora.hm).sort((x, y) => String(x.hora).localeCompare(String(y.hora)))[0];
     const res = $('#recResumo');
-    if (res) res.innerHTML = `<span class="casa" title="Carros dentro da oficina agora (inclusive os que chegaram outro dia)">${svg(I.chave)} <b>${naCasa}</b> na casa</span>
-      <span title="Horários de hoje que ainda não chegaram">${svg(I.relogio)} <b>${chegam.length}</b> ${chegam.length === 1 ? 'chega hoje' : 'chegam hoje'}</span>
+    const atrasados = chegam.filter(a => quandoRel(a, agora)?.tom === 'atrasado').length;
+    if (res) {
+      res.innerHTML = `${atrasados ? `<button type="button" class="chip-rec atrasado" data-vai="agendados" title="Passaram da hora e ainda não chegaram">${svg(I.alerta)} <b>${atrasados}</b> ${atrasados === 1 ? 'atrasado' : 'atrasados'}</button>` : ''}
+      <button type="button" class="chip-rec casa" data-vai="chegaram" title="Carros dentro da oficina agora (inclusive os que chegaram outro dia). Toque para ver">${svg(I.chave)} <b>${naCasa}</b> na casa</button>
+      <button type="button" class="chip-rec" data-vai="agendados" title="Horários de hoje que ainda não chegaram. Toque para ver">${svg(I.relogio)} <b>${chegam.length}</b> ${chegam.length === 1 ? 'chega hoje' : 'chegam hoje'}</button>
       ${prox ? `<span class="proximo" title="Próximo cliente a chegar">${svg(I.user)} <b>${esc(prox.hora)}</b> ${esc(String(prox.cliente_nome).split(/\s+/).slice(0, 2).join(' '))}</span>` : ''}`;
+      $$('[data-vai]', res).forEach(b => b.addEventListener('click', () => { state.hojeTab = b.dataset.vai; pintar(true); }));
+    }
     tabs.innerHTML = ABAS.map(([k, rot, ico]) => `<button type="button" role="tab" class="tab ${state.hojeTab === k ? 'active' : ''}" data-hoje-tab="${k}"
         aria-selected="${state.hojeTab === k}" aria-controls="agendaHoje" tabindex="${state.hojeTab === k ? 0 : -1}">
         ${svg(ico)} <span>${rot}</span> <em class="tab-num">${gr[k].length}</em></button>`).join('');
@@ -2940,6 +2965,7 @@ async function marcarNaRecepcao(card, marca, o = {}) {
     const item = (state._recLista || []).find(a => a.id === id);
     if (item) Object.assign(item, { status: r.status, compareceu: r.compareceu, confirmado: r.confirmado });
     await sairDoCartao(card);
+    state._recDestino = o.desfazendo ? 'agendados' : marca === 'compareceu' ? 'chegaram' : marca === 'nao_veio' ? 'faltaram' : null;
     if (o.desfazendo) toast(`${nome}: chegada desfeita, voltou para "Agendados"${r.patio_aberta ? `. A OS nº ${r.patio_aberta.numero ?? '?'} continua aberta no Pátio: se foi engano, cancele lá` : ''}`, 'ok', r.patio_aberta ? { duracao: 12000, acoes: [{ rotulo: 'Abrir no Pátio', fn: () => window.open(r.patio_aberta.abrir, '_blank', 'noopener') }] } : {});
     else if (marca === 'compareceu') {
       // rodada 5: o nº da OS que o Pátio abriu + "Abrir no Pátio", junto com o Desfazer
@@ -2951,7 +2977,13 @@ async function marcarNaRecepcao(card, marca, o = {}) {
     }
     else { toast(recadoDeAusencia(r), r.aviso_ausencia && !r.aviso_ausencia.ok ? 'err' : 'ok'); window.R7?.pedirMotivo(id, nome); }
     if (o.aoAtualizar) await o.aoAtualizar();
-    else state._recPintar?.(false);
+    else {
+      state._recPintar?.(false);
+      /* R14: o cartão some da aba; o número da aba de destino pisca para a pessoa ver para onde ele foi */
+      const dest = state._recDestino; state._recDestino = null;
+      const num = dest && $(`[data-hoje-tab="${dest}"] .tab-num`);
+      if (num) { num.classList.add('pulsa'); setTimeout(() => num.classList.remove('pulsa'), 1600); }
+    }
   } catch (e) {
     if (navigator.onLine === false || e instanceof TypeError || e?.fora) {
       enfileirar(id, marca, nome);

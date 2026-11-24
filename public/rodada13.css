@@ -199,3 +199,18 @@
   .toolbar .filtro-semtel:not([hidden]){flex:1 1 140px;min-width:0;justify-content:center;padding:0 10px;font-size:13.5px}
   .appt-badges .badge-pill,.appt-badges .quando{border-radius:8px;white-space:normal;text-align:left}
 }
+
+/* ===== R14 · recepção do dia ===== */
+.rec-resumo .chip-rec{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;min-height:44px;border-radius:14px;border:1px solid var(--border-2);background:var(--surface);font:inherit;font-weight:800;font-size:calc(15px * var(--rec,1));color:var(--text);cursor:pointer}
+.rec-resumo .chip-rec b{font-family:var(--font-num);font-size:calc(22px * var(--rec,1));color:var(--text-forte);line-height:1}
+.rec-resumo .chip-rec.casa b{color:var(--blue-txt,#60a5fa)}
+.rec-resumo .chip-rec.atrasado{border-color:var(--red);color:var(--red-txt)}
+.rec-resumo .chip-rec.atrasado b{color:var(--red-txt)}
+.tab-num.pulsa{animation:recPulsa .8s ease 2}
+@keyframes recPulsa{0%,100%{transform:scale(1)}50%{transform:scale(1.5);background:var(--green,#22c55e);color:#04210f}}
+@media (prefers-reduced-motion:reduce){.tab-num.pulsa{animation:none;background:var(--green,#22c55e);color:#04210f}}
+.pergunta-falta{flex-basis:100%;margin:0 0 4px;text-align:left}
+.appt.confirmando{border-color:var(--red)!important}
+.appt.confirmando .appt-actions{flex-wrap:wrap}
+@media (max-width:560px){.appt.confirmando .appt-actions .act{min-height:44px}}
+[hidden]{display:none!important}
