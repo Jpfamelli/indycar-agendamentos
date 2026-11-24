@@ -4027,21 +4027,16 @@ function renderEtapasAdmin() {
     const gatilhos = Array.isArray(e.gatilhos) ? e.gatilhos : [];
     return `<article class="etapa-linha${e.ativa ? '' : ' inativa'}" data-id="${esc(e.id)}"
         style="--et-cor:${cor};--et-fundo:${corComAlfa(cor, .15)}">
-      <span class="etapa-barra"></span>
       <div class="etapa-corpo">
         <div class="etapa-topo">
           <span class="plaquinha" style="--pl-cor:${cor};--pl-fundo:${corComAlfa(cor, .15)}"
             >${esc(`${e.emoji ? e.emoji + ' ' : ''}${e.nome}`)}</span>
-          <span class="selo">ordem ${esc(String(e.ordem ?? 0))}</span>
           ${e.ganho ? '<span class="selo on">ganho</span>' : ''}
           ${e.perda ? '<span class="selo off">perda</span>' : ''}
           ${e.ativa ? '' : '<span class="selo">inativa</span>'}
         </div>
-        <p class="etapa-desc">${esc(e.descricao || 'Sem descrição: a IA fica sem essa pista.')}</p>
-        <div class="etapa-gatilhos">
-          ${gatilhos.length ? gatilhos.map(g => `<code>${esc(g)}</code>`).join('')
-            : '<small class="etapa-sem">sem gatilhos cadastrados</small>'}
-        </div>
+        ${e.descricao ? `<p class="etapa-desc">${esc(e.descricao)}</p>` : ''}
+        ${gatilhos.length ? `<div class="etapa-gatilhos">${gatilhos.map(g => `<code>${esc(g)}</code>`).join('')}</div>` : ''}
         <div class="etapa-meta">
           CRM: <b>${esc(e.status_lead || 'não mexe')}</b> ·
           <b>${esc(String(quantas))}</b> ${quantas === 1 ? 'conversa aqui' : 'conversas aqui'}
