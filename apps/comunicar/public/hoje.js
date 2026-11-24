@@ -158,6 +158,21 @@
     alvo.dataset.estado = h.estado;
     alvo.removeAttribute('aria-busy');
     alvo.querySelector('[data-hoje-ir]')?.addEventListener('click', (e) => route(e.currentTarget.dataset.hojeIr));
+    revisarDepois(alvo, h.estado, cfg);
+  }
+
+  /* R14: com o WhatsApp parado (ou o envio em pausa), a tela olha de novo a cada minuto. Quando a chave nova entrar,
+     o resumo vira "no ar" sozinho, sem ninguém apertar nada. Para sozinha quando sai da tela ou volta ao normal. */
+  let relogio = null;
+  function revisarDepois(alvo, estado, cfg) {
+    clearTimeout(relogio); relogio = null;
+    if (estado !== 'parado') return;
+    relogio = setTimeout(async () => {
+      if (!alvo.isConnected) return;
+      if (document.visibilityState === 'hidden') return revisarDepois(alvo, estado, cfg);
+      await pintarHoje(alvo, { cfg });
+      if (alvo.dataset.estado !== 'parado' && alvo.dataset.estado !== 'pausa' && typeof toast === 'function') toast('O WhatsApp voltou. As mensagens da fila começam a sair aos poucos.', 'ok', 7000);
+    }, 60000);
   }
 
   window.R13 = { montarHoje, estadoEnvio, frase, pintarHoje };

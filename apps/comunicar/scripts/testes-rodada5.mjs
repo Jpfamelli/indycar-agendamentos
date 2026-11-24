@@ -348,7 +348,7 @@ test('frontend: nenhum caminho absoluto para o próprio app (api, sw, manifest, 
   assert.match(html, /<a class="ic-marca" href="\/"[^>]*>[\s\S]*<span class="ic-nome">IndyCar <b>Comunicar<\/b><\/span>/, 'topo padrão com o nome do app');
   assert.equal((html.match(/data-route="/g) || []).length, 5, 'até 5 abas');
   assert.doesNotMatch(html, /fonts\.googleapis|btnAjuda|btnSino|btnTarefas|btnEco|data-route="inicio"|data-route="satisfacao"/, 'sem fonte do Google, ajuda, sino, tarefas, menu de apps, Início e Satisfação');
-  assert.match(html, /src="apps\.js\?v=/); assert.match(html, /src="rodada5\.js\?v=/); assert.match(html, /src="rodada6\.js\?v=7.2.2/); assert.match(html, /src="rodada7\.js\?v=7.2.2/); assert.match(html, /src="hoje\.js\?v=7.2.2/); // r13: versão nova
+  assert.match(html, /src="apps\.js\?v=/); assert.match(html, /src="rodada5\.js\?v=/); assert.match(html, /src="rodada6\.js\?v=7.3.0/); assert.match(html, /src="rodada7\.js\?v=7.3.0/); assert.match(html, /src="hoje\.js\?v=7.3.0/); // r13: versão nova
   for (const f of ['app.js', 'conta.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'acordar.js']) {
     const s = pub(f);
     assert.doesNotMatch(s, /fetch\((['"`])\/api/, `${f}: fetch('/api…')`);
@@ -361,7 +361,7 @@ test('frontend: nenhum caminho absoluto para o próprio app (api, sw, manifest, 
   assert.ok(man.icons.every((i) => i.src.startsWith('./'))); assert.ok(man.shortcuts.every((s) => s.url.startsWith('./')));
   const sw = pub('sw.js');
   assert.match(sw, /const BASE = new URL\('\.\/', self\.location\.href\)\.pathname/);
-  assert.doesNotMatch(sw, /'\/api\//); assert.match(sw, /VERSAO = '7.2.2'/); assert.match(sw, /rodada5\.js/); assert.match(sw, /rodada6\.js/); assert.match(sw, /rodada7\.js/);
+  assert.doesNotMatch(sw, /'\/api\//); assert.match(sw, /VERSAO = '7.3.0'/); assert.match(sw, /rodada5\.js/); assert.match(sw, /rodada6\.js/); assert.match(sw, /rodada7\.js/);
 });
 
 test('server.js: exporta handler/iniciar sem dar listen; o handler tira o prefixo (/comunicar) e /api/config devolve o prefixo', async () => {
