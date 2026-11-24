@@ -586,7 +586,7 @@ export async function obterConfig() {
   // rodada 7: réguas dos eventos reais, anti-spam e retomada configurável
   for (const k of r7.BOOLEANOS_R7) cfg[k] = k.startsWith('ativo_') ? !!c[k] : c[k] !== false;
   for (const [k, padrao] of Object.entries(r7.PADRAO_R7)) cfg[k] = Number(c[k] ?? padrao);
-  for (const k of Object.keys(r7.TEXTOS_R7)) cfg[k] = c[k] || '';
+  for (const k of Object.keys(r7.TEXTOS_R7)) cfg[k] = c[k] || r7.TEXTOS_PADRAO_R7[k] || '';
   cfg.texto_rodape_parar = c.texto_rodape_parar || r7.RODAPE_PADRAO;
   cfg.retomada_aviso_em = c.retomada_aviso_em || null;
   return cfg;

@@ -801,7 +801,7 @@ function cartaoEnvio(e) {
       <div class="meta"><span>${svg(I.clock)} ${quando}</span>
         ${e.tentativas > 1 ? `<span>${e.tentativas} tentativas</span>` : ''}
         ${duvida ? `<span class="envio-duvida" role="note">❓ <b>Não sabemos se chegou</b> — confira no WhatsApp${e.erro ? ` <small>(${esc(String(e.erro).replace(/^Não sabemos se chegou:\s*/, '').replace(/\s*Confira no WhatsApp antes de reenviar\.?$/, ''))})</small>` : ''}</span>`
-          : e.erro ? `<span class="envio-erro">${svg(I.alerta)} ${esc(e.erro)}</span>` : ''}
+          : e.erro ? `<span class="envio-erro" title="${esc(e.erro)}">${svg(I.alerta)} ${esc(erroEmPortugues(e))}</span>` : ''}
         ${e.motivo_pulado ? `<span class="envio-pulado">⏭ ${esc(e.motivo_pulado)}</span>` : ''}</div>
       <div class="envio-acoes">
         ${podeCancelar ? `<button type="button" class="btn btn-mini" data-cancelar="${esc(e.id)}">${svg(I.x)} Cancelar</button>` : ''}
@@ -1672,6 +1672,12 @@ function celularWA(bolhaHtml, { mini = false } = {}) {
   </div>`;
 }
 /** Pinta um balão com o texto final (variáveis já trocadas). */
+/** R14: o erro técnico do WhatsApp parado vira uma frase simples (o texto original fica no title do selo). */
+function erroEmPortugues(e) {
+  const t = String(e.erro || '');
+  if (['chave_recusada', 'sem_chave'].includes(e.erro_classe) || /chave.*(recusad|cadastrad)|\b401\b/i.test(t)) return 'O WhatsApp da oficina está parado. Esta mensagem sai quando ele voltar.';
+  return t;
+}
 function pintarBolha(el, txt, hora = '09:30', vazio = 'Escreva a mensagem para ver a prévia.') {
   if (!el) return;
   el.classList.toggle('vazia', !txt);

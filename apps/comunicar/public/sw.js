@@ -4,7 +4,7 @@
 // rede — quem espera o servidor acordar é o acordar.js, com aviso na tela.
 // Rodada 5: tudo RELATIVO ao lugar onde o SW foi registrado (BASE) — funciona em
 // "/" sozinho e em "/comunicar/" dentro da IndyCar Central (escopo do prefixo).
-const VERSAO = '7.2.2';   // R13C: tema-inicial.js (CSP sem script embutido) · 7.2.1 = externos sem service worker
+const VERSAO = '7.3.0';   // R14: textos dos avisos, prévia e revisão do WhatsApp sozinha · 7.2.2 = tema-inicial.js sem script embutido
 // 7.2.0 = rodada 13B (passagens entre apps, Desfazer, entrada mais leve)
 const CACHE = `comunicar-v${VERSAO}`;
 const EXTERNO = 'comunicar-externo-v1'; // supabase-js e fontes (versão fixa na URL)

@@ -88,6 +88,7 @@
         <div class="field r6-texto"><label for="r7t_texto_rodape_parar">Frase do rodapé</label><input id="r7t_texto_rodape_parar" class="inp" maxlength="140" data-r7cfg="texto_rodape_parar" value="${esc(v('texto_rodape_parar') ?? '')}" ${gestor ? '' : 'disabled'}><small class="r6-erro-texto" id="r7e_texto_rodape_parar" hidden></small></div>
       </div>` : `<div class="panel-head"><h2>Avisos de outros apps</h2></div>
       <div class="panel-body">${EVENTOS.map((e) => `<div class="r6-cfg-item"><div class="r6-cfg-txt"><b>${e.emoji} ${esc(e.rotulo)}</b><p>${esc(e.desc)}</p>${num({ ...e.param, titulo: e.rotulo })}</div>${sw(e.campo)}</div>
+          <div class="previa r7-previa">${celularWA(`<div class="bolha wa-rec" data-r7previa="${e.texto}"></div>`, { mini: true })}</div>
           <details class="regua-editar r7-editar"><summary>Editar mensagem</summary><div class="field r6-texto"><label for="r7t_${e.texto}">Texto: ${esc(e.rotulo)}</label><textarea id="r7t_${e.texto}" maxlength="1000" data-r7cfg="${e.texto}" ${gestor ? '' : 'disabled'}>${esc(v(e.texto) ?? '')}</textarea>
             <div class="var-chips">${e.vars.map((x) => `<button type="button" class="var-chip${x === e.obrig ? ' link' : ''}" data-r7var="${esc(x)}" data-r7alvo="r7t_${e.texto}" ${gestor ? '' : 'disabled'}>{${esc(x)}}</button>`).join('')}</div>
             <small class="r6-erro-texto" id="r7e_${e.texto}" hidden></small></div></details>`).join('')}
@@ -107,12 +108,18 @@
       $(`#r7t_${campo}`).classList.toggle('invalido', !!msg);
       return !msg;
     };
+    const EX = () => ({ ...EXEMPLO, validade: '26/11', link_orcamento: location.origin + '/orcador/#/o/…', link_os: location.origin + '/acompanhar/?t=…' });
+    const prever = (campo) => {
+      const b = $(`[data-r7previa="${campo}"]`, caixa), t = $(`#r7t_${campo}`, caixa);
+      if (b && t) pintarBolha(b, renderTemplate(t.value, EX()), state.cfgEdit.hora_envio || state.cfg.hora_envio || '09:30', 'Escreva a mensagem para ver a prévia.');
+    };
+    EVENTOS.forEach((e) => prever(e.texto));
     $$('[data-r7cfg]', caixa).forEach((el) => {
       const campo = el.dataset.r7cfg;
       el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
         const novo = el.type === 'checkbox' ? el.checked : el.type === 'number' ? (el.value === '' ? '' : Number(el.value)) : el.value;
         if (el.type === 'number') { const n = Number(el.value); el.classList.toggle('invalido', el.value === '' || n < Number(el.min) || n > Number(el.max) || !Number.isInteger(n)); }
-        if (EVENTOS.some((x) => x.texto === campo)) validar(campo);
+        if (EVENTOS.some((x) => x.texto === campo)) { validar(campo); prever(campo); }
         if (campo === 'texto_rodape_parar') { const m = $('#r7e_texto_rodape_parar'); const ruim = !/parar/i.test(el.value); m.textContent = ruim ? 'A frase precisa dizer PARAR.' : ''; m.hidden = !ruim; el.classList.toggle('invalido', ruim); }
         if (String(novo) === String(state.cfg[campo] ?? '')) delete state.cfgEdit[campo]; else state.cfgEdit[campo] = novo;
         if (el.type === 'checkbox') $('.sw-txt', el.closest('.sw')).textContent = novo ? 'Ligado' : 'Desligado';

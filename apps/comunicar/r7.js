@@ -189,6 +189,14 @@ export const TEXTOS_R7 = {
   msg_vencendo: { rotulo: 'Orçamento vencendo', vars: ['nome', 'primeiro_nome', 'carro', 'placa', 'servico', 'validade', 'link_orcamento'], obrigatorias: ['link_orcamento'] },
   msg_pronto_lembrete: { rotulo: 'Carro pronto esperando', vars: ['nome', 'primeiro_nome', 'carro', 'placa', 'servico', 'link_os'], obrigatorias: ['link_os'] },
 };
+/** Textos de partida dos 4 avisos de outros apps (R14). Curtos, no tom da casa, sem preço nem promessa de prazo.
+ *  Valem quando ninguém escreveu o próprio; os avisos continuam DESLIGADOS até alguém ligar. */
+export const TEXTOS_PADRAO_R7 = {
+  msg_aprovou: 'Oi {primeiro_nome}! Vi que você aprovou o orçamento do {carro}. Falta só escolher o horário para fazer {servico}. É só responder por aqui que a gente encaixa. 🏁',
+  msg_faltou: 'Oi {primeiro_nome}, tudo bem? A gente não conseguiu te ver no horário do {carro}. Sem problema! Quer marcar outro? É só responder por aqui. 🏁',
+  msg_vencendo: 'Oi {primeiro_nome}! O orçamento do {carro} vale até {validade}. Dá uma olhada e, se ficar alguma dúvida, me chama por aqui: {link_orcamento}',
+  msg_pronto_lembrete: 'Oi {primeiro_nome}! O {carro} já está pronto aqui na IndyCar. Veja os detalhes e me avisa quando vier buscar: {link_os} 🔑',
+};
 export const BOOLEANOS_R7 = ['ativo_aprovou', 'ativo_faltou', 'ativo_vencendo', 'ativo_pronto_lembrete', 'rodape_parar', 'validar_celular', 'retomada_so_essencial'];
 export const FAIXAS_R7 = {
   horas_aprovou: [1, 72], horas_faltou: [1, 48], dias_vencendo: [1, 7], horas_pronto_lembrete: [4, 168],
