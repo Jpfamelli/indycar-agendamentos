@@ -1,0 +1,24 @@
+/* Rodada 14 (24/11/2026): consertos de uso no dia a dia, sem tela nova.
+   - Ajustes no celular: as sete abas se atropelavam (as letras de uma passavam por cima da outra) e tinham 40 px.
+   - Etapas e Equipe: sem barrinha colorida de um lado só no cartão (a plaquinha da etapa já tem a cor).
+   - IA: o campo de teste ficou com cara de campo (era o padrão cru do navegador).
+   - Chaves (CodeWords): a caixinha e o texto de "Entregar mensagens" ficavam um embaixo do outro, centralizados.
+   - Celular, lista: o cartão de hoje perde a frase (os três números embaixo já dizem a mesma coisa) e a lista sobe. */
+.ajustes-abas .nav-item{flex:none}
+@media (max-width:700px){
+  .ajustes-abas .nav-item{min-height:44px}
+  .hoje-mini .hoje-frase{display:none}
+  .hoje-mini{padding:10px 12px;gap:4px;margin-bottom:8px}
+}
+
+.etapa-barra{display:none}
+.pessoa-cartao.eu::before{content:none}
+
+#iaTeste{display:block;width:100%;min-height:96px;resize:vertical;margin:0 0 12px;padding:12px 14px;border-radius:12px;
+  background:var(--superficie);border:1px solid var(--linha);color:var(--texto);font:inherit;line-height:1.45}
+#iaTeste:focus{outline:none;border-color:var(--vermelho);box-shadow:0 0 0 3px rgba(229,9,20,.14)}
+
+.form-vertical .switch{flex-direction:row;align-items:center;justify-content:flex-start;text-align:left;gap:10px;
+  font-family:var(--fonte);font-weight:500}
+.form-vertical .switch input{width:18px;height:18px;padding:0;flex:none;accent-color:var(--vermelho)}
+
