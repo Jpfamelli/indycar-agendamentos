@@ -8,8 +8,8 @@
 
 import { h, icone, trocar } from '../dom.js';
 import { dinheiro, inteiro, ehNumero, porcento } from '../formato.js';
-import { selo, vazio } from '../pecas.js';
-import { seloDaCampanha, ordenarCampanhas, ORDENS, somarDias, jornadaDoCliente, fracao } from '../painel-logica.js';
+import { selo, vazio, ligarConta } from '../pecas.js';
+import { seloDaCampanha, ordenarCampanhas, ORDENS, somarDias, jornadaDoCliente, fracao, semContaDe, semPedidoDeConta } from '../painel-logica.js';
 import { faisca, graficoDiario } from '../graficos.js';
 import * as Estados from './estados.js';
 import { cabeca } from './cabeca.js';
@@ -25,7 +25,7 @@ export function mostrar(ctx) {
   return { sair() { if (dialogo && dialogo.open) dialogo.close(); } };
 }
 
-function cartaoDaCampanha(ctx, c) {
+function cartaoDaCampanha(ctx, c, semConta) {
   const s = seloDaCampanha(c);
   const href = ctx.hrefDaTela('campanhas', { ...ctx.rota.params, abrir: c.plataforma + ':' + c.chave });
   const gastos = Array.isArray(c.serie) ? c.serie.map((d) => d.gasto) : [];
@@ -37,37 +37,43 @@ function cartaoDaCampanha(ctx, c) {
         s ? selo(s[0], s[1]) : null),
       h('h2', { class: 'camp-nome' }, c.nome || 'Campanha sem nome'),
       h('dl', { class: 'camp-numeros' },
-        h('div', null, h('dt', null, 'Gasto'), valor(r0(c.gasto))),
+        semConta ? null : h('div', null, h('dt', null, 'Gasto'), valor(r0(c.gasto))),
         h('div', null, h('dt', null, 'Conversas'), valor(inteiro(c.contatos))),
+        semConta ? h('div', null, h('dt', null, 'Agendaram'), valor(inteiro(c.agendaram))) : null,
+        semConta ? h('div', null, h('dt', null, 'Vieram'), valor(inteiro(c.vieram))) : null,
         h('div', null, h('dt', null, 'Clientes'), valor(inteiro(c.fecharam))),
-        h('div', { class: 'camp-forte' }, h('dt', null, 'Custo por cliente'), c.fecharam === 0 ? h('dd', { class: 'sem' }, 'nenhum cliente ainda') : valor(r0(c.custo_por_servico)))),
+        semConta ? null : h('div', { class: 'camp-forte' }, h('dt', null, 'Custo por cliente'), c.fecharam === 0 ? h('dd', { class: 'sem' }, 'nenhum cliente ainda') : valor(r0(c.custo_por_servico)))),
       gastos.some(ehNumero) ? faisca(gastos, { classe: 'camp-faisca' }) : null,
-      c.leitura && c.leitura.texto ? h('p', { class: 'camp-leitura' }, c.leitura.texto) : null,
+      (semConta ? semPedidoDeConta(c.leitura && c.leitura.texto) : c.leitura && c.leitura.texto) ? h('p', { class: 'camp-leitura' }, semConta ? semPedidoDeConta(c.leitura.texto) : c.leitura.texto) : null,
       h('span', { class: 'camp-abrir' }, 'Ver detalhes', icone('seta', 'icone-p'))));
 }
 
 function pintar(ctx, d) {
   const estado = d.estado || {};
   ctx.demo(Boolean(estado.demo));
+  const semConta = semContaDe(estado);
   const ordem = ORDENS.some((o) => o.id === ctx.rota.params.ordem) ? ctx.rota.params.ordem : 'gasto';
-  const lista = ordenarCampanhas(d.campanhas, ordem);
+  const lista = ordenarCampanhas(d.campanhas, semConta ? 'clientes' : ordem);   // sem conta não há gasto nem custo para ordenar
   const t = d.totais || {};
   const ordens = h('div', { class: 'seg seg-p', role: 'group', 'aria-label': 'Ordem' },
     ORDENS.map((o) => h('a', { class: 'seg-op', href: ctx.hrefDaTela('campanhas', { ...ctx.rota.params, abrir: null, ordem: o.id === 'gasto' ? null : o.id }), 'aria-current': o.id === ordem ? 'true' : null }, o.rotulo)));
   const ativas = lista.filter((c) => c.situacao !== 'pausada').length;
   trocar(ctx.miolo,
-    cabeca(ctx, { linha: 'Onde o dinheiro dos anúncios está indo', titulo: 'Campanhas' }),
+    cabeca(ctx, { linha: semConta ? 'Quais anúncios trouxeram conversa e cliente' : 'Onde o dinheiro dos anúncios está indo', titulo: 'Campanhas' }),
+    semConta ? ligarConta(ctx, { compacto: true }) : null,
     h('section', { class: 'cartao faixa-tot', 'aria-label': 'Total das campanhas' }, h('dl', { class: 'tot' },
       h('div', null, h('dt', null, 'Campanhas'), h('dd', null, inteiro(lista.length), h('small', null, ativas === lista.length ? ' ativas' : ' · ' + inteiro(ativas) + ' ativas'))),
-      h('div', null, h('dt', null, 'Investido'), valor(r0(t.gasto))),
+      semConta ? null : h('div', null, h('dt', null, 'Investido'), valor(r0(t.gasto))),
       h('div', null, h('dt', null, 'Conversas'), valor(inteiro(t.contatos))),
+      semConta ? h('div', null, h('dt', null, 'Agendaram'), valor(inteiro(t.agendaram))) : null,
       h('div', null, h('dt', null, 'Clientes'), valor(inteiro(t.fecharam))),
-      h('div', null, h('dt', null, 'Custo por cliente'), valor(r0(t.custo_por_servico))),
-      h('div', null, h('dt', null, 'Cada R$ 1 virou'), valor(ehNumero(t.retorno) ? dinheiro(t.retorno, { centavos: true }) : null)))),
-    lista.length ? h('div', { class: 'barra-lista' }, h('p', { class: 'mini' }, inteiro(lista.length) + (lista.length === 1 ? ' campanha' : ' campanhas')), ordens) : null,
+      semConta ? h('div', null, h('dt', null, 'Em serviços'), valor(ehNumero(t.faturado) && t.faturado > 0 ? r0(t.faturado) : null)) : null,
+      semConta ? null : h('div', null, h('dt', null, 'Custo por cliente'), valor(r0(t.custo_por_servico))),
+      semConta ? null : h('div', null, h('dt', null, 'Cada R$ 1 virou'), valor(ehNumero(t.retorno) ? dinheiro(t.retorno, { centavos: true }) : null)))),
+    lista.length ? h('div', { class: 'barra-lista' }, h('p', { class: 'mini' }, inteiro(lista.length) + (lista.length === 1 ? ' campanha' : ' campanhas')), semConta ? null : ordens) : null,
     lista.length
-      ? h('ul', { class: 'camps' }, lista.map((c) => cartaoDaCampanha(ctx, c)))
-      : vazio({ titulo: 'Nenhuma campanha neste período', texto: estado.gasto === 'sem_conta' ? 'Ligue a conta de anúncios em Ajustes para as campanhas aparecerem aqui.' : 'Troque o período ou a fonte para ver outras campanhas.' }),
+      ? h('ul', { class: 'camps' }, lista.map((c) => cartaoDaCampanha(ctx, c, semConta)))
+      : vazio({ titulo: 'Nenhuma campanha neste período', texto: semConta ? 'Quando chegar a primeira conversa de anúncio, a campanha dela aparece aqui.' : 'Troque o período ou a fonte para ver outras campanhas.' }),
     d.sem_campanha && d.sem_campanha.contatos ? h('p', { class: 'aviso-linha' }, icone('info', 'icone-p'), inteiro(d.sem_campanha.contatos) + ' conversas de anúncio não disseram de qual campanha vieram.') : null);
 
   const abrir = ctx.rota.params.abrir;
@@ -75,12 +81,12 @@ function pintar(ctx, d) {
   const corte = abrir.indexOf(':');
   const alvo = corte > 0 ? lista.find((c) => c.plataforma === abrir.slice(0, corte) && String(c.chave) === abrir.slice(corte + 1)) : null;
   if (!alvo) return null;
-  return abrirDetalhe(ctx, alvo);
+  return abrirDetalhe(ctx, alvo, semConta);
 }
 
 /* ------------------------------ detalhe ------------------------------ */
 
-function abrirDetalhe(ctx, resumo) {
+function abrirDetalhe(ctx, resumo, semConta) {
   const aberto = document.querySelector('dialog.dlg[open]');
   if (aberto) return aberto;   // a lista pintou de novo (memória e depois o dado novo): a janela já está aberta
   const corpo = h('div', { class: 'dlg-corpo' });
@@ -97,27 +103,27 @@ function abrirDetalhe(ctx, resumo) {
   corpo);
   document.body.appendChild(dlg);
   dlg.showModal();
-  pintarDetalhe(ctx, corpo, resumo, null);
+  pintarDetalhe(ctx, corpo, resumo, null, semConta);
   const caminho = 'api/campanhas/' + encodeURIComponent(resumo.plataforma) + '/' + encodeURIComponent(resumo.chave) + '?periodo=' + ctx.periodo;
-  ctx.leitor.ler(caminho).then((r) => { if (dlg.isConnected) pintarDetalhe(ctx, corpo, (r.dados && r.dados.campanha) || resumo, r.dados); },
+  ctx.leitor.ler(caminho).then((r) => { if (dlg.isConnected) pintarDetalhe(ctx, corpo, (r.dados && r.dados.campanha) || resumo, r.dados, semConta); },
     () => { /* sem o detalhe: o resumo da lista continua na janela */ });
   return dlg;
 }
 
-function pintarDetalhe(ctx, alvo, c, dados) {
+function pintarDetalhe(ctx, alvo, c, dados, semConta) {
   const s = seloDaCampanha(c);
   const dias = somarDias([c]);
   const anuncios = dados && Array.isArray(dados.conjuntos) ? dados.conjuntos.flatMap((cj) => (cj.anuncios || []).map((a) => ({ ...a, conjunto: cj.nome }))) : [];
   const contatos = dados && Array.isArray(dados.contatos) ? dados.contatos.slice(0, 6) : [];
   const passo = (rotulo, n, de) => h('li', null, h('b', null, ehNumero(n) ? inteiro(n) : 'sem dado'), h('span', null, rotulo), ehNumero(fracao(n, de)) ? h('small', null, porcento(fracao(n, de))) : null);
   trocar(alvo,
-    h('div', { class: 'dlg-topo' }, s ? selo(s[0], s[1]) : null, c.leitura && c.leitura.texto ? h('p', null, c.leitura.texto) : null),
+    h('div', { class: 'dlg-topo' }, s ? selo(s[0], s[1]) : null, (semConta ? semPedidoDeConta(c.leitura && c.leitura.texto) : c.leitura && c.leitura.texto) ? h('p', null, semConta ? semPedidoDeConta(c.leitura.texto) : c.leitura.texto) : null),
     h('ol', { class: 'mini-funil' },
       passo('conversas', c.contatos), passo('agendaram', c.agendaram, c.contatos), passo('vieram', c.vieram, c.agendaram), passo('clientes', c.fecharam, c.vieram)),
     h('dl', { class: 'tot tot-dlg' },
-      h('div', null, h('dt', null, 'Gasto'), valor(r0(c.gasto))),
-      h('div', null, h('dt', null, 'Custo por conversa'), valor(dinheiro(c.custo_por_contato))),
-      h('div', null, h('dt', null, 'Custo por cliente'), valor(r0(c.custo_por_servico))),
+      semConta ? null : h('div', null, h('dt', null, 'Gasto'), valor(r0(c.gasto))),
+      semConta ? null : h('div', null, h('dt', null, 'Custo por conversa'), valor(dinheiro(c.custo_por_contato))),
+      semConta ? null : h('div', null, h('dt', null, 'Custo por cliente'), valor(r0(c.custo_por_servico))),
       h('div', null, h('dt', null, 'Em serviços'), valor(r0(c.faturado)))),
     dias.length > 1 ? graficoDiario(dias, {}) : null,
     anuncios.length ? h('section', { class: 'dlg-parte' }, h('h3', null, 'Anúncios'),

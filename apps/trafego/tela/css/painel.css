@@ -936,3 +936,22 @@ body {
   .folha-frase b, .folha-funil small { color: #c8102a !important; }
 }
 :root[data-tema='claro'] .mg-barra-meta { color: #fff; }
+
+/* ---------- rodada 14: sem conta de anúncios ---------- */
+.regua-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 48em) { .regua-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 90em) { .regua-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.ligar { display: grid; gap: 22px; padding: 24px; margin-block: 16px; }
+@media (min-width: 62em) { .ligar:not(.ligar-compacto) { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: 36px; padding: 28px 30px; } }
+.ligar-txt { display: grid; gap: 10px; justify-items: start; }
+.ligar-txt h2 { margin: 0; font: 700 30px/1.05 var(--ic-titulo); text-transform: uppercase; color: var(--ic-forte); }
+.ligar-txt p { margin: 0; color: var(--ic-texto); max-width: 52ch; }
+.ligar-txt .mini { color: var(--pn-vermelho-texto); }
+.ligar-passos { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ligar-passos li { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border-radius: 10px; background: var(--pn-cartao-2); }
+.ligar-passos b { color: var(--ic-forte); }
+.ligar-passos p { margin: 2px 0 0; color: var(--ic-apagado); font-size: 14px; }
+.ligar-n { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 700 16px/1 var(--ic-titulo); background: var(--pn-vermelho-texto); color: #fff; }
+.ligar-compacto { grid-template-columns: 1fr; align-items: center; padding: 16px 20px; gap: 12px; }
+.ligar-compacto p { margin: 0; color: var(--ic-texto); }
+@media (min-width: 48em) { .ligar-compacto { grid-template-columns: minmax(0, 1fr) auto; } }
