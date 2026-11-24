@@ -379,6 +379,11 @@
       const velho = lista.length && lista[0].enviado_em ? agora - Date.parse(lista[0].enviado_em) : 0;
       out.push({ k: 'orcamentos', grav: velho > 24 * 36e5 ? 2 : 1, n: n(a.orcamentos.esperando), texto: `${a.orcamentos.esperando} ${n(a.orcamentos.esperando) === 1 ? 'orçamento esperando' : 'orçamentos esperando'} resposta do cliente`, extra: velho > 36e5 ? 'o mais antigo há ' + duracao(velho) : '', app: 'orcador', url: lista[0] ? l.orcamento(lista[0].id) : l.orcamentosLista() });
     }
+    /* R14: a recepção vê quem passou da hora e ainda não chegou (ela liga ou marca "não veio") */
+    if (v.recepcao && n(a.agenda?.atrasados) > 0) {
+      const k = n(a.agenda.atrasados);
+      out.push({ k: 'atrasados-hora', grav: 2, n: k, texto: `${k} ${k === 1 ? 'cliente passou da hora e ainda não chegou' : 'clientes passaram da hora e ainda não chegaram'}`, extra: a.agenda.mais_atrasado ? `o primeiro era às ${a.agenda.mais_atrasado}` : '', app: 'agenda', url: l.agenda() });
+    }
     if (v.agenda && n(a.agenda?.sem_confirmar) > 0) {
       out.push({ k: 'confirmar', grav: 1, n: n(a.agenda.sem_confirmar), texto: `${a.agenda.sem_confirmar} ${n(a.agenda.sem_confirmar) === 1 ? 'horário de hoje' : 'horários de hoje'} sem confirmação`, app: 'agenda', url: l.agenda() });
     }

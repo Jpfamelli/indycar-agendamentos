@@ -111,7 +111,7 @@ test('sem repetição: o número que está no herói sai do cartão do app; ao s
   assert.match(p, /desenharNumeros\(d, noHeroi\)/);
   const c = semComentarios(ler('casa.js'));
   assert.match(c, /'#mesCorpo'/);
-  assert.match(c, /for \(const s of \['#heroiNums', '#mesOficina', '#atencao'\]\)/);
+  assert.match(c, /for \(const s of \['#heroiNums', '#mesOficina', '#atencao', '#meusCarros']\)/);
 });
 
 test('r13.css: [hidden] com !important, toques de 44 px no topo e nada de borda grossa de um lado só', () => {

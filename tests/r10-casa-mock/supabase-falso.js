@@ -41,6 +41,7 @@
         if (escrita) return { data: null, error: null, count: null, status: 204 };
         var v = fonte();
         var data = v === undefined ? (unico ? null : []) : (typeof v === 'function' ? v() : v);
+        if (Array.isArray(data)) filtros.filter(function (f) { return f[0] === 'is' && f[2] === null; }).forEach(function (f) { data = data.filter(function (r) { return !r || r[f[1]] == null; }); });   // R14: .is(coluna, null) filtra
         if (unico && Array.isArray(data)) data = data[0] || null;
         return { data: data, error: null, count: Array.isArray(data) ? data.length : null, status: 200 };
       }).then(ok, falha);

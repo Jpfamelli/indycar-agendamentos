@@ -6,7 +6,7 @@
   <title>IndyCar Central</title>
   <meta name="description" content="A casa da equipe IndyCar: todos os apps com um login só." />
   <meta name="theme-color" content="#070a14" />
-  <script src="/casa/tema.js?v=1"></script>
+  <script src="/casa/tema.js?v=2"></script>
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" type="image/png" sizes="192x192" href="/casa/icon-192.png" />
   <link rel="apple-touch-icon" href="/casa/icon-192.png" />
@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/casa/r7.css?v=2" />
   <link rel="stylesheet" href="/casa/r9.css?v=5" />
   <link rel="stylesheet" href="/casa/r11.css?v=1" />
-  <link rel="stylesheet" href="/casa/r13.css?v=2" />
+  <link rel="stylesheet" href="/casa/r13.css?v=3" />
 </head>
 <body>
   <!-- ======================= ENTRADA (login único) ======================= -->
@@ -116,10 +116,11 @@
     <aside id="painelSino" class="painel-sino" hidden aria-label="Notificações">
       <div class="painel-topo">
         <strong>Notificações</strong>
-        <span class="painel-topo-acoes">
-          <label class="marcar marcar-mini"><input id="sinoSoNovas" type="checkbox" /> só não lidas</label>
-          <button id="bLerTodas" class="btn-link" type="button">Marcar todas como lidas</button>
-        </span>
+        <button id="bLerTodas" class="btn-link" type="button">Marcar todas como lidas</button>
+      </div>
+      <div class="sino-modo" role="group" aria-label="Quais avisos mostrar">
+        <button id="sinoModoNovas" type="button" data-sino-modo="novas" aria-pressed="true">Não lidas</button>
+        <button id="sinoModoTodas" type="button" data-sino-modo="todas" aria-pressed="false">Todas</button>
       </div>
       <input id="sinoBusca" class="sino-busca" type="search" inputmode="search" autocomplete="off" maxlength="60" placeholder="Buscar nos avisos…" aria-label="Buscar nos avisos" />
       <div id="sinoFiltros" class="sino-filtros" role="group" aria-label="Filtrar por app"></div>
@@ -154,6 +155,13 @@
           <ul id="saudeLista" class="saude-lista"></ul>
           <p class="saude-pe"><button type="button" class="btn-link" data-saude-atualizar>verificar agora</button></p>
         </div>
+      </section>
+
+      <!-- R14: o mecânico vê os carros dele (o herói conta quantos são; aqui estão quais e há quanto tempo) -->
+      <section id="meusCarros" class="meus-carros cartao-r13" aria-labelledby="tMeus" hidden>
+        <h2 id="tMeus" class="atencao-titulo">Seus carros</h2>
+        <ul id="meusCarrosLista" class="atencao-lista"></ul>
+        <a id="meusCarrosMais" class="btn-link atencao-mais" href="/" hidden>Abrir o Pátio para ver todos</a>
       </section>
 
       <div class="casa-meio">
@@ -208,19 +216,19 @@
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" integrity="sha384-WgXwGL6fUsYJWNaKJgVbrJKGRQwc1vieh2oy4kw9nXqpNDz3tdSsqEYUgeHD/NuF" crossorigin="anonymous"></script>
-  <script src="/casa/logica.js?v=11"></script>
+  <script src="/casa/logica.js?v=12"></script>
   <script src="/casa/logica2.js?v=9"></script>
   <script src="/casa/logica3.js?v=3"></script>
   <script src="/casa/logica4.js?v=7"></script>
-  <script src="/casa/logica5.js?v=1"></script>
-  <script src="/casa/sino.js?v=11"></script>
-  <script src="/casa/painel.js?v=17"></script>
+  <script src="/casa/logica5.js?v=2"></script>
+  <script src="/casa/sino.js?v=12"></script>
+  <script src="/casa/painel.js?v=18"></script>
   <script src="/casa/mes.js?v=2"></script>
   <script src="/casa/ficha.js?v=4"></script>
-  <script src="/casa/busca.js?v=10"></script>
+  <script src="/casa/busca.js?v=11"></script>
   <script src="/casa/comando.js?v=10"></script>
   <script src="/casa/saude.js?v=7"></script>
   <script src="/casa/parar.js?v=1"></script>
-  <script src="/casa/casa.js?v=15"></script>
+  <script src="/casa/casa.js?v=16"></script>
 </body>
 </html>

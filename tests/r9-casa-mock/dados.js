@@ -44,7 +44,11 @@
         { id: U(306), tipo: 'tarefas_vencidas', titulo: '2 tarefas vencidas', corpo: null, link: null, app: null, lida_em: null, created_at: iso(300) },
         { id: U(307), tipo: 'lead', titulo: 'Contato novo pelo anúncio: Igor', corpo: null, link: null, app: 'crm', lida_em: iso(10), created_at: iso(1600) },
       ],
-      consultores: [], casa_metas: vazio ? [] : [{ valor: 60000 }], patio_os: [], patio_extras: [],
+      consultores: [], casa_metas: vazio ? [] : [{ valor: 60000 }], patio_os: (papel === 'mecanico' && !vazio) ? [   // R14: os carros do mecânico (a Casa lê direto de patio_os)
+        { id: U(61), numero: 51, cliente_nome: 'Ana Exemplo', veiculo: 'Onix', placa: 'AAA0A00', etapa: 'pronto', etapa_em: iso(70), previsao_entrega: iso(-60), orcamento_id: null },
+        { id: U(62), numero: 52, cliente_nome: 'Bruno Teste', veiculo: 'HB20', placa: 'BBB1B11', etapa: 'em_execucao', etapa_em: iso(500), previsao_entrega: iso(30), orcamento_id: null },
+        { id: U(63), numero: 53, cliente_nome: 'Carla Modelo', veiculo: 'Corolla', placa: 'CCC2C22', etapa: 'diagnostico', etapa_em: iso(20), previsao_entrega: null, orcamento_id: null },
+      ] : [], patio_extras: [],
       orc_tarefas: pe || [{ tarefa_id: U(202), orcamento_id: U(21), tipo: 'followup' }],
       orc_orcamentos: [{ id: U(21), numero: 12 }], clientes: [{ id: U(701), nome: 'Elisa Teste', telefone: tel(701) }], agendamentos: [],
     },
