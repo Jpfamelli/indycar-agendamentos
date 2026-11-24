@@ -181,8 +181,14 @@ export function somarFaturamento(VS, leads, valores, agora = Date.now()) {
   return { mes: mes.total, fechados_mes: mes.fechados, com_valor_mes: mes.com_valor, sem_valor_semana: semana.sem_valor, por_fonte: porFonte, hoje: tr.hoje };
 }
 
-export function criarFaturamento({ env = process.env, quemE, agora = () => Date.now(), sb = null, VS = null } = {}) {
+/* R14: o número do mês é o mesmo para todo gestor, e quem abre e fecha a Central, atualiza a página ou tem o app aberto em
+   dois aparelhos pedia a conta inteira (contatos fechados, orçamentos, ordens e extras) toda vez. Fica 45 s na memória e
+   pedidos juntos esperam a mesma conta. Só guarda resposta boa; erro nunca fica guardado. */
+const FATURAMENTO_MEMORIA_MS = 45_000;
+
+export function criarFaturamento({ env = process.env, quemE, agora = () => Date.now(), sb = null, VS = null, memoriaMs = FATURAMENTO_MEMORIA_MS } = {}) {
   const janelas = new Map();
+  let memoria = null;   // { em, dia, promessa }
   let cliente = sb, regra = VS;
   async function banco() {
     if (cliente) return cliente;
@@ -230,14 +236,22 @@ export function criarFaturamento({ env = process.env, quemE, agora = () => Date.
     if (!GESTORES.has(q.usuario.papel)) return { status: 403, corpo: { erro: 'Só o gestor vê o faturamento.', codigo: 'so_gestor' } };
     if (!dentroDoLimite(q.usuario.id)) return { status: 429, corpo: { erro: 'Muitos pedidos seguidos. Espere um minuto.', codigo: 'limite' }, cabecalhos: { 'Retry-After': '60' } };
     try {
-      const [sbc, R] = await Promise.all([banco(), valorServico()]);
       const tr = trechosDoFaturamento(agora());
-      const leads = await lerFechados(sbc, Math.min(tr.inicioMes, tr.inicioSemana));
-      const valores = await R.valoresDosFechados(sbc, leads);
-      return { status: 200, corpo: { faturamento: somarFaturamento(R, leads, valores, agora()), regra: 'patio>orcamento>agenda>lancado' } };
+      if (!(memoria && memoria.dia === tr.hoje && agora() - memoria.em < memoriaMs)) {
+        const promessa = (async () => {
+          const [sbc, R] = await Promise.all([banco(), valorServico()]);
+          const leads = await lerFechados(sbc, Math.min(tr.inicioMes, tr.inicioSemana));
+          const valores = await R.valoresDosFechados(sbc, leads);
+          return { faturamento: somarFaturamento(R, leads, valores, agora()), regra: 'patio>orcamento>agenda>lancado' };
+        })();
+        const minha = { em: agora(), dia: tr.hoje, promessa };
+        memoria = minha;
+        promessa.catch(() => { if (memoria === minha) memoria = null; });   // erro nunca fica guardado
+      }
+      return { status: 200, corpo: await memoria.promessa };
     } catch {
       return { status: 502, corpo: { erro: 'O banco não respondeu o faturamento agora.', codigo: 'banco' } };
     }
   }
-  return { tratar, limparCache: () => janelas.clear() };
+  return { tratar, limparCache: () => { janelas.clear(); memoria = null; } };
 }
