@@ -334,9 +334,34 @@
     return saida;
   }
 
+  /* R17: data e hora com que o NOVO agendamento nasce. Antes era sempre hoje às 09:00, mesmo às 15h (horário que já
+     passou, o cartão nascia "atrasado"). Agora: antes das 9h, hoje 09:00; durante o expediente, a próxima meia hora
+     cheia com pelo menos 15 min de folga; depois do último horário (17h30) ou domingo, o próximo dia aberto às 09:00.
+     agora = { data:'YYYY-MM-DD', min: minutos desde a meia-noite }. */
+  function inicioDoNovo(agora, { abre = 8 * 60, fecha = 17 * 60 + 30, padrao = 9 * 60, diasAbertos = [1, 2, 3, 4, 5, 6] } = {}) {
+    const aberto = (iso) => diasAbertos.includes(new Date(iso + 'T12:00:00Z').getUTCDay());
+    const proximoAberto = (iso) => { let d = dia(iso, 1); for (let i = 0; i < 7 && !aberto(d); i++) d = dia(d, 1); return d; };
+    const min = Number(agora && agora.min);
+    if (!agora || !agora.data || !Number.isFinite(min)) return { data: agora?.data || '', hora: hhmm(padrao) };
+    if (!aberto(agora.data)) return { data: proximoAberto(agora.data), hora: hhmm(padrao) };
+    if (min < padrao - 15) return { data: agora.data, hora: hhmm(padrao) };
+    const prox = Math.max(abre, Math.ceil((min + 15) / 30) * 30);
+    if (prox > fecha) return { data: proximoAberto(agora.data), hora: hhmm(padrao) };
+    return { data: agora.data, hora: hhmm(prox) };
+  }
+  /** O horário escolhido já passou? (só hoje; folga de 10 min para quem marca quem acabou de chegar) */
+  function horarioJaPassou(data, hora, agora, folga = 10) {
+    if (!data || !hora || !agora || !agora.data) return false;
+    if (data < agora.data) return true;
+    if (data > agora.data) return false;
+    const m = minutos(hora);
+    return Number.isFinite(m) && m < Number(agora.min) - folga;
+  }
+
   root.Planejamento = Object.freeze({
     FINAIS, JANELA_MIN, normalizar, telefone, ehUuid, dia, periodo, andar, tabelaDuracoes, duracao, minutos, hhmm,
     conflitos, ocupacao, filtrar, resumo, grupos, csv, links, lerEntrada, semEntrada,
     valorDeTela, reais, mascaraValor, cargaSemana, proximaEspera, deveRepetir, servidorFora, casaRecepcao, linhasDaFolha, soMudancas,
+    inicioDoNovo, horarioJaPassou,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

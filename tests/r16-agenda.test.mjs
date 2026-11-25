@@ -38,6 +38,6 @@ test('nenhum CSS declara borda grossa (3px ou mais) de um lado só nos cartões'
   }
 });
 
-test('cache do service worker subiu para v44', () => {
-  assert.match(ler('public/sw.js'), /indycar-agenda-v44/);
+test('cache do service worker subiu para v44 ou mais', () => {
+  assert.match(ler('public/sw.js'), /indycar-agenda-v(4[4-9]|[5-9]\d)/);
 });

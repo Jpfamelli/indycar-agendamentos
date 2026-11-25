@@ -220,4 +220,12 @@
 .appt.confirmando{border-color:var(--red)!important}
 .appt.confirmando .appt-actions{flex-wrap:wrap}
 @media (max-width:560px){.appt.confirmando .appt-actions .act{min-height:44px}}
+
+/* ===== R17 · fluxo de marcar ===== */
+/* O rodapé das janelas (Salvar, Cancelar) fica preso embaixo da tela: o Novo agendamento tem ~2.300 px de altura
+   (histórico, Comunicar, visão 360) e no celular eram 3 telas de rolagem até o Salvar. */
+/* bottom:-40px = o respiro de baixo do véu (.modal-overlay padding 40px): sem ele o rodapé grudava 40 px acima da borda */
+.modal-foot{position:sticky;bottom:-40px;z-index:2;background:var(--modal-2);border-radius:0 0 18px 18px}
+/* com janela aberta o recado sobe para não cobrir o Salvar */
+body:has(.modal-overlay.open) .toast{bottom:96px}
 [hidden]{display:none!important}

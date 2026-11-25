@@ -265,7 +265,9 @@
   function aoAbrirFormulario({ id, a, pre } = {}) {
     if (semAcesso()) return;
     const box = document.getElementById('f_rapido');
-    if (box && !id) {
+    // R17: veio com o cliente já preenchido (link do Atendimento/CRM): a linha rápida só empurrava o Serviço para baixo
+    const comCliente = !!(pre && (pre.telefone || pre.cliente_nome || pre.cliente_id));
+    if (box && !id && !comCliente) {
       box.hidden = false;
       box.innerHTML = `<label for="f_rapido_txt"><b>⚡ Marcar rápido</b> <small class="muted">escreva tudo numa linha e aperte Enter</small></label>
         <div class="linha"><input id="f_rapido_txt" autocomplete="off" placeholder="Ana Souza 12 99182-1234 óleo amanhã 10h gol abc1d23" aria-describedby="f_rapido_dica">

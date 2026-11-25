@@ -1764,6 +1764,17 @@ async function agendamentosDoDia(data) {
   return lista;
 }
 const esquecerDias = () => _doDia.clear();
+/* R17: o cadastro de serviços quase não muda: guardado por 60 s. O link do Atendimento (?novo=1&tel=) pede junto
+   com a tela, e o formulário abre sem esperar mais uma volta ao servidor. */
+let _servicos = null;
+function servicosDoCadastro() {
+  if (_servicos && _servicos.ate > Date.now()) return _servicos.p;
+  const p = api('GET', '/servicos').catch(() => []);
+  const item = { p, ate: Date.now() + 60_000 };
+  _servicos = item;
+  p.then((l) => { if (!Array.isArray(l) || !l.length) { if (_servicos === item) _servicos = null; } });
+  return p;
+}
 
 /* Rótulo curto de uma sugestão: "Hoje 14:00", "Amanhã 08:00", "sex 10/10 09:30". */
 const rotuloSugestao = (s) => `${rotuloDia(s.data, agoraSP().data)} ${s.hora}`;
@@ -2093,12 +2104,13 @@ window.abrirRemarcar = async function(id) {
    Achou UM horário pendente → abre ele. Achou a ficha → abre a ficha (com o
    histórico e o "Agendar de novo"). Vários pendentes sem ficha → Agenda
    filtrada pelo telefone. Nada → "Novo agendamento" já com o telefone. */
-async function abrirEntrada(e) {
+const pedirAbrir = (e) => { const qs = new URLSearchParams(); if (e.tel) qs.set('tel', e.tel); if (e.cliente) qs.set('cliente', e.cliente); return api('GET', '/abrir?' + qs); };
+/* pronto = a mesma consulta já pedida junto com a tela (R17: abrirApp); sem ela, pede agora */
+async function abrirEntrada(e, pronto = null) {
   if (!e || emPresenca()) return;
   try {
     if (e.agendamento) return openAgendamentoModal(e.agendamento);
-    const qs = new URLSearchParams(); if (e.tel) qs.set('tel', e.tel); if (e.cliente) qs.set('cliente', e.cliente);
-    const r = await api('GET', '/abrir?' + qs);
+    const r = await (pronto || pedirAbrir(e));
     const nome = r.cliente?.nome || r.agendamentos?.[0]?.cliente_nome || '';
     /* rodada 6 (🔗): ?novo=1&tel= (Casa, Atendimento, CRM) abre direto o NOVO horário já com o cliente */
     if (e.novo) {
@@ -2301,10 +2313,13 @@ window.openAgendamentoModal = async function(id, pre = {}){
   if (emPresenca()) return;
   /* rodada 6: marcado a partir de um orçamento aprovado do Orçador — o servidor liga o orçamento ao horário novo */
   const orcamentoDeOrigem = !id && pre && /^[0-9a-f-]{36}$/i.test(String(pre.orcamento_id || '')) ? pre.orcamento_id : null;
-  const servicos = await api('GET','/servicos').catch(()=>[]);
+  const servicos = await servicosDoCadastro();
   state.servicos = servicos;
-  let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:(state.route === 'quadro' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(window.R6b?.estado?.data || '') ? window.R6b.estado.data : hojeSP()),
-            hora:'09:00',consultor_id:'',origem:'Google',observacoes:'',status:'aguardando',confirmado:0 };
+  /* R17: nasce na próxima meia hora livre do relógio (antes: sempre hoje 09:00, mesmo à tarde) */
+  const inicio = P.inicioDoNovo(agoraSP());
+  const diaDoQuadro = state.route === 'quadro' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(window.R6b?.estado?.data || '') ? window.R6b.estado.data : null;
+  let a = { cliente_nome:'',telefone:'',veiculo:'',placa:'',servico:'',data:(diaDoQuadro || inicio.data),
+            hora:(!diaDoQuadro || diaDoQuadro === inicio.data ? inicio.hora : '09:00'),consultor_id:'',origem:'Google',observacoes:'',status:'aguardando',confirmado:0 };
   if (id) a = await api('GET',`/agendamentos/${id}`).catch(()=>null) || a;
   else if (pre && typeof pre === 'object') {
     for (const k of ['cliente_nome','telefone','veiculo','placa','servico','data','hora','consultor_id','origem','cliente_id','observacoes'])
@@ -2457,7 +2472,11 @@ window.openAgendamentoModal = async function(id, pre = {}){
   // aviso (sem bloquear) quando o horário cai fora de seg–sáb 8h–17h30
   const conferirExpediente = () => {
     const av = $('#f_expediente'); if (!av) return;
-    const msg = foraDoExpediente($('#f_data').value, $('#f_hora').value);
+    const d = $('#f_data').value, h = $('#f_hora').value;
+    /* R17: horário que já passou (o cartão nasceria "atrasado"). Na edição só quando a pessoa mexe na data ou hora. */
+    const mexeu = !id || d !== a.data || h !== String(a.hora || '').slice(0, 5);
+    const passou = mexeu && P.horarioJaPassou(d, h, agoraSP()) ? (d < agoraSP().data ? 'Esse dia já passou.' : 'Esse horário de hoje já passou.') : null;
+    const msg = passou || foraDoExpediente(d, h);
     av.hidden = !msg; if (msg) $('span', av).textContent = msg;
   };
   $('#f_data').addEventListener('change', conferirExpediente);
@@ -2507,6 +2526,8 @@ window.openAgendamentoModal = async function(id, pre = {}){
   window.R6?.blocoOrcamentoNaFicha($('#f_orc'), { ...a, id: id || null }).catch(() => {});
   window.R6b?.blocoLembreteNaFicha($('#f_lembrete'), { ...a, id: id || null }).catch(() => {});
   window.R6c?.aoAbrirFormulario?.({ id, a, pre });
+  // R17: já veio com o cliente (link do Atendimento/CRM, "Agendar de novo"): o próximo campo é o serviço, não o nome
+  if (!id && a.cliente_nome && !a.servico) setTimeout(() => { if (modalAberto()) $('#f_serv')?.focus(); }, 60);
   // mini-ficha de quem já é cliente (última visita, próxima revisão, aniversário)
   if (a.cliente_id) mostrarFicha(a.cliente_id);
   let confirmouSemTelefone = false, confirmouSemConsultor = false, avisarFalta;
@@ -2562,7 +2583,8 @@ window.openAgendamentoModal = async function(id, pre = {}){
       const r = id ? await api('PUT', `/agendamentos/${id}`, P.soMudancas(payload, a)) : await api('POST', '/agendamentos', orcamentoDeOrigem ? { ...payload, orcamento_id: orcamentoDeOrigem } : payload);
       esquecerDias(); rascunho.apagar();
       const aviso = r?.aviso_ausencia;
-      toast(aviso ? recadoDeAusencia(r) : 'Agendamento salvo', aviso && !aviso.ok ? 'err' : 'ok');
+      // R17: o recado repete quem e quando (confere sem precisar achar o cartão na lista)
+      toast(aviso ? recadoDeAusencia(r) : `Agendamento salvo: ${payload.cliente_nome}, ${rotuloDia(payload.data, agoraSP().data).toLowerCase()} às ${payload.hora}`, aviso && !aviso.ok ? 'err' : 'ok');
       // rodada 5: aniversário digitado vai para a ficha (sem bloquear o agendamento se falhar)
       if (nasc && r?.cliente_id) api('PUT', `/clientes/${r.cliente_id}`, { nascimento: nasc }, { repetir: false }).then(() => toast('Aniversário guardado na ficha 🎂')).catch(() => toast('O agendamento foi salvo, mas o aniversário não entrou na ficha, abra a ficha e tente de novo', 'err'));
       // veio da lista de espera ("Encaixar"): a espera vira "agendada"
@@ -3485,11 +3507,19 @@ async function abrirApp(){
   const pBase = Promise.all([ loadEmpresa(), loadConsultores() ]).catch((e) => { if (e?.parar) throw e; });
   const qs = new URLSearchParams(location.search);
   const r0 = qs.get('r');
-  await route(r0 && ROUTES[r0] ? r0 : 'inicio');
+  /* R17: link de cliente (?tel= / ?novo=1 vindo do Atendimento ou do CRM): a ficha e o cadastro de serviços são
+     pedidos JUNTO com a tela, e o formulário abre sem esperar o Início terminar de pintar (antes: 3 voltas em fila). */
+  const entrada = state.entrada; state.entrada = null;
+  const pAbrir = entrada && !entrada.agendamento ? pedirAbrir(entrada) : null;
+  pAbrir?.catch(() => { /* quem trata é o abrirEntrada */ });
+  if (entrada || qs.get('novo') === '1') servicosDoCadastro();
+  const pRota = route(r0 && ROUTES[r0] ? r0 : 'inicio');
+  if (!entrada && qs.get('novo') !== '1') await pRota;
   await pBase;
+  if (entrada) await abrirEntrada(entrada, pAbrir);
+  else if (qs.get('novo') === '1') await openAgendamentoModal();
+  await pRota;
   desenharFila(); enviarFila();               // marcações feitas sem internet numa visita anterior
-  if (state.entrada) { const e = state.entrada; state.entrada = null; await abrirEntrada(e); }
-  else if (qs.get('novo') === '1') openAgendamentoModal();
 }
 
 $('#formLogin').addEventListener('submit', async e => {
