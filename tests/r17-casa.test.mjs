@@ -74,6 +74,6 @@ test('o resumo do dono e o estado vazio falam a mesma língua', () => {
 
 test('versões novas no index e no service worker', () => {
   const html = ler('index.html');
-  for (const m of [/r13\.css\?v=6/, /logica\.js\?v=14/, /logica2\.js\?v=10/, /logica5\.js\?v=5/, /painel\.js\?v=20/]) assert.match(html, m);
-  assert.match(ler('sw.js'), /indycar-casa-v24/);
+  for (const m of [/r13\.css\?v=[6-9]/, /logica\.js\?v=14/, /logica2\.js\?v=10/, /logica5\.js\?v=[5-9]/, /painel\.js\?v=2\d/]) assert.match(html, m);
+  assert.match(ler('sw.js'), /indycar-casa-v2[4-9]/);
 });

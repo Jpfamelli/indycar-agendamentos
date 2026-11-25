@@ -125,7 +125,7 @@
     if (mais) { mais.hidden = lista.length <= CARROS_VISIVEIS; mais.href = C.bases.patio || '/'; mais.setAttribute('target', L.nomeDaAba('patio')); }
   }
 
-  function desenharTudo(d) { instante = null; const fr = $('#heroiFrase'); if (fr) { fr.classList.remove('heroi-velho'); fr.removeAttribute('title'); } const noHeroi = desenharHeroi(d); desenharNumeros(d, noHeroi); desenharAtencao(d); desenharMeusCarros(d); }
+  function desenharTudo(d) { instante = null; const fr = $('#heroiFrase'); if (fr) { fr.classList.remove('heroi-velho'); fr.removeAttribute('title'); } const noHeroi = desenharHeroi(d); desenharZap(); desenharNumeros(d, noHeroi); desenharAtencao(d); desenharMeusCarros(d); }
 
   /* R14: quem só marca presença não enxerga a agenda pelo banco (a regra do banco é da equipe): os horários de hoje vêm da
      própria Agenda, que já entrega a lista do dia sem telefone. Falhou: o herói só não mostra a Agenda (nunca um zero falso). */
@@ -152,6 +152,39 @@
     } catch (e) { try { C.sessaoVenceu && C.sessaoVenceu(e); } catch { /* segue */ } return null; }
   }
 
+  /* R18: o WhatsApp parado é o problema nº 1 do dia. Duas leituras curtas (o estado que o servidor anotou e a hora da última
+     mensagem recebida), no máximo a cada 3 minutos; falhou: sem linha (nunca um alarme falso). */
+  const ZAP_CADA_MS = 3 * 60_000;
+  let zapLido = 0, zapDados = null;
+  async function lerZap() {
+    if (Date.now() - zapLido < ZAP_CADA_MS) return zapDados;
+    try {
+      const [z, m] = await Promise.all([
+        C.sb.from('r7_c4_zap').select('parado,codigo,desde').limit(1).maybeSingle(),
+        C.sb.from('whatsapp_mensagens').select('created_at').eq('direcao', 'entrada').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      zapDados = { zap: z.error ? null : z.data, ultimaEntrada: m.error || !m.data ? null : m.data.created_at };
+      zapLido = Date.now();
+    } catch { /* segue sem a linha */ }
+    return zapDados;
+  }
+  function desenharZap() {
+    const a = $('#heroiZap');
+    if (!a) return;
+    const L5 = window.CasaLogica5;
+    const pode = V.conversas && C.podeUsar('atendimento') && C.bases.atendimento;
+    const rpc = C.saude && C.saude.dados ? C.saude.dados().rpc : null;
+    const p = pode && zapDados ? L5.whatsappParado({ ...zapDados, rpcWa: rpc && rpc.whatsapp }) : null;
+    const l = L5.linhaDoZap(p, { papel: C.perfil.papel });
+    if (C.aoZap) { try { C.aoZap(p); } catch { /* a saúde segue com o que tem */ } }
+    a.hidden = !l;
+    if (!l) { a.innerHTML = ''; return; }
+    let url = C.bases.atendimento;
+    try { url = new URL(l.q, new URL(C.bases.atendimento, location.origin)).href; } catch { /* fica a base */ }
+    a.href = url; a.target = L.nomeDaAba('atendimento');
+    a.innerHTML = `<span class="a-selo a-selo-3"><span aria-hidden="true">⚠</span> Parado</span><span class="heroi-zap-tit">${C.esc(l.titulo)}</span><span class="heroi-zap-passo">${C.esc(l.passo)} <b>${C.esc(l.rotulo)}</b></span><span class="a-seta" aria-hidden="true">›</span>`;
+  }
+
   async function carregarAgora({ silencioso = false } = {}) {
     if (carregando && Date.now() - carregandoDesde < TEMPO_PENDURADO_MS) return;
     const vez = ++vezAgora;
@@ -169,7 +202,8 @@
         // fonte única: r6_agora (X3); o que ele não traz vem de r6_c1_agora_extras
         // R13C: "sem responsável" com a regra do CRM (em aberto, qualquer data), contado junto e sem esperar a mais
         const [a, x, semDono, agendaRec, minhasTarefas] = await Promise.all([C.sb.rpc('r6_agora', { p_limite: 40 }), C.sb.rpc('r6_c1_agora_extras'),
-          V.leads ? L.contarSemResponsavel(C.sb) : Promise.resolve(null), V.recepcao ? lerAgendaDaRecepcao() : Promise.resolve(null), V.tarefas ? lerMinhasTarefas() : Promise.resolve(null)]);
+          V.leads ? L.contarSemResponsavel(C.sb) : Promise.resolve(null), V.recepcao ? lerAgendaDaRecepcao() : Promise.resolve(null), V.tarefas ? lerMinhasTarefas() : Promise.resolve(null),
+          V.conversas && C.podeUsar('atendimento') ? lerZap() : Promise.resolve(null)]);
         if (a.error) throw a.error;
         const ex = x.error ? {} : (x.data || {});
         d = L.adaptarAgora(a.data, { ...ex, leads: { ...(ex.leads || {}), sem_dono: semDono } });
@@ -228,6 +262,7 @@
 
   MOD.montar = function (casa) {
     C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; atencaoAberta = false; ultima = 0; emFalha = false; carregando = false; vezAgora++;
+    zapLido = 0; zapDados = null; { const z = $('#heroiZap'); if (z) { z.hidden = true; z.innerHTML = ''; } }
     online = navigator.onLine;
     $('#atencao').hidden = true;
     instante = null;
@@ -246,7 +281,7 @@
     window.addEventListener('online', aoRede); window.addEventListener('offline', aoRede);
     document.addEventListener('visibilitychange', aoVisivel);
     $('#miolo').addEventListener('click', aoClicar);
-    C.painel = { atualizar: () => carregarAgora(), dados: () => dados };
+    C.painel = { atualizar: () => carregarAgora(), dados: () => dados, redesenharZap: desenharZap };
   };
   MOD.desmontar = function () {
     try { if (canal && C) C.sb.removeChannel(canal); } catch { /* segue */ }

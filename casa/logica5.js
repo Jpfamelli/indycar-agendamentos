@@ -202,5 +202,92 @@
     return { tom: 'neutro', texto: dia === 'Sat' || dia === 'Sun' ? 'Fechada · abre segunda às 8h' : 'Fechada · abre amanhã às 8h' };
   }
 
-  root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, agendaDaRecepcao, carrosDoMecanico, avisosSubstituidos, tarefasVencidas, instantaneoDe, instantaneoValido, MESES });
+  /* ---------------- R18: WhatsApp parado (o problema nº 1 do dia) ---------------- */
+  /* No banco de 25/11 o estado guardado dizia "ok" (r7_c4_zap e posvenda_config), mas nenhuma mensagem de cliente chegava
+     desde 24/11 08:24. Por isso, além do que o servidor anotou, conta o silêncio: com ~80 mensagens por dia, a maior
+     pausa normal em 30 dias foi de 18 h (a noite); 20 h sem nenhuma mensagem chegando é parada. */
+  const SILENCIO_H = 20;
+  const MOTIVOS_ZAP = {
+    'codewords-401': 'a chave do CodeWords foi recusada',
+    'whatsapp-desconectado': 'o celular da oficina está desconectado',
+    cota: 'a cota do CodeWords acabou',
+    chave_recusada: 'a chave do CodeWords foi recusada',
+    sem_chave: 'não há chave do CodeWords colada',
+    sem_aparelho: 'não há celular conectado',
+    desconectado: 'o celular da oficina está desconectado',
+    'sem-receber': 'nenhuma mensagem de cliente chega',
+  };
+  /**
+   * { zap: linha de r7_c4_zap ({ parado, codigo, desde }), rpcWa: whatsapp de r7_c1_saude_sistemas ({ estado, desde }),
+   *   ultimaEntrada: created_at da última mensagem recebida (null = não deu para ler), agoraMs }
+   * → null (funcionando ou sem leitura) ou { codigo, desdeMs, ms, motivo }.
+   */
+  function whatsappParado({ zap = null, rpcWa = null, ultimaEntrada = null, agoraMs = Date.now(), silencioH = SILENCIO_H } = {}) {
+    const ms = (iso) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? t : null; };
+    const pronto = (codigo, desde) => {
+      const d = desde != null && desde <= agoraMs ? desde : null;
+      return { codigo, desdeMs: d, ms: d == null ? null : agoraMs - d, motivo: MOTIVOS_ZAP[codigo] || 'o WhatsApp da oficina não responde' };
+    };
+    if (zap && zap.parado === true) return pronto(String(zap.codigo || 'parado'), ms(zap.desde));
+    if (rpcWa && ['chave_recusada', 'sem_chave', 'sem_aparelho', 'desconectado'].includes(rpcWa.estado)) return pronto(rpcWa.estado, ms(rpcWa.desde));
+    const ult = ms(ultimaEntrada);
+    if (ult != null && agoraMs - ult >= silencioH * 36e5) return pronto('sem-receber', ult);
+    return null;
+  }
+  /**
+   * A linha do herói: { titulo, passo, rotulo, q }. Quem cola a chave é o administrador (o João): para ele o passo é fazer;
+   * para o resto da equipe, pedir a ele. Leva ao Atendimento (a faixa completa mora lá; aqui não se repete).
+   */
+  function linhaDoZap(p, { papel = '', agora = new Date() } = {}) {
+    if (!p) return null;
+    const quando = p.desdeMs != null && L2 && L2.textoDoPrazo ? L2.textoDoPrazo(new Date(p.desdeMs).toISOString(), agora) : '';
+    const titulo = 'WhatsApp parado' + (quando ? ' desde ' + quando : '') + (p.ms != null && p.ms >= 36e5 ? ' (' + L.duracao(p.ms) + ')' : '') + ': ' + p.motivo + '.';
+    const dono = papel === 'admin';
+    const chave = p.codigo !== 'whatsapp-desconectado' && p.codigo !== 'desconectado' && p.codigo !== 'sem_aparelho';
+    const passo = chave
+      ? (dono ? 'Cole a chave do CodeWords em Atendimento › Ajustes › WhatsApp e chaves.' : 'Peça ao João para colar a chave em Ajustes › WhatsApp e chaves.')
+      : (dono ? 'Reconecte o celular da oficina no Atendimento.' : 'Peça ao João para reconectar o celular da oficina.');
+    return { titulo, passo, rotulo: 'Abrir o Atendimento', q: ['admin', 'gestor'].includes(papel) ? '?aba=integracoes' : '' };
+  }
+
+  /* ---------------- R18: o sino com 131 não lidas, agrupado por tipo ---------------- */
+  const ROTULOS_SINO = {
+    patio: ['aviso do Pátio', 'avisos do Pátio'], tarefa: ['tarefa', 'tarefas'], atraso: ['horário atrasado', 'horários atrasados'],
+    aguardando: ['conversa esperando consultor', 'conversas esperando consultor'], espera: ['conversa esperando resposta', 'conversas esperando resposta'],
+    tarefas_vencidas: ['aviso de tarefas vencidas', 'avisos de tarefas vencidas'], resumo: ['resumo', 'resumos'], ia: ['aviso da IA', 'avisos da IA'],
+    sugestao_perdido: ['contato para dar como perdido', 'contatos para dar como perdidos'], falhas: ['aviso de envio com falha', 'avisos de envio com falha'],
+    resumo_semanal: ['resumo da semana', 'resumos da semana'], whatsapp: ['aviso do WhatsApp', 'avisos do WhatsApp'],
+    whatsapp_voltou: ['aviso de WhatsApp de volta', 'avisos de WhatsApp de volta'], whatsapp_caiu: ['aviso de WhatsApp caído', 'avisos de WhatsApp caído'],
+    lead: ['contato novo', 'contatos novos'], lead_sem_contato: ['contato sem conversa', 'contatos sem conversa'], conversa: ['conversa', 'conversas'],
+    extra: ['extra esperando', 'extras esperando'], orcamento_visto: ['orçamento visto', 'orçamentos vistos'],
+  };
+  /** "34 avisos do Pátio", "1 tarefa"… (tipo desconhecido: o rótulo do sino antigo). */
+  function rotuloDoGrupo(tipo, n) {
+    const r = ROTULOS_SINO[tipo];
+    if (r) return n + ' ' + (n === 1 ? r[0] : r[1]);
+    return n + ' ' + (L2 && L2.rotuloTipo ? L2.rotuloTipo(tipo) : (tipo || 'avisos'));
+  }
+  /**
+   * Os avisos em grupos por tipo, do grupo com mais não lidos para o com menos (empate: o de aviso mais novo primeiro).
+   * Cada grupo: { tipo, itens (mais novo primeiro), novos (ids não lidos), maisNovo (created_at) }.
+   */
+  function gruposDoSino(lista) {
+    const mapa = new Map();
+    for (const n of Array.isArray(lista) ? lista : []) {
+      if (!n || !n.id) continue;
+      const t = n.tipo || 'outros';
+      if (!mapa.has(t)) mapa.set(t, []);
+      mapa.get(t).push(n);
+    }
+    const out = [...mapa.entries()].map(([tipo, itens]) => {
+      itens.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      return { tipo, itens, novos: itens.filter((n) => !n.lida_em).map((n) => n.id), maisNovo: itens[0].created_at || '' };
+    });
+    return out.sort((a, b) => b.novos.length - a.novos.length || String(b.maisNovo).localeCompare(String(a.maisNovo)) || b.itens.length - a.itens.length);
+  }
+  /** O texto do pedido de confirmação de uma marcação em lote ("Marcar 131 avisos como lidos?"). */
+  const perguntaDoLote = (n, grupo = false) => (n === 1 ? 'Marcar 1 aviso como lido?' : `Marcar ${grupo ? 'os ' + n + ' avisos deste grupo' : n + ' avisos'} como lidos?`);
+
+  root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, agendaDaRecepcao, carrosDoMecanico, avisosSubstituidos, tarefasVencidas, instantaneoDe, instantaneoValido, MESES,
+    whatsappParado, linhaDoZap, SILENCIO_H, gruposDoSino, rotuloDoGrupo, perguntaDoLote });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

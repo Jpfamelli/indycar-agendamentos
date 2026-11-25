@@ -9,6 +9,7 @@
   let C = null, L = null, N = null, sonda = null, rpc = null, banco = null, leituraEm = 0, timer = null, timerBanco = null, antes = null, aberto = false, ligEm = 0;
   const $ = (s) => document.querySelector(s);
   let vigia = null, montagem = 0, leituraVigia = 0;
+  let zapParado = null;   // R18: a parada do WhatsApp vista pelo painel (estado anotado + silêncio de mensagens recebidas)
 
   /* rodada 9: título curto e o que fazer para cada um dos 23 avisos graves (N.faixaDoVigia); o texto cru do Vigia vira detalhe pequeno;
      selo "Urgente" com ícone e palavra (não só a cor); link para o app certo quando a pessoa tem acesso */
@@ -51,7 +52,7 @@
   function desenhar() {
     const sec = $('#saudeSist');
     if (!sec) return;
-    const s = N.saudeSistemas({ rpc, vigia, sonda, banco, agoraMs: Date.now() });
+    const s = N.saudeSistemas({ rpc, vigia, sonda, banco, zap: zapParado, agoraMs: Date.now() });
     const r = N.resumoDaSaude(rpc || vigia || sonda ? s : null);
     sec.hidden = false;
     sec.dataset.tom = r.tom;
@@ -92,7 +93,7 @@
       rpc = a.data; leituraEm = Date.now();
       if (b) { ligEm = Date.now(); if (!b.error) banco = b.data; }
     } catch { /* sem a leitura nova o painel mostra a anterior, com a hora dela */ }
-    if (atual === montagem) desenhar();
+    if (atual === montagem) { desenhar(); try { C.painel && C.painel.redesenharZap && C.painel.redesenharZap(); } catch { /* segue */ } }
   }
 
   /* rodada 11: as "Ligações entre sistemas" moravam na visão do dono, que saiu da Casa junto com os números por app. */
@@ -106,6 +107,8 @@
     if (sec) sec.hidden = true;
     if (!equipe) return;
     C.aoSaudeApps = (s) => { sonda = s; desenhar(); };
+    zapParado = null;
+    C.aoZap = (p) => { const antesZ = zapParado ? zapParado.codigo : ''; zapParado = p || null; if ((zapParado ? zapParado.codigo : '') !== antesZ) desenhar(); };
     C.saude = { atualizar: ler, abrir: (v) => { aberto = typeof v === 'boolean' ? v : !aberto; desenhar(); }, estaAberto: () => aberto, dados: () => ({ rpc, sonda, banco }) };
     $('#saudeBotao').onclick = () => C.saude.abrir();
     $('#saudePainel').onclick = (e) => { if (e.target.closest('[data-saude-atualizar]')) { ler(); C.verificarApps && C.verificarApps({ forcar: false }); C.toast('Conferindo os sistemas…', 1400); } };
