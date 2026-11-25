@@ -117,12 +117,12 @@ await foto('uso-dono-375-escuro', { papel: 'admin', zap: 'ok' }, { largura: 375,
   conferir(JSON.stringify(ult) === '["upsert:80000","delete:","upsert:80000"]', 'meta: "Desfazer" grava a meta de antes de volta ' + JSON.stringify(ult), erros);
   /* rodada 13B: "Pede atenção" mostra 5 e "Ver mais" */
   const vis = () => page.$$eval('#atencaoLista > li', (ls) => ls.filter((l) => !l.hidden).length);
-  conferir((await vis()) === 5 && (await page.$eval('#atencaoMais', (b) => b.textContent)) === 'Ver mais 3 avisos', 'atenção: 5 visíveis e "Ver mais 3 avisos"', erros);
+  conferir((await vis()) === 5 && (await page.$eval('#atencaoMais', (b) => b.textContent)) === 'Ver mais 4 avisos', 'atenção: 5 visíveis e "Ver mais 4 avisos"', erros);
   await page.screenshot({ path: join(SAIDA, 'uso-dono-375-escuro-atencao5.png'), clip: await page.$eval('#atencao', (e) => { const r = e.getBoundingClientRect(); return { x: 0, y: r.y + window.scrollY, width: window.innerWidth, height: r.height }; }) }).catch(() => {});
   await page.click('#atencaoMais'); await espera(150);
-  conferir((await vis()) === 8 && (await page.$eval('#atencaoMais', (b) => b.getAttribute('aria-expanded'))) === 'true', 'atenção: "Ver mais" abre as 8', erros);
+  conferir((await vis()) === 9 && (await page.$eval('#atencaoMais', (b) => b.getAttribute('aria-expanded'))) === 'true', 'atenção: "Ver mais" abre as 9', erros);
   await page.evaluate(() => window.Casa.painel.atualizar()); await espera(300);
-  conferir((await vis()) === 8, 'atenção: continua aberta quando os números atualizam', erros);
+  conferir((await vis()) === 9, 'atenção: continua aberta quando os números atualizam', erros);
   /* rodada 13B: as passagens da Central, cada uma no lugar certo e com o registro certo */
   const passagens = await page.$$eval('#atencaoLista a', (as) => as.map((a) => [a.textContent.replace(/\s+/g, ' ').trim().slice(0, 30), a.getAttribute('href'), a.getAttribute('target')]));
   const achar = (t) => passagens.find((p) => p[0].includes(t)) || [];

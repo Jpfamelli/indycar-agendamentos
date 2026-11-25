@@ -164,3 +164,11 @@
 .carro-item .a-selo { grid-column: 2; grid-row: 1; }
 .carro-item .a-seta { grid-column: 3; grid-row: 1 / span 2; }
 .carro-item:not(:has(.a-selo)) .a-seta { grid-column: 3; }
+
+/* ---------------- rodada 15 ---------------- */
+/* o herói com o último número do aparelho (enquanto a leitura de verdade chega) fica um pouco apagado */
+.heroi-frase.heroi-velho { opacity: .6; }
+@media (prefers-reduced-motion: no-preference) { .heroi-frase { transition: opacity .25s ease; } }
+/* sino: "Fechar" no pé (no celular o sino do topo fica longe do polegar); no computador o Esc e o sino bastam */
+.sino-fechar { display: flex; width: 100%; min-height: 48px; margin-top: 10px; justify-content: center; align-items: center; }
+@media (min-width: 48em) { .sino-fechar { display: none; } }

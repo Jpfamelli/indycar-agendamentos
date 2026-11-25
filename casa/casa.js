@@ -36,7 +36,7 @@
      de cliente, e os avisos adiados escondiam do próximo (o dono, por exemplo) o que o anterior adiou. O e-mail
      lembrado e o tema ficam: são escolha do aparelho, marcadas na tela de entrada. */
   /* rodada 10: a meta do mês (dado do dono) também sai: ela mora no banco e volta sozinha quando o dono entra de novo */
-  const LS_DA_PESSOA = ['indycar_central_buscas', 'indycar_central_sino_adiados', 'indycar_central_meta_mes', 'indycar_central_meta_sinc'];
+  const LS_DA_PESSOA = ['indycar_central_buscas', 'indycar_central_sino_adiados', 'indycar_central_meta_mes', 'indycar_central_meta_sinc', 'indycar_central_heroi'];
   const esquecerPessoa = () => { for (const k of LS_DA_PESSOA) gravar(k, null); };
   /**
    * Aviso curto no pé da tela. `opcao`: o tempo em ms, ou 'ok' / 'err' (o erro fica 6 s, com a cor de problema).
@@ -257,7 +257,7 @@
     for (const s of ['#buscaInput', '#sinoBusca']) { const el = $(s); if (el) el.value = ''; }
     const av = $('#bPerfil'); if (av) av.style.background = '';
     /* rodada 13: o herói volta para "lendo" e o mês da oficina some (o número do faturamento não fica na página) */
-    const fr = $('#heroiFrase'); if (fr) fr.innerHTML = '<span class="heroi-lendo">Lendo o dia da oficina…</span>';
+    const fr = $('#heroiFrase'); if (fr) { fr.innerHTML = '<span class="heroi-lendo">Lendo o dia da oficina…</span>'; fr.classList.remove('heroi-velho'); fr.removeAttribute('title'); }
     for (const s of ['#heroiNums', '#mesOficina', '#atencao', '#meusCarros']) { const el = $(s); if (el) el.hidden = true; }
     const rede = $('#avisoRede'); if (rede) rede.hidden = true;
     $('#toast').hidden = true;

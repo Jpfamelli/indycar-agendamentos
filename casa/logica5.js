@@ -122,6 +122,38 @@
     return (Array.isArray(lista) ? lista : []).filter((n) => n && !n.lida_em && novos.has(n.tipo) && novos.get(n.tipo).id !== n.id).map((n) => n.id);
   }
 
+  /* ---------------- R15: tarefas suas vencidas e o "último número" que aparece na hora ---------------- */
+  /**
+   * As tarefas abertas que são da pessoa e já passaram do prazo (o banco tem 61 abertas e 59 vencidas: sem separar o que é
+   * seu, a Casa só repetiria o barulho do sino). `lista` = linhas de `tarefas` ({ vence_em }), `total` = a contagem do
+   * banco quando a lista veio cortada. { n, maisAntiga: há quantos ms venceu a mais velha | null }.
+   */
+  function tarefasVencidas(lista, agoraMs = Date.now(), total = null) {
+    const venc = (Array.isArray(lista) ? lista : []).map((t) => Date.parse(t && t.vence_em)).filter((ms) => Number.isFinite(ms) && ms < agoraMs);
+    if (!venc.length) return { n: 0, maisAntiga: null };
+    return { n: Number.isFinite(total) && total >= venc.length ? total : venc.length, maisAntiga: agoraMs - Math.min(...venc) };
+  }
+
+  /**
+   * O que a Casa guarda no aparelho para pintar o herói NA HORA da próxima abertura (só contagens, nenhum nome, telefone ou
+   * valor): { em, perfil, dia, d }. A leitura de verdade chega logo depois e troca tudo.
+   */
+  function instantaneoDe(d, perfilId, agoraMs = Date.now(), hojeIso = L.hojeSP(new Date(agoraMs))) {
+    if (!d || !perfilId) return null;
+    const s = {};
+    if (d.conversas) s.conversas = { esperando: num(d.conversas.esperando) };
+    if (d.agenda) s.agenda = { total: num(d.agenda.total), ...(d.agenda.chegaram != null ? { chegaram: num(d.agenda.chegaram) } : {}) };
+    if (d.patio) s.patio = { total: num(d.patio.total) };
+    if (d.orcamentos) s.orcamentos = { esperando: num(d.orcamentos.esperando) };
+    return Object.keys(s).length ? { em: agoraMs, perfil: String(perfilId), dia: hojeIso, d: s } : null;
+  }
+  /** O instantâneo só vale para a mesma pessoa, no mesmo dia e com menos de 6 horas; senão null (a Casa mostra "lendo…"). */
+  function instantaneoValido(snap, perfilId, agoraMs = Date.now(), hojeIso = L.hojeSP(new Date(agoraMs))) {
+    if (!snap || typeof snap !== 'object' || !snap.d || snap.perfil !== String(perfilId) || snap.dia !== hojeIso) return null;
+    const idade = agoraMs - Number(snap.em);
+    return Number.isFinite(idade) && idade >= 0 && idade < 6 * 36e5 ? snap : null;
+  }
+
   const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   /** "2026-11" do dia em São Paulo (a chave da meta em casa_metas). */
   const mesChave = (hojeIso = L.hojeSP()) => String(hojeIso).slice(0, 7);
@@ -168,5 +200,5 @@
     return { tom: 'neutro', texto: dia === 'Sat' || dia === 'Sun' ? 'Fechada · abre segunda às 8h' : 'Fechada · abre amanhã às 8h' };
   }
 
-  root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, agendaDaRecepcao, carrosDoMecanico, avisosSubstituidos, MESES });
+  root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, agendaDaRecepcao, carrosDoMecanico, avisosSubstituidos, tarefasVencidas, instantaneoDe, instantaneoValido, MESES });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
