@@ -12,6 +12,12 @@
   /* rodada 10: quando começou a leitura em andamento e qual é a vez dela (uma leitura pendurada não trava mais o painel) */
   let carregandoDesde = 0, vezAgora = 0;
   const TEMPO_PENDURADO_MS = 25_000;
+  /* R15: o último número lido (só contagens) pinta o herói na hora da abertura; a leitura de verdade troca logo depois */
+  const LS_INSTANTE = 'indycar_central_heroi';
+  let instante = null;   // o que está na tela vindo do aparelho (null = tudo é leitura de verdade)
+  const lerInstante = () => { try { return JSON.parse(localStorage.getItem(LS_INSTANTE) || 'null'); } catch { return null; } };
+  const gravarInstante = (d) => { try { const s = window.CasaLogica5.instantaneoDe(d, C.perfil.id); if (s) localStorage.setItem(LS_INSTANTE, JSON.stringify(s)); } catch { /* sem armazenamento */ } };
+  const horaDe = (ms) => window.CasaLogica5.horaAgora(new Date(ms));
 
   const $ = (s) => document.querySelector(s);
   const alvo = (app) => `target="${C.esc(L.nomeDaAba(app))}"`;
@@ -119,7 +125,7 @@
     if (mais) { mais.hidden = lista.length <= CARROS_VISIVEIS; mais.href = C.bases.patio || '/'; mais.setAttribute('target', L.nomeDaAba('patio')); }
   }
 
-  function desenharTudo(d) { const noHeroi = desenharHeroi(d); desenharNumeros(d, noHeroi); desenharAtencao(d); desenharMeusCarros(d); }
+  function desenharTudo(d) { instante = null; const fr = $('#heroiFrase'); if (fr) { fr.classList.remove('heroi-velho'); fr.removeAttribute('title'); } const noHeroi = desenharHeroi(d); desenharNumeros(d, noHeroi); desenharAtencao(d); desenharMeusCarros(d); }
 
   /* R14: quem só marca presença não enxerga a agenda pelo banco (a regra do banco é da equipe): os horários de hoje vêm da
      própria Agenda, que já entrega a lista do dia sem telefone. Falhou: o herói só não mostra a Agenda (nunca um zero falso). */
@@ -131,6 +137,18 @@
       const lista = await r.json();
       if (!Array.isArray(lista)) return null;
       return window.CasaLogica5.agendaDaRecepcao(lista);
+    } catch (e) { try { C.sessaoVenceu && C.sessaoVenceu(e); } catch { /* segue */ } return null; }
+  }
+
+  /* R15: as tarefas da própria pessoa que já passaram do prazo (uma leitura curta; falhou: o resto da Casa segue sem ela) */
+  async function lerMinhasTarefas() {
+    try {
+      const agora = Date.now();
+      const r = await C.sb.from('tarefas').select('vence_em', { count: 'exact' }).eq('status', 'aberta').eq('responsavel_id', C.perfil.id)
+        .lt('vence_em', new Date(agora).toISOString()).order('vence_em', { ascending: true }).limit(100);
+      if (r.error) throw r.error;
+      const t = window.CasaLogica5.tarefasVencidas(r.data, agora, r.count);
+      return { vencidas: t.n, mais_antiga: t.maisAntiga || 0 };
     } catch (e) { try { C.sessaoVenceu && C.sessaoVenceu(e); } catch { /* segue */ } return null; }
   }
 
@@ -150,16 +168,18 @@
       } else {
         // fonte única: r6_agora (X3); o que ele não traz vem de r6_c1_agora_extras
         // R13C: "sem responsável" com a regra do CRM (em aberto, qualquer data), contado junto e sem esperar a mais
-        const [a, x, semDono, agendaRec] = await Promise.all([C.sb.rpc('r6_agora', { p_limite: 40 }), C.sb.rpc('r6_c1_agora_extras'),
-          V.leads ? L.contarSemResponsavel(C.sb) : Promise.resolve(null), V.recepcao ? lerAgendaDaRecepcao() : Promise.resolve(null)]);
+        const [a, x, semDono, agendaRec, minhasTarefas] = await Promise.all([C.sb.rpc('r6_agora', { p_limite: 40 }), C.sb.rpc('r6_c1_agora_extras'),
+          V.leads ? L.contarSemResponsavel(C.sb) : Promise.resolve(null), V.recepcao ? lerAgendaDaRecepcao() : Promise.resolve(null), V.tarefas ? lerMinhasTarefas() : Promise.resolve(null)]);
         if (a.error) throw a.error;
         const ex = x.error ? {} : (x.data || {});
         d = L.adaptarAgora(a.data, { ...ex, leads: { ...(ex.leads || {}), sem_dono: semDono } });
         if (V.recepcao) d.agenda = agendaRec;
+        d.minhas_tarefas = minhasTarefas;
       }
       if (vez !== vezAgora) return;   // chegou atrasada: já há uma leitura mais nova
       dados = d; ultima = Date.now(); emFalha = false;
       desenharTudo(d);
+      gravarInstante(d);
       falha(false);
     } catch (e) {
       if (vez !== vezAgora) return;
@@ -174,8 +194,9 @@
     if (!av || !online) return;
     av.hidden = !ligar;
     /* rodada 13: sem nenhuma leitura boa, o herói não fica dizendo "lendo…" para sempre */
-    if (ligar && !dados) { const fr = $('#heroiFrase'); if (fr) fr.innerHTML = '<span class="heroi-lendo">Os números de hoje não carregaram.</span>'; }
-    av.innerHTML = ligar ? 'Não consegui ler os números agora. <button type="button" class="btn-link" data-recarregar>tentar de novo</button>' : '';
+    /* R15: com o último número do aparelho na tela, o herói não apaga: o aviso diz de que hora ele é */
+    if (ligar && !dados && !instante) { const fr = $('#heroiFrase'); if (fr) fr.innerHTML = '<span class="heroi-lendo">Os números de hoje não carregaram.</span>'; }
+    av.innerHTML = ligar ? (instante ? 'Não consegui atualizar. Os números são de ' + C.esc(horaDe(instante.em)) + '. ' : 'Não consegui ler os números agora. ') + '<button type="button" class="btn-link" data-recarregar>tentar de novo</button>' : '';
   }
 
   /* ---------------- tempo real ---------------- */
@@ -189,6 +210,7 @@
       if (V.conversas) tabelas.push('conversas');
       if (V.agenda) tabelas.push('agendamentos');
       for (const t of tabelas) canal = canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, agendar);
+      if (V.tarefas) canal = canal.on('postgres_changes', { event: '*', schema: 'public', table: 'tarefas', filter: `responsavel_id=eq.${C.perfil.id}` }, agendar);
       canal.subscribe();
     } catch { /* sem tempo real: o relógio de 60 s cobre */ }
   }
@@ -208,6 +230,13 @@
     C = casa; L = casa.L; V = casa.visao(); links = casa.links; dados = null; atencaoAberta = false; ultima = 0; emFalha = false; carregando = false; vezAgora++;
     online = navigator.onLine;
     $('#atencao').hidden = true;
+    instante = null;
+    /* R15: último número deste aparelho (mesma pessoa, mesmo dia, menos de 6 h) já no herói enquanto a leitura vem */
+    { const snap = window.CasaLogica5.instantaneoValido(lerInstante(), C.perfil.id);
+      if (snap) {
+        instante = snap; desenharHeroi(snap.d);
+        const fr = $('#heroiFrase'); fr.classList.add('heroi-velho'); fr.title = 'Número de ' + horaDe(snap.em) + ', atualizando…';
+      } }
     { const mc = $('#meusCarros'); if (mc) mc.hidden = true; }
     relogio(); clearInterval(timerHora); timerHora = setInterval(relogio, 30_000);
     carregarAgora();
@@ -225,7 +254,7 @@
     window.removeEventListener('online', aoRede); window.removeEventListener('offline', aoRede);
     document.removeEventListener('visibilitychange', aoVisivel);
     try { $('#miolo').removeEventListener('click', aoClicar); } catch { /* sem miolo */ }
-    dados = null;
+    dados = null; instante = null;
   };
   (window.CasaModulos = window.CasaModulos || []).push(MOD);
 })();

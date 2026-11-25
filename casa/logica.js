@@ -211,6 +211,7 @@
       /* R13C: o número "contatos sem responsável" abre o CRM já na mesma lista que ele conta */
       crmSemResponsavel: () => b.crm + q({ ver: 'sem-responsavel' }),
       crmTel: (o = {}) => b.crm + q({ tel: telefoneE164(o.telefone), cliente: ehUuid(o.cliente) ? o.cliente : '' }),
+      tarefas: () => b.atendimento + (b.atendimento.includes('?') ? '&' : '?') + 'tarefas',
       conversa: (id) => b.atendimento + (ehUuid(id) ? q({ conversa: id }) : ''),
       conversaTel: (tel) => b.atendimento + q({ tel: telefoneE164(tel) }),
       comunicarTel: (o = {}) => b.comunicar + q({ tel: telefoneE164(o.telefone), cliente: ehUuid(o.cliente) ? o.cliente : '' }),
@@ -282,6 +283,7 @@
       recepcao: p?.papel === 'agenda' && podeUsar(p, 'agenda'),
       patio: podeUsar(p, 'patio') && (equipe || ['mecanico', 'agenda'].includes(p?.papel)),
       orcamentos: equipe && podeUsar(p, 'orcador'),
+      tarefas: equipe && podeUsar(p, 'atendimento'),   // R15: as tarefas moram no Atendimento
       soMeusCarros: p?.papel === 'mecanico',
       padrao: dono ? 'dono' : 'operacao',
     };
@@ -386,6 +388,11 @@
     }
     if (v.agenda && n(a.agenda?.sem_confirmar) > 0) {
       out.push({ k: 'confirmar', grav: 1, n: n(a.agenda.sem_confirmar), texto: `${a.agenda.sem_confirmar} ${n(a.agenda.sem_confirmar) === 1 ? 'horário de hoje' : 'horários de hoje'} sem confirmação`, app: 'agenda', url: l.agenda() });
+    }
+    /* R15: as tarefas da própria pessoa que já passaram do prazo (a lista e o "feito" moram no Atendimento) */
+    if (v.tarefas && n(a.minhas_tarefas?.vencidas) > 0) {
+      const k = n(a.minhas_tarefas.vencidas), ms = n(a.minhas_tarefas.mais_antiga);
+      out.push({ k: 'tarefas', grav: ms > 3 * 864e5 ? 2 : 1, n: k, texto: `${k} ${k === 1 ? 'tarefa sua passou do prazo' : 'tarefas suas passaram do prazo'}`, extra: ms > 36e5 ? 'a mais antiga venceu há ' + duracao(ms) : '', app: 'atendimento', url: l.tarefas() });
     }
     if (v.leads && n(a.leads?.sem_dono) > 0) {
       out.push({ k: 'leads', grav: 1, n: n(a.leads.sem_dono), texto: `${a.leads.sem_dono} ${n(a.leads.sem_dono) === 1 ? 'contato' : 'contatos'} sem responsável`, app: 'crm', url: l.crmSemResponsavel() });

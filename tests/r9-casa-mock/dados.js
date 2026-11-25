@@ -33,6 +33,7 @@
         { id: U(201), titulo: 'Confirmar com o cliente: revisão do Onix amanhã 08:00', descricao: null, prioridade: 1, vence_em: iso(-180), status: 'aberta', responsavel_id: null, origem: 'agenda', agendamento_id: U(41) },
         { id: U(202), titulo: 'Cobrar orçamento nº 12 (enviado há 2 dias)', descricao: 'Cliente pediu para pensar. https://indycar-orcador.netlify.app/#/historico/' + U(21), prioridade: 2, vence_em: iso(60), status: 'aberta', responsavel_id: eu, origem: 'orcador', cliente_id: U(701) },
         { id: U(203), titulo: 'Ligar para a Gabi sobre a revisão de 40 mil', descricao: null, prioridade: 2, vence_em: null, status: 'aberta', responsavel_id: eu, origem: 'manual', conversa_id: U(31) },
+        { id: U(205), titulo: 'Retornar a ligação do Sr. Mário', descricao: null, prioridade: 2, vence_em: iso(5 * 1440), status: 'aberta', responsavel_id: eu, origem: 'manual' },   // R15: a segunda tarefa vencida da pessoa (venceu há 5 dias)
         { id: U(204), titulo: 'Conferir peça do HB20 com o fornecedor', descricao: null, prioridade: 2, vence_em: iso(1500), status: 'aberta', responsavel_id: U(901), origem: 'manual' },
       ],
       notificacoes: pe || [

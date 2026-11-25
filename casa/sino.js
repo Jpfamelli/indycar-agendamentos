@@ -100,7 +100,8 @@
     const perm = ('Notification' in window) ? Notification.permission : 'indisponivel';
     rod.innerHTML = rodAd + maisAvisos + (perm === 'default'
       ? '<button type="button" class="btn-link" data-aviso-sistema>Ativar avisos do navegador (quando a Central estiver em segundo plano)</button>'
-      : perm === 'granted' ? '<span class="vazio-mini">Avisos do navegador ativados.</span>' : '');
+      : perm === 'granted' ? '<span class="vazio-mini">Avisos do navegador ativados.</span>' : '')
+      + '<button type="button" class="btn sino-fechar" data-sino-fechar>Fechar</button>';   // R15: no celular o sino é a tela toda e o sino do topo fica longe do polegar
   }
 
   async function carregar() {
@@ -242,6 +243,7 @@
         document.querySelector(adiarAberto ? `#listaNotif [data-adiar-id="${seguro(id)}"]` : `#listaNotif [data-adiar-sino="${seguro(id)}"]`)?.focus();
         return;
       }
+      if (e.target.closest('[data-sino-fechar]')) { alternar(false); return; }
       if (e.target.closest('[data-voltar-adiados]')) { gravarAdiados({}); desenhar(); return; }
       if (e.target.closest('[data-mais-avisos]')) { limite = Math.min(LIMITE_MAX, limite + 60); carregar(); return; }
       if (e.target.closest('[data-sino-de-novo]')) { leitura = 'carregando'; desenhar(); carregar(); $('#sinoBusca')?.focus(); return; }   // rodada 9: o foco fica no sino (o botão some ao redesenhar)

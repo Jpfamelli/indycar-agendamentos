@@ -27,7 +27,7 @@
     var sinal = null;
     b.abortSignal = function (s) { sinal = s; return b; };
     ['select', 'eq', 'neq', 'in', 'not', 'is', 'gte', 'lte', 'gt', 'lt', 'order', 'limit', 'range', 'or', 'filter', 'match', 'ilike', 'like', 'contains', 'returns']
-      .forEach(function (m) { b[m] = function () { if (/^(eq|in|is|not)$/.test(m)) filtros.push([m].concat([].slice.call(arguments))); return b; }; });
+      .forEach(function (m) { b[m] = function () { if (/^(eq|in|is|not|lt)$/.test(m)) filtros.push([m].concat([].slice.call(arguments))); return b; }; });
     ['update', 'insert', 'upsert', 'delete'].forEach(function (m) { b[m] = function (v) { escrita = { tabela: nome, acao: m, valor: v }; return b; }; });
     b.maybeSingle = function () { unico = true; return b; };
     b.single = function () { unico = true; return b; };
@@ -42,6 +42,8 @@
         var v = fonte();
         var data = v === undefined ? (unico ? null : []) : (typeof v === 'function' ? v() : v);
         if (Array.isArray(data)) filtros.filter(function (f) { return f[0] === 'is' && f[2] === null; }).forEach(function (f) { data = data.filter(function (r) { return !r || r[f[1]] == null; }); });   // R14: .is(coluna, null) filtra
+        /* R15: as tarefas da própria pessoa que já venceram: eq (dono e situação) e lt (prazo) valem de verdade só nesta tabela */
+        if (nome === 'tarefas' && Array.isArray(data)) filtros.forEach(function (f) { if (f[0] === 'eq' && /^(responsavel_id|status)$/.test(f[1])) data = data.filter(function (r) { return r[f[1]] === f[2]; }); if (f[0] === 'lt' && f[1] === 'vence_em') data = data.filter(function (r) { return r.vence_em && r.vence_em < f[2]; }); });
         if (unico && Array.isArray(data)) data = data[0] || null;
         return { data: data, error: null, count: Array.isArray(data) ? data.length : null, status: 200 };
       }).then(ok, falha);

@@ -2,7 +2,7 @@
 // "/", "/index.html" e "/casa/*". Os apps (/agenda/, /crm/, /comunicar/, /atendimento/)
 // têm o service worker deles, com escopo mais específico — aqui eles passam direto.
 // Também substitui o service worker antigo da Agenda, que morava em "/" antes da Central.
-const CACHE = 'indycar-casa-v21';
+const CACHE = 'indycar-casa-v22';
 const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js';
 const CORE = ['/', '/casa/indycar.css', '/casa/casa.css', '/casa/painel.css', '/casa/r7.css', '/casa/r9.css', '/casa/r11.css', '/casa/r13.css','/casa/archivo-variavel.woff2', '/casa/barlow-condensed-600.woff2', '/casa/barlow-condensed-700.woff2', '/casa/barlow-condensed-800-italic.woff2', '/casa/casa.js', '/casa/logica.js', '/casa/logica2.js', '/casa/logica3.js', '/casa/logica4.js', '/casa/logica5.js', '/casa/comando.js', '/casa/sino.js', '/casa/painel.js', '/casa/mes.js', '/casa/busca.js', '/casa/ficha.js', '/casa/saude.js', '/casa/parar.js','/casa/tema.js', '/casa/icon-192.png', '/casa/logo.png', '/manifest.json'];
 /* rodada 10: a Central preenche as marcas do conteúdo de cada CSS e JS ao servir este arquivo (vazio quando lido do
