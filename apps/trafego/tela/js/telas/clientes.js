@@ -10,7 +10,7 @@
 import { h, icone, trocar, menosMovimento } from '../dom.js';
 import { dinheiro, inteiro, ehNumero, dataCurta, dataHora, haQuanto } from '../formato.js';
 import { vazio } from '../pecas.js';
-import { agruparClientes, jornadaDoCliente, filtrarClientes } from '../painel-logica.js';
+import { agruparClientes, jornadaDoCliente, filtrarClientes, semContaDe } from '../painel-logica.js';
 import { linkSeguro, abaDoLink } from '../ecossistema.js';
 import { voltarFecha } from '../voltar.js';
 import * as Estados from './estados.js';
@@ -21,10 +21,22 @@ const PENDENCIAS = {
   sem_valor: 'serviços fechados sem valor', sem_origem: 'contatos sem origem', sem_motivo: 'quem não fechou e está sem motivo', sem_resposta: 'contatos esperando resposta',
 };
 
+/* Rodada 19: sem conta de anúncios, a lista é de TODOS os contatos (quase ninguém chega marcado como anúncio e a tela
+   ficava quase vazia). O estado vem das próprias respostas; antes da primeira, vale o que a Visão geral já leu. */
+let semConta = null;
+function sabeSemConta(ctx) {
+  if (semConta != null) return semConta;
+  const visto = ctx.leitor && typeof ctx.leitor.espiar === 'function' ? ctx.leitor.espiar('api/hoje?periodo=' + ctx.periodo) : null;
+  const estado = visto && visto.dados && visto.dados.estado;
+  return estado ? semContaDe(estado) : false;
+}
+/** A lista mostra todos os contatos (e não só os de anúncio)? Só sem conta ligada e sem filtro de fonte ou de campanha. */
+const mostraTodos = (ctx) => sabeSemConta(ctx) && !ctx.fonte && !ctx.rota.params.campanha;
+
 export function caminho(ctx) {
   const q = new URLSearchParams({ periodo: ctx.periodo, tamanho: '200' });
   const pend = PENDENCIAS[ctx.rota.params.pendencia] ? ctx.rota.params.pendencia : null;
-  if (pend) q.set('pendencia', pend); else q.set('paga', '1');
+  if (pend) q.set('pendencia', pend); else if (!mostraTodos(ctx)) q.set('paga', '1');
   if (ctx.fonte) q.set('canal', ctx.fonte);
   if (ctx.rota.params.campanha) q.set('campanha', ctx.rota.params.campanha.slice(0, 120));
   return 'api/jornada?' + q.toString();
@@ -34,7 +46,14 @@ let consulta = '';   // o que a pessoa digitou na busca; vale enquanto ela está
 
 export function mostrar(ctx) {
   consulta = '';
-  Estados.buscar(ctx, caminho(ctx), { forma: 'lista', pintar: (d) => pintar(ctx, d) });
+  Estados.buscar(ctx, caminho(ctx), { forma: 'lista', pintar: (d) => {
+    // a resposta diz se há conta de anúncios; se isso muda a pergunta (todos × só de anúncio), pergunta de novo, uma vez
+    const antes = caminho(ctx);
+    semConta = semContaDe(d.estado || {});
+    const agora = caminho(ctx);
+    if (agora !== antes) Estados.buscar(ctx, agora, { forma: 'lista', pintar: (d2) => pintar(ctx, d2) });
+    else pintar(ctx, d);
+  } });
   return { sair() { const d = document.querySelector('dialog.dlg[open]'); if (d) d.close(); } };
 }
 
@@ -53,7 +72,7 @@ function cartaoDoCliente(ctx, c) {
     h('span', { class: 'cli-corpo' },
       h('span', { class: 'cli-nome' }, c.nome || 'Contato', d.tipo === 'fechou' && ehNumero(d.valor) ? h('b', null, dinheiro(d.valor, { centavos: false })) : null),
       h('span', { class: 'cli-sub' }, [c.carro, c.servico].filter(Boolean).join(' · ') || 'Carro não informado'),
-      h('span', { class: 'cli-de' }, icone('campanhas', 'icone-p'), h('span', null, (c.origem && c.origem.campanha && c.origem.campanha.nome) || (c.origem && c.origem.rotulo) || 'Anúncio')),
+      h('span', { class: 'cli-de' }, icone('campanhas', 'icone-p'), h('span', null, (c.origem && c.origem.campanha && c.origem.campanha.nome) || (c.origem && c.origem.rotulo) || (mostraTodos(ctx) ? 'Origem não marcada' : 'Anúncio'))),
       passos(c))));
 }
 
@@ -96,6 +115,7 @@ function pintar(ctx, d) {
   ctx.demo(Boolean(estado.demo));
   const t = d.totais || {};
   const pend = PENDENCIAS[ctx.rota.params.pendencia] || null;
+  const todos = !pend && mostraTodos(ctx);
   const campanha = ctx.rota.params.campanha ? ((d.filtros && d.filtros.campanhas) || []).find((c) => String(c.ext) === ctx.rota.params.campanha) : null;
   const filtro = pend || ctx.rota.params.campanha
     ? h('p', { class: 'filtro-ativo' }, 'Mostrando ', h('b', null, pend || ('a campanha ' + ((campanha && campanha.nome) || 'escolhida'))),
@@ -106,12 +126,12 @@ function pintar(ctx, d) {
     cabeca(ctx, { linha: 'Do WhatsApp ao carro na oficina', titulo: 'Clientes' }),
     filtro,
     h('section', { class: 'cartao faixa-tot', 'aria-label': 'Resumo dos contatos' }, h('dl', { class: 'tot' },
-      h('div', null, h('dt', null, pend ? 'Contatos' : 'Conversas de anúncio'), h('dd', null, inteiro(t.contatos) || '0')),
+      h('div', null, h('dt', null, pend || todos ? 'Contatos' : 'Conversas de anúncio'), h('dd', null, inteiro(t.contatos) || '0')),
       h('div', null, h('dt', null, 'Agendaram'), h('dd', null, inteiro(t.agendaram) || '0')),
       h('div', null, h('dt', null, 'Vieram'), h('dd', null, inteiro(t.vieram) || '0')),
       h('div', null, h('dt', null, 'Fecharam'), h('dd', null, inteiro(t.fecharam) || '0')),
       h('div', null, h('dt', null, 'Em serviços'), ehNumero(t.faturado) ? h('dd', null, dinheiro(t.faturado, { centavos: false })) : h('dd', { class: 'sem' }, 'sem valor')))),
-    total ? quadroComBusca(ctx, d.itens || []) : vazio({ titulo: 'Nenhum contato de anúncio neste período', texto: 'Troque o período ou a fonte para ver outros contatos.' }),
+    total ? quadroComBusca(ctx, d.itens || []) : vazio(todos ? { titulo: 'Nenhum contato neste período', texto: 'Troque o período para ver os de antes.' } : { titulo: 'Nenhum contato de anúncio neste período', texto: 'Troque o período ou a fonte para ver outros contatos.' }),
     total > (d.itens || []).length ? h('p', { class: 'suave' }, 'Mostrando os ' + inteiro((d.itens || []).length) + ' mais recentes de ' + inteiro(total) + '.') : null,
     porCampanha(ctx, d.filtros && d.filtros.campanhas));
 }

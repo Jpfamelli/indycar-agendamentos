@@ -30,7 +30,7 @@ test('a frase "Ligue a conta de anúncios para ver o custo." sai da leitura da c
 test('as telas usam a regra: Visão geral, Campanhas e Relatórios escondem o que depende de gasto; o cartão de ligar existe', () => {
   const geral = ler('js/telas/geral.js'), camp = ler('js/telas/campanhas.js'), rel = ler('js/telas/relatorios.js'), pecas = ler('js/pecas.js');
   for (const [nome, fonte] of [['geral', geral], ['campanhas', camp], ['relatorios', rel]]) assert.match(fonte, /semContaDe/, nome);
-  assert.match(geral, /ligarConta\(ctx\)/);
+  assert.match(geral, /ligarConta\(ctx, \{ compacto: true \}\)/);   // rodada 19: na Visão geral o convite virou uma linha no fim
   assert.match(camp, /ligarConta\(ctx, \{ compacto: true \}\)/);
   assert.match(pecas, /export function ligarConta/);
   assert.match(pecas, /Ligar a conta de anúncios/);
@@ -47,5 +47,5 @@ test('sem nenhuma conversa de anúncio a tela explica o que conferir em vez de u
 
 test('css do cartão de ligar existe e o service worker mudou de versão', () => {
   assert.match(ler('css/painel.css'), /\.ligar-passos/);
-  assert.match(ler('sw.js'), /indycar-trafego-r1[56]-1/);
+  assert.match(ler('sw.js'), /indycar-trafego-r1[569]-1/);
 });

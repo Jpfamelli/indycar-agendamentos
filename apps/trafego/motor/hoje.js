@@ -168,7 +168,8 @@ function origensDoPeriodo(itens, gP) {
   const linha = (id, rotulo, paga, lista, pl) => {
     const r = S.resumo(lista), gasto = pl ? gastoDe(pl) : null;
     const gastoReal = gP.tipo === 'real' ? gasto : null;       // demonstração não entra em conta com dado da oficina
-    return { id, rotulo, paga, contatos: r.contatos, fecharam: r.fecharam, faturado: r.faturado, gasto,
+    // rodada 19: agendaram, vieram, nao_fecharam e abertos por origem (a mais do contrato; a tela mostra onde cada origem se perde)
+    return { id, rotulo, paga, contatos: r.contatos, agendaram: r.agendaram, vieram: r.vieram, fecharam: r.fecharam, nao_fecharam: r.nao_fecharam, abertos: r.abertos, faturado: r.faturado, gasto,
       custo_por_contato: T.arredondar(T.dividir(gastoReal, r.contatos)),
       retorno: gastoReal > 0 ? T.arredondar(T.dividir(r.faturado, gastoReal)) : null };
   };
