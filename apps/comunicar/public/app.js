@@ -714,7 +714,7 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
   const lista = await api('GET', '/envios?' + q);
   if (vez !== state._vez) return;
   state._msgLista = lista; state._msgFim = lista.length < POR_PAGINA;
-  const htmlLista = () => lista.length ? lista.map(cartaoEnvio).join('')
+  const htmlLista = () => lista.length ? htmlEnvios(lista, '')
     : vazio(I.wa, f.q || f.de || f.ate || f.intencao !== 'todas' || f.origem !== 'todas' || f.status !== 'todas' || f.tipo !== 'todos' ? 'Nada com esse filtro' : 'Nenhuma mensagem ainda',
         f.q || f.de || f.ate || f.intencao !== 'todas' || f.origem !== 'todas' || f.status !== 'todas' || f.tipo !== 'todos' ? 'Tente outro status, tipo, período ou busca.' : 'As automáticas aparecem sozinhas quando você ligar as réguas; campanhas e avulsas também caem aqui.');
 
@@ -725,6 +725,7 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
     $('#qtdMsg').textContent = plural(lista.length, 'na lista', 'na lista') + (state._msgFim ? '' : '+');
     $$('.pilula', view).forEach(b => { const a = b.dataset.filtro === f.status; b.classList.toggle('ativa', a); b.setAttribute('aria-selected', String(a)); });
     $('#maisMsg').hidden = state._msgFim;
+    pintarBarraFalhas();
     return;
   }
   const pilula = (chave, rotulo) => `<button type="button" role="tab" aria-selected="${f.status === chave}" class="pilula ${f.status === chave ? 'ativa' : ''}" data-filtro="${chave}">${rotulo}</button>`;
@@ -739,8 +740,9 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
       </div>
     </div>
     <div class="pilulas" role="tablist">
-      ${pilula('todas', 'Todas')}${pilula('pendente', 'Na fila')}${pilula('enviado', 'Enviadas')}${pilula('falhou', 'Falharam')}${pilula('cancelado', 'Canceladas')}
+      ${pilula('todas', 'Todas')}${pilula('pendente', 'Na fila')}${pilula('enviado', 'Enviadas')}${pilula('falhou', 'Falharam')}${pilula('pulado', 'Puladas')}${pilula('cancelado', 'Canceladas')}
     </div>
+    <div id="barraFalhas" class="barra-falhas" hidden></div>
     <div class="panel"><div class="panel-body lista lista-anim" id="listaEnvios">${htmlLista()}</div>
       <div class="mais-linha"><button type="button" class="btn" id="maisMsg" ${state._msgFim ? 'hidden' : ''}>Carregar mais 100</button></div></div>`;
 
@@ -752,7 +754,8 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
       const mais = await api('GET', '/envios?' + q2);
       if (consulta !== state._vez || !b.isConnected) return;
       state._msgLista.push(...mais); state._msgFim = mais.length < 100;
-      $('#listaEnvios').insertAdjacentHTML('beforeend', mais.map(cartaoEnvio).join(''));
+      const ultimoDia = window.R15 ? window.R15.diaDoEnvio(state._msgLista[state._msgLista.length - mais.length - 1]) : '';
+      $('#listaEnvios').insertAdjacentHTML('beforeend', htmlEnvios(mais, ultimoDia));
       $('#qtdMsg').textContent = plural(state._msgLista.length, 'na lista', 'na lista') + (state._msgFim ? '' : '+');
       b.hidden = state._msgFim;
     } catch (e) { if (consulta === state._vez && b.isConnected) toast(e.message, 'err'); }
@@ -766,6 +769,29 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
     route(null, { quieto:true });
   }, 300));
   ligarAcoesEnvio($('#listaEnvios'));
+  pintarBarraFalhas();
+}
+
+/* R15: na aba "Falharam", um botão devolve todas à fila de uma vez (quando o WhatsApp volta, não é um clique por mensagem).
+   Ficam de fora as "sem confirmação" (podem ter chegado) e quem pediu para parar. Só entra na fila: quem manda é o carteiro, aos poucos. */
+function pintarBarraFalhas() {
+  const barra = $('#barraFalhas'); if (!barra) return;
+  const lista = state.msg.status === 'falhou' && pode('cancelar_qualquer') && window.R15 ? window.R15.reenviaveis(state._msgLista || []) : [];
+  barra.hidden = !lista.length;
+  if (!lista.length) { barra.innerHTML = ''; return; }
+  barra.innerHTML = `<p><b>${plural(lista.length, 'mensagem falhou', 'mensagens falharam')}</b> e pode${lista.length === 1 ? '' : 'm'} voltar para a fila.</p>
+    <button type="button" class="btn primary" id="reenviarTodas">${svg(I.refresh)} Voltar ${lista.length === 1 ? 'a mensagem' : `as ${lista.length}`} para a fila</button>`;
+  $('#reenviarTodas').addEventListener('click', async (ev) => {
+    const b = ev.currentTarget;
+    if (!confirm(`Devolver ${plural(lista.length, 'mensagem', 'mensagens')} para a fila? Elas saem aos poucos, na próxima rodada. As que talvez já tenham chegado ficam de fora.`)) return;
+    b.disabled = true; let feitas = 0, erro = null;
+    for (const e of lista) {
+      try { await api('POST', `/envios/${e.id}/reenviar`); feitas++; b.textContent = `Devolvendo… ${feitas} de ${lista.length}`; }
+      catch (err) { erro = err; break; }
+    }
+    toast(erro ? `${plural(feitas, 'voltou', 'voltaram')} para a fila. Parei porque: ${erro.message || 'erro no servidor'}.` : `${plural(feitas, 'mensagem voltou', 'mensagens voltaram')} para a fila. Saem na próxima rodada.`, erro ? 'err' : 'ok', 5000);
+    route(null, { quieto: true });
+  });
 }
 
 /* Quem mandou: nome de quem clicou (criado_por guarda o nome; criado_por_id, o perfil) ou 'automática'. */
@@ -775,6 +801,13 @@ function quemMandou(e) {
     return ` · <span class="por-quem" title="Quem mandou">✍ ${eu ? 'você' : esc(e.criado_por)}</span>`;
   }
   return REGUAS.includes(e.tipo) ? ' · <span class="por-quem auto">automática</span>' : '';
+}
+/* R15: uma linha por dia na lista ("Hoje", "Amanhã", "ter 24/11"). Sem o módulo, a lista segue sem as linhas. */
+function htmlEnvios(lista, ultimoDia) {
+  const R = window.R15;
+  if (!R) return lista.map(cartaoEnvio).join('');
+  const hoje = hojeSP();
+  return R.blocosPorDia(lista, ultimoDia).map(b => (b.continua ? '' : `<h3 class="dia-cab">${esc(R.rotuloDiaLista(b.dia, hoje))}</h3>`) + b.itens.map(cartaoEnvio).join('')).join('');
 }
 function cartaoEnvio(e) {
   const t = TIPO[e.tipo] || { rotulo:e.tipo, emoji:'✉️' };
@@ -820,8 +853,7 @@ function ligarAcoesEnvio(root) {
     if (f) return abrirFicha(f.dataset.ficha);
     const enc = e.target.closest('[data-encaminhar]'); if (enc) return encaminhar(enc.dataset.encaminhar, enc);
     if (c) {
-      if (!confirm('Cancelar esta mensagem? Ela não será enviada.')) return;
-      c.disabled = true;
+      c.disabled = true;   // R15: sem pergunta, o aviso abaixo tem Desfazer
       try {
         const id = c.dataset.cancelar;
         await api('POST', `/envios/${id}/cancelar`); route(null, { quieto:true });
@@ -1828,7 +1860,8 @@ async function pintarAprovacoes() {
       return `<article class="aprov${c.id === state.campanhaEmFoco ? ' foco' : ''}" data-camp="${esc(c.id)}">
         <div class="aprov-topo"><span class="badge-pill ${cor}">${esc(rot)}</span>${doCrm ? '<span class="badge-pill bp-purple" title="Proposta criada no funil do CRM">🚩 veio do CRM</span>' : ''}
           <small>${esc(c.criado_por_nome || 'atendente')} · ${esc(relativo(c.created_at))} · ${c.total_previsto ?? '?'} clientes · ${esc(alvo)}${c.enviar_em ? ` · para ${esc(dataHoraBR(c.enviar_em))}` : ''}</small></div>
-        <div class="envio-corpo">${esc(c.corpo)}</div>
+        <div class="envio-corpo" title="Como chega para um cliente de exemplo. Texto-modelo: ${esc(c.corpo)}">${esc(window.R15 ? window.R15.exemploDaMensagem(c.corpo, EXEMPLO) : c.corpo)}</div>
+        ${c.status === 'aguardando' ? '<small class="muted">Exemplo com a Maria: cada cliente recebe com o próprio nome e carro.</small>' : ''}
         ${c.status === 'recusada' && c.motivo_recusa ? `<p class="form-msg erro">Motivo: ${esc(c.motivo_recusa)}</p>` : ''}
         ${c.status === 'aprovada' ? `<small class="muted">Aprovada por ${esc(c.decidido_por_nome || 'gestor')} · ${c.enfileirados ?? 0} na fila${c.pulados ? ` · ${c.pulados} pulados` : ''}</small>` : ''}
         ${c.status === 'aguardando' ? `<div class="envio-acoes">
@@ -1840,7 +1873,8 @@ async function pintarAprovacoes() {
   box.onclick = async (e) => {
     const ap = e.target.closest('[data-aprovar]'), rc = e.target.closest('[data-recusar]'), cc = e.target.closest('[data-cancelar-camp]');
     if (ap) {
-      if (!confirm('Aprovar esta campanha? As mensagens entram na fila agora (quem pediu para parar fica fora).')) return;
+      const quantos = lista.find(x => x.id === ap.dataset.aprovar)?.total_previsto;
+      if (!confirm(`Aprovar para ${quantos ? plural(quantos, 'cliente', 'clientes') : 'estes clientes'}? As mensagens entram na fila agora (quem pediu para parar fica fora).`)) return;
       ap.disabled = true;
       try { const x = await api('POST', `/campanhas/${ap.dataset.aprovar}/aprovar`, {}); toast(`Aprovada: ${plural(x.enfileirados, 'mensagem', 'mensagens')} na fila${x.pulados ? ` · ${x.pulados} pulada(s)` : ''}.`, 'ok', 5000); route(null, { quieto:true }); }
       catch (err) { toast(err.message, 'err'); ap.disabled = false; }

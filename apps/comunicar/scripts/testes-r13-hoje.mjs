@@ -76,7 +76,7 @@ test('tela: o herói entra nas Réguas, hoje.js carrega e o teste não sai com o
   const app = ler('../public/app.js');
   const css = ler('../public/styles.css');
   const sw = ler('../public/sw.js');
-  assert.match(html, /<script src="hoje\.js\?v=7.3.0"><\/script>/);
+  assert.match(html, /<script src="hoje\.js\?v=7.4.0"><\/script>/);
   assert.match(sw, /'hoje\.js'/);
   assert.match(app, /id="heroiHoje"/);
   assert.match(app, /window\.R13\?\.pintarHoje\(/);
