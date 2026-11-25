@@ -50,7 +50,7 @@ test('a ficha de Clientes usa o voltar; a casca liga e guarda o arquivo no servi
   assert.match(ler('js/telas/clientes.js'), /voltarFecha\(dlg\)/);
   assert.match(ler('js/app.js'), /ligarVoltar\(\)/);
   assert.match(ler('sw.js'), /js\/voltar\.js/);
-  assert.match(ler('sw.js'), /indycar-trafego-r16-1/);
+  assert.match(ler('sw.js'), /indycar-trafego-r1[69]-1/);
 });
 
 test('tela antiga: os quadros (conta, tarefas, regra, ajuda) abrem com h2 e não pulam nível', () => {

@@ -258,3 +258,95 @@ export function semContaDe(estado) {
 export function semPedidoDeConta(texto) {
   return String(texto || '').replace(/\s*Ligue a conta de anúncios para ver o custo\.?/gi, '').replace(/\s{2,}/g, ' ').trim();
 }
+
+/* ------------------------------ a oficina sem conta de anúncios (rodada 19) ------------------------------ */
+
+const etapaDoFunil = (funil, id) => ((funil && Array.isArray(funil.etapas) ? funil.etapas : []).find((e) => e && e.id === id)) || {};
+const numOuNulo = (v) => (ehNumero(v) ? v : null);
+
+/** Os dias do período (AAAA-MM-DD), contando os dois. Lista vazia quando o período não é válido ou é grande demais. */
+export function diasDoPeriodo(periodo) {
+  const p = periodo || {};
+  if (!partesDaData(p.de) || !partesDaData(p.ate) || p.de > p.ate) return [];
+  const dias = [];
+  const fim = Date.parse(p.ate + 'T12:00:00Z');
+  for (let t = Date.parse(p.de + 'T12:00:00Z'); t <= fim && dias.length < 400; t += 86400000) dias.push(new Date(t).toISOString().slice(0, 10));
+  return dias;
+}
+
+/**
+ * A Visão geral quando não há conta de anúncios: tudo o que as conversas contam, de GET api/hoje
+ * (funil, origens, numeros). Nada é calculado por estimativa: o que a API não manda fica null ("sem dado").
+ *
+ *   contatos, agendaram, vieram, fecharam, de_anuncio, antes (contatos do período anterior), faturado
+ *   frase / etapas   no formato do herói (o mesmo de heroi())
+ *   origens          [{ id, rotulo, paga, contatos, parte, agendaram, vieram, fecharam }] da maior para a menor; "não sabemos" por último
+ *   perdas           [{ id, de, para, perdidos, fracao }] de cada passagem que dá para medir; `maior` é o id da pior
+ *   motivos          por que não fecharam: { total, lista: [{ rotulo, n }], sem_motivo }
+ *   dias             [{ data, gasto: null, contatos }] para o gráfico por dia (vazio quando a série não bate com o período)
+ */
+export function oficina(hoje) {
+  const d = hoje || {};
+  const contatos = numOuNulo(etapaDoFunil(d.funil, 'contato').total);
+  const agendaram = numOuNulo(etapaDoFunil(d.funil, 'agendou').total);
+  const vieram = numOuNulo(etapaDoFunil(d.funil, 'veio').total);
+  const fecharam = numOuNulo(etapaDoFunil(d.funil, 'fechou').total);
+  const deAnuncio = numOuNulo(etapaDoFunil(d.funil, 'contato').anuncio);
+  const placar = (Array.isArray(d.numeros) ? d.numeros : []).find((n) => n && n.id === 'contatos') || {};
+
+  const linhas = (Array.isArray(d.origens) ? d.origens : []).filter((o) => o && ehNumero(o.contatos) && o.contatos > 0);
+  const total = linhas.reduce((s, o) => s + o.contatos, 0);
+  const origens = linhas.map((o) => ({
+    id: o.id, rotulo: o.rotulo || 'Ainda não sabemos', paga: o.paga === true ? true : o.paga === false ? false : null,
+    contatos: o.contatos, parte: fracao(o.contatos, total),
+    agendaram: numOuNulo(o.agendaram), vieram: numOuNulo(o.vieram), fecharam: numOuNulo(o.fecharam),
+  })).sort((a, b) => (a.paga === null) - (b.paga === null) || b.contatos - a.contatos || String(a.rotulo).localeCompare(String(b.rotulo), 'pt-BR'));
+
+  // serviços fechados: soma só o valor que foi lançado; ninguém com valor = não se sabe
+  const valores = linhas.map((o) => o.faturado).filter((v) => ehNumero(v) && v > 0);
+  const faturado = valores.length ? Math.round(valores.reduce((s, v) => s + v, 0) * 100) / 100 : null;
+
+  // cada passagem só entra quando os dois lados são conhecidos e o de depois cabe no de antes
+  const passagem = (id, de, para) => (ehNumero(de) && ehNumero(para) && de > 0 && para <= de ? { id, de, para, perdidos: de - para, fracao: (de - para) / de } : null);
+  const perdas = [passagem('horario', contatos, agendaram), passagem('visita', agendaram, vieram), passagem('servico', vieram, fecharam)].filter(Boolean);
+  const pior = perdas.filter((p) => p.perdidos > 0).sort((a, b) => b.fracao - a.fracao || b.perdidos - a.perdidos)[0] || null;
+
+  const nf = (d.funil && d.funil.nao_fecharam) || {};
+  const motivos = {
+    total: numOuNulo(nf.total) || 0,
+    lista: (Array.isArray(nf.motivos) ? nf.motivos : []).filter((m) => m && m.rotulo && ehNumero(m.n) && m.n > 0).map((m) => ({ rotulo: m.rotulo, n: m.n })).sort((a, b) => b.n - a.n),
+    sem_motivo: numOuNulo(nf.sem_motivo) || 0,
+  };
+
+  const datas = diasDoPeriodo(d.periodo);
+  const serie = Array.isArray(placar.serie) ? placar.serie : [];
+  const dias = datas.length > 1 && serie.length === datas.length ? datas.map((data, i) => ({ data, meta: null, google: null, gasto: null, contatos: ehNumero(serie[i]) ? serie[i] : 0 })) : [];
+
+  const frase = contatos
+    ? [{ texto: contatos === 1 ? 'Chegou ' : 'Chegaram ' }, { numero: inteiro(contatos), valor: contatos }, { texto: contatos === 1 ? ' contato, ' : ' contatos, ' },
+      { numero: inteiro(agendaram || 0), valor: agendaram || 0 }, { texto: agendaram === 1 ? ' marcou horário e ' : ' marcaram horário e ' },
+      { numero: inteiro(vieram || 0), valor: vieram || 0 }, { texto: vieram === 1 ? ' veio na oficina.' : ' vieram na oficina.' }]
+    : [{ texto: 'Nenhum contato novo neste período.' }];
+
+  return {
+    contatos, agendaram, vieram, fecharam, de_anuncio: deAnuncio, antes: numOuNulo(placar.antes), faturado,
+    frase,
+    etapas: [
+      { id: 'contatos', rotulo: 'Contatos', valor: contatos },
+      { id: 'agendaram', rotulo: 'Marcaram horário', valor: agendaram, passagem: fracao(agendaram, contatos) },
+      { id: 'vieram', rotulo: 'Vieram na oficina', valor: vieram, passagem: agendaram != null && vieram != null && vieram <= agendaram ? fracao(vieram, agendaram) : null },
+    ],
+    origens, perdas, maior: pior ? pior.id : null, motivos, dias,
+  };
+}
+
+/** A frase da maior perda: "De 22 contatos, 16 ainda não marcaram horário." null quando nada se perdeu ou não dá para medir. */
+export function fraseDaPerda(perda) {
+  if (!perda || !(perda.perdidos > 0)) return null;
+  const n = inteiro(perda.perdidos);
+  const um = perda.perdidos === 1;
+  if (perda.id === 'horario') return 'De ' + inteiro(perda.de) + (perda.de === 1 ? ' contato, ' : ' contatos, ') + n + (um ? ' ainda não marcou horário.' : ' ainda não marcaram horário.');
+  if (perda.id === 'visita') return 'De ' + inteiro(perda.de) + (perda.de === 1 ? ' horário marcado, ' : ' horários marcados, ') + n + (um ? ' ainda não veio.' : ' ainda não vieram.');
+  if (perda.id === 'servico') return 'De ' + inteiro(perda.de) + (perda.de === 1 ? ' carro que veio, ' : ' carros que vieram, ') + n + (um ? ' ainda não fechou serviço.' : ' ainda não fecharam serviço.');
+  return null;
+}

@@ -8,7 +8,7 @@
 
 import { h, icone, trocar } from '../dom.js';
 import { dinheiro, inteiro, porcento, ehNumero, dataLonga } from '../formato.js';
-import { heroi, ordenarCampanhas, radar, linhasDoRelatorio, semContaDe } from '../painel-logica.js';
+import { heroi, ordenarCampanhas, radar, linhasDoRelatorio, semContaDe, oficina, fraseDaPerda } from '../painel-logica.js';
 import * as Estados from './estados.js';
 import { cabeca, datasDoPeriodo } from './cabeca.js';
 
@@ -66,6 +66,8 @@ function folha(ctx, c, hoje) {
   const fazer = radar(hoje.fazer).lista.filter((a) => a.gravidade !== 'baixa').slice(0, 3);
   const quando = (NOME_DO_PERIODO[ctx.periodo] || 'período') + (datasDoPeriodo(c.periodo) ? ' · ' + datasDoPeriodo(c.periodo) : '');
   const grande = (rotulo, valor) => h('div', null, h('dt', null, rotulo), h('dd', null, valor));
+  const O = semConta && !ctx.fonte ? oficina(hoje) : null;
+  if (O && O.contatos != null) return folhaDaOficina(c, O, { campanhas, fazer, quando, grande });
   return h('article', { class: 'cartao folha', 'aria-labelledby': 'tFolha' },
     h('header', { class: 'folha-cab' },
       h('img', { src: '../casa/logo.png', alt: '', width: '40', height: '40' }),
@@ -94,6 +96,37 @@ function folha(ctx, c, hoje) {
     fazer.length ? h('section', { class: 'folha-parte' }, h('h3', null, 'O que fazer agora'),
       h('ol', { class: 'folha-fazer' }, fazer.map((a) => h('li', null, h('b', null, a.titulo + (a.porque ? ':' : '')), a.porque ? ' ' + a.porque : '')))) : null,
     h('p', { class: 'folha-pe' }, semConta ? 'IndyCar Tráfego · conversas e clientes que vieram dos anúncios. O gasto entra quando a conta de anúncios for ligada.' : 'IndyCar Tráfego · números do anúncio (Meta e Google) juntos com o que aconteceu na oficina.'));
+}
+
+/** Rodada 19: sem conta de anúncios, a folha conta o que existe: todos os contatos, de onde vieram e onde se perde. */
+function folhaDaOficina(c, O, { campanhas, fazer, quando, grande }) {
+  const n = (v) => (ehNumero(v) ? inteiro(v) : 'sem dado');
+  const perda = fraseDaPerda(O.perdas.find((p) => p.id === O.maior));
+  const passos = [['Contatos', O.contatos, null], ['Marcaram horário', O.agendaram, O.contatos], ['Vieram na oficina', O.vieram, O.agendaram], ['Fecharam serviço', O.fecharam, O.vieram]];
+  return h('article', { class: 'cartao folha', 'aria-labelledby': 'tFolha' },
+    h('header', { class: 'folha-cab' },
+      h('img', { src: '../casa/logo.png', alt: '', width: '40', height: '40' }),
+      h('div', null, h('p', { class: 'mini' }, 'IndyCar · Relatório de tráfego'), h('h2', { id: 'tFolha' }, 'Os contatos nos ' + quando)),
+      h('p', { class: 'folha-data' }, c.periodo && c.periodo.ate ? 'até ' + dataLonga(c.periodo.ate) : '')),
+    h('p', { class: 'folha-frase' }, O.frase.map((p) => (p.numero != null ? h('b', null, p.numero) : p.texto))),
+    h('dl', { class: 'folha-grandes' },
+      grande('Contatos', n(O.contatos)), grande('De anúncio', n(O.de_anuncio)), grande('Fecharam serviço', n(O.fecharam)), grande('Em serviços', r0(O.faturado))),
+    O.contatos ? h('section', { class: 'folha-parte' }, h('h3', null, 'Do contato ao serviço'),
+      h('ol', { class: 'folha-funil' }, passos.map(([rotulo, v, de]) => h('li', null, h('b', null, n(v)), h('span', null, rotulo),
+        ehNumero(v) && ehNumero(de) && de > 0 && v <= de ? h('small', null, porcento(v / de)) : null))),
+      perda ? h('p', { class: 'folha-nota' }, perda) : null) : null,
+    O.origens.length ? h('section', { class: 'folha-parte' }, h('h3', null, 'De onde vieram'),
+      h('div', { class: 'tabela-rola' }, h('table', { class: 'tabela' },
+        h('thead', null, h('tr', null, ['Origem', 'Contatos', 'Marcaram', 'Vieram', 'Fecharam'].map((x) => h('th', { scope: 'col' }, x)))),
+        h('tbody', null, O.origens.map((o) => h('tr', null, h('th', { scope: 'row' }, o.rotulo),
+          h('td', null, n(o.contatos)), h('td', null, n(o.agendaram)), h('td', null, n(o.vieram)), h('td', null, n(o.fecharam)))))))) : null,
+    campanhas.length ? h('section', { class: 'folha-parte' }, h('h3', null, 'Campanhas'),
+      h('div', { class: 'tabela-rola' }, h('table', { class: 'tabela' },
+        h('thead', null, h('tr', null, ['Campanha', 'Conversas', 'Clientes'].map((x) => h('th', { scope: 'col' }, x)))),
+        h('tbody', null, campanhas.map((x) => h('tr', null, h('th', { scope: 'row' }, x.nome || 'Campanha'), h('td', null, inteiro(x.contatos) || '0'), h('td', null, inteiro(x.fecharam) || '0'))))))) : null,
+    fazer.length ? h('section', { class: 'folha-parte' }, h('h3', null, 'O que fazer agora'),
+      h('ol', { class: 'folha-fazer' }, fazer.map((a) => h('li', null, h('b', null, a.titulo + (a.porque ? ':' : '')), a.porque ? ' ' + a.porque : '')))) : null,
+    h('p', { class: 'folha-pe' }, 'IndyCar Tráfego · todos os contatos do período, pela primeira mensagem de cada conversa. Gasto, custo e retorno: sem dado (conta de anúncios não ligada).'));
 }
 
 function pintar(ctx, c, hoje) {

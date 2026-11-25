@@ -11,7 +11,7 @@
    - Tudo relativo ao lugar do próprio arquivo: funciona em /trafego/ e na raiz.
    ============================================================================ */
 
-const VERSAO = 'indycar-trafego-r16-1';
+const VERSAO = 'indycar-trafego-r19-1';
 const PREFIXO = 'indycar-trafego-';
 const TEMPO_REDE_MS = 6000;
 /* Rodada 12: Visão geral, Campanhas, Clientes, Radar, Relatórios e Ajustes. O /casa/indycar.css (topo comum) é da Central e fica fora desta lista. */

@@ -9,7 +9,7 @@
 
 import { h, icone, trocar, menosMovimento } from '../dom.js';
 import { dinheiro, inteiro, porcento, ehNumero, dataLonga } from '../formato.js';
-import { heroi, somarDias, melhoresCampanhas, seloDaCampanha, fracao, semContaDe, semPedidoDeConta } from '../painel-logica.js';
+import { heroi, somarDias, melhoresCampanhas, seloDaCampanha, fracao, semContaDe, semPedidoDeConta, oficina, fraseDaPerda } from '../painel-logica.js';
 import { graficoDiario, faisca, funil } from '../graficos.js';
 import { selo, vazio, ligarConta } from '../pecas.js';
 import * as Estados from './estados.js';
@@ -228,6 +228,133 @@ function leituraDoPeriodo(ctx, campanhas, comparacao, semConta) {
       h('p', null, nome ? h('b', null, nome + ': ') : null, texto)))), 'cartao-leitura');
 }
 
+/* ------------------------------ sem conta de anúncios (rodada 19) ------------------------------ */
+
+/* Sem conta ligada, a tela responde com o que existe: quantos contatos chegaram (de qualquer origem, pela primeira
+   mensagem), de onde vieram, quantos marcaram horário e vieram, e onde se perde. O que depende do gasto não aparece. */
+
+function contaDaOficina(O) {
+  const anuncio = ehNumero(O.de_anuncio) && ehNumero(O.contatos) && O.contatos > 0;
+  return h('div', { class: 'heroi-conta' },
+    h('div', { class: 'heroi-conta-item' },
+      h('p', { class: 'mini' }, 'Na oficina'),
+      ehNumero(O.faturado)
+        ? h('p', { class: 'heroi-conta-v' }, numeroVivo(O.faturado, r0, 'conta-n'), ' em serviços')
+        : h('p', { class: 'heroi-conta-v heroi-conta-sem' }, 'Nenhum valor lançado ainda'),
+      h('p', { class: 'heroi-conta-apoio' }, ehNumero(O.fecharam) ? inteiro(O.fecharam) + (O.fecharam === 1 ? ' fechou serviço' : ' fecharam serviço') : null)),
+    h('div', { class: 'heroi-conta-item' },
+      h('p', { class: 'mini' }, 'De anúncio'),
+      anuncio
+        ? h('p', { class: 'heroi-conta-v' }, h('b', { class: 'conta-n' }, inteiro(O.de_anuncio)), ' de ' + inteiro(O.contatos) + (O.contatos === 1 ? ' contato' : ' contatos'))
+        : h('p', { class: 'heroi-conta-v heroi-conta-sem' }, 'sem dado'),
+      h('p', { class: 'heroi-conta-apoio' }, 'Custo e retorno: sem dado (conta de anúncios não ligada)')));
+}
+
+/** O celular com quem chegou hoje, de qualquer origem. */
+function celularDaOficina(hoje, ate) {
+  const lista = (Array.isArray(hoje) ? hoje : []).filter(Boolean).slice(0, 3);
+  const relogio = lista.length && lista[0].hora ? lista[0].hora : null;
+  return h('div', { class: 'fone', 'aria-label': 'Contatos que chegaram hoje', role: 'img' },
+    h('div', { class: 'fone-tela' },
+      h('span', { class: 'fone-ilha', 'aria-hidden': 'true' }),
+      h('p', { class: 'fone-hora' }, relogio || 'Hoje'),
+      h('p', { class: 'fone-data' }, ate ? dataLonga(ate) : ''),
+      lista.length
+        ? lista.map((c, i) => h('div', { class: 'notif', style: { '--i': i } },
+          h('span', { class: 'notif-app', 'aria-hidden': 'true' }, icone('conversa')),
+          h('div', { class: 'notif-txt' },
+            h('p', null, h('b', null, c.nome || 'Contato')),
+            h('p', null, (c.origem && c.origem.rotulo) || 'Origem ainda não marcada'),
+            h('p', { class: 'notif-quando' }, c.hora ? 'hoje, ' + c.hora : 'hoje'))))
+        : h('div', { class: 'notif notif-vazia' }, h('div', { class: 'notif-txt' }, h('p', null, 'Nenhum contato hoje ainda.')))));
+}
+
+const plural = (n, um, varios) => inteiro(n) + ' ' + (n === 1 ? um : varios);
+
+function deOndeVieram(ctx, O) {
+  const maior = Math.max(1, ...O.origens.map((o) => o.contatos));
+  const semOrigem = O.origens.find((o) => o.paga === null);
+  return cartao('De onde vieram os contatos', 'Pela primeira mensagem de cada conversa e pelo que foi marcado à mão.',
+    [h('ol', { class: 'origens' }, O.origens.map((o) => {
+      const parado = o.agendaram === 0 && o.vieram === 0 && o.fecharam === 0;
+      const caminho = parado ? ['ninguém marcou horário ainda'] : [ehNumero(o.agendaram) ? plural(o.agendaram, 'marcou horário', 'marcaram horário') : null,
+        ehNumero(o.vieram) ? plural(o.vieram, 'veio', 'vieram') : null,
+        ehNumero(o.fecharam) ? plural(o.fecharam, 'fechou serviço', 'fecharam serviço') : null].filter(Boolean);
+      return h('li', { class: 'origem' + (o.paga === null ? ' origem-sem' : '') },
+        h('p', { class: 'origem-nome' }, o.rotulo, o.paga === true ? h('span', { class: 'origem-marca' }, 'anúncio') : null),
+        h('span', { class: 'origem-trilho', 'aria-hidden': 'true' }, h('i', { style: { '--v': (o.contatos / maior).toFixed(4) } })),
+        h('p', { class: 'origem-n' }, h('b', null, inteiro(o.contatos)), ehNumero(o.parte) ? h('span', null, porcento(o.parte)) : null),
+        h('p', { class: 'origem-caminho' }, caminho.length ? caminho.join(' · ') : 'sem dado do caminho'));
+    })),
+    semOrigem ? h('p', { class: 'origens-pe' },
+      plural(semOrigem.contatos, 'contato ainda está', 'contatos ainda estão') + ' sem origem. ',
+      h('a', { class: 'link-toque', href: ctx.hrefDaTela('clientes', { pendencia: 'sem_origem' }) }, 'Marcar a origem', icone('seta', 'icone-seta'))) : null], 'cartao-origens');
+}
+
+const NOME_DA_PERDA = { horario: 'entre o contato e o horário marcado', visita: 'entre o horário marcado e a vinda', servico: 'entre a vinda e o serviço fechado' };
+
+function ondeSePerde(O) {
+  const etapas = [
+    { rotulo: 'Chegaram', apoio: 'contatos', valor: O.contatos, cor: 'frio' },
+    { rotulo: 'Marcaram horário', apoio: 'na agenda', valor: O.agendaram, cor: 'quente', passa: (n) => n + '% dos contatos' },
+    { rotulo: 'Vieram na oficina', apoio: 'carro chegou', valor: O.vieram, cor: 'quente', passa: (n) => n + '% de quem marcou' },
+    { rotulo: 'Fecharam serviço', apoio: 'viraram clientes', valor: O.fecharam, cor: 'quente', passa: (n) => n + '% de quem veio' },
+  ];
+  const pior = O.perdas.find((p) => p.id === O.maior) || null;
+  const frase = fraseDaPerda(pior);
+  return cartao('Onde se perde', 'Do primeiro contato até o serviço fechado.',
+    [frase ? h('p', { class: 'perda' }, h('b', null, 'A maior perda é ' + NOME_DA_PERDA[pior.id] + '. '), frase) : null,
+      funil(etapas)], 'cartao-funil');
+}
+
+function porQueNaoFecharam(ctx, O) {
+  const m = O.motivos;
+  if (!m.total) return null;
+  const maior = Math.max(1, ...m.lista.map((x) => x.n));
+  return cartao('Por que não fecharam', plural(m.total, 'contato não fechou', 'contatos não fecharam') + ' neste período.',
+    [m.lista.length ? h('ol', { class: 'motivos' }, m.lista.map((x) => h('li', null,
+      h('span', { class: 'motivo-nome' }, x.rotulo),
+      h('span', { class: 'origem-trilho', 'aria-hidden': 'true' }, h('i', { style: { '--v': (x.n / maior).toFixed(4) } })),
+      h('b', null, inteiro(x.n))))) : null,
+    m.sem_motivo ? h('p', { class: 'origens-pe' },
+      (m.lista.length ? plural(m.sem_motivo, 'está', 'estão') + ' sem motivo marcado. ' : 'Nenhum motivo marcado ainda: sem dado. '),
+      h('a', { class: 'link-toque', href: ctx.hrefDaTela('clientes', { pendencia: 'sem_motivo' }) }, 'Marcar o motivo', icone('seta', 'icone-seta'))) : null], 'cartao-motivos');
+}
+
+function contatosPorDia(O) {
+  if (!O.dias.length) return null;
+  // período curto: o número de cada dia (a média de 7 dias achataria a semana inteira numa reta)
+  const curto = O.dias.length <= 14;
+  return cartao('Contatos por dia', curto ? 'Linha: contatos que chegaram em cada dia, de qualquer origem.' : 'Linha: contatos que chegaram, de qualquer origem (média de 7 dias).',
+    [h('p', { class: 'legenda-g' }, h('span', null, h('i', { class: 'lg lg-linha' }), 'Contatos')), graficoDiario(O.dias, { palavra: ['contato', 'contatos'], janela: curto ? 1 : 7 })], 'cartao-dia');
+}
+
+function pintarOficina(ctx, c, hoje, O) {
+  const campanhas = Array.isArray(c.campanhas) ? c.campanhas : [];
+  const temCampanha = melhoresCampanhas(campanhas, 3).length > 0;
+  const motivos = porQueNaoFecharam(ctx, O);
+  const antes = ehNumero(O.antes) && O.contatos ? 'No período anterior: ' + plural(O.antes, 'contato', 'contatos') : null;
+  trocar(ctx.miolo,
+    cabeca(ctx, { linha: 'WhatsApp → agenda → oficina', titulo: 'Visão geral' }),
+    h('section', { class: 'cartao heroi', 'aria-labelledby': 'tHeroi', on: { pointermove: luz } },
+      h('div', { class: 'heroi-in' },
+        h('p', { class: 'mini', id: 'tHeroi' }, (NOME_DO_PERIODO[ctx.periodo] || 'Período') + (datasDoPeriodo(c.periodo) ? ' · ' + datasDoPeriodo(c.periodo) : '')),
+        fraseDoHeroi(O),
+        antes ? h('p', { class: 'heroi-antes' }, antes) : null,
+        O.contatos ? trilha(O) : null,
+        O.contatos ? contaDaOficina(O) : null),
+      celularDaOficina(hoje.hoje, c.periodo && c.periodo.ate)),
+    O.contatos
+      ? [deOndeVieram(ctx, O),
+        motivos || temCampanha
+          ? h('div', { class: 'grade-2' }, ondeSePerde(O), h('div', { class: 'coluna-d' }, motivos, temCampanha ? melhores(ctx, campanhas, true) : null))
+          : ondeSePerde(O),
+        contatosPorDia(O)]
+      : vazio({ titulo: 'Era para ter chegado alguém?', texto: 'Troque o período para ver os contatos de antes. O Radar mostra se o WhatsApp da oficina está ligado.',
+        acao: h('a', { class: 'botao', href: ctx.hrefDaTela('radar') }, 'Ver o Radar', icone('seta', 'icone-seta')) }),
+    ligarConta(ctx, { compacto: true }));
+}
+
 /* ------------------------------ tela ------------------------------ */
 
 function pintar(ctx, c, todas, hoje, { animar = true } = {}) {
@@ -236,6 +363,10 @@ function pintar(ctx, c, todas, hoje, { animar = true } = {}) {
   ctx.demo(Boolean(estado.demo));
   const t = c.totais || {};
   const semConta = semContaDe(estado);
+  if (semConta && !ctx.fonte) {
+    const O = oficina(hoje);
+    if (O.contatos != null) return pintarOficina(ctx, c, hoje, O);
+  }
   const H = heroi(t, ctx.fonte);
   const dias = somarDias(c.campanhas);
   const campanhas = Array.isArray(c.campanhas) ? c.campanhas : [];
@@ -251,14 +382,16 @@ function pintar(ctx, c, todas, hoje, { animar = true } = {}) {
         trilha(H),
         contaDoHeroi(H, semConta)),
       celular(hoje.hoje, c.periodo && c.periodo.ate)),
-    semConta ? ligarConta(ctx) : null,
+
     semConversa
       ? vazio({ titulo: 'Nenhuma conversa de anúncio neste período', texto: 'Se já há anúncio rodando, confira se ele abre o WhatsApp da oficina e se o site está contando os cliques. O Radar mostra o que está ligado.',
         acao: h('a', { class: 'botao', href: ctx.hrefDaTela('radar') }, 'Ver o Radar', icone('seta', 'icone-seta')) })
       : [regua(H, dias, semConta),
         diario(dias, ctx.fonte),
         h('div', { class: 'grade-2' }, funilCompleto(t), h('div', { class: 'coluna-d' }, metaGoogle(hoje.origens, comparacao, semConta), melhores(ctx, campanhas, semConta))),
-        leituraDoPeriodo(ctx, campanhas, ctx.fonte ? null : comparacao, semConta)]);
+        leituraDoPeriodo(ctx, campanhas, ctx.fonte ? null : comparacao, semConta)],
+    // rodada 19: o convite para ligar a conta virou uma linha no fim (antes era um cartão grande no meio da tela)
+    semConta ? ligarConta(ctx, { compacto: true }) : null);
 }
 
 /** O brilho vermelho do herói segue o dedo ou o mouse (só enfeite: sem ele a tela é igual). */

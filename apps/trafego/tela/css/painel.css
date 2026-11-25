@@ -971,3 +971,36 @@ body {
 .ligar-compacto { grid-template-columns: 1fr; align-items: center; padding: 16px 20px; gap: 12px; }
 .ligar-compacto p { margin: 0; color: var(--ic-texto); }
 @media (min-width: 48em) { .ligar-compacto { grid-template-columns: minmax(0, 1fr) auto; } }
+
+/* ------------------------------ rodada 19: a Visão geral sem conta de anúncios ------------------------------ */
+.heroi-antes { margin: -14px 0 0; font-size: 14px; color: var(--ic-apagado); }
+.origens { list-style: none; margin: 0; padding: 0; display: grid; }
+.origem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--pn-borda); }
+.origem:first-child { border-top: 0; padding-top: 2px; }
+.origem p { margin: 0; }
+.origem-nome { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 700; color: var(--ic-forte); overflow-wrap: anywhere; }
+.origem-marca { padding: 4px 8px; border: 1px solid var(--pn-borda); border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: 0.08em; text-transform: uppercase; color: var(--pn-vermelho-texto); }
+.origem-n { grid-column: 2; grid-row: 1; display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; }
+.origem-n b { font: 700 26px/1 var(--ic-titulo); color: var(--ic-forte); font-variant-numeric: tabular-nums; }
+.origem-n span { min-width: 4ch; text-align: right; font-size: 13px; color: var(--ic-apagado); font-variant-numeric: tabular-nums; }
+.origem-trilho { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--pn-cartao-2); overflow: hidden; }
+.origem-trilho i { display: block; height: 100%; width: calc(var(--v) * 100%); min-width: 4px; border-radius: 4px; background: var(--pn-vermelho); }
+.origem-sem .origem-trilho i { background: var(--pn-frio-2); }
+.origem-caminho { grid-column: 1 / -1; font-size: 14px; color: var(--ic-apagado); }
+@media (min-width: 62em) {
+  .origem { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) 7rem minmax(0, 25rem); gap: 8px 24px; }
+  .origem-nome { grid-column: 1; grid-row: 1; }
+  .origem-trilho { grid-column: 2; grid-row: 1; }
+  .origem-n { grid-column: 3; }
+  .origem-caminho { grid-column: 4; grid-row: 1; }
+}
+.origens-pe { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--pn-borda); font-size: 14px; color: var(--ic-texto); }
+.link-toque { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-weight: 700; color: var(--ic-forte); text-decoration: underline; text-decoration-color: var(--pn-vermelho); text-underline-offset: 3px; }
+.perda { margin: 0 0 18px; padding: 12px 14px; border-radius: 10px; background: var(--pn-cartao-2); color: var(--ic-texto); }
+.perda b { color: var(--ic-forte); }
+.motivos { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.motivos li { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.motivos .origem-trilho { grid-column: auto; grid-row: auto; }
+.motivos b { min-width: 2ch; text-align: right; font: 700 20px/1 var(--ic-titulo); color: var(--ic-forte); font-variant-numeric: tabular-nums; }
+.motivo-nome { color: var(--ic-texto); overflow-wrap: anywhere; }
+.folha-nota { margin: 10px 0 0; font-size: 14px; color: var(--ic-texto); }

@@ -91,7 +91,7 @@ function preaquecer(vez) {
   if (navigator.onLine === false || (conexao && conexao.saveData)) return;
   const rota = estado.rota;
   if (!rota || rota.tela === 'clientes') return;
-  const caminho = Clientes.caminho({ periodo: periodoAtual(), fonte: fonteAtual(), rota: { params: {} } });
+  const caminho = Clientes.caminho({ periodo: periodoAtual(), fonte: fonteAtual(), rota: { params: {} }, leitor: estado.leitor });
   const ir = () => { if (vez === estado.vez && !estado.parado) estado.leitor.ler(caminho).catch(() => { /* era só adiantar */ }); };
   setTimeout(() => (typeof requestIdleCallback === 'function' ? requestIdleCallback(ir, { timeout: 4000 }) : ir()), 1200);
 }

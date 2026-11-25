@@ -38,11 +38,11 @@ export function faisca(valores, { classe = '' } = {}) {
  * Investimento (barras Meta + Google) e conversas por dia (linha, média de 7 dias).
  * `dias`: [{ data, meta, google, gasto, contatos }] de painel-logica.somarDias.
  */
-export function graficoDiario(dias, { fonte = '' } = {}) {
+export function graficoDiario(dias, { fonte = '', palavra = ['conversa', 'conversas'], janela = 7 } = {}) {
   const lista = Array.isArray(dias) ? dias : [];
   const temGasto = lista.some((d) => ehNumero(d.gasto));
   const tetoGasto = tetoDoEixo(Math.max(0, ...lista.map((d) => d.gasto || 0)));
-  const media = mediaMovel(lista.map((d) => d.contatos));
+  const media = mediaMovel(lista.map((d) => d.contatos), janela);
   const tetoConversa = tetoDoEixo(Math.max(1, ...lista.map((d) => d.contatos || 0), ...media.filter(ehNumero)));
 
   const leitura = h('p', { class: 'gd-leitura', 'aria-live': 'polite' });
@@ -51,7 +51,7 @@ export function graficoDiario(dias, { fonte = '' } = {}) {
     if (!d) return;
     const partes = [diaDaSemana(d.data) + ' · ' + dataCurta(d.data)];
     if (ehNumero(d.gasto)) partes.push(dinheiro(d.gasto, { centavos: false }) + ' investidos');
-    partes.push(d.contatos === 1 ? '1 conversa' : inteiro(d.contatos) + ' conversas');
+    partes.push(d.contatos === 1 ? '1 ' + palavra[0] : inteiro(d.contatos) + ' ' + palavra[1]);
     leitura.textContent = partes.join(' · ');
     colunas.forEach((c, j) => c.classList.toggle('ativa', j === i));
   };
