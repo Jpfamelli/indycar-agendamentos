@@ -776,7 +776,23 @@ body {
 .cli-sub, .cli-de { font-size: 13px; color: var(--ic-apagado); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cli-de { display: flex; align-items: center; gap: 4px; }
 .cli-de > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col { container-type: inline-size; }
+.col { container-type: inline-size; scroll-margin-top: 72px; }
+/* rodada 15: busca e atalhos de etapa na tela de Clientes */
+.quadro-vaso, .quadro-caixa { min-width: 0; max-width: 100%; }
+.busca { position: relative; display: grid; gap: 6px; margin-bottom: 12px; }
+.busca-campo { padding-left: 44px; }
+.busca-icone { position: absolute; left: 14px; top: 14px; color: var(--ic-apagado); pointer-events: none; }
+.busca-conta { margin: 0; font-size: 13px; min-height: 0; }
+.busca-conta:empty { display: none; }
+.salto { display: flex; gap: 8px; margin: 0 0 12px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
+.salto::-webkit-scrollbar { display: none; }
+.salto-op { display: inline-flex; flex: none; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 1px solid var(--pn-borda); border-radius: 999px; background: var(--pn-cartao); color: var(--ic-forte); font: 600 14px/1 var(--ic-texto-f); cursor: pointer; }
+.salto-op b { color: var(--ic-apagado); font-weight: 700; }
+.salto-op:hover { background: var(--cor-realce); }
+@media (min-width: 80em) { .salto { display: none; } }
+/* rodada 15: "Atualizado há…" no cabeçalho */
+.cab-atualiza { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 6px 0 -6px -8px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--ic-apagado); font: 500 13px/1 var(--ic-texto-f); cursor: pointer; }
+.cab-atualiza:hover { color: var(--ic-forte); background: var(--cor-realce); }
 @container (max-width: 240px) { .cli { grid-template-columns: minmax(0, 1fr); } .cli-av { display: none; } }
 .jornada { display: flex; gap: 4px; margin: 6px 0 0; padding: 0; list-style: none; }
 .jornada li { flex: 1; display: grid; gap: 4px; }

@@ -47,7 +47,7 @@ export async function buscar(ctx, caminho, { alvo = ctx.miolo, forma = 'painel',
   const guardado = ctx.leitor.espiar(caminho);
   // "manter": o que já está na tela fica (meio apagado pelo aria-busy) até o dado novo chegar, em vez do esqueleto.
   const fica = !guardado && manter && alvo.childElementCount > 0;
-  if (guardado) pintar(guardado.dados, { primeira: false });
+  if (guardado) { pintar(guardado.dados, { primeira: false }); ctx.marcarAtualizado(guardado.em); }
   else if (!fica) esqueleto(alvo, forma);
   alvo.setAttribute('aria-busy', 'true');
   try {

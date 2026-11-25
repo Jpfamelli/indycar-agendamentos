@@ -184,7 +184,9 @@ export function criarLeitor(api, { validade = 60000, agora = () => Date.now() } 
       if (voando && voando.epoca === epoca) return voando.promessa;
       const minhaEpoca = epoca;
       const promessa = (async () => {
-        const dados = await api.ler(caminho);
+        /* Rodada 15: "forçar" (Atualizar, Tentar de novo, a internet voltou) também pede ao servidor que releia: sem isso ele
+           devolveria o resultado guardado há até 2 minutos. A memória da tela continua pela chave original. */
+        const dados = await api.ler(forcar ? caminho + (caminho.includes('?') ? '&' : '?') + 'fresco=1' : caminho);
         const novo = { dados, em: agora() };
         if (minhaEpoca === epoca) {
           guardado.set(caminho, novo);

@@ -1,7 +1,7 @@
 /* Cabeçalho de toda tela (rodada 12): a linha pequena de cima, o título grande
    e os filtros (7 / 30 / 60 dias e Tudo / Meta / Google), iguais em todas. */
 
-import { h } from '../dom.js';
+import { h, icone } from '../dom.js';
 import { PERIODOS_DA_TELA, PERIODO_DA_TELA, FONTES } from '../rotas.js';
 
 function grupo(rotulo, opcoes, atual, href) {
@@ -18,12 +18,23 @@ export function filtros(ctx, { fonte = true } = {}) {
     fonte ? grupo('De onde', FONTES, ctx.fonte, (id) => ctx.hrefDaTela(tela, { ...extra, fonte: id || null })) : null);
 }
 
+/** "Atualizado há 2 min" e o botão que lê tudo de novo (rodada 15). O texto é mantido pela casca (app.js) e muda sozinho. */
+function atualiza(ctx) {
+  const texto = ctx.textoAtualizado ? ctx.textoAtualizado() : 'Atualizar';
+  return h('button', { class: 'cab-atualiza', type: 'button', 'data-atualiza': '', 'aria-label': 'Atualizar os números agora', on: { click: (e) => {
+    const t = e.currentTarget.querySelector('.cab-atualiza-txt');
+    if (t) t.textContent = 'Atualizando…';
+    ctx.recarregar();
+  } } }, icone('atualizar', 'icone-p'), h('span', { class: 'cab-atualiza-txt' }, texto));
+}
+
 /** cabeca(ctx, { linha: 'Anúncios → WhatsApp → oficina', titulo: 'Visão geral', fonte: true, acoes }) */
 export function cabeca(ctx, { linha, titulo, fonte = true, semFiltro = false, acoes = null } = {}) {
   return h('header', { class: 'cab' },
     h('div', { class: 'cab-txt' },
       linha ? h('p', { class: 'cab-linha' }, linha) : null,
-      h('h1', { class: 'cab-titulo' }, titulo)),
+      h('h1', { class: 'cab-titulo' }, titulo),
+      ctx.recarregar ? atualiza(ctx) : null),
     h('div', { class: 'cab-lado' }, semFiltro ? null : filtros(ctx, { fonte }), acoes));
 }
 

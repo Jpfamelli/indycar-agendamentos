@@ -185,6 +185,22 @@ export function agruparClientes(itens) {
   return COLUNAS.map((c) => ({ ...c, itens: grupos.get(c.id) }));
 }
 
+/** Sem acento, sem maiúscula, espaços únicos: "Troca de Óleo" casa com "oleo". */
+export const semAcento = (t) => String(t == null ? '' : t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** Busca na lista de clientes (nome, carro, serviço e campanha). Cada palavra digitada precisa aparecer em algum deles. */
+export function filtrarClientes(itens, consulta) {
+  const lista = Array.isArray(itens) ? itens : [];
+  const palavras = semAcento(consulta).split(' ').filter(Boolean);
+  if (!palavras.length) return lista;
+  return lista.filter((c) => {
+    if (!c) return false;
+    const o = c.origem || {};
+    const alvo = semAcento([c.nome, c.carro, c.servico, o.campanha && o.campanha.nome, o.rotulo].filter(Boolean).join(' '));
+    return palavras.every((p) => alvo.includes(p));
+  });
+}
+
 /* ------------------------------ radar ------------------------------ */
 
 const PESO = { alta: 0, media: 1, baixa: 2 };

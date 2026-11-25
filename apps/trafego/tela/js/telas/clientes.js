@@ -7,10 +7,10 @@
    GET api/jornada (paga=1) e GET api/jornada/:id.
    ============================================================================ */
 
-import { h, icone, trocar } from '../dom.js';
+import { h, icone, trocar, menosMovimento } from '../dom.js';
 import { dinheiro, inteiro, ehNumero, dataCurta, dataHora, haQuanto } from '../formato.js';
 import { vazio } from '../pecas.js';
-import { agruparClientes, jornadaDoCliente } from '../painel-logica.js';
+import { agruparClientes, jornadaDoCliente, filtrarClientes } from '../painel-logica.js';
 import { linkSeguro, abaDoLink } from '../ecossistema.js';
 import * as Estados from './estados.js';
 import { cabeca } from './cabeca.js';
@@ -20,7 +20,7 @@ const PENDENCIAS = {
   sem_valor: 'serviços fechados sem valor', sem_origem: 'contatos sem origem', sem_motivo: 'quem não fechou e está sem motivo', sem_resposta: 'contatos esperando resposta',
 };
 
-function caminho(ctx) {
+export function caminho(ctx) {
   const q = new URLSearchParams({ periodo: ctx.periodo, tamanho: '200' });
   const pend = PENDENCIAS[ctx.rota.params.pendencia] ? ctx.rota.params.pendencia : null;
   if (pend) q.set('pendencia', pend); else q.set('paga', '1');
@@ -29,7 +29,10 @@ function caminho(ctx) {
   return 'api/jornada?' + q.toString();
 }
 
+let consulta = '';   // o que a pessoa digitou na busca; vale enquanto ela está nesta tela
+
 export function mostrar(ctx) {
+  consulta = '';
   Estados.buscar(ctx, caminho(ctx), { forma: 'lista', pintar: (d) => pintar(ctx, d) });
   return { sair() { const d = document.querySelector('dialog.dlg[open]'); if (d) d.close(); } };
 }
@@ -68,7 +71,7 @@ function coluna(ctx, grupo) {
   };
   mais.addEventListener('click', encher);
   encher();
-  return h('section', { class: 'col col-' + grupo.id, 'aria-label': grupo.rotulo },
+  return h('section', { class: 'col col-' + grupo.id, id: 'col-' + grupo.id, 'aria-label': grupo.rotulo },
     h('header', { class: 'col-cab' }, h('h2', null, grupo.rotulo), h('span', { class: 'col-n' }, inteiro(grupo.itens.length))),
     grupo.itens.length ? lista : h('p', { class: 'col-vazia' }, 'Ninguém aqui agora.'),
     mais);
@@ -97,7 +100,6 @@ function pintar(ctx, d) {
     ? h('p', { class: 'filtro-ativo' }, 'Mostrando ', h('b', null, pend || ('a campanha ' + ((campanha && campanha.nome) || 'escolhida'))),
       h('a', { class: 'botao botao-quieto', href: ctx.hrefDaTela('clientes', { pendencia: null, campanha: null }) }, icone('fechar', 'icone-p'), 'Ver todos'))
     : null;
-  const grupos = agruparClientes(d.itens);
   const total = d.pagina && ehNumero(d.pagina.total) ? d.pagina.total : (d.itens || []).length;
   trocar(ctx.miolo,
     cabeca(ctx, { linha: 'Do WhatsApp ao carro na oficina', titulo: 'Clientes' }),
@@ -108,11 +110,35 @@ function pintar(ctx, d) {
       h('div', null, h('dt', null, 'Vieram'), h('dd', null, inteiro(t.vieram) || '0')),
       h('div', null, h('dt', null, 'Fecharam'), h('dd', null, inteiro(t.fecharam) || '0')),
       h('div', null, h('dt', null, 'Em serviços'), ehNumero(t.faturado) ? h('dd', null, dinheiro(t.faturado, { centavos: false })) : h('dd', { class: 'sem' }, 'sem valor')))),
-    total
-      ? h('div', { class: 'quadro', 'aria-label': 'Contatos por etapa' }, grupos.map((g) => coluna(ctx, g)))
-      : vazio({ titulo: 'Nenhum contato de anúncio neste período', texto: 'Troque o período ou a fonte para ver outros contatos.' }),
+    total ? quadroComBusca(ctx, d.itens || []) : vazio({ titulo: 'Nenhum contato de anúncio neste período', texto: 'Troque o período ou a fonte para ver outros contatos.' }),
     total > (d.itens || []).length ? h('p', { class: 'suave' }, 'Mostrando os ' + inteiro((d.itens || []).length) + ' mais recentes de ' + inteiro(total) + '.') : null,
     porCampanha(ctx, d.filtros && d.filtros.campanhas));
+}
+
+/**
+ * Busca por nome, carro, serviço ou campanha e, no celular, os atalhos para cada etapa (o quadro vira uma coluna
+ * comprida: sem eles, chegar em "Fechou serviço" era rolar a tela inteira). A busca olha a lista já carregada.
+ */
+function quadroComBusca(ctx, itens) {
+  const caixa = h('div', { class: 'quadro-caixa' });
+  const contagem = h('p', { class: 'busca-conta suave', role: 'status' });
+  const campo = h('input', { class: 'entrada busca-campo', type: 'search', id: 'buscaClientes', placeholder: 'Buscar por nome, carro ou serviço', autocomplete: 'off', value: consulta, 'aria-label': 'Buscar nos contatos', on: { input: (e) => { consulta = e.target.value; pintarQuadro(); } } });
+  const pintarQuadro = () => {
+    const achados = filtrarClientes(itens, consulta);
+    const grupos = agruparClientes(achados);
+    contagem.textContent = consulta.trim() ? (achados.length === 1 ? '1 contato encontrado' : inteiro(achados.length) + ' contatos encontrados') + ' de ' + inteiro(itens.length) : '';
+    const irPara = (id) => { const alvo = document.getElementById('col-' + id); if (alvo) alvo.scrollIntoView({ behavior: menosMovimento() ? 'auto' : 'smooth', block: 'start' }); };
+    trocar(caixa, achados.length
+      ? [h('nav', { class: 'salto', 'aria-label': 'Ir para a etapa' }, grupos.filter((g) => g.itens.length).map((g) =>
+        h('button', { class: 'salto-op', type: 'button', on: { click: () => irPara(g.id) } }, g.rotulo, h('b', null, inteiro(g.itens.length))))),
+      h('div', { class: 'quadro', 'aria-label': 'Contatos por etapa' }, grupos.map((g) => coluna(ctx, g)))]
+      : vazio({ titulo: 'Ninguém com esse nome, carro ou serviço', texto: 'Confira a escrita ou apague a busca.',
+        acao: h('button', { class: 'botao', type: 'button', on: { click: () => { consulta = ''; campo.value = ''; pintarQuadro(); campo.focus(); } } }, 'Limpar a busca') }));
+  };
+  pintarQuadro();
+  return h('div', { class: 'quadro-vaso' },
+    itens.length >= 6 ? h('div', { class: 'busca' }, icone('busca', 'icone-p busca-icone'), campo, contagem) : null,
+    caixa);
 }
 
 /* ------------------------------ ficha ------------------------------ */

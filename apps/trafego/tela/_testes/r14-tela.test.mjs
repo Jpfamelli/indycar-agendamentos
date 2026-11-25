@@ -47,5 +47,5 @@ test('sem nenhuma conversa de anúncio a tela explica o que conferir em vez de u
 
 test('css do cartão de ligar existe e o service worker mudou de versão', () => {
   assert.match(ler('css/painel.css'), /\.ligar-passos/);
-  assert.match(ler('sw.js'), /indycar-trafego-r14-1/);
+  assert.match(ler('sw.js'), /indycar-trafego-r15-1/);
 });

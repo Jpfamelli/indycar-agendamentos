@@ -18,26 +18,41 @@ import { cabeca, datasDoPeriodo } from './cabeca.js';
 const NOME_DO_PERIODO = { '7d': 'Últimos 7 dias', '30d': 'Últimos 30 dias', '60d': 'Últimos 60 dias' };
 
 export function mostrar(ctx) {
-  Estados.esqueleto(ctx.miolo, 'painel');
   const p = '?periodo=' + ctx.periodo;
+  const caminhos = ['api/campanhas' + p + (ctx.fonte ? '&plataforma=' + ctx.fonte : ''), ctx.fonte ? 'api/campanhas' + p : null, 'api/hoje' + p];
   const ler = (c) => ctx.leitor.ler(c, { forcar: ctx.forcar });
+  /* Rodada 15: voltar para a Visão geral não mostra mais o esqueleto: o que já foi lido aparece na hora e é trocado
+     só se o dado novo for diferente (sem os números subirem do zero de novo). */
+  const [mCamp, mTodas, mHoje] = caminhos.map((c) => (c ? ctx.leitor.espiar(c) : null));
+  const memoria = mCamp && (!ctx.fonte || mTodas) ? JSON.stringify([mCamp.dados, mTodas && mTodas.dados, mHoje && mHoje.dados]) : null;
+  if (memoria) {
+    pintar(ctx, mCamp.dados || {}, mTodas ? mTodas.dados || {} : mCamp.dados || {}, mHoje ? mHoje.dados || {} : {}, { animar: false });
+    ctx.marcarAtualizado(mCamp.em);
+  } else Estados.esqueleto(ctx.miolo, 'painel');
   Promise.all([
-    ler('api/campanhas' + p + (ctx.fonte ? '&plataforma=' + ctx.fonte : '')),
-    ctx.fonte ? ler('api/campanhas' + p).catch(() => null) : null,
-    ler('api/hoje' + p).catch(() => null),
+    ler(caminhos[0]),
+    caminhos[1] ? ler(caminhos[1]).catch(() => null) : null,
+    ler(caminhos[2]).catch(() => null),
   ]).then(([camp, todas, hoje]) => {
     if (!ctx.vivo()) return;
-    pintar(ctx, camp.dados || {}, todas ? todas.dados || {} : camp.dados || {}, hoje ? hoje.dados || {} : {});
-  }, (erro) => { if (ctx.vivo()) Estados.falha(ctx.miolo, { mensagem: Estados.fraseDoErro(erro), aoTentar: () => ctx.recarregar() }); });
+    ctx.marcarAtualizado(camp.em);
+    const igual = memoria && JSON.stringify([camp.dados, todas && todas.dados, hoje && hoje.dados]) === memoria;
+    if (!igual) pintar(ctx, camp.dados || {}, todas ? todas.dados || {} : camp.dados || {}, hoje ? hoje.dados || {} : {}, { animar: !memoria });
+  }, (erro) => {
+    if (!ctx.vivo()) return;
+    if (memoria) ctx.faixa('falha', { icone: 'alerta', texto: 'Não consegui atualizar agora: o que está na tela é de ' + (ctx.idade(mCamp.em) || 'antes') + '. ' + Estados.fraseDoErro(erro), acao: h('button', { class: 'botao', type: 'button', on: { click: () => ctx.recarregar() } }, 'Tentar de novo') });
+    else Estados.falha(ctx.miolo, { mensagem: Estados.fraseDoErro(erro), aoTentar: () => ctx.recarregar() });
+  });
   return null;
 }
 
 /* ------------------------------ peças ------------------------------ */
 
 /** Número que sobe do zero até o valor (uma vez, rápido). Quem pediu menos movimento vê o número pronto. */
+let animarNumeros = true;
 function contar(el, valor, formatar) {
   el.textContent = formatar(valor);
-  if (!ehNumero(valor) || valor <= 0 || menosMovimento() || typeof requestAnimationFrame !== 'function') return el;
+  if (!animarNumeros || !ehNumero(valor) || valor <= 0 || menosMovimento() || typeof requestAnimationFrame !== 'function') return el;
   const ini = performance.now(), dura = 900;
   const passo = (t) => {
     const f = Math.min(1, (t - ini) / dura), suave = 1 - (1 - f) ** 3;
@@ -215,7 +230,8 @@ function leituraDoPeriodo(ctx, campanhas, comparacao, semConta) {
 
 /* ------------------------------ tela ------------------------------ */
 
-function pintar(ctx, c, todas, hoje) {
+function pintar(ctx, c, todas, hoje, { animar = true } = {}) {
+  animarNumeros = animar;
   const estado = c.estado || {};
   ctx.demo(Boolean(estado.demo));
   const t = c.totais || {};
