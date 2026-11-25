@@ -49,6 +49,7 @@
   <link rel="stylesheet" href="r13.css" />
   <link rel="stylesheet" href="r14.css" />
   <link rel="stylesheet" href="r15.css" />
+  <link rel="stylesheet" href="r16.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar Atendimento" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -369,6 +370,7 @@
                   <div id="chatPresenca" class="chat-presenca" hidden aria-live="polite"></div>
                 </div>
               </div>
+              <button type="button" class="chat-detalhes" id="btnChatDetalhes" aria-expanded="false" aria-controls="chat" title="Mostrar ou esconder etiquetas, avisos e resumo do cliente">Detalhes <i aria-hidden="true">▾</i></button>
             </div>
             <div class="chat-acoes" id="chatAcoes">
               <!-- ícones do dia a dia: sempre à vista, inclusive no celular -->
@@ -543,7 +545,7 @@
       </header>
 
       <div class="cartao" id="cartaoIaFunil" style="margin-bottom:18px">
-        <h3>Classificação automática</h3>
+        <h2 class="cartao-tit">Classificação automática</h2>
         <p class="cartao-sub">Com a chavinha ligada, toda vez que o cliente mandar uma
           mensagem a IA relê a conversa e atualiza a plaquinha sozinha. Quando ela não
           tiver certeza, deixa como está.</p>
@@ -567,7 +569,7 @@
       </header>
 
       <div class="cartao" style="margin-bottom:18px">
-        <h3>Variáveis disponíveis</h3>
+        <h2 class="cartao-tit">Variáveis disponíveis</h2>
         <p class="cartao-sub">Escreva na mensagem e o sistema troca pelo dado real do cliente na hora de usar.</p>
         <div class="vars">
           <code>{nome}</code><code>{primeiro_nome}</code><code>{carro}</code><code>{placa}</code>
@@ -600,7 +602,7 @@
 
       <div class="cartoes">
         <div class="cartao">
-          <h3>Testar agora</h3>
+          <h2 class="cartao-tit">Testar agora</h2>
           <p class="cartao-sub">Escreva uma mensagem como se fosse o cliente e veja o que a IA responderia.</p>
           <textarea id="iaTeste" rows="3" placeholder="Ex.: Bom dia, quanto fica pra trocar o óleo do câmbio de um Corolla 2019?"></textarea>
           <button class="btn btn-primary sm" id="btnTestarIA">Gerar resposta</button>
@@ -697,7 +699,7 @@
       <div class="cartoes">
         <div class="cartao" id="cartaoCodeWords">
           <div class="int-cab">
-            <h3>CodeWords <span class="selo" id="seloCW">—</span></h3>
+            <h2 class="cartao-tit">CodeWords <span class="selo" id="seloCW">—</span></h2>
           </div>
           <p class="cartao-sub">O CodeWords é quem fala com o WhatsApp. Este painel administra
             os leads e manda as mensagens através dele.</p>
@@ -911,7 +913,7 @@
       <div class="config-secao ativa" id="config-conta">
         <div class="cartoes">
           <div class="cartao" id="cartaoPerfil">
-            <h3>Meu perfil</h3>
+            <h2 class="cartao-tit">Meu perfil</h2>
             <p class="cartao-sub">Seu nome e sua cor aparecem nas conversas, nas tarefas e nos relatórios. E-mail e papel só o administrador muda.</p>
             <form id="formPerfil" class="form-vertical">
               <div class="perfil-previa">
@@ -1565,6 +1567,7 @@
 <script src="r7c4.js"></script>
 <script src="hoje.js"></script>
 <script src="r15.js"></script>
+  <script src="r16.js"></script>
 <script src="copiloto.js" defer></script>
 <script src="casca.js" defer></script>
 </body>
