@@ -113,7 +113,7 @@ renderKanban = function () {
 function montarDlgContato6() {
   if ($('#dlgContato6')) return;
   document.body.insertAdjacentHTML('beforeend', `<dialog class="dlg" id="dlgContato6" aria-labelledby="dlgContato6T"><form method="dialog" id="formContato6">
-    <h3 id="dlgContato6T">Registrar contato</h3><p class="muted" id="ct6Nome"></p>
+    <h2 id="dlgContato6T">Registrar contato</h2><p class="muted" id="ct6Nome"></p>
     <label>Como foi<select id="ct6Tipo">${TIPOS6.map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></label>
     <label>O que aconteceu<select id="ct6Res">${RESULTADOS6.map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}</select></label>
     <label>Anotação (sem dados de cartão ou senha)<textarea id="ct6Texto" rows="3" maxlength="1000" placeholder="Ex.: quer trocar as pastilhas, volta a falar sexta"></textarea></label>
@@ -297,7 +297,7 @@ function renderHoje6() {
   $('#hojeResumo').innerHTML = `<b>${d.total}</b> para contatar · <b>${d.feitos_hoje}</b> contato${d.feitos_hoje === 1 ? '' : 's'} registrado${d.feitos_hoje === 1 ? '' : 's'} hoje` + (H6.motivo ? ` <button type="button" class="r6-chip-btn" data-h6="motivo" data-k="">limpar filtro</button>` : '') + Object.entries(d.por_motivo).map(([k, n]) => ` <button type="button" class="r6-chip-btn${H6.motivo === k ? ' on' : ''}" data-h6="motivo" data-k="${esc(k)}" aria-pressed="${H6.motivo === k}">${esc(textoMotivo6[k] || k)} ${n}</button>`).join('');
   const sel = $('#hojeEscopo'); if (sel && !sel.dataset.pronto) { sel.dataset.pronto = '1'; sel.innerHTML = (SOU_GESTOR ? '<option value="todos">Todos</option>' : '') + '<option value="meus">Meus contatos</option><option value="sem">Sem responsável</option>'; sel.value = d.escopo; sel.onchange = () => { H6.escopo = sel.value; carregarHoje6(); }; }
   const ent = (e?.itens || []).filter(x => x.pode_editar);
-  $('#hojeEntregues').innerHTML = ent.length ? `<h4>🏁 Carros entregues: falta concluir o contato (${ent.length})</h4>` + ent.map(x => `<div class="r6-linha" data-lead="${esc(x.lead.id)}"><div><strong>${esc(x.lead.nome)}</strong> <span class="muted">${esc(x.lead.carro_modelo || '')}</span><div class="cell-sub">Ordem nº ${esc(x.os.numero ?? '')} entregue há ${x.os.dias} d${x.orcamento ? ' · orçamento ' + brl(x.orcamento.total) : ''}${x.extras_aprovados ? ' + extras ' + brl(x.extras_aprovados) : ''}</div></div>
+  $('#hojeEntregues').innerHTML = ent.length ? `<h3 class="r16-sub">🏁 Carros entregues: falta concluir o contato (${ent.length})</h3>` + ent.map(x => `<div class="r6-linha" data-lead="${esc(x.lead.id)}"><div><strong>${esc(x.lead.nome)}</strong> <span class="muted">${esc(x.lead.carro_modelo || '')}</span><div class="cell-sub">Ordem nº ${esc(x.os.numero ?? '')} entregue há ${x.os.dias} d${x.orcamento ? ' · orçamento ' + brl(x.orcamento.total) : ''}${x.extras_aprovados ? ' + extras ' + brl(x.extras_aprovados) : ''}</div></div>
       <div class="r6-acoes">${x.sugestoes[0] ? `<span class="tag">sugerido ${brl(x.sugestoes[0].valor)}</span>` : ''}<button type="button" class="btn btn-primary sm" data-h6="concluir" data-id="${esc(x.lead.id)}">Concluir</button></div></div>`).join('') : '';
   const itensH = d.itens.filter(i => !H6.motivo || i.principal === H6.motivo);
   $('#hojeLista').innerHTML = itensH.length ? itensH.map(it => {

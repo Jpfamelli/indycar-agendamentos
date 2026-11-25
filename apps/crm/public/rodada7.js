@@ -129,7 +129,7 @@ function r7PintarFaixaMov() {
 function montarDlgMov7() {
   if ($('#dlgMov7')) return;
   document.body.insertAdjacentHTML('beforeend', `<dialog class="dlg dlg-largo" id="dlgMov7" aria-labelledby="dlgMov7T"><form method="dialog" id="formMov7">
-    <h3 id="dlgMov7T">O que o funil sugere mover</h3>
+    <h2 id="dlgMov7T">O que o funil sugere mover</h2>
     <p class="muted">Só vale o que ainda é verdade na hora de aplicar. Dá para desfazer logo depois.</p>
     <div class="table-wrap r7-lista"><table class="table" id="tblMov7"></table></div>
     <p class="form-erro" id="mov7Erro" role="alert"></p>
@@ -264,7 +264,7 @@ async function r7CarregarRetornos(forcar) {
     $('#view-hoje').prepend(card); card.addEventListener('click', onClickRetornos7);
     card.addEventListener('change', onChangeRetornos7);
   }
-  if (!R7.ret || forcar) card.innerHTML = '<h3>Retornos combinados</h3><div class="skeleton" aria-label="Carregando retornos"></div>';
+  if (!R7.ret || forcar) card.innerHTML = '<h2>Retornos combinados</h2><div class="skeleton" aria-label="Carregando retornos"></div>';
   try { R7.ret = await api7('/api/retornos' + (R7.retEscopo ? '?escopo=' + R7.retEscopo : '')); r7PintarRetornos(); } catch (e) { erro7(card, e, 'retornos'); }
 }
 function r7PintarRetornos() {
@@ -281,7 +281,7 @@ function r7PintarRetornos() {
   const mais = aba === 'sem_retorno' && r.sem_retorno_mais ? `<p class="muted mini-nota">E mais ${r.sem_retorno_mais} sem retorno (mostrando os de maior valor).</p>` : '';
   const periodos = aba === 'hoje' && itens.length ? `<p class="muted mini-nota">Manhã ${r.hoje_periodos.manha} · tarde ${r.hoje_periodos.tarde} · fim do dia ${r.hoje_periodos.fim}</p>` : '';
   const pessoas = SOU_GESTOR && r.por_pessoa?.length > 1 ? `<details class="r7-sec"><summary>Retornos por pessoa</summary><div class="table-wrap"><table class="table"><thead><tr><th>Pessoa</th><th class="num">Abertos</th><th class="num">Atrasados</th><th class="num">Hoje</th><th class="num">Sem retorno</th></tr></thead><tbody>${r.por_pessoa.map(p => `<tr><td>${esc(p.nome)}</td><td class="num">${p.abertos}</td><td class="num${p.atrasados ? ' parado-txt' : ''}">${p.atrasados}</td><td class="num">${p.hoje}</td><td class="num">${p.sem_retorno}</td></tr>`).join('')}</tbody></table></div></details>` : '';
-  card.innerHTML = `<div class="r6-cab"><h3>Retornos combinados</h3>${SOU_GESTOR ? `<label class="r6-esc">Mostrar<select id="r7RetEscopo" aria-label="Escopo dos retornos"><option value="">Todos</option><option value="meus">Meus contatos</option><option value="sem">Sem responsável</option></select></label>` : ''}<span class="muted">${esc(cob)}</span></div>
+  card.innerHTML = `<div class="r6-cab"><h2>Retornos combinados</h2>${SOU_GESTOR ? `<label class="r6-esc">Mostrar<select id="r7RetEscopo" aria-label="Escopo dos retornos"><option value="">Todos</option><option value="meus">Meus contatos</option><option value="sem">Sem responsável</option></select></label>` : ''}<span class="muted">${esc(cob)}</span></div>
     <div class="r7-abas" role="tablist" aria-label="Retornos">${abas}</div>${periodos}<div class="r7-ret-lista">${linhas || `<p class="vazio-curto">${vazio}</p>`}</div>${mais}${pessoas}`;
   const sel = $('#r7RetEscopo'); if (sel) sel.value = R7.retEscopo;
 }

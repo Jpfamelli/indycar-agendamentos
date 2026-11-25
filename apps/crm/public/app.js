@@ -538,7 +538,7 @@ async function abrirFichaCliente(id, opcoes = {}) {
       </tr>`).join('') : '';
 
     alvo.innerHTML = `
-      <h3 class="sr" id="fichaCliTitulo">Ficha de ${esc(c.nome)}</h3>
+      <h2 class="sr" id="fichaCliTitulo">Ficha de ${esc(c.nome)}</h2>
       <div class="ficha-topo">
         <span class="avatar">${esc(iniciais(c.nome))}</span>
         <div>

@@ -31,6 +31,7 @@
 <link rel="stylesheet" href="r13.css" />
 <link rel="stylesheet" href="r14.css" />
 <link rel="stylesheet" href="r15.css" />
+<link rel="stylesheet" href="r16.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0a0a'/><text y='.85em' x='8' font-size='78' font-family='sans-serif' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar CRM" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -115,27 +116,28 @@
     </div>
     <p class="r13-frase r13-frase-painel" id="r13FrasePainel" aria-live="polite"></p>
     <div class="card card-sem-valor" id="cardSemValor" hidden>
-      <div class="sv-txt"><div><h3 id="svTitulo">Vendas sem valor pago</h3><p class="card-sub" id="svSub"></p></div></div>
+      <div class="sv-txt"><div><h2 id="svTitulo">Vendas sem valor pago</h2><p class="card-sub" id="svSub"></p></div></div>
       <div class="sv-acoes"><button type="button" class="btn btn-ghost sm" id="svVer">Ver na lista</button><button type="button" class="btn btn-primary sm" id="svPreencher" hidden>Preencher agora</button></div>
     </div>
     <div class="kpis" id="kpis"></div>
     <div class="grid-2">
       <div class="card">
-        <div class="card-topo"><h3>Metas do mês</h3><button type="button" class="btn btn-ghost sm" id="btnMetas" hidden>Definir metas</button></div>
+        <div class="card-topo"><h2>Metas do mês</h2><button type="button" class="btn btn-ghost sm" id="btnMetas" hidden>Definir metas</button></div>
         <div id="metasMes" aria-live="polite"></div>
       </div>
       <div class="card">
-        <h3>Funil por etapa</h3>
+        <h2>Funil por etapa</h2>
+        <p class="card-sub">O percentual mostra quantos passaram da etapa anterior.</p>
         <div id="funnelMini" class="funnel-mini"></div>
       </div>
     </div>
     <div class="grid-2">
       <div class="card">
-        <h3>Conversão por origem</h3>
+        <h2>Conversão por origem</h2>
         <div class="table-wrap" tabindex="0" role="region" aria-label="Conversão por origem no Painel"><table class="table" id="tblOrigemPainel"></table></div>
       </div>
       <div class="card">
-        <h3>Motivos de perda</h3>
+        <h2>Motivos de perda</h2>
         <div id="motivosPerda"></div>
       </div>
     </div>
@@ -175,7 +177,7 @@
   <!-- ---------- CLIENTES ---------- -->
   <section class="view" id="view-clientes">
     <div class="card">
-      <h3>Base de clientes</h3>
+      <h2>Base de clientes</h2>
       <div class="barra-busca">
         <div class="busca-local">
           <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" fill="currentColor"/></svg>
@@ -212,23 +214,23 @@
     </div>
     <div class="r13-grade">
       <section class="card r13-valores" id="r13Valores" aria-labelledby="r13ValoresT">
-        <div class="card-topo"><h3 id="r13ValoresT">Valor dos serviços fechados</h3><button type="button" class="btn btn-ghost sm" id="r13Lote" hidden>Lançar vários de uma vez</button></div>
+        <div class="card-topo"><h2 id="r13ValoresT">Valor dos serviços fechados</h2><button type="button" class="btn btn-ghost sm" id="r13Lote" hidden>Lançar vários de uma vez</button></div>
         <p class="card-sub" id="r13ValoresSub"></p>
         <div id="r13ValoresLista"></div>
       </section>
       <section class="card r13-grafico" aria-labelledby="r13GraficoT">
-        <div class="card-topo"><h3 id="r13GraficoT">Contatos por dia</h3><span class="filter-count">últimos 14 dias</span></div>
+        <div class="card-topo"><h2 id="r13GraficoT">Contatos por dia</h2><span class="filter-count">últimos 14 dias</span></div>
         <div class="r13-legenda"><span><i class="r13-l-ent"></i>Entraram</span><span><i class="r13-l-fec"></i>Fecharam serviço</span></div>
         <div id="r13Grafico"></div>
         <p class="r13-leitura" id="r13Leitura" aria-live="polite"></p>
       </section>
     </div>
     <section class="card r13-funil" aria-labelledby="r13FunilT">
-      <div class="card-topo"><h3 id="r13FunilT">Funil agora</h3><span class="filter-count" id="r13FunilTxt"></span></div>
+      <div class="card-topo"><h2 id="r13FunilT">Funil agora</h2><span class="filter-count" id="r13FunilTxt"></span></div>
       <div class="r13-etapas" id="r13Etapas"></div>
     </section>
     <div class="card">
-      <div class="r6-cab"><h3>Fila do dia</h3><label class="r6-esc">Mostrar<select id="hojeEscopo" aria-label="Escopo da fila"></select></label></div>
+      <div class="r6-cab"><h2>Fila do dia</h2><label class="r6-esc">Mostrar<select id="hojeEscopo" aria-label="Escopo da fila"></select></label></div>
       <p class="card-sub" id="hojeResumo" aria-live="polite"></p>
       <div id="hojeEntregues"></div>
       <div id="hojeLista"></div>
@@ -247,11 +249,11 @@
       <span class="filter-count" id="eqTxt" aria-live="polite"></span>
     </div>
     <div class="card">
-      <div class="card-topo"><h3>Meta da loja</h3><span class="filter-count" id="eqLojaTxt"></span></div>
+      <div class="card-topo"><h2>Meta da loja</h2><span class="filter-count" id="eqLojaTxt"></span></div>
       <div class="metas-grade" id="eqMetaLoja"></div>
     </div>
     <div class="card">
-      <div class="card-topo"><h3>Ranking da equipe</h3>
+      <div class="card-topo"><h2>Ranking da equipe</h2>
         <label class="eq-criterio">Ordenar por <select id="eqCriterio">
           <option value="faturamento">Faturamento</option><option value="vendas">Vendas</option><option value="conversao">Conversão</option>
           <option value="agendados">Agendados</option><option value="leads">Contatos</option><option value="tempo_resposta_min">Tempo de resposta</option>
@@ -260,13 +262,13 @@
       <div class="table-wrap" tabindex="0" role="region" aria-label="Desempenho da equipe"><table class="table" id="tblDesempenho"></table></div>
     </div>
     <div class="card">
-      <div class="card-topo"><h3>Metas por pessoa</h3><button type="button" class="btn btn-primary sm" id="eqSalvar">Salvar metas do mês</button></div>
+      <div class="card-topo"><h2>Metas por pessoa</h2><button type="button" class="btn btn-primary sm" id="eqSalvar">Salvar metas do mês</button></div>
       <p class="card-sub">Deixe zero para não cobrar aquele número. A meta da loja fica na primeira linha.</p>
       <form id="formMetasEquipe"><div class="table-wrap"><table class="table metas-tabela" id="tblMetasEquipe"></table></div></form>
       <p class="form-msg" id="eqMsg" role="status" hidden></p>
     </div>
     <div class="card">
-      <div class="card-topo"><h3>Funil por responsável</h3><span class="filter-count">Contatos em cada etapa neste momento</span></div>
+      <div class="card-topo"><h2>Funil por responsável</h2><span class="filter-count">Contatos em cada etapa neste momento</span></div>
       <div class="table-wrap" tabindex="0" role="region" aria-label="Funil por responsável"><table class="table" id="tblFunilResp"></table></div>
     </div>
   </section>
@@ -282,7 +284,7 @@
       </div>
     </div>
     <section class="card r14-faxina" id="r14Faxina" aria-labelledby="r14FaxinaT">
-      <div class="card-topo"><h3 id="r14FaxinaT">1. Limpar o que parou</h3><span class="filter-count" id="r14FaxinaTxt" aria-live="polite"></span></div>
+      <div class="card-topo"><h2 id="r14FaxinaT">1. Limpar o que parou</h2><span class="filter-count" id="r14FaxinaTxt" aria-live="polite"></span></div>
       <div class="r14-controles">
         <div class="r14-grupo" role="group" aria-label="Parado há mais de"><span class="r14-rot">Parado há mais de</span><div class="pilulas" id="r14Dias"></div></div>
         <div class="r14-grupo" role="group" aria-label="De quem"><span class="r14-rot">De quem</span><div class="pilulas" id="r14Escopo"></div></div>
@@ -294,21 +296,21 @@
       <div class="int-actions r14-acoes"><button type="button" class="btn btn-ghost sm" id="r14Desfazer" hidden>Desfazer a última faxina</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="r14Gravar" disabled>Marcar como perdidos</button></div>
     </section>
     <section class="card card-sem-dono r14-rodizio" id="cardSemDono" aria-labelledby="sdTitulo2">
-      <div class="card-topo"><h3 id="sdTitulo2">2. Dividir o que está vivo</h3><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
+      <div class="card-topo"><h2 id="sdTitulo2">2. Dividir o que está vivo</h2><span class="filter-count" id="sdTxt" aria-live="polite"></span></div>
       <div class="sd-rodizio" id="sdRodizio"></div>
       <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="sdRecarregar">Recalcular</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="sdAplicar" disabled>Aplicar o rodízio sugerido</button></div>
     </section>
     <details class="card r14-manual" id="r14Manual"><summary>Escolher na mão quem recebe</summary>
     <div class="dist-grade">
         <div class="card">
-          <div class="card-topo"><h3>1. Contatos a distribuir</h3><span class="filter-count" id="dsQtd" aria-live="polite"></span></div>
+          <div class="card-topo"><h2>1. Contatos a distribuir</h2><span class="filter-count" id="dsQtd" aria-live="polite"></span></div>
           <fieldset class="ds-grupo"><legend>Etapa</legend><div class="pilulas" id="dsStatus"></div></fieldset>
           <fieldset class="ds-grupo"><legend>Origem</legend><div class="pilulas" id="dsOrigem"></div></fieldset>
           <label class="ds-idade">Entrou há
             <select id="dsIdade" aria-label="Tempo desde a abertura do contato"><option value="">qualquer tempo</option><option value="0-7">até 7 dias</option><option value="7-30">7 a 30 dias</option><option value="30-90">30 a 90 dias</option><option value="7">mais de 7 dias</option><option value="30">mais de 30 dias</option><option value="90">mais de 90 dias</option></select></label>
         </div>
         <div class="card">
-          <div class="card-topo"><h3>2. Quem recebe</h3><span class="filter-count" id="dsGenteQtd" aria-live="polite"></span></div>
+          <div class="card-topo"><h2>2. Quem recebe</h2><span class="filter-count" id="dsGenteQtd" aria-live="polite"></span></div>
           <div id="dsGente" class="ds-gente" role="group" aria-label="Pessoas que recebem"></div>
           <fieldset class="ds-grupo"><legend>Como dividir</legend>
             <label class="chk"><input type="radio" name="dsModo" value="igual" checked /> Partes iguais</label>
@@ -318,14 +320,14 @@
         </div>
       </div>
       <div class="card" id="dsResultado" hidden>
-        <div class="card-topo"><h3>3. Prévia</h3><span class="filter-count" id="dsPreviaTxt" aria-live="polite"></span></div>
+        <div class="card-topo"><h2>3. Prévia</h2><span class="filter-count" id="dsPreviaTxt" aria-live="polite"></span></div>
         <div class="table-wrap" tabindex="0" role="region" aria-label="Prévia da distribuição por pessoa"><table class="table" id="tblDsResumo"></table></div>
         <details class="ds-detalhe"><summary>Ver contato por contato</summary><div class="table-wrap" tabindex="0" role="region" aria-label="Contatos da prévia de distribuição"><table class="table" id="tblDsLeads"></table></div></details>
         <div class="int-actions"><button type="button" class="btn btn-ghost sm" id="dsRefazer">Refazer</button><div class="spacer"></div><button type="button" class="btn btn-primary" id="dsGravar">Gravar distribuição</button></div>
       </div>
     </details>
     <div class="card">
-      <div class="card-topo"><h3>Últimas distribuições</h3></div>
+      <div class="card-topo"><h2>Últimas distribuições</h2></div>
       <div id="dsHistorico" aria-live="polite"></div>
     </div>
   </section>
@@ -358,7 +360,7 @@
 <div class="modal-bg gaveta-bg" id="modalBg">
   <div class="modal gaveta">
     <button class="modal-x" id="modalX" aria-label="Fechar contato" type="button">×</button>
-    <h3 id="modalTitle">Novo contato</h3>
+    <h2 id="modalTitle">Novo contato</h2>
     <div id="leadFicha" hidden>
       <div class="lf-topo" id="lfTopo"></div>
       <div class="lf-resp" id="lfResp"></div>
@@ -439,7 +441,7 @@
 
 <dialog class="dlg" id="dlgPerda" aria-labelledby="dlgPerdaT">
   <form method="dialog" id="formPerda">
-    <h3 id="dlgPerdaT">Por que perdemos?</h3>
+    <h2 id="dlgPerdaT">Por que perdemos?</h2>
     <p class="muted" id="dlgPerdaNome"></p>
     <fieldset class="motivos" id="motivosPerdaOpcoes"><legend class="sr">Motivo da perda</legend></fieldset>
     <label id="perdaOutroL" hidden>Qual foi o motivo?<input id="perdaOutro" maxlength="140" /></label>
@@ -450,7 +452,7 @@
 
 <dialog class="dlg" id="dlgPago" aria-labelledby="dlgPagoT">
   <form method="dialog" id="formPago">
-    <h3 id="dlgPagoT">Quanto o cliente pagou?</h3>
+    <h2 id="dlgPagoT">Quanto o cliente pagou?</h2>
     <p class="muted" id="dlgPagoNome"></p>
     <label>Valor pago (R$)<input id="pagoValor" type="number" min="0" max="10000000" step="0.01" inputmode="decimal" required /></label>
     <div class="pago-sugestoes" id="pagoSugestoes" role="group" aria-label="Sugestões de valor" hidden></div>
@@ -464,7 +466,7 @@
 <!-- Rodada 4: preencher valor pago em lote (gestor) -->
 <dialog class="dlg dlg-largo" id="dlgValores" aria-labelledby="dlgValoresT">
   <form method="dialog" id="formValores">
-    <h3 id="dlgValoresT">Preencher valores pagos</h3>
+    <h2 id="dlgValoresT">Preencher valores pagos</h2>
     <p class="muted" id="dvTxt">Concluídos sem valor deixam o faturamento e o retorno dos anúncios vazios.</p>
     <div class="dv-barra"><button type="button" class="btn btn-ghost sm" id="dvSugestoes">Usar as sugestões nos vazios</button><span class="filter-count" id="dvConta" aria-live="polite"></span></div>
     <div class="table-wrap dv-lista"><table class="table" id="tblValores"></table></div>
@@ -475,7 +477,7 @@
 
 <dialog class="dlg dlg-largo" id="dlgCampanha" aria-labelledby="dlgCampanhaT">
   <form method="dialog" id="formCampanha">
-    <h3 id="dlgCampanhaT">Campanha no Comunicar</h3>
+    <h2 id="dlgCampanhaT">Campanha no Comunicar</h2>
     <p class="muted" id="campTxt"></p>
     <label>Mensagem<textarea id="campCorpo" aria-describedby="campAjuda" maxlength="2000" rows="4" required placeholder="Oi {nome}! Aqui é da IndyCar. …"></textarea><small id="campAjuda">Use {nome}, {carro} e {placa}. Deixe valores para a conversa com o cliente e escreva como você fala no atendimento.</small></label>
     <div class="row"><label>Enviar a partir de<input id="campQuando" type="datetime-local" /></label><label>Nota interna<input id="campDetalhe" maxlength="200" placeholder="ex.: reativação de orçamentos de setembro" /></label></div>
@@ -599,6 +601,7 @@
 <script src="r14-faxina.js"></script>
 <script src="r14.js"></script>
 <script src="r15.js"></script>
+<script src="r16.js"></script>
 <script>
   /* Registra o service worker — é o que torna o app instalável.
      Falha silenciosa de propósito: sem ele o app funciona igual, só deixa

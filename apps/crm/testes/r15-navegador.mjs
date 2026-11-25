@@ -80,7 +80,7 @@ try {
   await s.page.reload({ waitUntil: 'domcontentloaded' });
   await s.page.waitForFunction(() => typeof TODOS !== 'undefined' && TODOS.length, { timeout: 20000 }); await espera(1500);
   const sw = await s.page.evaluate(async () => ({ controlado: !!navigator.serviceWorker.controller, chaves: (await caches.keys()), r15: !!(await caches.match('r15.js')) && !!(await caches.match('r15.css')) }));
-  conferir('2ª visita: service worker controla, v19 e r15 em cache', sw.controlado && sw.chaves.some(k => /crm-v19$/.test(k)) && sw.r15, JSON.stringify(sw));
+  conferir('2ª visita: service worker controla, v19 e r15 em cache', sw.controlado && sw.chaves.some(k => /crm-v(19|20)$/.test(k)) && sw.r15, JSON.stringify(sw));
   conferir('2ª visita: sem erro e Hoje abre', s.erros.length === 0 && await s.page.evaluate(() => !!document.querySelector('#r13Frase').textContent), s.erros.slice(0, 3).join(' | '));
   await s.page.close();
 } finally { await browser.close(); }

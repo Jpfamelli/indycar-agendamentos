@@ -1,0 +1,7 @@
+/* Rodada 16 (25/11/2026): polimento. Só variáveis da Casa; sem borda grossa de um lado. */
+[hidden]{display:none!important}
+.r16-atalhos{display:flex;gap:8px;flex:1 0 100%;overflow-x:auto;scrollbar-width:none;padding:0 0 4px}
+.r16-atalhos::-webkit-scrollbar{display:none}
+.r16-atalho{flex:0 0 auto;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--ic-borda);background:var(--ic-painel);color:var(--ic-apagado);font:600 13px/1 var(--ic-texto-f);cursor:pointer}
+.r16-atalho[aria-pressed="true"]{border-color:var(--ic-forte);color:var(--ic-texto);background:color-mix(in srgb,var(--ic-forte) 10%,transparent)}
+.r16-sub{margin:8px 0 0;font-size:1rem}

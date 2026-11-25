@@ -53,7 +53,7 @@
 .cia-card header b{font-family:var(--font-cond);font-size:1.12rem;letter-spacing:.01em}
 .cia-ico{font-size:1.1rem}
 .cia-just{margin:6px 0 0;font-size:.88rem;color:var(--texto-suave);line-height:1.45;overflow-wrap:anywhere}
-.cia-texto{margin:10px 0 0;padding:10px 12px;border-left:3px solid var(--ok);border-radius:0 10px 10px 0;background:var(--superficie);
+.cia-texto{margin:10px 0 0;padding:10px 12px;border:1px solid color-mix(in srgb,var(--ok) 35%,transparent);border-radius:10px;background:var(--superficie);
   font-size:.9rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .cia-aviso{margin:8px 0 0;font-size:.82rem;color:var(--amarelo-txt)}
 .cia-dica{font-size:.8rem;color:var(--gray-2)}

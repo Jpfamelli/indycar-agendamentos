@@ -288,7 +288,7 @@ function renderMetas() {
   if (!METAS_PAINEL) { el.innerHTML = `<p class="vazio-curto">${METAS_ERRO ? 'As metas aparecem aqui quando o servidor estiver no ar.' : 'Carregando metas…'}</p>`; return; }
   const mes = U.mesAtual(), loja = METAS_PAINEL.find(m => !m.perfil_id), minha = METAS_PAINEL.find(m => String(m.perfil_id || '') === String(PERFIL?.id || '-'));
   const bm = minha && blocoMetas(minha, mes, {compacto: true}), bl = loja && blocoMetas(loja, mes, {compacto: true});
-  const html = (bm ? `<h4 class="meta-quem">Minha meta</h4><div class="metas-dupla">${bm}</div>` : '') + (bl ? `${bm ? '<h4 class="meta-quem">Loja</h4>' : ''}<div class="metas-dupla">${bl}</div>` : '');
+  const html = (bm ? `<h3 class="meta-quem">Minha meta</h3><div class="metas-dupla">${bm}</div>` : '') + (bl ? `${bm ? '<h3 class="meta-quem">Loja</h3>' : ''}<div class="metas-dupla">${bl}</div>` : '');
   el.innerHTML = html || `<p class="vazio-curto">${SOU_GESTOR ? 'Defina as metas do mês da loja e de cada vendedor.' : 'O gestor ainda não definiu as metas deste mês.'}</p>`;
 }
 $('#btnMetas').addEventListener('click', () => irPara('equipe'));

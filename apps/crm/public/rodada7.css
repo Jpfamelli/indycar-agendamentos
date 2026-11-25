@@ -11,7 +11,7 @@
 .r7-dica{position:absolute;left:0;top:calc(100% + 6px);z-index:5;min-width:220px;max-width:min(320px,80vw);display:none;gap:3px;padding:8px 10px;border-radius:10px;background:var(--superficie-2);color:var(--texto);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.25);font-weight:400}
 .r7-saude:hover .r7-dica,.r7-saude:focus .r7-dica,.r7-saude:focus-within .r7-dica{display:grid}
 .r7-dicas-linha{color:var(--texto-suave);font-size:.84rem}
-.r7-mov{border-left:3px solid var(--red);padding-left:8px}
+.r7-mov{padding:6px 10px;border-radius:10px;background:color-mix(in srgb,var(--red) 8%,transparent)}
 .r7-nota{margin:6px 0 0;font-size:.8rem;color:var(--texto-suave)}
 .r7-auto summary{cursor:pointer;color:var(--texto-suave);font-size:.84rem}
 .r7-auto ol{margin:6px 0 0;padding-left:18px;display:grid;gap:3px;font-size:.84rem}
