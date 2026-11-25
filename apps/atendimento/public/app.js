@@ -717,6 +717,8 @@ function esperaDe(c) {
 
 /** Ordem escolhida no seletor (guardada neste navegador). */
 function ordenarLista(lista) {
+  // Rodada 18: a fila do consultor é sempre por espera, o mais antigo primeiro (o seletor de ordem vale para as outras)
+  if (filtroStatus === 'aguardando' && window.R18Regras) return window.R18Regras.ordenarEspera(lista);
   if (ordemLista === 'prioridade' && window.R6Tela) return window.R6Tela.ordenar(lista);
   if (ordemLista === 'espera') {
     return [...lista].sort((a, b) => {
@@ -771,6 +773,7 @@ function renderConversas() {
   const lista = conversasFiltradas();
   const el = $('#listaConversas');
   atualizarRodapeLista(lista.length);
+  window.R18?.aoRenderLista();
 
   if (!lista.length) {
     const html = `<div class="vazio estado-vazio">
@@ -1917,6 +1920,7 @@ async function entregarMensagem(conv, texto, { linhaExistente = null, reenviar =
   sb.from('whatsapp_mensagens').update({ status, erro: ok ? null : String(erro).slice(0, 300) })
     .eq('id', linha.id).then(() => {}, () => {});
   agendarRecargaLista();
+  window.R18?.depoisDeEnviar(ok);
   return ok;
 }
 
@@ -5241,6 +5245,28 @@ function mostrarSaude(s) {
   if (!faixa) return;
   SAUDE_ATUAL = s;
   pintarSeloCodeWords();
+  /* Rodada 18: WhatsApp parado é o problema nº 1 e ganha a faixa (uma só: a tarja de conexão e o aviso do chat
+     saem enquanto esta diz o mesmo). Não dá para dispensar: some sozinha quando o WhatsApp volta. */
+  const zap = window.R18?.zap;
+  faixa.classList.toggle('r18-zap', !!zap?.parado);
+  document.documentElement.classList.toggle('r18-zap-parado', !!zap?.parado);
+  if (zap?.parado) {
+    faixa.classList.remove('saude-codewords');
+    document.getElementById('faixaFechar').hidden = true;
+    const r6z = window.R6Tela?.estado?.zap || {};
+    const pendentes = (r6z.nao_saiu || 0) + (r6z.sem_confirmacao || 0);
+    const situacao = String(zap.situacao || '');
+    document.getElementById('faixaTexto').innerHTML = `<b>${esc(zap.titulo)}.</b> <span class="r18-situacao">${esc(situacao.charAt(0).toUpperCase() + situacao.slice(1))}</span> <span class="r18-acao">${esc(zap.acao || '')}</span>`
+      + (pendentes ? ` <button type="button" class="faixa-link" data-r6="nao-sairam">${pendentes} ${pendentes === 1 ? 'não saiu' : 'não saíram'}</button>` : '');
+    document.getElementById('faixaDesde').textContent = '';
+    const btnZ = document.getElementById('faixaBtn');
+    btnZ.textContent = 'Abrir WhatsApp e chaves';
+    btnZ.hidden = perfil?.papel !== 'admin';
+    faixa.hidden = false;
+    reservarEspacoDaTarja();
+    return;
+  }
+  document.getElementById('faixaBtn').textContent = 'Abrir WhatsApp e chaves';
   const temProblema = !!s?.problema;
   const chaveRecusada = /codewords/.test(s?.problema || '');
   faixa.classList.toggle('saude-codewords', chaveRecusada);
@@ -5250,7 +5276,7 @@ function mostrarSaude(s) {
     reservarEspacoDaTarja();
     return;
   }
-  document.getElementById('faixaTexto').textContent = chaveRecusada ? 'O WhatsApp parou. Gere uma chave nova no CodeWords e cole em Configurações › Integrações › Chave de API.' : (s.texto || `Atenção: ${s.resumo || s.problema}`);
+  document.getElementById('faixaTexto').textContent = chaveRecusada ? 'O WhatsApp parou. Gere uma chave nova no CodeWords e cole em Ajustes › WhatsApp e chaves.' : (s.texto || `Atenção: ${s.resumo || s.problema}`);
   const desde = document.getElementById('faixaDesde');
   desde.textContent = s.desde ? `desde ${new Date(s.desde).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : '';
   const btn = document.getElementById('faixaBtn');

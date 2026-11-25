@@ -106,13 +106,13 @@ function classificarTesteChave(status, texto = '') {
 
 /** Texto exato que o atendente vê quando o envio falha — por código HTTP e corpo. */
 const ERRO_CHAVE_RECUSADA =
-  'WhatsApp parado: a chave do CodeWords foi recusada (401). Troque em Configurações › Integrações';
+  'WhatsApp parado: a chave do CodeWords foi recusada (401). Peça ao administrador para colar a chave nova em Ajustes › WhatsApp e chaves';
 
 function textoErroEnvio(status, txt = '') {
   if (/INVALID_WA_CLI|whatsapp cli is invalid|not_connected|logged_out/i.test(txt)) {
     return { codigo: 'whatsapp-desconectado',
       erro: 'O WhatsApp da oficina está desconectado — nenhuma mensagem sai enquanto isso. '
-          + 'Reconecte em Configurações › Conexão do WhatsApp (leva 30 segundos no celular).' };
+          + 'Reconecte em Ajustes › WhatsApp e chaves (leva 30 segundos no celular).' };
   }
   if (status === 429 && /limit/i.test(txt)) {
     return { codigo: 'cota', erro: 'A cota mensal do CodeWords acabou — a mensagem ficou registrada aqui, '
@@ -130,7 +130,7 @@ function textoErroEnvio(status, txt = '') {
 /** Texto da faixa de saúde por código de problema do vigia. */
 const TEXTO_SAUDE = {
   'codewords-fora': ERRO_CHAVE_RECUSADA,
-  'whatsapp-fora': 'WhatsApp parado: o celular da oficina está desconectado. Reconecte em Configurações › Conexão do WhatsApp',
+  'whatsapp-fora': 'WhatsApp parado: o celular da oficina está desconectado. Reconecte em Ajustes › WhatsApp e chaves',
   'fila-parada': 'Mensagens automáticas paradas: a fila do Comunicar não anda. Abra o Comunicar para ver o motivo',
   'banco-fora': 'O banco de dados não respondeu ao vigia. Se a tela travar, avise o responsável',
 };

@@ -42,6 +42,7 @@ const { criarC5 } = require('./lib/r6c5.js');
 const { criarR7Dados } = require('./lib/r7-dados.js');
 const { criarPersistenciaZap } = require('./lib/r7-zap.js');
 const { criarRotasR7 } = require('./lib/rotas-r7.js');
+const { criarRotasR18 } = require('./lib/rotas-r18.js');
 const { criarRetomada } = require('./lib/r7-retomada.js');
 // Rodada 7: quando o WhatsApp para ou volta, o banco guarda (sobrevive a reinício) e a equipe é avisada no sino
 const ZAP = criarZap({ aoMudar: ev => { try { zapMudou(ev); } catch (e) { console.error('zap aoMudar:', e.message); } } });
@@ -2366,6 +2367,9 @@ function R7RETOMADA() {
   return _R7RET || (_R7RET = criarRetomada({ sb: adminSupabase(), zap: ZAP, entregar: (d, id) => ENTREGADOR.entregar(d, id), auditar: (...a) => AUDITORIA().registrar(...a) }));
 }
 const ROTAS_R7 = criarRotasR7({ getSb: adminSupabase, usuarioLogado, dentroDoLimite, readBody, retomada: R7RETOMADA, dados: R7DADOS, zap: ZAP, tokenDe: req => ACS.tokenDe(req) });
+/* Rodada 18: WhatsApp parado numa resposta só e encerrar conversas paradas em lote (lib/rotas-r18.js) */
+const ROTAS_R18 = criarRotasR18({ getSb: adminSupabase, usuarioLogado, dentroDoLimite, readBody, zap: ZAP, sincronia: pausaSincronia,
+  lerSaude: () => lerSaude(), auditar: (...a) => AUDITORIA().registrar(...a) });
 const ROTAS_R6 = criarRotasR6({
   getSb: adminSupabase, usuarioLogado, dentroDoLimite, readBody,
   dados: () => R6DADOS(), zap: ZAP,
@@ -3202,6 +3206,7 @@ const handler = async (req, res) => {
     // ---- Rodada 6: fila priorizada, painel conectado, WhatsApp parado (lib/rotas-r6.js) ----
     if (await ROTAS_R6(req, res, pathname, parametros)) return;
     if (await ROTAS_R7(req, res, pathname, parametros)) return;
+    if (await ROTAS_R18(req, res, pathname, parametros)) return;
 
     if (pathname.startsWith('/api/')) return json(res, 404, { erro: 'rota não encontrada' });
 

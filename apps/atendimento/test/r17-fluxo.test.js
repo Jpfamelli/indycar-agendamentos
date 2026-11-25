@@ -42,7 +42,7 @@ test('página e service worker carregam r17 (cache v29), regras antes do app.js'
   const html = ler('index.html'), sw = ler('sw.js');
   assert.match(html, /href="r17\.css"/);
   assert.ok(html.indexOf('src="r17-regras.js"') > 0 && html.indexOf('src="r17-regras.js"') < html.indexOf('src="app.js"'));
-  assert.match(sw, /'r17\.css'/); assert.match(sw, /'r17-regras\.js'/); assert.match(sw, /indycar-atendimento-v29/);
+  assert.match(sw, /'r17\.css'/); assert.match(sw, /'r17-regras\.js'/); assert.match(sw, /indycar-atendimento-v(29|[3-9][0-9])/);
 });
 
 test('Agendar: reaproveita o lead quando o horário falhou (não duplica no CRM) e diz o que fazer', () => {

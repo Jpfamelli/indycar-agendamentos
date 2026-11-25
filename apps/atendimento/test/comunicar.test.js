@@ -80,7 +80,7 @@ test('classificarTesteChave distingue ok, recusada e outro', () => {
 test('textoErroEnvio diz exatamente que a chave foi recusada no 401', () => {
   const r = c.textoErroEnvio(401, '{"detail":"Invalid API key"}');
   assert.equal(r.codigo, 'codewords-401');
-  assert.equal(r.erro, 'WhatsApp parado: a chave do CodeWords foi recusada (401). Troque em Configurações › Integrações');
+  assert.equal(r.erro, 'WhatsApp parado: a chave do CodeWords foi recusada (401). Peça ao administrador para colar a chave nova em Ajustes › WhatsApp e chaves');
   assert.equal(c.textoErroEnvio(500, 'INVALID_WA_CLI').codigo, 'whatsapp-desconectado');
   assert.equal(c.textoErroEnvio(429, 'rate limit exceeded').codigo, 'cota');
   assert.equal(c.textoErroEnvio(404, '').codigo, 'fluxo-404');

@@ -51,6 +51,7 @@
   <link rel="stylesheet" href="r15.css" />
   <link rel="stylesheet" href="r16.css" />
   <link rel="stylesheet" href="r17.css" />
+  <link rel="stylesheet" href="r18.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar Atendimento" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -313,6 +314,8 @@
           </div>
           <!-- dono e ordem: combinam com qualquer filtro de cima -->
           <div class="r6-resumo" id="r6Resumo" hidden aria-live="polite"></div>
+          <!-- Rodada 18: fila do consultor, encerrar as paradas em lote (com contagem, confirmação e desfazer) -->
+          <section class="r18-lote" id="r18Lote" hidden aria-label="Encerrar conversas paradas"></section>
           <div class="c5-barra" id="c5Barra" hidden></div>
           <div class="lista-ferramentas">
             <div class="segmento" role="group" aria-label="De quem é o cliente">
@@ -1556,6 +1559,7 @@
 <script src="r7-regras.js"></script>
 <script src="r9-regras.js"></script>
 <script src="r17-regras.js"></script>
+<script src="r18-regras.js"></script>
 <script src="hoje-regras.js"></script>
 <script src="rede.js"></script>
 <script src="vendor/supabase.js"></script>
@@ -1570,6 +1574,7 @@
 <script src="hoje.js"></script>
 <script src="r15.js"></script>
   <script src="r16.js"></script>
+<script src="r18.js"></script>
 <script src="copiloto.js" defer></script>
 <script src="casca.js" defer></script>
 </body>

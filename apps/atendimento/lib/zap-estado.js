@@ -18,8 +18,8 @@
 const CODIGOS_QUE_PARAM = new Set(['codewords-401', 'whatsapp-desconectado', 'cota']);
 
 const TEXTO = {
-  'codewords-401': 'WhatsApp parado: a chave do CodeWords foi recusada (401). Troque em Configurações › Integrações',
-  'whatsapp-desconectado': 'WhatsApp parado: o celular da oficina está desconectado. Reconecte em Configurações › Conexão do WhatsApp',
+  'codewords-401': 'WhatsApp parado: a chave do CodeWords foi recusada (401). Peça ao administrador para colar a chave nova em Ajustes › WhatsApp e chaves',
+  'whatsapp-desconectado': 'WhatsApp parado: o celular da oficina está desconectado. Reconecte em Ajustes › WhatsApp e chaves',
   cota: 'WhatsApp parado: a cota do CodeWords acabou. Renove o plano ou aguarde virar o mês',
 };
 

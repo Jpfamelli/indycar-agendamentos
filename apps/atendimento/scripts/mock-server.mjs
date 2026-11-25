@@ -37,6 +37,7 @@ import PAT from '../lib/patio.js';
 import { createRequire } from 'node:module';
 const R6 = createRequire(import.meta.url)('../public/r6-regras.js');
 const R7 = createRequire(import.meta.url)('../public/r7-regras.js');
+const R18 = createRequire(import.meta.url)('../lib/r18.js');
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT || 3211);
@@ -200,7 +201,7 @@ const DB = {
   servicos: [{ id: 's1', nome: 'Troca de óleo do motor', ativo: true }, { id: 's2', nome: 'Alinhamento 3D', ativo: true }, { id: 's3', nome: 'Pastilha de freio', ativo: true }],
   consultores: [{ id: 'c1', nome: 'Leonardo', ativo: true }],
   codewords_config: [{ id: true, ativo: true, url_envio: null, service_id: 'indycar_carlos_whatsapp_e3cd01d3', token_webhook: 'segredo-de-teste', responder_auto: true,
-    ultimo_erro: 'WhatsApp parado: a chave do CodeWords foi recusada (401). Troque em Configurações › Integrações', ultimo_evento_em: d(6),
+    ultimo_erro: 'WhatsApp parado: a chave do CodeWords foi recusada (401). Peça ao administrador para colar a chave nova em Ajustes › WhatsApp e chaves', ultimo_evento_em: d(6),
     url_webhook_publica: 'https://nppfqhavqahapmugnyng.supabase.co/functions/v1/codewords-webhook', modo_envio: 'dispositivo' }],
   codewords_fluxos: [{ id: 'f1', nome: 'Carlos — Indycar Centro Automotivo', service_id: 'indycar_carlos_whatsapp_e3cd01d3', descricao: 'envio e recebimento', ativo: true }],
   whatsapp_config: [{ id: true, numero_exibicao: '+55 12 99683-0272', ativo: false }],
@@ -217,6 +218,14 @@ for (let i = 0; i < Number(process.env.MOCK_MUITAS || 0); i++) {
     nome: `${NOMES[i % NOMES.length]} Teste ${String(i + 1).padStart(3, '0')}`, status: 'aberta', atribuida_a: i % 3 ? U.admin : null,
     ia_ativa: true, nao_lidas: i % 7 === 0 ? 1 : 0, ultima_mensagem_em: h(2 + i * 0.7), ultima_previa: 'Mensagem de enchimento ' + (i + 1),
     created_at: d(1 + i), tipo: 'atendimento', etapa_id: ETAPA.novo, desfecho: null, aguardando_consultor: false });
+}
+/* Rodada 18: MOCK_PARADAS=40 cria conversas esperando o consultor há 2 a 200 dias (a fila real tinha 253, a mais antiga de maio) */
+for (let i = 0; i < Number(process.env.MOCK_PARADAS || 0); i++) {
+  const dias = 2 + Math.round(i * 198 / Math.max(1, Number(process.env.MOCK_PARADAS) - 1));
+  DB.conversas.push({ id: `c2000000-0000-4000-8000-${String(i).padStart(12, '0')}`, cliente_id: null, telefone: '5512981' + String(100000 + i),
+    telefone_e164: '12981' + String(100000 + i), nome: `${NOMES[(i + 3) % NOMES.length]} Parado ${String(i + 1).padStart(2, '0')}`, status: 'aberta',
+    atribuida_a: i % 4 ? null : U.atendente, ia_ativa: true, nao_lidas: 0, ultima_mensagem_em: d(dias + 0.1), ultima_previa: 'Vocês têm horário essa semana?',
+    created_at: d(dias + 1), tipo: 'atendimento', etapa_id: ETAPA.novo, desfecho: null, aguardando_consultor: true, aguardando_desde: d(dias) });
 }
 // ações do copiloto em memória (para executar / recusar / desfazer)
 const ACOES = new Map();
@@ -559,6 +568,7 @@ let DORMINDO_ATE = 0;
 const dormindo = () => Date.now() < DORMINDO_ATE;
 const ENVIOS_FEITOS = [];   // mensagemId de cada /api/enviar que "saiu" (o teste confere que não duplica)
 let SAUDE_OK = false, SEM_ROTAS = false;
+let ZAP_MOCK = '';   // rodada 18: ?zap=chave|celular|silencio|ok
 const ehUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ''));
 /* Token do login de mentira: "mock-<id>" (nível 1) ou "mock-<id>.aal2" (depois do código das duas etapas). */
 const tokenDe = (req) => {
@@ -628,6 +638,7 @@ http.createServer(async (req, res) => {
       const papel = url.searchParams.get('papel') || 'admin';
       const eu = papel === 'deslogado' ? null : perfilPorId(PAPEL_PERFIL[papel] || U.admin);
       SAUDE_OK = url.searchParams.get('saude') === 'ok';
+      ZAP_MOCK = url.searchParams.get('zap') || '';
       /* Tour de boas-vindas (rodada 4): no mock, todo mundo já "viu" — senão ele
          cobriria a tela nos roteiros antigos. ?tour=1 faz a pessoa nunca ter visto. */
       const tourNovo = url.searchParams.get('tour') === '1';
@@ -911,11 +922,55 @@ http.createServer(async (req, res) => {
     auditar(quem.id, 'conversa.transferir', 'conversas', conv.id, { detalhes: { de, para: para.id, motivo, leads_movidos: 0 } });
     return json(res, 200, { ok: true, de, para: { id: para.id, nome: para.nome }, leads_movidos: 0 });
   }
+  /* ---------- Rodada 18: WhatsApp parado numa resposta só + encerrar paradas em lote (mesma lógica do servidor: lib/r18.js) ---------- */
+  if (p === '/api/r18/zap' && m === 'GET') {
+    const zap = ZAP_MOCK === 'chave' ? { parado: true, codigo: 'codewords-401', desde: d(1.3) } : ZAP_MOCK === 'celular' ? { parado: true, codigo: 'whatsapp-desconectado', desde: h(3) } : { parado: false };
+    const saude = ZAP_MOCK || SAUDE_OK ? {} : { problema: 'codewords-fora', desde: '2026-10-01T16:56:31.089+00:00' };
+    const entradas = DB.whatsapp_mensagens.filter(x => x.direcao === 'entrada').map(x => x.created_at).sort();
+    const ultimaEntrada = ZAP_MOCK === 'silencio' ? h(30) : entradas[entradas.length - 1] || null;
+    return json(res, 200, R18.decidirZap({ zap, saude, ultimaEntrada, agora: Date.now(), ehAdmin: admin }));
+  }
+  if (p.startsWith('/api/r18/paradas')) {
+    const dias = Number(p === '/api/r18/paradas' ? url.searchParams.get('dias') : body.dias);
+    const candidatas = () => {
+      const corte = new Date(Date.now() - dias * 86400_000).toISOString();
+      return DB.conversas.filter(c => c.tipo === 'atendimento' && !c.desfecho && c.aguardando_consultor && (c.aguardando_desde || c.ultima_mensagem_em) < corte)
+        .sort((a, b) => String(a.aguardando_desde).localeCompare(String(b.aguardando_desde))).slice(0, R18.MAX_LOTE);
+    };
+    if (p === '/api/r18/paradas' && m === 'GET') {
+      if (!R18.DIAS_PERMITIDOS.includes(dias)) return erro(res, 400, 'dias', 'Escolha 7, 15, 30, 60 ou 90 dias.');
+      const l = candidatas();
+      return json(res, 200, { ok: true, dias, total: l.length, acima_do_teto: false, teto: R18.MAX_LOTE, mais_antiga: l[0]?.aguardando_desde || null });
+    }
+    if (p === '/api/r18/paradas/encerrar' && m === 'POST') {
+      if (!R18.DIAS_PERMITIDOS.includes(dias)) return erro(res, 400, 'dias', 'Escolha 7, 15, 30, 60 ou 90 dias.');
+      if (!R18.PAPEIS_LOTE.has(quem.papel)) return erro(res, 403, 'papel', 'Só administrador, gestor ou atendente encerram em lote.');
+      const l = candidatas();
+      if (body.esperado != null && l.length > Number(body.esperado)) return json(res, 409, { ok: false, codigo: 'contagem_mudou', total: l.length, erro: `Agora são ${l.length} conversas, não ${body.esperado}. Confira o número e confirme de novo.` });
+      const itens = l.map(c => ({ id: c.id, status: c.status, desde: c.aguardando_desde }));
+      auditar(quem.id, R18.ACAO_ENCERRAR, 'conversas', null, { detalhes: { dias, total: itens.length, itens: R18.empacotar(itens) } });
+      for (const c of l) { c.status = 'resolvida'; c.aguardando_consultor = false; c.aguardando_desde = null; }
+      return json(res, 200, { ok: true, dias, encerradas: l.length, lote: String(seqAud), quando: new Date().toISOString() });
+    }
+    if (p === '/api/r18/paradas/desfazer' && m === 'POST') {
+      const reg = AUDITORIA.find(a => String(a.id) === String(body.lote) && a.acao === R18.ACAO_ENCERRAR);
+      if (!reg) return erro(res, 404, 'lote', 'Não achei esse encerramento.');
+      if (reg.perfil_id !== quem.id && !admin) return erro(res, 403, 'autor', 'Só quem encerrou (ou o administrador) desfaz.');
+      if (AUDITORIA.some(a => a.acao === R18.ACAO_DESFAZER && a.registro_id === String(reg.id))) return erro(res, 409, 'ja', 'Esse encerramento já foi desfeito.');
+      let voltaram = 0, ficaram = 0;
+      for (const it of R18.desempacotar(reg.detalhes.itens)) {
+        const c = DB.conversas.find(x => x.id === it.id);
+        if (c && c.status === 'resolvida' && !c.aguardando_consultor) { c.status = it.status; c.aguardando_consultor = true; c.aguardando_desde = it.desde; voltaram++; } else ficaram++;
+      }
+      auditar(quem.id, R18.ACAO_DESFAZER, 'conversas', String(reg.id), { detalhes: { voltaram, ficaram } });
+      return json(res, 200, { ok: true, voltaram, ficaram });
+    }
+  }
   if (p === '/api/whatsapp/status') return json(res, 200, { conectado: true, inscrito: true, numero: '(12) 99683-0272' });
   if (p === '/api/saude') return json(res, 200, SAUDE_OK
     ? { ok: true, problema: null, desde: null, resumo: null, texto: '' }
     : { ok: false, problema: 'codewords-fora', desde: '2026-10-01T16:56:31.089+00:00', checadoEm: new Date().toISOString(),
-        resumo: 'O CodeWords respondeu com erro 401.', texto: 'WhatsApp parado: a chave do CodeWords foi recusada (401). Troque em Configurações › Integrações' });
+        resumo: 'O CodeWords respondeu com erro 401.', texto: 'WhatsApp parado: a chave do CodeWords foi recusada (401). Peça ao administrador para colar a chave nova em Ajustes › WhatsApp e chaves' });
   if ((mm = /^\/api\/clientes\/([^/]+)\/ficha$/.exec(p))) {
     const cli = DB.clientes.find(c => c.id === mm[1]);
     if (!cli) return json(res, 404, { ok: false, erro: 'Cliente não encontrado.' });
@@ -956,7 +1011,7 @@ http.createServer(async (req, res) => {
   if (p === '/api/codewords/chave' && m === 'GET') {
     if (!admin) return json(res, 403, { erro: 'Só o administrador vê a chave.' });
     return json(res, 200, { ok: true, mascara: '••••••••' + CHAVE.slice(-4), mascaraAgenda: '••••••••' + CHAVE.slice(-4), iguais: true, atualizadoEm: d(60),
-      ultimoErro: ultimoEnvio401 ? 'WhatsApp parado: a chave do CodeWords foi recusada (401). Troque em Configurações › Integrações' : null });
+      ultimoErro: ultimoEnvio401 ? 'WhatsApp parado: a chave do CodeWords foi recusada (401). Peça ao administrador para colar a chave nova em Ajustes › WhatsApp e chaves' : null });
   }
   if (p === '/api/codewords/testar-chave') {
     if (!admin) return json(res, 403, { erro: 'Só o administrador testa a chave.' });
@@ -1135,7 +1190,7 @@ http.createServer(async (req, res) => {
   }
   if (p === '/api/enviar') {
     if (ultimoEnvio401) return json(res, 502, { ok: false, codigo: 'codewords-401', status: 401,
-      erro: 'WhatsApp parado: a chave do CodeWords foi recusada (401). Troque em Configurações › Integrações' });
+      erro: 'WhatsApp parado: a chave do CodeWords foi recusada (401). Peça ao administrador para colar a chave nova em Ajustes › WhatsApp e chaves' });
     // igual ao lib/entrega.js: o mesmo mensagemId não sai duas vezes
     if (body.mensagemId && ENVIOS_FEITOS.includes(body.mensagemId)) return json(res, 200, { ok: true, jaEnviada: true });
     if (body.mensagemId) {

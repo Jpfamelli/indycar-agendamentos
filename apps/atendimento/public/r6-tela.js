@@ -476,7 +476,10 @@
     const el = $('#r6Zap');
     const total = (z.nao_saiu || 0) + (z.sem_confirmacao || 0);
     const btn = $('#btnEnviar');
-    if (btn) { btn.textContent = z.parado ? 'Salvar' : 'Enviar'; btn.title = z.parado ? 'WhatsApp parado: a mensagem fica salva aqui e NÃO sai para o cliente' : 'Enviar (Enter ou Ctrl+Enter)'; btn.classList.toggle('r6-parado', !!z.parado); }
+    // rodada 18: a faixa do topo também sabe quando nada sai (sincronia recusada, vigia): o botão segue a mais severa
+    const retido = !!z.parado || window.R18?.zap?.envio === 'retido';
+    if (btn) { btn.textContent = retido ? 'Salvar' : 'Enviar'; btn.title = retido ? 'WhatsApp parado: a mensagem fica salva aqui e NÃO sai para o cliente' : 'Enviar (Enter ou Ctrl+Enter)'; btn.classList.toggle('r6-parado', retido); }
+    if (window.R18?.zap?.parado && typeof mostrarSaude === 'function') mostrarSaude(typeof SAUDE_ATUAL !== 'undefined' && SAUDE_ATUAL ? SAUDE_ATUAL : {});
     if (!el) return;
     if (!z.parado && !total) { el.hidden = true; el.innerHTML = ''; document.documentElement.style.removeProperty('--r6-zap-h'); return; }
     el.hidden = false;

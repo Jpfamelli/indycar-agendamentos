@@ -1,0 +1,40 @@
+/* Rodada 18 (25/11/2026): WhatsApp parado numa faixa só + encerrar conversas paradas em lote. */
+[hidden]{display:none!important}
+
+/* ---------- WhatsApp parado: a faixa do topo é a única ---------- */
+.faixa-saude.r18-zap{background:#7f1d1d;color:#fee2e2;font-size:.9rem;padding:10px 16px;gap:8px 12px}
+:root[data-tema="claro"] .faixa-saude.r18-zap{background:#b91c1c;color:#fff}
+.faixa-saude.r18-zap #faixaTexto{flex:1 1 420px;min-width:0}
+.faixa-saude.r18-zap .faixa-ico{font-size:1rem}
+.faixa-saude.r18-zap .faixa-btn{min-height:36px;padding:6px 14px;font-size:.84rem;background:rgba(255,255,255,.12)}
+.faixa-link{background:none;border:0;padding:0 2px;color:inherit;font:inherit;font-weight:700;text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer;min-height:24px}
+/* a tarja de conexão e o aviso parado do chat diriam o mesmo: saem enquanto a faixa está acesa */
+html.r18-zap-parado #tarjaConexao,
+html.r18-zap-parado #r6Zap.parado{display:none!important}
+/* a regra antiga do celular esconde a faixa quando o aviso do chat aparece; com a faixa nova, ela fica */
+html.r18-zap-parado #faixaSaude.r18-zap:not([hidden]){display:flex!important}
+@media (max-width:600px){
+  .faixa-saude.r18-zap{font-size:.8rem;padding:8px 10px;flex-wrap:wrap}
+  .faixa-saude.r18-zap .faixa-ico{display:none}
+  .faixa-saude.r18-zap .r18-situacao{display:none}
+  .faixa-saude.r18-zap #faixaTexto{flex-basis:100%}
+  .faixa-saude.r18-zap .faixa-btn{margin-left:0;min-height:44px;font-size:.8rem}
+  .faixa-link{min-height:44px}
+}
+
+/* ---------- Fila do consultor: encerrar as paradas ---------- */
+.r18-lote{margin:0 0 10px;padding:11px 13px;border-radius:12px;border:1px solid var(--linha);background:var(--superficie);
+  display:flex;flex-direction:column;gap:8px}
+.r18-lote-txt{margin:0;font-size:.84rem;line-height:1.45;color:var(--texto)}
+.r18-lote-acoes{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
+.r18-lote-dias{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--texto-suave)}
+.r18-lote-dias select{min-height:36px}
+.r18-encerrar{margin-left:auto;min-height:36px}
+.r18-feito{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--verde-txt);
+  padding-top:8px;border-top:1px dashed var(--linha)}
+:root[data-tema="claro"] .r18-feito{color:#15803d}
+@media (max-width:900px){
+  .r18-lote-dias select,.r18-encerrar,.r18-feito .btn{min-height:44px}
+  .r18-encerrar{margin-left:0;flex:1 1 auto}
+}
