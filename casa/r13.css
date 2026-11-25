@@ -172,3 +172,6 @@
 /* sino: "Fechar" no pé (no celular o sino do topo fica longe do polegar); no computador o Esc e o sino bastam */
 .sino-fechar { display: flex; width: 100%; min-height: 48px; margin-top: 10px; justify-content: center; align-items: center; }
 @media (min-width: 48em) { .sino-fechar { display: none; } }
+
+/* R16: aviso não lido no sino ganha um pontinho antes da palavra (no lugar da borda fina vermelha de um lado só) */
+.n-nova::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--cor-grave); vertical-align: 1px; }
