@@ -59,7 +59,7 @@ body{
 h1,h2,h3,.marca,.numero{font-family:'Barlow Condensed',system-ui,sans-serif; letter-spacing:.01em}
 h1{font-size:clamp(2.4rem,5vw,3.6rem); line-height:.95; margin:.2em 0 .4em; text-transform:uppercase}
 h2{font-size:1.9rem; margin:0; text-transform:uppercase}
-h3{font-size:1.15rem; margin:0 0 .8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--branco)}
+h3,.t3{font-size:1.15rem; margin:0 0 .8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--branco)}
 hr{border:0; border-top:1px solid var(--linha); margin:1.4rem 0}
 code{background:var(--codigo-fundo); color:var(--codigo-cor); padding:.1em .35em; border-radius:4px; font-size:.85em}
 
@@ -156,7 +156,7 @@ label input,label select{margin-top:.3rem}
 .cartao.alto{min-height:280px}
 .cartao-topo{display:flex; justify-content:space-between; align-items:center; gap:1rem;
   flex-wrap:wrap; margin-bottom:.8rem}
-.cartao-topo h3{margin:0}
+.cartao-topo h3,.cartao-topo .t3{margin:0}
 .cartao-topo select{width:auto}
 .grade-2{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr)); gap:1.2rem; margin-bottom:1.2rem}
 .grade-2>.cartao{margin-bottom:0}
@@ -321,7 +321,7 @@ details.guia a{color:var(--vermelho-txt)}
 .teste-con p{margin:.15rem 0; overflow-wrap:anywhere}
 .selo-ia{background:rgba(229,9,20,.14); color:var(--vermelho); margin-left:.3rem; vertical-align:middle}
 .leitura{border-color:rgba(229,9,20,.35); background:linear-gradient(135deg,rgba(229,9,20,.07),transparent 55%),var(--cartao)}
-.leitura-texto{margin:0 0 .4rem; font-size:1.02rem; line-height:1.55; border-left:3px solid var(--vermelho); padding:.1rem 0 .1rem .9rem}
+.leitura-texto{margin:0 0 .4rem; font-size:1.02rem; line-height:1.55; padding:.1rem 0}
 details.tabela-grafico{margin-top:.5rem; font-size:.82rem}
 details.tabela-grafico summary{cursor:pointer; color:var(--cinza-2)}
 details.tabela-grafico .rolar{max-height:260px; overflow:auto}
@@ -508,7 +508,7 @@ thead .col-crm{color:var(--ok)}
 .busca-dica{margin:.5rem .4rem 0}
 
 /* ajuda */
-.ajuda h4{margin:.2rem 0 .6rem; font-size:.78rem; text-transform:uppercase; letter-spacing:.09em; color:var(--cinza-2)}
+.ajuda h4,.ajuda .t4{margin:.2rem 0 .6rem; font-size:.78rem; text-transform:uppercase; letter-spacing:.09em; color:var(--cinza-2)}
 .atalhos{list-style:none; margin:0; padding:0; display:grid; gap:.35rem}
 .atalhos li{display:flex; gap:.7rem; align-items:center; font-size:.88rem}
 .atalhos kbd{flex:0 0 auto; min-width:2.2rem; text-align:center; font-size:.76rem; padding:.15rem .4rem}
