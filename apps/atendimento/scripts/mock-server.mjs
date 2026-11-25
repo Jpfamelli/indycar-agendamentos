@@ -650,6 +650,9 @@ http.createServer(async (req, res) => {
       if (!/copiloto\.js/.test(html)) html = html.replace('<script src="app.js"></script>', '<script src="app.js"></script>\n<script src="copiloto.js" defer></script>');
       res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store' }); return res.end(html);
     }
+    /* SW_REAL=1 (rodada 15): serve o service worker de verdade, para provar a casca com ele LIGADO e duas visitas */
+    if (p === '/sw.js' && process.env.SW_REAL) { res.writeHead(200, { 'Content-Type': MIME['.js'], 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': PREFIXO }); return res.end(fs.readFileSync(path.join(PUBLIC, 'sw.js'))); }
+    if (p === '/vendor/supabase.js' && process.env.SW_REAL) { res.writeHead(200, { 'Content-Type': MIME['.js'] }); return res.end('/* o mock troca a biblioteca pelo dublê na página; aqui só existe para o service worker conseguir guardar */'); }
     if (p === '/sw.js') { res.writeHead(200, { 'Content-Type': MIME['.js'] }); return res.end('/* sem service worker no modo de teste */'); }
     // copiloto: o real (public/), o de teste (MOCK_COPILOTO) ou vazio — nunca 404
     if (p === '/copiloto.js' || p === '/copiloto.css') {

@@ -23,6 +23,21 @@
     })();
   </script>
 
+  <!-- Rodada 15: com o endereço do banco já guardado neste aparelho, a conexão com ele começa a abrir enquanto a página
+       ainda baixa os arquivos (a primeira leitura das conversas sai antes). Sem cópia guardada, não faz nada. -->
+  <script>
+    (function () {
+      try {
+        var c = JSON.parse(localStorage.getItem('indycar_cfg_publica') || 'null');
+        if (c && /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(c.supabaseUrl || '')) {
+          var l = document.createElement('link');
+          l.rel = 'preconnect'; l.href = c.supabaseUrl; l.crossOrigin = 'anonymous';
+          document.head.appendChild(l);
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Padrão IndyCar (rodada 11): o mesmo topo, as mesmas fontes e as mesmas cores dos outros apps. -->
   <link rel="stylesheet" href="../casa/indycar.css" />
   <link rel="stylesheet" href="styles.css" />
@@ -33,6 +48,7 @@
   <link rel="stylesheet" href="r11.css" />
   <link rel="stylesheet" href="r13.css" />
   <link rel="stylesheet" href="r14.css" />
+  <link rel="stylesheet" href="r15.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar Atendimento" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -362,6 +378,8 @@
                       aria-label="Copiar o link desta conversa">🔗</button>
               <button type="button" class="btn-icone" id="btnFoco" title="Modo foco: só o chat e a ficha (Alt+Z)"
                       aria-label="Modo foco" aria-pressed="false">⛶</button>
+              <button type="button" class="btn-icone" id="btnProximaChat" title="Próxima conversa da fila (Alt+P)"
+                      aria-label="Ir para a próxima conversa da fila">⏭</button>
               <button type="button" class="btn-icone btn-copiloto" id="btnCopiloto" title="Copiloto da IA (Alt+I)"
                       aria-label="Abrir o copiloto da IA">✨</button>
               <button class="btn btn-assumir sm" id="btnAssumir"
@@ -1546,6 +1564,7 @@
 <script src="r6c5.js"></script>
 <script src="r7c4.js"></script>
 <script src="hoje.js"></script>
+<script src="r15.js"></script>
 <script src="copiloto.js" defer></script>
 <script src="casca.js" defer></script>
 </body>
