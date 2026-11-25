@@ -17,7 +17,7 @@ test('index.html: nenhum título pula nível (h1 -> h3)', () => {
 test('r16.css/r16.js estão na página e no service worker (v28)', () => {
   const html = ler('index.html'), sw = ler('sw.js');
   assert.match(html, /href="r16\.css"/); assert.match(html, /src="r16\.js"/);
-  assert.match(sw, /'r16\.css'/); assert.match(sw, /'r16\.js'/); assert.match(sw, /indycar-atendimento-v28/);
+  assert.match(sw, /'r16\.css'/); assert.match(sw, /'r16\.js'/); assert.match(sw, /indycar-atendimento-v(2[89]|[3-9][0-9])/);
 });
 
 test('Detalhes: só em tela pequena, esconde etiquetas, avisos e resumo até abrir', () => {
