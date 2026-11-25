@@ -8,7 +8,7 @@
    ============================================================================ */
 
 import { $, h, icone, trocar } from './dom.js';
-import { lerRota, montarRota, abasDoPapel, ehAdmin, periodoDaTela, fonteDaTela, PERIODO_DA_TELA, PERIODOS_DA_TELA } from './rotas.js';
+import { lerRota, montarRota, abasDoPapel, ehAdmin, periodoDaTela, fonteDaTela, PERIODO_DA_TELA, PERIODOS_DA_TELA, filtroParaLembrar, aplicarFiltroLembrado } from './rotas.js';
 import { baseDaPagina, enderecoDeEntrada, raizDaCentral, CENTRAL_PUBLICA } from './ecossistema.js';
 import { criarApi, criarLeitor } from './api.js';
 import { abrirSessao, acabouDeIr, marcarIda, limparIda } from './sessao.js';
@@ -31,7 +31,7 @@ const raizDoc = document.documentElement;
 const hrefCentral = raizDaCentral(base) || CENTRAL_PUBLICA;
 const miolo = $('#miolo');
 const el = { faixas: $('#faixas'), avisos: $('#avisos'), navLado: $('#navLado'), navBaixo: $('#navBaixo'), ladoPe: $('#ladoPe'), bTema: $('#bTema'), bConta: $('#bConta'), menuConta: $('#menuConta'), iniciais: $('#contaIniciais'), marca: $('#linkCasa') };
-const estado = { rota: null, controle: null, vez: 0, eu: null, sb: null, api: null, leitor: null, parado: false };
+const estado = { atualizadoEm: null, rota: null, controle: null, vez: 0, eu: null, sb: null, api: null, leitor: null, parado: false };
 
 /* ------------------------------ avisos ------------------------------ */
 
@@ -62,6 +62,38 @@ function faixa(id, conteudo) {
 }
 const acordando = (ms) => faixa('acordando', { icone: 'relogio', texto: 'O sistema está acordando. Tento de novo ' + textoDaEspera(ms) + '.' });
 const acordou = () => faixa('acordando', null);
+
+/* ------------------------------ "atualizado há…" (rodada 15) ------------------------------ */
+
+const textoAtualizado = () => (estado.atualizadoEm ? 'Atualizado ' + (haQuanto(estado.atualizadoEm) || 'agora') : 'Atualizar');
+function pintarAtualizado() {
+  for (const t of document.querySelectorAll('.cab-atualiza-txt')) t.textContent = textoAtualizado();
+}
+function marcarAtualizado(em) {
+  if (typeof em === 'number' && Number.isFinite(em)) estado.atualizadoEm = em;
+  pintarAtualizado();
+}
+
+/* ------------------------------ filtro lembrado e pré-carga (rodada 15) ------------------------------ */
+
+const CHAVE_FILTRO = 'indycar_trafego_filtro';
+function lerFiltroLembrado() {
+  try { return JSON.parse(localStorage.getItem(CHAVE_FILTRO) || 'null'); } catch { return null; }
+}
+function lembrarFiltro(rota) {
+  try { localStorage.setItem(CHAVE_FILTRO, JSON.stringify(filtroParaLembrar(rota))); } catch { /* sem armazenamento: vale só nesta visita */ }
+}
+
+/** Com a tela pronta, deixa a leitura de Clientes na memória: ao tocar nela, abre na hora. Nada disso com economia de dados ou sem internet. */
+function preaquecer(vez) {
+  const conexao = navigator.connection;
+  if (navigator.onLine === false || (conexao && conexao.saveData)) return;
+  const rota = estado.rota;
+  if (!rota || rota.tela === 'clientes') return;
+  const caminho = Clientes.caminho({ periodo: periodoAtual(), fonte: fonteAtual(), rota: { params: {} } });
+  const ir = () => { if (vez === estado.vez && !estado.parado) estado.leitor.ler(caminho).catch(() => { /* era só adiantar */ }); };
+  setTimeout(() => (typeof requestIdleCallback === 'function' ? requestIdleCallback(ir, { timeout: 4000 }) : ir()), 1200);
+}
 
 /* ------------------------------ tema ------------------------------ */
 
@@ -166,7 +198,8 @@ function criarCtx(rota, vez, forcar) {
     api: estado.api, leitor: estado.leitor, eu: estado.eu,
     vivo: () => vez === estado.vez,
     hrefDaTela, avisar, faixa,
-    marcarAtualizado: () => {},
+    marcarAtualizado,
+    textoAtualizado,
     recarregar: () => navegar({ forcar: true }),
     demo: (ligado) => faixa('demo', ligado ? { icone: 'info', texto: 'Números de demonstração: a conta de anúncios ainda não foi ligada.' } : null),
     idade: (em) => haQuanto(em),
@@ -176,6 +209,7 @@ function criarCtx(rota, vez, forcar) {
 async function navegar({ forcar = false } = {}) {
   if (estado.parado) return;
   const rota = lerRota(location.hash);
+  lembrarFiltro(rota);
   const canonica = montarRota(rota.tela, rota.params);
   if (location.hash !== canonica) history.replaceState(null, '', canonica);
   const anterior = estado.rota;
@@ -197,7 +231,7 @@ async function navegar({ forcar = false } = {}) {
     if (vez === estado.vez) Estados.falha(miolo, { mensagem: Estados.fraseDoErro(erro), aoTentar: () => navegar({ forcar: true }) });
   }
   if (mudouTela && anterior && vez === estado.vez) miolo.focus({ preventScroll: true });
-  if (vez === estado.vez) atualizarSeloDoRadar(vez);
+  if (vez === estado.vez) { atualizarSeloDoRadar(vez); preaquecer(vez); }
 }
 
 /* ------------------------------ sessão ------------------------------ */
@@ -279,7 +313,11 @@ async function partir() {
     return;
   }
   limparIda();
+  const naEntrada = lerRota(location.hash);
+  const lembrada = aplicarFiltroLembrado(naEntrada, lerFiltroLembrado());
+  if (lembrada !== naEntrada) history.replaceState(null, '', montarRota(lembrada.tela, lembrada.params));
   window.addEventListener('hashchange', () => navegar());
+  setInterval(pintarAtualizado, 30000);
   await navegar();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { /* sem service worker a tela funciona igual */ });
 }

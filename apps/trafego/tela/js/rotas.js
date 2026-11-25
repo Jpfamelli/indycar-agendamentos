@@ -85,3 +85,28 @@ export function destinoDoIr(ir) {
   if (!IDS.includes(nome) && !Object.prototype.hasOwnProperty.call(ANTIGAS, nome)) return null;
   return rota;
 }
+
+/* ------------------------------ filtro lembrado (rodada 15) ------------------------------ */
+
+/** O que guardar para a próxima abertura: só o que foge do padrão. */
+export function filtroParaLembrar(rota) {
+  const p = rota && rota.params ? rota.params : {};
+  return { periodo: periodoDaTela(p.periodo), fonte: fonteDaTela(p.fonte) };
+}
+
+/**
+ * Abriu o app sem período nem fonte no endereço: volta ao que a pessoa escolheu da última vez (quem olha sempre os
+ * últimos 7 dias não precisa tocar toda manhã). Com período ou fonte no endereço, o endereço manda.
+ * Devolve a rota nova, ou a mesma quando nada muda.
+ */
+export function aplicarFiltroLembrado(rota, lembrado) {
+  if (!rota || !lembrado || typeof lembrado !== 'object') return rota;
+  if ('periodo' in rota.params || 'fonte' in rota.params) return rota;
+  const periodo = PERIODOS_DA_TELA.some((x) => x.id === lembrado.periodo) ? lembrado.periodo : PERIODO_DA_TELA;
+  const fonte = fonteDaTela(lembrado.fonte);
+  if (periodo === PERIODO_DA_TELA && !fonte) return rota;
+  const params = { ...rota.params };
+  if (periodo !== PERIODO_DA_TELA) params.periodo = periodo;
+  if (fonte) params.fonte = fonte;
+  return { ...rota, params };
+}
