@@ -1471,3 +1471,18 @@ button,input,select,textarea{font-family:inherit}
 @media (min-width:1181px){.cli{grid-template-columns:minmax(0,1.9fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr) auto}}
 .cli-nome b{flex:0 1 auto}
 .hoje-graf svg,.hoje-graf svg *{stroke:none}
+
+/* ===== R15 ===== */
+.dia-cab{margin:14px 2px 2px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px}
+.dia-cab::after{content:"";flex:1;height:1px;background:var(--border)}
+.dia-cab:first-child{margin-top:2px}
+.barra-falhas{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 14px;margin:0 0 12px;padding:12px 14px;border-radius:14px;background:var(--panel-3);border:1px solid var(--border-2)}
+.barra-falhas p{margin:0;font-size:13.5px;color:var(--text)}
+.barra-falhas .btn{min-height:44px}
+.barra-falhas[hidden]{display:none!important}
+/* campanhas: os dois botões do histórico ficam lado a lado, do tamanho do texto */
+.camp-txt{flex-direction:row;flex-wrap:wrap;align-items:center;gap:5px 8px}
+.camp-txt .d,.camp-txt .c{flex:0 0 100%}
+.camp-txt .r7-repetir{margin-top:0}
+/* clientes: o aniversário não encosta no botão de editar */
+.cli .nasc{justify-content:flex-start;padding-right:10px}
