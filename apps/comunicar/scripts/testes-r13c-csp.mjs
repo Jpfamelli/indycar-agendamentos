@@ -22,7 +22,7 @@ test('o index.html não tem script embutido nem onclick, e o supabase-js dele es
   const cdn = [...html.matchAll(/src="(https:\/\/[^"]+)"/g)].map((m) => m[1]);
   assert.ok(cdn.length >= 1);
   for (const u of cdn) assert.ok(u.startsWith(LIB_SUPABASE), u);
-  assert.match(html, /<script src="tema-inicial\.js\?v=7.4.0"><\/script>/);
+  assert.match(html, /<script src="tema-inicial\.js\?v=7.5.0"><\/script>/);
 });
 
 test('o service worker não busca nada de fora (o connect-src não libera o CDN) e guarda o tema-inicial.js', () => {
