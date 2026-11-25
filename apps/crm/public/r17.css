@@ -1,0 +1,8 @@
+/* Rodada 17 (25/11/2026): "O que aconteceu" em botões de um toque. Só variáveis da Casa; sem borda grossa de um lado. */
+[hidden]{display:none!important}
+.r17-res{border:0;margin:0 0 12px;padding:0;min-width:0}
+.r17-res legend{padding:0;margin:0 0 6px;font:inherit;color:inherit}
+.r17-chips{display:flex;flex-wrap:wrap;gap:8px}
+.r17-chip{min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--ic-borda);background:var(--ic-painel);color:var(--ic-texto);font:600 13px/1 var(--ic-texto-f);cursor:pointer}
+.r17-chip[aria-pressed="true"]{border-color:var(--ic-vermelho);background:color-mix(in srgb,var(--ic-vermelho) 14%,transparent)}
+.r17-chip:focus-visible{outline:2px solid var(--ic-forte);outline-offset:2px}

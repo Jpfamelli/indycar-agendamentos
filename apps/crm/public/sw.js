@@ -6,7 +6,7 @@
 // Biblioteca do Supabase e fontes (endereços com versão) ficam em cache direto.
 // v8 (16/10/2026, rodada 5): caminhos RELATIVOS ao escopo — o CRM pode estar na
 // raiz (/) ou montado na IndyCar Central (/crm/); nada começa com "/" fixo.
-const CACHE = 'indycar-crm-v20';   // v20 (25/11, rodada 16): atalhos da lista de Contatos (r16.css, r16.js), títulos em ordem e sem borda grossa; v19 (25/11, rodada 15): carros entregues encurtados e faixa de etapas no Funil (r15.css, r15.js); v18 (24/11, rodada 14): faxina dos contatos parados (r14.css, r14-faxina.js, r14.js); v17 (22/11, rodada 13B): passagens na mesma janela e Hoje sem número falso; v16: tela Hoje (r13.css, r13-resumo.js, r13.js)
+const CACHE = 'indycar-crm-v21';   // v21 (25/11, rodada 17): fila da atendente no alto, registrar com um toque (r17.css, r17.js); v20 (25/11, rodada 16): atalhos da lista de Contatos (r16.css, r16.js), títulos em ordem e sem borda grossa; v19 (25/11, rodada 15): carros entregues encurtados e faixa de etapas no Funil (r15.css, r15.js); v18 (24/11, rodada 14): faxina dos contatos parados (r14.css, r14-faxina.js, r14.js); v17 (22/11, rodada 13B): passagens na mesma janela e Hoje sem número falso; v16: tela Hoje (r13.css, r13-resumo.js, r13.js)
 //    // v10 (16/10): lead de colega travado na tela
 const CACHE_EXTERNO = 'indycar-crm-externo-v1';
 /* Pasta do app: '/' ou '/crm/' (o escopo do registro é a pasta de sw.js). */
@@ -14,7 +14,7 @@ const RAIZ = new URL('./', self.registration ? self.registration.scope : self.lo
 
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala. Só o que existe de verdade. */
-const CORE = ['', 'styles.css', 'apps.js', 'app.js', 'crm-utils.js', 'crm-r4.js', 'melhorias.js', 'acesso.js', 'equipe.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'rodada6.css', 'rodada6c.js', 'rodada6c.css', 'rodada7.js', 'rodada7.css', 'crm-ia.js', 'crm-ia.css', 'r11.css', 'r13.css', 'r13-resumo.js', 'r13.js', 'r14.css', 'r14-faxina.js', 'r14.js', 'r15.css', 'r15.js', 'r16.css', 'r16.js',
+const CORE = ['', 'styles.css', 'apps.js', 'app.js', 'crm-utils.js', 'crm-r4.js', 'melhorias.js', 'acesso.js', 'equipe.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'rodada6.css', 'rodada6c.js', 'rodada6c.css', 'rodada7.js', 'rodada7.css', 'crm-ia.js', 'crm-ia.css', 'r11.css', 'r13.css', 'r13-resumo.js', 'r13.js', 'r14.css', 'r14-faxina.js', 'r14.js', 'r15.css', 'r15.js', 'r16.css', 'r16.js', 'r17.css', 'r17.js',
               'manifest.json', 'icon-192.png', 'icon-512.png'].map((p) => RAIZ + p);
 const EXTERNOS = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@'];
 const ESPERA_REDE_MS = 3500;

@@ -207,7 +207,8 @@ async function carregarHoje7() {
   const pedido = ++pedidoHoje;
   el.setAttribute('aria-busy', 'true');
   if ($('#r7Proximo')) $('#r7Proximo').disabled = true;
-  el.innerHTML = '<div class="skeleton" aria-label="Montando a fila"></div>';
+  // R17: com a fila já na tela (recarga dos 45 s ou depois de registrar), não troca a lista pelo esqueleto: a página não pula
+  if (!H6.dados) el.innerHTML = '<div class="skeleton" aria-label="Montando a fila"></div>';
   const qs = new URLSearchParams(); if (H6.escopo) qs.set('escopo', H6.escopo); if (R7.hoje.q) qs.set('q', R7.hoje.q); if (R7.hoje.origem) qs.set('origem', R7.hoje.origem);
   try {
     const [d, e] = await Promise.all([api6('/api/fila-do-dia' + (qs.toString() ? '?' + qs : '')), api6('/api/entregues-sem-fechar')]);

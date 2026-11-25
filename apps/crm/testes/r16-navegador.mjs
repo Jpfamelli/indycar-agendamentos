@@ -83,7 +83,7 @@ try {
   await s.page.reload({ waitUntil: 'domcontentloaded' });
   await s.page.waitForFunction(() => typeof TODOS !== 'undefined' && TODOS.length, { timeout: 20000 }); await espera(1500);
   const sw = await s.page.evaluate(async () => ({ ctrl: !!navigator.serviceWorker.controller, chaves: await caches.keys(), r16: !!(await caches.match('r16.js')) || !!(await caches.match('/r16.js')), atalhos: document.querySelectorAll('.r16-atalho').length }));
-  conferir('service worker: 2ª visita controlada, v20 e r16 em cache', sw.ctrl && sw.chaves.some(c => /v20$/.test(c)) && sw.r16 && sw.atalhos === 4, JSON.stringify(sw));
+  conferir('service worker: 2ª visita controlada, v20 e r16 em cache', sw.ctrl && sw.chaves.some(c => /v2\d$/.test(c)) && sw.r16 && sw.atalhos === 4, JSON.stringify(sw));
   conferir('service worker: zero erro de console', s.erros.length === 0, s.erros.slice(0, 3).join(' | '));
   await s.page.close();
 } finally { await browser.close(); }

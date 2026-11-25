@@ -8,11 +8,11 @@ const vm = require('node:vm');
 const pub = f => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
 const html = pub('index.html'), js = pub('r16.js'), css = pub('r16.css'), sw = pub('sw.js');
 
-test('R16: a página carrega r16 depois do r15 e o service worker guarda os arquivos (v20)', () => {
+test('R16: a página carrega r16 depois do r15 e o service worker guarda os arquivos (v20 ou depois)', () => {
   assert.ok(html.indexOf('href="r16.css"') > html.indexOf('href="r15.css"'));
   assert.ok(html.indexOf('src="r16.js"') > html.indexOf('src="r15.js"'));
   for (const f of ['r16.css', 'r16.js']) assert.ok(sw.includes(`'${f}'`), f);
-  assert.match(sw, /indycar-crm-v20\b/);
+  assert.match(sw, /indycar-crm-v2[0-9]\b/);
 });
 test('R16: o index.html não pula de h1 para h3 (cartões usam h2)', () => {
   assert.ok(!/<h3\b/.test(html), 'sobrou h3');
