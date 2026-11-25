@@ -1,0 +1,26 @@
+/* Rodada 15 (25/11/2026): polimento do dia a dia da recepção.
+   - Celular, digitando: com o teclado aberto sobravam ~0 px para as mensagens. Enquanto o campo de resposta está em foco
+     some tudo que fica entre o nome do cliente e as mensagens (ações, resumo, aviso do WhatsApp, propostas da IA).
+   - Lista: a bolinha de não lidas vem primeiro na linha de fichinhas (não fica sozinha na linha de baixo) e cada linha
+     mostra no máximo 3 fichinhas do resumo; o resto vira "+N" (o balão diz quais). */
+@media (max-width:900px){
+  body.digitando #chatAcoes,
+  body.digitando #r6ChipsChat,
+  body.digitando #r6Zap,
+  body.digitando #chatPropostas,
+  body.digitando .chat-linha-tags,
+  body.digitando #chatAvisos,
+  body.digitando #chatOrigem{display:none!important}
+  body.digitando .chat-topo{padding-block:6px}
+}
+
+.conversa-tags .nao-lidas{order:-1}
+.r6-mais{cursor:help;opacity:.85}
+
+/* "Próxima" dentro da conversa: só no celular e no tablet (no computador o PRÓXIMA da lista está ao lado e o Alt+P
+   também; o ícone a mais empurrava o "⋯" para a linha de baixo). Alvo de 44 px. */
+#btnProximaChat{font-size:1.05rem}
+@media (min-width:901px){#btnProximaChat{display:none}}
+@media (max-width:900px){
+  #btnProximaChat{min-width:44px;min-height:44px}
+}

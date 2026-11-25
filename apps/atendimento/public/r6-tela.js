@@ -116,7 +116,23 @@
       const n = x.falhas.nao_saiu + x.falhas.sem_confirmacao;
       partes.push(`<span class="r6-chip r6-falha" title="${n} mensagem(ns) desta conversa não saíram no WhatsApp">⚠ ${n} não saiu</span>`);
     }
-    return partes.length ? `<div class="r6-chips">${partes.join('')}</div>` : '';
+    return partes.length ? `<div class="r6-chips">${limitarChips(partes).join('')}</div>` : '';
+  }
+
+  /* Rodada 15: no máximo 3 fichinhas por linha da lista. O nível de urgência e o "não saiu" ficam sempre; o resto cede
+     lugar e vira um "+N" com o que ficou escondido no balão (a conversa aberta mostra tudo). */
+  const MAX_CHIPS_LINHA = 3;
+  function limitarChips(partes) {
+    if (partes.length <= MAX_CHIPS_LINHA) return partes;
+    const forte = (h) => /r6-nivel|r6-falha/.test(h);
+    let vagas = Math.max(0, MAX_CHIPS_LINHA - 1 - partes.filter(forte).length);
+    const vistas = []; const escondidas = [];
+    for (const h of partes) {
+      if (forte(h) || vagas-- > 0) vistas.push(h); else escondidas.push(h);
+    }
+    const nomes = escondidas.map((h) => (/title="([^"]*)"/.exec(h) || [])[1] || '').filter(Boolean).join(' · ');
+    vistas.push(`<span class="r6-chip r6-mais" title="${nomes}">+${escondidas.length}</span>`);
+    return vistas;
   }
 
   const FILTROS = {
@@ -688,5 +704,5 @@
   window.addEventListener('indycar:pronto', iniciar);
   setTimeout(iniciar, 2500);
 
-  window.R6Tela = { inserir: inserirTexto, adiar, alternarFixar, ordenar, chipsDaLinha, filtrar, atualizarFila, irParaProxima, estado: S, carregarPainel, carregarSugestoes, verZap, iniciar, pontosDe };
+  window.R6Tela = { inserir: inserirTexto, adiar, alternarFixar, ordenar, chipsDaLinha, limitarChips, filtrar, atualizarFila, irParaProxima, estado: S, carregarPainel, carregarSugestoes, verZap, iniciar, pontosDe };
 })();
