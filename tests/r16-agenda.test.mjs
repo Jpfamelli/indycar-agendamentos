@@ -20,7 +20,7 @@ test('Agenda e Recepção têm um h2 antes dos cartões (h1 e h3 não ficam sem 
 });
 
 test('faixas do Início e títulos de janela usam h2, e o CSS cobre h2 e h3', () => {
-  assert.match(r6b, /<header><h2>[^]*Lembretes de/);
+  assert.match(r6b, /<header><h2>[^<]*svg\(I\.calendar\)[^<]*esc\(titulo\)\}<\/h2>/);   // R19: a faixa virou "Amanhã, qui 26/11" com a lista do dia
   assert.match(r6, /<header><h2>🧾 Aprovados/);
   assert.doesNotMatch(app + conta + ler('public/agenda-planejada.js'), /modal-head"><h3/);
   assert.match(ler('public/styles.css'), /\.modal-head h2,\.modal-head h3\{/);
