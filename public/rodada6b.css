@@ -26,7 +26,7 @@
 .qd-cel.agora { background: rgba(255,179,71,.06); }
 .qd-mais { position: absolute; inset: 4px; border: 1px dashed transparent; border-radius: 10px; background: transparent; color: transparent; font-size: 20px; cursor: pointer; min-width: 44px; min-height: 44px; }
 .qd-cel:hover .qd-mais, .qd-mais:focus-visible { border-color: rgba(255,255,255,.25); color: var(--muted, #8a93a8); }
-.qd-card { border: 1px solid var(--border, rgba(255,255,255,.12)); border-left: 4px solid #5b8cff; border-radius: 10px; padding: 7px 9px; background: rgba(255,255,255,.04); display: grid; gap: 3px; cursor: grab; font-size: 13px; }
+.qd-card { border: 1px solid var(--border, rgba(255,255,255,.12)); border-left: 1px solid #5b8cff; border-radius: 10px; padding: 7px 9px; background: rgba(255,255,255,.04); display: grid; gap: 3px; cursor: grab; font-size: 13px; }
 .qd-card.s-confirmado { border-left-color: #35c486; }
 .qd-card.s-compareceu, .qd-card.s-em_atendimento { border-left-color: #4aa8ff; }
 .qd-card.s-concluido { border-left-color: #9b7bff; opacity: .75; }

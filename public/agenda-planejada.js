@@ -116,7 +116,7 @@ function confirmarRemarcacao(a, dia, hora, conflitos) {
   return new Promise((resolver) => {
     const hoje = agoraSP().data;
     openModal(`
-      <div class="modal-head"><h3>${svg(I.calendar)} Remarcar ${esc(a.cliente_nome)}?</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+      <div class="modal-head"><h2>${svg(I.calendar)} Remarcar ${esc(a.cliente_nome)}?</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
       <div class="modal-body remarcar-conf">
         <div class="de-para"><div><small>De</small><b>${esc(a.hora)}</b><small>${esc(rotuloDia(a.data, hoje))}</small></div><span class="seta" aria-hidden="true">→</span>
           <div><small>Para</small><b>${esc(hora)}</b><small>${esc(rotuloDia(dia, hoje))}</small></div></div>

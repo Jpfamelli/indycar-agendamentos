@@ -95,7 +95,7 @@
   function htmlAprovados(itens) {
     if (!itens.length) return '';
     return `<section class="r6-faixa" aria-label="Orçamentos aprovados esperando horário">
-      <header><h3>🧾 Aprovados esperando horário <em class="tab-num">${itens.length}</em></h3>
+      <header><h2>🧾 Aprovados esperando horário <em class="tab-num">${itens.length}</em></h2>
         <span class="muted">o cliente já disse sim, falta marcar</span>
         <a href="${esc(IndyCarApps.url('orcador', '#/historico'))}" class="r6-mais">Abrir o Orçador ↗</a></header>
       <ul>${itens.map((x, i) => `<li class="r6-linha r6-linha-acao">

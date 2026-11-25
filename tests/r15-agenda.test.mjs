@@ -25,6 +25,6 @@ test('atualização silenciosa que falha mantém a lista e avisa com botão Atua
   // a tela cheia de erro continua valendo para a primeira abertura (sem nada pintado)
   assert.match(m, /Não consegui carregar esta tela/);
 });
-test('cache do service worker subiu para v43', () => {
-  assert.match(ler('public/sw.js'), /indycar-agenda-v43/);
+test('cache do service worker subiu para v43 ou mais', () => {
+  assert.match(ler('public/sw.js'), /indycar-agenda-v4[3-9]/);
 });

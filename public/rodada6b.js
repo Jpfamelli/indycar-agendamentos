@@ -89,7 +89,7 @@
     host.hidden = false;
     host._ultimo = r;
     host.innerHTML = `<section class="r6-faixa r6b-lembretes" aria-label="Lembretes de ${esc(rotuloCurto(r.data))}">
-      <header><h3>${typeof svg === 'function' ? svg(I.send) : ''} Lembretes de ${esc(rotuloCurto(r.data))}</h3>
+      <header><h2>${typeof svg === 'function' ? svg(I.send) : ''} Lembretes de ${esc(rotuloCurto(r.data))}</h2>
         <span class="muted">${esc(partes.join(' · '))}</span></header>
       ${r.cfg?.ativo_lembrete === false ? '<p class="aviso-campo">O lembrete automático está desligado no Comunicar. Mande daqui, um a um ou todos de uma vez.</p>' : ''}
       ${r.cfg?.pausa_geral ? '<p class="aviso-campo">O Comunicar está em pausa geral: nada sai até o gestor reativar.</p>' : ''}
@@ -490,7 +490,7 @@
     if (!_q.data) _q.data = agoraSP().data;
     const hoje = agoraSP().data;
     if (!(opts.quieto && $('#qdCorpo'))) {
-      view.innerHTML = `<div class="toolbar qd-bar"><div class="left"><h2>Quadro</h2>
+      view.innerHTML = `<div class="toolbar qd-bar"><div class="left"><h1>Quadro</h1>
           <div class="qd-nav" role="group" aria-label="Dia">
             <button type="button" class="btn mini" id="qdAnt" aria-label="Dia anterior">◀</button>
             <input type="date" id="qdData" value="${esc(_q.data)}" aria-label="Escolher o dia">

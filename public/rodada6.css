@@ -3,7 +3,7 @@
 .r6-faixas { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin: 0 0 18px; }
 .r6-faixa { background: var(--panel, #0d1220); border: 1px solid var(--border, rgba(255,255,255,.08)); border-radius: 16px; padding: 14px 16px 10px; display: grid; gap: 8px; align-content: start; }
 .r6-faixa header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
-.r6-faixa h3 { margin: 0; font-size: 17px; }
+.r6-faixa h2, .r6-faixa h3 { margin: 0; font-size: 17px; }
 .r6-faixa .muted { font-size: 12px; }
 .r6-mais { margin-left: auto; font-size: 13px; font-weight: 600; text-decoration: none; opacity: .8; }
 .r6-mais:hover { opacity: 1; }

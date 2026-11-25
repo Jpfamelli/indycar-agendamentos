@@ -498,7 +498,7 @@ window.pedirConfirmacao = async function (id) {
   try { r = await api('POST', `/agendamentos/${id}/confirmacao`, { canal: 'whatsapp' }); }
   catch (e) { return toast(e.message, 'err'); }
   openModal(`
-    <div class="modal-head"><h3>${svg(I.check)} Pedir confirmação</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h2>${svg(I.check)} Pedir confirmação</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body link-conf">
       <p class="info-campo">O cliente abre o link e toca em <b>Confirmo</b>, <b>Preciso remarcar</b> ou <b>Não vou conseguir</b>. A resposta aparece no cartão${r.resposta ? `, ele já respondeu: <b>${esc(r.resposta)}</b>` : ''}.</p>
       <div class="texto" id="pc_texto">${esc(r.texto)}</div>
@@ -576,7 +576,7 @@ function pedirValorAoFechar(id, nome, servico) {
     let feito = false;
     const fim = (v) => { if (feito) return; feito = true; resolver(v); };
     openModal(`
-      <div class="modal-head"><h3>${svg(I.check)} Veio e fechou</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+      <div class="modal-head"><h2>${svg(I.check)} Veio e fechou</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
       <div class="modal-body">
         <p class="remarcar-quem"><b>${esc(nome)}</b>${servico ? ` · ${esc(servico)}` : ''}</p>
         <div class="field"><label for="vf_valor">Valor do serviço <small class="muted">(opcional)</small></label>
@@ -1139,7 +1139,7 @@ function pintarInicio(d, opts = {}) {
 function abrirImpressao(d) {
   const hoje = agoraSP().data, amanha = P.dia(hoje, 1);
   openModal(`
-    <div class="modal-head"><h3>${svg(I.imprimir)} Imprimir a folha do dia</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h2>${svg(I.imprimir)} Imprimir a folha do dia</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <fieldset class="escolha-dia"><legend>Qual dia?</legend>
         <label><input type="radio" name="fd_dia" value="${hoje}" checked> Hoje</label>
@@ -1276,7 +1276,7 @@ async function renderAgenda(opts = {}) {
       <button type="button" class="btn filtro-semtel" id="btnSemConf" hidden
               title="Só os horários à frente que ainda não foram confirmados, peça pelo link (✓ no cartão)"></button>
     </div>
-    <div class="panel"><div class="panel-body lista" id="agendaList"></div></div>`;
+    <div class="panel"><h2 class="so-leitor">Horários marcados</h2><div class="panel-body lista" id="agendaList"></div></div>`;
   pintar(lista, q0, !opts.quieto);
   $('#btnSemTel').addEventListener('click', () => { state.agendaSemTel = !state.agendaSemTel; route(); });
   $('#btnSemConf').addEventListener('click', () => { state.agendaSemConf = !state.agendaSemConf; route(); });
@@ -1489,7 +1489,7 @@ async function renderPendencias(opts = {}) {
       <span class="act-fim"><button class="act ico" data-act="editar" title="Editar" aria-label="Editar agendamento">${svg(I.edit)}</button></span>`);
   const agora = agoraSP();
   view.innerHTML = `
-    <div class="toolbar"><div class="left"><h2>Pendências</h2>
+    <div class="toolbar"><div class="left"><h1>Pendências</h1>
       <span class="badge-pill bp-orange">${itens.length} sem valor</span>
       <span class="badge-pill bp-gray">${antigas.length} horários sem desfecho</span>
       ${entregues.length ? `<span class="badge-pill bp-purple">${entregues.length} entregues no Pátio</span>` : ''}</div></div>
@@ -1583,7 +1583,7 @@ function statusClass(s){return {concluido:'bp-purple',compareceu:'bp-green',conf
    "Minha conta" mora no menu da pessoa (canto de cima) e "Equipe e acessos" no Atendimento › Equipe. */
 function pilulasConfig(ativa) {
   const p = (rota, rotulo) => `<button type="button" class="pilula ${ativa === rota ? 'ativa' : ''}" data-cfg-rota="${rota}">${rotulo}</button>`;
-  return `<div class="toolbar"><div class="left"><h2>Configurações</h2></div></div>
+  return `<div class="toolbar"><div class="left"><h1>Configurações</h1></div></div>
     <div class="pilulas" id="cfgPilulas">${p('configuracoes', 'Oficina')}${p('equipe', 'Consultores')}</div>`;
 }
 function ligarPilulasConfig() {
@@ -1685,7 +1685,7 @@ function openModal(html){
   if (!overlay.classList.contains('open')) _focoAntes = document.activeElement;
   modal.innerHTML = html;
   overlay.classList.add('open');
-  const titulo = $('.modal-head h3', modal);
+  const titulo = $('.modal-head h2, .modal-head h3', modal);
   if (titulo) { titulo.id = 'modalTitulo'; modal.setAttribute('aria-labelledby', 'modalTitulo'); }
   $$('.modal-close', modal).forEach(b => { if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', 'Fechar'); });
   // o prefixo vale para CADA seletor da lista (senão só o primeiro ganhava o ".modal-body")
@@ -2040,7 +2040,7 @@ window.abrirRemarcar = async function(id) {
   let a;
   try { a = await api('GET', `/agendamentos/${id}`); } catch (e) { return toast(e.message, 'err'); }
   openModal(`
-    <div class="modal-head"><h3>${svg(I.calendar)} Remarcar</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h2>${svg(I.calendar)} Remarcar</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <p class="remarcar-quem"><b>${esc(a.cliente_nome)}</b> · ${esc(a.servico)}<br>
         <small class="muted">Horário atual: ${esc(rotuloDia(a.data, agoraSP().data))} às ${esc(a.hora)}${['nao_veio', 'cancelado'].includes(a.status) ? ', volta para Aguardando' : ''}</small></p>
@@ -2132,7 +2132,7 @@ async function abrirEntrada(e) {
 window.abrirBuscaGlobal = function() {
   if (emPresenca()) return;
   openModal(`
-    <div class="modal-head"><h3>${svg(I.search)} Buscar em tudo</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h2>${svg(I.search)} Buscar em tudo</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="search larga">${svg(I.search)}<input id="bgQ" type="search" enterkeyhint="search" placeholder="Nome, telefone, placa, carro ou serviço" aria-label="Buscar agendamentos e clientes" autocomplete="off"></div>
       <div id="bgRes" class="busca-res" aria-live="polite"><p class="muted">Digite pelo menos 2 caracteres.</p></div>
@@ -2212,7 +2212,7 @@ const ROTULO_FILA = { concluido: 'Veio e fechou', nao_fechou: 'Veio e não fecho
 function abrirFila() {
   const f = lerFila();
   openModal(`
-    <div class="modal-head"><h3>${svg(I.relogio)} Esperando a conexão</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h2>${svg(I.relogio)} Esperando a conexão</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <p class="info-campo">Estas marcações foram feitas sem conexão e saem sozinhas quando o sistema voltar. Cancele a que foi engano.</p>
       ${f.length ? `<ul class="ctx-lista">${f.map((x, i) => `<li><span><b>${esc(x.nome || 'Cliente')}</b> · ${esc(ROTULO_FILA[x.status] || x.status)}${x.valor ? ' · ' + esc(P.reais(x.valor)) : ''}
@@ -2318,7 +2318,7 @@ window.openAgendamentoModal = async function(id, pre = {}){
     }
   }
   openModal(`
-    <div class="modal-head"><h3>${svg(I.calendar)} ${id?'Editar':'Novo'} agendamento</h3>
+    <div class="modal-head"><h2>${svg(I.calendar)} ${id?'Editar':'Novo'} agendamento</h2>
       <button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div id="f_rapido" class="r6c-rapido" hidden></div>
@@ -2590,7 +2590,7 @@ window.openClienteModal = async function(id, opts = {}){
   const diasAniv = diasParaAniversario(c.nascimento, hoje);
   const revAtrasada = c.proxima_revisao && c.proxima_revisao.data < hoje;
   openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} ${id?'Ficha do cliente':'Novo cliente'}</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h2>${svg(I.user)} ${id?'Ficha do cliente':'Novo cliente'}</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       ${id ? `<div class="ficha-resumo">
         <div class="ficha-item"><small>Última visita</small>
@@ -2666,7 +2666,7 @@ window.openConsultorModal = async function(id){
   const nomes = await api('GET', '/equipe/nomes').catch(() => []);
   const usados = new Set((state.consultores || []).filter(x => x.id !== id && x.perfil_id).map(x => x.perfil_id));
   openModal(`
-    <div class="modal-head"><h3>${svg(I.user)} ${id?'Editar':'Novo'} consultor</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h2>${svg(I.user)} ${id?'Editar':'Novo'} consultor</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <div class="field"><label for="k_nome">Nome *</label><input id="k_nome" maxlength="80" value="${esc(c.nome)}"></div>
       <div class="grid2">
@@ -2702,7 +2702,7 @@ window.openWhatsappModal = async function(agendamentoId, clienteId, templateId){
   if (agendamentoId){ const a=await api('GET',`/agendamentos/${agendamentoId}`).catch(()=>null); if(a){nome=a.cliente_nome;telefone=a.telefone;} }
   else if (clienteId){ const c=await api('GET',`/clientes/${clienteId}/ficha`).catch(()=>null); if(c){nome=c.nome;telefone=c.telefone;} }
   openModal(`
-    <div class="modal-head"><h3 class="titulo-wa">${svg(I.wa)} Enviar WhatsApp</h3><button type="button" class="modal-close" aria-label="Fechar" data-acao="fechar-modal">×</button></div>
+    <div class="modal-head"><h2 class="titulo-wa">${svg(I.wa)} Enviar WhatsApp</h2><button type="button" class="modal-close" aria-label="Fechar" data-acao="fechar-modal">×</button></div>
     <div class="modal-body">
       <div class="grid2">
         <div class="field"><label for="w_nome">Nome</label><input id="w_nome" value="${esc(nome)}"></div>
@@ -2849,6 +2849,7 @@ async function renderDia(opts = {}) {
     <div class="rec-busca search larga">${svg(I.search)}
       <input id="recBusca" type="search" placeholder="Procurar pelo nome ou pela placa" autocomplete="off" aria-label="Procurar cliente pelo nome ou pela placa" value="${esc(state.recQ || '')}"></div>
     <div class="tabs tabs-hoje rec-abas" id="tabsHoje" role="tablist" aria-label="Agenda de hoje"></div>
+    <h2 class="so-leitor">Horários de hoje</h2>
     <div class="lista rec-lista" id="agendaHoje" role="tabpanel" aria-live="polite"></div>`;
 
   const grupos = () => {
@@ -3053,7 +3054,7 @@ async function renderEspera(opts = {}) {
   };
   if (opts.quieto && $('#esperaLista')) return pintarLista_();
   view.innerHTML = `
-    <div class="toolbar"><div class="left"><h2>Lista de espera</h2>
+    <div class="toolbar"><div class="left"><h1>Lista de espera</h1>
       ${lista.length && filtro === 'aberta' ? `<span class="badge-pill bp-orange">${lista.length} ${lista.length === 1 ? 'pessoa esperando' : 'pessoas esperando'}</span>` : ''}
       <div class="pilulas-espera" role="group" aria-label="Filtro">${[['aberta', 'Esperando'], ['agendada', 'Agendadas'], ['cancelada', 'Canceladas']].map(([k, r]) =>
         `<button type="button" class="pilula ${filtro === k ? 'ativa' : ''}" data-filtro-espera="${k}" aria-pressed="${filtro === k}">${r}</button>`).join('')}</div></div>
@@ -3097,7 +3098,7 @@ window.openEsperaModal = async function (id, pre = {}) {
   if (id) e = await api('GET', '/espera?status=todas').then(l => l.find(x => x.id === id)).catch(() => null) || e;
   const servicos = state.servicos || await api('GET', '/servicos').catch(() => []);
   openModal(`
-    <div class="modal-head"><h3>${svg(I.relogio)} ${id ? 'Editar espera' : 'Entrar na lista de espera'}</h3><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><h2>${svg(I.relogio)} ${id ? 'Editar espera' : 'Entrar na lista de espera'}</h2><button class="modal-close" data-acao="fechar-modal" aria-label="Fechar">×</button></div>
     <div class="modal-body">
       <p class="info-campo">Para quem quer um horário que ainda não existe. Quando vagar, o recado avisa e "Encaixar" marca com um toque.</p>
       <div class="grid2">
@@ -3177,6 +3178,15 @@ function esqueletoFormulario() {
   return `<div class="esqueleto" aria-busy="true" aria-label="Carregando"><div class="cols">${painel}${painel}</div></div>`;
 }
 
+/* R16: toda tela tem UM título de página (h1). Onde o título visível já é um h1 não faz nada; nas demais entra um h1 só
+   para leitor de tela (a aparência não muda) e os títulos dos cartões deixam de pular nível. */
+function garantirTitulo() {
+  if (!view || view.querySelector('h1')) return;
+  const h = document.createElement('h1');
+  h.className = 'so-leitor';
+  h.textContent = TITULOS[state.route] || 'Hoje';
+  view.prepend(h);
+}
 /* route('tela')  → troca de tela: esqueleto + entrada animada.
    route()        → ATUALIZA a tela atual em silêncio (depois de salvar, marcar,
                     excluir…): sem esqueleto e sem reanimar — nada pisca.
@@ -3207,6 +3217,7 @@ async function route(r, opts = {}){
   try {
     await (ROUTES[state.route] || renderInicio)({ quieto, vez });
     if (vez === state._vez) {
+      garantirTitulo();
       state._pintou = true;
       if (state._apagando.size) esconderApagando(view);   // rodada 13B: o que está para apagar não volta numa repintura
       if (!quieto) {
