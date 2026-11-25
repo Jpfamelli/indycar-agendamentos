@@ -688,7 +688,8 @@ export function responderHoje(mundo, periodoId) {
     const g = gasto && (id === 'meta' || id === 'google') ? gasto[id] : null;
     const fat = f.length && !valorados ? null : somaDosValores(f);
     return { id, rotulo: ROTULO_DO_CANAL[id], paga: id === 'meta' || id === 'google' ? true : id === 'desconhecida' ? null : false,
-      contatos: l.length, fecharam: f.length, faturado: fat, gasto: g, custo_por_contato: dividir(g, l.length), retorno: g && fat ? dividir(fat, g) : null };
+      contatos: l.length, agendaram: l.filter((c) => indiceDaEtapa(c) >= 3).length, vieram: l.filter((c) => indiceDaEtapa(c) >= 4).length, fecharam: f.length,
+      nao_fecharam: l.filter((c) => c.desfecho.tipo === 'nao_fechou').length, abertos: l.filter((c) => c.desfecho.tipo === 'aberto').length, faturado: fat, gasto: g, custo_por_contato: dividir(g, l.length), retorno: g && fat ? dividir(fat, g) : null };
   }).sort((a, b) => (a.id === 'desconhecida') - (b.id === 'desconhecida') || (b.paga === true) - (a.paga === true) || b.contatos - a.contatos);
 
   /* --- contatos de hoje --- */
