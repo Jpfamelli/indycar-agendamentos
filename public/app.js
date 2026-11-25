@@ -1018,6 +1018,7 @@ function heroiDoHoje(d, prox, relProx, agora, opts = {}) {
         <div class="r13-barra" role="img" aria-label="${esc(H.fraseTexto(r, { fechado }))}">
           ${pedaco(r.chegaram, 'chegou')}${pedaco(r.vem, 'vem')}${pedaco(r.faltaram, 'falta')}</div>` : ''}
         ${opts.doCache ? '<small class="marca-cache" aria-live="polite">Atualizando os horários. A lista ainda pode mudar.</small>' : ''}
+        <div class="r19-vagas" id="r19Vagas" hidden></div>
       </div>
       <aside class="r13-prox${prox ? '' : ' vazio'}" aria-label="Próximo cliente">
         ${prox ? `<p class="r13-mini">Próximo${relProx ? ` <span class="quando ${esc(relProx.tom)}">${esc(relProx.txt)}</span>` : ''}</p>
@@ -1130,6 +1131,33 @@ function pintarInicio(d, opts = {}) {
   if (state.contagens) pintarContagens(state.contagens);   // chips do gestor sem esperar outra chamada
   window.R6b?.inicio();
   window.R6?.inicio(d);                                     // orçamentos aprovados esperando horário
+  pintarVagas();
+}
+
+/* R19 · ENCAIXE de última hora: o cliente liga e pergunta "tem vaga hoje?". A resposta ficava no Quadro (aba, rolar
+   até a hora de agora, achar um "+"). Agora o topo do Início mostra as próximas vagas (as mesmas sugestões do
+   "Horários livres" do formulário: /api/horarios-livres) e tocar numa abre o Novo agendamento já naquele dia e hora.
+   Guardado por 30 s; quem grava qualquer coisa esquece (esquecerDias). Falhou, a linha some: nada trava o Início. */
+let _vagas = null;
+async function pintarVagas() {
+  const box = $('#r19Vagas'); if (!box || emPresenca()) return;
+  const desenhar = (r) => {
+    const caixa = $('#r19Vagas'); if (!caixa) return;
+    const hoje = agoraSP().data;
+    const vagas = P.vagasDoEncaixe(r && r.sugestoes);
+    caixa.hidden = false;
+    if (!vagas.length) { caixa.innerHTML = '<p class="r13-mini">Próximas vagas</p><p class="r19-sem">Sem vaga nos próximos 14 dias. Para encaixar mesmo assim, use Novo agendamento.</p>'; return; }
+    caixa.innerHTML = `<p class="r13-mini" id="r19VagasT">Próximas vagas${vagas[0].data !== hoje ? ' <span class="quando">hoje não tem mais</span>' : ''}</p>
+      <div class="r19-vagas-l" role="group" aria-labelledby="r19VagasT">${vagas.map(v => `<button type="button" class="r19-vaga" data-r19-vaga data-data="${esc(v.data)}" data-hora="${esc(v.hora)}"
+          title="Marcar ${esc(dataBR(v.data))} às ${esc(v.hora)}"><span class="so-leitor">Marcar </span><small>${esc(rotuloDia(v.data, hoje))}</small> <b>${esc(v.hora)}</b></button>`).join('')}</div>`;
+    $$('[data-r19-vaga]', caixa).forEach(b => b.addEventListener('click', () => openAgendamentoModal(null, { data: b.dataset.data, hora: b.dataset.hora })));
+  };
+  if (_vagas && _vagas.ate > Date.now()) return desenhar(_vagas.r);
+  try {
+    const r = await api('GET', '/horarios-livres?data=' + encodeURIComponent(agoraSP().data), null, { repetir: false });
+    _vagas = { r, ate: Date.now() + 30_000 };
+    desenhar(r);
+  } catch { const caixa = $('#r19Vagas'); if (caixa) caixa.hidden = true; }
 }
 
 /* FOLHA DO DIA (rodada 4): escolhe o dia (hoje, amanhã ou outra data) e se vai
@@ -1763,7 +1791,7 @@ async function agendamentosDoDia(data) {
   _doDia.set(data, { lista, ate: Date.now() + 30_000 });
   return lista;
 }
-const esquecerDias = () => _doDia.clear();
+const esquecerDias = () => { _doDia.clear(); _vagas = null; };
 /* R17: o cadastro de serviços quase não muda: guardado por 60 s. O link do Atendimento (?novo=1&tel=) pede junto
    com a tela, e o formulário abre sem esperar mais uma volta ao servidor. */
 let _servicos = null;
@@ -2078,12 +2106,20 @@ window.abrirRemarcar = async function(id) {
     if (!av.isConnected) return;
     av.hidden = !msg; if (msg) $('span', av).textContent = msg + ' Pode remarcar mesmo assim.';
   };
-  const escolher = (s) => { $('#r_data').value = s.data; $('#r_hora').value = s.hora; aviso(); grade(false); };
+  /* R19: o botão diz para onde vai ("Remarcar para amanhã às 09:00"): dá para conferir sem reler os campos lá em cima */
+  const rotular = () => {
+    const b = $('#r_salvar'); if (!b) return;
+    const para = P.destinoDoRemarcar(a, { data: $('#r_data').value, hora: $('#r_hora').value });
+    b.innerHTML = `${svg(I.check)} ${para ? `Remarcar para ${esc(rotuloDia(para.data, agoraSP().data).replace(/^(Hoje|Amanhã|Ontem)$/, (x) => x.toLowerCase()))} às ${esc(para.hora)}` : 'Remarcar'}`;
+  };
+  const escolher = (s) => { $('#r_data').value = s.data; $('#r_hora').value = s.hora; aviso(); grade(false); rotular(); };
   const grade = (redesenhar = true) => { if (!redesenhar && $('#r_grade')?.dataset.data === $('#r_data').value) return;
     desenharGradeDoDia($('#r_grade'), { data: $('#r_data').value > agoraSP().data ? $('#r_data').value : agoraSP().data, servico: a.servico,
       consultor_id: a.consultor_id || null, ignorar: a.id, escolhido: { data: $('#r_data').value, hora: $('#r_hora').value }, aoEscolher: escolher }); };
-  $('#r_data').addEventListener('change', () => { aviso(); grade(); desenharSugestoes($('#r_sugestoes'), sug()); });
+  $('#r_data').addEventListener('change', () => { aviso(); grade(); desenharSugestoes($('#r_sugestoes'), sug()); rotular(); });
   $('#r_hora').addEventListener('input', debounce(aviso, 200));
+  $('#r_hora').addEventListener('input', rotular);
+  $('#r_hora').addEventListener('change', rotular);
   const sug = () => ({ data: $('#r_data').value > agoraSP().data ? $('#r_data').value : agoraSP().data,
     consultor_id: a.consultor_id, ignorar: a.id, aoEscolher: escolher });
   grade();

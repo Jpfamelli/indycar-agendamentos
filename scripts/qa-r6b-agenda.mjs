@@ -164,7 +164,7 @@ try {
     await page.evaluate(() => route('inicio'));
     await page.waitForSelector('.r6b-lembretes', { timeout: 15000 });
     const t = await page.$eval('.r6b-lembretes', (e) => e.innerText.replace(/\s+/g, ' '));
-    conf(/Lembretes de/.test(t), 'Início: faixa de lembretes: ' + t.slice(0, 120));
+    conf(/horários? ·/.test(t) && /Renata/.test(t), 'Início: faixa do próximo dia com a lista (R19): ' + t.slice(0, 120));
     conf(/desligado no Comunicar/.test(t), 'Início: avisa que o lembrete automático está desligado');
     const botao = await page.$('[data-r6b-lote]');
     conf(!!botao, 'Início: botão "Lembrar os que faltam"');
@@ -201,7 +201,7 @@ try {
     const rolagem = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     conf(rolagem <= 1, 'Celular: página sem rolagem horizontal (' + rolagem + 'px)');
     await dorme(1000); await page.click('.qd-chips .pilula:nth-child(2)'); await dorme(600);
-    conf((await page.$$eval('.qd-th b', (b) => b.map((x) => x.innerText)))[0].toLowerCase() === chips[1].trim().toLowerCase(), 'Celular: chip troca a coluna ' + JSON.stringify([await page.$$eval('.qd-th b', (b) => b.map((x) => x.innerText)), chips]));
+    conf((await page.$$eval('.qd-th b', (b) => b.map((x) => x.innerText)))[0].toLowerCase() === chips[1].trim().replace(/\s+\d+$/, '').toLowerCase(), 'Celular: chip troca a coluna (R19: a 1ª pílula é Todos e cada uma traz a contagem) ' + JSON.stringify([await page.$$eval('.qd-th b', (b) => b.map((x) => x.innerText)), chips]));
     await page.click('.qd-chips .pilula:nth-child(2)').catch(() => {});
     const altos = await page.$$eval('.qd-card [data-qd]', (bs) => bs.map((b) => b.getBoundingClientRect().height));
     conf(altos.length === 0 || altos.every((h) => h >= 36), 'Celular: botões do cartão com pelo menos 36 px de altura');

@@ -88,9 +88,23 @@
     if (rs.falhou) partes.push(`${rs.falhou} falhou`);
     host.hidden = false;
     host._ultimo = r;
-    host.innerHTML = `<section class="r6-faixa r6b-lembretes" aria-label="Lembretes de ${esc(rotuloCurto(r.data))}">
-      <header><h2>${typeof svg === 'function' ? svg(I.send) : ''} Lembretes de ${esc(rotuloCurto(r.data))}</h2>
+    /* R19: "como está amanhã?" era um número ("2 horários") e o resto ficava no Quadro. A faixa agora lista os
+       horários do dia (hora, cliente, serviço e se já confirmou); tocar abre o horário. Mais de 8, o resto fica no Quadro. */
+    const MAX = 8;
+    const doDia = (r.itens || []).slice().sort((x, y) => String(x.hora).localeCompare(String(y.hora)));
+    const seloDe = (i) => (i.status === 'confirmado' ? '<span class="r13-selo boa">Confirmado</span>'
+      : i.situacao && i.situacao.codigo === 'respondeu_sim' ? '<span class="r13-selo boa">Respondeu que vem</span>'
+      : i.situacao && i.situacao.codigo === 'respondeu_nao' ? '<span class="r13-selo ruim">Respondeu que não vem</span>'
+      : i.status ? '<span class="r13-selo atencao">Sem confirmar</span>' : '');
+    const lista = `<ol class="r19-amanha" aria-label="Horários de ${esc(rotuloCurto(r.data))}">${doDia.slice(0, MAX).map((i) => `<li><button type="button" class="r19-ag" data-r19-ag="${esc(i.id)}" title="Abrir este horário">
+        <b class="r19-ag-h">${esc(String(i.hora).slice(0, 5))}</b><span class="r19-ag-q"><span class="r19-ag-n">${esc(i.cliente_nome || '')}</span>${i.servico ? `<small>${esc(i.servico)}</small>` : ''}</span>${seloDe(i)}</button></li>`).join('')}</ol>
+      ${doDia.length > MAX ? `<p class="muted r19-amanha-mais">e mais ${doDia.length - MAX}, veja no Quadro.</p>` : ''}`;
+    const quando = typeof rotuloDia === 'function' && typeof agoraSP === 'function' ? rotuloDia(r.data, agoraSP().data) : '';
+    const titulo = quando === 'Amanhã' ? `Amanhã, ${rotuloCurto(r.data)}` : rotuloCurto(r.data);
+    host.innerHTML = `<section class="r6-faixa r6b-lembretes" aria-label="Horários e lembretes de ${esc(rotuloCurto(r.data))}">
+      <header><h2>${typeof svg === 'function' ? svg(I.calendar) : ''} ${esc(titulo)}</h2>
         <span class="muted">${esc(partes.join(' · '))}</span></header>
+      ${lista}
       ${r.cfg?.ativo_lembrete === false ? '<p class="aviso-campo">O lembrete automático está desligado no Comunicar. Mande daqui, um a um ou todos de uma vez.</p>' : ''}
       ${r.cfg?.pausa_geral ? '<p class="aviso-campo">O Comunicar está em pausa geral: nada sai até o gestor reativar.</p>' : ''}
       <div class="eco-links">
@@ -109,6 +123,7 @@
       if (novo && host.isConnected) pintarFaixa(host, novo);
     });
     $('[data-r6b-quadro]', host)?.addEventListener('click', () => { _q.data = r.data; route('quadro'); });
+    $$('[data-r19-ag]', host).forEach((b) => b.addEventListener('click', () => openAgendamentoModal(b.dataset.r19Ag)));
   }
 
   /* ======================= Pré-agendamento (criado pelo Orçador quando o cliente aprova) ======================= */
@@ -179,7 +194,11 @@
   /* ======================= QUADRO por consultor ======================= */
   const ABRE = 8 * 60, FECHA = 17 * 60 + 30, PASSO = 30;
   const SLOTS = []; for (let t = ABRE; t <= FECHA - PASSO + 0; t += PASSO) SLOTS.push(t);
-  const _q = { data: null, ocultaCancelados: true, foco: null, movendo: null, livres: null, dados: null, carregando: 0, busca: '', soFalta: false };
+  /* R19: no celular cabe UMA coluna. Antes era a de um consultor por vez (metade dos horários não tem consultor: ficavam
+     escondidos atrás de outra pílula). TODOS = o dia inteiro numa coluna só, e é assim que o Quadro abre no celular. */
+  const TODOS = '*';
+  const _q = { data: null, ocultaCancelados: true, foco: null, movendo: null, livres: null, dados: null, carregando: 0, busca: '', soFalta: false, passadoAberto: null };
+  const emTodos = () => estreito() && _q.foco === TODOS;
   const VIVO = new Set(['aguardando', 'confirmado']);
   const estreito = () => window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
   const slotDe = (hora) => { const m = emMin(hora); if (!Number.isFinite(m)) return ABRE; return Math.min(FECHA - PASSO, Math.max(ABRE, Math.floor(m / PASSO) * PASSO)); };
@@ -207,7 +226,7 @@
 
   function chaveCel(slot, consultorId) { return `${slot}|${consultorId || ''}`; }
 
-  function cartao(a, lembDe, orc, os, agora) {
+  function cartao(a, lembDe, orc, os, agora, comConsultor) {
     const [selCls, selTxt] = seloDoCartao(a);
     const vivo = VIVO.has(a.status) && a.compareceu !== 1;
     const dia = a.data;
@@ -220,7 +239,7 @@
         data-id="${esc(a.id)}" data-status="${esc(a.status)}" data-nome="${esc(a.cliente_nome)}" tabindex="0" aria-label="${esc(a.hora)} ${esc(a.cliente_nome)}, ${esc(a.servico || '')}, ${esc(selTxt)}">
       <div class="qd-topo"><b class="qd-hora">${esc(String(a.hora).slice(0, 5))}</b><span class="badge-pill ${selCls}">${esc(selTxt)}</span></div>
       <div class="qd-nome" title="${esc(a.cliente_nome)}">${esc(a.cliente_nome)}</div>
-      <div class="qd-serv">${esc(a.servico || '')}${a.veiculo || a.placa ? ` · ${esc([a.veiculo, a.placa].filter(Boolean).join(' '))}` : ''}</div>
+      <div class="qd-serv">${esc(a.servico || '')}${a.veiculo || a.placa ? ` · ${esc([a.veiculo, a.placa].filter(Boolean).join(' '))}` : ''}${comConsultor && a.consultor_nome ? ` · com ${esc(primeiro(a.consultor_nome))}` : ''}</div>
       ${window.R6c ? window.R6c.duracaoHtml(a, _q.dados?.duracoes) : ''}
       <div class="qd-selos">${passou ? `<span class="badge-pill bp-orange" title="Já passou do horário e o cliente não chegou">atrasado ${atraso} min</span>` : ''}${typeof seloConfirmacao === 'function' ? seloConfirmacao(a) : ''}${ehPre(a) && a.status === 'aguardando' ? SELO_PRE : ''}${lemb}${!a.telefone ? '<span class="badge-pill bp-gray">sem telefone</span>' : ''}${orc ? window.R6.seloOrc(orc) : ''}${os ? seloPatioHtml(os) : ''}</div>
       ${a.status === 'nao_veio' && window.R7 ? R7.faltaHtml(a, R7.linkDeReagendar(a)) : ''}
@@ -240,25 +259,31 @@
     const hojeFlag = d.data === agora.data;
     let cols = colunas(d);
     const mobile = estreito();
+    const todasCols = cols;
     if (mobile) {
-      if (!_q.foco || !cols.some((c) => (c.id || '') === _q.foco)) _q.foco = (cols.find((c) => d.lista.some((a) => a.consultor_id === c.id)) || cols[0])?.id || '';
-      cols = cols.filter((c) => (c.id || '') === _q.foco);
+      if (_q.foco == null || (_q.foco !== TODOS && !cols.some((c) => (c.id || '') === _q.foco))) _q.foco = cols.length > 1 ? TODOS : (cols[0]?.id || '');
+      if (_q.foco === TODOS && cols.length < 2) _q.foco = cols[0]?.id || '';
+      cols = _q.foco === TODOS ? [{ id: null, nome: 'Todos', cor: null, todos: true }] : cols.filter((c) => (c.id || '') === _q.foco);
     }
+    const todos = mobile && _q.foco === TODOS;
     const lembDe = new Map((d.lemb?.itens || []).map((i) => [i.id, i.situacao]));
     let vis = d.lista.filter((a) => !(_q.ocultaCancelados && a.status === 'cancelado'));
     if (window.R6c) vis = window.R6c.filtrar(vis);
     const porCel = new Map();
     for (const a of vis) {
-      const k = chaveCel(slotDe(a.hora), cols.some((c) => c.id === (a.consultor_id || null)) ? a.consultor_id : (mobile ? null : null));
+      const k = chaveCel(slotDe(a.hora), !todos && cols.some((c) => c.id === (a.consultor_id || null)) ? a.consultor_id : null);
       if (!porCel.has(k)) porCel.set(k, []);
       porCel.get(k).push(a);
     }
     const aberto = d.livres ? d.livres.aberto !== false : true;
     const livreDe = new Map();      // slot|consultor -> true (para o "+")
-    for (const h of d.livres?.horarios || []) for (const cid of h.consultores_livres || []) livreDe.set(chaveCel(emMin(h.hora), cid), true);
+    for (const h of d.livres?.horarios || []) {
+      for (const cid of h.consultores_livres || []) livreDe.set(chaveCel(emMin(h.hora), cid), true);
+      if (todos && ((h.consultores_livres || []).length || (h.livres || 0) > 0)) livreDe.set(chaveCel(emMin(h.hora), null), true);
+    }
     const caudaDe = new Map();      // linhas seguintes ao início do serviço (a duração aparece no tamanho do cartão)
     if (window.R6c) {
-      const colDe = (a) => (cols.some((c) => c.id === (a.consultor_id || null)) ? (a.consultor_id || null) : null);
+      const colDe = (a) => (!todos && cols.some((c) => c.id === (a.consultor_id || null)) ? (a.consultor_id || null) : null);
       for (const c of cols) {
         const cards = vis.filter((a) => colDe(a) === c.id);
         const inicios = cards.map((a) => slotDe(a.hora));
@@ -268,11 +293,23 @@
         }
       }
     }
-    const totalPorCol = (c) => vis.filter((a) => (a.consultor_id || null) === c.id && VIVO.has(a.status)).length;
-    const proxLivre = (c) => (c.id && aberto ? (d.livres?.horarios || []).find((h) => (h.consultores_livres || []).includes(c.id))?.hora : null);
-    const cabeca = cols.map((c) => `<div class="qd-th" role="columnheader"><b>${esc(c.nome)}</b> <em class="tab-num">${totalPorCol(c)}</em>${window.R6c && d.duracoes ? ` <small class="muted qd-carga" title="Tempo de serviço marcado para ${esc(c.nome)}">${esc(window.R6c.PURO.duracaoLabel(window.R6c.PURO.cargaEmMin(d.lista, d.duracoes, c.id)))}</small>` : ''}${c.inativo ? ' <small class="muted">inativo</small>' : ''}${proxLivre(c) ? ` <small class="muted qd-prox" title="Próximo horário livre de ${esc(c.nome)}">livre ${esc(proxLivre(c))}</small>` : ''}</div>`).join('');
+    const totalPorCol = (c) => vis.filter((a) => (c.todos || (a.consultor_id || null) === c.id) && VIVO.has(a.status)).length;
+    const proxLivre = (c) => (!aberto ? null : c.todos ? (d.livres?.horarios || []).find((h) => (h.consultores_livres || []).length || (h.livres || 0) > 0)?.hora
+      : c.id ? (d.livres?.horarios || []).find((h) => (h.consultores_livres || []).includes(c.id))?.hora : null);
+    const cabeca = cols.map((c) => `<div class="qd-th" role="columnheader"><b>${esc(c.nome)}</b> <em class="tab-num">${totalPorCol(c)}</em>${window.R6c && d.duracoes && !c.todos ? ` <small class="muted qd-carga" title="Tempo de serviço marcado para ${esc(c.nome)}">${esc(window.R6c.PURO.duracaoLabel(window.R6c.PURO.cargaEmMin(d.lista, d.duracoes, c.id)))}</small>` : ''}${c.inativo ? ' <small class="muted">inativo</small>' : ''}${proxLivre(c) ? ` <small class="muted qd-prox" title="Próximo horário livre de ${esc(c.nome)}">livre ${esc(proxLivre(c))}</small>` : ''}</div>`).join('');
     let linhas = '';
-    for (const t of SLOTS) {
+    /* R19: no celular, as meias horas vazias de hoje que já passaram viram uma faixa só (tocar mostra de novo).
+       Nada some com cartão, com serviço em andamento, em outro dia, no computador ou enquanto se move um cartão. */
+    const ocupada = (t) => cols.some((c) => (porCel.get(chaveCel(t, c.id)) || []).length || caudaDe.has(chaveCel(t, c.id)));
+    const recolher = mobile && hojeFlag && !_q.movendo && _q.passadoAberto !== d.data;
+    const plano = recolher ? P.recolherPassado(SLOTS, ocupada, agora.min, { passo: PASSO }) : SLOTS.map((t) => ({ tipo: 'linha', t }));
+    for (const item of plano) {
+      if (item.tipo === 'faixa') {
+        linhas += `<div class="qd-linha" role="row"><div class="qd-hh" role="rowheader">${hm(item.de)}</div>
+          <div class="qd-rec" role="gridcell" style="grid-column:span ${cols.length}"><button type="button" class="qd-rec-b" data-qd-rec title="Mostrar essas horas">${hm(item.de)} às ${hm(item.ate)}, nada marcado <span class="muted">· mostrar</span></button></div></div>`;
+        continue;
+      }
+      const t = item.t;
       const agoraLinha = hojeFlag && agora.min >= t && agora.min < t + PASSO;
       linhas += `<div class="qd-linha" role="row"><div class="qd-hh${agoraLinha ? ' agora' : ''}" role="rowheader">${hm(t)}</div>`;
       for (const c of cols) {
@@ -282,8 +319,8 @@
         const cauda = !cards.length ? caudaDe.get(k) : null;
         linhas += `<div class="qd-cel${agoraLinha ? ' agora' : ''}${cards.length ? ' cheia' : ''}${cauda ? ' cauda s-' + esc(cauda.status) : ''}" role="gridcell" data-slot="${t}" data-cons="${esc(c.id || '')}">
           ${cauda ? `<span class="qd-cauda-txt" title="O serviço de ${esc(cauda.nome)} continua nesta linha">${cauda.primeiro ? '↳ ' + esc(cauda.nome) : ''}</span>` : ''}
-          ${cards.map((a) => cartao(a, lembDe, (d._orc || {})[a.id], (d._patio || {})[a.id], agora)).join('')}
-          ${livre && !cards.length ? `<button type="button" class="qd-mais" data-qd-novo aria-label="Novo agendamento ${hm(t)} com ${esc(c.nome)}" title="Marcar ${hm(t)} com ${esc(c.nome)}">+</button>` : ''}
+          ${cards.map((a) => cartao(a, lembDe, (d._orc || {})[a.id], (d._patio || {})[a.id], agora, todos)).join('')}
+          ${livre && !cards.length ? `<button type="button" class="qd-mais" data-qd-novo aria-label="Novo agendamento ${hm(t)}${c.todos ? '' : ' com ' + esc(c.nome)}" title="Marcar ${hm(t)}${c.todos ? '' : ' com ' + esc(c.nome)}">+</button>` : ''}
         </div>`;
       }
       linhas += '</div>';
@@ -298,7 +335,9 @@
       : `A oficina não abre neste dia${d.livres?.motivo ? ' (' + d.livres.motivo.replace('_', ' ') + ')' : ''}.`;
     const nEsp = Number(state.contagens?.espera) || 0;
     const be = $('#qdEspera'); if (be) { be.hidden = !nEsp; be.textContent = `${nEsp} na espera`; }
-    const chips = estreito() ? `<div class="qd-chips" role="group" aria-label="Consultor">${colunas(d).map((c) => `<button type="button" class="pilula ${(c.id || '') === _q.foco ? 'ativa' : ''}" data-qd-foco="${esc(c.id || '')}" aria-pressed="${(c.id || '') === _q.foco}">${esc(c.nome)}</button>`).join('')}</div>` : '';
+    const nDe = (c) => vis.filter((a) => (a.consultor_id || null) === c.id).length;
+    const pilula = (id, nome, n) => `<button type="button" class="pilula ${id === _q.foco ? 'ativa' : ''}" data-qd-foco="${esc(id)}" aria-pressed="${id === _q.foco}">${esc(nome)} <em class="tab-num">${n}</em></button>`;
+    const chips = estreito() && todasCols.length > 1 ? `<div class="qd-chips" role="group" aria-label="Consultor">${pilula(TODOS, 'Todos', vis.length)}${todasCols.map((c) => pilula(c.id || '', c.nome, nDe(c))).join('')}</div>` : '';
     const caixaChips = $('#qdChips'); if (caixaChips) { caixaChips.innerHTML = chips; $$('[data-qd-foco]', caixaChips).forEach((b) => b.addEventListener('click', () => { _q.foco = b.dataset.qdFoco; desenhar(_q.dados); })); }
     host.innerHTML = `<div class="qd-grade${_q.movendo ? ' modo-mover' : ''}" style="--qd-cols:${nCols}" role="grid" aria-label="Quadro por consultor">
       <div class="qd-linha" role="row"><div class="qd-th qd-canto" role="columnheader">hora</div>${cabeca}</div>${linhas}</div>`;
@@ -339,10 +378,13 @@
     }
     return { ok, aberto: r ? r.aberto !== false : true };
   }
+  /* R19: em "Todos" a célula não é de consultor nenhum: quem se move continua com o consultor que já tinha. */
+  const consDoAlvo = (cel, a) => (emTodos() ? ((a && a.consultor_id) || '') : cel.dataset.cons);
   function marcarAlvos() {
     const L = _q.livres; if (!L) return;
+    const movido = _q.dados?.lista.find((x) => x.id === _q.movendo);
     $$('#qdCorpo .qd-cel').forEach((c) => {
-      const k = chaveCel(Number(c.dataset.slot), c.dataset.cons);
+      const k = chaveCel(Number(c.dataset.slot), consDoAlvo(c, movido));
       c.classList.toggle('alvo-ok', L.ok.has(k));
       c.classList.toggle('alvo-nao', !L.ok.has(k));
     });
@@ -350,6 +392,7 @@
   function limparAlvos() { $$('#qdCorpo .qd-cel').forEach((c) => c.classList.remove('alvo-ok', 'alvo-nao', 'sobre')); }
   async function iniciarMover(a) {
     _q.movendo = a.id; _q.livres = null;
+    if ($('#qdCorpo [data-qd-rec]') && _q.dados) desenhar(_q.dados);        // R19: com a faixa recolhida não há onde soltar: as horas voltam
     $('#qdAviso').hidden = false; $('#qdAviso').querySelector('span').textContent = `Mover ${primeiro(a.cliente_nome)} (${String(a.hora).slice(0, 5)}): escolha uma célula livre, as verdes cabem.`;
     $$('#qdCorpo .qd-card').forEach((c) => c.classList.toggle('movendo', c.dataset.id === a.id));
     $('#qdCorpo .qd-grade')?.classList.add('modo-mover');
@@ -442,6 +485,7 @@
 
   function ligar(host) {
     $$('[data-qd]', host).forEach((b) => b.addEventListener('click', (ev) => { ev.stopPropagation(); acaoCartao(b.closest('.qd-card'), b.dataset.qd); }));
+    $$('[data-qd-rec]', host).forEach((b) => b.addEventListener('click', () => { _q.passadoAberto = _q.dados?.data || _q.data; desenhar(_q.dados); }));
     $$('[data-qd-novo]', host).forEach((b) => b.addEventListener('click', () => {
       const cel = b.closest('.qd-cel');
       const pre = { data: _q.data, hora: hm(Number(cel.dataset.slot)), consultor_id: cel.dataset.cons || '' };
@@ -460,18 +504,18 @@
       c.addEventListener('dragend', () => { c.classList.remove('arrastando'); pararMover(); });
     });
     $$('.qd-cel', host).forEach((cel) => {
-      const k = () => chaveCel(Number(cel.dataset.slot), cel.dataset.cons);
+      const k = () => chaveCel(Number(cel.dataset.slot), consDoAlvo(cel, _q.dados?.lista.find((x) => x.id === _q.movendo)));
       cel.addEventListener('dragover', (ev) => { if (_q.movendo && (!_q.livres || _q.livres.ok.has(k()))) { ev.preventDefault(); cel.classList.add('sobre'); } });
       cel.addEventListener('dragleave', () => cel.classList.remove('sobre'));
       cel.addEventListener('drop', async (ev) => {
         ev.preventDefault(); cel.classList.remove('sobre');
         const a = _q.dados?.lista.find((x) => x.id === (ev.dataTransfer.getData('text/plain') || _q.movendo)); if (!a) return;
-        moverPara(a, Number(cel.dataset.slot), cel.dataset.cons || null);
+        moverPara(a, Number(cel.dataset.slot), consDoAlvo(cel, a) || null);
       });
       cel.addEventListener('click', (ev) => {
         if (!_q.movendo || ev.target.closest('[data-qd]')) return;
         const a = _q.dados?.lista.find((x) => x.id === _q.movendo); if (!a) return;
-        moverPara(a, Number(cel.dataset.slot), cel.dataset.cons || null);
+        moverPara(a, Number(cel.dataset.slot), consDoAlvo(cel, a) || null);
       });
     });
   }

@@ -358,10 +358,52 @@
     return Number.isFinite(m) && m < Number(agora.min) - folga;
   }
 
+  /* R19 · Quadro no celular: as meias horas VAZIAS que já passaram viram uma faixa só ("08:00 às 12:30, nada marcado").
+     No celular a grade de hoje tinha 19 linhas e a hora de agora ficava uns 800 px abaixo: ninguém marca no passado.
+     slots = [minutos]; ocupado(t) diz se a linha tem cartão ou continuação de serviço; agoraMin = minutos de agora.
+     Só recolhe o que termina antes de agora e só quando são `minimo` linhas seguidas ou mais. */
+  function recolherPassado(slots, ocupado, agoraMin, { passo = 30, minimo = 2 } = {}) {
+    const saida = []; let faixa = null;
+    const fechar = () => {
+      if (!faixa) return;
+      if (faixa.ts.length >= minimo) saida.push({ tipo: 'faixa', de: faixa.ts[0], ate: faixa.ts[faixa.ts.length - 1] + passo, n: faixa.ts.length });
+      else for (const t of faixa.ts) saida.push({ tipo: 'linha', t });
+      faixa = null;
+    };
+    for (const t of slots || []) {
+      const passou = Number.isFinite(agoraMin) && t + passo <= agoraMin;
+      if (passou && !(ocupado && ocupado(t))) { if (!faixa) faixa = { ts: [] }; faixa.ts.push(t); }
+      else { fechar(); saida.push({ tipo: 'linha', t }); }
+    }
+    fechar();
+    return saida;
+  }
+  /* R19 · Remarcar: para onde o botão vai levar. null quando falta dia ou hora, ou quando é o mesmo horário de agora
+     (aí o botão segue dizendo só "Remarcar"). */
+  function destinoDoRemarcar(atual, novo) {
+    const data = String((novo && novo.data) || ''), hora = String((novo && novo.hora) || '').slice(0, 5);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !/^\d{2}:\d{2}$/.test(hora)) return null;
+    if (atual && data === atual.data && hora === String(atual.hora || '').slice(0, 5)) return null;
+    return { data, hora };
+  }
+  /* R19 · Início: as próximas vagas (saída de /horarios-livres), sem repetir e no máximo `max`. */
+  function vagasDoEncaixe(sugestoes, max = 3) {
+    const vistos = new Set(), saida = [];
+    for (const s of sugestoes || []) {
+      if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(String(s.data)) || !/^\d{2}:\d{2}/.test(String(s.hora))) continue;
+      const k = s.data + ' ' + String(s.hora).slice(0, 5);
+      if (vistos.has(k)) continue;
+      vistos.add(k);
+      saida.push({ data: s.data, hora: String(s.hora).slice(0, 5) });
+      if (saida.length >= max) break;
+    }
+    return saida;
+  }
+
   root.Planejamento = Object.freeze({
     FINAIS, JANELA_MIN, normalizar, telefone, ehUuid, dia, periodo, andar, tabelaDuracoes, duracao, minutos, hhmm,
     conflitos, ocupacao, filtrar, resumo, grupos, csv, links, lerEntrada, semEntrada,
     valorDeTela, reais, mascaraValor, cargaSemana, proximaEspera, deveRepetir, servidorFora, casaRecepcao, linhasDaFolha, soMudancas,
-    inicioDoNovo, horarioJaPassou,
+    inicioDoNovo, horarioJaPassou, recolherPassado, destinoDoRemarcar, vagasDoEncaixe,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -228,4 +228,50 @@
 .modal-foot{position:sticky;bottom:-40px;z-index:2;background:var(--modal-2);border-radius:0 0 18px 18px}
 /* com janela aberta o recado sobe para não cobrir o Salvar */
 body:has(.modal-overlay.open) .toast{bottom:96px}
+/* ===== R19 · encaixe, amanhã, remarcar e Quadro no celular ===== */
+/* Início: as próximas vagas (o cliente liga: "tem vaga hoje?"). Tocar abre o Novo agendamento naquele dia e hora. */
+.r19-vagas{display:grid;gap:10px;min-width:0;padding-top:18px;border-top:1px solid var(--r13-borda)}
+.r19-vagas .r13-mini .quando{font-weight:600;color:var(--orange-txt)}
+.r19-vagas-l{display:flex;flex-wrap:wrap;gap:8px}
+.r19-vaga{display:inline-flex;align-items:center;gap:9px;min-height:48px;padding:6px 16px;border:1px solid var(--r13-borda);border-radius:12px;
+  background:color-mix(in srgb, var(--ic-bg,var(--bg)) 55%, transparent);color:var(--ic-forte,var(--text-forte));font:inherit;cursor:pointer}
+.r19-vaga small{font:600 12px/1 var(--ic-texto-f);letter-spacing:.06em;text-transform:uppercase;color:var(--ic-apagado,var(--muted))}
+.r19-vaga b{font:700 26px/1 var(--ic-titulo);font-variant-numeric:tabular-nums}
+.r19-vaga:hover{border-color:var(--r13-vermelho)}
+.r19-sem{margin:0;font-size:14px;color:var(--ic-apagado,var(--muted))}
+@media (max-width:700px){ .r19-vaga{flex:1 1 0;justify-content:center;flex-direction:column;gap:5px;padding:8px 6px;min-height:58px} }
+
+/* Início: a faixa de amanhã lista os horários do dia (hora, cliente, serviço, confirmou?) */
+.r6-faixa .r19-amanha{list-style:none;margin:0;padding:0;display:grid}
+.r6-faixa .r19-amanha li{border-top:1px solid var(--r13-borda)}
+.r19-ag{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px 14px;width:100%;min-height:54px;padding:8px 6px;border:0;border-radius:8px;
+  background:none;color:var(--ic-texto,var(--text));font:inherit;text-align:left;cursor:pointer}
+.r19-ag:hover{background:color-mix(in srgb, var(--ic-forte,#fff) 6%, transparent)}
+.r19-ag-h{font:700 26px/1 var(--ic-titulo);font-variant-numeric:tabular-nums;color:var(--ic-forte,var(--text-forte))}
+.r19-ag-q{display:grid;gap:2px;min-width:0}
+.r19-ag-n{font-weight:700;color:var(--ic-forte,var(--text-forte));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r19-ag-q small{font-size:13px;color:var(--ic-apagado,var(--muted));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r19-amanha-mais{margin:0}
+@media (max-width:460px){
+  .r19-ag{grid-template-columns:auto minmax(0,1fr)}
+  .r19-ag .r13-selo{grid-column:2;justify-self:start}
+}
+
+/* Remarcar no celular: os atalhos de dia numa linha só (rola de lado) e dia e hora lado a lado:
+   a grade de horas livres do dia escolhido cabe inteira acima do rodapé. */
+@media (max-width:640px){
+  .r7-atalhos{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:8px -4px;padding:0 4px 2px}
+  .r7-atalhos::-webkit-scrollbar{display:none}
+  .r7-atalhos > *{flex:0 0 auto;white-space:nowrap}
+  .r7-atalhos .chip-sugestao.ativo{outline:0}
+  .modal-body .grid2:has(#r_data){grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:10px}
+  #r_salvar{flex:1 1 auto;min-width:0;white-space:normal;line-height:1.2}
+}
+
+/* Quadro no celular: as meias horas vazias que já passaram numa faixa só (tocar mostra) */
+.qd-rec{display:flex;padding:4px;border-top:1px solid rgba(255,255,255,.05)}
+.qd-rec-b{width:100%;min-height:44px;padding:8px 12px;border:1px dashed var(--border-2);border-radius:10px;background:none;
+  color:var(--ic-texto,var(--text));font:600 13px/1.3 var(--ic-texto-f);text-align:left;cursor:pointer}
+.qd-rec-b .muted{font-weight:500}
+.qd-chips .pilula .tab-num{margin-left:4px}
 [hidden]{display:none!important}

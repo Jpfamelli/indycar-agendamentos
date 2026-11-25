@@ -665,7 +665,7 @@ http.createServer(async (req, res) => {
   }
   if (p === '/api/lembretes' && m === 'GET') {
     const d = url.searchParams.get('data') || dia(1);
-    const itens = AGENDA.filter(a => a.data === d && ['aguardando', 'confirmado'].includes(a.status)).map(a => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, situacao: lembSit(a) }));
+    const itens = AGENDA.filter(a => a.data === d && ['aguardando', 'confirmado'].includes(a.status)).map(a => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, servico: a.servico || "", status: a.status, situacao: lembSit(a) }));
     return json(res, 200, { data: d, itens, cfg: { ativo_lembrete: LEMB.cfg.ativo_lembrete, horas_lembrete: 20, pausa_geral: false }, resumo: resumoDosLembretes(itens) });
   }
   if (p === '/api/lembretes/lote' && m === 'POST') {
@@ -694,7 +694,7 @@ http.createServer(async (req, res) => {
     const d = url.searchParams.get('data') || hoje(), b = baseHor();
     const lista = AGENDA.filter(a => a.data === d);
     const livres = livresDoDia({ data: d, agora: agoraMock(), agendamentos: AGENDA, consultores: b.consultores, duracao: 60, janelas: janelasDoServico(null, b.janelas, diaDaSemana(d)) });
-    const itens = lista.filter(a => ['aguardando', 'confirmado'].includes(a.status)).map(a => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, situacao: lembSit(a) }));
+    const itens = lista.filter(a => ['aguardando', 'confirmado'].includes(a.status)).map(a => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, servico: a.servico || "", status: a.status, situacao: lembSit(a) }));
     const duracoes = duracoesDaLista(lista, (sv) => duracaoDoServico(sv, b.servicos));
     return json(res, 200, { data: d, lista, livres, duracoes, lembretes: { data: d, itens, cfg: { ativo_lembrete: LEMB.cfg.ativo_lembrete, horas_lembrete: 20, pausa_geral: false }, resumo: resumoDosLembretes(itens) } });
   }
