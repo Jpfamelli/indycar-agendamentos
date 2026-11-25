@@ -104,6 +104,55 @@
     return x.antes.status === 'aberta';
   }
 
+  /* ---------- R19: o "antes" de cada tarefa do lote, guardado na auditoria ----------
+     A auditoria corta listas em 200 itens e textos em 500 letras: por isso vai em pedaços de 5 tarefas por texto
+     ("id,prazo em ms,responsável;…"), e assim cabe um lote inteiro de 300. */
+  const JANELA_DESFAZER_MS = 7 * DIA;
+  const FOTOS_POR_TEXTO = 5;
+  function empacotarFotos(feitos) {
+    const partes = (feitos || []).map(f => `${f.id},${Number.isFinite(ms(f.antes.vence_em)) ? ms(f.antes.vence_em) : ''},${f.antes.responsavel_id || ''}`);
+    const out = [];
+    for (let i = 0; i < partes.length; i += FOTOS_POR_TEXTO) out.push(partes.slice(i, i + FOTOS_POR_TEXTO).join(';'));
+    return out;
+  }
+  /** Map(id -> {status:'aberta', vence_em, responsavel_id}) a partir do que empacotarFotos gravou. */
+  function desempacotarFotos(fotos) {
+    const m = new Map();
+    for (const txt of Array.isArray(fotos) ? fotos : []) for (const parte of String(txt || '').split(';')) {
+      const [id, v, resp] = parte.split(',');
+      if (!ehUuid(id)) continue;
+      m.set(id, { status: 'aberta', vence_em: v && Number.isFinite(Number(v)) ? new Date(Number(v)).toISOString() : null, responsavel_id: ehUuid(resp) ? resp : null });
+    }
+    return m;
+  }
+  /** Como a tarefa ficou depois do lote, a partir do "antes" e do que a auditoria diz que foi feito. */
+  function depoisDoLote(det, antes) {
+    if (!det || !antes) return null;
+    if (det.acao === 'concluir') return { status: 'feita', vence_em: antes.vence_em, responsavel_id: antes.responsavel_id };
+    if (det.acao === 'hoje' || det.acao === 'amanha') return Number.isFinite(ms(det.vence_em)) ? { status: 'aberta', vence_em: det.vence_em, responsavel_id: antes.responsavel_id } : null;
+    if (det.acao === 'reatribuir') return ehUuid(det.para) ? { status: 'aberta', vence_em: antes.vence_em, responsavel_id: det.para } : null;
+    return null;
+  }
+  /**
+   * Para cada id pedido, o lote MAIS NOVO (da própria pessoa) em que a tarefa entrou, com o antes e o depois dele.
+   * lotes: linhas da auditoria (mais nova primeiro). daTela: Map(id -> item mandado pela tela), usado só nos lotes
+   * antigos, que não guardaram as fotos. Tarefa que não está em lote nenhum fica de fora.
+   */
+  function planosDeDesfazer(ids, lotes, daTela = new Map()) {
+    const planos = new Map(), lidos = (lotes || []).map(l => ({ l, d: l.detalhes || {}, fotos: desempacotarFotos((l.detalhes || {}).fotos) }));
+    for (const id of ids || []) {
+      for (const { l, d, fotos } of lidos) {
+        if (fotos.has(id)) { const antes = fotos.get(id), depois = depoisDoLote(d, antes); if (depois) planos.set(id, { lote: l.id, antes, depois }); break; }
+        if (!fotos.size && Array.isArray(d.ids) && d.ids.includes(id)) {
+          const x = daTela.get(id);
+          if (itemDesfazerValido(x)) planos.set(id, { lote: l.id, antes: { status: 'aberta', vence_em: x.antes.vence_em ?? null, responsavel_id: x.antes.responsavel_id ?? null }, depois: foto(x.depois) });
+          break;
+        }
+      }
+    }
+    return planos;
+  }
+
   /** Pergunta da confirmação, com a contagem antes de gravar. */
   function textoConfirmar(acao, qtd, { agora = Date.now(), nomePara = '' } = {}) {
     const q = n(qtd, 'tarefa atrasada', 'tarefas atrasadas');
@@ -154,5 +203,5 @@
   }
 
   return { ACOES, MAX_LOTE, novoPrazo, horaCurta, diasAtraso, atrasada, podeMexerTarefa, ordenarAtrasadas, porPessoa, validarLote, mudanca, motivoFora, foto,
-    aindaComoDepois, itemDesfazerValido, textoConfirmar, textoFeito, agendadosSemHorario, caminhoAgenda, inicioDiaBrt };
+    aindaComoDepois, itemDesfazerValido, empacotarFotos, desempacotarFotos, depoisDoLote, planosDeDesfazer, JANELA_DESFAZER_MS, textoConfirmar, textoFeito, agendadosSemHorario, caminhoAgenda, inicioDiaBrt };
 });

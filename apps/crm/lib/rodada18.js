@@ -87,29 +87,46 @@ async function rotasR18(c) {
       if (error || !data) { pulados.push({ id, titulo: t.titulo, motivo: 'mudou enquanto gravava' }); continue; }
       feitos.push({ id, titulo: t.titulo, antes: C.foto(t), depois: C.foto(data) });
     }
-    if (feitos.length) await c.auditar(quem, 'tarefas_lote', { tabela: 'tarefas', detalhes: { acao: v.acao, quantidade: feitos.length, pulados: pulados.length,
-      para: v.responsavel_id || undefined, vence_em: feitos[0].depois.vence_em && v.acao !== 'concluir' && v.acao !== 'reatribuir' ? feitos[0].depois.vence_em : undefined, ids: feitos.map(f => f.id) } });
+    /* R19: o "antes" de cada tarefa fica na auditoria (fotos), e é dela que o Desfazer lê. Antes o Desfazer confiava no
+       "antes" que a tela mandava: dava para reabrir ou tomar a tarefa de um colega com um pedido montado à mão. */
+    let lote = null;
+    if (feitos.length) lote = await c.auditar(quem, 'tarefas_lote', { tabela: 'tarefas', detalhes: { acao: v.acao, quantidade: feitos.length, pulados: pulados.length,
+      para: v.responsavel_id || undefined, vence_em: feitos[0].depois.vence_em && v.acao !== 'concluir' && v.acao !== 'reatribuir' ? feitos[0].depois.vence_em : undefined, ids: feitos.map(f => f.id),
+      fotos: C.empacotarFotos(feitos) } });
     c.limparCache?.();
-    json(res, 200, { ok: true, acao: v.acao, para: v.responsavel_id ? { id: v.responsavel_id, nome: nomePara } : null, atualizadas: feitos.length, feitos, pulados });
+    json(res, 200, { ok: true, acao: v.acao, para: v.responsavel_id ? { id: v.responsavel_id, nome: nomePara } : null, atualizadas: feitos.length, feitos, pulados, lote: lote == null ? null : String(lote) });
     return true;
   }
 
+  /* R19: o Desfazer vale só para o que a PRÓPRIA pessoa mudou em lote nos últimos 7 dias, e volta para o "antes" que o
+     servidor guardou na auditoria. Do pedido só se aproveitam os ids (o "antes"/"depois" da tela serve apenas para os
+     lotes antigos, gravados sem as fotos, e mesmo assim só de tarefa que está num lote dela). */
   if (p === '/api/tarefas/lote/desfazer' && m === 'POST') {
     frear('r18-lote', 12, 60_000);
     const b = await lerCorpo();
     const itens = Array.isArray(b.itens) ? b.itens.slice(0, C.MAX_LOTE) : [];
     if (!itens.length) throw falha(400, 'Nada para desfazer.');
-    const validos = itens.filter(C.itemDesfazerValido);
-    const atuais = await lerTarefas(sb, [...new Set(validos.map(x => x.id))]);
-    let voltaram = 0; const pulados = itens.filter(x => !C.itemDesfazerValido(x)).map(x => x && x.id);
-    for (const x of validos) {
-      const t = atuais.get(x.id);
-      if (!C.aindaComoDepois(t, x.depois) || !C.podeMexerTarefa(t, quem, gestor) && !C.podeMexerTarefa({ ...t, ...x.antes }, quem, gestor)) { pulados.push(x.id); continue; }
-      const volta = { status: 'aberta', vence_em: x.antes.vence_em, responsavel_id: x.antes.responsavel_id };
-      const { data, error } = await sb.from('tarefas').update(volta).eq('id', x.id).eq('status', x.depois.status).select('id').maybeSingle();
-      if (error || !data) pulados.push(x.id); else voltaram++;
+    const daTela = new Map();
+    for (const x of itens) if (x && ehUuid(x.id) && !daTela.has(x.id)) daTela.set(x.id, x);
+    const pulados = itens.filter(x => !x || !ehUuid(x.id)).map(x => x && x.id);
+    let voltaram = 0; const usados = new Set();
+    if (daTela.size) {
+      const { data: lotes, error: eLotes } = await sb.from('auditoria').select('id,perfil_id,acao,detalhes,created_at').eq('acao', 'tarefas_lote').eq('perfil_id', quem.id)
+        .gte('created_at', new Date(agora - C.JANELA_DESFAZER_MS).toISOString()).order('created_at', { ascending: false }).limit(80);
+      if (eLotes) throw falha(503, 'Não consegui ler o registro dos lotes. Nada foi mudado.');
+      const planos = C.planosDeDesfazer([...daTela.keys()], lotes || [], daTela);
+      const atuais = await lerTarefas(sb, [...planos.keys()]);
+      for (const id of daTela.keys()) {
+        const pl = planos.get(id), t = atuais.get(id);
+        if (!pl || !C.aindaComoDepois(t, pl.depois)) { pulados.push(id); continue; }
+        const volta = { status: 'aberta', vence_em: pl.antes.vence_em, responsavel_id: pl.antes.responsavel_id };
+        let q = sb.from('tarefas').update(volta).eq('id', id).eq('status', pl.depois.status);
+        q = pl.depois.responsavel_id ? q.eq('responsavel_id', pl.depois.responsavel_id) : q.is('responsavel_id', null);
+        const { data, error } = await q.select('id').maybeSingle();
+        if (error || !data) pulados.push(id); else { voltaram++; usados.add(String(pl.lote)); }
+      }
     }
-    await c.auditar(quem, 'tarefas_lote_desfeito', { tabela: 'tarefas', detalhes: { quantidade: voltaram, pulados: pulados.length } });
+    await c.auditar(quem, 'tarefas_lote_desfeito', { tabela: 'tarefas', registro: usados.size === 1 ? [...usados][0] : null, detalhes: { quantidade: voltaram, pulados: pulados.length, lotes: [...usados].slice(0, 20) } });
     c.limparCache?.();
     json(res, 200, { ok: true, voltaram, pulados });
     return true;
