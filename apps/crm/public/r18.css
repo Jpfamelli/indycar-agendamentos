@@ -1,0 +1,63 @@
+/* Rodada 18 (25/11/2026): tarefas atrasadas em lote e agendados sem horário, na tela Hoje.
+   Só as cores e fontes de /casa/indycar.css; sem borda grossa de um lado; toque mínimo de 44 px. */
+[hidden]{display:none!important}
+
+.r18-card{margin-bottom:18px}
+.r18-cab{margin-bottom:12px}
+.r18-tit{display:flex;align-items:center;gap:10px;margin:0;font:700 20px/1.2 var(--ic-titulo);color:var(--ic-forte)}
+.r18-qtd{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 9px;border-radius:999px;
+  background:color-mix(in srgb,var(--ic-vermelho) 16%,transparent);color:var(--ic-vermelho);font:700 14px/1 var(--ic-texto-f)}
+.r18-sub{margin:6px 0 0;font-size:13.5px;line-height:1.45;color:var(--ic-apagado);max-width:52em}
+
+.r18-pills{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.r18-pills .filtro-pill{min-height:44px}
+.r18-pills .filtro-pill small{margin-left:4px;opacity:.75}
+
+.r18-todas{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 14px;border:1px solid var(--ic-borda);border-radius:12px;background:var(--ic-painel-2);cursor:pointer;font-size:14px;color:var(--ic-forte)}
+.r18-todas input,.r18-marca input{width:22px;height:22px;margin:0;flex:none;accent-color:var(--ic-vermelho)}
+
+.r18-lista{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--ic-borda);border-radius:12px}
+.r18-lista>li+li{border-top:1px solid var(--ic-borda)}
+.r18-item{display:flex;align-items:center;gap:8px;padding:0 14px 0 0}
+.r18-marca{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"c t" "c m";column-gap:12px;align-items:center;flex:1;min-width:0;min-height:56px;padding:8px 0 8px 14px;cursor:pointer}
+.r18-marca input{grid-area:c}
+.r18-marca:hover{background:var(--ic-painel-2)}
+.r18-i-t{grid-area:t;font-weight:600;color:var(--ic-forte);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r18-i-m{grid-area:m;font-size:12.5px;color:var(--ic-apagado);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r18-atraso{font-weight:600;color:var(--ic-vermelho)}
+.r18-urg{font:700 10.5px/1 var(--ic-texto-f);letter-spacing:.08em;text-transform:uppercase;color:var(--ic-vermelho)}
+.r18-lead{flex:none;max-width:36%;min-height:44px;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.r18-mais{min-height:44px;margin-top:4px;padding:0 4px}
+
+.r18-barra{position:sticky;bottom:12px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;
+  border:1px solid var(--ic-borda);border-radius:14px;background:var(--ic-painel);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.r18-barra .btn{min-height:44px}
+.r18-contagem{font:700 14px/1 var(--ic-texto-f);color:var(--ic-forte);margin-right:4px}
+.r18-passar{display:flex;gap:8px;margin-left:auto;min-width:0}
+.r18-passar select{min-height:44px;max-width:220px}
+.r18-ultimo{margin:12px 0 0;font-size:13px;color:var(--ic-apagado)}
+.r18-ultimo .link-btn{min-height:44px;padding:0 4px}
+
+.r18-ag{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px}
+.r18-ag-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.r18-ag-nome{align-self:flex-start;min-height:44px;padding:0;font-weight:600;font-size:15px;color:var(--ic-forte);text-align:left}
+.r18-ag-resp{margin-top:4px}
+.r18-ag-acoes{display:flex;flex-wrap:wrap;gap:8px;flex:none}
+.r18-ag-acoes .btn{min-height:44px;display:inline-flex;align-items:center;text-decoration:none}
+
+@media (max-width:768px){
+  /* acima da barra de abas de baixo (e acima do aviso com Desfazer, quando ele aparece) */
+  .r18-barra{display:grid;grid-template-columns:1fr 1fr;gap:8px;bottom:calc(76px + env(safe-area-inset-bottom));padding:10px}
+  body:has(.toast.show) .r18-barra{bottom:calc(150px + env(safe-area-inset-bottom))}
+  .r18-barra .btn{width:auto;min-width:0;padding:0 10px;justify-content:center}
+  .r18-contagem{display:flex;align-items:center;margin:0}
+  .r18-passar{grid-column:1 / -1;margin-left:0}
+  .r18-passar select{flex:1;max-width:none;min-width:0}
+  .r18-passar .btn{flex:none}
+  .r18-item{flex-wrap:wrap;padding:0}
+  .r18-marca{flex-basis:100%;padding-right:14px}
+  .r18-lead{max-width:none;flex-basis:100%;margin:-10px 0 4px;padding:0 14px 0 48px;text-align:left}
+  .r18-ag{flex-direction:column;align-items:stretch}
+  .r18-ag .r18-i-m{white-space:normal}
+  .r18-ag-acoes .btn{flex:1 1 100%;justify-content:center}
+}

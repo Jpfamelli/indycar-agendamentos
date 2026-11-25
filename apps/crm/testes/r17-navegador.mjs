@@ -96,7 +96,7 @@ try {
   await s.page.reload({ waitUntil: 'domcontentloaded' });
   await s.page.waitForFunction(() => document.querySelector('#hojeLista [data-h6="contato"]'), { timeout: 20000 }); await espera(1500);
   const sw = await s.page.evaluate(async () => ({ ctrl: !!navigator.serviceWorker.controller, chaves: await caches.keys(), r17: !!(await caches.match('r17.js')) || !!(await caches.match('/r17.js')), css: !!(await caches.match('r17.css')) || !!(await caches.match('/r17.css')), filaNoAlto: document.querySelector('#r13Heroi').nextElementSibling === document.querySelector('#hojeLista').closest('.card') }));
-  conferir('service worker: 2ª visita controlada, v21 e r17 em cache, fila no alto', sw.ctrl && sw.chaves.some(c => /v21$/.test(c)) && sw.r17 && sw.css && sw.filaNoAlto, JSON.stringify(sw));
+  conferir('service worker: 2ª visita controlada, v21 e r17 em cache, fila no alto', sw.ctrl && sw.chaves.some(c => /v2[1-9]$/.test(c)) && sw.r17 && sw.css && sw.filaNoAlto, JSON.stringify(sw));
   conferir('service worker: zero erro de console', s.erros.length === 0, s.erros.slice(0, 3).join(' | '));
   await s.page.close();
 } finally { await browser.close(); }

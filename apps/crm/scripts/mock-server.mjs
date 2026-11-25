@@ -25,6 +25,7 @@ const R6 = createRequire(import.meta.url)('../lib/rodada6.js');
 const R6C = createRequire(import.meta.url)('../lib/rodada6c.js');
 const CrmUtils = createRequire(import.meta.url)('../public/crm-utils.js');
 const CR14 = createRequire(import.meta.url)('../public/r14-faxina.js');
+const CR18 = createRequire(import.meta.url)('../public/r18-casa.js');
 // Rodada 5: MOCK_PREFIXO=/crm serve o app montado num prefixo, como a IndyCar Central
 const PREFIXO = (p => p ? '/' + p : '')(String(process.env.MOCK_PREFIXO || '').trim().replace(/^\/+|\/+$/g, ''));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
@@ -129,6 +130,7 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
   const equipe = pp => [eu(pp), ...perfis];
   const ha = (d, h = 10) => { const x = new Date(); x.setDate(x.getDate() + d); x.setHours(h, 0, 0, 0); return x.toISOString(); };
   const ativ = [];
+  const auditoria18 = [];
   let tarefas = [
     {titulo: 'Retornar o orçamento de freios (fictício)', vence_em: ha(-2, 10), prioridade: 3, lead_id: leads[1].id},
     {titulo: 'Ligar para confirmar o diagnóstico (fictício)', vence_em: ha(-1, 15), prioridade: 2, lead_id: leads[2].id},
@@ -138,6 +140,16 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
     {titulo: 'Conferir peças com o fornecedor (fictício)', vence_em: null, prioridade: 2},
     {titulo: 'Agendar alinhamento do cliente (fictício)', vence_em: ha(1, 10), prioridade: 2, responsavel_id: EQUIPE_BASE[1].id},
   ].map((t, i) => ({id: `bbbbbbbb-bbbb-4bbb-8bbb-${String(i).padStart(12, '0')}`, descricao: null, responsavel_id: EU, criado_por: i === 3 ? EQUIPE_BASE[3].id : EU, cliente_id: null, conversa_id: null, agendamento_id: null, origem: i === 3 ? 'atendimento' : 'crm', status: 'aberta', concluida_em: null, concluida_por: null, created_at: new Date(Date.now() - (10 - i) * 3600000).toISOString(), lead_id: null, ...t}));
+  /* rodada 18: com MOCK_LEADS > 90, um acúmulo parecido com o do banco real (~55 tarefas atrasadas espalhadas pela equipe) */
+  if (leads.length > 90) {
+    const titulos = ['Retornar orçamento (fictício)', 'Ligar para confirmar (fictício)', 'Cobrar resposta (fictício)', 'Pós-venda (fictício)', 'Mandar fotos do serviço (fictício)'];
+    for (let i = 0; i < 52; i++) {
+      const dono = i % 6 === 5 ? null : EQUIPE_BASE[i % 4].id, l = leads[100 + i * 7];
+      tarefas.push({id: `bbbbbbbb-bbbb-4bbb-8bbb-1${String(i).padStart(11, '0')}`, titulo: titulos[i % 5], descricao: null, responsavel_id: dono, criado_por: i % 3 ? EU : EQUIPE_BASE[3].id,
+        cliente_id: null, conversa_id: null, agendamento_id: null, origem: 'crm', status: 'aberta', concluida_em: null, concluida_por: null, prioridade: i % 7 === 0 ? 3 : 2,
+        vence_em: ha(-(1 + (i * 5) % 34), 9 + i % 8), created_at: ha(-(40 + i % 10), 8), lead_id: l ? l.id : null});
+    }
+  }
   let notificacoes = [
     {tipo: 'lead_atribuido', titulo: 'Lead passado para você', corpo: `${leads[4].nome} — ${leads[4].servico}`, link: '/?lead=' + leads[4].id, app: 'crm', lida_em: null, created_at: new Date(Date.now() - 20 * 60000).toISOString()},
     {tipo: 'aguardando_consultor', titulo: 'Cliente esperando consultor', corpo: 'Conversa fictícia aguardando resposta', link: '/?conversa=00000000-0000-4000-8000-000000000123', app: 'atendimento', lida_em: null, created_at: new Date(Date.now() - 3 * 3600000).toISOString()},
@@ -544,6 +556,54 @@ export function criarMock({latencia = Number(process.env.MOCK_LATENCIA) || 0, ia
           for (const l of podem) { l.ultimo_contato_em = agoraIso(); ativ.unshift({id: crypto.randomUUID(), lead_id: l.id, tipo: d.tipo, resultado: d.resultado, texto: d.texto || null, criado_por: EU, autor: 'Você', created_at: agoraIso()}); }
           return json({ok: true, registrados: podem.length, ids: podem.map(l => l.id), de_colegas: alvo.length - podem.length, fechados: ids.length - alvo.length, inexistentes: 0}, 201);
         }
+      }
+      /* ---------- rodada 18: tarefas atrasadas em lote e agendados sem horário (mesmas contas do servidor real) ---------- */
+      if (p === '/api/tarefas/atrasadas' && req.method === 'GET') {
+        const agora = Date.now(), escopo = gestor && url.searchParams.get('escopo') !== 'minhas' ? 'todas' : 'minhas';
+        const nomes = new Map(equipe(pp).map(x => [x.id, x.id === EU ? me.nome : x.nome]));
+        const lista = CR18.ordenarAtrasadas(tarefas.filter(t => CR18.atrasada(t, agora) && (escopo === 'todas' || t.responsavel_id === EU)));
+        const itens = lista.map(t => { const l = t.lead_id ? leads.find(x => x.id === t.lead_id) : null;
+          return {id: t.id, titulo: t.titulo, vence_em: t.vence_em, dias: CR18.diasAtraso(t.vence_em, agora), prioridade: t.prioridade, lead: l ? {id: l.id, nome: l.nome, status: l.status} : null,
+            responsavel_id: t.responsavel_id || null, responsavel_nome: t.responsavel_id ? nomes.get(t.responsavel_id) || null : null, pode_mexer: CR18.podeMexerTarefa(t, {id: EU}, gestor)}; });
+        return json({escopo, total: itens.length, minhas: itens.filter(t => t.responsavel_id === EU).length, itens, por_pessoa: CR18.porPessoa(lista, nomes), prazos: {hoje: CR18.novoPrazo('hoje', agora), amanha: CR18.novoPrazo('amanha', agora)}, gerado_em: agoraIso()});
+      }
+      if (p === '/api/tarefas/lote' && req.method === 'POST') {
+        const v = CR18.validarLote(d); if (v.erro) return json({erro: v.erro}, 400);
+        const alvo = v.acao === 'reatribuir' ? equipe(pp).find(x => x.id === v.responsavel_id && x.ativo !== false && x.papel !== 'agenda') : null;
+        if (v.acao === 'reatribuir' && !alvo) return json({erro: 'Essa pessoa não pode receber tarefas do CRM.'}, 400);
+        const feitos = [], pulados = [];
+        for (const id of v.ids) {
+          const t = tarefas.find(x => x.id === id), fora = CR18.motivoFora(t, v.acao, {id: EU}, gestor, {para: v.responsavel_id});
+          if (fora) { pulados.push({id, titulo: t?.titulo || null, motivo: fora}); continue; }
+          const antes = CR18.foto(t), mud = CR18.mudanca(v.acao, t, {para: v.responsavel_id}), velho = {...t};
+          Object.assign(t, mud, v.acao === 'concluir' ? {concluida_em: agoraIso(), concluida_por: EU} : {});
+          avisar('tarefas', 'UPDATE', {...t}, velho);
+          feitos.push({id, titulo: t.titulo, antes, depois: CR18.foto(t)});
+        }
+        if (feitos.length) auditoria18.push({quem: EU, acao: 'tarefas_lote', detalhes: {acao: v.acao, quantidade: feitos.length, ids: feitos.map(f => f.id)}, em: agoraIso()});
+        return json({ok: true, acao: v.acao, para: alvo ? {id: alvo.id, nome: alvo.nome} : null, atualizadas: feitos.length, feitos, pulados});
+      }
+      if (p === '/api/tarefas/lote/desfazer' && req.method === 'POST') {
+        const itens = Array.isArray(d.itens) ? d.itens.slice(0, CR18.MAX_LOTE) : []; if (!itens.length) return json({erro: 'Nada para desfazer.'}, 400);
+        let voltaram = 0; const pulados = [];
+        for (const x of itens) {
+          const t = CR18.itemDesfazerValido(x) ? tarefas.find(y => y.id === x.id) : null;
+          if (!t || !CR18.aindaComoDepois(t, x.depois)) { pulados.push(x && x.id); continue; }
+          const velho = {...t}; Object.assign(t, {status: 'aberta', vence_em: x.antes.vence_em, responsavel_id: x.antes.responsavel_id, concluida_em: null, concluida_por: null});
+          avisar('tarefas', 'UPDATE', {...t}, velho); voltaram++;
+        }
+        auditoria18.push({quem: EU, acao: 'tarefas_lote_desfeito', detalhes: {quantidade: voltaram, pulados: pulados.length}, em: agoraIso()});
+        return json({ok: true, voltaram, pulados});
+      }
+      if (p === '/api/__mock/auditoria18') return json(auditoria18);   // só o servidor de mentira: o que o lote registrou
+      if (p === '/api/agendados-sem-horario' && req.method === 'GET') {
+        const agora = Date.now(), abertos = leads.filter(l => !['concluido','perdido'].includes(l.status));
+        // a maioria dos agendados tem horário na Agenda; um em cada doze não tem (o banco real tinha 6)
+        const ags = abertos.filter(l => l.status === 'agendado').filter((_, i) => i % 12 !== 0).map(l => ({id: 'ag-' + l.id, lead_id: l.id, cliente_id: l.cliente_id, telefone: l.telefone, inicio_em: new Date(agora + 2 * DIA).toISOString(), status: 'confirmado'}));
+        const os = abertos.filter((_, i) => i % 9 === 0).map((l, i) => ({id: 'os-' + l.id, numero: 100 + i, etapa: 'recebido', lead_id: l.id, cliente_id: l.cliente_id, telefone: l.telefone}));
+        const sinais = R6.construirSinais(leads, {os, entregues: [], extras: [], orcs: [], conversas: [], tarefas: [], agendamentos: ags}, agora);
+        const itens = CR18.agendadosSemHorario(abertos.filter(l => gestor || !l.responsavel_id || l.responsavel_id === EU), sinais, {agora});
+        return json({total: itens.length, itens, gerado_em: agoraIso()});
       }
       /* ---------- rodada 6 ---------- */
       if (p.startsWith('/api/pipeline/sinais') || p === '/api/fila-do-dia' || p === '/api/entregues-sem-fechar' || p === '/api/leads/followup-lote' || p === '/api/roi/campanhas' || p === '/api/qualidade' || p === '/api/dono' || /^\/api\/leads\/[0-9a-f-]{36}\/(contato|atividades|cadencia|ecossistema)$/.test(p)) {
