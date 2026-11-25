@@ -1,0 +1,1 @@
+import{n as e,t}from"./pdf-DeKe21z4.js";import"./Cotacao-DF7KNEny.js";export{t as entregarPdf,e as gerarPdf};
