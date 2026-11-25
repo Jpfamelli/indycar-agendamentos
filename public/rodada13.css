@@ -85,6 +85,13 @@
 .r13-prox-serv{margin:0;color:var(--ic-texto,var(--text));font-size:14px;overflow-wrap:anywhere}
 .r13-prox-meta{margin:0;color:var(--ic-apagado,var(--muted));font-size:13px;overflow-wrap:anywhere}
 .r13-prox.vazio .r13-prox-nome{font-size:17px}
+/* R15: Chegou direto no cartão do próximo cliente (a ação mais repetida da recepção) */
+.r13-prox-chegou{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;margin-top:10px;padding:0 22px;border:0;border-radius:12px;
+  background:var(--r13-vermelho);color:#fff;font:800 16px/1 var(--ic-texto-f);cursor:pointer;width:max-content;max-width:100%}
+.r13-prox-chegou svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.4}
+.r13-prox-chegou:hover{filter:brightness(1.1)}
+.r13-prox-chegou.ver{background:transparent;color:var(--ic-forte,var(--text-forte));border:1px solid var(--r13-borda)}
+@media (max-width:700px){.r13-prox-chegou{width:100%}}
 
 /* horários ao longo do dia (gráfico simples de colunas) */
 .r13-horas{display:grid;gap:12px;min-width:0;padding-top:20px;border-top:1px solid var(--r13-borda)}

@@ -1024,10 +1024,12 @@ function heroiDoHoje(d, prox, relProx, agora, opts = {}) {
           <b class="r13-prox-h">${esc(prox.hora)}</b>
           <p class="r13-prox-nome">${esc(prox.cliente_nome)}</p>
           <p class="r13-prox-serv">${esc(prox.servico)}</p>
-          ${carro || prox.consultor_nome ? `<p class="r13-prox-meta">${[carro, prox.consultor_nome].filter(Boolean).map(esc).join(' · ')}</p>` : ''}`
+          ${carro || prox.consultor_nome ? `<p class="r13-prox-meta">${[carro, prox.consultor_nome].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
+          <button type="button" class="r13-prox-chegou" data-prox-chegou="${esc(prox.id)}" aria-label="Marcar a chegada de ${esc(prox.cliente_nome)}">${svg(I.check)} Chegou</button>`
         : `<p class="r13-mini">Próximo</p>
           <p class="r13-prox-nome">${r.vem ? 'Quem falta já passou da hora' : 'Ninguém mais para chegar hoje'}</p>
-          <p class="r13-prox-serv">${r.vem ? 'Marque a chegada ou a falta na lista abaixo.' : 'Para marcar um horário, use Novo agendamento.'}</p>`}
+          <p class="r13-prox-serv">${r.vem ? 'Marque a chegada ou a falta na lista abaixo.' : 'Para marcar um horário, use Novo agendamento.'}</p>
+          ${r.vem ? '<button type="button" class="r13-prox-chegou ver" data-ver-lista>Ver quem falta</button>' : ''}`}
       </aside>
       ${r.total ? `<div class="r13-horas">
         <p class="r13-mini">Horários ao longo do dia</p>
@@ -1099,6 +1101,17 @@ function pintarInicio(d, opts = {}) {
   ligarAbas($('#tabsHoje'), (k) => { state.hojeTab = k; pintarHoje(true); moverTinta($('#tabsHoje')); });
   pintarHoje(!opts.quieto);
   moverTinta($('#tabsHoje'), true);
+  /* R15: o botão Chegou do cartão "Próximo" faz o mesmo que o da lista (sem rolar a tela até lá) */
+  $('[data-prox-chegou]', view)?.addEventListener('click', () => {
+    if (state.hojeTab !== 'agendados') { state.hojeTab = 'agendados'; pintarHoje(false); moverTinta($('#tabsHoje')); }
+    const id = $('[data-prox-chegou]', view).dataset.proxChegou;
+    const cartao = $$('#agendaHoje .appt', view).find(c => c.dataset.id === id);
+    $('[data-act="compareceu"]', cartao)?.click();
+  });
+  $('[data-ver-lista]', view)?.addEventListener('click', () => {
+    if (state.hojeTab !== 'agendados') { state.hojeTab = 'agendados'; pintarHoje(false); moverTinta($('#tabsHoje')); }
+    $('#tabsHoje')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
   // Folha do dia: a impressão (styles.css › @media print) mostra só a agenda de hoje,
   // em ordem de horário, com os três grupos — sem botões, sem menu, sem números.
   $('#btnImprimir')?.addEventListener('click', () => abrirImpressao(d));
@@ -1203,7 +1216,7 @@ function htmlDaAgenda(lista, agora, buscando) {
       html += `<div class="lista-sep forte">${secao === 'proximos' ? 'A seguir' : 'Já passaram'}</div>`;
     }
     if (a.data !== dia) { dia = a.data; html += `<div class="lista-sep">${esc(rotuloDia(a.data, agora.data))}</div>`; }
-    html += appointmentCard(a, { agora });
+    html += appointmentCard(a, { agora, comChegada: a.data === agora.data && ['aguardando', 'confirmado'].includes(a.status) && a.compareceu !== 1 });
   }
   return html;
 }
@@ -3205,6 +3218,14 @@ async function route(r, opts = {}){
     if (vez === state._vez) {
       state._pintou = false; state._repintar = null;
       if (e?.parar) return;                  // login/acesso: a própria api() já mostrou a tela certa
+      /* R15: uma atualização SILENCIOSA que falha (a rede piscou depois de marcar Chegou) não apaga a lista que a
+         pessoa está usando: a tela fica como estava e o aviso com "Atualizar" diz o que fazer. */
+      if (quieto && view.querySelector('.appt, .rec-cartao, .r13-heroi, .espera-item, .qd-grade') && !view.querySelector('.erro-tela')) {
+        state._pintou = true;
+        toast('Não consegui atualizar agora. O que está na tela pode estar desatualizado.', 'err', { acao: { rotulo: 'Atualizar', fn: () => route(state.route) } });
+        refreshBadge(quieto);
+        return;
+      }
       // erro claro e um botão para tentar de novo (antes: "Erro ao carregar: Failed to fetch")
       view.innerHTML = `<div class="erro-tela" role="alert">${svg(I.alerta)}
         <b>Não consegui carregar esta tela.</b><p>${esc(e.message)}</p>
