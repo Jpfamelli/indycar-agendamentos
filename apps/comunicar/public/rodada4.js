@@ -80,7 +80,7 @@
     let p; try { p = await projecao(); } catch { return; }
     if (state.route !== 'reguas') return;
     for (const t of REGUAS) {
-      const el = $(`[data-proxima="${t}"]`, view); if (!el) continue;
+      const el = $(`[data-proxima="${t}"]`, view); if (!el || el.dataset.retida) continue; /* R18: retida (WhatsApp parado) manda na linha */
       if (!$(`[data-cfg="ativo_${t}"]`, view)?.checked) { el.textContent = 'Desligada: nada sai.'; continue; }
       const prox = (p.porRegua?.[t]?.exemplos || []).filter(x => x.data).sort((a, b) => (a.data < b.data ? -1 : 1))[0];
       el.textContent = prox ? `Próxima saída: ${rotuloDia(prox.data)}${prox.nome ? `, para ${String(prox.nome).split(' ')[0]}` : ''}` : 'Próxima saída: ninguém nos próximos 30 dias.';

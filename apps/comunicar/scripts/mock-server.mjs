@@ -346,6 +346,7 @@ function resumo() {
   const sat = RESPOSTAS.filter((r) => r.satisfeito).length;
   return {
     pendentes: ENVIOS.filter((e) => e.status === 'pendente').length,
+    filaPorTipo: ENVIOS.filter((e) => e.status === 'pendente').reduce((r, e) => { r[e.tipo] = (r[e.tipo] || 0) + 1; return r; }, {}),
     vencidos: ENVIOS.filter((e) => e.status === 'pendente' && e.enviar_em <= horasAtras(2)).length,
     enviadosHoje: enviados30.filter((e) => e.enviado_em >= inicioDia).length,
     falhas: env30.filter((e) => e.status === 'falhou').length,

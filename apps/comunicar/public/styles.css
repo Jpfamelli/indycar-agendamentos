@@ -1500,3 +1500,11 @@ button,input,select,textarea{font-family:inherit}
 .cli .nasc-txt{flex:1 1 auto;min-width:0;white-space:nowrap;padding-right:6px}
 .cli .nasc .icon-btn{flex:0 0 auto}
 @media (min-width:1181px){.cli{grid-template-columns:minmax(0,2fr) minmax(0,.95fr) minmax(0,1.35fr) 175px auto}}
+
+/* ===== R18: réguas e campanhas RETIDAS com o WhatsApp parado (nada sai; voltam sozinhas) ===== */
+.r18-retida{margin-top:6px;min-height:22px;font-size:11px}
+.regua-proxima.r18-linha{margin-top:4px;font-weight:500;color:var(--muted);line-height:1.35}
+.r18-aviso{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;
+  border:1px solid var(--border);border-radius:14px;background:var(--surface);font-size:14px;line-height:1.45;color:var(--text)}
+.r18-aviso .selo{flex-shrink:0}
+.r18-aviso > span:last-child{flex:1 1 240px;min-width:0}

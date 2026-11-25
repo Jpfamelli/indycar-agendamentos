@@ -154,6 +154,9 @@
     }
     const h = montarHoje({ resumo: resumo || {}, status, projecao: proj, cfg: cfg || state.cfg || {}, hoje: hojeIso });
     state.envioParado = h.estado === 'parado' || h.estado === 'pausa' ? h.estado : null;
+    /* R18: cada régua ligada diz que está retida e quantas esperam (o status é o mesmo do herói) */
+    if (h.estado !== 'desconhecido') window.R18?.definir(h.estado);
+    window.R18?.pintarReguas(alvo.parentNode, h.estado, resumo?.filaPorTipo);
     alvo.innerHTML = html(h, { hojeIso });
     alvo.dataset.estado = h.estado;
     alvo.removeAttribute('aria-busy');
