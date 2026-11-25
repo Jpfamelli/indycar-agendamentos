@@ -341,7 +341,7 @@
 
   function htmlPergunte() {
     return `<section class="cia cia-bloco" aria-label="Pergunte ao CRM">
-      <h3 class="cia-titulo"><span aria-hidden="true">💬</span> Pergunte ao CRM</h3>
+      <h2 class="cia-titulo"><span aria-hidden="true">💬</span> Pergunte ao CRM</h2>
       <form class="cia-form" data-perg>
         <input type="text" name="pergunta" maxlength="300" minlength="3" required autocomplete="off" placeholder="Ex.: quem está esperando orçamento há mais de 3 dias?" aria-label="Pergunta para a IA do CRM" />
         <button type="submit" class="cia-btn cia-btn-forte">Perguntar</button>
@@ -360,7 +360,7 @@
 
   function htmlTriagem() {
     return `<section class="cia cia-bloco" aria-label="Triagem de hoje">
-      <div class="cia-titulo-linha"><h3 class="cia-titulo"><span aria-hidden="true">🧹</span> Triagem de hoje</h3>
+      <div class="cia-titulo-linha"><h2 class="cia-titulo"><span aria-hidden="true">🧹</span> Triagem de hoje</h2>
         <label class="cia-dias">parado há <select data-dias aria-label="Dias parado"><option value="3">3+ dias</option><option value="7">7+ dias</option><option value="15">15+ dias</option></select></label>
         <button type="button" class="cia-btn cia-btn-forte" data-rodar>Rodar triagem</button></div>
       <p class="cia-dica" data-tri-info>A IA olha os contatos parados e sugere o que fazer com cada um. Nada muda sem o seu clique.</p>

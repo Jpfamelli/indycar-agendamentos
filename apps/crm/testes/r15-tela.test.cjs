@@ -12,7 +12,7 @@ test('R15: a página carrega r15 depois do r14 e o service worker guarda os arqu
   assert.ok(html.indexOf('href="r15.css"') > html.indexOf('href="r14.css"'));
   assert.ok(html.indexOf('src="r15.js"') > html.indexOf('src="r14.js"'), 'r15.js envolve funções definidas antes');
   for (const f of ['r15.css', 'r15.js']) assert.ok(sw.includes(`'${f}'`), f);
-  assert.match(sw, /indycar-crm-v19\b/);
+  assert.match(sw, /indycar-crm-v(19|20)\b/);
 });
 test('R15: CSS com [hidden], sem borda grossa de um lado e só com variáveis', () => {
   assert.match(css, /\[hidden\]\{display:none!important\}/);

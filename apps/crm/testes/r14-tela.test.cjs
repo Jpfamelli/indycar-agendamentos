@@ -14,7 +14,7 @@ test('R14: a página carrega as contas antes da tela e o CSS depois do r13', () 
 });
 test('R14: o service worker guarda os arquivos novos e subiu a versão', () => {
   for (const f of ['r14.css', 'r14-faxina.js', 'r14.js']) assert.ok(sw.includes(`'${f}'`), f);
-  assert.match(sw, /indycar-crm-v(18|19)\b/);
+  assert.match(sw, /indycar-crm-v(18|19|20)\b/);
 });
 test('R14: a tela de contatos sem responsável tem herói, faxina, rodízio e a escolha na mão', () => {
   for (const id of ['r14Heroi', 'r14Frase', 'r14Nums', 'r14Faxina', 'r14Dias', 'r14Escopo', 'r14Gravar', 'r14Desfazer', 'cardSemDono', 'sdRodizio', 'sdAplicar', 'sdRecarregar', 'r14Manual', 'dsPrevia', 'dsHistorico']) assert.ok(html.includes(`id="${id}"`), id);

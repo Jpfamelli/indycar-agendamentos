@@ -19,7 +19,7 @@
 .r6-hist li{padding:6px 0;border-bottom:1px solid var(--line-2)}
 .r6-check{display:flex!important;align-items:center;gap:8px;flex-direction:row!important}
 .r6-cab{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-.r6-cab h3{margin:0;margin-right:auto}
+.r6-cab :is(h2,h3){margin:0;margin-right:auto}
 .r6-esc{display:flex;align-items:center;gap:6px;font-size:.84rem}
 .r6-linha{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line-2)}
 .r6-corpo{flex:1 1 280px;min-width:0}
@@ -27,7 +27,7 @@
 .r6-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .r6-script summary{cursor:pointer;font-size:.8rem;color:var(--texto-suave);margin-top:4px}
 .r6-script p{margin:6px 0;font-size:.88rem;line-height:1.5;white-space:pre-wrap}
-#hojeEntregues h4{margin:8px 0 0}
+#hojeEntregues :is(h3,h4){margin:8px 0 0}
 .r6-meta-barra{height:10px;border-radius:99px;background:var(--superficie-2);overflow:hidden}
 .r6-meta-barra div{height:100%;background:var(--red)}
 .r6-meta p{margin:6px 0 14px;font-size:.9rem}

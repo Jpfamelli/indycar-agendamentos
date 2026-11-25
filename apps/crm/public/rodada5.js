@@ -53,7 +53,7 @@ function renderFicha360(f, opcoes = {}) {
   const kpi = (r1, v, alerta) => `<div class="ficha-kpi${alerta ? ' alerta' : ''}"><span>${r1}</span><b>${v}</b></div>`;
   const naOficina = (f.patio || []).find(o => !['entregue', 'cancelado'].includes(o.etapa));
   alvo.innerHTML = `
-    <h3 class="sr" id="fichaCliTitulo">Ficha de ${esc(c.nome)}</h3>
+    <h2 class="sr" id="fichaCliTitulo">Ficha de ${esc(c.nome)}</h2>
     <div class="ficha-topo">
       <span class="avatar">${esc(iniciais(c.nome))}</span>
       <div>
