@@ -31,10 +31,13 @@ test('WhatsApp: estado "ok" anotado mas nada chega há 30 h = parado (o caso de 
   assert.equal(l.q, '', 'a atendente abre o Atendimento (Integrações é do gestor)');
 });
 
-test('WhatsApp: a noite (até 18 h sem mensagem) não é parada; 20 h é', () => {
-  assert.equal(L5.whatsappParado({ ultimaEntrada: h(18), agoraMs: AGORA }), null);
-  assert.equal(L5.whatsappParado({ ultimaEntrada: h(19.9), agoraMs: AGORA }), null);
-  assert.equal(L5.whatsappParado({ ultimaEntrada: h(20), agoraMs: AGORA }).codigo, 'sem-receber');
+test('WhatsApp: a noite não é parada; 4 horas de expediente sem mensagem é (R19: a mesma conta do Atendimento)', () => {
+  const em = (iso) => Date.parse(iso + '-03:00');
+  assert.equal(L5.whatsappParado({ ultimaEntrada: '2026-11-24T17:00:00-03:00', agoraMs: em('2026-11-25T09:00:00') }), null, 'ter 17h → qua 9h: 2 h de expediente');
+  assert.equal(L5.whatsappParado({ ultimaEntrada: '2026-11-24T17:00:00-03:00', agoraMs: em('2026-11-25T10:59:00') }), null);
+  assert.equal(L5.whatsappParado({ ultimaEntrada: '2026-11-24T17:00:00-03:00', agoraMs: em('2026-11-25T11:00:00') }).codigo, 'sem-receber', 'qua 11h: 4 h');
+  assert.equal(L5.whatsappParado({ ultimaEntrada: h(3.9), agoraMs: AGORA }), null, 'qua 10h06 → 14h');
+  assert.equal(L5.whatsappParado({ ultimaEntrada: h(4), agoraMs: AGORA }).codigo, 'sem-receber');
 });
 
 test('WhatsApp: sem leitura nenhuma não acusa (nunca alarme falso)', () => {
@@ -89,7 +92,7 @@ test('sino: lote pergunta antes, desfaz só o que marcou e lê até 300 não lid
   const s = ler('sino.js');
   assert.match(s, /function lerTodas\(\)[\s\S]*?pedirLote\(ids\);/, '"Marcar todas" passa pela pergunta');
   assert.match(s, /pedirLote\(ids, true, tipo\)/, 'o grupo também pergunta');
-  assert.match(s, /update\(\{ lida_em: null \}\)\.in\('id', d\.ids\)\.eq\('lida_em', d\.em\)/, 'desfazer volta só o que tem a hora deste lote');
+  assert.match(s, /gravarLidaEm\(d\.ids, null, \(q\) => q\.eq\('lida_em', d\.em\)\)/, 'desfazer volta só o que tem a hora deste lote');
   assert.match(s, /limit\(so \? 300 : limite\)/);
   assert.match(s, /data-lote-desfazer/);
 });
@@ -105,7 +108,7 @@ test('herói: a linha do WhatsApp mora no herói e leva ao Atendimento (sem repe
 
 test('versões novas no index e no service worker', () => {
   const html = ler('index.html');
-  for (const m of [/r13\.css\?v=7/, /logica4\.js\?v=8/, /logica5\.js\?v=6/, /sino\.js\?v=15/, /painel\.js\?v=21/, /saude\.js\?v=8/]) assert.match(html, m);
-  assert.match(ler('sw.js'), /indycar-casa-v25/);
+  for (const m of [/r13\.css\?v=7/, /logica4\.js\?v=8/, /logica5\.js\?v=7/, /sino\.js\?v=16/, /painel\.js\?v=21/, /saude\.js\?v=8/]) assert.match(html, m);
+  assert.match(ler('sw.js'), /indycar-casa-v26/);
   assert.match(ler('r13.css'), /\[hidden\] \{ display: none !important; \}/);
 });

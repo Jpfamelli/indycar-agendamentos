@@ -156,17 +156,36 @@
     const el = achar(id) || achar(reserva) || document.querySelector('#painelSino button, #painelSino input');
     if (el) el.focus();
   }
-  /** Marca como lidos. Devolve { ok, em, ids } (em = a hora gravada: o "desfazer" só volta o que tem essa mesma hora). */
+  /* R19: 300 ids numa escrita só viram um endereço de ~11 mil letras, que o servidor do banco pode recusar (e aí nada
+     era marcado). Vai de 100 em 100 (CasaLogica5.pedacos), e cada pedaço devolve o que mudou DE VERDADE: o sino conta
+     o que o banco gravou, não o que a tela pediu. */
+  async function gravarLidaEm(ids, valor, filtro) {
+    const feitos = []; let falhou = false;
+    for (const parte of N5().pedacos(ids, 100)) {
+      try {
+        const { data, error } = await filtro(C.sb.from('notificacoes').update({ lida_em: valor }).in('id', parte)).select('id');
+        if (error) { falhou = true; continue; }
+        feitos.push(...(data || []).map((r) => r.id));
+      } catch { falhou = true; }
+    }
+    return { feitos, falhou };
+  }
+  /** Marca como lidos. Devolve { ok, em, ids } (em = a hora gravada: o "desfazer" só volta o que tem essa mesma hora; ids = os que o banco marcou). */
   function marcar(ids) {
     const agora = new Date().toISOString();
     const alvo = notifs.filter((n) => ids.includes(n.id) && !n.lida_em);
     if (!alvo.length) return Promise.resolve({ ok: false, em: agora, ids: [] });
     alvo.forEach((n) => { n.lida_em = agora; });
     desenhar();
-    const feitos = alvo.map((n) => n.id);
-    return C.sb.from('notificacoes').update({ lida_em: agora }).in('id', feitos).is('lida_em', null).then(({ error }) => {
-      if (error) { alvo.forEach((n) => { n.lida_em = null; }); desenhar(); C.toast('Não consegui marcar como lida agora.'); return { ok: false, em: agora, ids: [] }; }
-      return { ok: true, em: agora, ids: feitos };
+    return gravarLidaEm(alvo.map((n) => n.id), agora, (q) => q.is('lida_em', null)).then(({ feitos, falhou }) => {
+      if (falhou) {
+        // o que não gravou volta a aparecer como não lido; o que gravou fica (e pode ser desfeito)
+        const ok = new Set(feitos);
+        alvo.forEach((n) => { if (!ok.has(n.id) && n.lida_em === agora) n.lida_em = null; });
+        desenhar();
+        C.toast(feitos.length ? `Só ${feitos.length} de ${alvo.length} avisos foram marcados. Tente de novo para o resto.` : 'Não consegui marcar como lida agora.');
+      }
+      return { ok: feitos.length > 0, em: agora, ids: feitos };
     });
   }
   /* R18: lote = pergunta com a contagem → marca → "desfazer" no topo do sino por 3 minutos (ou até fechar o sino) */
@@ -200,9 +219,9 @@
     alvo.forEach((n) => { n.lida_em = null; });
     desenhar();
     $('#bLerTodas')?.focus();
-    C.sb.from('notificacoes').update({ lida_em: null }).in('id', d.ids).eq('lida_em', d.em).then(({ error }) => {
-      if (error) { alvo.forEach((n) => { n.lida_em = d.em; }); desenhar(); C.toast('Não consegui desfazer agora.'); return; }
-      C.toast(d.n === 1 ? '1 aviso voltou para não lido.' : `${d.n} avisos voltaram para não lidos.`);
+    gravarLidaEm(d.ids, null, (q) => q.eq('lida_em', d.em)).then(({ feitos, falhou }) => {
+      if (falhou && !feitos.length) { alvo.forEach((n) => { n.lida_em = d.em; }); desenhar(); C.toast('Não consegui desfazer agora.'); return; }
+      C.toast(N5().textoDesfeito(feitos.length, d.n));   // R19: diz quantos voltaram de verdade (antes repetia o número do lote)
       carregar();
     });
   }

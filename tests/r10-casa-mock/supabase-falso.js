@@ -27,7 +27,7 @@
     var sinal = null;
     b.abortSignal = function (s) { sinal = s; return b; };
     ['select', 'eq', 'neq', 'in', 'not', 'is', 'gte', 'lte', 'gt', 'lt', 'order', 'limit', 'range', 'or', 'filter', 'match', 'ilike', 'like', 'contains', 'returns']
-      .forEach(function (m) { b[m] = function () { if (/^(eq|in|is|not|lt)$/.test(m)) filtros.push([m].concat([].slice.call(arguments))); return b; }; });
+      .forEach(function (m) { b[m] = function () { if (m === 'select' && escrita) escrita.devolve = true; if (/^(eq|in|is|not|lt)$/.test(m)) filtros.push([m].concat([].slice.call(arguments))); return b; }; });
     ['update', 'insert', 'upsert', 'delete'].forEach(function (m) { b[m] = function (v) { escrita = { tabela: nome, acao: m, valor: v }; return b; }; });
     b.maybeSingle = function () { unico = true; return b; };
     b.single = function () { unico = true; return b; };
@@ -38,6 +38,10 @@
       return espera().then(function () {
         if (R.erros[nome]) return { data: null, error: R.erros[nome], count: null, status: 401 };
         if (R.falhar.has(nome)) return { data: null, error: { message: 'falha simulada: ' + nome }, count: null, status: 500 };
+        if (escrita && escrita.devolve) {   // R19: escrita com .select() devolve o que mudou (aqui, os ids pedidos no .in)
+          var pedidos = (filtros.filter(function (f) { return f[0] === 'in' && f[1] === 'id'; })[0] || [])[2] || [];
+          return { data: pedidos.map(function (id) { return { id: id }; }), error: null, count: null, status: 200 };
+        }
         if (escrita) return { data: null, error: null, count: null, status: 204 };
         var v = fonte();
         var data = v === undefined ? (unico ? null : []) : (typeof v === 'function' ? v() : v);

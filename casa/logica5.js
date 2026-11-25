@@ -204,9 +204,40 @@
 
   /* ---------------- R18: WhatsApp parado (o problema nº 1 do dia) ---------------- */
   /* No banco de 25/11 o estado guardado dizia "ok" (r7_c4_zap e posvenda_config), mas nenhuma mensagem de cliente chegava
-     desde 24/11 08:24. Por isso, além do que o servidor anotou, conta o silêncio: com ~80 mensagens por dia, a maior
-     pausa normal em 30 dias foi de 18 h (a noite); 20 h sem nenhuma mensagem chegando é parada. */
-  const SILENCIO_H = 20;
+     desde 24/11 08:24. Por isso, além do que o servidor anotou, conta o silêncio.
+     R19: a Casa media 20 h corridas e o Atendimento 4 h de expediente. Com a mesma parada, o Atendimento dizia "parado"
+     às 12:24 de 24/11 e a Casa seguiu dizendo "tudo em ordem" até as 04:24 do dia seguinte; num domingo quieto era o
+     contrário. Agora as duas telas usam a MESMA conta (cópia de apps/atendimento/lib/r18.js, conferida por teste):
+     4 horas de expediente (seg-sex 8h-18h, sáb 8h-12h, fuso de SP, feriado não conta) sem nenhuma mensagem de cliente. */
+  const SILENCIO_H = 4;
+  const FUSO_SP_MS = 3 * 36e5, DIA_MS = 864e5;
+  const FERIADOS_FIXOS = new Set(['01-01', '04-21', '05-01', '07-09', '09-07', '10-04', '10-12', '11-02', '11-15', '11-20', '12-05', '12-25']);
+  function pascoa(ano) {
+    const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    return Date.UTC(ano, Math.floor((h + l - 7 * m + 114) / 31) - 1, ((h + l - 7 * m + 114) % 31) + 1);
+  }
+  /** `dia` = meia-noite do dia em SP, como UTC "de parede". */
+  function ehFeriado(dia) {
+    const d = new Date(dia);
+    if (FERIADOS_FIXOS.has(String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0'))) return true;
+    const dif = Math.round((dia - pascoa(d.getUTCFullYear())) / DIA_MS);
+    return dif === -48 || dif === -47 || dif === -2 || dif === 60;
+  }
+  /** Horas de expediente (fuso de SP) entre dois instantes em ms. */
+  function horasDeExpediente(deMs, ateMs) {
+    if (!Number.isFinite(deMs) || !Number.isFinite(ateMs) || ateMs <= deMs) return 0;
+    const ini = new Date(deMs - FUSO_SP_MS), iniParede = deMs - FUSO_SP_MS, fimParede = ateMs - FUSO_SP_MS;
+    let total = 0, dia = Date.UTC(ini.getUTCFullYear(), ini.getUTCMonth(), ini.getUTCDate());
+    for (let i = 0; i < 400 && dia < fimParede; i++, dia += DIA_MS) {
+      const sem = new Date(dia).getUTCDay();
+      if (sem === 0 || ehFeriado(dia)) continue;
+      const a = Math.max(dia + 8 * 36e5, iniParede), b = Math.min(dia + (sem === 6 ? 12 : 18) * 36e5, fimParede);
+      if (b > a) total += b - a;
+    }
+    return total / 36e5;
+  }
   const MOTIVOS_ZAP = {
     'codewords-401': 'a chave do CodeWords foi recusada',
     'whatsapp-desconectado': 'o celular da oficina está desconectado',
@@ -231,7 +262,7 @@
     if (zap && zap.parado === true) return pronto(String(zap.codigo || 'parado'), ms(zap.desde));
     if (rpcWa && ['chave_recusada', 'sem_chave', 'sem_aparelho', 'desconectado'].includes(rpcWa.estado)) return pronto(rpcWa.estado, ms(rpcWa.desde));
     const ult = ms(ultimaEntrada);
-    if (ult != null && agoraMs - ult >= silencioH * 36e5) return pronto('sem-receber', ult);
+    if (ult != null && horasDeExpediente(ult, agoraMs) >= silencioH) return pronto('sem-receber', ult);
     return null;
   }
   /**
@@ -286,8 +317,15 @@
     return out.sort((a, b) => b.novos.length - a.novos.length || String(b.maisNovo).localeCompare(String(a.maisNovo)) || b.itens.length - a.itens.length);
   }
   /** O texto do pedido de confirmação de uma marcação em lote ("Marcar 131 avisos como lidos?"). */
+  /* R19: lote do sino em pedaços (o endereço de uma escrita com 300 ids não cabe) e o texto do desfazer com a contagem real */
+  const pedacos = (lista, k = 100) => { const out = []; for (let i = 0; i < (lista || []).length; i += k) out.push(lista.slice(i, i + k)); return out; };
+  function textoDesfeito(voltaram, doLote) {
+    const base = voltaram === 0 ? 'Nenhum aviso voltou para não lido' : voltaram === 1 ? '1 aviso voltou para não lido' : `${voltaram} avisos voltaram para não lidos`;
+    const resto = doLote - voltaram;
+    return base + (resto > 0 ? ` (${resto === 1 ? '1 já tinha sido mexido e ficou' : resto + ' já tinham sido mexidos e ficaram'} como está).` : '.');
+  }
   const perguntaDoLote = (n, grupo = false) => (n === 1 ? 'Marcar 1 aviso como lido?' : `Marcar ${grupo ? 'os ' + n + ' avisos deste grupo' : n + ' avisos'} como lidos?`);
 
   root.CasaLogica5 = Object.freeze({ numerosDoDia, fraseDoDia, fraseEmTexto, resumoDoMes, mesChave, horaAgora, linhaDaOficina, agendaDaRecepcao, carrosDoMecanico, avisosSubstituidos, tarefasVencidas, instantaneoDe, instantaneoValido, MESES,
-    whatsappParado, linhaDoZap, SILENCIO_H, gruposDoSino, rotuloDoGrupo, perguntaDoLote });
+    whatsappParado, linhaDoZap, SILENCIO_H, horasDeExpediente, ehFeriado, gruposDoSino, rotuloDoGrupo, perguntaDoLote, pedacos, textoDesfeito });
 })(typeof globalThis !== 'undefined' ? globalThis : window);

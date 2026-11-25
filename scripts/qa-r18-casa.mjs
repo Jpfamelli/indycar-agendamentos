@@ -125,14 +125,17 @@ for (const tema of ['escuro', 'claro']) {
       await page.click('#listaNotif [data-lote-sim]'); await espera(400);
       const depois = await page.evaluate(() => ({ num: document.querySelector('#sinoNum').hidden ? '' : document.querySelector('#sinoNum').textContent, barra: (document.querySelector('#listaNotif .sino-desfazer') || {}).textContent || '', foco: document.activeElement && document.activeElement.hasAttribute('data-lote-desfazer') }));
       const g1 = await gravado(page);
-      const lote = g1.find((x) => x.valor && x.valor.lida_em && x.filtros.some((f) => f[0] === 'in' && f[2] === 131));
-      conferir(!!lote, `desfazer ${largura} ${tema}: marcou os 131 numa escrita só`, erros);
+      /* R19: o lote vai em pedaços de até 100 ids (o endereço de uma escrita com centenas de ids não cabe); todos com a mesma hora */
+      const tam = (x) => (x.filtros.find((f) => f[0] === 'in') || [])[2] || 0;
+      const marcas = g1.filter((x) => x.valor && x.valor.lida_em && tam(x) > 20);
+      const lote = marcas[0];
+      conferir(marcas.length === 2 && marcas.reduce((s, x) => s + tam(x), 0) === 131 && marcas.every((x) => tam(x) <= 100 && x.valor.lida_em === lote.valor.lida_em), `desfazer ${largura} ${tema}: marcou os 131 em pedaços de até 100, com a mesma hora (${marcas.map(tam).join('+')})`, erros);
       conferir(depois.num === '' && /131 avisos marcados como lidos\./.test(depois.barra) && depois.foco, `desfazer ${largura} ${tema}: sino zerado e "Desfazer" com o foco (${depois.num}|${depois.barra.trim()})`, erros);
       if (largura === 375 && tema === 'escuro') await page.screenshot({ path: join(SAIDA, `sino-desfazer-barra-${largura}-${tema}.png`) });
       await page.click('#listaNotif [data-lote-desfazer]'); await espera(500);
       const g2 = await gravado(page);
-      const volta = g2.find((x) => x.valor && x.valor.lida_em === null);
-      conferir(!!volta && volta.filtros.some((f) => f[0] === 'in' && f[2] === 131) && volta.filtros.some((f) => f[0] === 'eq' && f[1] === 'lida_em' && f[2] === lote.valor.lida_em), `desfazer ${largura} ${tema}: volta só o que tem a hora deste lote`, erros);
+      const voltas = g2.filter((x) => x.valor && x.valor.lida_em === null);
+      conferir(voltas.reduce((s, x) => s + tam(x), 0) === 131 && voltas.every((x) => x.filtros.some((f) => f[0] === 'eq' && f[1] === 'lida_em' && f[2] === lote.valor.lida_em)), `desfazer ${largura} ${tema}: volta só o que tem a hora deste lote`, erros);
       const num = await page.$eval('#sinoNum', (e) => e.textContent);
       conferir(num === '99+', `desfazer ${largura} ${tema}: o sino volta a contar (${num})`, erros);
     } });
