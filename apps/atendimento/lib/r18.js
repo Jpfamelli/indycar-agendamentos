@@ -24,6 +24,7 @@ const DIAS_PERMITIDOS = [7, 15, 30, 60, 90];
 const JANELA_DESFAZER_MS = 24 * 3600_000;
 const ACAO_ENCERRAR = 'conversas.encerrar_paradas';
 const ACAO_DESFAZER = 'conversas.desfazer_encerrar';
+const ACAO_FORA = 'conversas.encerrar_paradas_fora';   // R19: as que o lote NÃO mudou (alguém mexeu no meio): o desfazer não toca nelas
 const PAPEIS_LOTE = new Set(['admin', 'gestor', 'atendente']);
 
 /* São Paulo não tem horário de verão desde 2019: -03:00 fixo. */
@@ -37,6 +38,30 @@ function expedienteDoDia(diaSemana) {
   return [8, 18];
 }
 
+/* R19: feriado não é expediente. Em 20/11/2026 (Consciência Negra, uma sexta) as mensagens pararam das 11:52 às 17:10
+   com o WhatsApp funcionando: a faixa teria dito "parado" por mais de uma hora. Nacionais, o estadual de SP (9/7),
+   os de Taubaté (padroeiro 4/10 e aniversário 5/12) e os que andam com a Páscoa (Carnaval, Sexta-feira Santa, Corpus Christi).
+   Num feriado a parada de verdade só aparece no dia útil seguinte: melhor que acusar a chave com a oficina fechada. */
+const FERIADOS_FIXOS = new Set(['01-01', '04-21', '05-01', '07-09', '09-07', '10-04', '10-12', '11-02', '11-15', '11-20', '12-05', '12-25']);
+const PASCOAS = new Map();
+function pascoa(ano) {   // domingo de Páscoa (meia-noite "de parede", como UTC)
+  if (PASCOAS.has(ano)) return PASCOAS.get(ano);
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  const t = Date.UTC(ano, mes - 1, dia);
+  PASCOAS.set(ano, t);
+  return t;
+}
+/** `dia` = meia-noite do dia em SP, como UTC "de parede" (o mesmo relógio de emSP). */
+function ehFeriado(dia) {
+  const d = new Date(dia);
+  if (FERIADOS_FIXOS.has(`${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`)) return true;
+  const dif = Math.round((dia - pascoa(d.getUTCFullYear())) / 86400_000);
+  return dif === -48 || dif === -47 || dif === -2 || dif === 60;
+}
+
 /** Horas de expediente (fuso de SP) entre dois instantes. */
 function horasComerciais(deMs, ateMs) {
   if (!Number.isFinite(deMs) || !Number.isFinite(ateMs) || ateMs <= deMs) return 0;
@@ -48,7 +73,7 @@ function horasComerciais(deMs, ateMs) {
   const iniParede = deMs - OFFSET_MS;
   for (let i = 0; i < 400 && dia < fimParede; i++, dia += 86400_000) {
     const j = expedienteDoDia(new Date(dia).getUTCDay());
-    if (!j) continue;
+    if (!j || ehFeriado(dia)) continue;
     const a = Math.max(dia + j[0] * 3600_000, iniParede);
     const b = Math.min(dia + j[1] * 3600_000, fimParede);
     if (b > a) total += b - a;
@@ -89,12 +114,15 @@ function oQueFazer(motivo, ehAdmin) {
  * @param {string} p.ultimaSaida    ISO da última mensagem que saiu de verdade
  * @param {number} p.agora      ms
  * @param {boolean} p.ehAdmin
+ * @param {boolean} p.semLeitura  R19: não deu para ler as mensagens agora (banco fora do ar). Sem parada confirmada,
+ *                                a resposta é "não sei" (ok:false): a tela mantém o que mostra, sem inventar parada nem volta.
  */
-function decidirZap({ zap = {}, sincronia = {}, saude = {}, ultimaEntrada = null, ultimaSaida = null, agora = Date.now(), ehAdmin = false, limiarH = LIMIAR_SILENCIO_H } = {}) {
+function decidirZap({ zap = {}, sincronia = {}, saude = {}, ultimaEntrada = null, ultimaSaida = null, agora = Date.now(), ehAdmin = false, limiarH = LIMIAR_SILENCIO_H, semLeitura = false } = {}) {
   let motivo = null, desde = null, confirmado = false;
   if (zap.parado && MOTIVO_DO_CODIGO[zap.codigo]) { motivo = MOTIVO_DO_CODIGO[zap.codigo]; desde = zap.desde || null; confirmado = true; }
   else if (MOTIVO_DO_VIGIA[saude.problema]) { motivo = MOTIVO_DO_VIGIA[saude.problema]; desde = saude.desde || null; confirmado = true; }
   else if ((sincronia.recusas || 0) > 0) { motivo = 'chave'; desde = ultimaEntrada || null; confirmado = true; }
+  else if (semLeitura) return { ok: false, sem_leitura: true, erro: 'Não consegui conferir o WhatsApp agora.' };
   else if (ultimaEntrada) {
     const h = horasComerciais(Date.parse(ultimaEntrada), agora);
     if (h >= limiarH) { motivo = 'silencio'; desde = ultimaEntrada; }
@@ -123,16 +151,23 @@ function decidirZap({ zap = {}, sincronia = {}, saude = {}, ultimaEntrada = null
 
 const diasValidos = (d) => DIAS_PERMITIDOS.includes(Number(d)) ? Number(d) : null;
 const corteDe = (dias, agora) => new Date(agora - dias * 86400_000).toISOString();
-const empacotar = (itens) => itens.map(i => `${i.id},${i.status || 'aberta'},${i.desde || ''}`).join(';');
+/* R19: cada item leva também a última mensagem da conversa na hora do lote (4º campo). O desfazer só volta a conversa
+   se ela continua com essa mesma última mensagem: quem recebeu ou mandou mensagem depois já foi atendida de novo.
+   Lotes gravados antes disso têm 3 campos: `ultima` fica undefined e essa conferência não se aplica. */
+const empacotar = (itens) => itens.map(i => `${i.id},${i.status || 'aberta'},${i.desde || ''}${i.ultima === undefined ? '' : ',' + (i.ultima || '')}`).join(';');
 function desempacotar(txt) {
   return String(txt || '').split(';').filter(Boolean).map(s => {
-    const [id, status, desde] = s.split(',');
-    return { id, status: status || 'aberta', desde: desde || null };
+    const p = s.split(',');
+    return { id: p[0], status: p[1] || 'aberta', desde: p[2] || null, ...(p.length > 3 ? { ultima: p[3] || null } : {}) };
   }).filter(i => /^[0-9a-f-]{36}$/i.test(i.id));
 }
 
 function criarParadas({ sb, auditar, agora = () => Date.now(), log = console.error } = {}) {
   const banco = () => (typeof sb === 'function' ? sb() : sb);
+  /* R19: um lote por vez (duas pessoas confirmando juntas gravavam dois lotes com as MESMAS conversas, e o desfazer de
+     quem não mudou nada desfazia o da outra), e um desfazer por lote por vez (duplo clique). */
+  let encerrando = false;
+  const desfazendo = new Set();
 
   /** Conversas esperando o consultor há mais de N dias (fila de atendimento, sem desfecho). */
   async function candidatas(dias, { limite = MAX_LOTE + 1 } = {}) {
@@ -166,6 +201,13 @@ function criarParadas({ sb, auditar, agora = () => Date.now(), log = console.err
     if (!perfil || !PAPEIS_LOTE.has(perfil.papel)) return { ok: false, status: 403, erro: 'Só administrador, gestor ou atendente encerram em lote.' };
     const b = banco();
     if (!b) return { ok: false, status: 503, erro: 'Servidor sem banco.' };
+    if (encerrando) return { ok: false, status: 409, codigo: 'em_curso', erro: 'Outra pessoa está encerrando conversas agora. Espere um instante e confira o número.' };
+    encerrando = true;
+    try { return await encerrarDeFato({ d, b, perfil, esperado }); }
+    finally { encerrando = false; }
+  }
+
+  async function encerrarDeFato({ d, b, perfil, esperado }) {
     let lista;
     try { lista = (await candidatas(d)).slice(0, MAX_LOTE); }
     catch (e) { log('r18 encerrar/ler:', e.message); return { ok: false, status: 503, erro: 'Não consegui ler as conversas agora. Nada foi mudado.' }; }
@@ -174,19 +216,24 @@ function criarParadas({ sb, auditar, agora = () => Date.now(), log = console.err
     if (Number.isFinite(Number(esperado)) && esperado !== null && lista.length > Number(esperado)) {
       return { ok: false, status: 409, codigo: 'contagem_mudou', total: lista.length, erro: `Agora são ${lista.length} conversas, não ${esperado}. Confira o número e confirme de novo.` };
     }
-    const itens = lista.map(c => ({ id: c.id, status: c.status, desde: c.aguardando_desde || null }));
+    const itens = lista.map(c => ({ id: c.id, status: c.status, desde: c.aguardando_desde || null, ultima: c.ultima_mensagem_em || null }));
     // primeiro registra (quem, quando e o estado de antes de cada uma): sem registro não há desfazer, então não mexe
     const reg = await auditar({ perfil: perfil.id, acao: ACAO_ENCERRAR, tabela: 'conversas', registro: null, detalhes: { dias: d, total: itens.length, itens: empacotar(itens) } });
     if (!reg?.ok || reg.id == null) return { ok: false, status: 503, erro: 'Não consegui registrar quem encerrou. Nada foi mudado.' };
-    let encerradas = 0;
+    const mudadas = new Set();
     for (let i = 0; i < itens.length; i += 100) {
       const ids = itens.slice(i, i + 100).map(x => x.id);
       const { data, error } = await b.from('conversas').update({ status: 'resolvida', aguardando_consultor: false, aguardando_desde: null })
         .in('id', ids).eq('aguardando_consultor', true).select('id');
       if (error) { log('r18 encerrar:', error.message); break; }
-      encerradas += (data || []).length;
+      for (const c of data || []) mudadas.add(c.id);
     }
-    return { ok: true, dias: d, encerradas, lote: String(reg.id), quando: new Date(agora()).toISOString() };
+    /* R19: o registro foi gravado ANTES, com todas as candidatas. As que este lote não mudou (alguém resolveu no meio,
+       ou o banco falhou na metade) ficam anotadas à parte: o desfazer não pode devolvê-las à fila. */
+    const fora = itens.filter(x => !mudadas.has(x.id)).map(x => x.id);
+    if (fora.length) await auditar({ perfil: perfil.id, acao: ACAO_FORA, tabela: 'conversas', registro: String(reg.id), detalhes: { total: fora.length, fora: fora.join(';') } });
+    const encerradas = mudadas.size;
+    return { ok: true, dias: d, encerradas, lote: encerradas ? String(reg.id) : null, quando: new Date(agora()).toISOString() };
   }
 
   async function desfazer({ lote, perfil }) {
@@ -200,16 +247,33 @@ function criarParadas({ sb, auditar, agora = () => Date.now(), log = console.err
     if (agora() - Date.parse(reg.created_at) > JANELA_DESFAZER_MS) return { ok: false, status: 409, erro: 'Passou de 24 horas: desfaça abrindo as conversas uma a uma.' };
     const { data: ja } = await b.from('auditoria').select('id').eq('acao', ACAO_DESFAZER).eq('registro_id', String(reg.id)).limit(1);
     if ((ja || []).length) return { ok: false, status: 409, erro: 'Esse encerramento já foi desfeito.' };
-    const itens = desempacotar(reg.detalhes?.itens);
+    if (desfazendo.has(String(reg.id))) return { ok: false, status: 409, erro: 'Esse desfazer já está em andamento.' };
+    desfazendo.add(String(reg.id));
+    try { return await desfazerDeFato({ b, reg, perfil }); }
+    finally { desfazendo.delete(String(reg.id)); }
+  }
+
+  async function desfazerDeFato({ b, reg, perfil }) {
+    const { data: aj, error: eAj } = await b.from('auditoria').select('detalhes').eq('acao', ACAO_FORA).eq('registro_id', String(reg.id)).limit(5);
+    if (eAj) return { ok: false, status: 503, erro: 'Não consegui ler o registro agora. Nada foi mudado.' };
+    const foraDoLote = new Set((aj || []).flatMap(a => String(a.detalhes?.fora || '').split(';').filter(Boolean)));
+    const todos = desempacotar(reg.detalhes?.itens);
+    const itens = todos.filter(i => !foraDoLote.has(i.id));
     const inicio = new Date(agora() - 1000).toISOString();
-    let voltaram = 0, ficaram = 0;
-    // uma por vez (cada uma volta com a data em que passou para o consultor); só as que ninguém mexeu depois
-    for (const it of itens) {
-      const { data, error: e } = await b.from('conversas')
-        .update({ status: it.status, aguardando_consultor: true, aguardando_desde: it.desde })
-        .eq('id', it.id).eq('status', 'resolvida').eq('aguardando_consultor', false).select('id');
-      if (e) { log('r18 desfazer:', e.message); ficaram++; continue; }
-      if ((data || []).length) voltaram++; else ficaram++;
+    let voltaram = 0, ficaram = todos.length - itens.length;
+    /* cada uma volta com a data em que passou para o consultor; só as que ninguém mexeu depois (continua resolvida, fora
+       da fila e com a mesma última mensagem de quando o lote passou). De 10 em 10, para um lote de 500 não demorar. */
+    const voltar = async (it) => {
+      let q = b.from('conversas').update({ status: it.status, aguardando_consultor: true, aguardando_desde: it.desde })
+        .eq('id', it.id).eq('status', 'resolvida').eq('aguardando_consultor', false);
+      if (it.ultima !== undefined) q = it.ultima ? q.eq('ultima_mensagem_em', it.ultima) : q.is('ultima_mensagem_em', null);
+      const { data, error: e } = await q.select('id');
+      if (e) { log('r18 desfazer:', e.message); return false; }
+      return (data || []).length > 0;
+    };
+    for (let i = 0; i < itens.length; i += 10) {
+      const r = await Promise.all(itens.slice(i, i + 10).map(voltar));
+      for (const ok of r) { if (ok) voltaram++; else ficaram++; }
     }
     /* Voltar a "esperando consultor" dispara o aviso do sino (gatilho notificar_conversa) para cada uma: isso é
        desfazer, não cliente novo. Os avisos criados agora por essas conversas já nascem lidos. */
@@ -231,5 +295,5 @@ function criarParadas({ sb, auditar, agora = () => Date.now(), log = console.err
 
 module.exports = {
   horasComerciais, quandoTexto, decidirZap, oQueFazer, criarParadas, empacotar, desempacotar,
-  LIMIAR_SILENCIO_H, MAX_LOTE, DIAS_PERMITIDOS, ACAO_ENCERRAR, ACAO_DESFAZER, PAPEIS_LOTE,
+  ehFeriado, LIMIAR_SILENCIO_H, MAX_LOTE, DIAS_PERMITIDOS, ACAO_ENCERRAR, ACAO_DESFAZER, ACAO_FORA, PAPEIS_LOTE,
 };

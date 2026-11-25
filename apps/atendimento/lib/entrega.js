@@ -36,6 +36,10 @@ const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 120_000 } = {}) {
   const emAndamento = new Map();   // mensagemId -> desde
+  /* R19: o que este servidor já entregou, lembrado na memória. Se gravar 'enviado' na linha falhar (ou a tela gravar
+     'falhou' por cima), a linha diz "não saiu" e o "Tentar de novo" mandaria a mesma mensagem outra vez. */
+  const saiuAqui = new Set();
+  const lembrarQueSaiu = (id) => { saiuAqui.add(id); if (saiuAqui.size > 5000) saiuAqui.delete(saiuAqui.values().next().value); };
 
   async function entregar(dados, mensagemId, { conferirTelefone = false } = {}) {
     if (!mensagemId) return { ...(await enviar(dados)), semId: true };
@@ -45,6 +49,7 @@ function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 12
     if (desde && agora() - desde < travaMs) {
       return { ok: false, status: 409, emAndamento: true, codigo: 'ja_saindo', erro: 'Esta mensagem já está saindo — aguarde um instante.' };
     }
+    if (saiuAqui.has(mensagemId) && dados?.reenviar !== true) return { ok: true, jaEnviada: true };
     const sb = banco();
     let linha = null;
     if (sb) {
@@ -67,6 +72,7 @@ function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 12
     emAndamento.set(mensagemId, agora());
     try {
       const r = await enviar(dados);
+      if (r.ok && !r.desligado) lembrarQueSaiu(mensagemId);
       if (sb && linha && !r.desligado) {
         const status = r.ok ? 'enviado' : 'falhou';
         await sb.from('whatsapp_mensagens').update({ status, erro: r.ok ? null : String(r.erro || 'não saiu').slice(0, 300) })
@@ -78,7 +84,7 @@ function criarEntregador({ banco, enviar, agora = () => Date.now(), travaMs = 12
     }
   }
 
-  return { entregar, emAndamento };
+  return { entregar, emAndamento, saiuAqui };
 }
 
 module.exports = { criarEntregador, JA_SAIU, PREFIXO_SEM_CONFIRMACAO, semConfirmacaoDoErro, ehSemConfirmacao };

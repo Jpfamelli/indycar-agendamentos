@@ -16,17 +16,23 @@ function criarRotasR18({ getSb, usuarioLogado, dentroDoLimite, readBody, zap, si
   const paradas = R18.criarParadas({ sb: getSb, auditar, agora, log });
   let ULTIMAS = { em: 0, entrada: null, saida: null };
 
+  /* R19: se a leitura falha (banco fora do ar), a última leitura boa vale por 10 minutos. Depois disso o servidor não
+     sabe mais quando chegou a última mensagem: antes ele seguia contando o silêncio em cima de um dado velho e a faixa
+     dizia "nenhuma mensagem de cliente chegou" sem ter como saber. `semLeitura` faz a resposta virar "não sei". */
+  const VALE_SEM_LER_MS = 10 * 60_000;
   async function ultimasMensagens() {
     if (Date.now() - ULTIMAS.em < 60_000) return ULTIMAS;
+    const velha = () => ({ ...ULTIMAS, semLeitura: Date.now() - ULTIMAS.em > VALE_SEM_LER_MS });
     const b = getSb();
-    if (!b) return ULTIMAS;
+    if (!b) return velha();
     try {
       const [e, s] = await Promise.all([
         b.from('whatsapp_mensagens').select('created_at').eq('direcao', 'entrada').order('created_at', { ascending: false }).limit(1),
         b.from('whatsapp_mensagens').select('created_at').eq('direcao', 'saida').eq('status', 'enviado').order('created_at', { ascending: false }).limit(1),
       ]);
-      if (!e.error) ULTIMAS = { em: Date.now(), entrada: e.data?.[0]?.created_at || null, saida: s.data?.[0]?.created_at || null };
-    } catch (err) { log('r18 ultimas:', err.message); }
+      if (e.error) { log('r18 ultimas:', e.error.message); return velha(); }
+      ULTIMAS = { em: Date.now(), entrada: e.data?.[0]?.created_at || null, saida: s.data?.[0]?.created_at || null };
+    } catch (err) { log('r18 ultimas:', err.message); return velha(); }
     return ULTIMAS;
   }
 
@@ -50,8 +56,8 @@ function criarRotasR18({ getSb, usuarioLogado, dentroDoLimite, readBody, zap, si
          do vigia e o sino receberia "parou / voltou" a cada consulta. */
       const sinc = sincronia?.estado?.() || {};
       const ult = await ultimasMensagens();
-      const r = R18.decidirZap({ zap: zap.estado(), sincronia: sinc, saude, ultimaEntrada: ult.entrada, ultimaSaida: ult.saida, agora: agora(), ehAdmin: quem.papel === 'admin' });
-      return enviar(req, res, 200, r);
+      const r = R18.decidirZap({ zap: zap.estado(), sincronia: sinc, saude, ultimaEntrada: ult.entrada, ultimaSaida: ult.saida, agora: agora(), ehAdmin: quem.papel === 'admin', semLeitura: !!ult.semLeitura });
+      return enviar(req, res, r.ok ? 200 : 503, r);
     }
 
     if (!getSb()) return enviar(req, res, 503, { ok: false, erro: 'Servidor sem SUPABASE_SERVICE_ROLE_KEY.' });

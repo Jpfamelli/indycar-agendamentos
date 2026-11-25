@@ -201,7 +201,7 @@ if (process.argv.includes('--sw')) {
   for (const visita of [1, 2]) {
     await page.goto(`${BASE}/?papel=atendente&saude=ok&zap=silencio`, { waitUntil: 'networkidle2' });
     const sw = await page.evaluate(async () => { try { const r = await Promise.race([navigator.serviceWorker.ready, new Promise((_, x) => setTimeout(() => x('sem sw'), 6000))]); await new Promise((ok) => setTimeout(ok, 1500)); return { ativo: !!r.active, cache: (await caches.keys()).join(',') }; } catch (e) { return { ativo: false, erro: String(e) }; } });
-    conferir(`[sw] visita ${visita}: service worker ativo (${sw.cache || sw.erro})`, sw.ativo && /v30/.test(sw.cache || ''));
+    conferir(`[sw] visita ${visita}: service worker ativo (${sw.cache || sw.erro})`, sw.ativo && /v31/.test(sw.cache || ''));
     const ok = await ate(() => page.evaluate(() => document.querySelectorAll('#listaConversas .conversa').length > 0 && [...document.styleSheets].some((s) => /r18\.css/.test(s.href || '')) && !document.getElementById('faixaSaude').hidden), 12000);
     conferir(`[sw] visita ${visita}: lista, r18.css e a faixa do WhatsApp parado`, ok);
   }

@@ -1917,8 +1917,8 @@ async function entregarMensagem(conv, texto, { linhaExistente = null, reenviar =
   if (daLista && daLista !== linha) { daLista.status = status; daLista.erro = linha.erro; delete daLista._local; }
   if (conversaAtual?.id === conv.id) renderMensagens();
   // grava a situação (só a coluna status/erro; nenhum gatilho do banco roda em update)
-  sb.from('whatsapp_mensagens').update({ status, erro: ok ? null : String(erro).slice(0, 300) })
-    .eq('id', linha.id).then(() => {}, () => {});
+  /* R19: 'falhou' nunca passa por cima de uma linha que o servidor já marcou como enviada (resposta perdida no caminho) */
+  R18Regras.gravarSituacao(sb, linha.id, ok, erro).then(() => {}, () => {});
   agendarRecargaLista();
   window.R18?.depoisDeEnviar(ok);
   return ok;

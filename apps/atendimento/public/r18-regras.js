@@ -55,5 +55,16 @@
 
   const podeEncerrar = (papel) => PAPEIS_LOTE.includes(papel);
 
-  return { DIAS, ordenarEspera, esperaDesde, dataCurta, textoContagem, textoConfirmar, textoFeito, podeEncerrar };
+  /* R19: a tela grava a situação da mensagem depois da resposta do servidor. Quando a resposta se perde no caminho
+     (wi-fi piscou, servidor acordando) a tela concluía "não saiu" e gravava 'falhou' por cima do 'enviado' que o
+     servidor acabara de gravar: aí o "Tentar de novo" (e a retomada sozinha) mandava a mesma mensagem outra vez.
+     'falhou' agora só é gravado em cima de linha que ainda não saiu; quem saiu fica como saiu. */
+  const JA_SAIU = ['enviado', 'entregue', 'lido'];
+  function gravarSituacao(sb, id, ok, erro) {
+    let q = sb.from('whatsapp_mensagens').update({ status: ok ? 'enviado' : 'falhou', erro: ok ? null : String(erro || 'não saiu').slice(0, 300) }).eq('id', id);
+    if (!ok) q = q.not('status', 'in', `(${JA_SAIU.join(',')})`);
+    return q;
+  }
+
+  return { DIAS, ordenarEspera, esperaDesde, dataCurta, textoContagem, textoConfirmar, textoFeito, podeEncerrar, gravarSituacao, JA_SAIU };
 });
