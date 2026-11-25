@@ -269,7 +269,7 @@
       `Carros no pátio: ${num(p.total)}${num(p.prontos) ? ` (${p.prontos} pronto${p.prontos > 1 ? 's' : ''} p/ retirar)` : ''}`,
       `Horários de hoje: ${num(h.total)} · ${num(h.chegaram)} já chegaram`,
       `Orçamentos esperando resposta: ${num(o.esperando)}${num(o.aprovados_sem_horario) ? ` · ${o.aprovados_sem_horario} aprovado${o.aprovados_sem_horario > 1 ? 's' : ''} sem horário` : ''}`,
-      `Conversas esperando o consultor: ${num(c.esperando)}`];
+      `Conversas esperando resposta: ${num(c.esperando)}`];
     return linhas.join('\n');
   }
 
@@ -279,7 +279,7 @@
     /* rodada 9: o mecânico só vê os carros dele; o texto da oficina inteira (e o "+ Nova entrada", que ele não tem) não servia */
     cPatioMeus: { texto: 'Nenhum carro passado para você.', dica: 'Quando o consultor passar um carro para você no Pátio, ele aparece aqui com a etapa ao vivo. Os outros carros da oficina estão em "Abrir o Pátio".' },
     cOrc: { texto: 'Nenhum orçamento esperando resposta.', dica: 'Orçamento enviado e ainda sem resposta aparece aqui, com o tempo de espera e se o cliente já abriu o link.' },
-    cConversas: { texto: 'Ninguém esperando o consultor.', dica: 'Conversa em que o cliente escreveu por último e a equipe ainda não respondeu aparece aqui, da mais antiga para a mais nova.' },
+    cConversas: { texto: 'Nenhuma conversa esperando resposta.', dica: 'Conversa em que o cliente escreveu por último e a equipe ainda não respondeu aparece aqui, da mais antiga para a mais nova.' },
     cHoje: { texto: 'Nenhum horário marcado para hoje.', dica: 'Use "+ Novo horário" ou peça ao Atendimento para oferecer horários livres ao cliente.' },
     cLeads: { texto: 'Todo contato novo tem responsável.', dica: 'Contatos dos últimos 7 dias sem dono aparecem aqui para alguém assumir no CRM.' },
   };

@@ -125,6 +125,12 @@
   .heroi-nums li:nth-child(even) { border-left: 1px solid var(--borda); }
   .heroi-nums li:nth-child(odd) .heroi-num { padding-left: 0; }
   .heroi-nums li:only-child { grid-column: 1 / -1; }
+  /* R17: com três números (o dia de hoje sem orçamento; a recepção) eles cabem numa linha só: antes o terceiro ficava sozinho */
+  .heroi-nums:has(> li:nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .heroi-nums:has(> li:nth-child(3):last-child) li + li { border-left: 1px solid var(--borda); }
+  .heroi-nums:has(> li:nth-child(3):last-child) .heroi-num { padding-right: 6px; }
+  .heroi-nums:has(> li:nth-child(3):last-child) li + li .heroi-num { padding-left: 10px; }
+  .heroi-nums:has(> li:nth-child(3):last-child) .heroi-num-rot { letter-spacing: .04em; }
   .heroi-lado { grid-auto-flow: column; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid var(--borda); }
   .heroi-hora { font-size: 40px; }
   .cartao-r13 { padding: 16px 14px; }

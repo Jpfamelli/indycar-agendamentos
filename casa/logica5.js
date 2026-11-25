@@ -36,7 +36,9 @@
         frase: seu ? um(n, 'carro seu no pátio', 'carros seus no pátio', 'nenhum carro seu no pátio') : um(n, 'carro no pátio', 'carros no pátio', 'nenhum carro no pátio'),
         rotulo: seu ? um(n, 'carro seu', 'carros seus', 'carros seus') : um(n, 'carro no pátio', 'carros no pátio', 'carros no pátio') });
     }
-    if (v.orcamentos && d.orcamentos) {
+    /* R17: o Orçador não tem uso real (0 orçamentos na semana): com zero esperando, o número sai do herói em vez de ocupar
+       uma linha inteira no celular com "0". Volta sozinho no dia em que houver orçamento esperando. */
+    if (v.orcamentos && d.orcamentos && num(d.orcamentos.esperando) > 0) {
       const n = num(d.orcamentos.esperando);
       out.push({ k: 'orcamentos', app: 'orcador', nome: 'Orçador', n, frase: um(n, 'orçamento esperando resposta', 'orçamentos esperando resposta', 'nenhum orçamento esperando resposta'), rotulo: um(n, 'orçamento esperando', 'orçamentos esperando', 'orçamentos esperando') });
     }
