@@ -1,0 +1,19 @@
+ok  · Carros entregues: 5 à vista e botão para o resto · {"total":21,"visiveis":5,"btn":"Mostrar os outros 16 carros entregues"}
+ok  · a fila não diz "undefined" · 340 para contatar · 0 contatos registrados hoje Concluir 21 Marcar horário 12 Tarefa atrasada 1 Avisar retirada 14 Orçamento parado 21 Parado 271 · mostrando os 80 mais urgentes de 340 📋 Copiar lista para ligar
+ok  · "Mostrar os outros" abre todos e o botão some
+ok  · Hoje no celular: sem rolagem lateral
+ok  · Fila no celular: botões em 2 linhas (antes 4), 44 px, sem texto cortado · {"linhas":2,"menor":44,"cortado":false}
+   altura da página Hoje (celular), com 5 entregues: 5758 px
+ok  · Funil: uma etapa para cada coluna, visível e com 44 px · {"n":7,"vis":true,"ativa":"novo","alvos":true}
+ok  · tocar em "Agendado" leva a coluna para a tela e marca a etapa · {"esq":16,"ativa":"agendado"}
+ok  · o número da etapa bate com o da coluna
+ok  · Funil no celular: sem rolagem lateral da página
+ok  · zero erro de console (celular)
+ok  · Computador: a faixa de etapas não aparece
+ok  · zero erro de console (computador)
+ok  · tema claro sem erro de console
+ok  · service worker registrado · ok
+ok  · 2ª visita: service worker controla, v19 e r15 em cache · {"controlado":true,"chaves":["indycar-crm-v19"],"r15":true}
+ok  · 2ª visita: sem erro e Hoje abre
+
+16 de 16
