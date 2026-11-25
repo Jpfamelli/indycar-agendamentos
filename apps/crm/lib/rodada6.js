@@ -680,7 +680,7 @@ async function rotasR6(c) {
     const feitos = await lerSeguro(sb.from('crm_atividades').select('id').eq('criado_por', quem.id).neq('tipo', 'sistema').gte('created_at', iso(inicioDiaBRT(agora))));
     const porMotivo = {}; for (const it of itens) porMotivo[it.principal] = (porMotivo[it.principal] || 0) + 1;
     const metaDia = Math.max(1, Math.min(200, Number(process.env.CRM_META_CONTATOS_DIA) || 12));
-    json(res, 200, { escopo, total: itens.length, mostrando: Math.min(80, itens.length), itens: itens.slice(0, 80), por_motivo: porMotivo, feitos_hoje: feitos.length, meta_dia: metaDia, falta_para_meta: Math.max(0, metaDia - feitos.length), proximo: itens[0]?.lead.id || null, filtros: { q: termo || null, origem: origemF || null }, gerado_em: iso(agora) });
+    json(res, 200, { escopo, total: itens.length, sem_responsavel: itens.filter(i => !i.lead.responsavel_id).length, mostrando: Math.min(80, itens.length), itens: itens.slice(0, 80), por_motivo: porMotivo, feitos_hoje: feitos.length, meta_dia: metaDia, falta_para_meta: Math.max(0, metaDia - feitos.length), proximo: itens[0]?.lead.id || null, filtros: { q: termo || null, origem: origemF || null }, gerado_em: iso(agora) });
     return true;
   }
 
