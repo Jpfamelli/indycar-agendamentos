@@ -15,6 +15,7 @@ import { abrirSessao, acabouDeIr, marcarIda, limparIda } from './sessao.js';
 import { haQuanto, iniciais } from './formato.js';
 import { radar as contarRadar } from './painel-logica.js';
 import { textoDaEspera } from './rede.js';
+import { ligarVoltar } from './voltar.js';
 import * as Estados from './telas/estados.js';
 import * as Geral from './telas/geral.js';
 import * as Campanhas from './telas/campanhas.js';
@@ -316,6 +317,7 @@ async function partir() {
   const naEntrada = lerRota(location.hash);
   const lembrada = aplicarFiltroLembrado(naEntrada, lerFiltroLembrado());
   if (lembrada !== naEntrada) history.replaceState(null, '', montarRota(lembrada.tela, lembrada.params));
+  ligarVoltar();
   window.addEventListener('hashchange', () => navegar());
   setInterval(pintarAtualizado, 30000);
   await navegar();

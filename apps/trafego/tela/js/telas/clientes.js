@@ -12,6 +12,7 @@ import { dinheiro, inteiro, ehNumero, dataCurta, dataHora, haQuanto } from '../f
 import { vazio } from '../pecas.js';
 import { agruparClientes, jornadaDoCliente, filtrarClientes } from '../painel-logica.js';
 import { linkSeguro, abaDoLink } from '../ecossistema.js';
+import { voltarFecha } from '../voltar.js';
 import * as Estados from './estados.js';
 import { cabeca } from './cabeca.js';
 
@@ -154,6 +155,7 @@ function abrirFicha(ctx, c) {
     corpo);
   document.body.appendChild(dlg);
   dlg.showModal();
+  voltarFecha(dlg);
   pintarFicha(ctx, corpo, c);
   ctx.leitor.ler('api/jornada/' + encodeURIComponent(c.lead_id)).then((r) => { if (dlg.isConnected) pintarFicha(ctx, corpo, { ...c, ...(r.dados || {}) }); }, () => {});
 }

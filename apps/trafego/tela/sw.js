@@ -11,7 +11,7 @@
    - Tudo relativo ao lugar do próprio arquivo: funciona em /trafego/ e na raiz.
    ============================================================================ */
 
-const VERSAO = 'indycar-trafego-r15-1';
+const VERSAO = 'indycar-trafego-r16-1';
 const PREFIXO = 'indycar-trafego-';
 const TEMPO_REDE_MS = 6000;
 /* Rodada 12: Visão geral, Campanhas, Clientes, Radar, Relatórios e Ajustes. O /casa/indycar.css (topo comum) é da Central e fica fora desta lista. */
@@ -20,7 +20,7 @@ const CASCA = [
   'ds/tokens.css', 'ds/base.css', 'ds/componentes.css', 'css/trafego.css', 'css/painel.css',
   'fontes/archivo-variavel.woff2', 'fontes/barlow-condensed-600.woff2', 'fontes/barlow-condensed-700.woff2',
   'js/api.js', 'js/app.js', 'js/dom.js', 'js/ecossistema.js', 'js/formato.js', 'js/graficos.js', 'js/icones.js',
-  'js/painel-logica.js', 'js/pecas.js', 'js/rede.js', 'js/rotas.js', 'js/sessao.js',
+  'js/painel-logica.js', 'js/pecas.js', 'js/rede.js', 'js/rotas.js', 'js/sessao.js', 'js/voltar.js',
   'js/telas/ajustes.js', 'js/telas/cabeca.js', 'js/telas/campanhas.js', 'js/telas/clientes.js', 'js/telas/estados.js',
   'js/telas/geral.js', 'js/telas/radar.js', 'js/telas/relatorios.js',
   'js/telas/gavetas/conexoes.js', 'js/telas/gavetas/metas.js',
