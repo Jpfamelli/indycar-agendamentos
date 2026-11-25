@@ -1,0 +1,19 @@
+/* Rodada 16 (25/11/2026).
+   1) Títulos de cartão que antes pulavam de h1 para h3 agora são h2 (mesma aparência do h3 do cartão).
+   2) Celular: a conversa abria com ~160 px para as mensagens (etiquetas, avisos e resumo ocupavam o resto).
+      Agora essas três coisas ficam atrás do botão "Detalhes" (lembrado no aparelho). */
+.cartao h2.cartao-tit{font-family:var(--fonte-cond);font-weight:700;font-size:1.3rem;margin-bottom:6px}
+.int-cab h2.cartao-tit{display:flex;align-items:center;gap:9px}
+.chat-detalhes{display:none}
+@media (max-width:900px){
+  .chat-quem{position:relative;padding-right:112px}
+  .chat-detalhes{display:inline-flex;align-items:center;justify-content:center;gap:5px;position:absolute;top:0;right:0;min-width:104px;min-height:44px;padding:0 10px;
+    border:1px solid var(--linha);border-radius:10px;background:var(--superficie-2);color:var(--cinza);font:inherit;font-size:.82rem;font-weight:700;cursor:pointer}
+  .chat-detalhes i{font-style:normal;transition:transform .15s}
+  .chat-detalhes[aria-expanded="true"] i{transform:rotate(180deg)}
+  .chat-detalhes.tem-aviso::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--vermelho-txt,#ff5a5f)}
+  #chat:not(.det-aberto) .chat-linha-tags,
+  #chat:not(.det-aberto) #chatAvisos,
+  #chat:not(.det-aberto) #chatOrigem,
+  #chat:not(.det-aberto) #r6ChipsChat{display:none!important}
+}

@@ -17,7 +17,7 @@ test('r15.css e r15.js estão na página e guardados pelo service worker (v27)',
   assert.match(html, /<script src="r15\.js"><\/script>/);
   assert.match(sw, /'r15\.css'/);
   assert.match(sw, /'r15\.js'/);
-  assert.match(sw, /indycar-atendimento-v27/);
+  assert.match(sw, /indycar-atendimento-v2[78]/);
 });
 
 test('modo digitando: some o que fica entre o nome e as mensagens, só em tela pequena', () => {
