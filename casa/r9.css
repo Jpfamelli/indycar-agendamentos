@@ -21,10 +21,6 @@ body { background: var(--bg); }
 
 /* cartões sem a barra colorida de lado: o estado já está na palavra (selo, "urgente", "não lido") */
 .agora-cartao::before { content: none; display: none; }
-.atencao-item, .grav-3 .atencao-item, .grav-1 .atencao-item { border-left: 1px solid var(--borda); }
-.saude-item, .saude-item.tom-aviso, .saude-item.tom-ruim, .saude-item.tom-neutro { border-left: 1px solid var(--borda); }
-.tarefa.p1, .tarefa.t-orc-reabordar { border-left: 0; }
-.lista-notif li.nova button, .notif-grupo li.nova .notif-abrir { border-left: 0; }
 
 /* gravidade em palavra (painel.js seloGrav) */
 .a-selo { display: inline-flex; align-items: center; gap: 4px; justify-self: start; font: 700 13px/1.1 var(--f-num); letter-spacing: .06em; text-transform: uppercase; }
