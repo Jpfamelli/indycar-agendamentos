@@ -1486,3 +1486,17 @@ button,input,select,textarea{font-family:inherit}
 .camp-txt .r7-repetir{margin-top:0}
 /* clientes: o aniversário não encosta no botão de editar */
 .cli .nasc{justify-content:flex-start;padding-right:10px}
+
+/* ============================================================================
+   RODADA 16 (25/11/2026): Clientes com pílulas de limpeza, botão de aniversário
+   sempre na mesma coluna, selo "sem telefone".
+   ============================================================================ */
+[hidden]{display:none!important}
+.cli .nasc{justify-content:space-between}
+#cliPilulas:empty{display:none}
+#cliPilulas{margin-bottom:12px}
+.cli .col .selo{text-transform:uppercase}
+@media (max-width:600px){ #cliPilulas .pilula{min-height:44px} }
+.cli .nasc-txt{flex:1 1 auto;min-width:0;white-space:nowrap;padding-right:6px}
+.cli .nasc .icon-btn{flex:0 0 auto}
+@media (min-width:1181px){.cli{grid-template-columns:minmax(0,2fr) minmax(0,.95fr) minmax(0,1.35fr) 175px auto}}

@@ -4,14 +4,14 @@
 // rede — quem espera o servidor acordar é o acordar.js, com aviso na tela.
 // Rodada 5: tudo RELATIVO ao lugar onde o SW foi registrado (BASE) — funciona em
 // "/" sozinho e em "/comunicar/" dentro da IndyCar Central (escopo do prefixo).
-const VERSAO = '7.4.0';   // R15: lista por dia, reenviar falhas em lote, aprovação com exemplo · 7.3.0 = R14: textos dos avisos, prévia e revisão do WhatsApp sozinha · 7.2.2 = tema-inicial.js sem script embutido
+const VERSAO = '7.5.0';   // R16: filtros em Clientes, texto do segmento · 7.4.0 = R15: lista por dia, reenviar falhas em lote, aprovação com exemplo · 7.3.0 = R14: textos dos avisos, prévia e revisão do WhatsApp sozinha · 7.2.2 = tema-inicial.js sem script embutido
 // 7.2.0 = rodada 13B (passagens entre apps, Desfazer, entrada mais leve)
 const CACHE = `comunicar-v${VERSAO}`;
 const EXTERNO = 'comunicar-externo-v1'; // supabase-js e fontes (versão fixa na URL)
 const BASE = new URL('./', self.location.href).pathname; // '/' ou '/comunicar/'
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala. Mantenha só o que existe de verdade (e as MESMAS URLs do index.html). */
-const CORE = [BASE, ...['styles.css', 'tema-inicial.js', 'apps.js', 'acordar.js', 'conta.js', 'app.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'rodada7.js', 'hoje.js', 'rodada15.js'].map((a) => `${BASE}${a}?v=${VERSAO}`),
+const CORE = [BASE, ...['styles.css', 'tema-inicial.js', 'apps.js', 'acordar.js', 'conta.js', 'app.js', 'rodada4.js', 'rodada5.js', 'rodada6.js', 'rodada7.js', 'hoje.js', 'rodada15.js', 'rodada16.js'].map((a) => `${BASE}${a}?v=${VERSAO}`),
   `${BASE}manifest.json`, `${BASE}icon-192.png`, `${BASE}icon-512.png`, `${BASE}logo.png`];
 const EXTERNOS_OK = /^https:\/\/(cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@\d|fonts\.googleapis\.com\/|fonts\.gstatic\.com\/)/;
 

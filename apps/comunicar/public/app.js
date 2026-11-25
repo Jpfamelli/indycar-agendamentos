@@ -979,7 +979,7 @@ window.openCampanhaModal = async function (pre = {}) {
   const campanhaAberta = () => body.isConnected && modalAberto();
   let consultaSegmento = 0;
   const alvoResumo = () => c.alvo === 'cliente' ? (c.cliente ? c.cliente.nome : 'nenhum cliente escolhido')
-    : `${c.previa?.total ?? '…'} cliente(s) · ${segmentos.find(s => s.id === c.filtro)?.rotulo || c.filtro}${c.valor ? ` (${c.valor})` : ''}`;
+    : `${c.previa?.total ?? '…'} cliente(s) · ${window.R16.textoSegmento(segmentos.find(s => s.id === c.filtro)?.rotulo || c.filtro, c.valor)}`;
   const clienteDaPrevia = () => c.alvo === 'cliente' ? c.cliente : (c.previa?.amostra?.[0] || null);
   /* atendente: campanha para um grupo vai para o gestor aprovar; avulsa sai direto */
   const precisaAprovar = () => c.alvo === 'segmento' && !pode('campanha_aprovar');
@@ -998,7 +998,7 @@ window.openCampanhaModal = async function (pre = {}) {
         ${p.amostra?.length ? `<div class="amostra">${p.amostra.slice(0, 8).map(a => `<span title="${esc(a.telefone || '')}">${esc(a.nome)}${a.carro ? ` · ${esc(a.carro)}` : ''}</span>`).join('')}${p.total > 8 ? `<span>+${p.total - 8}</span>` : ''}</div>` : ''}`;
       $('#segSalvar')?.addEventListener('click', async () => {
         const seg = segmentos.find(s => s.id === c.filtro);
-        const s = await window.R5?.salvarSegmento(c.filtro, seg?.valor !== undefined ? (c.valor || seg.valor) : null, `${seg?.rotulo || c.filtro}${c.valor ? ` ${c.valor}` : ''}`);
+        const s = await window.R5?.salvarSegmento(c.filtro, seg?.valor !== undefined ? (c.valor || seg.valor) : null, window.R16.textoSegmento(seg?.rotulo || c.filtro, c.valor));
         if (s && atual()) { c.segSalvoId = s.id; salvos.unshift(s); passo1(); }
       });
     } catch (e) {
@@ -1242,11 +1242,15 @@ window.openCampanhaModal = async function (pre = {}) {
 async function renderClientes({ vez = state._vez } = {}) {
   const lista = await api('GET', '/clientes' + (state.cliQ ? `?q=${encodeURIComponent(state.cliQ)}` : ''));
   if (vez !== state._vez) return;
-  const contagem = (clientes) => {
-    const fora = clientes.filter(c => c.aceita_mensagens === false).length;
-    return `<span class="badge-pill bp-gray">${clientes.length}${state.cliQ ? ' encontrados' : ''}</span>
-      ${fora ? `<span class="badge-pill bp-red">🚫 ${fora} fora da lista</span>` : ''}`;
+  if (!state.cliFiltro) state.cliFiltro = 'todos';
+  const contagem = (clientes) => `<span class="badge-pill bp-gray">${clientes.length}${state.cliQ ? ' encontrados' : ''}</span>`;
+  /* R16: pílulas para limpar a base; filtram a lista já carregada (a busca continua no servidor) */
+  const pilulasCli = (clientes) => {
+    const n = window.R16.contarClientes(clientes);
+    if (!n.fora && !n.sem_telefone && !n.sem_aniversario) { state.cliFiltro = 'todos'; return ''; }
+    return window.R16.FILTROS_CLIENTES.map(f => `<button type="button" class="pilula${state.cliFiltro === f.id ? ' ativa' : ''}" data-cli-filtro="${f.id}" aria-pressed="${state.cliFiltro === f.id}">${f.rotulo}${f.id === 'todos' ? '' : ` · ${n[f.id]}`}</button>`).join('');
   };
+  const mostrados = (clientes) => window.R16.filtrarClientes(clientes, state.cliFiltro);
   view.innerHTML = `
     <div class="toolbar">
       <div class="left"><h2>Clientes</h2>
@@ -1257,8 +1261,17 @@ async function renderClientes({ vez = state._vez } = {}) {
         ${pode('importar') ? `<button type="button" class="btn" id="btnImportar">${svg(I.upload)} Importar planilha</button>` : ''}
       </div>
     </div>
-    <div class="panel"><div class="panel-body lista lista-anim" id="cliLista">${linhasClientes(lista)}</div></div>`;
-  ligarClientes($('#cliLista'), lista);
+    <div class="pilulas" id="cliPilulas" role="group" aria-label="Filtrar clientes">${pilulasCli(lista)}</div>
+    <div class="panel"><div class="panel-body lista lista-anim" id="cliLista">${linhasClientes(mostrados(lista), state.cliFiltro)}</div></div>`;
+  let atualLista = lista;
+  const pintarCli = () => {
+    $('#cliPilulas').innerHTML = pilulasCli(atualLista);
+    const m = mostrados(atualLista);
+    $('#cliLista').innerHTML = linhasClientes(m, state.cliFiltro);
+    ligarClientes($('#cliLista'), m);
+  };
+  $('#cliPilulas').onclick = (e) => { const b = e.target.closest('[data-cli-filtro]'); if (!b) return; state.cliFiltro = b.dataset.cliFiltro; pintarCli(); };
+  ligarClientes($('#cliLista'), mostrados(lista));
   const inp = $('#qCli');
   let busca = 0;
   inp.addEventListener('input', debounce(async () => {
@@ -1272,9 +1285,9 @@ async function renderClientes({ vez = state._vez } = {}) {
     try {
       const r = await api('GET', '/clientes' + (termo ? `?q=${encodeURIComponent(termo)}` : ''));
       if (!atual()) return;
+      atualLista = r;
       $('#cliContagem').innerHTML = contagem(r);
-      resultados.innerHTML = linhasClientes(r);
-      ligarClientes(resultados, r);
+      pintarCli();
     } catch {
       if (atual()) {
         $('#cliContagem').textContent = '';
@@ -1291,13 +1304,14 @@ async function renderClientes({ vez = state._vez } = {}) {
 }
 /* Quem saiu da lista só volta pela mão do gestor (o servidor também barra). */
 const travaReligar = (c) => (c.aceita_mensagens === false && !pode('optout_religar') ? 'disabled title="Só gestor volta a mandar para quem saiu da lista"' : '');
-function linhasClientes(lista) {
+function linhasClientes(lista, filtro = 'todos') {
+  if (!lista.length && filtro !== 'todos') return vazio(I.user, 'Ninguém neste filtro', 'Toque em Todos para ver a lista inteira.');
   if (!lista.length) return vazio(I.user, state.cliQ ? 'Nenhum cliente encontrado' : 'Nenhum cliente', state.cliQ ? 'Confira o nome, telefone ou placa e tente de novo.' : 'A base é a mesma do CRM, da Agenda e do Atendimento.');
   return lista.map(c => `<div class="cli${c.aceita_mensagens === false ? ' fora' : ''}" data-id="${esc(c.id)}">
     <button type="button" class="cli-nome" data-ficha="${esc(c.id)}" title="Abrir ficha"><span class="av">${esc(iniciais(c.nome) || 'IC')}</span><b>${esc(c.nome)}</b>${c.aceita_mensagens === false ? '<span class="selo" title="Pediu para não receber mensagens">fora da lista</span>' : ''}</button>
-    <span class="cli-meta"><span class="col tel">${svg(I.phone)} ${esc(telBR(c.telefone))}</span>
+    <span class="cli-meta"><span class="col tel">${svg(I.phone)} ${window.R16.semTelefone(c) ? '<span class="selo" title="Sem telefone não dá para mandar mensagem">sem telefone</span>' : esc(telBR(c.telefone))}</span>
     <span class="col carro">${svg(I.car)} ${esc(c.carro || '—')}${c.placa ? ` <b>${esc(c.placa)}</b>` : ''}</span>
-    <span class="nasc">${c.nascimento ? `🎂 <b>${esc(nascBR(c.nascimento))}</b>` : '<span class="muted">sem aniversário</span>'}
+    <span class="nasc"><span class="nasc-txt">${c.nascimento ? `🎂 <b>${esc(nascBR(c.nascimento))}</b>` : '<span class="muted">sem aniversário</span>'}</span>
       <button type="button" class="icon-btn" data-nasc="${esc(c.id)}" aria-label="Editar aniversário de ${esc(c.nome)}" title="Editar aniversário">${svg(I.edit)}</button></span></span>
     <span class="acoes"><label class="sw" title="Recebe mensagens automáticas e campanhas"><input type="checkbox" data-aceita="${esc(c.id)}" ${c.aceita_mensagens === false ? '' : 'checked'} ${travaReligar(c)} aria-label="Aceita mensagens: ${esc(c.nome)}"><span class="tr"></span><span class="sw-txt">Mensagens</span></label></span>
   </div>`).join('');
@@ -1803,7 +1817,7 @@ function painelEscreverIA(box, { regua, lerTexto, aplicar, exemplo }) {
 /** Cartão da sugestão de público (campanha › passo 1). */
 function htmlSugestao(sg) {
   return `<div class="ia-sugestao">
-    <div class="ia-sug-topo"><span class="ia-selo">✨ IA sugere</span><b>${esc(sg.rotulo)}${sg.valor !== null && sg.valor !== undefined && sg.valor !== '' ? ` · ${esc(sg.valor)}` : ''}</b><span class="badge-pill bp-gray">${sg.previa?.total ?? '?'} clientes</span></div>
+    <div class="ia-sug-topo"><span class="ia-selo">✨ IA sugere</span><b>${esc(window.R16.textoSegmento(sg.rotulo, sg.valor))}</b><span class="badge-pill bp-gray">${sg.previa?.total ?? '?'} clientes</span></div>
     <p class="ia-motivo">${esc(sg.motivo)}</p>
     ${celularWA('<div class="bolha wa-rec" data-sug-bolha></div>', { mini:true })}
     ${sg.ok === false ? `<p class="form-msg erro">A mensagem sugerida tem: ${esc(sg.problemas.join(', '))} — ajuste no passo 2.</p>` : ''}
@@ -1854,7 +1868,7 @@ async function pintarAprovacoes() {
       <span class="panel-sub">${r.aguardando ? plural(r.aguardando, 'aguardando', 'aguardando') : 'nenhuma aguardando'}</span></div>
     <div class="panel-body lista">${lista.map(c => {
       const [rot, cor] = STATUS_CAMP[c.status] || [c.status, 'bp-gray'];
-      const alvo = c.segmento?.filtro ? `${(state.segmentos || []).find(s => s.id === c.segmento.filtro)?.rotulo || c.segmento.filtro}${c.segmento.valor ? ` (${c.segmento.valor})` : ''}` : `lista de ${Array.isArray(c.destinos) ? c.destinos.length : (c.total_previsto ?? '?')} clientes`;
+      const alvo = c.segmento?.filtro ? window.R16.textoSegmento((state.segmentos || []).find(s => s.id === c.segmento.filtro)?.rotulo || c.segmento.filtro, c.segmento.valor) : `lista de ${Array.isArray(c.destinos) ? c.destinos.length : (c.total_previsto ?? '?')} clientes`;
       // rodada 5: o CRM também propõe campanhas (origem 'crm'); sem a coluna, lista de destinos sem segmento é do CRM
       const doCrm = c.origem === 'crm' || (!c.origem && !c.segmento && Array.isArray(c.destinos));
       return `<article class="aprov${c.id === state.campanhaEmFoco ? ' foco' : ''}" data-camp="${esc(c.id)}">
