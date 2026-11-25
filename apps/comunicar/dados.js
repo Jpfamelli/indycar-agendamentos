@@ -1529,6 +1529,13 @@ export async function marcarSegmentoUsado(id) {
 // RESUMO DO PAINEL
 // ============================================================================
 
+/** R18 · Pura: { tipo: quantas } a partir de linhas { tipo }. */
+export function contarPorTipo(linhas = []) {
+  const r = {};
+  for (const l of linhas || []) { const t = l?.tipo; if (t) r[t] = (r[t] || 0) + 1; }
+  return r;
+}
+
 export async function resumo() {
   const d = hoje();
   const mes = d.slice(5, 7);
@@ -1538,7 +1545,7 @@ export async function resumo() {
   const ini30 = new Date(agora - 30 * 86400000).toISOString();
   const duasHorasAtras = new Date(agora - 2 * 3600000).toISOString();
 
-  const [cfg, pendentes, vencidos, envios30, clientesComNasc, respostas, foraDaLista, proximos48h] = await Promise.all([
+  const [cfg, pendentes, vencidos, envios30, clientesComNasc, respostas, foraDaLista, proximos48h, filaTipos] = await Promise.all([
     obterConfig(),
     contar(T.envios, 'status=eq.pendente'),
     contar(T.envios, `status=eq.pendente&enviar_em=lte.${encodeURIComponent(duasHorasAtras)}`),
@@ -1547,6 +1554,8 @@ export async function resumo() {
     selecionar(T.respostas, 'select=satisfeito,nota,created_at&order=created_at.desc&limit=1000'),
     contar(T.clientes, 'aceita_mensagens=is.false'),
     contar(T.agendamentos, `status=in.(aguardando,confirmado)&data=gte.${d}&data=lte.${somarDias(d, 1)}`),
+    // R18: quantas esperam na fila por régua/campanha (com o WhatsApp parado, a tela mostra que estão RETIDAS)
+    selecionarTudo(T.envios, 'select=tipo&status=eq.pendente').catch(() => []),
   ]);
 
   const enviados30 = envios30.filter((e) => e.status === 'enviado');
@@ -1597,6 +1606,7 @@ export async function resumo() {
 
   return {
     pendentes, vencidos, enviadosHoje, falhas, ultimoErro, intencoes7,
+    filaPorTipo: contarPorTipo(filaTipos),
     limitePorHora: cfg.limite_por_hora,
     semana: { enviadas: enviados7.length, respondidas: enviados7.filter((e) => e.respondido_em).length, agendaram: enviados7.filter((e) => e.agendou_depois_id).length },
     mes30: { enviadas: enviados30.filter((e) => e.status === 'enviado').length, respondidas: respondidas30, agendaram, concluidos, receita },
