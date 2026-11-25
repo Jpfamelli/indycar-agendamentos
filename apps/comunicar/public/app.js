@@ -244,7 +244,7 @@ function statCard(cls, num, lbl, ico, opts = {}) {
 const vazio = (ico, titulo, texto) => `<div class="vazio"><div class="vazio-ico">${svg(ico)}</div><b>${titulo}</b><p>${texto}</p></div>`;
 const pillTipo = (tipo) => { const t = TIPO[tipo] || { rotulo:tipo, emoji:'✉️', cor:'gray' };
   return `<span class="badge-pill ${COR_PILL[t.cor] || 'bp-gray'}">${t.emoji} ${esc(t.rotulo)}</span>`; };
-const pillStatus = (s) => { const [r, c] = STATUS_ENVIO[s] || [s, 'bp-gray']; return `<span class="badge-pill ${c}">${esc(r)}</span>`; };
+const pillStatus = (s) => { let [r, c] = STATUS_ENVIO[s] || [s, 'bp-gray']; if (s === 'pendente' && state.envioParado) r = 'Retida'; /* R18 */ return `<span class="badge-pill ${c}"${s === 'pendente' && state.envioParado ? ' title="O WhatsApp está parado: sai sozinha quando ele voltar"' : ''}>${esc(r)}</span>`; };
 
 // ============================================================================
 // ROTEAMENTO
@@ -711,7 +711,8 @@ async function renderMensagens({ quieto, vez = state._vez } = {}) {
   /* rodada 4: páginas de 100 (antes vinham 300 de uma vez) */
   const POR_PAGINA = 100;
   q.set('limite', String(POR_PAGINA));
-  const lista = await api('GET', '/envios?' + q);
+  /* R18: o estado do WhatsApp vem junto (cache de 60 s): parado ⇒ a pílula "Na fila" diz "Retida" */
+  const [lista] = await Promise.all([api('GET', '/envios?' + q), window.R18 ? window.R18.estado() : null]);
   if (vez !== state._vez) return;
   state._msgLista = lista; state._msgFim = lista.length < POR_PAGINA;
   const htmlLista = () => lista.length ? htmlEnvios(lista, '')
@@ -812,7 +813,7 @@ function htmlEnvios(lista, ultimoDia) {
 function cartaoEnvio(e) {
   const t = TIPO[e.tipo] || { rotulo:e.tipo, emoji:'✉️' };
   const quando = e.status === 'enviado' ? `enviada ${esc(dataHoraBR(e.enviado_em))}`
-    : e.status === 'pendente' ? `sai ${esc(dataHoraBR(e.enviar_em))}` : `programada ${esc(dataHoraBR(e.enviar_em))}`;
+    : e.status === 'pendente' ? (state.envioParado ? `retida: era para ${esc(dataHoraBR(e.enviar_em))}` /* R18 */ : `sai ${esc(dataHoraBR(e.enviar_em))}`) : `programada ${esc(dataHoraBR(e.enviar_em))}`;
   const resposta = e.resposta ? `<div class="resposta ${esc(e.resposta_tipo || 'neutra')}"><span class="r-ico">💬</span>
       <span class="r-txt">${esc(e.resposta)}</span>
       <span class="r-tag">${e.resposta_tipo === 'positiva' ? 'gostou' : e.resposta_tipo === 'negativa' ? 'reclamou' : e.resposta_tipo === 'parar' ? 'pediu para parar' : 'respondeu'}${e.respondido_em ? ` · ${esc(horaBR(e.respondido_em))}` : ''}</span></div>` : '';
@@ -883,8 +884,9 @@ function ligarAcoesEnvio(root) {
 // CAMPANHAS — nova campanha em passos + histórico
 // ============================================================================
 async function renderCampanhas({ vez = state._vez } = {}) {
-  const envios = await api('GET', '/envios?tipo=campanha&limite=1000');
+  const [envios, estadoWa] = await Promise.all([api('GET', '/envios?tipo=campanha&limite=1000'), window.R18 ? window.R18.estado() : null]);
   if (vez !== state._vez) return;
+  const R18 = window.R18, naFilaTxt = (q) => (R18 ? R18.rotuloFila(q, estadoWa) : `${q} na fila`);
   /* agrupa por (mensagem + dia): como o servidor grava o corpo JÁ com o nome e
      o carro de cada cliente, a chave usa o começo do texto sem o nome. */
   const grupos = new Map();
@@ -900,17 +902,19 @@ async function renderCampanhas({ vez = state._vez } = {}) {
     grupos.set(chave, g);
   }
   const lista = [...grupos.values()].sort((a, b) => (a.dia < b.dia ? 1 : -1));
+  const avisoRetidas = R18 ? R18.avisoCampanhas(lista.reduce((s, g) => s + g.pendentes, 0), estadoWa) : null;
 
   view.innerHTML = `
     <div class="toolbar">
       <div class="left"><h2>Campanhas</h2><span class="badge-pill bp-gray">${plural(lista.length, 'campanha', 'campanhas')}</span></div>
       <div class="right"><button type="button" class="btn primary" id="btnNovaCamp">${svg(I.megafone)} Nova campanha</button></div>
     </div>
+    ${avisoRetidas ? `<p class="r18-aviso" role="status"><span class="selo selo-ruim">Retidas</span><span>${esc(avisoRetidas)}</span></p>` : ''}
     <div id="aprovacoes"></div>
     <div class="panel"><div class="panel-head"><h2>${svg(I.megafone)} Histórico</h2><span class="panel-sub">agrupado por mensagem e dia</span></div>
       <div class="panel-body lista lista-anim">
         ${lista.length ? lista.map(g => `<article class="camp"${g.lote ? ` data-lote="${esc(g.lote)}"` : ''}>
-            <div class="camp-txt"><span class="d">${esc(rotuloDia(g.dia))}${g.pendentes ? ` · <span style="color:var(--orange-txt)">${g.pendentes} na fila</span>` : ''}${g.falhas ? ` · <span style="color:var(--red-txt)">${g.falhas} falharam</span>` : ''}${g.por ? ` · por ${esc(g.por)}` : ''}</span>
+            <div class="camp-txt"><span class="d">${esc(rotuloDia(g.dia))}${g.pendentes ? ` · <span style="color:var(--orange-txt)">${esc(naFilaTxt(g.pendentes))}</span>` : ''}${g.falhas ? ` · <span style="color:var(--red-txt)">${g.falhas} falharam</span>` : ''}${g.por ? ` · por ${esc(g.por)}` : ''}</span>
               <span class="c">${esc(g.corpo)}</span>${g.pendentes && g.lote && pode('cancelar_qualquer') ? `<button type="button" class="btn btn-mini" data-cancelar-lote="${esc(g.lote)}" data-n="${g.pendentes}">Cancelar o que falta (${g.pendentes})</button>` : ''}</div>
             <div class="camp-nums">
               <div><b>${g.enviadas}</b><small>enviadas</small></div>
@@ -1162,7 +1166,7 @@ window.openCampanhaModal = async function (pre = {}) {
     const quantos = c.alvo === 'cliente' ? 1 : (c.previa?.total ?? 0);
     body.innerHTML = `
       <div class="quando-op">
-        <button type="button" class="alvo-op ${c.quando === 'agora' ? 'ativo' : ''}" data-quando="agora"><b>${svg(I.send)} Agora</b><small>entra na fila e sai dentro da janela de envio</small></button>
+        <button type="button" class="alvo-op ${c.quando === 'agora' ? 'ativo' : ''}" data-quando="agora"><b>${svg(I.send)} Agora</b><small>${state.envioParado ? 'entra na fila e fica retida até o WhatsApp voltar' : 'entra na fila e sai dentro da janela de envio'}</small></button>
         <button type="button" class="alvo-op ${c.quando === 'data' ? 'ativo' : ''}" data-quando="data"><b>${svg(I.calendar)} Em uma data</b><small>escolher dia e hora</small></button>
       </div>
       <div class="field" id="campQuandoBox" ${c.quando === 'data' ? '' : 'hidden'}><label for="campData">Dia e hora</label><input id="campData" type="datetime-local" value="${esc(c.enviar_em)}"></div>
@@ -1227,7 +1231,7 @@ window.openCampanhaModal = async function (pre = {}) {
         if (campanhaAberta()) { closeModal(); state.route === 'campanhas' ? route(null, { quieto:true }) : route('campanhas'); }
         return;
       }
-      toast(`${plural(r.enfileirados, 'mensagem', 'mensagens')} na fila${r.pulados ? ` · ${r.pulados} pulada(s) (pediu para parar ou recebeu outra há pouco)` : ''}${r.dias > 1 ? ` · escalonadas em ${r.dias} dias (limite de ${r.limitePorDia}/dia)` : ''}.`, 'ok', 6000);
+      toast(`${window.R18 ? window.R18.textoNaFila(r.enfileirados, state.envioParado) : plural(r.enfileirados, 'mensagem', 'mensagens') + ' na fila'}${r.pulados ? ` · ${r.pulados} pulada(s) (pediu para parar ou recebeu outra há pouco)` : ''}${r.dias > 1 ? ` · escalonadas em ${r.dias} dias (limite de ${r.limitePorDia}/dia)` : ''}.`, 'ok', 6000);
       if (campanhaAberta()) closeModal();
      
       if (state.route === 'campanhas' || state.route === 'mensagens') route(null, { quieto:true });
@@ -1877,7 +1881,7 @@ async function pintarAprovacoes() {
         <div class="envio-corpo" title="Como chega para um cliente de exemplo. Texto-modelo: ${esc(c.corpo)}">${esc(window.R15 ? window.R15.exemploDaMensagem(c.corpo, EXEMPLO) : c.corpo)}</div>
         ${c.status === 'aguardando' ? '<small class="muted">Exemplo com a Maria: cada cliente recebe com o próprio nome e carro.</small>' : ''}
         ${c.status === 'recusada' && c.motivo_recusa ? `<p class="form-msg erro">Motivo: ${esc(c.motivo_recusa)}</p>` : ''}
-        ${c.status === 'aprovada' ? `<small class="muted">Aprovada por ${esc(c.decidido_por_nome || 'gestor')} · ${c.enfileirados ?? 0} na fila${c.pulados ? ` · ${c.pulados} pulados` : ''}</small>` : ''}
+        ${c.status === 'aprovada' ? `<small class="muted">Aprovada por ${esc(c.decidido_por_nome || 'gestor')} · ${esc(window.R18 && c.enfileirados ? window.R18.rotuloFila(c.enfileirados, state.envioParado) : `${c.enfileirados ?? 0} na fila`)}${c.pulados ? ` · ${c.pulados} pulados` : ''}</small>` : ''}
         ${c.status === 'aguardando' ? `<div class="envio-acoes">
           ${gestor ? `<button type="button" class="btn btn-mini" data-recusar="${esc(c.id)}">${svg(I.x)} Recusar</button>
             <button type="button" class="btn btn-mini primary" data-aprovar="${esc(c.id)}">${svg(I.check)} Aprovar e colocar na fila</button>`
@@ -1888,9 +1892,9 @@ async function pintarAprovacoes() {
     const ap = e.target.closest('[data-aprovar]'), rc = e.target.closest('[data-recusar]'), cc = e.target.closest('[data-cancelar-camp]');
     if (ap) {
       const quantos = lista.find(x => x.id === ap.dataset.aprovar)?.total_previsto;
-      if (!confirm(`Aprovar para ${quantos ? plural(quantos, 'cliente', 'clientes') : 'estes clientes'}? As mensagens entram na fila agora (quem pediu para parar fica fora).`)) return;
+      if (!confirm(window.R18 ? window.R18.textoAprovar(quantos, state.envioParado) : `Aprovar para ${quantos ? plural(quantos, 'cliente', 'clientes') : 'estes clientes'}? As mensagens entram na fila agora (quem pediu para parar fica fora).`)) return;
       ap.disabled = true;
-      try { const x = await api('POST', `/campanhas/${ap.dataset.aprovar}/aprovar`, {}); toast(`Aprovada: ${plural(x.enfileirados, 'mensagem', 'mensagens')} na fila${x.pulados ? ` · ${x.pulados} pulada(s)` : ''}.`, 'ok', 5000); route(null, { quieto:true }); }
+      try { const x = await api('POST', `/campanhas/${ap.dataset.aprovar}/aprovar`, {}); toast(`Aprovada: ${window.R18 ? window.R18.textoNaFila(x.enfileirados, state.envioParado) : plural(x.enfileirados, 'mensagem', 'mensagens') + ' na fila'}${x.pulados ? ` · ${x.pulados} pulada(s)` : ''}.`, 'ok', 6000); route(null, { quieto:true }); }
       catch (err) { toast(err.message, 'err'); ap.disabled = false; }
     }
     if (rc) {

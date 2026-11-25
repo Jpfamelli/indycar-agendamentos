@@ -47,8 +47,8 @@ test('a tela usa o módulo, a versão sobe e o service worker guarda o arquivo n
   assert.match(a, /R16\.semTelefone\(c\)/);
   assert.equal((a.match(/R16\.textoSegmento/g) || []).length, 4);
   assert.doesNotMatch(a, /\? ` \(\$\{c\.valor\}\)` : ''/);
-  assert.match(ler('public/index.html'), /<script src="rodada16\.js\?v=7\.5\.0"><\/script>/);
-  assert.match(ler('public/sw.js'), /VERSAO = '7\.5\.0'/);
+  assert.match(ler('public/index.html'), /<script src="rodada16\.js\?v=7.6.0"><\/script>/);
+  assert.match(ler('public/sw.js'), /VERSAO = '7\.6\.0'/);   // R18 subiu a versão
   assert.match(ler('public/sw.js'), /'rodada16\.js'/);
   assert.match(ler('public/styles.css'), /#cliPilulas/);
 });

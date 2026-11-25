@@ -25,7 +25,7 @@
   /** Ficha do cliente: o que ainda vai sair para ele e quando. */
   R6.htmlProgramadas = function (lista) {
     if (!Array.isArray(lista) || !lista.length) return '';
-    return `<div class="g-sec r6-programadas"><h4>Na fila para este cliente <small>${plural(lista.length, 'mensagem', 'mensagens')}</small></h4>${lista.map(e => `<div class="mini-envio"><div class="m-top"><span>${EMOJI(e.tipo)} ${esc(ROT(e.tipo))} · sai ${esc(dataHoraBR(e.enviar_em))}</span></div>
+    return `<div class="g-sec r6-programadas"><h4>Na fila para este cliente <small>${plural(lista.length, 'mensagem', 'mensagens')}</small></h4>${lista.map(e => `<div class="mini-envio"><div class="m-top"><span>${EMOJI(e.tipo)} ${esc(ROT(e.tipo))} · ${state.envioParado ? "retida: era para" : "sai"} ${esc(dataHoraBR(e.enviar_em))}</span></div>
       <div class="m-corpo">${esc(e.corpo)}</div></div>`).join('')}</div>`;
   };
 

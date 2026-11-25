@@ -68,7 +68,7 @@ test('a tela usa o módulo: linha por dia, pílula Puladas, barra de falhas e ap
   assert.match(a, /Aprovar para \$\{quantos/);
   assert.doesNotMatch(a, /confirm\('Cancelar esta mensagem/);   // o Desfazer faz o papel da pergunta
   const h = ler('public/index.html');
-  assert.match(h, /<script src="rodada15\.js\?v=7.5.0"><\/script>/);
+  assert.match(h, /<script src="rodada15\.js\?v=7.6.0"><\/script>/);
   assert.match(ler('public/sw.js'), /'rodada15\.js'/);
   assert.match(ler('public/styles.css'), /\.dia-cab\{/);
 });
