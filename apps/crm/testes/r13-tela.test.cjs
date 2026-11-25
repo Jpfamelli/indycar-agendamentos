@@ -75,7 +75,7 @@ test('Hoje é a primeira aba e a tela de entrada', () => {
   assert.ok(html.indexOf('r13-resumo.js') < html.indexOf('r13.js"') && html.indexOf('rodada7.js') < html.indexOf('r13-resumo.js'), 'r13 carrega por último');
   assert.match(html, /href="r13\.css"/);
   assert.match(pub('sw.js'), /'r13\.css', 'r13-resumo\.js', 'r13\.js'/);
-  assert.match(pub('sw.js'), /indycar-crm-v(1[6-9]|20)/);
+  assert.match(pub('sw.js'), /indycar-crm-v(1[6-9]|2[0-9])/);
 });
 
 test('valor do serviço fechado: Hoje, lista, funil e ficha', () => {
