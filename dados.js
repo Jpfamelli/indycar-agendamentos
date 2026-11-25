@@ -2825,7 +2825,7 @@ async function clientesAceitam(lista) {
 export async function lembretesDoDia(data, agora = Date.now()) {
   const lista = (await listarAgendamentos({ data })).filter((a) => ['aguardando', 'confirmado'].includes(a.status));
   const [cfg, envios, aceitam] = await Promise.all([configDoLembrete(), enviosDeLembrete(lista.map((a) => a.id)), clientesAceitam(lista)]);
-  const itens = lista.map((a) => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome,
+  const itens = lista.map((a) => ({ id: a.id, hora: a.hora, cliente_nome: a.cliente_nome, servico: a.servico || '', status: a.status,
     situacao: situacaoDoLembrete({ a, envio: envios.get(a.id) || null, cfg, cliente: aceitam.get(a.cliente_id) || null, agora }) }));
   return { data, itens, cfg: { ativo_lembrete: cfg.ativo_lembrete !== false, horas_lembrete: Number(cfg.horas_lembrete) || 20, pausa_geral: !!cfg.pausa_geral } };
 }
