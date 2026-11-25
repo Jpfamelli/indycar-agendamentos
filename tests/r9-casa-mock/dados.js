@@ -111,4 +111,6 @@
       r7_c1_parar: {},
     },
   };
+  /* R17: { semOrcamento: true } = o Orçador como está no banco de verdade (nenhum orçamento esperando nem aprovado) */
+  if (c.semOrcamento && !vazio) window.__DADOS.rpc.r6_agora.orcamentos = { esperando_total: 0, nao_abertos: 0, valor_esperando: 0, vencendo_hoje: 0, aprovados_sem_horario_total: 0, aprovados_sem_horario: [], esperando: [] };
 })();

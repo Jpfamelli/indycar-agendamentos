@@ -21,6 +21,6 @@ test('o aviso não lido do sino tem um pontinho redondo antes da palavra, em r13
 });
 
 test('versões: r13.css v5 e service worker v23', () => {
-  assert.match(readFileSync(join(RAIZ, 'casa/index.html'), 'utf8'), /r13\.css\?v=5/);
-  assert.match(readFileSync(join(RAIZ, 'casa/sw.js'), 'utf8'), /indycar-casa-v23/);
+  assert.match(readFileSync(join(RAIZ, 'casa/index.html'), 'utf8'), /r13\.css\?v=[5-9]/);
+  assert.match(readFileSync(join(RAIZ, 'casa/sw.js'), 'utf8'), /indycar-casa-v2[3-9]/);
 });

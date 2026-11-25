@@ -61,7 +61,7 @@
     const out = {};
     if (V.conversas && d.conversas) out.atendimento = [d.conversas.esperando, plural(d.conversas.esperando, 'conversa esperando', 'conversas esperando')];
     if (V.patio && d.patio) out.patio = [d.patio.total, V.soMeusCarros ? plural(d.patio.total, 'carro seu no pátio', 'carros seus no pátio') : plural(d.patio.total, 'carro no pátio', 'carros no pátio')];
-    if (V.orcamentos && d.orcamentos) out.orcador = [d.orcamentos.esperando, plural(d.orcamentos.esperando, 'orçamento esperando resposta', 'orçamentos esperando resposta')];
+    if (V.orcamentos && d.orcamentos && Number(d.orcamentos.esperando) > 0) out.orcador = [d.orcamentos.esperando, plural(d.orcamentos.esperando, 'orçamento esperando resposta', 'orçamentos esperando resposta')];
     if ((V.agenda || V.recepcao) && d.agenda) out.agenda = [d.agenda.total, plural(d.agenda.total, 'horário hoje', 'horários hoje')];
     if (V.leads && d.leads && d.leads.sem_dono != null) out.crm = [d.leads.sem_dono, plural(d.leads.sem_dono, 'contato sem responsável', 'contatos sem responsável')];
     return out;

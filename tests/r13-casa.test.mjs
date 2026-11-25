@@ -28,7 +28,7 @@ test('herói: a frase do dia com conversas, horários, pátio e orçamentos, nes
 
 test('herói: singular, zero por extenso e tudo zero vira uma frase calma', () => {
   const um = L5.numerosDoDia({ conversas: { esperando: 1 }, agenda: { total: 0 }, patio: { total: 1 }, orcamentos: { esperando: 0 } }, dono);
-  assert.equal(L5.fraseEmTexto(L5.fraseDoDia(um)), 'Hoje tem 1 conversa esperando, nenhum horário na Agenda, 1 carro no pátio e nenhum orçamento esperando resposta.');
+  assert.equal(L5.fraseEmTexto(L5.fraseDoDia(um)), 'Hoje tem 1 conversa esperando, nenhum horário na Agenda e 1 carro no pátio.');   // R17: orçamento zero sai do herói
   const zero = L5.numerosDoDia({ conversas: { esperando: 0 }, agenda: { total: 0 }, patio: { total: 0 }, orcamentos: { esperando: 0 } }, dono);
   assert.equal(L5.fraseEmTexto(L5.fraseDoDia(zero)), 'Dia calmo até agora: nada esperando por você.');
   assert.equal(L5.fraseDoDia([]), null, 'sem nada para ver: só a saudação');

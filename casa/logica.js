@@ -370,8 +370,12 @@
     }
     if (v.conversas && n(a.conversas?.esperando) > 0) {
       const lista = a.conversas.lista || [];
-      const demora = lista.length ? agora - Date.parse(lista[0].aguardando_desde) : 0;
-      out.push({ k: 'conversas', grav: demora > 2 * 36e5 ? 3 : 2, n: n(a.conversas.esperando), texto: `${a.conversas.esperando} ${n(a.conversas.esperando) === 1 ? 'conversa esperando' : 'conversas esperando'} o consultor`, extra: demora > 6e4 ? 'a mais antiga há ' + duracao(demora) : '', app: 'atendimento', url: lista[0] ? l.conversa(lista[0].id) : l.conversa() });
+      /* R17: a lista vem com quem espera o consultor primeiro: a mais antiga é a de menor "desde" (antes valia só a primeira) */
+      const desdes = lista.map((c) => Date.parse(c.aguardando_desde)).filter(Number.isFinite);
+      const demora = desdes.length ? agora - Math.min(...desdes) : 0;
+      /* R17: conta toda conversa em que o cliente escreveu por último (inclusive as que a IA cuida): "esperando resposta",
+         não "o consultor" (no Atendimento, "consultor" é outra conta, a fila de quem pediu um humano) */
+      out.push({ k: 'conversas', grav: demora > 2 * 36e5 ? 3 : 2, n: n(a.conversas.esperando), texto: `${a.conversas.esperando} ${n(a.conversas.esperando) === 1 ? 'conversa esperando' : 'conversas esperando'} resposta`, extra: demora > 6e4 ? 'a mais antiga há ' + duracao(demora) : '', app: 'atendimento', url: lista[0] ? l.conversa(lista[0].id) : l.conversa() });
     }
     if (v.orcamentos && n(a.orcamentos?.aprovados_sem_horario) > 0) {
       out.push({ k: 'aprovados', grav: 2, n: n(a.orcamentos.aprovados_sem_horario), texto: `${a.orcamentos.aprovados_sem_horario} ${n(a.orcamentos.aprovados_sem_horario) === 1 ? 'orçamento aprovado' : 'orçamentos aprovados'} ainda sem horário na Agenda`, app: 'orcador', url: l.orcamentosLista() });

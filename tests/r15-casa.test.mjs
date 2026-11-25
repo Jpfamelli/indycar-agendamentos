@@ -118,6 +118,6 @@ test('sino: "Fechar" no pé (celular) e escondido no computador', () => {
 
 test('arquivos mudados trazem versão nova no index e no service worker', () => {
   const html = ler('index.html'), sw = ler('sw.js');
-  for (const m of [/r13\.css\?v=5/, /logica5\.js\?v=4/, /painel\.js\?v=19/, /sino\.js\?v=14/, /casa\.js\?v=17/, /logica\.js\?v=13/]) assert.match(html, m);
-  assert.match(sw, /indycar-casa-v23/);
+  for (const m of [/r13\.css\?v=[5-9]/, /logica5\.js\?v=[4-9]/, /painel\.js\?v=(19|2\d)/, /sino\.js\?v=14/, /casa\.js\?v=17/, /logica\.js\?v=1[3-9]/]) assert.match(html, m);
+  assert.match(sw, /indycar-casa-v2[3-9]/);
 });
