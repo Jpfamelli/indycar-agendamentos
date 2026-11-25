@@ -1,0 +1,9 @@
+/* Rodada 17 (25/11/2026): o fluxo "conversa -> Agendar -> confirmação".
+   O botão "Confirmar agendamento" fica preso no pé da janela: escolheu o horário, confirma, sem rolar
+   por Data, Hora, Serviço, Consultor, Valor, Carro, Placa, Origem e Observações (no celular eram ~900 px). */
+[hidden]{display:none!important}
+#formAgendar button[type="submit"]{position:sticky;bottom:-26px;z-index:2;min-height:48px;
+  box-shadow:0 -14px 18px -6px var(--pop-2,rgba(0,0,0,.6))}
+@media (max-width:900px){
+  #formAgendar button[type="submit"]{bottom:-20px}
+}

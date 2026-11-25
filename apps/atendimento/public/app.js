@@ -1787,9 +1787,19 @@ const avisarMensagem = (conversaId, direcao, id) => {
   try { window.dispatchEvent(new CustomEvent('indycar:mensagem', { detail: { conversaId, direcao, id } })); } catch { /* ignora */ }
 };
 
+let enviarCruaOk = '';   // o texto com {variável} que a pessoa já viu o aviso e quer mandar assim
 async function enviarMensagem() {
   const texto = campo.value.trim();
   if (!texto || !conversaAtual) return;
+  /* Rodada 17: {placa}, {horario}… que ficaram sem trocar não vão para o cliente sem a pessoa ver.
+     Segundo toque em Enviar com o mesmo texto manda assim mesmo (nada de beco sem saída). */
+  const cruas = R17.variaveisCruas(texto);
+  if (cruas.length && enviarCruaOk !== texto) {
+    enviarCruaOk = texto;
+    campo.focus();
+    return toast(`⚠️ A mensagem ainda tem ${cruas.map(v => '{' + v + '}').join(', ')} sem preencher. Troque pelo dado certo ou toque em Enviar de novo para mandar assim.`);
+  }
+  enviarCruaOk = '';
   const conv = conversaAtual;
   campo.value = '';
   campo.style.height = 'auto';
@@ -2970,18 +2980,23 @@ async function carregarApoio() {
 }
 
 /* Troca {variaveis} pelos dados reais do cliente da conversa aberta */
+/* O próximo horário da ficha (data e hora completas) no mesmo jeito da confirmação, no fuso da oficina. */
+function horarioDaFicha(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(x => [x.type, x.value]));
+  return R17.horarioTexto(`${p.year}-${p.month}-${p.day}`, `${p.hour}:${p.minute}`);
+}
 function aplicarVariaveis(texto, extra = {}) {
   const nome = conversaAtual?.nome || '';
   const dados = {
     nome,
     primeiro_nome: (nome.trim().split(/\s+/)[0]) || 'tudo bem',
-    carro: fichaCache?.carro_modelo || 'seu carro',
-    placa: fichaCache?.placa || '',
+    carro: extra.carro || fichaCache?.carro_modelo || 'seu carro',
+    placa: extra.placa || fichaCache?.placa || '',
     servico: extra.servico || '',
-    horario: extra.horario || (fichaCache?.proximo_horario
-      ? new Date(fichaCache.proximo_horario).toLocaleString('pt-BR',
-          { weekday:'long', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
-      : ''),
+    horario: extra.horario || (fichaCache?.proximo_horario ? horarioDaFicha(fichaCache.proximo_horario) : ''),
     consultor: extra.consultor || '',
     atendente: perfil?.nome || '',
     // vêm da ficha do Comunicar: "sua troca de óleo" / "revisão prevista para 10/04"
@@ -3334,6 +3349,7 @@ $('#agendarServico').addEventListener('change', e => {
   if (op?.dataset.preco && !f.valor.value) f.valor.value = op.dataset.preco;
 });
 
+let agendarLeadPendente = null;   // { conv, lead }: o lead gravou e o horário não (próxima tentativa reaproveita)
 $('#formAgendar').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target;
@@ -3352,8 +3368,10 @@ $('#formAgendar').addEventListener('submit', async e => {
     const dataEsc = f.data.value, horaEsc = f.hora.value;
     const consultorNome = $('#agendarConsultor').selectedOptions[0]?.textContent || '';
 
-    // 1) LEAD no CRM — registra origem, serviço e valor previsto
-    const { data: lead, error: e1 } = await sb.from('leads').insert({
+    // 1) LEAD no CRM — registra origem, serviço e valor previsto.
+    //    Rodada 17: se da última vez o lead gravou e o horário não, reaproveita esse lead (não duplica no CRM).
+    const pend = agendarLeadPendente?.conv === conversaAtual.id ? agendarLeadPendente.lead : null;
+    const { data: lead, error: e1 } = pend ? { data: pend, error: null } : await sb.from('leads').insert({
       nome:         conversaAtual.nome || conversaAtual.telefone,
       telefone:     conversaAtual.telefone,
       carro_modelo: f.veiculo.value.trim() || null,
@@ -3366,6 +3384,7 @@ $('#formAgendar').addEventListener('submit', async e => {
       observacoes:  f.observacoes.value.trim() || null,
     }).select().single();
     if (e1) throw e1;
+    agendarLeadPendente = { conv: conversaAtual.id, lead };
 
     // 2) AGENDAMENTO na Agenda, amarrado ao lead (a ponte)
     const { error: e2 } = await sb.from('agendamentos').insert({
@@ -3385,7 +3404,8 @@ $('#formAgendar').addEventListener('submit', async e => {
       status:       'confirmado',
       observacoes:  f.observacoes.value.trim() || null,
     });
-    if (e2) throw e2;
+    if (e2) throw Object.assign(new Error(e2.message || 'a Agenda não respondeu'), { meioCaminho: true });
+    agendarLeadPendente = null;
 
     // 3) liga a conversa ao cadastro, se ainda não estava
     if (!conversaAtual.cliente_id && lead.cliente_id) {
@@ -3393,23 +3413,27 @@ $('#formAgendar').addEventListener('submit', async e => {
       conversaAtual.cliente_id = lead.cliente_id;
     }
 
+    // o carro e a placa que a pessoa digitou aqui valem para a confirmação (cliente novo não tem ficha ainda)
+    const carroEsc = f.veiculo.value.trim(), placaEsc = placaAg.placa || '';
     $('#modalAgendarBg').classList.remove('aberto');
     f.reset();
 
-    // 4) já oferece a mensagem de confirmação pronta
-    const quando = new Date(`${dataEsc}T${horaEsc}`)
-      .toLocaleString('pt-BR', { weekday:'long', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+    // 4) já oferece a mensagem de confirmação pronta ("quinta-feira, 26/11, às 09:00")
+    const quando = R17.horarioTexto(dataEsc, horaEsc);
     const conf = ATALHOS.find(a => a.comando === 'confirmar');
     if (conf) {
       campo.value = aplicarVariaveis(conf.corpo,
-        { horario: quando, servico: servNome, consultor: consultorNome });
+        { horario: quando, servico: servNome, consultor: consultorNome, carro: carroEsc, placa: placaEsc });
       campo.dispatchEvent(new Event('input'));
     }
 
     await carregarFicha(conversaAtual);
-    toast('📅 Agendado! Lead criado no CRM e horário na Agenda.');
+    toast(R17.avisoAgendado(dataEsc, horaEsc, { temConfirmacao: !!conf }));
   } catch (err) {
-    toast('⚠️ ' + err.message);
+    // Rodada 17: gravou o lead e a Agenda falhou -> diz o que fazer (o próximo toque reaproveita o lead)
+    toast(err.meioCaminho
+      ? '⚠️ O horário não gravou na Agenda. Toque em Confirmar de novo: o cliente já está no CRM e não vai duplicar.'
+      : '⚠️ ' + err.message);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Confirmar agendamento';
