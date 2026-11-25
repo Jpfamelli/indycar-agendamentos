@@ -9,6 +9,7 @@ const C = n => `33333333-3333-4333-8333-${String(n).padStart(12, '0')}`;
 const O = n => `44444444-4444-4444-8444-${String(n).padStart(12, '0')}`;
 const dias = n => new Date(Date.now() - n * 864e5).toISOString();
 const horas = n => new Date(Date.now() - n * 36e5).toISOString();
+const minutos = n => new Date(Date.now() - n * 6e4).toISOString(); // "hoje" vale até logo depois da meia-noite (horas(1) caía em ontem às 00h)
 const lead = (n, extra = {}) => ({ id: L(n), nome: `Cliente Fictício ${n}`, telefone: '1299' + String(1000000 + n), status: 'contato', origem: 'whatsapp', valor_orcado: 0, valor_pago: 0,
   observacoes: '', created_at: dias(3), updated_at: dias(1), closed_at: null, responsavel_id: null, cliente_id: null, tentativas_contato: 0, ...extra });
 async function com(tabelas, fn, opts = {}) {
@@ -233,8 +234,8 @@ test('qualidade: só gestor; mostra vendas sem valor com sugestão da Agenda, or
 
 /* ---------- resumos do dono ---------- */
 test('resumo do dono: três tipos, só gestor, texto sem palavras proibidas', () => com({
-  leads: [lead(1, { status: 'concluido', valor_pago: 0, closed_at: dias(1) }), lead(2, { created_at: horas(2) })],
-  crm_atividades: [{ id: O(80), lead_id: L(2), tipo: 'ligacao', resultado: 'atendeu', criado_por: PESSOAS.atendente.id, created_at: horas(1) }],
+  leads: [lead(1, { status: 'concluido', valor_pago: 0, closed_at: dias(1) }), lead(2, { created_at: minutos(2) })],
+  crm_atividades: [{ id: O(80), lead_id: L(2), tipo: 'ligacao', resultado: 'atendeu', criado_por: PESSOAS.atendente.id, created_at: minutos(1) }],
 }, async s => {
   assert.equal((await s.req('atendente', '/api/dono/resumo')).status, 403);
   for (const tipo of ['manha', 'fechamento', 'semana']) {

@@ -1,0 +1,20 @@
+/* Rodada 15 (25/11/2026): polimento. Só variáveis da Casa; sem borda grossa de um lado. */
+[hidden]{display:none!important}
+
+.r15-ent-mais{width:100%;margin-top:8px}
+.r15-etapas{display:none}
+
+@media (max-width:720px){
+  /* fila do dia: 2 ações principais em cima, as outras numa linha só (antes eram 4 linhas por contato) */
+  #hojeLista .r6-acoes{gap:6px}
+  #hojeLista .r6-acoes .acao{flex:1 1 22%;min-width:0;padding-inline:4px;font-size:.76rem;line-height:1.15;text-align:center;justify-content:center}
+  #hojeLista .r6-acoes .acao:first-child,#hojeLista .r6-acoes .acao[data-h6="contato"]{flex:1 1 44%;font-size:.83rem}
+
+  /* funil: faixa de etapas no alto, uma por coluna */
+  .r15-etapas{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;margin:0 0 4px;scrollbar-width:none}
+  .r15-etapas[hidden]{display:none}
+  .r15-etapas::-webkit-scrollbar{display:none}
+  .r15-etapa{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--ic-borda);background:var(--ic-painel);color:var(--ic-apagado);font:600 13px/1 var(--ic-texto-f);cursor:pointer}
+  .r15-etapa b{font:700 13px/1 var(--ic-texto-f);color:var(--ic-texto)}
+  .r15-etapa[aria-pressed="true"]{border-color:var(--ic-forte);color:var(--ic-texto);background:color-mix(in srgb,var(--ic-forte) 10%,transparent)}
+}
