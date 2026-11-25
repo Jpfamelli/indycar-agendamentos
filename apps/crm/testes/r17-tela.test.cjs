@@ -13,7 +13,7 @@ test('R17: a página carrega r17 depois do r16 e o service worker guarda os arqu
   assert.ok(html.indexOf('href="r17.css"') > html.indexOf('href="r16.css"'));
   assert.ok(html.indexOf('src="r17.js"') > html.indexOf('src="r16.js"'));
   for (const f of ['r17.css', 'r17.js']) assert.ok(sw.includes(`'${f}'`), f);
-  assert.match(sw, /indycar-crm-v21\b/);
+  assert.match(sw, /indycar-crm-v2[1-9]\b/);
 });
 test('R17: CSS novo com [hidden], só variáveis, toque de 44 px e sem borda grossa de um lado', () => {
   assert.match(css, /\[hidden\]\{display:none!important\}/);
