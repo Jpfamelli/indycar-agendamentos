@@ -10,6 +10,12 @@
   let C = null, L = null, notifs = [], filtro = '', soNovas = true, canal = null, timerSync = null, primeiraCarga = true, buscaTexto = '', limite = 60, adiarAberto = null;
   /* rodada 9: estado da leitura, para o sino dizer "carregando" e "não consegui ler" em vez de ficar em branco */
   let leitura = 'carregando';
+  /* R18: marcação em lote com confirmação antes (quantos) e "desfazer" depois. O banco real tinha 131 não lidas e ninguém
+     marcava nada desde 21/11: um toque em "Marcar todas" sem volta assusta; com a contagem e o desfazer, dá para arrumar.
+     confirmar = { ids, texto, tipo } enquanto pergunta; desfeito = { ids, em, n } enquanto dá para voltar atrás. */
+  let confirmar = null, desfeito = null, timerDesfazer = null;
+  const DESFAZER_MS = 3 * 60_000;
+  const N5 = () => window.CasaLogica5;
   /* rodada 10: relógio que junta uma rajada de avisos do tempo real numa leitura só */
   let debLeitura = null, lidoEm = 0;
   const LIMITE_MAX = 300;
@@ -26,11 +32,6 @@
   const rotuloApp = (k) => (L.APPS[k] ? L.APPS[k].nome : ROTULOS[k] || (k && k !== 'outros' ? String(k) : 'Outros'));
   const icoApp = (k) => (L.APPS[k] ? L.APPS[k].ico : k === 'tarefas' ? '📝' : '🔔');
   const gruposAbertos = new Set();
-  const nomesPorTipo = {
-    espera: ['conversa esperando resposta', 'conversas esperando resposta'],
-    aguardando: ['conversa esperando consultor', 'conversas esperando consultor'],
-    ia: ['aviso da IA', 'avisos da IA'],
-  };
 
   function desenhar() {
     const lista = $('#listaNotif');
@@ -46,14 +47,8 @@
     $('#sinoFiltros').innerHTML = apps.length > 1 ? [`<button type="button" data-filtro="" aria-pressed="${filtro === ''}">Todos${novas ? ` <b>${novas}</b>` : ''}</button>`]
       .concat(apps.map((a) => `<button type="button" data-filtro="${C.esc(a)}" aria-pressed="${filtro === a}">${icoApp(a)} ${C.esc(rotuloApp(a))}${porApp[a] ? ` <b>${porApp[a]}</b>` : ''}</button>`)).join('') : '';
 
-    const grupos = new Map();
-    for (const g of L.organizarNotificacoes(visiveis(), { app: filtro, soNaoLidas: soNovas })) {
-      for (const n of g.itens) {
-        const tipo = n.tipo || 'outros';
-        if (!grupos.has(tipo)) grupos.set(tipo, []);
-        grupos.get(tipo).push(n);
-      }
-    }
+    /* R18: grupos por tipo, do que tem mais não lidos para o que tem menos (131 avisos viram ~12 linhas para ler de cima) */
+    const grupos = N5().gruposDoSino(L.organizarNotificacoes(visiveis(), { app: filtro, soNaoLidas: soNovas }).flatMap((g) => g.itens));
     const nAd = Object.keys(adiados).length;
     const bN = $('#sinoModoNovas'), bT = $('#sinoModoTodas');
     if (bN && bT) {
@@ -75,23 +70,28 @@
         </li>`;
     /* rodada 9: aviso sozinho do tipo dele aparece direto (sem "1 aviso · …" e sem abrir e fechar); grupo só com 2 ou mais */
     const blocos = [], soltos = [];
-    for (const [tipo, itens] of grupos) {
+    for (const { tipo, itens, novos, maisNovo } of grupos) {
       if (itens.length === 1) { soltos.push(itens[0]); continue; }
-      const novos = itens.filter((n) => !n.lida_em);
-      const rotulo = nomesPorTipo[tipo]?.[1] || M2().rotuloTipo(tipo);
+      const rotulo = N5().rotuloDoGrupo(tipo, itens.length);
       blocos.push(`
       <details class="notif-grupo" data-grupo-tipo="${C.esc(tipo)}" ${gruposAbertos.has(tipo) ? 'open' : ''}>
-        <summary>${itens.length} ${C.esc(rotulo)}${novos.length && !soNovas ? ` · ${novos.length} sem ler` : ''}</summary>
-        ${novos.length ? `<button type="button" class="btn-link" data-ler="${C.esc(novos.map((n) => n.id).join(','))}">Marcar este grupo como lido</button>` : ''}
+        <summary><span class="g-ico" aria-hidden="true">${M2().iconeDoAviso(itens[0])}</span><span class="g-txt"><b>${C.esc(rotulo)}</b>${novos.length && !soNovas ? ` · ${novos.length} sem ler` : ''}<small>o mais novo ${C.esc(((q) => (/^(há|agora|ontem|hoje)/.test(q) ? q : 'em ' + q))(L.quando(maisNovo)))}</small></span></summary>
+        ${novos.length ? `<button type="button" class="btn-link g-ler" data-ler="${C.esc(novos.join(','))}">${novos.length === 1 ? 'Marcar como lido' : `Marcar os ${novos.length} como lidos`}</button>` : ''}
         <ul>${itens.map(item).join('')}</ul></details>`);
     }
     if (soltos.length) blocos.push(`<div class="notif-grupo notif-soltos"><ul>${soltos.map(item).join('')}</ul></div>`);
     const tentar = '<button type="button" class="btn-link" data-sino-de-novo>tentar de novo</button>';
-    lista.innerHTML = (leitura === 'carregando' && !notifs.length) ? '<p class="vazio" role="status">Carregando os avisos…</p>'
+    /* R18: a pergunta antes do lote e o "desfazer" depois moram no topo da lista (no celular o sino é a tela toda) */
+    const topo = confirmar
+      ? `<div class="sino-lote" role="group" aria-label="Confirmar marcação em lote"><p>${C.esc(confirmar.texto)}</p><span class="sino-lote-bts"><button type="button" class="btn btn-forte" data-lote-sim>Marcar ${confirmar.ids.length}</button><button type="button" class="btn" data-lote-nao>Cancelar</button></span></div>`
+      : desfeito
+        ? `<div class="sino-lote sino-desfazer" role="status"><p>${desfeito.n === 1 ? '1 aviso marcado como lido.' : `${desfeito.n} avisos marcados como lidos.`}</p><span class="sino-lote-bts"><button type="button" class="btn" data-lote-desfazer>Desfazer</button></span></div>`
+        : '';
+    lista.innerHTML = topo + ((leitura === 'carregando' && !notifs.length) ? '<p class="vazio" role="status">Carregando os avisos…</p>'
       : (leitura === 'falhou' && !notifs.length) ? `<p class="vazio vazio-erro" role="alert">Não consegui ler os avisos agora. ${tentar}</p>`
       : (leitura === 'falhou' ? `<p class="vazio vazio-erro" role="alert">Não consegui atualizar os avisos: mostrando a última leitura. ${tentar}</p>` : '')
-        + (grupos.size ? blocos.join('')
-          : `<p class="vazio">${buscaTexto ? `Nenhum aviso com “${C.esc(buscaTexto)}”.` : filtro ? 'Nada com esse filtro.' : soNovas ? '<span aria-hidden="true">🏁</span> Tudo lido. Nenhum aviso novo.' : 'Nada por aqui. Quando passarem uma conversa, um contato, um orçamento ou um carro para você, aparece aqui.'}${soNovas && !buscaTexto && !filtro ? '<br><button type="button" class="btn-link" data-sino-modo="todas">Ver também os já lidos</button>' : ''}</p>`);
+        + (grupos.length ? blocos.join('')
+          : `<p class="vazio">${buscaTexto ? `Nenhum aviso com “${C.esc(buscaTexto)}”.` : filtro ? 'Nada com esse filtro.' : soNovas ? '<span aria-hidden="true">🏁</span> Tudo lido. Nenhum aviso novo.' : 'Nada por aqui. Quando passarem uma conversa, um contato, um orçamento ou um carro para você, aparece aqui.'}${soNovas && !buscaTexto && !filtro ? '<br><button type="button" class="btn-link" data-sino-modo="todas">Ver também os já lidos</button>' : ''}</p>`));
 
     const rod = $('#sinoRodape');
     const volta = nAd ? N4().quandoVolta(Math.min(...Object.values(adiados).map(Number))) : '';
@@ -106,7 +106,7 @@
 
   async function carregar() {
     const campos = 'id,tipo,titulo,corpo,link,app,lida_em,created_at';
-    const nova = (so) => { let b = C.sb.from('notificacoes').select(campos); if (so) b = b.is('lida_em', null); return b.order('created_at', { ascending: false }).limit(so ? 100 : limite); };
+    const nova = (so) => { let b = C.sb.from('notificacoes').select(campos); if (so) b = b.is('lida_em', null); return b.order('created_at', { ascending: false }).limit(so ? 300 : limite); };   // R18: o banco tem 131 não lidas; com 100, "marcar todas" deixava 31 para trás
     let nao = null, todas = null, error = null;
     const modo = soNovas;
     try {
@@ -156,15 +156,54 @@
     const el = achar(id) || achar(reserva) || document.querySelector('#painelSino button, #painelSino input');
     if (el) el.focus();
   }
+  /** Marca como lidos. Devolve { ok, em, ids } (em = a hora gravada: o "desfazer" só volta o que tem essa mesma hora). */
   function marcar(ids) {
     const agora = new Date().toISOString();
     const alvo = notifs.filter((n) => ids.includes(n.id) && !n.lida_em);
-    if (!alvo.length) return Promise.resolve();
+    if (!alvo.length) return Promise.resolve({ ok: false, em: agora, ids: [] });
     alvo.forEach((n) => { n.lida_em = agora; });
     desenhar();
-    return C.sb.from('notificacoes').update({ lida_em: agora }).in('id', alvo.map((n) => n.id)).is('lida_em', null).then(({ error }) => {
-      if (error) { alvo.forEach((n) => { n.lida_em = null; }); desenhar(); C.toast('Não consegui marcar como lida agora.'); return false; }
-      return true;
+    const feitos = alvo.map((n) => n.id);
+    return C.sb.from('notificacoes').update({ lida_em: agora }).in('id', feitos).is('lida_em', null).then(({ error }) => {
+      if (error) { alvo.forEach((n) => { n.lida_em = null; }); desenhar(); C.toast('Não consegui marcar como lida agora.'); return { ok: false, em: agora, ids: [] }; }
+      return { ok: true, em: agora, ids: feitos };
+    });
+  }
+  /* R18: lote = pergunta com a contagem → marca → "desfazer" no topo do sino por 3 minutos (ou até fechar o sino) */
+  function pedirLote(ids, grupo = false, tipo = '') {
+    const certos = ids.filter((id) => notifs.some((n) => n.id === id && !n.lida_em));
+    if (!certos.length) return C.toast('Nada para marcar.');
+    if (certos.length === 1) return fazerLote(certos, tipo);
+    confirmar = { ids: certos, texto: N5().perguntaDoLote(certos.length, grupo), tipo };
+    desfeito = null;
+    desenhar();
+    document.querySelector('#listaNotif [data-lote-sim]')?.focus();
+  }
+  function fazerLote(ids, tipo = '') {
+    confirmar = null;
+    return marcar(ids).then((r) => {
+      if (!r.ok) return;
+      desfeito = { ids: r.ids, em: r.em, n: r.ids.length };
+      clearTimeout(timerDesfazer); timerDesfazer = setTimeout(() => { desfeito = null; if (C) desenhar(); }, DESFAZER_MS);
+      desenhar();
+      const b = document.querySelector('#listaNotif [data-lote-desfazer]');
+      if (b) b.focus();
+      else if (tipo) [...document.querySelectorAll('[data-grupo-tipo]')].find((el) => el.dataset.grupoTipo === tipo)?.querySelector('summary')?.focus();
+    });
+  }
+  /** Volta para "não lido" só o que este lote marcou (mesma hora de leitura); o resto fica como está. */
+  function desfazer() {
+    const d = desfeito;
+    if (!d) return;
+    desfeito = null; clearTimeout(timerDesfazer);
+    const alvo = notifs.filter((n) => d.ids.includes(n.id) && n.lida_em === d.em);
+    alvo.forEach((n) => { n.lida_em = null; });
+    desenhar();
+    $('#bLerTodas')?.focus();
+    C.sb.from('notificacoes').update({ lida_em: null }).in('id', d.ids).eq('lida_em', d.em).then(({ error }) => {
+      if (error) { alvo.forEach((n) => { n.lida_em = d.em; }); desenhar(); C.toast('Não consegui desfazer agora.'); return; }
+      C.toast(d.n === 1 ? '1 aviso voltou para não lido.' : `${d.n} avisos voltaram para não lidos.`);
+      carregar();
     });
   }
   function abrir(id) {
@@ -179,7 +218,7 @@
     // "todas" vale para o que está na tela: o filtro de app, a busca e sem os adiados (antes marcava também o que a busca escondia)
     const ids = M2().idsParaLerTodas(visiveis(), filtro);
     if (!ids.length) return C.toast('Nada para marcar.');
-    marcar(ids).then((ok) => { if (ok) C.toast(ids.length === 1 ? '1 aviso marcado como lido.' : `${ids.length} avisos marcados como lidos.`); });
+    pedirLote(ids);
   }
 
   function alternar(forcar) {
@@ -187,6 +226,7 @@
     const abrirAgora = typeof forcar === 'boolean' ? forcar : p.hidden;
     p.hidden = !abrirAgora;
     $('#bSino').setAttribute('aria-expanded', String(abrirAgora));
+    confirmar = null; desfeito = null; clearTimeout(timerDesfazer);   // R18: a pergunta e o "desfazer" valem só com o sino aberto
     if (abrirAgora) { $('#menuPerfil').hidden = true; adiarAberto = null; carregar(); setTimeout(() => p.querySelector('button, input')?.focus(), 30); }
     else $('#bSino').focus();
   }
@@ -223,12 +263,15 @@
       if (ler) {
         const tipo = ler.closest('[data-grupo-tipo]')?.dataset.grupoTipo;
         const ids = ler.dataset.ler.split(',');
-        const viz = ids.length === 1 ? vizinhoDe(ids[0]) : null;
+        if (ler.classList.contains('g-ler') || ids.length > 1) { pedirLote(ids, true, tipo); return; }   // R18: o grupo pergunta antes (com a contagem) e deixa desfazer
+        const viz = vizinhoDe(ids[0]);
         marcar(ids);
         if (ids.length === 1) { focarAviso(ids[0], viz); return; }   // rodada 9: o ✓ de um aviso deixa o foco nele (ou no vizinho)
-        [...document.querySelectorAll('[data-grupo-tipo]')].find((el) => el.dataset.grupoTipo === tipo)?.querySelector('summary')?.focus();
         return;
       }
+      if (e.target.closest('[data-lote-sim]')) { if (confirmar) fazerLote(confirmar.ids, confirmar.tipo); return; }
+      if (e.target.closest('[data-lote-nao]')) { const t = confirmar && confirmar.tipo; confirmar = null; desenhar(); (t ? [...document.querySelectorAll('[data-grupo-tipo]')].find((el) => el.dataset.grupoTipo === t)?.querySelector('.g-ler') : $('#bLerTodas'))?.focus(); return; }
+      if (e.target.closest('[data-lote-desfazer]')) { desfazer(); return; }
       const por = e.target.closest('[data-adiar-por]');
       if (por) {
         const viz = vizinhoDe(por.dataset.adiarId);

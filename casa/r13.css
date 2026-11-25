@@ -181,3 +181,32 @@
 
 /* R16: aviso não lido no sino ganha um pontinho antes da palavra (no lugar da borda fina vermelha de um lado só) */
 .n-nova::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--cor-grave); vertical-align: 1px; }
+
+/* ---------------- R18 ---------------- */
+/* herói: o WhatsApp parado é o problema nº 1 do dia. Uma linha só, que leva ao Atendimento (a faixa completa mora lá). */
+.heroi-zap {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) 16px; gap: 4px 12px; align-items: center; min-height: 56px; max-width: 62ch;
+  padding: 12px 14px; border-radius: 14px; text-decoration: none; color: var(--texto);
+  background: color-mix(in srgb, var(--cor-grave, #ff4d5e) 12%, var(--panel)); border: 1px solid color-mix(in srgb, var(--cor-grave, #ff4d5e) 45%, transparent);
+}
+.heroi-zap:hover, .heroi-zap:focus-visible { background: color-mix(in srgb, var(--cor-grave, #ff4d5e) 18%, var(--panel)); }
+.heroi-zap:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.heroi-zap .a-selo { grid-row: 1 / span 2; align-self: start; margin-top: 2px; }
+.heroi-zap-tit { font: 700 16px/1.3 var(--f); color: var(--forte); }
+.heroi-zap-passo { grid-column: 2; font-size: 14px; line-height: 1.4; color: var(--texto); }
+.heroi-zap-passo b { color: var(--r13-vermelho-txt); font-weight: 700; white-space: nowrap; }
+.heroi-zap .a-seta { grid-column: 3; grid-row: 1 / span 2; }
+@media (max-width: 600px) { .heroi-zap { grid-template-columns: minmax(0, 1fr) 16px; } .heroi-zap .a-selo { grid-row: auto; grid-column: 1; justify-self: start; } .heroi-zap-passo { grid-column: 1; } .heroi-zap .a-seta { grid-column: 2; grid-row: 1 / span 3; } }
+
+/* sino: grupos por tipo com ícone, contagem e "o mais novo há…"; o lote pergunta antes e deixa desfazer */
+.notif-grupo summary { display: flex; align-items: center; gap: 10px; list-style-position: outside; }
+.notif-grupo summary .g-ico { flex: none; width: 28px; text-align: center; font-size: 18px; }
+.notif-grupo summary .g-txt { display: grid; gap: 2px; min-width: 0; font-size: 15px; }
+.notif-grupo summary .g-txt b { color: var(--forte); }
+.notif-grupo summary .g-txt small { font-size: 12px; color: var(--muted); }
+.notif-grupo > .g-ler { min-height: 44px; padding: 10px 0; font-weight: 600; }
+.sino-lote { display: grid; gap: 10px; margin: 10px 12px 6px; padding: 12px 14px; border-radius: 14px; background: var(--panel-2); border: 1px solid var(--borda-2); }
+.sino-lote p { margin: 0; font-weight: 600; color: var(--forte); }
+.sino-lote-bts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sino-lote .btn { min-height: 44px; min-width: 44px; }
+.sino-desfazer { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }

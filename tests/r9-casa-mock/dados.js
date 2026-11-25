@@ -113,4 +113,19 @@
   };
   /* R17: { semOrcamento: true } = o Orçador como está no banco de verdade (nenhum orçamento esperando nem aprovado) */
   if (c.semOrcamento && !vazio) window.__DADOS.rpc.r6_agora.orcamentos = { esperando_total: 0, nao_abertos: 0, valor_esperando: 0, vencendo_hoje: 0, aprovados_sem_horario_total: 0, aprovados_sem_horario: [], esperando: [] };
+  /* R18: o WhatsApp. Sem cenário: anotado como funcionando e a última mensagem recebida há 6 min.
+     { silencio: horas }: anotado "ok" (como no banco de 25/11) mas nada chega há tantas horas; { zapAnotado: 'codewords-401' }: o servidor anotou a parada. */
+  var T = window.__DADOS.tabelas;
+  T.r7_c4_zap = [c.zapAnotado ? { parado: true, codigo: c.zapAnotado, desde: iso(60 * 30) } : { parado: false, codigo: 'codewords-401', desde: iso(60 * 24 * 30) }];
+  T.whatsapp_mensagens = [{ created_at: iso(c.silencio ? c.silencio * 60 : 6) }];
+  /* R18: { muitosAvisos: true } = o sino como no banco de 25/11: 141 não lidos de 14 tipos; os 10 avisos de tarefas vencidas superados saem sozinhos e ficam 131, de quatro dias para cá */
+  if (c.muitosAvisos) {
+    var mix = [['patio', 'patio', 23, 'Etapa nova no carro'], ['tarefa', 'crm', 27, 'Tarefa nova no CRM'], ['tarefa', 'agenda', 20, 'Confirmar horário'], ['aguardando', 'atendimento', 16, 'Cliente pediu o consultor'],
+      ['atraso', 'agenda', 15, 'Cliente atrasado'], ['tarefas_vencidas', null, 11, '59 tarefas vencidas'], ['espera', 'atendimento', 8, 'Cliente esperando resposta'], ['resumo', 'atendimento', 6, 'Resumo do dia'],
+      ['tarefa', 'atendimento', 3, 'Tarefa do Atendimento'], ['sugestao_perdido', 'crm', 2, 'Contato parado há 30 dias'], ['ia', 'atendimento', 2, 'A IA pediu ajuda'], ['falhas', 'comunicar', 2, 'Envio com falha'],
+      ['resumo_semanal', 'comunicar', 2, 'Resumo da semana'], ['whatsapp', 'atendimento', 2, 'WhatsApp com problema'], ['whatsapp_voltou', 'comunicar', 2, 'WhatsApp voltou']];
+    var k = 0, lista = [];
+    mix.forEach(function (m) { for (var i = 0; i < m[2]; i++) { k++; lista.push({ id: U(5000 + k), tipo: m[0], titulo: m[3] + ' #' + (i + 1), corpo: null, link: null, app: m[1], lida_em: null, created_at: iso(30 + k * 41) }); } });
+    T.notificacoes = lista;
+  }
 })();
