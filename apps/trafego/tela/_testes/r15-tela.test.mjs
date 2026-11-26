@@ -63,7 +63,7 @@ test('a casca lembra o filtro, mostra "atualizado há" e adianta Clientes; o ser
   assert.match(app, /Clientes\.caminho/);
   assert.match(app, /saveData/, 'sem economia de dados a pré-carga fica desligada');
   assert.match(ler('js/telas/cabeca.js'), /cab-atualiza/);
-  assert.match(ler('sw.js'), /indycar-trafego-r1[569]-1/);
+  assert.match(ler('sw.js'), /indycar-trafego-r1[569]-[0-9]/);
 });
 
 test('Clientes: busca só aparece com 6 contatos ou mais e os atalhos de etapa só mostram etapa com gente', () => {

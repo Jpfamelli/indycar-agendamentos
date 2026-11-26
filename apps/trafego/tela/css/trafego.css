@@ -147,6 +147,11 @@
   gap: var(--p-esp-4);
   padding-top: var(--p-esp-2);
 }
+/* Token: campo de texto com bolinhas. Com type=password o navegador preenche a senha salva do login por cima. */
+.conexao-form .campo-segredo {
+  -webkit-text-security: disc;
+  font-family: ui-monospace, Consolas, monospace;
+}
 .conexao-form textarea {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 14px;

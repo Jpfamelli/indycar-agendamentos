@@ -107,6 +107,13 @@ test('telas: a Visão geral e a folha usam a visão da oficina só sem conta e s
   const cli = ler('js/telas/clientes.js');
   assert.match(cli, /else if \(!mostraTodos\(ctx\)\) q\.set\('paga', '1'\);/);
   assert.match(cli, /sabeSemConta\(ctx\) && !ctx\.fonte && !ctx\.rota\.params\.campanha/);
-  assert.match(ler('sw.js'), /indycar-trafego-r19-1/);
+  assert.match(ler('sw.js'), /indycar-trafego-r19-2/);
   assert.match(ler('css/painel.css'), /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+});
+
+test('R19: o campo do token da Meta não é type=password (o navegador preenchia a senha do login por cima)', () => {
+  const c = ler('js/telas/gavetas/conexoes.js');
+  assert.doesNotMatch(c, /meta_access_token', type: 'password'/);
+  assert.match(c, /campo-segredo/);
+  assert.match(ler('css/trafego.css'), /-webkit-text-security: disc/);
 });

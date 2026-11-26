@@ -61,7 +61,7 @@ function cartaoDeConta(ctx, canal, conexao, conta, linha, recarregar) {
   const campoConta = h('input', { id: ids.conta, name: canal === 'meta' ? 'meta_ad_account_id' : 'google_customer_id', type: 'text', inputmode: canal === 'meta' ? 'text' : 'numeric', autocomplete: 'off', spellcheck: 'false',
     placeholder: canal === 'meta' ? 'act_1234567890' : '123-456-7890' });
   const campoAcesso = canal === 'meta'
-    ? h('input', { id: ids.acesso, name: 'meta_access_token', type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: temAcesso ? 'Já há um token guardado' : 'Começa com EAA' })
+    ? h('input', { id: ids.acesso, name: 'meta_access_token', type: 'text', class: 'campo-segredo', autocomplete: 'off', autocapitalize: 'off', 'data-lpignore': 'true', 'data-1p-ignore': 'true', spellcheck: 'false', placeholder: temAcesso ? 'Já há um token guardado' : 'Começa com EAA' })
     : h('textarea', { id: ids.acesso, name: 'google_conta_servico', rows: '4', autocomplete: 'off', spellcheck: 'false', placeholder: temAcesso ? 'Já há um acesso guardado' : 'Cole aqui o arquivo JSON da conta de serviço' });
   const campoGerente = canal === 'google'
     ? h('input', { id: ids.gerente, name: 'google_login_customer_id', type: 'text', inputmode: 'numeric', autocomplete: 'off', spellcheck: 'false', placeholder: linha && linha.tem_google_mcc ? 'Já há uma conta gerenciadora guardada' : 'Deixe em branco se não houver' })
