@@ -73,6 +73,9 @@ body.r20-so-conversas .crm-cab{display:none}
   .r20-et{min-height:44px}
   .r20-etapa-quem{display:none}
   .r20-painel{top:0;width:100vw;border-left:0;z-index:70}
+  /* conversa aberta: a tela é dela (o topo e as abas voltam com a seta de voltar da conversa) */
+  body.r20-vendo-chat .ic-topo,body.r20-vendo-chat .ic-abas,body.r20-vendo-chat .r20-ajustes{display:none}
+  body.r20-vendo-chat.r20-so-conversas #view-conversas .r20-barra{display:none}
   .r20-painel .btn{min-height:44px}
 }
 

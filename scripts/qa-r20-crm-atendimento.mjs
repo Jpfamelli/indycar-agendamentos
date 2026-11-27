@@ -189,6 +189,14 @@ async function diaADia(w, tema, completo) {
   await fc.evaluate(() => [...document.querySelectorAll('#listaConversas .conversa')].find((c) => c.textContent.includes('Camila')).click());
   const barra = await ate(() => page.evaluate(() => !document.getElementById('r20EtapaConversas').hidden && document.querySelector('#r20EtapaConversas .r20-et.atual')?.textContent));
   conferir(`${rot} conversa aberta: a etapa do cartão aparece acima dela`, barra === (completo ? 'Agendado' : 'Orçamento'), String(barra));
+  if (s.cel) {
+    const cabe = await ate(async () => {
+      const f = await page.evaluate(() => getComputedStyle(document.querySelector('.ic-topo')).display + '/' + getComputedStyle(document.querySelector('.ic-abas')).display);
+      const c = await fc.evaluate(() => { const b = document.getElementById('campoMensagem').getBoundingClientRect(); return b.height > 20 && b.bottom <= innerHeight + 1; });
+      return f === 'none/none' && c;
+    }, 6000);
+    conferir(`${rot} no celular a conversa aberta fica com a tela (sem o topo e as abas do app) e o campo de responder cabe inteiro`, cabe);
+  }
   await page.evaluate(() => [...document.querySelectorAll('#r20EtapaConversas .r20-et')].find((b) => b.dataset.etapa === 'em_servico').click());
   const mudou = await ate(async () => (await daCamila())[0]?.status === 'em_servico') && await ate(() => page.evaluate(() => document.querySelector('#r20EtapaConversas .r20-et.atual')?.textContent === 'Em serviço'));
   conferir(`${rot} mudar a etapa de dentro da conversa`, mudou, mudou ? '' : await page.evaluate(() => JSON.stringify({ toast: document.getElementById('toastTxt').textContent, barra: document.getElementById('r20EtapaConversas').innerText.slice(0, 160), modal: document.querySelector('.modal-bg.open, dialog[open]')?.id || '' })) + ' ' + JSON.stringify((await daCamila()).map((l) => l.status)));
@@ -199,7 +207,10 @@ async function diaADia(w, tema, completo) {
   await fetch(`${BASE}/crm/api/leads/${(await daCamila())[0].id}`, { method: 'PATCH', headers: cabCrm, body: JSON.stringify({ status: 'contato' }) });
 
   /* ---- Ajustes do Atendimento continuam alcançáveis ---- */
-  if (s.cel) { await fc.evaluate(() => document.getElementById('btnVoltarLista')?.click()); await espera(300); }
+  if (s.cel) {
+    await fc.evaluate(() => document.getElementById('btnVoltarLista')?.click());
+    conferir(`${rot} a seta de voltar da conversa devolve a lista, o topo e as abas do app`, await ate(() => page.evaluate(() => getComputedStyle(document.querySelector('.ic-topo')).display !== 'none' && getComputedStyle(document.querySelector('.ic-abas')).display !== 'none' && document.getElementById('r20EtapaConversas').hidden), 6000));
+  }
   await page.click('#r20Ajustes');
   const aj = await ate(() => fc.evaluate(() => !document.getElementById('ajustesAbas').hidden && [...document.querySelectorAll('#ajustesAbas .nav-item')].filter((b) => !b.hidden && b.offsetParent).map((b) => b.textContent.trim()).join('|')));
   conferir(`${rot} "Ajustes" abre Minha conta, WhatsApp e chaves, IA… com a volta para as conversas`, /Voltar para as conversas/.test(aj || '') && /WhatsApp e chaves/.test(aj || '') && /IA/.test(aj || ''), String(aj));

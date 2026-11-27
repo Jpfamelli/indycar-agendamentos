@@ -133,6 +133,8 @@ test('R20: estilos — [hidden] vale, sem borda grossa colorida de um lado só, 
   assert.match(css, /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
   assert.doesNotMatch(css, /border-(left|right|top|bottom):\s*[3-9]px solid/, 'sem borda grossa colorida de um lado só');
   assert.match(css, /min-height:\s*44px/);
+  assert.match(css, /body\.r20-vendo-chat \.ic-topo,body\.r20-vendo-chat \.ic-abas[^{]*\{display:none\}/, 'no celular a conversa aberta fica com a tela inteira');
+  assert.match(pub('r20.js'), /el\('r20DicaConversas'\)\.hidden = !modo\(\)\.crm \|\|/, 'a dica do funil não aparece para quem só tem o Atendimento');
 });
 
 test('R20: segurança — o CRM emoldura só o próprio site e continua sem poder ser emoldurado', () => {

@@ -102,6 +102,7 @@
       if (aba === 'orcador') carregarOrcador();
     }
     if (aba !== 'pipeline' && st.painel) fecharPainel({ focar: false });
+    verChat();
     /* o endereço acompanha a aba (dá para favoritar /crm/#conversas); o "#…" do link de senha nova não é tocado */
     if (st.entradaLida && !/access_token|type=/.test(location.hash)) {
       const nome = R.ENDERECO_DA_ABA[aba];
@@ -165,8 +166,18 @@
   }
   const pintarEtapaDasConversas = () => {
     pintarEtapa(el('r20EtapaConversas'), st.conversa, { comNome: true });
-    el('r20DicaConversas').hidden = !el('r20EtapaConversas').hidden;
+    /* a dica fala do funil: quem só tem o Atendimento não vê */
+    el('r20DicaConversas').hidden = !modo().crm || !el('r20EtapaConversas').hidden;
+    verChat();
   };
+  /* No celular, com uma conversa aberta, o topo e as abas do app saem (como o Atendimento sempre fez): sobram a etapa e
+     a conversa. A seta de voltar da própria conversa devolve a lista, o topo e as abas. O CSS só vale em tela estreita. */
+  function verChat() {
+    const vendo = !!st.conversa && el('view-conversas').classList.contains('active');
+    if (document.body.classList.contains('r20-vendo-chat') === vendo) return;
+    document.body.classList.toggle('r20-vendo-chat', vendo);
+    medir();
+  }
   const pintarEtapaDoPainel = () => { if (st.painel) pintarEtapa(el('r20EtapaPainel'), st.painel); };
   function aoDesenharFunil() { pintarEtapaDasConversas(); pintarEtapaDoPainel(); }
 
