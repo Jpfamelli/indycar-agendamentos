@@ -247,7 +247,10 @@ function serveStatic(req, res, urlPath) {
       // HTML e service worker sempre frescos (versão nova chega na hora); vendor travado = 1 dia; o resto, 1 h com revalidação
       'Cache-Control': ext === '.html' || /sw\.js$/.test(file) ? 'no-cache'
         : VENDOR[urlPath] ? 'public, max-age=86400' : 'public, max-age=3600, must-revalidate' };
-    if (ext === '.html') cab['Content-Security-Policy'] = cspDoHtml(file, item.buf);
+    if (ext === '.html') {
+      cab['Content-Security-Policy'] = cspDoHtml(file, item.buf);
+      cab['X-Frame-Options'] = 'SAMEORIGIN';   // rodada 20: só a página (a API continua DENY) pode ir na moldura do próprio site
+    }
     /* A borda do Render (Cloudflare) devolve a ETag como fraca (W/"…") quando
        re-codifica a resposta; o navegador manda de volta assim. Compara sem o W/. */
     const pedidas = String(req.headers['if-none-match'] || '').split(',').map(e => e.trim().replace(/^W\//, ''));

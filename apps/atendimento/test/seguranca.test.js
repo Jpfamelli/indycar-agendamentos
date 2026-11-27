@@ -7,13 +7,13 @@ const S = require('../lib/seguranca.js');
 
 const corpo = (txt, cab = {}) => { const r = Readable.from(txt === null ? [] : [Buffer.from(txt)]); r.headers = cab; return r; };
 
-test('CSP: hash de cada <script> embutido, frame-ancestors none, Supabase no connect/img (https e wss)', () => {
+test('CSP: hash de cada <script> embutido, frame-ancestors só do próprio site (rodada 20), Supabase no connect/img (https e wss)', () => {
   const html = '<html><script>window.a=1</script><script src="x.js"></script><script type="module">b()</script></html>';
   const hashes = S.hashesDosScripts(html);
   assert.equal(hashes.length, 2);
   assert.equal(hashes[0], `'sha256-${crypto.createHash('sha256').update('window.a=1').digest('base64')}'`);
   const csp = S.politicaCSP({ supabaseUrl: 'https://abc.supabase.co', hashes });
-  assert.match(csp, /frame-ancestors 'none'/);
+  assert.match(csp, /frame-ancestors 'self'/);
   assert.match(csp, /object-src 'none'/);
   assert.match(csp, /connect-src 'self' https:\/\/abc\.supabase\.co wss:\/\/abc\.supabase\.co/);
   assert.match(csp, /img-src [^;]*https:\/\/abc\.supabase\.co/);

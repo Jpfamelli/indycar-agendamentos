@@ -52,6 +52,7 @@
   <link rel="stylesheet" href="r16.css" />
   <link rel="stylesheet" href="r17.css" />
   <link rel="stylesheet" href="r18.css" />
+  <link rel="stylesheet" href="r20.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar Atendimento" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -73,6 +74,13 @@
       <span class="logo-caixa">
         <img class="logo-img" src="logo.png" alt="IndyCar Centro Automotivo" width="225" height="225" />
       </span>
+    </div>
+    <!-- Rodada 20: dentro do app "CRM e Atendimento" quem pede e-mail e senha é o app de fora; aqui só o recado. -->
+    <div class="r20-carregando" role="status"><span class="fs-giro mini" aria-hidden="true"></span> Abrindo as conversas…</div>
+    <div class="r20-sessao" id="r20Sessao" role="status">
+      <h2>Sua sessão terminou</h2>
+      <p>Entre de novo para continuar as conversas. Nada do que você escreveu foi enviado sozinho.</p>
+      <button type="button" class="btn btn-primary" id="r20Entrar">Entrar de novo</button>
     </div>
     <h1 id="loginTitulo">Bem-vindo!</h1>
     <p class="login-sub" id="loginSub">Informe seu e-mail e senha para entrar:</p>
@@ -236,6 +244,7 @@
 
   <!-- Ajustes: as telas de configurar, numa linha só abaixo do topo (aparece só dentro de Ajustes) -->
   <nav class="ajustes-abas" id="ajustesAbas" aria-label="Ajustes" hidden>
+    <button class="nav-item r20-voltar" data-aba="conversas"><span>‹ Voltar para as conversas</span></button>
     <button class="nav-item" data-aba="config"><span>Minha conta</span></button>
     <button class="nav-item" data-aba="integracoes"><span>WhatsApp e chaves</span></button>
     <button class="nav-item" data-aba="ia"><span>IA</span></button>
@@ -348,6 +357,13 @@
         <div class="chat-vazio" id="chatVazio">
           <!-- Rodada 13: a entrada é o resumo de HOJE (hoje.js); enquanto ele carrega, o recado de sempre -->
           <section class="hoje hoje-painel" id="hojePainel" aria-label="Resumo de hoje" hidden></section>
+          <!-- Rodada 20: painel "Ver conversa" do funil quando o cliente ainda não tem conversa -->
+          <div class="r20-sem-conversa" id="r20SemConversa" hidden>
+            <h2>Sem conversa ainda</h2>
+            <p id="r20SemConversaTxt"></p>
+            <button type="button" class="btn btn-primary" id="r20Comecar">Começar conversa</button>
+            <p>Você confere o número e escreve a primeira mensagem. Nada é enviado sozinho.</p>
+          </div>
           <div class="chat-vazio-espera">
             <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2z" fill="currentColor"/></svg>
             <p>Escolha uma conversa à esquerda para começar.</p>
@@ -1560,6 +1576,7 @@
 <script src="r9-regras.js"></script>
 <script src="r17-regras.js"></script>
 <script src="r18-regras.js"></script>
+<script src="r20-regras.js"></script>
 <script src="hoje-regras.js"></script>
 <script src="rede.js"></script>
 <script src="vendor/supabase.js"></script>
@@ -1575,6 +1592,7 @@
 <script src="r15.js"></script>
   <script src="r16.js"></script>
 <script src="r18.js"></script>
+<script src="r20.js"></script>
 <script src="copiloto.js" defer></script>
 <script src="casca.js" defer></script>
 </body>

@@ -653,7 +653,9 @@ http.createServer(async (req, res) => {
       const cfg = { perfil: eu && { id: eu.id, email: eu.email, nome: eu.nome, mfa_ativo: !!eu.mfa_ativo }, recuperar: url.searchParams.get('recuperar') === '1' };
       let html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8')
         .replace(/<script src="\/?vendor\/supabase\.js"><\/script>/, () => DUBLE_SUPABASE.replace('__CFG__', JSON.stringify(cfg)))
-        .replace(/<head([^>]*)>/i, (x) => `${x}\n  <base href="${PREFIXO}" />`)   // como o server.js faz
+        /* rodada 20: montado num prefixo SEM o app de fora (/crm/), a tela fica solta (os roteiros antigos abrem /atendimento/
+           direto); UNIFICADO=1 (a Central de mentira da rodada 20) deixa valer o desvio para o "CRM e Atendimento" */
+        .replace(/<head([^>]*)>/i, (x) => `${x}\n  <base href="${PREFIXO}" />${process.env.UNIFICADO ? '' : '\n  <script>window.INDYCAR_SOLTO = 1;</script>'}`)   // como o server.js faz
         .replace(/<link href="https:\/\/fonts\.googleapis\.com[^>]*>/, '');   // sem fonte externa no teste
       /* As duas tags do copiloto são do outro agente; se ainda não estiverem no
          index.html, o mock põe — assim dá para testar o contrato desde já. */
@@ -748,6 +750,12 @@ http.createServer(async (req, res) => {
   }
 
   /* ---------- Nomes (toda a equipe): o mínimo, sem e-mail nem telefone nem equipe ---------- */
+  /* rodada 20: a rota que os links "?tel=" usam (antes o mock respondia 404 e a tela caía na leitura direta) */
+  if (p === '/api/conversa-por-telefone' && m === 'GET') {
+    const t = String(url.searchParams.get('t') || '').replace(/D/g, '').replace(/^55(?=d{10,11}$)/, '');
+    const c = DB.conversas.filter(x => x.telefone_e164 === t).sort((a, b) => String(b.ultima_mensagem_em || '').localeCompare(String(a.ultima_mensagem_em || '')))[0];
+    return json(res, 200, { ok: true, conversaId: c ? c.id : null });
+  }
   if (p === '/api/equipe/nomes') return json(res, 200, { ok: true, equipe: DB.perfis.map(x => ({ id: x.id, nome: x.nome, papel: x.papel,
     ativo: x.ativo, recebe_leads: !!x.recebe_leads, avatar_cor: x.avatar_cor || null, cargo: x.cargo || null, atende: atende(x) })) });
 

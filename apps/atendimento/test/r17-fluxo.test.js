@@ -49,7 +49,7 @@ test('Agendar: reaproveita o lead quando o horário falhou (não duplica no CRM)
   const js = ler('app.js');
   const bloco = js.slice(js.indexOf("$('#formAgendar').addEventListener('submit'"), js.indexOf('/* ====', js.indexOf("$('#formAgendar').addEventListener('submit'")));
   assert.match(bloco, /agendarLeadPendente\?\.conv === conversaAtual\.id/);
-  assert.match(bloco, /pend \? \{ data: pend, error: null \} : await sb\.from\('leads'\)\.insert/);
+  assert.match(bloco, /pend \? \{ data: pend, error: null \} : reaproveitado \? \{ data: reaproveitado, error: null \} : await sb\.from\('leads'\)\.insert/);   // rodada 20: antes de criar, leva o cartão aberto do cliente para Agendado
   assert.ok(bloco.indexOf('agendarLeadPendente = null') > bloco.indexOf("from('agendamentos')"), 'só esquece o lead depois do horário gravar');
   assert.match(bloco, /Toque em Confirmar de novo/);
   assert.match(bloco, /carro: carroEsc, placa: placaEsc/, 'a confirmação usa o carro e a placa digitados');

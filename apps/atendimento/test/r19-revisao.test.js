@@ -236,6 +236,6 @@ test('"Tentar de novo" de mensagem que já saiu não manda outra vez, mesmo com 
 });
 
 test('tela: service worker troca de versão para a correção chegar a quem já tem o app aberto', () => {
-  assert.match(pub('sw.js'), /indycar-atendimento-v31/);
+  assert.ok(Number(/indycar-atendimento-v(\d+)/.exec(pub('sw.js'))[1]) >= 31);
   assert.match(pub('sw.js'), /'r18-regras\.js'/);
 });

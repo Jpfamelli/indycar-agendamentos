@@ -26,6 +26,39 @@
   }
   const base = typeof document !== 'undefined' ? baseDoDocumento() : '/';
 
+  /* Rodada 20 (26/11/2026): o Atendimento virou parte do app "CRM e Atendimento" (/crm/). Dentro da Central ele só
+     abre EMBUTIDO (numa moldura do CRM, sem topo e sem tela de entrar: o login é o da Central). Aberto direto, a
+     Central já redireciona; este desvio cobre quem ainda tem a casca antiga guardada pelo service worker (ela chega
+     sem passar pelo servidor). O endereço antigo vai junto em "atd" para a conversa ou a tela certa abrir do outro lado.
+     Fora da Central (servidor solto ou de mentira) nada muda. */
+  const UNIFICADO = (() => {
+    const fora = { naCentral: false, embutido: false, painel: false, destino: null };
+    try {
+      if (typeof location === 'undefined' || base !== '/atendimento/' || raiz.INDYCAR_SOLTO) return fora;
+      const q = new URLSearchParams(location.search || '');
+      const noTopo = !!raiz.top && raiz.top === raiz.self;
+      const embutido = !noTopo && q.get('embutido') === '1';
+      const painel = embutido && q.get('painel') === '1';
+      let destino = null;
+      if (noTopo) {
+        q.delete('embutido'); q.delete('painel');
+        const resto = q.toString();
+        destino = '/crm/?aba=conversas' + (resto ? '&atd=' + encodeURIComponent(resto) : '') + (location.hash || '');
+      }
+      return { naCentral: true, embutido, painel, destino };
+    } catch (e) { return fora; }
+  })();
+  if (UNIFICADO.destino && typeof location.replace === 'function') { try { location.replace(UNIFICADO.destino); } catch (e) { /* segue solto */ } }
+  if (UNIFICADO.embutido && typeof document !== 'undefined' && document.documentElement) {
+    document.documentElement.classList.add('embutido');
+    if (UNIFICADO.painel) document.documentElement.classList.add('embutido-painel');
+  }
+  /** Recado para o app de fora (o CRM que mostra esta moldura). Só para o mesmo endereço. */
+  function avisarPai(tipo, dados) {
+    if (!UNIFICADO.embutido) return false;
+    try { raiz.parent.postMessage(Object.assign({ tipo: tipo }, dados || {}), location.origin); return true; } catch (e) { return false; }
+  }
+
   /* Endereços atuais (produção). A Central vai servir tudo sob um domínio só:
      aí estes valores viram "https://indycar-agendamentos.onrender.com/crm/" etc. */
   const apps = {
@@ -109,6 +142,8 @@
     if (endereco) endereco = naCentralAtual(endereco);
     // rodada 11: dentro da Central o Orçador abre na aba Orçador do Atendimento (mesma sessão), não em outra janela
     if (app === 'orcador' && raiz.AbaOrcador && raiz.AbaOrcador.abrir(endereco || '')) return raiz;
+    /* rodada 20: embutido no "CRM e Atendimento", o CRM é o app de fora: o contato abre lá, sem outra janela */
+    if (app === 'crm' && UNIFICADO.embutido && avisarPai('indycar:abrir-crm', { endereco: String(endereco || '') })) return raiz;
     const alvo = endereco ? enderecoSeguro(endereco) : (apps[app] && apps[app].url);
     if (!alvo) return null;
     try {
@@ -128,6 +163,6 @@
     } catch (e) { /* endereço inválido */ }
     return null;
   }
-  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, enderecoSeguro, appDoEndereco, naCentralAtual, ORCADOR_NETLIFY, atual: 'atendimento' };
+  raiz.IndyCarApps = { base, apps, caminho, url, link, lista, abrir, enderecoSeguro, appDoEndereco, naCentralAtual, ORCADOR_NETLIFY, atual: 'atendimento', unificado: UNIFICADO, embutido: UNIFICADO.embutido, painel: UNIFICADO.painel, avisarPai };
   if (typeof module !== 'undefined') module.exports = raiz.IndyCarApps;
 })(typeof window !== 'undefined' ? window : globalThis);

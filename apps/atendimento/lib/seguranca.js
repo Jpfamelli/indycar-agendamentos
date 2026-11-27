@@ -70,7 +70,8 @@ function politicaCSP({ supabaseUrl = '', hashes = [] } = {}) {
     'connect-src': ["'self'", sb, sbWs].filter(Boolean),
     'worker-src': ["'self'"],
     'manifest-src': ["'self'"],
-    'frame-ancestors': ["'none'"],
+    /* rodada 20: a tela abre EMBUTIDA no app "CRM e Atendimento" (/crm/, mesmo endereço e mesmo login); outro site continua sem poder emoldurar */
+    'frame-ancestors': ["'self'"],
     // rodada 11: a aba Orçador é uma moldura do próprio site (/orcador/ na Central)
     'frame-src': ["'self'"],
     'object-src': ["'none'"],

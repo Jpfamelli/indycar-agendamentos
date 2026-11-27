@@ -59,11 +59,11 @@ test('server.js: cabeçalhos de segurança, CSP com o hash do <script> embutido 
     const r = await fetch(base + '/');
     assert.equal(r.status, 200);
     const csp = r.headers.get('content-security-policy');
-    assert.match(csp, /frame-ancestors 'none'/);
+    assert.match(csp, /frame-ancestors 'self'/);   // rodada 20: a página abre dentro do app CRM e Atendimento (mesmo site)
     const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
     const inline = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/i.exec(html);
     if (inline) assert.ok(csp.includes(`'sha256-${crypto.createHash('sha256').update(inline[1]).digest('base64')}'`), 'hash do script do tema');
-    assert.equal(r.headers.get('x-frame-options'), 'DENY');
+    assert.equal(r.headers.get('x-frame-options'), 'SAMEORIGIN');   // rodada 20: só o próprio site emoldura a página (a API continua DENY, abaixo)
     assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
     assert.match(r.headers.get('referrer-policy'), /strict-origin/);
     assert.match(r.headers.get('permissions-policy'), /camera=\(\)/);

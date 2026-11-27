@@ -379,6 +379,13 @@ const AbaOrcador = (() => {
   }
   /** Abre o Orçador na aba (com o endereço pedido). Devolve false se o endereço não for do Orçador. */
   function abrir(endereco) {
+    /* rodada 20: embutido no "CRM e Atendimento", a aba Orçador é a do app de fora (uma só, com a mesma sessão) */
+    if (window.IndyCarApps?.embutido) {
+      const alvo = enderecoLocal(endereco === undefined ? '' : endereco);
+      if (!alvo) return false;
+      const u = new URL(alvo);
+      return window.IndyCarApps.avisarPai('indycar:abrir-orcador', { endereco: u.search + u.hash });
+    }
     if (!carregar(endereco === undefined ? '' : endereco)) return false;
     mostrar();
     return true;
@@ -3375,7 +3382,12 @@ $('#formAgendar').addEventListener('submit', async e => {
     // 1) LEAD no CRM — registra origem, serviço e valor previsto.
     //    Rodada 17: se da última vez o lead gravou e o horário não, reaproveita esse lead (não duplica no CRM).
     const pend = agendarLeadPendente?.conv === conversaAtual.id ? agendarLeadPendente.lead : null;
-    const { data: lead, error: e1 } = pend ? { data: pend, error: null } : await sb.from('leads').insert({
+    /* Rodada 20: se o cliente já tem um cartão aberto no funil (Novo, Em contato, Orçamento ou Agendado), é ESSE cartão
+       que vai para "Agendado" com o serviço e o valor do horário. Antes nascia um segundo cartão a cada horário marcado
+       pela conversa. Cartão de colega (a regra do banco não deixa o atendente mexer) segue como antes: nasce um novo. */
+    const reaproveitado = pend ? null : await R20Regras.moverCartaoParaAgendado(sb, conversaAtual, {
+      carro_modelo: f.veiculo.value.trim() || null, placa: placaAg.placa || null, servico: servNome, servico_id: f.servico_id.value, valor_orcado: valor });
+    const { data: lead, error: e1 } = pend ? { data: pend, error: null } : reaproveitado ? { data: reaproveitado, error: null } : await sb.from('leads').insert({
       nome:         conversaAtual.nome || conversaAtual.telefone,
       telefone:     conversaAtual.telefone,
       carro_modelo: f.veiculo.value.trim() || null,
@@ -3421,6 +3433,8 @@ $('#formAgendar').addEventListener('submit', async e => {
     const carroEsc = f.veiculo.value.trim(), placaEsc = placaAg.placa || '';
     $('#modalAgendarBg').classList.remove('aberto');
     f.reset();
+    /* rodada 20: o funil do app de fora redesenha na hora (o cartão já está em "Agendado") */
+    window.IndyCarApps?.avisarPai?.('indycar:atd-agendou', { lead: lead.id, telefone: lead.telefone || conversaAtual.telefone || null, reaproveitado: !!reaproveitado });
 
     // 4) já oferece a mensagem de confirmação pronta ("quinta-feira, 26/11, às 09:00")
     const quando = R17.horarioTexto(dataEsc, horaEsc);
@@ -5886,8 +5900,9 @@ document.addEventListener('click', (ev) => {
    É assim que Agenda, CRM e Comunicar mandam o atendente direto para a
    conversa certa. */
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-async function abrirPeloEndereco() {
-  const p = new URLSearchParams(location.search);
+async function abrirPeloEndereco(pedido) {
+  /* rodada 20: o app de fora (CRM) também pede uma conversa por recado, sem recarregar a moldura */
+  const p = pedido instanceof URLSearchParams ? pedido : new URLSearchParams(location.search);
   /* rodada 13: ?aba=orcador&tel=… é "orçamento novo para este cliente" (link da Casa): o telefone vai para o Orçador
      (abrirAbaPeloEndereco), não abre conversa nem a janela de conversa nova */
   if (p.get('aba') === 'orcador') return;
@@ -5907,6 +5922,8 @@ async function abrirPeloEndereco() {
     conversaId = data?.[0]?.id || null;
   }
   if (conversaId) return abrirConversa(conversaId);
+  /* rodada 20: no painel do funil não há lista atrás: diz que não há conversa e oferece começar (nada é enviado sozinho) */
+  if (window.R20?.semConversa(digitos, p.get('nome'))) return;
   // ninguém com esse número ainda: já deixa a "Nova conversa" preenchida
   $('#novaTelefone').value = telefoneBonito(digitos);
   abrirModalNova();

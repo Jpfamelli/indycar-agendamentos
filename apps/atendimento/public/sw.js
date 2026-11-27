@@ -10,7 +10,7 @@
 //    (arquivos); demorou, deu 5xx/4xx ou caiu → cópia do cache.
 // As conversas vêm direto do Supabase (que não dorme), então com a casca de pé
 // o atendente segue lendo e respondendo enquanto o servidor acorda.
-const CACHE = 'indycar-atendimento-v31';
+const CACHE = 'indycar-atendimento-v32';   // v32 (26/11, rodada 20): embutido no "CRM e Atendimento" (r20.css, r20.js, r20-regras.js)
 
 /* Rodada 5 (Central): o service worker pode estar servido em /atendimento/sw.js. Tudo é
    relativo à pasta dele (RAIZ): a casca, os arquivos e a fronteira do /api/. */
@@ -19,16 +19,25 @@ const RAIZ = self.location.pathname.replace(/sw\.js$/, '');
 /* Se QUALQUER item desta lista faltar, o addAll rejeita e o service worker
    NÃO instala — o app deixa de ser instalável sem dizer por quê. Mantenha
    aqui só o que existe de verdade (o copiloto.js/.css do painel da IA também). */
-const ARQUIVOS = ['', 'styles.css', 'apps.js', 'rede.js', 'vendor/supabase.js', 'app.js', 'acesso.js', 'equipe.js', 'tarefas.js', 'r6-regras.js', 'r6-tela.js', 'r6.css', 'r6c5.js', 'r6c5.css', 'r7-regras.js', 'r9-regras.js', 'r7c4.js', 'r7c4.css',
-                  'r11.css', 'r13.css', 'r14.css', 'r15.css', 'r15.js', 'r16.css', 'r16.js', 'r17.css', 'r17-regras.js', 'r18.css', 'r18.js', 'r18-regras.js', 'hoje-regras.js', 'hoje.js', 'casca.js', 'copiloto.js', 'copiloto.css', 'manifest.json', 'logo.png', 'logo-claro.png',
+const ARQUIVOS = ['styles.css', 'apps.js', 'rede.js', 'vendor/supabase.js', 'app.js', 'acesso.js', 'equipe.js', 'tarefas.js', 'r6-regras.js', 'r6-tela.js', 'r6.css', 'r6c5.js', 'r6c5.css', 'r7-regras.js', 'r9-regras.js', 'r7c4.js', 'r7c4.css',
+                  'r11.css', 'r13.css', 'r14.css', 'r15.css', 'r15.js', 'r16.css', 'r16.js', 'r17.css', 'r17-regras.js', 'r18.css', 'r18.js', 'r18-regras.js', 'r20.css', 'r20.js', 'r20-regras.js', 'hoje-regras.js', 'hoje.js', 'casca.js', 'copiloto.js', 'copiloto.css', 'manifest.json', 'logo.png', 'logo-claro.png',
                   'icon-192.png', 'icon-512.png'];
 const CORE = ARQUIVOS.map((u) => RAIZ + u);
 const LIMITE_PAGINA_MS = 4000;
 
+/* Rodada 20: dentro da Central a página do Atendimento só existe EMBUTIDA ("?embutido=1"); pedida sem isso, a Central
+   responde com um redirecionamento para o app "CRM e Atendimento" (/crm/). Por isso a casca é baixada pelo endereço
+   embutido e guardada na chave de sempre (a RAIZ): um redirecionamento nunca entra no cache no lugar da página. */
+function guardarCasca(c) {
+  return fetch(new Request(RAIZ + '?embutido=1', { cache: 'reload' })).then((r) => {
+    if (!(r && r.ok && r.type === 'basic') || r.redirected) throw new Error('casca do Atendimento indisponível');
+    return c.put(RAIZ, r);
+  });
+}
 self.addEventListener('install', (e) => {
   // cache:'reload' = baixa do servidor de verdade, sem pegar do cache HTTP velho
   e.waitUntil(caches.open(CACHE)
-    .then((c) => c.addAll(CORE.map((u) => new Request(u, { cache: 'reload' }))))
+    .then((c) => Promise.all([guardarCasca(c), c.addAll(CORE.map((u) => new Request(u, { cache: 'reload' })))]))
     .then(() => self.skipWaiting()));
 });
 
@@ -63,6 +72,9 @@ function redePrimeiro(req, chave, limiteMs, ehPagina) {
     const entregar = (r) => { if (!entregue && r) { entregue = true; resolve(r); } };
     const t = setTimeout(() => doCache().then((m) => entregar(m)), limiteMs);
     fetch(req).then((r) => {
+      /* rodada 20: a Central mandou a página para outro lugar (/atendimento/ -> /crm/): o navegador segue o
+         redirecionamento; entregar a casca guardada aqui deixaria a pessoa presa no endereço antigo */
+      if (ehPagina && (r.type === 'opaqueredirect' || r.redirected)) { clearTimeout(t); return entregar(r); }
       if (boa(r)) { guardar(chave, r); clearTimeout(t); return entregar(r); }
       return doCache().then((m) => { clearTimeout(t); entregar(m || r); });
     }).catch(() => doCache().then((m) => {

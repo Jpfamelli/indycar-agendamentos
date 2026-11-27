@@ -28,7 +28,8 @@ test('até 5 abas no topo: Conversas, Orçador e Ajustes; o resto de configurar 
   assert.deepEqual(abas, ['conversas', 'orcador', 'config']);
   assert.ok(abas.length <= 5);
   const ajustes = html.slice(html.indexOf('<nav class="ajustes-abas"'), html.indexOf('</nav>', html.indexOf('<nav class="ajustes-abas"')));
-  assert.deepEqual([...ajustes.matchAll(/data-aba="([a-z]+)"/g)].map((m) => m[1]), ['config', 'integracoes', 'ia', 'atalhos', 'etapas', 'equipe', 'auditoria']);
+  /* rodada 20: embutido no CRM, a linha de Ajustes começa com "Voltar para as conversas" (escondido fora da moldura) */
+  assert.deepEqual([...ajustes.matchAll(/data-aba="([a-z]+)"/g)].map((m) => m[1]), ['conversas', 'config', 'integracoes', 'ia', 'atalhos', 'etapas', 'equipe', 'auditoria']);
   assert.match(app, /const ABAS_AJUSTES = \['config', 'integracoes', 'ia', 'atalhos', 'etapas', 'equipe', 'auditoria'\];/);
   for (const fora of ['funil', 'tarefas', 'relatorios']) assert.ok(!new RegExp(`class="nav-item[^"]*" data-aba="${fora}"`).test(html), `${fora} saiu do topo (mora no CRM / na Central)`);
 });
@@ -58,7 +59,7 @@ test('aba Orçador: moldura do próprio site e "Fazer orçamento" na conversa ab
   assert.match(pub('r7c4.js'), /rotulo === 'indycar-orcador' && url && window\.AbaOrcador\?\.abrir\(url\)/);
   const csp = require('../lib/seguranca.js').politicaCSP({ supabaseUrl: 'https://x.supabase.co' });
   assert.match(csp, /frame-src 'self'/);
-  assert.match(csp, /frame-ancestors 'none'/, 'o Atendimento continua sem poder ser emoldurado');
+  assert.match(csp, /frame-ancestors 'self'/, 'rodada 20: só o próprio site (o app CRM e Atendimento) emoldura o Atendimento');
   assert.ok(!/googleapis|gstatic/.test(csp));
 });
 

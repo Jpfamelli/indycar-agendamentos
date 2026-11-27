@@ -242,7 +242,7 @@ test('tela: r18 carregado (regras antes do app.js), service worker guarda, faixa
   assert.match(html, /<link rel="stylesheet" href="r18.css" \/>/);
   assert.match(html, /id="r18Lote" hidden/);
   for (const f of ['r18.css', 'r18.js', 'r18-regras.js']) assert.match(sw, new RegExp(`'${f.replace('.', '\\.')}'`));
-  assert.match(sw, /indycar-atendimento-v31/);
+  assert.ok(Number(/indycar-atendimento-v(\d+)/.exec(sw)[1]) >= 31);
   assert.match(app, /if \(filtroStatus === 'aguardando' && window\.R18Regras\) return window\.R18Regras\.ordenarEspera\(lista\)/);
   assert.match(app, /window\.R18\?\.aoRenderLista\(\)/);
   assert.match(app, /window\.R18\?\.depoisDeEnviar\(ok\)/);

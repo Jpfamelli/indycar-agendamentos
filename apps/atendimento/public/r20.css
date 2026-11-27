@@ -1,0 +1,35 @@
+/* ============================================================
+   Rodada 20 (26/11/2026): o Atendimento EMBUTIDO no app "CRM e Atendimento".
+   html.embutido        = dentro da moldura do CRM: sem topo (o topo é o do app de fora) e sem tela de entrar.
+   html.embutido-painel = o painel "Ver conversa" do funil: só a conversa daquele cliente, sem a lista.
+   Fora da moldura nada daqui vale.
+   ============================================================ */
+[hidden]{display:none!important}
+.r20-sessao,.r20-carregando,.r20-sem-conversa,.ajustes-abas .r20-voltar{display:none}
+
+.embutido{--altura-topo:0px}
+.embutido .app > .ic-topo,.embutido .pular{display:none!important}
+/* a faixa "WhatsApp parado" é mostrada uma vez só, pelo app de fora, em todas as abas */
+html.embutido #faixaSaude.r18-zap,html.embutido.r18-zap-parado #faixaSaude.r18-zap:not([hidden]){display:none!important}
+.embutido .ajustes-abas .r20-voltar{display:inline-flex;font-weight:700}
+
+/* entrar é no app de fora: aqui fica só o recado (ou a espera, enquanto a sessão é conferida) */
+.embutido .login-wrap{grid-template-columns:1fr;background:var(--preto)}
+.embutido #telaLogin:has(#formLogin:not([hidden])) .login-card > *{display:none!important}
+.embutido:not(.r20-sem-sessao) #telaLogin:has(#formLogin:not([hidden])) .login-card > .r20-carregando{display:flex!important}
+.embutido.r20-sem-sessao #telaLogin:has(#formLogin:not([hidden])) .login-card > .r20-sessao{display:block!important}
+.r20-carregando{align-items:center;justify-content:center;gap:10px;color:var(--cinza);font-size:.95rem}
+.r20-sessao{text-align:center}
+.r20-sessao h2{font-family:var(--fonte-cond);font-weight:700;font-size:1.6rem;margin:0 0 6px;color:var(--texto-forte)}
+.r20-sessao p{color:var(--cinza);margin:0 0 18px}
+.r20-sessao .btn{min-height:44px}
+
+/* painel do funil: só a conversa */
+.embutido-painel .col-lista{display:none!important}
+.embutido-painel .col-chat{display:flex!important}
+.embutido-painel .conversas-layout,.embutido-painel .conversas-layout.ficha-fechada{grid-template-columns:minmax(0,1fr)}
+.embutido-painel #btnVoltarLista,.embutido-painel #hojePainel,.embutido-painel .chat-vazio-espera{display:none!important}
+.embutido-painel .r20-sem-conversa:not([hidden]){display:flex;flex-direction:column;align-items:center;gap:10px;max-width:340px;text-align:center;padding:24px 16px}
+.r20-sem-conversa h2{font-family:var(--fonte-cond);font-weight:700;font-size:1.5rem;margin:0;color:var(--texto-forte)}
+.r20-sem-conversa p{margin:0;color:var(--cinza);line-height:1.5}
+.r20-sem-conversa .btn{min-height:44px;margin-top:6px}
