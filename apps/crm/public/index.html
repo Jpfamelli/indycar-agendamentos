@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#0a0a0b" />
-<title>IndyCar CRM</title>
+<title>IndyCar CRM e Atendimento</title>
 
 <!-- Tema (claro/escuro) aplicado ANTES de pintar a tela, para não piscar.
      Padrão: escuro. A escolha de quem usa persiste em localStorage. -->
@@ -34,6 +34,7 @@
 <link rel="stylesheet" href="r16.css" />
 <link rel="stylesheet" href="r17.css" />
 <link rel="stylesheet" href="r18.css" />
+<link rel="stylesheet" href="r20.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a0a0a'/><text y='.85em' x='8' font-size='78' font-family='sans-serif' font-weight='bold' fill='%23e50914'>I</text></svg>" />
   <!-- Instalável: com isto o Chrome/Edge oferece "Instalar CRM" e o app
        abre em janela própria, sem barra de endereço. -->
@@ -42,7 +43,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="CRM" />
+  <meta name="apple-mobile-web-app-title" content="CRM e Atendimento" />
 </head>
 <body>
 <a class="pular" href="#conteudo">Pular para o conteúdo</a>
@@ -58,14 +59,15 @@
 <header class="ic-topo">
   <a class="ic-marca" href="/" title="Voltar para a Central">
     <img src="/casa/logo.png" alt="" width="32" height="32">
-    <span class="ic-nome">IndyCar <b>CRM</b></span>
+    <span class="ic-nome">IndyCar <b>CRM e Atendimento</b></span>
   </a>
   <nav class="ic-abas" aria-label="Seções">
+    <!-- Rodada 20: CRM, Atendimento e Orçador num app só. "Contatos" saiu do topo (a lista completa ficou no menu da pessoa). -->
     <button type="button" class="nav-item" data-view="hoje">Hoje</button>
-    <button type="button" class="nav-item" data-view="leads">Contatos</button>
     <button type="button" class="nav-item" data-view="pipeline">Funil</button>
+    <button type="button" class="nav-item" data-view="conversas" id="navConversas" hidden>Conversas</button>
     <button type="button" class="nav-item" data-view="clientes">Clientes</button>
-    <button type="button" class="nav-item" data-view="dashboard">Painel</button>
+    <button type="button" class="nav-item" data-view="orcador" id="navOrcador" hidden>Orçador</button>
   </nav>
   <div class="ic-acoes">
     <button type="button" class="fila-chip" id="filaChip" hidden aria-live="polite"></button>
@@ -75,9 +77,12 @@
       </button>
       <div class="pop pop-direita menu-perfil" id="menuPerfil" role="menu" aria-label="Menu" hidden>
         <div class="mp-topo" role="presentation"><div><strong id="mpNome">—</strong><small id="mpPapel"></small></div></div>
+        <button type="button" role="menuitem" data-view="dashboard">Painel</button>
+        <button type="button" role="menuitem" data-view="leads">Lista de contatos</button>
         <button type="button" role="menuitem" data-view="equipe" hidden>Equipe e metas</button>
         <button type="button" role="menuitem" data-view="distribuir" hidden>Contatos sem responsável</button>
         <button type="button" role="menuitem" data-view="servicos">Serviços</button>
+        <button type="button" role="menuitem" data-r20="ajustes" id="mpAjustes" hidden>Ajustes do WhatsApp</button>
         <hr role="separator" />
         <button type="button" role="menuitem" data-mp="tema">Trocar tema</button>
         <button type="button" role="menuitem" data-mp="sair">Sair</button>
@@ -85,6 +90,12 @@
     </div>
   </div>
 </header>
+
+<!-- Rodada 20: WhatsApp parado (a mesma resposta do Atendimento), à vista em todas as abas. Some sozinha quando volta. -->
+<div class="r20-zap" id="r20Zap" role="status" aria-live="polite" hidden>
+  <p class="r20-zap-txt"><b id="r20ZapTitulo"></b> <span id="r20ZapSituacao"></span> <span id="r20ZapAcao"></span></p>
+  <button type="button" class="btn btn-ghost sm" id="r20ZapBtn" hidden>Abrir WhatsApp e chaves</button>
+</div>
 
 <!-- ================= MAIN ================= -->
 <main id="conteudo" class="main">
@@ -239,6 +250,21 @@
     </div>
   </section>
 
+  <!-- ---------- CONVERSAS (rodada 20): a caixa de entrada do Atendimento, embutida, com a etapa do funil à mão ---------- -->
+  <section class="view r20-cheia" id="view-conversas" aria-label="Conversas">
+    <div class="r20-barra">
+      <div class="r20-etapa" id="r20EtapaConversas" hidden></div>
+      <p class="r20-dica" id="r20DicaConversas">Abra uma conversa para ver e mudar a etapa dela no funil.</p>
+      <button type="button" class="btn btn-ghost sm r20-ajustes" id="r20Ajustes" title="WhatsApp e chaves, IA, respostas prontas, etapas e equipe">Ajustes</button>
+    </div>
+    <iframe class="r20-moldura" id="r20MolduraConversas" title="Conversas do WhatsApp" referrerpolicy="same-origin" allow="microphone; clipboard-write"></iframe>
+  </section>
+
+  <!-- ---------- ORÇADOR (rodada 20): o Orçador inteiro, com a mesma sessão ---------- -->
+  <section class="view r20-cheia" id="view-orcador" aria-label="Orçador">
+    <iframe class="r20-moldura" id="r20MolduraOrcador" title="Orçador" referrerpolicy="same-origin" allow="microphone; clipboard-write"></iframe>
+  </section>
+
 <!-- ---------- EQUIPE E METAS (gestor/admin) ---------- -->
   <section class="view" id="view-equipe">
     <div class="periodo-barra">
@@ -357,6 +383,17 @@
   </section>
 
 </main>
+
+<!-- ================= VER CONVERSA (rodada 20): a conversa do cartão do funil, sem sair do CRM ================= -->
+<aside class="r20-painel" id="r20Painel" aria-labelledby="r20PainelNome" hidden>
+  <header class="r20-painel-cab">
+    <button type="button" class="r20-voltar" id="r20PainelFechar" aria-label="Fechar a conversa e voltar para o funil"><span aria-hidden="true">‹</span><span class="r20-voltar-txt">Funil</span></button>
+    <div class="r20-quem"><strong id="r20PainelNome">Conversa</strong><small id="r20PainelSub"></small></div>
+    <button type="button" class="btn btn-ghost sm" id="r20PainelFicha">Abrir contato</button>
+  </header>
+  <div class="r20-etapa" id="r20EtapaPainel"></div>
+  <iframe class="r20-moldura" id="r20MolduraPainel" title="Conversa do cliente" referrerpolicy="same-origin" allow="microphone; clipboard-write"></iframe>
+</aside>
 
 <!-- ================= FICHA DO CONTATO (gaveta) ================= -->
 <div class="modal-bg gaveta-bg" id="modalBg">
@@ -494,8 +531,8 @@
      Publicado na internet, tudo passa por aqui primeiro. -->
 <div id="telaLogin" class="login-capa">
   <form id="formLogin" class="login-caixa" autocomplete="on">
-    <h1 class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM</b></span></h1>
-    <p class="login-sub">Entre com o mesmo e-mail e senha do atendimento.</p>
+    <h1 class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM e Atendimento</b></span></h1>
+    <p class="login-sub">Entre com o seu e-mail e senha da IndyCar.</p>
     <label>E-mail
       <input name="loginEmail" id="loginEmail" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" />
     </label>
@@ -513,7 +550,7 @@
 
   <!-- Esqueci a senha: o Supabase manda um link; ao voltar, abre a tela de senha nova. -->
   <form id="formEsqueci" class="login-caixa" novalidate hidden>
-    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM</b></span></span>
+    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM e Atendimento</b></span></span>
     <h1 class="login-titulo-2">Esqueci a senha</h1>
     <p class="login-sub">Digite o seu e-mail. Mandamos um link para você criar uma senha nova.</p>
     <label>E-mail<input id="esqEmail" enterkeyhint="send" type="email" required autocomplete="username" placeholder="voce@indycartaubate.com" /></label>
@@ -525,7 +562,7 @@
 
   <!-- Senha nova: depois do link do e-mail ou quando a senha é provisória -->
   <form id="formNovaSenha" class="login-caixa" novalidate hidden>
-    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM</b></span></span>
+    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM e Atendimento</b></span></span>
     <h1 class="login-titulo-2" id="nsTitulo">Crie uma senha nova</h1>
     <p class="login-sub" id="nsSub">Pelo menos 8 caracteres, diferente do seu e-mail.</p>
     <label>Senha nova<span class="senha-campo"><input id="nsSenha" type="password" required minlength="8" autocomplete="new-password" /><button type="button" class="ver-senha" aria-label="Mostrar senha" aria-pressed="false">👁</button></span></label>
@@ -538,7 +575,7 @@
 
   <!-- Duas etapas: código do app autenticador depois da senha -->
   <form id="formMfa" class="login-caixa" novalidate hidden>
-    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM</b></span></span>
+    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM e Atendimento</b></span></span>
     <h1 class="login-titulo-2">Código de verificação</h1>
     <p class="login-sub">Abra o app autenticador do celular e digite o código de 6 números da IndyCar.</p>
     <label>Código<input id="mfaCodigo" enterkeyhint="done" inputmode="numeric" autocomplete="one-time-code" maxlength="7" pattern="[0-9 ]*" required placeholder="000 000" class="codigo-mfa" /></label>
@@ -549,8 +586,8 @@
 
   <!-- Sem acesso a este app -->
   <div id="caixaSemAcesso" class="login-caixa" role="region" aria-labelledby="saTitulo" hidden>
-    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM</b></span></span>
-    <h1 class="login-titulo-2" id="saTitulo">Você não tem acesso ao CRM</h1>
+    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM e Atendimento</b></span></span>
+    <h1 class="login-titulo-2" id="saTitulo">Você não tem acesso ao CRM e Atendimento</h1>
     <p class="login-sub" id="saTexto">Se precisar, peça ao administrador para liberar.</p>
     <ul class="sa-apps" id="saApps"></ul>
     <button type="button" class="btn-entrar" data-sair-login>SAIR</button>
@@ -559,7 +596,7 @@
   <!-- Primeiro acesso: só aparece enquanto NÃO existir ninguém cadastrado.
        Quem criar esta conta vira o administrador dos três sistemas. -->
   <form id="formPrimeiro" class="login-caixa" novalidate hidden>
-    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM</b></span></span>
+    <span class="ic-marca login-marca"><img src="/casa/logo.png" alt="" width="32" height="32"><span class="ic-nome">IndyCar <b>CRM e Atendimento</b></span></span>
     <h1 class="login-titulo-2">Vamos começar!</h1>
     <p class="login-sub">Ninguém foi cadastrado ainda. Crie a sua conta de administrador —
       ela vale para o CRM, a agenda e o atendimento.</p>
@@ -607,6 +644,8 @@
 <script src="r17.js"></script>
 <script src="r18-casa.js"></script>
 <script src="r18.js"></script>
+<script src="r20-regras.js"></script>
+<script src="r20.js"></script>
 <script>
   /* Registra o service worker — é o que torna o app instalável.
      Falha silenciosa de propósito: sem ele o app funciona igual, só deixa

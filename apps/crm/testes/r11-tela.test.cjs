@@ -10,18 +10,19 @@ const CSS = fs.readdirSync(path.join(__dirname, '..', 'public')).filter(f => f.e
 // texto visível do HTML: sem scripts, estilos, comentários e etiquetas
 const textoVisivel = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ');
 
-test('rodada 11: topo .ic-topo com a marca "IndyCar CRM" que volta para a Central', () => {
+test('rodada 11: topo .ic-topo com a marca do app (rodada 20: "IndyCar CRM e Atendimento") que volta para a Central', () => {
   assert.match(html, /<link rel="stylesheet" href="\/casa\/indycar\.css" \/>/);
   assert.ok(html.indexOf('/casa/indycar.css') < html.indexOf('styles.css'), 'o padrão vem antes do CSS do app');
-  assert.match(html, /<header class="ic-topo">\s*<a class="ic-marca" href="\/"[^>]*>\s*<img src="\/casa\/logo\.png"[^>]*>\s*<span class="ic-nome">IndyCar <b>CRM<\/b><\/span>/);
+  assert.match(html, /<header class="ic-topo">\s*<a class="ic-marca" href="\/"[^>]*>\s*<img src="\/casa\/logo\.png"[^>]*>\s*<span class="ic-nome">IndyCar <b>CRM e Atendimento<\/b><\/span>/);
   assert.equal((html.match(/class="ic-topo"/g) || []).length, 1);
   for (const velho of ['class="sidebar"', 'brand-mark', 'bm-indy', 'id="ecossistema"', 'CRM · CENTRO AUTOMOTIVO']) assert.ok(!html.includes(velho), velho);
 });
 
 test('rodada 11: até 5 abas no topo; o resto do gestor fica no menu da pessoa', () => {
   const nav = html.match(/<nav class="ic-abas"[\s\S]*?<\/nav>/)[0];
-  const abas = [...nav.matchAll(/data-view="(\w+)">([^<]+)</g)].map(m => m[2]);
-  assert.deepEqual([...abas].sort(), ['Clientes', 'Contatos', 'Funil', 'Hoje', 'Painel'], 'as mesmas 5 abas (a ordem com Hoje primeiro é da rodada 13: r13-tela.test.cjs)');
+  const abas = [...nav.matchAll(/data-view="(\w+)"[^>]*>([^<]+)</g)].map(m => m[2]);
+  /* rodada 20: CRM e Atendimento num app só. Contatos e Painel foram para o menu da pessoa; entraram Conversas e Orçador */
+  assert.deepEqual([...abas].sort(), ['Clientes', 'Conversas', 'Funil', 'Hoje', 'Orçador'], 'continuam 5 abas no topo');
   const menu = html.match(/<div class="pop pop-direita menu-perfil" id="menuPerfil"[\s\S]*?<\/header>/)[0];
   assert.match(menu, /data-view="equipe" hidden>Equipe e metas</);
   assert.match(menu, /data-view="distribuir" hidden>Contatos sem responsável</);

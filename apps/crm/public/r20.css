@@ -1,0 +1,80 @@
+/* ============================================================
+   Rodada 20 (26/11/2026): CRM e Atendimento num app só.
+   · faixa "WhatsApp parado" à vista em todas as abas
+   · abas Conversas e Orçador: molduras que ocupam a tela inteira abaixo do topo
+   · "Ver conversa" no cartão do funil: painel ao lado (no celular, tela cheia com voltar)
+   · etapa do funil na conversa: um toque muda (a mesma rota do arrastar do funil)
+   ============================================================ */
+[hidden]{display:none!important}
+
+/* ---------- WhatsApp parado ---------- */
+.r20-zap{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 24px;font-size:14px;line-height:1.4;color:var(--ic-forte);
+  background:color-mix(in srgb,var(--ic-vermelho) 18%,var(--ic-painel));border-bottom:1px solid color-mix(in srgb,var(--ic-vermelho) 50%,transparent)}
+.r20-zap-txt{margin:0;flex:1 1 280px;min-width:0}
+.r20-zap-txt b{font-weight:700}
+.r20-zap .btn{flex:none;min-height:36px}
+
+/* ---------- telas cheias (Conversas e Orçador) ---------- */
+body.r20-cheia-on .main{padding:0;max-width:none}
+body.r20-cheia-on .crm-cab{display:none}
+.view.r20-cheia.active{display:flex;flex-direction:column;min-height:320px;
+  height:calc(100vh - var(--r20-topo,56px) - var(--r20-pe,0px));height:calc(100dvh - var(--r20-topo,56px) - var(--r20-pe,0px))}
+.r20-moldura{flex:1 1 auto;min-height:0;width:100%;border:0;display:block;background:var(--ic-bg)}
+.r20-barra{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 16px;background:var(--ic-painel);border-bottom:1px solid var(--ic-borda)}
+.r20-dica{margin:0;flex:1;min-width:0;font-size:13.5px;color:var(--ic-apagado)}
+.r20-ajustes{flex:none;margin-left:auto}
+
+/* ---------- etapa do funil na conversa ---------- */
+.r20-etapa{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.r20-etapa-rot{flex:none;font:700 12px/1 var(--ic-texto-f);letter-spacing:.06em;text-transform:uppercase;color:var(--ic-apagado)}
+.r20-etapa-quem{flex:none;max-width:20ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--ic-forte)}
+.r20-etapa-nota{font-size:13px;color:var(--ic-apagado);min-width:0}
+.r20-etapas{display:flex;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none;padding:2px}
+.r20-etapas::-webkit-scrollbar{display:none}
+.r20-et{flex:none;min-height:36px;padding:0 13px;border-radius:999px;border:1px solid var(--ic-borda);background:transparent;color:var(--ic-texto);
+  font:600 13.5px/1 var(--ic-texto-f);white-space:nowrap;cursor:pointer}
+.r20-et:hover:not(:disabled):not(.atual){border-color:var(--ic-forte);color:var(--ic-forte)}
+.r20-et:focus-visible,.kb-conversa:focus-visible,.r20-voltar:focus-visible{outline:2px solid var(--ic-vermelho);outline-offset:2px}
+.r20-et.atual{background:var(--ic-forte);border-color:var(--ic-forte);color:var(--ic-bg);cursor:default}
+.r20-et:disabled:not(.atual){opacity:.5;cursor:not-allowed}
+
+/* ---------- "Ver conversa" no cartão do funil ---------- */
+.kb-conversa{display:flex;align-items:center;justify-content:center;width:100%;min-height:36px;margin-top:10px;padding:0 10px;border-radius:6px;
+  border:1px solid var(--line);background:transparent;color:var(--texto);font:600 13px/1 var(--ic-texto-f);cursor:pointer}
+.kb-conversa:hover{border-color:var(--ic-forte);color:var(--ic-forte)}
+.kb-card .kb-conversa + .kb-etapa{margin-top:6px}
+@media (pointer:coarse){.kb-conversa{min-height:44px}}
+
+/* ---------- painel da conversa ---------- */
+.r20-painel{position:fixed;top:var(--r20-topo,56px);right:0;bottom:0;z-index:60;width:min(480px,100vw);display:flex;flex-direction:column;
+  background:var(--ic-painel);border-left:1px solid var(--ic-borda);box-shadow:-18px 0 40px rgba(0,0,0,.28)}
+.r20-painel-cab{display:flex;align-items:center;gap:10px;min-height:56px;padding:6px 12px;border-bottom:1px solid var(--ic-borda)}
+.r20-voltar{display:inline-flex;align-items:center;gap:6px;min-width:44px;min-height:44px;padding:0 10px;border:0;border-radius:8px;background:none;color:var(--ic-texto);
+  font:600 14px/1 var(--ic-texto-f);cursor:pointer}
+.r20-voltar > span[aria-hidden]{font-size:24px;line-height:1}
+.r20-voltar:hover{background:var(--ic-painel-2);color:var(--ic-forte)}
+.r20-quem{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.r20-quem strong{font:700 19px/1.1 var(--ic-titulo);letter-spacing:.02em;color:var(--ic-forte);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r20-quem small{font-size:12.5px;color:var(--ic-apagado);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r20-painel > .r20-etapa{flex:none;padding:8px 12px;border-bottom:1px solid var(--ic-borda);background:var(--ic-painel-2)}
+/* com o painel aberto no computador, o funil encolhe para nenhuma coluna ficar escondida atrás dele */
+@media (min-width:1100px){body.r20-com-painel .main{padding-right:504px}}
+
+/* quem tem só o Atendimento: nada do CRM aparece */
+body.r20-so-conversas .crm-cab{display:none}
+
+@media (max-width:760px){
+  .r20-zap{padding:8px 12px;font-size:13.5px}
+  .r20-zap .btn{min-height:44px}
+  .r20-barra{flex-wrap:wrap;padding:6px 10px;gap:8px}
+  .r20-barra .r20-etapa{flex:1 1 100%;order:2}
+  .r20-dica{font-size:13px}
+  .r20-ajustes{min-height:44px}
+  .r20-et{min-height:44px}
+  .r20-etapa-quem{display:none}
+  .r20-painel{top:0;width:100vw;border-left:0;z-index:70}
+  .r20-painel .btn{min-height:44px}
+}
+
+/* no painel ao lado do funil (computador) as sete etapas cabem em duas linhas: nenhuma fica escondida atrás da rolagem */
+@media (min-width:901px){.r20-painel .r20-etapas{flex-wrap:wrap;overflow:visible}}

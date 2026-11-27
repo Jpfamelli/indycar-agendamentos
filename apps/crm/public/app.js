@@ -133,14 +133,18 @@ let PERFIL = null, SOU_ADMIN = false, SOU_GESTOR = false;
 let CATALOGO = [];              // os 138 serviços, como vieram do banco
 
 /* ---------------- Navegação ---------------- */
-/* Rodada 11: 5 abas no topo (Hoje, Contatos, Funil, Clientes, Painel). Equipe, Sem responsável e
-   Serviços abrem pelo menu da pessoa. Origem, Relatórios, Dono, Integrações, IA e Configurações saíram:
+/* Rodada 20: o app é "CRM e Atendimento". 5 abas no topo: Hoje, Funil, Conversas, Clientes e Orçador (Conversas e
+   Orçador são molduras do Atendimento e do Orçador, em r20.js). "Contatos" saiu do topo: a lista completa e o Painel
+   abrem pelo menu da pessoa, junto de Equipe, Sem responsável e Serviços.
+   Rodada 11: Equipe, Sem responsável e Serviços abrem pelo menu da pessoa. Origem, Relatórios, Dono, Integrações, IA e Configurações saíram:
    anúncios moram no Tráfego, a conta na Central e a equipe no Atendimento. */
 const TITULOS = {
   hoje:       ['Hoje'],
-  leads:      ['Contatos'],
+  leads:      ['Lista de contatos'],
   pipeline:   ['Funil'],
+  conversas:  ['Conversas'],
   clientes:   ['Clientes'],
+  orcador:    ['Orçador'],
   dashboard:  ['Painel'],
   equipe:     ['Equipe e metas'],
   distribuir: ['Contatos sem responsável'],
@@ -148,11 +152,11 @@ const TITULOS = {
 };
 // a busca do topo só filtra estas abas (Clientes e Serviços têm a própria busca, dentro da aba)
 const ABAS_COM_BUSCA = new Set(['leads', 'pipeline']);
-const ABAS_SEM_NOVO = new Set(['servicos', 'equipe', 'distribuir', 'hoje']);
+const ABAS_SEM_NOVO = new Set(['servicos', 'equipe', 'distribuir', 'hoje', 'conversas', 'orcador']);
 
 function irPara(v) {
   if (!TITULOS[v]) return;
-  if ($(`[data-view="${v}"]`)?.hidden) v = 'dashboard';   // aba escondida para o papel: não abre por atalho nem link
+  if ($(`[data-view="${v}"]`)?.hidden) v = window.R20Tela?.abaDeReserva() || 'dashboard';   // aba escondida para o papel: não abre por atalho nem link
   $$('.nav-item').forEach(x => { x.classList.toggle('active', x.dataset.view === v); if (x.dataset.view === v) x.setAttribute('aria-current', 'page'); else x.removeAttribute('aria-current'); });
   $$('.view').forEach(x => x.classList.remove('active'));
   $(`#view-${v}`)?.classList.add('active');
@@ -224,6 +228,9 @@ async function carregar() {
   SOU_ADMIN = PERFIL?.papel === 'admin';
   SOU_GESTOR = CrmUtils.ehGestor(PERFIL?.papel);
   aplicarPapelNaTela();
+  /* Rodada 20: quem tem só o Atendimento entra no app unificado e vê as Conversas e o Orçador. As telas e as rotas do
+     CRM continuam fechadas para ele (o servidor responde 403), por isso nada do CRM é pedido aqui. */
+  if (window.R20Tela?.soConversas()) { if (primeiraVez) window.R20Tela.aoAbrir(); return; }
   iniciarSessao();
 
   try {
@@ -247,6 +254,7 @@ async function carregar() {
       const atalho = Object.hasOwn(TITULOS, aba) && [...document.querySelectorAll('[data-view]')].find(item => item.dataset.view === aba);
       irPara(atalho && !atalho.hidden ? aba : 'hoje');   // rodada 13: a primeira visita abre Hoje (o resumo do dia)
       abrirPorLink();
+      window.R20Tela?.aoAbrir();   // rodada 20: /crm/#conversas, links antigos do Atendimento (?aba=conversas&atd=…)
     }
   } catch (err) {
     if (err.codigo && err.codigo !== 'rede' && err.status && [401, 403].includes(err.status) && document.body.classList.contains('deslogado')) return;

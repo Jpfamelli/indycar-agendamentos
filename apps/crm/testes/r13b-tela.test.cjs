@@ -30,7 +30,7 @@ test('Central: Orçador e Tráfego são irmãos (mesma origem e mesma sessão); 
 test('links para outros apps (rodada 13C: aba nomeada; aba bloqueada sai nesta janela sem perder o que foi digitado)', () => {
   const r6 = pub('rodada6.js');
   assert.match(r6, /const mesmaJanela6 = \(\) => false;/);
-  assert.match(r6, /function abrirNomeada6\(u, app\) \{\n  const w = window\.open\(u, 'indycar-' \+ app\);/);
+  assert.match(r6, /function abrirNomeada6\(u, app\) \{\n  if \(window\.R20Tela\?\.abrirDentro\(u\)\) return null;[^\n]*\n  const w = window\.open\(u, 'indycar-' \+ app\);/);   // rodada 20: Atendimento e Orçador abrem dentro do app; os outros, na aba nomeada
   assert.match(r6, /sairPara6\(u\);   \/\/ aba bloqueada/);
   assert.match(r6, /formSujo\(\)[\s\S]{0,120}não foram salvas/, 'ficha com alteração não salva pergunta antes de sair');
   assert.match(r6, /FILA_MEM\.length[\s\S]{0,200}esperando o sistema voltar/, 'mudança na fila pergunta antes de sair');

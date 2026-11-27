@@ -41,7 +41,7 @@ async function tratarAcesso(acao) {
   TRATANDO_ACESSO = Date.now();
   if (acao === 'login') { if (document.body.classList.contains('deslogado') && !$('#formLogin').hidden) return; try { await sb?.auth.signOut({scope: 'local'}); } catch { /* ignora */ } mostrarLogin('Sua sessão expirou. Entre de novo.'); }
   else if (acao === 'desativado') { try { await sb?.auth.signOut({scope: 'local'}); } catch { /* ignora */ } mostrarLogin('Seu acesso foi desativado. Fale com o gestor da loja.'); }
-  else if (acao === 'sem_acesso') mostrarSemAcesso(PERFIL, 'sem_app');
+  else if (acao === 'sem_acesso') { if (!window.R20Tela?.soConversas()) mostrarSemAcesso(PERFIL, 'sem_app'); }   // rodada 20: quem só tem as Conversas não é barrado por uma rota do CRM
   else if (acao === 'trocar_senha') mostrarNovaSenha('obrigatoria');
   else if (acao === 'mfa') mostrarMfa();
 }
@@ -65,7 +65,8 @@ async function portaoDeAcesso(p) {
   if (!p) return true;                          // sem perfil (rede): o servidor decide em cada rota
   const a = CrmUtils.acessoApp(p, 'crm');
   if (a.motivo === 'desativado') { await tratarAcesso('desativado'); return false; }
-  if (!a.ok) { mostrarSemAcesso(p, a.motivo); return false; }
+  /* rodada 20: sem o CRM mas com o Atendimento, a pessoa entra e vê só as Conversas e o Orçador */
+  if (!a.ok && !(a.motivo === 'sem_app' && window.R20Tela?.podeEntrarSemCrm(p))) { mostrarSemAcesso(p, a.motivo); return false; }
   if (p.precisa_trocar_senha) { mostrarNovaSenha('obrigatoria'); return false; }
   return true;
 }
@@ -73,7 +74,7 @@ function mostrarSemAcesso(p, motivo) {
   mostrarLogin(null, {tela: 'caixaSemAcesso'});
   const apps = CrmUtils.appsPermitidos(p, 'crm');
   $('#saTexto').textContent = motivo === 'papel_agenda' ? 'Seu login é só para marcar presença na Agenda.'
-    : apps.length ? 'Seu login não inclui o CRM. Use um destes apps ou peça ao administrador para liberar.' : 'Nenhum app foi liberado para o seu login ainda. Fale com o administrador.';
+    : apps.length ? 'Seu login não inclui o CRM nem o Atendimento. Use um destes apps ou peça ao administrador para liberar.' : 'Nenhum app foi liberado para o seu login ainda. Fale com o administrador.';
   $('#saApps').innerHTML = apps.map(a => `<li><a class="acao" href="${esc(a.url)}">${esc(a.nome)} <span aria-hidden="true">→</span></a></li>`).join('');
   setTimeout(() => ($('#saApps a') || $('#caixaSemAcesso [data-sair-login]'))?.focus(), 30);
 }
@@ -234,6 +235,7 @@ $('#formMfa').addEventListener('submit', async e => {
 /* ---------------- sessão: papel na tela, último acesso, avatar ---------------- */
 function aplicarPapelNaTela() {
   for (const v of ['equipe', 'distribuir']) { const nav = $(`[data-view="${v}"]`); if (nav) nav.hidden = !SOU_GESTOR; }
+  window.R20Tela?.aplicarModo();   // rodada 20: Conversas e Orçador para quem pode; telas do CRM só para quem tem o CRM
   $('#btnMetas').hidden = !SOU_GESTOR;
   if (modal.classList.contains('open') && editId) $('#btnExcluir').style.display = SOU_GESTOR ? 'inline-flex' : 'none';
   renderAvatar();
@@ -286,6 +288,7 @@ $('#menuPerfil').addEventListener('click', e => {
   fecharPops();
   const acao = b.dataset.mp;
   if (b.dataset.view) irPara(b.dataset.view);
+  if (b.dataset.r20 === 'ajustes') window.R20Tela?.abrirAjustes();
   if (acao === 'tema') aplicarTema(temaAtual() === 'claro' ? 'escuro' : 'claro');
   if (acao === 'sair') sair('local');
 });

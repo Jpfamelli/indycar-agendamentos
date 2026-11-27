@@ -68,7 +68,7 @@ test('frase do Painel e rótulo do período', () => {
 
 test('Hoje é a primeira aba e a tela de entrada', () => {
   const nav = html.match(/<nav class="ic-abas"[\s\S]*?<\/nav>/)[0];
-  assert.deepEqual([...nav.matchAll(/data-view="(\w+)">([^<]+)</g)].map(m => m[2]), ['Hoje', 'Contatos', 'Funil', 'Clientes', 'Painel']);
+  assert.deepEqual([...nav.matchAll(/data-view="(\w+)"[^>]*>([^<]+)</g)].map(m => m[2]), ['Hoje', 'Funil', 'Conversas', 'Clientes', 'Orçador']);   // rodada 20: a ordem do app unificado
   assert.match(pub('app.js'), /irPara\(atalho && !atalho\.hidden \? aba : 'hoje'\)/);
   for (const id of ['r13Heroi', 'r13Frase', 'r13Nums', 'r13Caixa', 'r13Valores', 'r13Grafico', 'r13Etapas', 'r13FrasePainel']) assert.match(html, new RegExp(`id="${id}"`), id);
   assert.ok(html.indexOf('id="r13Heroi"') < html.indexOf('id="hojeLista"'), 'o resumo vem antes da fila');

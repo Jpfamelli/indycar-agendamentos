@@ -1,7 +1,7 @@
 {
-  "name": "IndyCar CRM",
+  "name": "IndyCar CRM e Atendimento",
   "short_name": "CRM",
-  "description": "CRM do IndyCar Centro Automotivo: leads, pipeline, origem dos clientes e resumo da semana.",
+  "description": "CRM e Atendimento do IndyCar Centro Automotivo: funil, conversas do WhatsApp, clientes e orçamentos.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

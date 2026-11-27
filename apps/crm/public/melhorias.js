@@ -297,7 +297,7 @@ function cartaoKanban(l, agora) {
     <div class="kb-nome">${esc(l.nome)}</div>
     <div class="kb-meta">${esc(l.carro_modelo) || '—'} · ${esc(l.servico) || 'serviço n/d'}</div>
     <div class="kb-rodape"><span class="kb-valor">${brl(U.valorLead(l))}</span>${chipResponsavel(l.responsavel_id, true)}<span class="kb-tempo${p ? ' alerta' : ''}" title="Tempo desde a última mudança">${p ? '⚠ ' : ''}${esc(U.textoDias(d))}</span></div>
-    ${seloDono(l)}<select class="kb-etapa" aria-label="Mover ${esc(l.nome)} para outra etapa" data-lead="${esc(l.id)}"${trava ? ` disabled title="${esc(trava)}"` : ''}>
+    ${seloDono(l)}${window.R20Tela?.botaoDoCartao(l) || ''}<select class="kb-etapa" aria-label="Mover ${esc(l.nome)} para outra etapa" data-lead="${esc(l.id)}"${trava ? ` disabled title="${esc(trava)}"` : ''}>
       ${STATUSES.map(s => `<option value="${esc(s)}" ${s === l.status ? 'selected' : ''}>${esc(LABEL_STATUS[s] ?? s)}</option>`).join('')}
     </select>
   </div>`;
@@ -317,6 +317,7 @@ function renderKanban() {
     </div>`;
   }).join('');
   $('#kbResumo').textContent = `${total} contato${total === 1 ? '' : 's'} no funil${parados ? ` · ${parados} parado${parados === 1 ? '' : 's'}` : ''}`;
+  window.R20Tela?.aoDesenharFunil();   // rodada 20: a etapa mostrada na conversa acompanha o cartão
 }
 const kanban = $('#kanban');
 let arrastou = false;
@@ -324,6 +325,7 @@ kanban.addEventListener('click', e => {
   if (arrastou) { arrastou = false; return; }
   const mais = e.target.closest('.kb-mais'); if (mais) { COLUNAS_ABERTAS.add(mais.dataset.etapa); renderKanban(); return; }
   if (e.target.closest('.kb-etapa')) return;
+  const cv = e.target.closest('.kb-conversa'); if (cv) { window.R20Tela?.verConversa(cv.dataset.lead); return; }   // rodada 20: a conversa abre ao lado, sem sair do funil
   const c = e.target.closest('.kb-card'); if (c) abrirModal(c.dataset.id);
 });
 kanban.addEventListener('change', async e => {
@@ -609,7 +611,7 @@ document.addEventListener('keydown', e => {
   if (aberto || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 'n') { e.preventDefault(); abrirModal(null); }
-  if (e.key === '/') { e.preventDefault(); irPara('leads'); $('#search').focus(); }
+  if (e.key === '/') { e.preventDefault(); irPara('pipeline'); $('#search').focus(); }   // rodada 20: a busca do dia a dia é a do Funil
 });
 document.addEventListener('keydown', e => {
   if (e.defaultPrevented || e.repeat || e.target.closest('input,select,textarea,button,a[href],[contenteditable]')) return;
@@ -647,10 +649,11 @@ window.IndyCar = Object.freeze({
    Sem lead: mostra a ficha do cliente com o botão "Criar contato". */
 const EH_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const maisRecente = lista => [...lista].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] || null;
-async function abrirPorLink() {
-  const p = new URLSearchParams(location.search), id = p.get('lead'), cli = p.get('cliente'), t = U.telE164(p.get('tel') || p.get('t'));
+async function abrirPorLink(pedido) {
+  /* rodada 20: a conversa embutida também pede "abrir no CRM" (o contato abre aqui, sem outra janela) */
+  const p = pedido instanceof URLSearchParams ? pedido : new URLSearchParams(location.search), id = p.get('lead'), cli = p.get('cliente'), t = U.telE164(p.get('tel') || p.get('t'));
   if (!id && !cli && !p.get('tel') && !p.get('t')) return;
-  history.replaceState(null, '', location.pathname);   // não guarda telefone na barra nem no histórico
+  if (!pedido) history.replaceState(null, '', location.pathname);   // não guarda telefone na barra nem no histórico
   if (id && /^[0-9a-fA-F-]{1,36}$/.test(id)) return abrirModal(id);
   const cliOk = cli && EH_UUID.test(cli) ? cli : null;
   let l = cliOk ? maisRecente(TODOS.filter(x => String(x.cliente_id) === cliOk)) : null;

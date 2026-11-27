@@ -45,9 +45,16 @@ function cspPagina({ hashes = [], supabaseUrl = '' } = {}) {
     "img-src 'self' data: blob:",
     `connect-src 'self' ${sb}`.trim(),
     "manifest-src 'self'", "worker-src 'self'",
+    /* rodada 20: as abas Conversas e Orçador e o painel "Ver conversa" são molduras do PRÓPRIO site (/atendimento/ e
+       /orcador/ na Central). Só 'self': nenhuma página de fora entra, e o CRM continua sem poder ser emoldurado. */
+    "frame-src 'self'",
     "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'",
   ].join('; ');
 }
+
+/* rodada 20: a página do CRM hospeda a conversa do WhatsApp numa moldura do mesmo endereço, e ela grava áudio (botão 🎤).
+   O microfone fica liberado só para o próprio site; a API e os arquivos continuam com tudo desligado. */
+const PERMISSOES_PAGINA = 'camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()';
 
 const CSP_API = "default-src 'none'; frame-ancestors 'none'";
 
@@ -120,4 +127,4 @@ function segredoConfere(dado, esperado) {
   return crypto.timingSafeEqual(a, b);
 }
 
-module.exports = { ORIGENS_ECOSSISTEMA, origensPermitidas, hashesScripts, cspPagina, CSP_API, aplicarCabecalhos, tratarCors, ipDe, criarFreio, segredoConfere };
+module.exports = { PERMISSOES_PAGINA, ORIGENS_ECOSSISTEMA, origensPermitidas, hashesScripts, cspPagina, CSP_API, aplicarCabecalhos, tratarCors, ipDe, criarFreio, segredoConfere };

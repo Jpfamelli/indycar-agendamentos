@@ -45,6 +45,7 @@ function sairPara6(href) {
   return true;
 }
 function abrirNomeada6(u, app) {
+  if (window.R20Tela?.abrirDentro(u)) return null;   // rodada 20: Atendimento e Orçador moram neste app (painel da conversa, abas Conversas e Orçador)
   const w = window.open(u, 'indycar-' + app);
   if (w) { try { w.opener = null; w.focus(); } catch { /* outra origem */ } return w; }
   sairPara6(u);   // aba bloqueada: vai nesta janela, com a mesma proteção do que foi digitado
@@ -55,6 +56,7 @@ const abrirApp6 = (app, caminho) => { const u = A6.urlApp(app, caminho); if (u) 
 /* ================= sinais ao vivo ================= */
 async function carregarSinais6(forcar) {
   if (R6.carregando || !PERFIL?.id) return;
+  if (window.R20Tela?.soConversas()) return;   // rodada 20: quem só tem o Atendimento não pede nada do funil (o servidor responderia 403)
   if (!forcar && Date.now() - R6.em < 25000) return;
   R6.carregando = true;
   try {

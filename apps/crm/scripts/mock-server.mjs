@@ -59,6 +59,7 @@ const PAPEIS_MOCK = {
   agenda: {papel: 'agenda', apps: ['agenda']},
   desativado: {papel: 'atendente', apps: ['atendimento','crm'], ativo: false},
   sem_app: {papel: 'atendente', apps: ['atendimento','comunicar']},
+  so_crm: {papel: 'atendente', apps: ['crm']},   // rodada 20: tem o CRM e não tem o Atendimento (não vê as Conversas)
   trocar_senha: {papel: 'atendente', apps: ['atendimento','crm'], precisa_trocar_senha: true},
   mfa: {papel: 'gestor', apps: ['atendimento','crm']},
   deslogado: {papel: 'atendente', apps: ['atendimento','crm']},

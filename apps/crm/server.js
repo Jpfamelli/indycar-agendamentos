@@ -139,7 +139,7 @@ function serveStatic(req, res, urlPath) {
   } catch { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Não encontrado'); return; }
   const tipo = MIME[ext] || 'application/octet-stream';
   const cab = { 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache', 'Content-Type': tipo, ETag: item.etag, Vary: 'Accept-Encoding' };
-  if (item.csp) cab['Content-Security-Policy'] = item.csp;
+  if (item.csp) { cab['Content-Security-Policy'] = item.csp; cab['Permissions-Policy'] = SEG.PERMISSOES_PAGINA; }   // rodada 20: só a página libera o microfone (conversa embutida)
   const inm = String(req.headers['if-none-match'] || '');
   // o proxy do Render devolve a ETag como fraca (W/"..."): compara sem o W/
   if (inm && inm.split(/\s*,\s*/).map(x => x.replace(/^W\//, '')).includes(item.etag)) { res.writeHead(304, cab); res.end(); return; }
