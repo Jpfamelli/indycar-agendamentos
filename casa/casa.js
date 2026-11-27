@@ -347,7 +347,7 @@
   }
 
   function desenharApps() {
-    const meus = ORDEM_APPS.map((k) => L.APPS[k]).filter((a) => podeUsar(perfil, a.k));
+    const meus = L.cartoesDaCasa(perfil, ORDEM_APPS);   // rodada 20: CRM e Atendimento são um cartão só
     $('#gradeApps').innerHTML = meus.length ? meus.map((a) => {
       const url = bases[a.k];
       /* rodada 11: o cartão mostra o número que importa daquele app (painel.js preenche); sem número, a frase curta do app */
@@ -355,8 +355,8 @@
       <a class="app" href="${esc(url)}" target="${esc(L.nomeDaAba(a.k))}" data-app="${esc(a.k)}">
         <span class="app-ico" aria-hidden="true">${a.ico}</span>
         <span class="app-nome">${esc(a.nome)}</span>
-        <span class="app-num" data-app-num="${esc(a.k)}" hidden></span>
-        <span class="app-desc" data-app-desc="${esc(a.k)}" data-padrao="${esc(a.desc)}">${esc(a.desc)}</span>
+        <span class="app-num" data-app-num="${esc(a.num)}" hidden></span>
+        <span class="app-desc" data-app-desc="${esc(a.num)}" data-padrao="${esc(a.desc)}">${esc(a.desc)}</span>
       </a>`;
     }).join('') : '<p class="vazio">Nenhum app liberado para você ainda. Peça ao administrador.</p>';
   }

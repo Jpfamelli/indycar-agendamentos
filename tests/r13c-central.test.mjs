@@ -40,7 +40,7 @@ const scriptSrc = (csp) => (csp || '').split(';').map((s) => s.trim()).find((s) 
 const connectSrc = (csp) => (csp || '').split(';').map((s) => s.trim()).find((s) => s.startsWith('connect-src ')) || '';
 
 test('CSP endurecida nos endereços que estavam fracos: Agenda, /confirmar/, Comunicar e Atendimento', async () => {
-  for (const rota of ['/agenda/', '/confirmar/?t=abc', '/comunicar/', '/atendimento/']) {
+  for (const rota of ['/agenda/', '/confirmar/?t=abc', '/comunicar/', '/atendimento/?embutido=1']) {   // rodada 20: /atendimento/ sozinho redireciona para /crm/
     const r = await pega(rota);
     const csp = r.headers.get('content-security-policy');
     assert.ok(csp, rota + ' sem CSP');

@@ -34,8 +34,8 @@ test('Casa enxuta: saudação curta, avisos, "Pede atenção agora" e os apps; n
 
 test('cartão de app: o número que importa (painel.js preenche) e a frase curta quando não há número', () => {
   const c = semComentarios(ler('casa.js'));
-  assert.match(c, /<span class="app-num" data-app-num="\$\{esc\(a\.k\)\}" hidden><\/span>/);
-  assert.match(c, /data-app-desc="\$\{esc\(a\.k\)\}" data-padrao="\$\{esc\(a\.desc\)\}"/);
+  assert.match(c, /<span class="app-num" data-app-num="\$\{esc\(a\.num\)\}" hidden><\/span>/);   // rodada 20: o cartão único "CRM e Atendimento" mostra o número das conversas
+  assert.match(c, /data-app-desc="\$\{esc\(a\.num\)\}" data-padrao="\$\{esc\(a\.desc\)\}"/);
   const p = semComentarios(ler('painel.js'));
   for (const t of ['conversas esperando', 'carros no pátio', 'orçamentos esperando resposta', 'horários hoje', 'contatos sem responsável']) assert.ok(p.includes(t), t);
   assert.doesNotMatch(p, /agora-cartao|desenharHoje|desenharDono|carregarChegadas/);

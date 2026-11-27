@@ -113,13 +113,14 @@ test('cada prefixo sem barra vira com barra (308) mantendo a consulta', async ()
 test('cada app servido no prefixo: HTML, JS, CSS, SW e manifest', async () => {
   for (const app of ['agenda', 'crm', 'comunicar', 'atendimento']) {
     for (const [arq, tipo] of [['', /text\/html/], ['app.js', /javascript/], ['styles.css', /text\/css/], ['sw.js', /javascript/], ['manifest.json', /json/], ['apps.js', /javascript/]]) {
-      const r = await pega(`/${app}/${arq}`);
+      /* rodada 20: a página do Atendimento só existe embutida no app CRM e Atendimento (sozinha, redireciona) */
+      const r = await pega(`/${app}/${arq}` + (app === 'atendimento' && arq === '' ? '?embutido=1' : ''));
       assert.equal(r.status, 200, `/${app}/${arq}`);
       assert.match(r.headers.get('content-type') || '', tipo, `/${app}/${arq}`);
     }
   }
   // o Atendimento recebe o <base href> do prefixo e a biblioteca do login vem do node_modules da raiz
-  const at = await (await pega('/atendimento/')).text();
+  const at = await (await pega('/atendimento/?embutido=1')).text();   // rodada 20: a página do Atendimento só existe embutida no app CRM e Atendimento
   assert.match(at, /<base href="\/atendimento\/"/);
   assert.equal((await pega('/atendimento/vendor/supabase.js')).status, 200);
 });

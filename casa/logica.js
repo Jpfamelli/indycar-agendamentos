@@ -167,6 +167,27 @@
     /* rodada 8: o Tráfego mora em /trafego/, mas a chave dele em perfis.apps, no sino e na aba nomeada continua "ads" */
     ads:         { k: 'ads',         nome: 'Tráfego',     desc: 'anúncios e de onde vêm os clientes', ico: '📢', base: '/trafego/' },
   };
+  /**
+   * Rodada 20: CRM e Atendimento viraram UM app, em /crm/ (o Orçador é uma aba dele). Na grade da Casa os dois cartões
+   * viram um só, "CRM e Atendimento", para quem pode usar qualquer um dos dois; o número do cartão é o de conversas
+   * esperando (quem não vê conversas fica com o de contatos sem responsável). Os outros apps seguem na ordem de sempre.
+   * Devolve [{ k, nome, desc, ico, num }]: k = app que o cartão abre; num = de qual app vem o número (painel.js).
+   */
+  const CARTAO_UNICO = { k: 'crm', nome: 'CRM e Atendimento', desc: 'conversas, funil e clientes', ico: '💬' };
+  function cartoesDaCasa(perfil, ordem) {
+    const out = [];
+    let unico = false;
+    for (const k of ordem || []) {
+      const a = APPS[k];
+      if (!a || !podeUsar(perfil, k)) continue;
+      if (k === 'crm' || k === 'atendimento') {
+        if (unico) continue;
+        unico = true;
+        out.push({ ...CARTAO_UNICO, num: podeUsar(perfil, 'atendimento') ? 'atendimento' : 'crm' });
+      } else out.push({ k: a.k, nome: a.nome, desc: a.desc, ico: a.ico, num: a.k });
+    }
+    return out;
+  }
   /** Nome da aba de cada app (window.open(url, nome)): a Casa nunca vira o app e clicar de novo volta para a aba dele. */
   /* rodada 13C: o Tráfego abre na aba "indycar-trafego", o mesmo nome que o CRM, o Comunicar e o próprio Tráfego usam
      (antes a Casa abria "indycar-ads" e o mesmo app ficava em duas abas). A chave em perfis.apps continua "ads". */
@@ -603,7 +624,7 @@
   root.CasaLogica = Object.freeze({
     esc, semAcento, destacar, soDigitos, telefoneE164, formatarTelefone, normalizarPlaca, formatarPlaca, brl, brlCurto, variacao, taxa,
     duracao, quando, hojeSP, diaDe, hora5, saudacao, ETAPAS, ETAPA, rotuloEtapa, tomDaEtapa, previsao, STATUS_ORC, rotuloOrc, numeroOrc,
-    STATUS_AG, rotuloAg, CHEGARAM, APPS, nomeDaAba, bases, links, appDoLink, orcadorNaCentral, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
+    STATUS_AG, rotuloAg, CHEGARAM, APPS, CARTAO_UNICO, cartoesDaCasa, nomeDaAba, bases, links, appDoLink, orcadorNaCentral, podeUsar, voltarSeguro, visao, EQUIPE, linkDaNotificacao, organizarNotificacoes,
     contagemPorApp, tituloDaAba, tempoDoAviso, atencao, gargalos, conversao, barras, diaCurto, classificarBusca, GRUPOS_BUSCA, linhasDaBusca, filtrarPorPermissao,
     ehCampo, ehUuid, FUSO, adaptarAgora, adaptarBusca, ETAPAS_ABERTAS_CRM, contarSemResponsavel, ORCADOR_NO_ATENDIMENTO, ORCADOR_NO_ATENDIMENTO_URL, ORCADOR_NA_CENTRAL_URL,
   });

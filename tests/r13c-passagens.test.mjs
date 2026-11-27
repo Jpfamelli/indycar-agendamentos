@@ -97,7 +97,8 @@ test('Central: /.env, /.git/config, /scripts/ e afins (raiz, /agenda/, /comunica
     assert.equal(r.status, 404, p);
     assert.doesNotMatch(await r.text(), /<html/i, p + ' não devolve a página');
   }
-  for (const p of ['/', '/agenda/', '/comunicar/', '/agenda/confirmar/', '/crm/', '/atendimento/']) assert.equal((await pega(p)).status, 200, p);
+  for (const p of ['/', '/agenda/', '/comunicar/', '/agenda/confirmar/', '/crm/', '/atendimento/?embutido=1']) assert.equal((await pega(p)).status, 200, p);
+  assert.equal((await pega('/atendimento/')).status, 302, 'rodada 20: a página do Atendimento aberta direto vai para o app CRM e Atendimento');
   assert.equal((await pega('/agenda/qualquer-tela')).status, 200, 'tela sem ponto continua com a página da Agenda');
   assert.equal((await pega('/?agendamento=x')).status, 308, 'link antigo da Agenda na raiz continua indo para /agenda/');
 });

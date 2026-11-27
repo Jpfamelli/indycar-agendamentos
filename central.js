@@ -5,6 +5,7 @@
 //   /crm/          → CRM          (apps/crm)
 //   /comunicar/    → Comunicar    (apps/comunicar — o carteiro roda aqui)
 //   /atendimento/  → Atendimento  (apps/atendimento — sincronia, automações e IA do funil)
+//                    rodada 20: a página dele só abre embutida no CRM ("CRM e Atendimento"); aberta direto, vai para /crm/
 //   /trafego/      → Tráfego      (apps/trafego — anúncios e de onde vêm os clientes; rodada 8, 19/11/2026)
 //   /orcador/      → Orçador      (apps/orcador — build pronto do repositório indycar-orcador; rodada 11, 21/11/2026)
 //   /api/ping      → saúde da Central (versões de cada app, memória)
@@ -28,6 +29,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, extname, normalize, sep } from 'node:path';
 import zlib from 'node:zlib';
 import { criarLinksCliente, criarFaturamento, podar } from './casa-servidor.js';
+import { destinoDoAtendimento } from './lib/crm-atendimento.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -458,6 +460,17 @@ export async function handler(req, res) {
       res.writeHead(302, { Location: base.replace(/\/+$/, '') + resto + busca, 'Content-Length': 0 });
       return res.end();
     }
+  }
+
+  /* 1c) rodada 20: CRM, Atendimento e Orçador são um app só, em /crm/. A página do Atendimento aberta direto (links antigos
+     da Casa, Agenda, Pátio e Tráfego, atalho instalado) vai para lá com o endereço antigo junto; a API, os arquivos e a
+     moldura ("?embutido=1") continuam com o Atendimento. 302 e sem cache: um redirecionamento permanente ficaria preso
+     no navegador de cada pessoa. Sem o CRM no ar, a página do Atendimento abre como antes. */
+  const unificado = APPS.crm?.handler && APPS.atendimento?.handler ? destinoDoAtendimento(caminho, busca, req.method) : null;
+  if (unificado) {
+    cabecalhos(res, { 'Cache-Control': 'no-store' });
+    res.writeHead(302, { Location: unificado, 'Content-Length': 0 });
+    return res.end();
   }
 
   // 2) os apps por prefixo (agenda, crm, comunicar, atendimento, trafego)
